@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://matter-workbench.local/schemas/extraction-record/v1",
+  "title": "Extraction Record (v1)",
+  "description": "Per-source-file extraction output produced by /extract; consumed by every downstream skill (chronology, claims, drafting). Cached on disk keyed by sha256 — re-running /extract on identical content is a no-op.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "file_id",
+    "sha256",
+    "source_path",
+    "engine",
+    "extracted_at",
+    "language_detected",
+    "page_count",
+    "pages"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "extraction-record/v1",
+      "description": "Frozen identifier for this schema. Additive changes ship as v1.x; breaking changes ship as a separate v2 file."
+    },
+    "file_id": {
+      "type": "string",
+      "pattern": "^FILE-\\d{4,}$",
+      "description": "Stable identifier assigned at intake by /matter-init. Citations use this."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the source file. Same value as File Register.csv:sha256."
+    },
+    "source_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path of the source file relative to the matter root, POSIX style."
+    },
+    "engine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Engine fingerprint, e.g. 'pdfjs-dist@4.0.0' or 'paddleocr@2.7.0+lang:en,hi'. Lets /doctor flag records produced by an outdated engine."
+    },
+    "extracted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 with timezone, e.g. '2026-04-25T14:32:18+05:30'."
+    },
+    "language_detected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{2,3}$"
+      },
+      "description": "BCP-47 primary subtags (en, hi, ta, bn, gu, mr, pa, ur, ...). May be empty if no text extracted."
+    },
+    "page_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of source pages. Non-paginated sources (emails, plain text) report 1."
+    },
+    "pages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/page" },
+      "description": "One entry per source page, in source order."
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form notes the extractor wants /doctor and the lawyer to see."
+    }
+  },
+  "$defs": {
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page", "ocr_required", "confidence_avg", "needs_review", "blocks"],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number. Matches lawyer convention ('page 3 of the petition')."
+        },
+        "ocr_required": {
+          "type": "boolean",
+          "description": "True if the page had no usable text layer and OCR was used (or is needed)."
+        },
+        "confidence_avg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mean per-character confidence across blocks on this page. 1.0 for clean text-layer pages."
+        },
+        "needs_review": {
+          "type": "boolean",
+          "description": "True when confidence is below threshold or the page contains stamps/handwriting the engine could not transcribe. /doctor surfaces these."
+        },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/block" }
+        }
+      }
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "text"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^p\\d+\\.b\\d+$",
+          "description": "Citation handle: pPAGE.bBLOCK, e.g. 'p3.b7'. Stable across re-extractions of identical content. The page number in the id MUST match the parent page's 'page' field."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["heading", "paragraph", "list_item", "table_row", "caption", "footnote"],
+          "description": "Block role. Skills can filter on this (e.g. chronology skips 'footnote')."
+        },
+        "text": {
+          "type": "string",
+          "description": "Extracted text (UTF-8). May be empty for blocks the engine detected but could not transcribe."
+        },
+        "bbox": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Optional [x0, y0, x1, y1] bounding box in PDF user-space units. Present when the engine provides it; useful for highlighting in a viewer."
+        }
+      }
+    }
+  }
+}
