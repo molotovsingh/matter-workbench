@@ -2,11 +2,14 @@
   "scripts": {
     "start": "node server.mjs",
     "matter-init:dry-run": "node matter-init-engine.mjs",
-    "matter-init": "node matter-init-engine.mjs --apply"
+    "matter-init": "node matter-init-engine.mjs --apply",
+    "extract:dry-run": "node extract-engine.mjs",
+    "extract": "node extract-engine.mjs --apply"
   },
   "private": true,
   "type": "module",
   "dependencies": {
-    "busboy": "^1.6.0"
+    "busboy": "^1.6.0",
+    "pdfjs-dist": "^4.10.38"
   }
 }
