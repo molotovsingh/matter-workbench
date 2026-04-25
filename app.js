@@ -18,6 +18,13 @@ const breadcrumbs = document.getElementById("breadcrumbs");
 const mattersPicker = document.getElementById("mattersPicker");
 const mattersList = document.getElementById("mattersList");
 const newMatterButton = document.getElementById("newMatterButton");
+const activityExplorer = document.getElementById("activityExplorer");
+const activitySettings = document.getElementById("activitySettings");
+
+function setActivityActive(which) {
+  activityExplorer.classList.toggle("active", which !== "settings");
+  activitySettings.classList.toggle("active", which === "settings");
+}
 const slashSkillButtons = document.querySelectorAll("[data-skill]");
 const requiredMetadataFields = Array.from(metadataForm.querySelectorAll("[data-required='true']"));
 
@@ -68,6 +75,7 @@ function setStatus({ mood, card, bar, terminal }) {
 function renderTreeNode(node, depth = 0) {
   if (node.kind === "file") {
     const previewable = node.previewable ? "true" : "false";
+    const previewKind = node.previewKind || "";
     const meta = node.size === undefined ? "" : `<span class="tree-meta">${formatBytes(node.size)}</span>`;
     return `
       <li class="tree-node tree-file">
@@ -76,6 +84,7 @@ function renderTreeNode(node, depth = 0) {
           type="button"
           data-file-path="${escapeHtml(node.path)}"
           data-previewable="${previewable}"
+          data-preview-kind="${escapeHtml(previewKind)}"
         >
           <span class="tree-name">${escapeHtml(node.name)}</span>
           ${meta}
@@ -152,6 +161,7 @@ function renderWorkspaceTree() {
 }
 
 function renderSkillOverview() {
+  setActivityActive("explorer");
   editorContent.innerHTML = `
     <h1>/matter-init</h1>
     <p>
@@ -363,7 +373,78 @@ async function switchToMatter(name) {
   }
 }
 
+function renderSettings() {
+  setActivityActive("settings");
+  breadcrumbs.textContent = "settings";
+  setStatus({
+    mood: "idle",
+    card: "<strong>Settings</strong>",
+    bar: "Settings",
+    terminal: "[settings] viewing",
+  });
+  const currentHome = mattersState.mattersHome || "";
+  editorContent.innerHTML = `
+    <h1>Settings</h1>
+    <h2>Matters home</h2>
+    <p>The folder where your matters live. Each subfolder under this path is one matter.</p>
+    <form class="new-matter-form" id="settingsForm">
+      <label>
+        <span>Path</span>
+        <input type="text" id="settingsMattersHome" value="${escapeHtml(currentHome)}" spellcheck="false" autocomplete="off" />
+      </label>
+      <p style="color:#9aa0a6;font-size:12px;">Changing this reloads the matters list. Existing matters at the old location are untouched on disk; they just stop appearing in the sidebar until you point back at that folder.</p>
+      <div class="form-actions">
+        <button type="submit" id="settingsSubmit">Save</button>
+        <button type="button" class="secondary" id="settingsCancel">Cancel</button>
+      </div>
+      <div id="settingsError" class="form-error" hidden></div>
+    </form>
+  `;
+  const form = document.getElementById("settingsForm");
+  const input = document.getElementById("settingsMattersHome");
+  const errorBox = document.getElementById("settingsError");
+  const submit = document.getElementById("settingsSubmit");
+  document.getElementById("settingsCancel").addEventListener("click", goToExplorer);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorBox.hidden = true;
+    const value = input.value.trim();
+    if (!value) {
+      errorBox.textContent = "Path is required.";
+      errorBox.hidden = false;
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = "Saving...";
+    try {
+      const response = await fetch("/api/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mattersHome: value }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `config returned ${response.status}`);
+      await bootstrap();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+      submit.disabled = false;
+      submit.textContent = "Save";
+    }
+  });
+}
+
+function goToExplorer() {
+  setActivityActive("explorer");
+  if (activeMatter.folderName) {
+    renderSkillOverview();
+  } else {
+    renderBlankLanding();
+  }
+}
+
 function renderFirstRun(defaultPath) {
+  setActivityActive("explorer");
   breadcrumbs.textContent = "first run";
   setStatus({
     mood: "idle",
@@ -419,6 +500,7 @@ function renderFirstRun(defaultPath) {
 }
 
 function renderBlankLanding() {
+  setActivityActive("explorer");
   activeMatter = {
     folderName: "",
     inputLabel: "",
@@ -526,6 +608,7 @@ function collectFilesFromInput(input) {
 }
 
 function renderNewMatterForm() {
+  setActivityActive("explorer");
   breadcrumbs.textContent = "workbench > new matter";
   setStatus({
     mood: "idle",
@@ -803,6 +886,7 @@ function renderNewMatterForm() {
 }
 
 function renderAddFilesForm() {
+  setActivityActive("explorer");
   if (!activeMatter.folderName) {
     setStatus({
       mood: "idle",
@@ -1119,19 +1203,47 @@ function renderMatterInitResult(result, modeLabel) {
   `;
 }
 
-async function openFilePreview(filePath, previewable) {
+async function openFilePreview(filePath, previewable, previewKind) {
+  const fileName = filePath.split("/").pop() || filePath;
+  breadcrumbs.textContent = `${activeMatter.folderName} > ${filePath}`;
+
   if (previewable !== "true") {
-    breadcrumbs.textContent = `${activeMatter.folderName} > ${filePath}`;
+    const rawUrl = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
     setStatus({
       mood: "idle",
-      card: "<strong>Preview unavailable</strong><br />This file type is listed in the explorer but is not opened as text.",
+      card: `<strong>Preview unavailable</strong><br />This file type isn't displayable in the browser yet.`,
       bar: "File Selected",
       terminal: `[explorer] selected ${filePath}`,
     });
+    editorContent.innerHTML = `
+      <h1>${escapeHtml(fileName)}</h1>
+      <p><code>${escapeHtml(filePath)}</code></p>
+      <p>This file type isn't previewable in the browser. You can download it to open in a native app:</p>
+      <p><a class="file-download-link" href="${rawUrl}" download="${escapeHtml(fileName)}">Download ${escapeHtml(fileName)}</a></p>
+    `;
     return;
   }
 
   statusBarRight.innerHTML = "<span>Opening File</span>";
+
+  if (previewKind === "pdf" || previewKind === "image") {
+    const rawUrl = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
+    setStatus({
+      mood: "idle",
+      card: `<strong>Previewing file</strong><br /><code>${escapeHtml(filePath)}</code>`,
+      bar: "File Preview",
+      terminal: `[explorer] opened ${filePath}`,
+    });
+    const body = previewKind === "pdf"
+      ? `<iframe class="file-pdf-frame" src="${rawUrl}" title="${escapeHtml(fileName)}"></iframe>`
+      : `<img class="file-image" src="${rawUrl}" alt="${escapeHtml(fileName)}" />`;
+    editorContent.innerHTML = `
+      <h1>${escapeHtml(fileName)}</h1>
+      <p><code>${escapeHtml(filePath)}</code> &nbsp; <a class="file-download-link" href="${rawUrl}" download="${escapeHtml(fileName)}">Download</a></p>
+      ${body}
+    `;
+    return;
+  }
 
   try {
     const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
@@ -1212,6 +1324,193 @@ async function runMatterInit(command) {
   }
 }
 
+async function runDoctor(command) {
+  if (!activeMatter.folderName) {
+    setStatus({
+      mood: "idle",
+      card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /doctor.",
+      bar: "No Matter",
+      terminal: "[doctor] no active matter",
+    });
+    return;
+  }
+  setActivityActive("explorer");
+  breadcrumbs.textContent = `${activeMatter.folderName} > /doctor`;
+  setStatus({
+    mood: "idle",
+    card: "<strong>Running /doctor</strong><br />Scanning matter for issues...",
+    bar: "Doctor Scanning",
+    terminal: `[doctor] scanning ${activeMatter.folderName}`,
+  });
+  editorContent.innerHTML = `<h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1><p>Scanning...</p>`;
+  try {
+    const response = await fetch("/api/doctor/scan", { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `doctor/scan returned ${response.status}`);
+    renderDoctorScan(payload.issues || []);
+  } catch (error) {
+    setStatus({
+      mood: "idle",
+      card: `<strong>Doctor scan failed</strong><br />${escapeHtml(error.message)}`,
+      bar: "Doctor Failed",
+      terminal: `[doctor] scan failed: ${error.message}`,
+    });
+    editorContent.innerHTML = `<h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1><p class="form-error">Scan failed: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderDoctorScan(issues) {
+  if (!issues.length) {
+    setStatus({
+      mood: "success",
+      card: "<strong>All clear</strong><br />No issues detected.",
+      bar: "Doctor Clean",
+      terminal: "[doctor] no issues found",
+    });
+    editorContent.innerHTML = `
+      <h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1>
+      <p>No issues detected. The matter's structure matches the current schema.</p>
+    `;
+    return;
+  }
+  setStatus({
+    mood: "idle",
+    card: `<strong>${issues.length} issue${issues.length === 1 ? "" : "s"} found</strong><br />Review and choose which to fix.`,
+    bar: "Doctor Issues",
+    terminal: [`[doctor] ${issues.length} issue(s) found`, ...issues.map((i) => `[doctor] - ${i.id} (${i.severity}): ${i.title}`)],
+  });
+  const cards = issues.map((issue) => `
+    <div class="doctor-issue" data-issue-id="${escapeHtml(issue.id)}">
+      <label class="doctor-issue-toggle">
+        <input type="checkbox" class="doctor-issue-checkbox" data-issue-id="${escapeHtml(issue.id)}" ${issue.autoFixable ? "checked" : "disabled"} />
+        <span class="doctor-issue-title">
+          <span class="doctor-issue-badge doctor-severity-${escapeHtml(issue.severity)}">${escapeHtml(issue.severity)}</span>
+          ${escapeHtml(issue.title)}
+        </span>
+      </label>
+      <div class="doctor-issue-body">
+        <p>${escapeHtml(issue.description)}</p>
+        ${issue.autoFixable
+          ? `<p class="doctor-fix-description"><strong>Auto-fix:</strong> ${escapeHtml(issue.fixDescription || "")}</p>`
+          : `<p class="doctor-fix-description"><em>No automatic fix; manual cleanup required.</em></p>`}
+      </div>
+    </div>
+  `).join("");
+  editorContent.innerHTML = `
+    <h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1>
+    <p>${issues.length} issue${issues.length === 1 ? "" : "s"} found. Backups go to <code>.doctor-backups/&lt;timestamp&gt;/</code> before any fix runs.</p>
+    <div class="doctor-issues">${cards}</div>
+    <div class="form-actions">
+      <button type="button" id="doctorFixSelected">Fix selected</button>
+      <button type="button" class="secondary" id="doctorFixAll">Fix all auto-fixable</button>
+      <button type="button" class="secondary" id="doctorCancel">Cancel</button>
+    </div>
+    <div id="doctorError" class="form-error" hidden></div>
+  `;
+  document.getElementById("doctorCancel").addEventListener("click", goToExplorer);
+  document.getElementById("doctorFixSelected").addEventListener("click", () => {
+    const selected = Array.from(document.querySelectorAll(".doctor-issue-checkbox"))
+      .filter((cb) => cb.checked && !cb.disabled)
+      .map((cb) => cb.dataset.issueId);
+    applyDoctorFixes(selected);
+  });
+  document.getElementById("doctorFixAll").addEventListener("click", () => {
+    const all = issues.filter((i) => i.autoFixable).map((i) => i.id);
+    applyDoctorFixes(all);
+  });
+}
+
+async function applyDoctorFixes(fixIds) {
+  const errorBox = document.getElementById("doctorError");
+  if (errorBox) errorBox.hidden = true;
+  if (!fixIds.length) {
+    if (errorBox) {
+      errorBox.textContent = "Select at least one issue to fix.";
+      errorBox.hidden = false;
+    }
+    return;
+  }
+  setStatus({
+    mood: "idle",
+    card: `<strong>Applying ${fixIds.length} fix${fixIds.length === 1 ? "" : "es"}</strong><br />Backing up and migrating...`,
+    bar: "Doctor Fixing",
+    terminal: `[doctor] applying ${fixIds.length} fix(es): ${fixIds.join(", ")}`,
+  });
+  try {
+    const response = await fetch("/api/doctor/fix", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fixIds }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `doctor/fix returned ${response.status}`);
+    await refreshWorkspace({ silent: true, preserveStatus: true, preserveEditor: true });
+    renderDoctorResult(payload);
+  } catch (error) {
+    if (errorBox) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+    }
+    setStatus({
+      mood: "idle",
+      card: `<strong>Doctor fix failed</strong><br />${escapeHtml(error.message)}`,
+      bar: "Doctor Failed",
+      terminal: `[doctor] fix failed: ${error.message}`,
+    });
+  }
+}
+
+function renderDoctorResult(payload) {
+  const applied = payload.applied || [];
+  const failed = payload.failed || [];
+  const remaining = payload.remaining || [];
+  const appliedCount = applied.length;
+  const allLogs = applied.flatMap((a) => a.log || []);
+  const backupDirs = applied.map((a) => a.backupDir).filter(Boolean);
+  setStatus({
+    mood: failed.length ? "idle" : "success",
+    card: failed.length
+      ? `<strong>Partial fix</strong><br />${appliedCount} applied, ${failed.length} failed.`
+      : `<strong>Doctor done</strong><br />${appliedCount} fix${appliedCount === 1 ? "" : "es"} applied.`,
+    bar: failed.length ? "Doctor Partial" : "Doctor Done",
+    terminal: [
+      `[doctor] applied ${appliedCount} fix(es)`,
+      ...allLogs.map((l) => `[doctor]   ${l}`),
+      ...failed.map((f) => `[doctor] FAILED ${f.id}: ${f.error}`),
+      `[doctor] remaining issues: ${remaining.length}`,
+    ],
+  });
+  const appliedHtml = applied.map((a) => `
+    <div class="doctor-issue">
+      <strong>${escapeHtml(a.id)}</strong>
+      <ul>${(a.log || []).map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>
+      ${a.backupDir ? `<p class="doctor-fix-description">Backup: <code>${escapeHtml(a.backupDir)}</code></p>` : ""}
+    </div>
+  `).join("");
+  const failedHtml = failed.map((f) => `
+    <div class="doctor-issue">
+      <span class="doctor-issue-badge doctor-severity-error">failed</span>
+      <strong>${escapeHtml(f.id)}</strong>: ${escapeHtml(f.error)}
+    </div>
+  `).join("");
+  const remainingHtml = remaining.length
+    ? `<h2>Remaining issues</h2><div class="doctor-issues">${remaining.map((i) => `<div class="doctor-issue"><span class="doctor-issue-badge doctor-severity-${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span> <strong>${escapeHtml(i.title)}</strong><p>${escapeHtml(i.description)}</p></div>`).join("")}</div>`
+    : "";
+  editorContent.innerHTML = `
+    <h1>/doctor result — ${escapeHtml(activeMatter.folderName)}</h1>
+    ${appliedCount ? `<h2>Applied</h2><div class="doctor-issues">${appliedHtml}</div>` : ""}
+    ${failed.length ? `<h2>Failed</h2><div class="doctor-issues">${failedHtml}</div>` : ""}
+    ${remainingHtml}
+    <div class="form-actions">
+      <button type="button" id="doctorReturn">Back to matter</button>
+      ${remaining.length ? `<button type="button" class="secondary" id="doctorRescan">Re-scan</button>` : ""}
+    </div>
+  `;
+  document.getElementById("doctorReturn").addEventListener("click", goToExplorer);
+  const rescan = document.getElementById("doctorRescan");
+  if (rescan) rescan.addEventListener("click", () => runDoctor("/doctor"));
+}
+
 function rejectUnknownSkill(command) {
   setStatus({
     mood: "idle",
@@ -1233,6 +1532,11 @@ commandForm.addEventListener("submit", (event) => {
     return;
   }
 
+  if (command === "/doctor") {
+    runDoctor(command);
+    return;
+  }
+
   rejectUnknownSkill(command);
 });
 
@@ -1241,7 +1545,11 @@ refreshExplorerButton.addEventListener("click", () => refreshWorkspace());
 workspaceTree.addEventListener("click", (event) => {
   const fileButton = event.target.closest("[data-file-path]");
   if (!fileButton) return;
-  openFilePreview(fileButton.dataset.filePath, fileButton.dataset.previewable);
+  openFilePreview(
+    fileButton.dataset.filePath,
+    fileButton.dataset.previewable,
+    fileButton.dataset.previewKind || "",
+  );
 });
 
 mattersList.addEventListener("click", (event) => {
@@ -1254,6 +1562,8 @@ mattersList.addEventListener("click", (event) => {
 
 newMatterButton.addEventListener("click", renderNewMatterForm);
 addFilesButton.addEventListener("click", renderAddFilesForm);
+activitySettings.addEventListener("click", renderSettings);
+activityExplorer.addEventListener("click", goToExplorer);
 
 slashSkillButtons.forEach((button) => {
   button.addEventListener("click", () => {

@@ -336,6 +336,97 @@ strong {
   gap: 6px;
 }
 
+.file-pdf-frame {
+  display: block;
+  width: 100%;
+  height: 75vh;
+  border: 1px solid #2f2f2f;
+  background: #0b0b0b;
+  margin-top: 12px;
+}
+
+.file-image {
+  display: block;
+  max-width: 100%;
+  max-height: 75vh;
+  margin-top: 12px;
+  border: 1px solid #2f2f2f;
+  background: #0b0b0b;
+}
+
+.file-download-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.doctor-issues {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doctor-issue {
+  background: #1a1a1a;
+  border: 1px solid #2f2f2f;
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+
+.doctor-issue-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.doctor-issue-checkbox {
+  margin: 0;
+}
+
+.doctor-issue-title {
+  font-weight: 600;
+}
+
+.doctor-issue-body {
+  margin-top: 8px;
+  margin-left: 22px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cfd4da;
+}
+
+.doctor-fix-description {
+  margin-top: 8px;
+  color: #9aa0a6;
+  font-size: 12px;
+}
+
+.doctor-issue-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.doctor-severity-warning {
+  background: #5b4a18;
+  color: #f5d57a;
+}
+
+.doctor-severity-error {
+  background: #5b1818;
+  color: #f5a0a0;
+}
+
+.doctor-severity-info {
+  background: #1c3654;
+  color: #b6dcff;
+}
+
 .form-info {
   background: #102234;
   border: 1px solid #25496a;
