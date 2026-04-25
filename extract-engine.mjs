@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { toPosix } from "./path-utils.mjs";
 import { extractPdf, PDF_ENGINE_FINGERPRINT } from "./extract-utils/pdf-extract.mjs";
 import { extractDocx, DOCX_ENGINE_FINGERPRINT } from "./extract-utils/docx-extract.mjs";
+import { extractXlsx, XLSX_ENGINE_FINGERPRINT } from "./extract-utils/xlsx-extract.mjs";
+import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +25,18 @@ function pickExtractor(row) {
       return { skipReason: "legacy .doc binary not supported (only .docx)" };
     }
     return { extractor: extractDocx, fingerprint: DOCX_ENGINE_FINGERPRINT, pathField: "docxPath" };
+  }
+  if (row.category === "Spreadsheets") {
+    if (ext === ".xls") {
+      return { skipReason: "legacy .xls binary not supported (only .xlsx/.csv)" };
+    }
+    return { extractor: extractXlsx, fingerprint: XLSX_ENGINE_FINGERPRINT, pathField: "xlsxPath" };
+  }
+  if (row.category === "Emails") {
+    if (ext === ".msg") {
+      return { skipReason: "Outlook .msg not yet supported (only .eml)" };
+    }
+    return { extractor: extractEml, fingerprint: EML_ENGINE_FINGERPRINT, pathField: "emlPath" };
   }
   return { skipReason: `category not yet supported: ${row.category}` };
 }
