@@ -1,16 +1,6 @@
-const commandForm = document.getElementById("commandForm");
-const commandInput = document.getElementById("commandInput");
-const statusCard = document.getElementById("statusCard");
 const terminalOutput = document.getElementById("terminalOutput");
 const editorContent = document.getElementById("editorContent");
 const statusBarRight = document.getElementById("statusBarRight");
-const metadataForm = document.getElementById("metadataForm");
-const clientNameInput = document.getElementById("clientNameInput");
-const matterNameInput = document.getElementById("matterNameInput");
-const oppositePartyInput = document.getElementById("oppositePartyInput");
-const matterTypeInput = document.getElementById("matterTypeInput");
-const jurisdictionInput = document.getElementById("jurisdictionInput");
-const briefDescriptionInput = document.getElementById("briefDescriptionInput");
 const workspaceTree = document.getElementById("workspaceTree");
 const refreshExplorerButton = document.getElementById("refreshExplorer");
 const addFilesButton = document.getElementById("addFilesButton");
@@ -26,7 +16,14 @@ function setActivityActive(which) {
   activitySettings.classList.toggle("active", which === "settings");
 }
 const slashSkillButtons = document.querySelectorAll("[data-skill]");
-const requiredMetadataFields = Array.from(metadataForm.querySelectorAll("[data-required='true']"));
+const REQUIRED_METADATA = [
+  { key: "clientName", label: "Client name" },
+  { key: "matterName", label: "Matter name" },
+  { key: "oppositeParty", label: "Opposite party" },
+  { key: "matterType", label: "Matter type" },
+  { key: "jurisdiction", label: "Jurisdiction" },
+];
+const TERMINAL_LINE_CAP = 500;
 
 let mattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
 
@@ -63,13 +60,23 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function setStatus({ mood, card, bar, terminal }) {
-  if (mood !== undefined) statusCard.className = `status-card ${mood}`;
-  if (card !== undefined) statusCard.innerHTML = card;
+function setStatus({ bar, terminal } = {}) {
   if (bar !== undefined) statusBarRight.innerHTML = `<span>${bar}</span>`;
-  if (terminal !== undefined) {
-    terminalOutput.textContent = Array.isArray(terminal) ? terminal.join("\n") : terminal;
-  }
+  if (terminal !== undefined) appendTerminal(terminal);
+}
+
+function appendTerminal(lines) {
+  const incoming = Array.isArray(lines) ? lines : [lines];
+  if (!incoming.length) return;
+  const stamp = new Date().toLocaleTimeString([], { hour12: false });
+  const stamped = incoming.map((line) => `${stamp} ${line}`);
+  const existing = terminalOutput.textContent ? terminalOutput.textContent.split("\n") : [];
+  const combined = existing.concat(stamped);
+  const trimmed = combined.length > TERMINAL_LINE_CAP
+    ? combined.slice(combined.length - TERMINAL_LINE_CAP)
+    : combined;
+  terminalOutput.textContent = trimmed.join("\n");
+  terminalOutput.scrollTop = terminalOutput.scrollHeight;
 }
 
 function renderTreeNode(node, depth = 0) {
@@ -162,61 +169,42 @@ function renderWorkspaceTree() {
 
 function renderSkillOverview() {
   setActivityActive("explorer");
+  const meta = activeMatter.metadata || {};
+  const fmt = (value, fallback) => escapeHtml(value && value.trim() ? value : fallback);
+  const missing = validateMetadata();
+  const missingNote = missing.length
+    ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Edit <code>matter.json</code> on disk and refresh, or recreate the matter via <code>+ New Matter</code>.</p>`
+    : "";
+
   editorContent.innerHTML = `
-    <h1>/matter-init</h1>
-    <p>
-      Intake slash skill for turning the open matter folder into a preserved,
-      normalized, review-ready workspace.
-    </p>
-    <dl class="skill-contract">
-      <div>
-        <dt>Input</dt>
-        <dd><code>${escapeHtml(activeMatter.inputLabel)}</code></dd>
-      </div>
-      <div>
-        <dt>Loaded</dt>
-        <dd>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders visible to the browser</dd>
-      </div>
-      <div>
-        <dt>Metadata</dt>
-        <dd>${escapeHtml(activeMatter.metadata.clientName || "Client not set")} v. ${escapeHtml(activeMatter.metadata.oppositeParty || "Opposite party not set")}</dd>
-      </div>
-      <div>
-        <dt>Output</dt>
-        <dd>matter.json preview, Originals, By Type, intake logs</dd>
-      </div>
-      <div>
-        <dt>Guardrail</dt>
-        <dd>original source remains untouched; ambiguity goes to lawyer review</dd>
-      </div>
+    <h1>${fmt(meta.matterName, activeMatter.folderName || "Matter")}</h1>
+    <p>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders loaded from <code>${escapeHtml(activeMatter.inputLabel)}</code>.</p>
+
+    <dl class="matter-info-card">
+      <dt>Client</dt><dd>${fmt(meta.clientName, "—")}</dd>
+      <dt>Matter name</dt><dd>${fmt(meta.matterName, "—")}</dd>
+      <dt>Opposite party</dt><dd>${fmt(meta.oppositeParty, "—")}</dd>
+      <dt>Matter type</dt><dd>${fmt(meta.matterType, "—")}</dd>
+      <dt>Jurisdiction</dt><dd>${fmt(meta.jurisdiction, "—")}</dd>
+      ${meta.briefDescription && meta.briefDescription.trim() ? `<dt>Description</dt><dd>${escapeHtml(meta.briefDescription)}</dd>` : ""}
     </dl>
+
+    ${missingNote}
+
+    <div class="form-actions">
+      <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Run /matter-init</button>
+      <button type="button" class="run-skill-button secondary" id="runDoctorButton">Run /doctor</button>
+    </div>
   `;
-}
 
-function collectMetadata() {
-  return {
-    clientName: clientNameInput.value.trim(),
-    matterName: matterNameInput.value.trim(),
-    oppositeParty: oppositePartyInput.value.trim(),
-    matterType: matterTypeInput.value.trim(),
-    jurisdiction: jurisdictionInput.value.trim(),
-    briefDescription: briefDescriptionInput.value.trim(),
-  };
-}
-
-function setMetadataInputs(metadata) {
-  clientNameInput.value = metadata.clientName || "";
-  matterNameInput.value = metadata.matterName || "";
-  oppositePartyInput.value = metadata.oppositeParty || "";
-  matterTypeInput.value = metadata.matterType || "";
-  jurisdictionInput.value = metadata.jurisdiction || "";
-  briefDescriptionInput.value = metadata.briefDescription || "";
-}
-
-function syncMetadataFromForm() {
-  activeMatter.metadata = collectMetadata();
-  renderSkillOverview();
-  renderWorkspaceTree();
+  const runInitButton = document.getElementById("runMatterInitButton");
+  if (runInitButton) {
+    runInitButton.addEventListener("click", () => runMatterInit("/matter-init"));
+  }
+  const runDoctorButton = document.getElementById("runDoctorButton");
+  if (runDoctorButton) {
+    runDoctorButton.addEventListener("click", () => runDoctor("/doctor"));
+  }
 }
 
 function metadataFromMatterJson(rawMatter, fallbackName = "") {
@@ -231,36 +219,24 @@ function metadataFromMatterJson(rawMatter, fallbackName = "") {
 }
 
 function validateMetadata() {
-  const missing = [];
-
-  requiredMetadataFields.forEach((field) => {
-    field.classList.remove("field-error");
-    if (!field.value.trim()) {
-      field.classList.add("field-error");
-      missing.push(field.previousElementSibling.textContent);
-    }
-  });
-
-  return missing;
+  const meta = activeMatter.metadata || {};
+  return REQUIRED_METADATA
+    .filter(({ key }) => !(meta[key] && meta[key].trim()))
+    .map(({ label }) => label);
 }
 
 function setActiveMatter(nextMatter, options = {}) {
   activeMatter = { ...activeMatter, ...nextMatter };
-  if (nextMatter.metadata) {
-    setMetadataInputs(activeMatter.metadata);
-  }
   if (addFilesButton) addFilesButton.hidden = !activeMatter.folderName;
-  breadcrumbs.textContent = `${activeMatter.folderName} > /matter-init`;
-  commandInput.value = "/matter-init";
+  breadcrumbs.textContent = activeMatter.folderName
+    ? `${activeMatter.folderName} > overview`
+    : "workbench";
   if (!options.preserveStatus) {
     setStatus({
-      mood: "idle",
-      card: "Folder loaded. Complete matter metadata, then run <code>/matter-init</code>",
-      bar: "Folder Loaded",
+      bar: "Matter Loaded",
       terminal: [
         `[folder] loaded ${activeMatter.inputLabel}`,
         `[folder] visible scan: ${activeMatter.fileCount} files, ${activeMatter.directoryCount} folders`,
-        "[idle] Complete metadata, then type /matter-init and run the skill.",
       ],
     });
   }
@@ -516,7 +492,6 @@ function renderBlankLanding() {
       briefDescription: "",
     },
   };
-  setMetadataInputs(activeMatter.metadata);
   if (addFilesButton) addFilesButton.hidden = true;
   workspaceTree.innerHTML = '<li class="tree-node">Pick a matter from the sidebar.</li>';
   breadcrumbs.textContent = "workbench > pick a matter";
@@ -1273,30 +1248,33 @@ async function openFilePreview(filePath, previewable, previewKind) {
 }
 
 async function runMatterInit(command) {
-  syncMetadataFromForm();
   const missingMetadata = validateMetadata();
 
   if (missingMetadata.length) {
     setStatus({
-      mood: "idle",
-      card: `<strong>Metadata required</strong><br />Missing: ${escapeHtml(missingMetadata.join(", "))}`,
       bar: "Metadata Missing",
       terminal: [
         `> workbench.run ${command}`,
-        "[phase-1] blocked: required matter metadata is incomplete",
-        `[phase-1] missing: ${missingMetadata.join(", ")}`,
+        "[matter-init] blocked: required matter metadata is incomplete",
+        `[matter-init] missing: ${missingMetadata.join(", ")}`,
       ],
     });
+    editorContent.innerHTML = `
+      <h1>${escapeHtml(activeMatter.metadata.matterName || activeMatter.folderName || "Matter")}</h1>
+      <div class="run-failure-card">
+        <strong>matter-init can't run yet</strong>
+        Missing required metadata: ${escapeHtml(missingMetadata.join(", "))}.<br />
+        Edit <code>matter.json</code> on disk and click Refresh, or recreate this matter via <code>+ New Matter</code>.
+      </div>
+    `;
     return;
   }
 
   setStatus({
-    mood: "idle",
-    card: "<strong>Running matter-init</strong><br />Hashing, preserving, arranging, and writing review logs.",
     bar: "Running Skill",
     terminal: [
       `> workbench.run ${command}`,
-      "[phase-1] running deterministic local intake...",
+      "[matter-init] running deterministic local intake...",
     ],
   });
 
@@ -1307,20 +1285,45 @@ async function runMatterInit(command) {
       body: JSON.stringify({ metadata: activeMatter.metadata }),
     });
 
-    if (!response.ok) throw new Error(`matter-init API returned ${response.status}`);
+    if (!response.ok) {
+      let detail = `${response.status}`;
+      try {
+        const payload = await response.json();
+        if (payload && payload.error) detail = `${response.status}: ${payload.error}`;
+      } catch {
+        /* response had no JSON body */
+      }
+      throw new Error(`matter-init API returned ${detail}`);
+    }
 
     const result = await response.json();
     activeMatter.fileCount = result.counts.scannedFiles;
     renderMatterInitResult(result, "write");
     await refreshWorkspace({ silent: true, preserveStatus: true, preserveEditor: true });
   } catch (error) {
-    renderMatterInitResult({
-      matterJson: buildMatterJson(),
-      outputLines: [
-        ...buildPreviewResultLines(command),
-        `[phase-1] local write API unavailable: ${error.message}`,
+    setStatus({
+      bar: "Run Failed",
+      terminal: [
+        `[matter-init] aborted: ${error.message}`,
+        "[matter-init] no files were written",
       ],
-    }, "preview");
+    });
+    editorContent.innerHTML = `
+      <h1>${escapeHtml(activeMatter.metadata.matterName || activeMatter.folderName || "Matter")}</h1>
+      <div class="run-failure-card">
+        <strong>matter-init failed</strong>
+        ${escapeHtml(error.message)}<br />
+        No files were written. Check that the local server is running, then try again.
+      </div>
+      <div class="form-actions">
+        <button type="button" class="run-skill-button" id="runMatterInitRetry">Try again</button>
+        <button type="button" class="run-skill-button secondary" id="runMatterInitBack">Back to overview</button>
+      </div>
+    `;
+    const retry = document.getElementById("runMatterInitRetry");
+    if (retry) retry.addEventListener("click", () => runMatterInit(command));
+    const back = document.getElementById("runMatterInitBack");
+    if (back) back.addEventListener("click", goToExplorer);
   }
 }
 
@@ -1511,35 +1514,6 @@ function renderDoctorResult(payload) {
   if (rescan) rescan.addEventListener("click", () => runDoctor("/doctor"));
 }
 
-function rejectUnknownSkill(command) {
-  setStatus({
-    mood: "idle",
-    card: `<strong>Unknown slash skill</strong><br /><code>${command || "(empty)"}</code> is not active in Phase 1.`,
-    bar: "Skill Not Found",
-    terminal: [
-      `> workbench.run ${command || "(empty)"}`,
-      "[phase-1] rejected: only /matter-init is active in this prototype",
-    ],
-  });
-}
-
-commandForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const command = commandInput.value.trim();
-
-  if (command === "/matter-init") {
-    runMatterInit(command);
-    return;
-  }
-
-  if (command === "/doctor") {
-    runDoctor(command);
-    return;
-  }
-
-  rejectUnknownSkill(command);
-});
-
 refreshExplorerButton.addEventListener("click", () => refreshWorkspace());
 
 workspaceTree.addEventListener("click", (event) => {
@@ -1567,31 +1541,20 @@ activityExplorer.addEventListener("click", goToExplorer);
 
 slashSkillButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    commandInput.value = button.dataset.skill;
-    commandInput.focus();
-    commandInput.select();
-    setStatus({
-      mood: "idle",
-      card: "Ready to run <code>/matter-init</code>",
-      bar: "Skill Ready",
-    });
+    slashSkillButtons.forEach((other) => other.classList.toggle("active", other === button));
+    if (!activeMatter.folderName) {
+      setStatus({
+        bar: "No Matter",
+        terminal: "[skills] no matter loaded; pick one from the sidebar",
+      });
+      return;
+    }
+    const skill = button.dataset.skill;
+    if (skill === "/matter-init") runMatterInit(skill);
+    else if (skill === "/doctor") runDoctor(skill);
   });
 });
 
-metadataForm.addEventListener("input", () => {
-  requiredMetadataFields.forEach((field) => {
-    if (field.value.trim()) field.classList.remove("field-error");
-  });
-  syncMetadataFromForm();
-  setStatus({
-    mood: "idle",
-    card: "Metadata changed. Run <code>/matter-init</code> to refresh the preview.",
-    bar: "Skill Ready",
-    terminal: "[idle] Metadata changed. Run /matter-init to refresh the intake preview.",
-  });
-});
-
-setMetadataInputs(activeMatter.metadata);
 renderWorkspaceTree();
 
 async function bootstrap() {

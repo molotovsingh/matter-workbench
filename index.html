@@ -58,111 +58,17 @@
           <div class="title-right">local</div>
         </header>
 
-        <section class="command-strip">
-          <div class="command-label">Slash Skill</div>
-          <form id="commandForm" class="command-entry">
-            <input
-              id="commandInput"
-              class="command-input"
-              type="text"
-              value="/matter-init"
-              autocomplete="off"
-              spellcheck="false"
-              aria-label="Slash skill command"
-            />
-            <button id="runCommand" class="run-skill" type="submit">Run</button>
-          </form>
-        </section>
-
         <section class="editor-layout">
           <div class="editor-pane">
-            <div class="tab-bar">
-              <button class="tab active">matter.overview</button>
-              <button class="tab">README.md</button>
-              <button class="tab">00_Case_Index.md</button>
-            </div>
-
             <div class="editor-toolbar">
               <div id="breadcrumbs" class="breadcrumbs">workbench</div>
             </div>
 
             <article class="editor-content" id="editorContent">
-              <h1>/matter-init</h1>
-              <p>
-                Intake slash skill for turning the existing messy matter root
-                into a preserved, normalized, review-ready workspace.
-              </p>
-
-              <dl class="skill-contract">
-                <div>
-                  <dt>Input</dt>
-                  <dd><code>/Users/aks/case_naveen</code></dd>
-                </div>
-                <div>
-                  <dt>Transformation</dt>
-                  <dd>folder plus matter metadata to organized intake workspace</dd>
-                </div>
-                <div>
-                  <dt>Output</dt>
-                  <dd>matter.json preview, Originals, By Type, intake logs</dd>
-                </div>
-                <div>
-                  <dt>Guardrail</dt>
-                  <dd>original source remains untouched; ambiguity goes to lawyer review</dd>
-                </div>
-              </dl>
+              <h1>Welcome</h1>
+              <p>Loading workbench...</p>
             </article>
           </div>
-
-          <aside class="inspector-pane">
-            <div class="panel-section">
-              <div class="panel-title">Matter Metadata</div>
-              <form id="metadataForm" class="metadata-form">
-                <label>
-                  <span>Client name</span>
-                  <input id="clientNameInput" type="text" value="Naveen Sharma" data-required="true" />
-                </label>
-                <label>
-                  <span>Matter name</span>
-                  <input id="matterNameInput" type="text" value="Naveen Vs Mohit" data-required="true" />
-                </label>
-                <label>
-                  <span>Opposite party</span>
-                  <input id="oppositePartyInput" type="text" value="Mohit" data-required="true" />
-                </label>
-                <label>
-                  <span>Matter type</span>
-                  <input id="matterTypeInput" type="text" value="Company Law" data-required="true" />
-                </label>
-                <label>
-                  <span>Jurisdiction</span>
-                  <input id="jurisdictionInput" type="text" value="India" data-required="true" />
-                </label>
-                <label>
-                  <span>Brief description</span>
-                  <textarea id="briefDescriptionInput" rows="3">Phase 1 intake workbench only.</textarea>
-                </label>
-              </form>
-            </div>
-
-            <div class="panel-section">
-              <div class="panel-title">Skill Contract</div>
-              <ol class="pipeline-list">
-                <li>Confirm Phase 1 folder scaffold</li>
-                <li>Write matter metadata preview</li>
-                <li>Preserve source in Originals</li>
-                <li>Arrange copies by file type</li>
-                <li>Generate inbox logs for review</li>
-              </ol>
-            </div>
-
-            <div class="panel-section">
-              <div class="panel-title">Status</div>
-              <div id="statusCard" class="status-card idle">
-                Ready to run <code>/matter-init</code>
-              </div>
-            </div>
-          </aside>
         </section>
 
         <section class="bottom-panel">
@@ -170,8 +76,7 @@
             <span>Output</span>
             <span class="bottom-meta">matter-init.log</span>
           </div>
-          <pre id="terminalOutput" class="terminal-output">[idle] Waiting for command...
-          </pre>
+          <pre id="terminalOutput" class="terminal-output"></pre>
         </section>
 
         <footer class="status-bar">

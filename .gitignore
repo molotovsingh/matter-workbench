@@ -6,3 +6,4 @@ node_modules/
 output/
 config.json
 .doctor-backups/
+.claude/

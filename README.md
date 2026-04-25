@@ -116,46 +116,36 @@ structured intake tree.
 
 ```bash
 cd /Users/aks/matter_workbench
-MATTER_ROOT=/absolute/path/to/matter npm start
+npm start
 ```
 
-Then open `http://127.0.0.1:4173/`.
+Then open `http://127.0.0.1:4173/`. On first launch the app asks where your
+matters should live and creates that folder for you. Use **+ New Matter** in
+the sidebar to create a matter, or pick an existing one from the **Matters**
+list.
 
-Example:
+## Switching matters
+
+The sidebar shows every matter under your matters home. Click any entry in the
+**Matters** list to switch to it. The workspace tree, metadata, and breadcrumb
+update in place — no server restart required. Use **+ New Matter** to add
+another.
+
+## Developer fallback: pinning a single matter at startup
+
+For scripted runs or when iterating on a specific case folder, point the server
+at one matter root with the `MATTER_ROOT` environment variable:
 
 ```bash
-cd /Users/aks/matter_workbench
 MATTER_ROOT=/Users/aks/case_naveen npm start
 ```
 
-The deterministic engine can also be run from the terminal:
+The same engine can also be invoked directly from the terminal without the UI:
 
 ```bash
 MATTER_ROOT=/absolute/path/to/matter npm run matter-init:dry-run
 MATTER_ROOT=/absolute/path/to/matter npm run matter-init
 ```
-
-## Switching matters
-
-One matter per server process. To switch to a different matter, stop and
-restart the server:
-
-1. In the terminal where `npm start` is running, press `Ctrl+C`.
-2. Press the up-arrow to recall the previous command, then edit the `MATTER_ROOT`
-   path.
-3. Press Enter. Reload `http://127.0.0.1:4173/`.
-
-```bash
-# First session
-MATTER_ROOT=/Users/aks/case_naveen npm start
-# Ctrl+C, then up-arrow, edit path, Enter:
-MATTER_ROOT=/Users/aks/case_mohit npm start
-```
-
-This is deliberate — one process per matter keeps state clean and catches
-state-leakage bugs early. If you iterate on many matters, a shell alias or a
-two-terminal setup (one process per matter) beats an in-app switcher for this
-phase.
 
 ## Files
 
