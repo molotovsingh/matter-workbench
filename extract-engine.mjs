@@ -5,11 +5,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toPosix } from "./path-utils.mjs";
 import { extractPdf, PDF_ENGINE_FINGERPRINT } from "./extract-utils/pdf-extract.mjs";
+import { extractDocx, DOCX_ENGINE_FINGERPRINT } from "./extract-utils/docx-extract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ENGINE_VERSION = "extract-v1-deterministic";
+
+function pickExtractor(row) {
+  const lowerName = (row.original_name || "").toLowerCase();
+  const ext = lowerName.includes(".") ? lowerName.slice(lowerName.lastIndexOf(".")) : "";
+  if (row.category === "PDFs") {
+    return { extractor: extractPdf, fingerprint: PDF_ENGINE_FINGERPRINT, pathField: "pdfPath" };
+  }
+  if (row.category === "Word Documents") {
+    if (ext === ".doc") {
+      return { skipReason: "legacy .doc binary not supported (only .docx)" };
+    }
+    return { extractor: extractDocx, fingerprint: DOCX_ENGINE_FINGERPRINT, pathField: "docxPath" };
+  }
+  return { skipReason: `category not yet supported: ${row.category}` };
+}
 
 function csvEscape(value) {
   const text = value === undefined || value === null ? "" : String(value);
@@ -125,7 +141,7 @@ export async function runExtract(options = {}) {
     extracted: 0,
     cached: 0,
     skippedDuplicate: 0,
-    skippedNonPdf: 0,
+    skippedUnsupported: 0,
     ocrRequiredFiles: 0,
     failed: 0,
   };
@@ -157,7 +173,7 @@ export async function runExtract(options = {}) {
         intake_id: row.intake_id || intake.intake_id,
         source_path: row.source_path,
         sha256: row.sha256,
-        engine: PDF_ENGINE_FINGERPRINT,
+        engine: "",
         page_count: "",
         ocr_required_pages: "",
         multi_column_pages: "",
@@ -172,16 +188,18 @@ export async function runExtract(options = {}) {
         intakeSkipped += 1;
         continue;
       }
-      if (row.category !== "PDFs") {
-        logRows.push({ ...baseLogRow, status: "skipped-non-pdf", notes: `category: ${row.category}` });
-        counts.skippedNonPdf += 1;
+
+      const route = pickExtractor(row);
+      if (route.skipReason) {
+        logRows.push({ ...baseLogRow, status: "skipped-unsupported-format", notes: route.skipReason });
+        counts.skippedUnsupported += 1;
         intakeSkipped += 1;
         continue;
       }
 
-      const pdfAbsolute = path.join(matterRoot, row.working_copy_path);
-      if (!(await pathExists(pdfAbsolute))) {
-        logRows.push({ ...baseLogRow, status: "failed", notes: `working copy missing: ${row.working_copy_path}` });
+      const sourceAbsolute = path.join(matterRoot, row.working_copy_path);
+      if (!(await pathExists(sourceAbsolute))) {
+        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `working copy missing: ${row.working_copy_path}` });
         counts.failed += 1;
         intakeFailed += 1;
         outputLines.push(`[extract] ${row.file_id}: missing on disk`);
@@ -194,6 +212,7 @@ export async function runExtract(options = {}) {
         logRows.push({
           ...baseLogRow,
           status: "cached",
+          engine: cached.engine || route.fingerprint,
           page_count: cached.page_count ?? "",
           extracted_at: cached.extracted_at || "",
         });
@@ -205,20 +224,21 @@ export async function runExtract(options = {}) {
       const t0 = Date.now();
       let extraction;
       try {
-        extraction = await extractPdf({
-          pdfPath: pdfAbsolute,
+        extraction = await route.extractor({
+          [route.pathField]: sourceAbsolute,
           fileId: row.file_id,
           sha256: row.sha256,
           sourcePath: row.working_copy_path,
         });
       } catch (err) {
-        logRows.push({ ...baseLogRow, status: "failed", notes: `unhandled: ${err.message}` });
+        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `unhandled: ${err.message}` });
         counts.failed += 1;
         intakeFailed += 1;
         outputLines.push(`[extract] ${row.file_id}: failed (${err.message})`);
         continue;
       }
       const elapsed = Date.now() - t0;
+      baseLogRow.engine = route.fingerprint;
 
       if (extraction.failureReason) {
         logRows.push({ ...baseLogRow, status: "failed", time_taken_ms: elapsed, notes: extraction.failureReason });
@@ -284,7 +304,7 @@ export async function runExtract(options = {}) {
   }
 
   outputLines.push(
-    `[extract] totals: ${counts.extracted} extracted, ${counts.cached} cached, ${counts.skippedNonPdf + counts.skippedDuplicate} skipped (${counts.skippedNonPdf} non-pdf, ${counts.skippedDuplicate} duplicate), ${counts.ocrRequiredFiles} ocr-required-all, ${counts.failed} failed`,
+    `[extract] totals: ${counts.extracted} extracted, ${counts.cached} cached, ${counts.skippedUnsupported + counts.skippedDuplicate} skipped (${counts.skippedUnsupported} unsupported-format, ${counts.skippedDuplicate} duplicate), ${counts.ocrRequiredFiles} ocr-required-all, ${counts.failed} failed`,
   );
   if (dryRun) outputLines.push("[extract] dry run only. Re-run with --apply to write records.");
 
@@ -303,7 +323,7 @@ function emptyResult(dryRun, matterRoot, reason) {
     dryRun,
     matterRoot,
     engineVersion: ENGINE_VERSION,
-    counts: { totalFiles: 0, extracted: 0, cached: 0, skippedDuplicate: 0, skippedNonPdf: 0, ocrRequiredFiles: 0, failed: 0 },
+    counts: { totalFiles: 0, extracted: 0, cached: 0, skippedDuplicate: 0, skippedUnsupported: 0, ocrRequiredFiles: 0, failed: 0 },
     perIntake: [],
     outputLines: [`[extract] ${reason}`],
   };
