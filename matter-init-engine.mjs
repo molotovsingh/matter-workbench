@@ -212,8 +212,8 @@ async function readExistingMatterJson(matterRoot) {
   }
 }
 
-function resolvePaths(matterRoot) {
-  const intakeDir = path.join(matterRoot, "00_Inbox", INTAKE_DIR_NAME);
+function resolvePaths(matterRoot, intakeDirName) {
+  const intakeDir = path.join(matterRoot, "00_Inbox", intakeDirName);
   return {
     matterRoot,
     intakeDir,
@@ -234,7 +234,13 @@ export async function runMatterInit(options = {}) {
   const matterRoot = path.resolve(configuredMatterRoot);
   const metadata = options.metadata || {};
   const dryRun = Boolean(options.dryRun);
-  const paths = resolvePaths(matterRoot);
+  const intakeId = options.intakeId || INTAKE_ID;
+  const intakeDirName = options.intakeDirName || INTAKE_DIR_NAME;
+  const fileIdStart = Number.isFinite(options.fileIdStart) ? options.fileIdStart : 1;
+  const priorHashes = options.priorHashes instanceof Map ? options.priorHashes : new Map();
+  const receivedDate = options.receivedDate || new Date().toISOString().slice(0, 10);
+  const intakeLabel = options.intakeLabel || (intakeDirName === INTAKE_DIR_NAME ? "Initial" : "");
+  const paths = resolvePaths(matterRoot, intakeDirName);
   const rootStaging = await stageLooseRootFiles(paths, dryRun);
 
   const sourceFiles = [];
@@ -264,11 +270,32 @@ export async function runMatterInit(options = {}) {
 
   for (const [index, sourceFile] of sourceFiles.entries()) {
     const { sourcePath, relativeSource } = sourceFile;
-    const fileId = `FILE-${String(index + 1).padStart(4, "0")}`;
+    const fileId = `FILE-${String(fileIdStart + index).padStart(4, "0")}`;
     const sourceHash = await sha256(sourcePath);
     const fileStat = await stat(sourcePath);
-    const duplicateOf = seenByHash.get(sourceHash) || "";
-    if (!duplicateOf) seenByHash.set(sourceHash, fileId);
+
+    const priorMatch = priorHashes.get(sourceHash) || "";
+    if (priorMatch) {
+      fileRegisterRows.push({
+        file_id: fileId,
+        intake_id: intakeId,
+        source_path: toPosix(path.relative(matterRoot, sourcePath)),
+        original_path: "",
+        working_copy_path: "",
+        category: classifyFile(sourcePath),
+        original_name: path.basename(sourcePath),
+        sha256: sourceHash,
+        size_bytes: fileStat.size,
+        duplicate_of: priorMatch,
+        status: "duplicate-of-prior-intake",
+        engine_version: ENGINE_VERSION,
+        notes: `Already present from prior intake as ${priorMatch}; not re-copied.`,
+      });
+      continue;
+    }
+
+    const intraBatchDup = seenByHash.get(sourceHash) || "";
+    if (!intraBatchDup) seenByHash.set(sourceHash, fileId);
 
     const originalDestination = path.join(paths.originalsDir, relativeSource);
     const category = classifyFile(sourcePath);
@@ -282,7 +309,7 @@ export async function runMatterInit(options = {}) {
 
     fileRegisterRows.push({
       file_id: fileId,
-      intake_id: INTAKE_ID,
+      intake_id: intakeId,
       source_path: toPosix(path.relative(matterRoot, sourcePath)),
       original_path: toPosix(path.relative(matterRoot, originalDestination)),
       working_copy_path: toPosix(path.relative(matterRoot, workingCopyDestination)),
@@ -290,24 +317,28 @@ export async function runMatterInit(options = {}) {
       original_name: path.basename(sourcePath),
       sha256: sourceHash,
       size_bytes: fileStat.size,
-      duplicate_of: duplicateOf,
-      status: duplicateOf ? "exact-duplicate" : "unique",
+      duplicate_of: intraBatchDup,
+      status: intraBatchDup ? "exact-duplicate" : "unique",
       engine_version: ENGINE_VERSION,
-      notes: duplicateOf ? `Exact duplicate of ${duplicateOf}.` : "First-seen file for this checksum.",
+      notes: intraBatchDup ? `Exact duplicate of ${intraBatchDup}.` : "First-seen file for this checksum.",
     });
   }
 
   const uniqueFiles = fileRegisterRows.filter((row) => row.status === "unique").length;
-  const duplicateFiles = fileRegisterRows.length - uniqueFiles;
+  const duplicatesInBatch = fileRegisterRows.filter((row) => row.status === "exact-duplicate").length;
+  const duplicatesOfPrior = fileRegisterRows.filter((row) => row.status === "duplicate-of-prior-intake").length;
   const intakeLogRows = [{
-    intake_id: INTAKE_ID,
+    intake_id: intakeId,
     intake_dir: toPosix(path.relative(matterRoot, paths.intakeDir)),
+    received_date: receivedDate,
+    label: intakeLabel,
     source_dir: toPosix(path.relative(matterRoot, paths.sourceDir)),
     originals_dir: toPosix(path.relative(matterRoot, paths.originalsDir)),
     by_type_dir: toPosix(path.relative(matterRoot, paths.byTypeDir)),
     scanned_files: fileRegisterRows.length,
     unique_files: uniqueFiles,
-    duplicate_files: duplicateFiles,
+    duplicates_in_batch: duplicatesInBatch,
+    duplicates_of_prior: duplicatesOfPrior,
     originals_copied: originalsCopied,
     working_copies_copied: workingCopiesCopied,
     loose_root_files_seen: rootStaging.rows.length,
@@ -317,6 +348,45 @@ export async function runMatterInit(options = {}) {
   }];
 
   const existingMatter = await readExistingMatterJson(matterRoot);
+  const newIntakeEntry = {
+    intake_id: intakeId,
+    engine_version: ENGINE_VERSION,
+    intake_dir: toPosix(path.relative(matterRoot, paths.intakeDir)),
+    received_date: receivedDate,
+    label: intakeLabel,
+    source_dir: toPosix(path.relative(matterRoot, paths.sourceDir)),
+    originals_dir: toPosix(path.relative(matterRoot, paths.originalsDir)),
+    by_type_dir: toPosix(path.relative(matterRoot, paths.byTypeDir)),
+    intake_log: toPosix(path.relative(matterRoot, paths.intakeLogPath)),
+    file_register: toPosix(path.relative(matterRoot, paths.fileRegisterPath)),
+    scanned_files: fileRegisterRows.length,
+    unique_files: uniqueFiles,
+    duplicates_in_batch: duplicatesInBatch,
+    duplicates_of_prior: duplicatesOfPrior,
+    loose_root_files_seen: rootStaging.rows.length,
+    loose_root_files_staged: rootStaging.copied,
+    loose_root_source_files: rootStaging.rows.map((row) => ({
+      source_path: row.source_path,
+      staged_path: row.staged_path,
+      status: row.status,
+    })),
+  };
+
+  let priorIntakes = Array.isArray(existingMatter.intakes) ? [...existingMatter.intakes] : [];
+  if (!priorIntakes.length && existingMatter.phase_1_intake) {
+    priorIntakes = [{
+      ...existingMatter.phase_1_intake,
+      intake_id: existingMatter.phase_1_intake.intake_id || "INTAKE-01",
+      intake_dir: existingMatter.phase_1_intake.intake_dir || "00_Inbox/Intake 01 - Initial",
+      received_date: existingMatter.phase_1_intake.received_date || "",
+      label: existingMatter.phase_1_intake.label || "Initial",
+    }];
+  }
+  const intakesArray = [
+    ...priorIntakes.filter((entry) => entry.intake_id !== intakeId),
+    newIntakeEntry,
+  ];
+
   const matterJson = {
     ...existingMatter,
     matter_name: metadata.matterName || existingMatter.matter_name || "",
@@ -326,26 +396,9 @@ export async function runMatterInit(options = {}) {
     jurisdiction: metadata.jurisdiction || existingMatter.jurisdiction || "",
     brief_description: metadata.briefDescription || existingMatter.brief_description || "",
     workspace_mode: existingMatter.workspace_mode || "legal",
-    phase_1_intake: {
-      intake_id: INTAKE_ID,
-      engine_version: ENGINE_VERSION,
-      source_dir: toPosix(path.relative(matterRoot, paths.sourceDir)),
-      originals_dir: toPosix(path.relative(matterRoot, paths.originalsDir)),
-      by_type_dir: toPosix(path.relative(matterRoot, paths.byTypeDir)),
-      intake_log: toPosix(path.relative(matterRoot, paths.intakeLogPath)),
-      file_register: toPosix(path.relative(matterRoot, paths.fileRegisterPath)),
-      scanned_files: fileRegisterRows.length,
-      unique_files: uniqueFiles,
-      duplicate_files: duplicateFiles,
-      loose_root_files_seen: rootStaging.rows.length,
-      loose_root_files_staged: rootStaging.copied,
-      loose_root_source_files: rootStaging.rows.map((row) => ({
-        source_path: row.source_path,
-        staged_path: row.staged_path,
-        status: row.status,
-      })),
-    },
+    intakes: intakesArray,
   };
+  delete matterJson.phase_1_intake;
 
   if (!dryRun) {
     await mkdir(paths.intakeDir, { recursive: true });
@@ -354,12 +407,15 @@ export async function runMatterInit(options = {}) {
       toCsv(intakeLogRows, [
         "intake_id",
         "intake_dir",
+        "received_date",
+        "label",
         "source_dir",
         "originals_dir",
         "by_type_dir",
         "scanned_files",
         "unique_files",
-        "duplicate_files",
+        "duplicates_in_batch",
+        "duplicates_of_prior",
         "originals_copied",
         "working_copies_copied",
         "loose_root_files_seen",
@@ -398,11 +454,18 @@ export async function runMatterInit(options = {}) {
     counts: {
       scannedFiles: fileRegisterRows.length,
       uniqueFiles,
-      duplicateFiles,
+      duplicatesInBatch,
+      duplicatesOfPrior,
       originalsCopied,
       workingCopiesCopied,
       looseRootFilesSeen: rootStaging.rows.length,
       looseRootFilesStaged: rootStaging.copied,
+    },
+    intake: {
+      intake_id: intakeId,
+      intake_dir_name: intakeDirName,
+      received_date: receivedDate,
+      label: intakeLabel,
     },
     categories: fileRegisterRows.reduce((accumulator, row) => {
       accumulator[row.category] = (accumulator[row.category] || 0) + 1;
@@ -424,7 +487,8 @@ export async function runMatterInit(options = {}) {
       `[intake] source: ${toPosix(path.relative(matterRoot, paths.sourceDir))}`,
       `[intake] scanned ${fileRegisterRows.length} files`,
       `[intake] unique files: ${uniqueFiles}`,
-      `[intake] exact duplicates: ${duplicateFiles}`,
+      `[intake] exact duplicates in batch: ${duplicatesInBatch}`,
+      `[intake] duplicates of prior intake: ${duplicatesOfPrior}`,
       `[intake] originals: ${toPosix(path.relative(matterRoot, paths.originalsDir))}`,
       `[intake] by type: ${toPosix(path.relative(matterRoot, paths.byTypeDir))}`,
       `[intake] wrote logs: ${toPosix(path.relative(matterRoot, paths.intakeLogPath))}, ${toPosix(path.relative(matterRoot, paths.fileRegisterPath))}`,

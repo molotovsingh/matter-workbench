@@ -173,6 +173,108 @@ async function extractRegisterHashes(matterFolderName) {
   }
 }
 
+async function listIntakeFolders(matterPath) {
+  const inboxPath = path.join(matterPath, "00_Inbox");
+  try {
+    const entries = await readdir(inboxPath, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && /^Intake (\d{2,})\b/.test(entry.name))
+      .map((entry) => {
+        const match = entry.name.match(/^Intake (\d{2,})/);
+        return { name: entry.name, intakeNumber: parseInt(match[1], 10) };
+      })
+      .sort((a, b) => a.intakeNumber - b.intakeNumber);
+  } catch {
+    return [];
+  }
+}
+
+async function nextIntakeNumber(matterPath) {
+  const folders = await listIntakeFolders(matterPath);
+  if (!folders.length) return 1;
+  return folders[folders.length - 1].intakeNumber + 1;
+}
+
+async function nextFileIdStart(matterPath) {
+  const folders = await listIntakeFolders(matterPath);
+  let max = 0;
+  for (const folder of folders) {
+    const registerPath = path.join(matterPath, "00_Inbox", folder.name, "File Register.csv");
+    try {
+      const text = await readFile(registerPath, "utf8");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) continue;
+      const header = parseCsvRow(lines[0]);
+      const idIndex = header.indexOf("file_id");
+      if (idIndex === -1) continue;
+      for (let i = 1; i < lines.length; i += 1) {
+        const cells = parseCsvRow(lines[i]);
+        const m = (cells[idIndex] || "").match(/FILE-(\d+)/);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > max) max = n;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return max + 1;
+}
+
+async function priorHashIndex(matterPath) {
+  const folders = await listIntakeFolders(matterPath);
+  const index = new Map();
+  for (const folder of folders) {
+    const registerPath = path.join(matterPath, "00_Inbox", folder.name, "File Register.csv");
+    try {
+      const text = await readFile(registerPath, "utf8");
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) continue;
+      const header = parseCsvRow(lines[0]);
+      const idIndex = header.indexOf("file_id");
+      const hashIndex = header.indexOf("sha256");
+      const statusIndex = header.indexOf("status");
+      if (idIndex === -1 || hashIndex === -1) continue;
+      for (let i = 1; i < lines.length; i += 1) {
+        const cells = parseCsvRow(lines[i]);
+        const hash = cells[hashIndex];
+        const fileId = cells[idIndex];
+        const status = cells[statusIndex] || "";
+        if (!hash || !fileId) continue;
+        if (status === "duplicate-of-prior-intake") continue;
+        if (!index.has(hash)) index.set(hash, fileId);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return index;
+}
+
+function validateLabel(rawLabel) {
+  const label = typeof rawLabel === "string" ? rawLabel.trim() : "";
+  if (!label) return "";
+  if (label.length > 80) {
+    const error = new Error("Label too long (max 80 chars)");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!/^[A-Za-z0-9 _-]+$/.test(label)) {
+    const error = new Error("Label may contain only letters, numbers, spaces, hyphens, underscores");
+    error.statusCode = 400;
+    throw error;
+  }
+  return label;
+}
+
+function composeIntakeDirName(number, label, dateIso) {
+  const padded = String(number).padStart(2, "0");
+  if (number === 1 && !label) return "Intake 01 - Initial";
+  const suffix = label ? `${dateIso} ${label}` : dateIso;
+  return `Intake ${padded} - ${suffix}`;
+}
+
 async function listMattersHomeChildren() {
   if (!mattersHome) return [];
   try {
@@ -575,6 +677,109 @@ async function createMatter(request) {
   return readWorkspace();
 }
 
+async function addFilesToMatter(request) {
+  const root = ensureMatterRoot();
+  const { fields, files } = await handleNewMatterUpload(request);
+  const label = validateLabel(fields.label);
+
+  let relativePaths = [];
+  if (fields.paths) {
+    try {
+      relativePaths = JSON.parse(fields.paths);
+    } catch {
+      const error = new Error("Invalid paths JSON");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
+    const error = new Error("paths array must match file count");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!files.length) {
+    const error = new Error("No files attached");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const intakeNumber = await nextIntakeNumber(root);
+  const fileIdStart = await nextFileIdStart(root);
+  const priorHashes = await priorHashIndex(root);
+  const receivedDate = new Date().toISOString().slice(0, 10);
+  const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
+  const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
+  const intakeDirPath = path.join(root, "00_Inbox", intakeDirName);
+  if (!intakeDirPath.startsWith(`${root}${path.sep}`)) {
+    const error = new Error("Resolved intake path escapes matter root");
+    error.statusCode = 400;
+    throw error;
+  }
+  const sourceFilesDir = path.join(intakeDirPath, "Source Files");
+  await mkdir(sourceFilesDir, { recursive: true });
+
+  for (const file of files.sort((a, b) => a.index - b.index)) {
+    const safeRel = validateRelativePath(relativePaths[file.index]);
+    const destination = path.resolve(sourceFilesDir, safeRel);
+    if (!destination.startsWith(`${sourceFilesDir}${path.sep}`)) {
+      const error = new Error("Resolved destination escapes intake root");
+      error.statusCode = 400;
+      throw error;
+    }
+    await mkdir(path.dirname(destination), { recursive: true });
+    await new Promise((resolve, reject) => {
+      const stream = createWriteStream(destination);
+      stream.on("error", reject);
+      stream.on("finish", resolve);
+      stream.end(file.buffer);
+    });
+  }
+
+  const existing = await readExistingMatterMetadata(root);
+  const result = await runMatterInit({
+    matterRoot: root,
+    metadata: existing,
+    dryRun: false,
+    intakeId,
+    intakeDirName,
+    intakeLabel: label,
+    receivedDate,
+    fileIdStart,
+    priorHashes,
+  });
+
+  const workspace = await readWorkspace();
+  return {
+    ...workspace,
+    intakeAdded: {
+      intakeId,
+      intakeDirName,
+      receivedDate,
+      label,
+      scanned: result.counts.scannedFiles,
+      unique: result.counts.uniqueFiles,
+      duplicatesInBatch: result.counts.duplicatesInBatch,
+      duplicatesOfPrior: result.counts.duplicatesOfPrior,
+    },
+  };
+}
+
+async function readExistingMatterMetadata(matterRoot) {
+  try {
+    const raw = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+    return {
+      matterName: raw.matter_name || "",
+      matterType: raw.matter_type || "",
+      clientName: raw.client_name || "",
+      oppositeParty: raw.opposite_party || "",
+      jurisdiction: raw.jurisdiction || "",
+      briefDescription: raw.brief_description || "",
+    };
+  } catch {
+    return {};
+  }
+}
+
 function resolveStaticPath(urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split("?")[0]);
   const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
@@ -695,6 +900,12 @@ const server = createServer(async (request, response) => {
     if (request.method === "POST" && requestUrl.pathname === "/api/matters/new") {
       const workspace = await createMatter(request);
       sendJson(response, 200, workspace);
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/matters/add-files") {
+      const result = await addFilesToMatter(request);
+      sendJson(response, 200, result);
       return;
     }
 

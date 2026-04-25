@@ -65,8 +65,34 @@ The brief description is optional.
 ## Folder loading
 
 The active matter is whichever folder you point `MATTER_ROOT` at when starting
-the server. The Matter Explorer reads that folder and renders its tree. Fill or
-inspect matter metadata in the inspector, then run `/matter-init`.
+the server, or whatever you select from the in-app Matters list. The Matter
+Explorer reads that folder and renders its tree. Fill or inspect matter
+metadata in the inspector, then run `/matter-init`.
+
+## Adding more files later
+
+Real matters keep accumulating documents — client emails, opposite-party
+productions, etc. With a matter loaded, click `+ Add Files` above the workspace
+tree to upload another batch. Each batch becomes its own folder under
+`00_Inbox/`:
+
+```
+Naveen vs Mohit/
+  00_Inbox/
+    Intake 01 - Initial/                 (first batch — contains its own
+                                          Source Files, Originals, By Type,
+                                          File Register.csv, Intake Log.csv)
+    Intake 02 - 2026-05-08 client email/ (second batch with optional label)
+    Intake 03 - 2026-05-15/               (third batch, no label)
+  matter.json                             (intakes: [...] array)
+```
+
+`FILE-NNNN` ids continue across batches (so you'll see FILE-0051 in Intake 02
+if Intake 01 had 50 files). Files whose SHA-256 already appears in a prior
+batch are recorded in the new batch's `File Register.csv` with
+`status: duplicate-of-prior-intake` and `duplicate_of: FILE-0001`, but not
+re-copied to that batch's `Originals/` or `By Type/` — the original
+preservation remains in the prior batch.
 
 When served through the local Node server, `/matter-init` runs a deterministic
 copy-only intake operation:
