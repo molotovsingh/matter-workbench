@@ -1,15 +1,9 @@
 const commandForm = document.getElementById("commandForm");
 const commandInput = document.getElementById("commandInput");
-const openFolderButton = document.getElementById("openFolder");
-const switchMatterButton = document.getElementById("switchMatter");
-const folderFallback = document.getElementById("folderFallback");
 const statusCard = document.getElementById("statusCard");
 const terminalOutput = document.getElementById("terminalOutput");
 const editorContent = document.getElementById("editorContent");
 const statusBarRight = document.getElementById("statusBarRight");
-const matterName = document.getElementById("matterName");
-const matterMetaPrimary = document.getElementById("matterMetaPrimary");
-const matterMetaSecondary = document.getElementById("matterMetaSecondary");
 const metadataForm = document.getElementById("metadataForm");
 const clientNameInput = document.getElementById("clientNameInput");
 const matterNameInput = document.getElementById("matterNameInput");
@@ -20,41 +14,29 @@ const briefDescriptionInput = document.getElementById("briefDescriptionInput");
 const workspaceTree = document.getElementById("workspaceTree");
 const refreshExplorerButton = document.getElementById("refreshExplorer");
 const breadcrumbs = document.getElementById("breadcrumbs");
+const mattersPicker = document.getElementById("mattersPicker");
+const mattersList = document.getElementById("mattersList");
+const newMatterButton = document.getElementById("newMatterButton");
 const slashSkillButtons = document.querySelectorAll("[data-skill]");
 const requiredMetadataFields = Array.from(metadataForm.querySelectorAll("[data-required='true']"));
 
-const defaultEntries = [
-  { name: "00_Inbox", kind: "directory" },
-  { name: "10_Library", kind: "directory" },
-  { name: "20_Workshop", kind: "directory" },
-  { name: "30_Outbox", kind: "directory" },
-  { name: "matter.json", kind: "file" },
-];
+let mattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
 
 let activeMatter = {
-  name: "Naveen Vs Mohit",
-  folderName: "case_naveen",
-  inputLabel: "/Users/aks/case_naveen",
-  metaPrimary: "Company Law / India",
-  metaSecondary: "Phase 1 intake workbench only.",
-  fileCount: 127,
-  directoryCount: 8,
-  entries: defaultEntries,
+  folderName: "",
+  inputLabel: "",
+  fileCount: 0,
+  directoryCount: 0,
   tree: null,
-  sourceMode: "default",
   metadata: {
-    clientName: "Naveen Sharma",
-    matterName: "Naveen Vs Mohit",
-    oppositeParty: "Mohit",
-    matterType: "Company Law",
-    jurisdiction: "India",
-    briefDescription: "Phase 1 intake workbench only.",
+    clientName: "",
+    matterName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+    briefDescription: "",
   },
 };
-
-function isServerBackedMatter() {
-  return activeMatter.sourceMode === "server-workspace";
-}
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -71,6 +53,15 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function setStatus({ mood, card, bar, terminal }) {
+  if (mood !== undefined) statusCard.className = `status-card ${mood}`;
+  if (card !== undefined) statusCard.innerHTML = card;
+  if (bar !== undefined) statusBarRight.innerHTML = `<span>${bar}</span>`;
+  if (terminal !== undefined) {
+    terminalOutput.textContent = Array.isArray(terminal) ? terminal.join("\n") : terminal;
+  }
 }
 
 function renderTreeNode(node, depth = 0) {
@@ -96,7 +87,7 @@ function renderTreeNode(node, depth = 0) {
   const childItems = children.map((child) => renderTreeNode(child, depth + 1)).join("");
   const childCount = children.length ? `<span class="tree-meta">${children.length}</span>` : "";
   const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
-  const open = depth < 2 || node.path === "00_Inbox/Load_0001_Initial" ? " open" : "";
+  const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
 
   return `
     <li class="tree-node tree-directory">
@@ -113,15 +104,15 @@ function renderTreeNode(node, depth = 0) {
 
 const buildPreviewResultLines = (command) => [
   `> workbench.run ${command}`,
-  `[phase-1] confirming matter root: ${activeMatter.inputLabel}`,
-  `[phase-1] validating matter metadata: ${activeMatter.metadata.matterName}`,
-  `[phase-1] scanned ${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders`,
-  "[phase-1] prototype mode: no files written",
-  "[phase-1] would write matter.json",
-  "[phase-1] would preserve source under 00_Inbox/Load_0001_Initial/raw_source_files/",
-  "[phase-1] would arrange copies under 00_Inbox/Load_0001_Initial/arranged_files/",
-  "[phase-1] would write Inbox_Loads.csv and Inbox_Normalization_Log.csv",
-  "[phase-1] status: complete - intake ready for lawyer review",
+  `[intake] confirming matter root: ${activeMatter.inputLabel}`,
+  `[intake] validating matter metadata: ${activeMatter.metadata.matterName}`,
+  `[intake] scanned ${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders`,
+  "[intake] prototype mode: no files written",
+  "[intake] would write matter.json",
+  "[intake] would preserve originals under 00_Inbox/Intake 01 - Initial/Originals/",
+  "[intake] would arrange copies under 00_Inbox/Intake 01 - Initial/By Type/",
+  "[intake] would write Intake Log.csv and File Register.csv",
+  "[intake] status: complete - intake ready for lawyer review",
 ];
 
 function buildMatterJson() {
@@ -137,15 +128,15 @@ function buildMatterJson() {
     brief_description: metadata.briefDescription,
     source_root: activeMatter.inputLabel,
     phase: "phase_1_intake",
-    load_id: "Load_0001_Initial",
+    intake_id: "INTAKE-01",
     intake: {
       scanned_files: activeMatter.fileCount,
       scanned_folders: activeMatter.directoryCount,
-      preserve_originals_at: "00_Inbox/Load_0001_Initial/raw_source_files",
-      arrange_working_copies_at: "00_Inbox/Load_0001_Initial/arranged_files",
+      preserve_originals_at: "00_Inbox/Intake 01 - Initial/Originals",
+      arrange_working_copies_at: "00_Inbox/Intake 01 - Initial/By Type",
       review_logs: [
-        "00_Inbox/Load_0001_Initial/Inbox_Loads.csv",
-        "00_Inbox/Load_0001_Initial/Inbox_Normalization_Log.csv",
+        "00_Inbox/Intake 01 - Initial/Intake Log.csv",
+        "00_Inbox/Intake 01 - Initial/File Register.csv",
       ],
     },
   };
@@ -156,23 +147,7 @@ function renderWorkspaceTree() {
     workspaceTree.innerHTML = renderTreeNode(activeMatter.tree);
     return;
   }
-
-  const entries = activeMatter.entries.length
-    ? activeMatter.entries
-    : [{ name: "No visible files found", kind: "file", path: "" }];
-  const entryItems = entries.map((entry) => {
-    const label = entry.kind === "directory" ? `${entry.name}/` : entry.name;
-    return `<li class="tree-node">${escapeHtml(label)}</li>`;
-  }).join("");
-
-  workspaceTree.innerHTML = `
-    <li>
-      <details open>
-        <summary>${escapeHtml(activeMatter.folderName)}</summary>
-        <ul>${entryItems}</ul>
-      </details>
-    </li>
-  `;
+  workspaceTree.innerHTML = '<li class="tree-node">Loading workspace...</li>';
 }
 
 function renderSkillOverview() {
@@ -197,7 +172,7 @@ function renderSkillOverview() {
       </div>
       <div>
         <dt>Output</dt>
-        <dd>matter.json preview, raw_source_files, arranged_files, inbox logs</dd>
+        <dd>matter.json preview, Originals, By Type, intake logs</dd>
       </div>
       <div>
         <dt>Guardrail</dt>
@@ -218,22 +193,6 @@ function collectMetadata() {
   };
 }
 
-function renderMatterCard() {
-  const metadata = activeMatter.metadata;
-  matterName.textContent = metadata.matterName || activeMatter.folderName;
-  matterMetaPrimary.textContent = [
-    metadata.matterType || "Matter type missing",
-    metadata.jurisdiction || "Jurisdiction missing",
-  ].join(" / ");
-  if (metadata.clientName && metadata.oppositeParty) {
-    matterMetaSecondary.textContent = `${metadata.clientName} v. ${metadata.oppositeParty}`;
-    return;
-  }
-  matterMetaSecondary.textContent = activeMatter.sourceMode === "browser-folder"
-    ? "Browser preview only. Server writes disabled."
-    : "Matter metadata required before /matter-init.";
-}
-
 function setMetadataInputs(metadata) {
   clientNameInput.value = metadata.clientName || "";
   matterNameInput.value = metadata.matterName || "";
@@ -245,7 +204,6 @@ function setMetadataInputs(metadata) {
 
 function syncMetadataFromForm() {
   activeMatter.metadata = collectMetadata();
-  renderMatterCard();
   renderSkillOverview();
   renderWorkspaceTree();
 }
@@ -259,27 +217,6 @@ function metadataFromMatterJson(rawMatter, fallbackName = "") {
     jurisdiction: rawMatter.jurisdiction || "",
     briefDescription: rawMatter.brief_description || "",
   };
-}
-
-async function readMatterJsonFromDirectoryHandle(handle) {
-  try {
-    const fileHandle = await handle.getFileHandle("matter.json");
-    const file = await fileHandle.getFile();
-    return metadataFromMatterJson(JSON.parse(await file.text()), handle.name);
-  } catch {
-    return null;
-  }
-}
-
-async function readMatterJsonFromFallbackFiles(files, rootName) {
-  const matterFile = files.find((file) => file.webkitRelativePath === `${rootName}/matter.json`);
-  if (!matterFile) return null;
-
-  try {
-    return metadataFromMatterJson(JSON.parse(await matterFile.text()), rootName);
-  } catch {
-    return null;
-  }
 }
 
 function validateMetadata() {
@@ -301,22 +238,19 @@ function setActiveMatter(nextMatter, options = {}) {
   if (nextMatter.metadata) {
     setMetadataInputs(activeMatter.metadata);
   }
-  renderMatterCard();
   breadcrumbs.textContent = `${activeMatter.folderName} > /matter-init`;
   commandInput.value = "/matter-init";
   if (!options.preserveStatus) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = activeMatter.sourceMode === "browser-folder"
-      ? "Folder loaded for browser preview. Use a server-backed matter to run <code>/matter-init</code> writes."
-      : "Folder loaded. Complete matter metadata, then run <code>/matter-init</code>";
-    statusBarRight.innerHTML = "<span>Folder Loaded</span>";
-    terminalOutput.textContent = [
-      `[folder] loaded ${activeMatter.inputLabel}`,
-      `[folder] visible scan: ${activeMatter.fileCount} files, ${activeMatter.directoryCount} folders`,
-      activeMatter.sourceMode === "browser-folder"
-        ? "[idle] Browser-selected folders are preview-only for this local server."
-        : "[idle] Complete metadata, then type /matter-init and run the skill.",
-    ].join("\n");
+    setStatus({
+      mood: "idle",
+      card: "Folder loaded. Complete matter metadata, then run <code>/matter-init</code>",
+      bar: "Folder Loaded",
+      terminal: [
+        `[folder] loaded ${activeMatter.inputLabel}`,
+        `[folder] visible scan: ${activeMatter.fileCount} files, ${activeMatter.directoryCount} folders`,
+        "[idle] Complete metadata, then type /matter-init and run the skill.",
+      ],
+    });
   }
   renderWorkspaceTree();
   if (!options.preserveEditor) renderSkillOverview();
@@ -329,9 +263,7 @@ function matterFromWorkspace(workspace) {
     inputLabel: workspace.inputLabel,
     fileCount: workspace.fileCount,
     directoryCount: workspace.directoryCount,
-    entries: [],
     tree: workspace.tree,
-    sourceMode: "server-workspace",
     metadata: workspace.metadata,
   };
 }
@@ -350,175 +282,521 @@ async function refreshWorkspace(options = {}) {
       preserveEditor: options.preserveEditor,
     });
     if (!options.preserveStatus) {
-      statusCard.className = "status-card idle";
-      statusCard.innerHTML = `<strong>Explorer refreshed</strong><br />${workspace.fileCount} files and ${workspace.directoryCount} folders loaded from disk.`;
-      statusBarRight.innerHTML = "<span>Explorer Ready</span>";
-      terminalOutput.textContent = [
-        `[explorer] loaded ${workspace.inputLabel}`,
-        `[explorer] indexed ${workspace.fileCount} files and ${workspace.directoryCount} folders`,
-      ].join("\n");
+      setStatus({
+        mood: "idle",
+        card: `<strong>Explorer refreshed</strong><br />${workspace.fileCount} files and ${workspace.directoryCount} folders loaded from disk.`,
+        bar: "Explorer Ready",
+        terminal: [
+          `[explorer] loaded ${workspace.inputLabel}`,
+          `[explorer] indexed ${workspace.fileCount} files and ${workspace.directoryCount} folders`,
+        ],
+      });
     }
     return workspace;
   } catch (error) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Explorer unavailable</strong><br />${escapeHtml(error.message)}`;
-    statusBarRight.innerHTML = "<span>Explorer Failed</span>";
-    terminalOutput.textContent = `[explorer] failed: ${error.message}`;
+    setStatus({
+      mood: "idle",
+      card: `<strong>Explorer unavailable</strong><br />${escapeHtml(error.message)}`,
+      bar: "Explorer Failed",
+      terminal: `[explorer] failed: ${error.message}`,
+    });
     renderWorkspaceTree();
     return null;
   }
 }
 
-async function refreshBrowserMatter() {
-  if (!activeMatter.directoryHandle) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = "<strong>Browser folder refresh unavailable</strong><br />Open Folder again to rescan this matter.";
-    statusBarRight.innerHTML = "<span>Refresh Unavailable</span>";
-    terminalOutput.textContent = "[explorer] browser fallback folders must be reopened to refresh";
+function renderMattersList() {
+  if (!mattersState.enabled) {
+    mattersPicker.hidden = true;
+    mattersList.innerHTML = "";
     return;
   }
+  mattersPicker.hidden = false;
+  if (!mattersState.matters.length) {
+    mattersList.innerHTML = '<li class="matters-empty">No matters yet. Click + New Matter to add your first.</li>';
+    return;
+  }
+  mattersList.innerHTML = mattersState.matters.map((matter) => {
+    const activeClass = matter.name === mattersState.active ? " active" : "";
+    return `<li><button type="button" class="matters-entry${activeClass}" data-matter-name="${escapeHtml(matter.name)}">${escapeHtml(matter.name)}</button></li>`;
+  }).join("");
+}
 
+async function loadMattersList() {
   try {
-    const scan = await scanDirectoryHandle(activeMatter.directoryHandle);
-    setActiveMatter({
-      ...activeMatter,
-      ...scan,
-      tree: null,
-    }, { preserveEditor: true });
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Browser folder refreshed</strong><br />${scan.fileCount} files and ${scan.directoryCount} folders visible to the browser.`;
-    statusBarRight.innerHTML = "<span>Explorer Ready</span>";
-    terminalOutput.textContent = [
-      `[explorer] refreshed ${activeMatter.inputLabel}`,
-      "[explorer] browser-selected folders remain preview-only for writes",
-    ].join("\n");
-  } catch (error) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Browser refresh failed</strong><br />${escapeHtml(error.message)}`;
-    statusBarRight.innerHTML = "<span>Refresh Failed</span>";
-    terminalOutput.textContent = `[explorer] browser refresh failed: ${error.message}`;
+    const response = await fetch("/api/matters");
+    if (!response.ok) throw new Error(`matters API returned ${response.status}`);
+    mattersState = await response.json();
+  } catch {
+    mattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
   }
+  renderMattersList();
 }
 
-function refreshActiveExplorer() {
-  if (activeMatter.sourceMode === "browser-folder") {
-    refreshBrowserMatter();
-    return;
-  }
-  refreshWorkspace();
-}
-
-function showFolderOpeningState(mode) {
-  statusCard.className = "status-card idle";
-  statusCard.innerHTML = "<strong>Opening folder</strong><br />Choose a matter folder in the browser prompt.";
-  statusBarRight.innerHTML = "<span>Opening Folder</span>";
-  terminalOutput.textContent = [
-    "[folder] open-folder requested",
-    `[folder] access mode: ${mode}`,
-    "[folder] waiting for folder selection...",
-  ].join("\n");
-}
-
-async function scanDirectoryHandle(handle) {
-  const entries = [];
-  let fileCount = 0;
-  let directoryCount = 0;
-
-  for await (const [name, entry] of handle.entries()) {
-    if (name.startsWith(".")) continue;
-    if (entry.kind === "directory") directoryCount += 1;
-    if (entry.kind === "file") fileCount += 1;
-    entries.push({ name, kind: entry.kind });
-  }
-
-  entries.sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
-    return a.name.localeCompare(b.name);
+async function switchToMatter(name) {
+  setStatus({
+    mood: "idle",
+    card: `<strong>Switching matter</strong><br />Loading <code>${escapeHtml(name)}</code>...`,
+    bar: "Switching Matter",
+    terminal: `[matters] switching to ${name}`,
   });
-
-  return {
-    entries: entries.slice(0, 18),
-    fileCount,
-    directoryCount,
-  };
+  try {
+    const response = await fetch("/api/switch-matter", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || `switch-matter returned ${response.status}`);
+    mattersState = { ...mattersState, active: name };
+    renderMattersList();
+    setActiveMatter(matterFromWorkspace(payload));
+  } catch (error) {
+    setStatus({
+      mood: "idle",
+      card: `<strong>Switch failed</strong><br />${escapeHtml(error.message)}`,
+      bar: "Switch Failed",
+      terminal: `[matters] switch failed: ${error.message}`,
+    });
+  }
 }
 
-function scanFallbackFiles(files) {
-  const topEntries = new Map();
-  let rootName = "selected-folder";
-
-  files.forEach((file) => {
-    const parts = file.webkitRelativePath.split("/");
-    rootName = parts[0] || rootName;
-    const topName = parts[1] || file.name;
-    const kind = parts.length > 2 ? "directory" : "file";
-    if (topName && !topName.startsWith(".")) {
-      topEntries.set(topName, { name: topName, kind });
+function renderFirstRun(defaultPath) {
+  breadcrumbs.textContent = "first run";
+  setStatus({
+    mood: "idle",
+    card: "<strong>First run</strong><br />Pick where your matters should live.",
+    bar: "First Run",
+    terminal: "[first-run] awaiting matters home selection",
+  });
+  editorContent.innerHTML = `
+    <h1>Where should your matters live?</h1>
+    <p>
+      This is the parent folder where each new matter becomes a subfolder.
+      You can change it later by editing <code>config.json</code>.
+    </p>
+    <form class="first-run-form" id="firstRunForm">
+      <label>
+        <span>Matters home (absolute path)</span>
+        <input type="text" id="firstRunInput" value="${escapeHtml(defaultPath || "")}" spellcheck="false" autocomplete="off" />
+      </label>
+      <div class="form-actions">
+        <button type="submit">Continue</button>
+      </div>
+      <div id="firstRunError" class="form-error" hidden></div>
+    </form>
+  `;
+  const form = document.getElementById("firstRunForm");
+  const input = document.getElementById("firstRunInput");
+  const errorBox = document.getElementById("firstRunError");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorBox.hidden = true;
+    const value = input.value.trim();
+    if (!value) {
+      errorBox.textContent = "Please enter a path.";
+      errorBox.hidden = false;
+      return;
+    }
+    try {
+      const response = await fetch("/api/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mattersHome: value }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `config API returned ${response.status}`);
+      await bootstrap();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
     }
   });
-
-  return {
-    rootName,
-    entries: Array.from(topEntries.values()).sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    }).slice(0, 18),
-    fileCount: files.length,
-    directoryCount: Array.from(topEntries.values()).filter((entry) => entry.kind === "directory").length,
-  };
+  input.focus();
+  input.select();
 }
 
-async function openFolder() {
-  if ("showDirectoryPicker" in window) {
-    showFolderOpeningState("File System Access API");
+function renderBlankLanding() {
+  activeMatter = {
+    folderName: "",
+    inputLabel: "",
+    fileCount: 0,
+    directoryCount: 0,
+    tree: null,
+    metadata: {
+      clientName: "",
+      matterName: "",
+      oppositeParty: "",
+      matterType: "",
+      jurisdiction: "",
+      briefDescription: "",
+    },
+  };
+  setMetadataInputs(activeMatter.metadata);
+  workspaceTree.innerHTML = '<li class="tree-node">Pick a matter from the sidebar.</li>';
+  breadcrumbs.textContent = "workbench > pick a matter";
+  const hasMatters = mattersState.matters.length > 0;
+  editorContent.innerHTML = `
+    <h1>Welcome</h1>
+    <p>
+      ${hasMatters
+        ? `You have <strong>${mattersState.matters.length}</strong> matter${mattersState.matters.length === 1 ? "" : "s"} available. Pick one from the sidebar to open it, or click <code>+ New Matter</code> to add a new one.`
+        : "No matters yet. Click <code>+ New Matter</code> in the sidebar to create your first."}
+    </p>
+    <p>Matters home: <code>${escapeHtml(mattersState.mattersHome || "")}</code></p>
+  `;
+  setStatus({
+    mood: "idle",
+    card: hasMatters
+      ? "<strong>Ready</strong><br />Pick a matter or create a new one."
+      : "<strong>Ready</strong><br />Create your first matter to begin.",
+    bar: "No Matter",
+    terminal: [
+      "[landing] no active matter",
+      `[landing] ${mattersState.matters.length} matter(s) available`,
+    ],
+  });
+}
+
+function collectFilesFromDataTransfer(dataTransfer) {
+  const entries = [];
+  const items = dataTransfer.items;
+  if (!items) return Promise.resolve([]);
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    if (item.kind === "file") {
+      const entry = typeof item.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
+      if (entry) entries.push(entry);
+    }
+  }
+  return Promise.all(entries.map((entry) => walkFileSystemEntry(entry, ""))).then((results) => results.flat());
+}
+
+function walkFileSystemEntry(entry, prefix) {
+  return new Promise((resolve, reject) => {
+    if (entry.isFile) {
+      entry.file((file) => {
+        const relativePath = prefix ? `${prefix}/${file.name}` : file.name;
+        resolve([{ file, relativePath }]);
+      }, reject);
+      return;
+    }
+    if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const collected = [];
+      const readBatch = () => {
+        reader.readEntries(async (batch) => {
+          if (!batch.length) {
+            const nested = await Promise.all(collected.map((child) => walkFileSystemEntry(child, prefix ? `${prefix}/${entry.name}` : entry.name)));
+            resolve(nested.flat());
+            return;
+          }
+          collected.push(...batch);
+          readBatch();
+        }, reject);
+      };
+      readBatch();
+      return;
+    }
+    resolve([]);
+  });
+}
+
+async function hashFile(file) {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function collectFilesFromInput(input) {
+  const result = [];
+  const files = Array.from(input.files || []);
+  for (const file of files) {
+    const raw = file.webkitRelativePath || file.name;
+    const parts = raw.split("/");
+    const relativePath = parts.length > 1 ? parts.slice(1).join("/") : parts[0];
+    result.push({ file, relativePath });
+  }
+  return result;
+}
+
+function renderNewMatterForm() {
+  breadcrumbs.textContent = "workbench > new matter";
+  setStatus({
+    mood: "idle",
+    card: "<strong>New matter</strong><br />Fill the form, attach files or a folder, then click Create & Initialize.",
+    bar: "New Matter",
+    terminal: "[new-matter] form ready",
+  });
+  editorContent.innerHTML = `
+    <h1>New matter</h1>
+    <form class="new-matter-form" id="newMatterForm">
+      <label>
+        <span>Matter name *</span>
+        <input type="text" id="nmName" required spellcheck="false" autocomplete="off" />
+      </label>
+      <label>
+        <span>Client name *</span>
+        <input type="text" id="nmClient" required />
+      </label>
+      <label>
+        <span>Opposite party *</span>
+        <input type="text" id="nmOpposite" required />
+      </label>
+      <label>
+        <span>Matter type *</span>
+        <input type="text" id="nmType" required />
+      </label>
+      <label>
+        <span>Jurisdiction *</span>
+        <input type="text" id="nmJurisdiction" required />
+      </label>
+      <label>
+        <span>Brief description</span>
+        <textarea id="nmBrief"></textarea>
+      </label>
+      <div class="drop-zone" id="nmDropZone">
+        <div>Drag files or a folder here</div>
+        <div class="drop-actions">
+          <button type="button" id="nmPickFiles">Pick Files</button>
+          <button type="button" id="nmPickFolder">Pick Folder</button>
+        </div>
+        <input type="file" id="nmFilesInput" multiple hidden />
+        <input type="file" id="nmFolderInput" webkitdirectory multiple hidden />
+      </div>
+      <ul class="file-list" id="nmFileList" hidden></ul>
+      <div id="nmOverlap" class="form-warning" hidden></div>
+      <div class="form-actions">
+        <button type="submit" id="nmSubmit">Create & Initialize</button>
+        <button type="button" class="secondary" id="nmCancel">Cancel</button>
+      </div>
+      <div id="nmError" class="form-error" hidden></div>
+    </form>
+  `;
+
+  let pendingFiles = [];
+  let bypassOverlapCheck = false;
+  const dropZone = document.getElementById("nmDropZone");
+  const filesInput = document.getElementById("nmFilesInput");
+  const folderInput = document.getElementById("nmFolderInput");
+  const fileList = document.getElementById("nmFileList");
+  const errorBox = document.getElementById("nmError");
+  const submitButton = document.getElementById("nmSubmit");
+
+  const overlapBox = document.getElementById("nmOverlap");
+
+  const resetOverlapState = () => {
+    bypassOverlapCheck = false;
+    overlapBox.hidden = true;
+    overlapBox.innerHTML = "";
+  };
+
+  const updateFileList = () => {
+    if (!pendingFiles.length) {
+      fileList.hidden = true;
+      fileList.innerHTML = "";
+      return;
+    }
+    fileList.hidden = false;
+    const totalBytes = pendingFiles.reduce((sum, item) => sum + item.file.size, 0);
+    const summary = `<li class="file-list-summary">${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"} ready — ${formatBytes(totalBytes)}</li>`;
+    const rows = pendingFiles.map((item) => `<li class="file-list-entry">${escapeHtml(item.relativePath)}</li>`).join("");
+    fileList.innerHTML = summary + rows;
+  };
+
+  function renderOverlapWarnings(warnings) {
+    const top = warnings[0];
+    const list = warnings.map((w) => (
+      `<li><strong>${escapeHtml(w.matterName)}</strong>: ${w.overlapCount} of ${w.totalIncoming} file${w.totalIncoming === 1 ? "" : "s"} match (${w.overlapPercent}%)</li>`
+    )).join("");
+    overlapBox.innerHTML = `
+      <strong>Possible duplicate matter.</strong>
+      Your selected files overlap with existing matter${warnings.length > 1 ? "s" : ""}:
+      <ul class="overlap-list">${list}</ul>
+      <div class="warning-actions">
+        <button type="button" id="nmOpenExisting">Open ${escapeHtml(top.matterName)}</button>
+        <button type="button" id="nmContinueAnyway" class="secondary">Continue creating new matter</button>
+      </div>
+    `;
+    overlapBox.hidden = false;
+    document.getElementById("nmOpenExisting").addEventListener("click", () => switchToMatter(top.matterName));
+    document.getElementById("nmContinueAnyway").addEventListener("click", () => {
+      bypassOverlapCheck = true;
+      overlapBox.hidden = true;
+      overlapBox.innerHTML = "";
+      document.getElementById("nmSubmit").focus();
+    });
+    setStatus({
+      mood: "idle",
+      card: `<strong>Possible duplicate</strong><br />Files match existing matter <code>${escapeHtml(top.matterName)}</code> (${top.overlapPercent}%).`,
+      bar: "Possible Duplicate",
+      terminal: warnings.map((w) => `[duplicate-check] ${w.matterName}: ${w.overlapCount}/${w.totalIncoming} match (${w.overlapPercent}%)`),
+    });
+  }
+
+  document.getElementById("nmPickFiles").addEventListener("click", () => filesInput.click());
+  document.getElementById("nmPickFolder").addEventListener("click", () => folderInput.click());
+  filesInput.addEventListener("change", () => {
+    pendingFiles = pendingFiles.concat(collectFilesFromInput(filesInput));
+    filesInput.value = "";
+    updateFileList();
+    resetOverlapState();
+  });
+  folderInput.addEventListener("change", () => {
+    pendingFiles = pendingFiles.concat(collectFilesFromInput(folderInput));
+    folderInput.value = "";
+    updateFileList();
+    resetOverlapState();
+  });
+
+  dropZone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    dropZone.classList.remove("dragover");
+    const collected = await collectFilesFromDataTransfer(event.dataTransfer);
+    pendingFiles = pendingFiles.concat(collected);
+    updateFileList();
+    resetOverlapState();
+  });
+
+  document.getElementById("nmCancel").addEventListener("click", () => {
+    if (activeMatter.folderName) {
+      renderSkillOverview();
+      setStatus({
+        mood: "idle",
+        card: `Back on <code>${escapeHtml(activeMatter.folderName)}</code>.`,
+        bar: "Skill Ready",
+        terminal: `[matter] returned to ${activeMatter.folderName}`,
+      });
+      return;
+    }
+    if (mattersState.matters.length === 1) {
+      switchToMatter(mattersState.matters[0].name);
+      return;
+    }
+    renderBlankLanding();
+  });
+
+  document.getElementById("newMatterForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    errorBox.hidden = true;
+    const name = document.getElementById("nmName").value.trim();
+    const metadata = {
+      clientName: document.getElementById("nmClient").value.trim(),
+      matterName: name,
+      oppositeParty: document.getElementById("nmOpposite").value.trim(),
+      matterType: document.getElementById("nmType").value.trim(),
+      jurisdiction: document.getElementById("nmJurisdiction").value.trim(),
+      briefDescription: document.getElementById("nmBrief").value.trim(),
+    };
+    if (!name) {
+      errorBox.textContent = "Matter name is required.";
+      errorBox.hidden = false;
+      return;
+    }
+    if (!pendingFiles.length) {
+      errorBox.textContent = "Attach at least one file or a folder.";
+      errorBox.hidden = false;
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Creating...";
+
     try {
-      const handle = await window.showDirectoryPicker({ mode: "read" });
-      const scan = await scanDirectoryHandle(handle);
-      const matterMetadata = await readMatterJsonFromDirectoryHandle(handle);
-      setActiveMatter({
-        name: handle.name,
-        folderName: handle.name,
-        inputLabel: `${handle.name} (browser-selected folder)`,
-        metaPrimary: "Local folder selected",
-        metaSecondary: "Ready for Phase 1 intake test.",
-        sourceMode: "browser-folder",
-        directoryHandle: handle,
-        tree: null,
-        metadata: matterMetadata || {
-          clientName: "",
-          matterName: handle.name,
-          oppositeParty: "",
-          matterType: "",
-          jurisdiction: "",
-          briefDescription: "",
-        },
-        ...scan,
+      if (!bypassOverlapCheck) {
+        submitButton.textContent = "Checking for duplicates...";
+        setStatus({
+          mood: "idle",
+          card: `<strong>Checking for duplicates</strong><br />Hashing ${pendingFiles.length} file(s) to compare with existing matters...`,
+          bar: "Checking",
+          terminal: `[new-matter] hashing ${pendingFiles.length} files for duplicate check`,
+        });
+        const hashes = [];
+        for (const item of pendingFiles) {
+          hashes.push(await hashFile(item.file));
+        }
+        const checkResponse = await fetch("/api/matters/check-overlap", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ hashes, proposedName: name }),
+        });
+        const checkPayload = await checkResponse.json();
+        if (!checkResponse.ok) {
+          throw new Error(checkPayload.error || `check-overlap returned ${checkResponse.status}`);
+        }
+        if (checkPayload.warnings && checkPayload.warnings.length) {
+          renderOverlapWarnings(checkPayload.warnings);
+          submitButton.disabled = false;
+          submitButton.textContent = "Create & Initialize";
+          return;
+        }
+      }
+
+      submitButton.textContent = "Creating...";
+      setStatus({
+        mood: "idle",
+        card: `<strong>Creating matter</strong><br />Uploading ${pendingFiles.length} file(s) and running /matter-init...`,
+        bar: "Creating Matter",
+        terminal: [
+          `[new-matter] uploading ${pendingFiles.length} files`,
+          `[new-matter] matter name: ${name}`,
+        ],
+      });
+
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("metadata", JSON.stringify(metadata));
+      formData.append("paths", JSON.stringify(pendingFiles.map((item) => item.relativePath)));
+      pendingFiles.forEach((item) => formData.append("files", item.file, item.file.name));
+      const response = await fetch("/api/matters/new", { method: "POST", body: formData });
+      const payload = await response.json();
+      if (!response.ok) {
+        const error = new Error(payload.error || `matters/new returned ${response.status}`);
+        error.statusCode = response.status;
+        throw error;
+      }
+      await loadMattersList();
+      setActiveMatter(matterFromWorkspace(payload));
+      setStatus({
+        mood: "success",
+        card: `<strong>Matter created</strong><br /><code>${escapeHtml(name)}</code> is ready.`,
+        bar: "Matter Created",
+        terminal: [
+          `[new-matter] created ${name}`,
+          `[new-matter] scanned ${payload.fileCount} files, ${payload.directoryCount} folders`,
+        ],
       });
     } catch (error) {
-      statusCard.className = "status-card idle";
-      statusBarRight.innerHTML = "<span>Folder Not Loaded</span>";
-      terminalOutput.textContent = [
-        "[folder] open-folder cancelled or failed",
-        `[folder] reason: ${error.name || "unknown"}`,
-      ].join("\n");
-      statusCard.innerHTML = error.name === "AbortError"
-        ? "<strong>Folder selection cancelled</strong><br />Open Folder did not load a new matter."
-        : "<strong>Folder load failed</strong><br />The browser did not grant folder access.";
+      const isDuplicate = error.statusCode === 409 && /already exists/i.test(error.message);
+      if (isDuplicate) {
+        errorBox.innerHTML = `<strong>A matter named <code>${escapeHtml(name)}</code> already exists.</strong> Open it from the Matters list in the sidebar, or change the name above to create a new one.`;
+      } else {
+        errorBox.textContent = error.message;
+      }
+      errorBox.hidden = false;
+      const nameInput = document.getElementById("nmName");
+      nameInput.focus();
+      nameInput.select();
+      setStatus({
+        mood: "idle",
+        card: isDuplicate
+          ? `<strong>Name in use</strong><br /><code>${escapeHtml(name)}</code> is already a matter. Pick it from the sidebar or rename above.`
+          : `<strong>Create failed</strong><br />${escapeHtml(error.message)}`,
+        bar: isDuplicate ? "Name In Use" : "Create Failed",
+        terminal: `[new-matter] ${isDuplicate ? "name in use" : "failed"}: ${error.message}`,
+      });
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Create & Initialize";
     }
-    return;
-  }
-
-  if (!("webkitdirectory" in folderFallback)) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = "<strong>Folder picker unsupported</strong><br />Use Chrome or Edge for this prototype.";
-    statusBarRight.innerHTML = "<span>Folder Unsupported</span>";
-    terminalOutput.textContent = "[folder] this browser does not expose directory selection to the page";
-    return;
-  }
-
-  showFolderOpeningState("file input directory picker");
-  folderFallback.value = "";
-  folderFallback.click();
+  });
 }
 
 function renderMatterInitResult(result, modeLabel) {
@@ -529,16 +807,19 @@ function renderMatterInitResult(result, modeLabel) {
     duplicateFiles: 0,
   };
   const paths = result.paths || {
-    rawSourceDir: "00_Inbox/Load_0001_Initial/raw_source_files",
-    arrangedDir: "00_Inbox/Load_0001_Initial/arranged_files",
-    loadLogPath: "00_Inbox/Load_0001_Initial/Inbox_Loads.csv",
-    normalizationLogPath: "00_Inbox/Load_0001_Initial/Inbox_Normalization_Log.csv",
+    sourceDir: "00_Inbox/Intake 01 - Initial/Source Files",
+    originalsDir: "00_Inbox/Intake 01 - Initial/Originals",
+    byTypeDir: "00_Inbox/Intake 01 - Initial/By Type",
+    intakeLogPath: "00_Inbox/Intake 01 - Initial/Intake Log.csv",
+    fileRegisterPath: "00_Inbox/Intake 01 - Initial/File Register.csv",
   };
 
-  statusCard.className = "status-card success";
-  statusCard.innerHTML = `<strong>matter-init ${escapeHtml(modeLabel)} complete</strong><br />${counts.scannedFiles} files scanned, ${counts.duplicateFiles} exact duplicates identified.`;
-  statusBarRight.innerHTML = "<span>Skill Complete</span>";
-  terminalOutput.textContent = (result.outputLines || buildPreviewResultLines("/matter-init")).join("\n");
+  setStatus({
+    mood: "success",
+    card: `<strong>matter-init ${escapeHtml(modeLabel)} complete</strong><br />${counts.scannedFiles} files scanned, ${counts.duplicateFiles} exact duplicates identified.`,
+    bar: "Skill Complete",
+    terminal: result.outputLines || buildPreviewResultLines("/matter-init"),
+  });
   editorContent.innerHTML = `
     <h1>/matter-init result</h1>
     <p>
@@ -555,16 +836,20 @@ function renderMatterInitResult(result, modeLabel) {
         <dd>${counts.scannedFiles} files, ${counts.uniqueFiles} unique, ${counts.duplicateFiles} exact duplicates</dd>
       </div>
       <div>
+        <dt>Staged</dt>
+        <dd>${counts.looseRootFilesStaged || 0} loose root files copied into <code>${escapeHtml(paths.sourceDir)}</code></dd>
+      </div>
+      <div>
         <dt>Preserved</dt>
-        <dd>Originals copied under <code>${escapeHtml(paths.rawSourceDir)}</code></dd>
+        <dd>Originals copied under <code>${escapeHtml(paths.originalsDir)}</code></dd>
       </div>
       <div>
         <dt>Arranged</dt>
-        <dd>Working copies grouped under <code>${escapeHtml(paths.arrangedDir)}</code> by file type</dd>
+        <dd>Working copies grouped under <code>${escapeHtml(paths.byTypeDir)}</code> by file type</dd>
       </div>
       <div>
         <dt>Reported</dt>
-        <dd><code>${escapeHtml(paths.loadLogPath)}</code> and <code>${escapeHtml(paths.normalizationLogPath)}</code></dd>
+        <dd><code>${escapeHtml(paths.intakeLogPath)}</code> and <code>${escapeHtml(paths.fileRegisterPath)}</code></dd>
       </div>
     </dl>
     <h2>matter.json</h2>
@@ -575,10 +860,12 @@ function renderMatterInitResult(result, modeLabel) {
 async function openFilePreview(filePath, previewable) {
   if (previewable !== "true") {
     breadcrumbs.textContent = `${activeMatter.folderName} > ${filePath}`;
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = "<strong>Preview unavailable</strong><br />This file type is listed in the explorer but is not opened as text.";
-    statusBarRight.innerHTML = "<span>File Selected</span>";
-    terminalOutput.textContent = `[explorer] selected ${filePath}`;
+    setStatus({
+      mood: "idle",
+      card: "<strong>Preview unavailable</strong><br />This file type is listed in the explorer but is not opened as text.",
+      bar: "File Selected",
+      terminal: `[explorer] selected ${filePath}`,
+    });
     return;
   }
 
@@ -590,58 +877,25 @@ async function openFilePreview(filePath, previewable) {
     if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
 
     breadcrumbs.textContent = `${activeMatter.folderName} > ${result.path}`;
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Previewing file</strong><br /><code>${escapeHtml(result.path)}</code>`;
-    statusBarRight.innerHTML = "<span>File Preview</span>";
-    terminalOutput.textContent = `[explorer] opened ${result.path}`;
+    setStatus({
+      mood: "idle",
+      card: `<strong>Previewing file</strong><br /><code>${escapeHtml(result.path)}</code>`,
+      bar: "File Preview",
+      terminal: `[explorer] opened ${result.path}`,
+    });
     editorContent.innerHTML = `
       <h1>${escapeHtml(result.name)}</h1>
       <p><code>${escapeHtml(result.path)}</code></p>
       <pre class="json-preview">${escapeHtml(result.content)}</pre>
     `;
   } catch (error) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Preview failed</strong><br />${escapeHtml(error.message)}`;
-    statusBarRight.innerHTML = "<span>Preview Failed</span>";
-    terminalOutput.textContent = `[explorer] preview failed for ${filePath}: ${error.message}`;
+    setStatus({
+      mood: "idle",
+      card: `<strong>Preview failed</strong><br />${escapeHtml(error.message)}`,
+      bar: "Preview Failed",
+      terminal: `[explorer] preview failed for ${filePath}: ${error.message}`,
+    });
   }
-}
-
-function renderBrowserMatterInitBlocked(command) {
-  const matterJson = buildMatterJson();
-
-  statusCard.className = "status-card idle";
-  statusCard.innerHTML = "<strong>Server write blocked</strong><br />This folder was opened in the browser, but the local Node server is still bound to a different matter root.";
-  statusBarRight.innerHTML = "<span>Preview Only</span>";
-  terminalOutput.textContent = [
-    `> workbench.run ${command}`,
-    `[phase-1] blocked: ${activeMatter.folderName} is browser-selected only`,
-    "[phase-1] no files written; server-backed matter root was not changed",
-    "[phase-1] use Switch Matter for the configured server root, or restart with MATTER_ROOT=/path/to/matter",
-  ].join("\n");
-  editorContent.innerHTML = `
-    <h1>/matter-init blocked</h1>
-    <p>
-      ${escapeHtml(activeMatter.folderName)} is loaded in browser preview mode. The local server cannot safely write
-      into that selected folder, so it did not run intake against the old server root.
-    </p>
-    <dl class="skill-contract">
-      <div>
-        <dt>Loaded</dt>
-        <dd><code>${escapeHtml(activeMatter.inputLabel)}</code></dd>
-      </div>
-      <div>
-        <dt>Server Writes</dt>
-        <dd>Disabled for browser-selected folders</dd>
-      </div>
-      <div>
-        <dt>Next Step</dt>
-        <dd>Restart the workbench with <code>MATTER_ROOT=/path/to/${escapeHtml(activeMatter.folderName)}</code>, then run <code>/matter-init</code>.</dd>
-      </div>
-    </dl>
-    <h2>matter.json preview</h2>
-    <pre class="json-preview">${escapeHtml(JSON.stringify(matterJson, null, 2))}</pre>
-  `;
 }
 
 async function runMatterInit(command) {
@@ -649,29 +903,28 @@ async function runMatterInit(command) {
   const missingMetadata = validateMetadata();
 
   if (missingMetadata.length) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = `<strong>Metadata required</strong><br />Missing: ${escapeHtml(missingMetadata.join(", "))}`;
-    statusBarRight.innerHTML = "<span>Metadata Missing</span>";
-    terminalOutput.textContent = [
+    setStatus({
+      mood: "idle",
+      card: `<strong>Metadata required</strong><br />Missing: ${escapeHtml(missingMetadata.join(", "))}`,
+      bar: "Metadata Missing",
+      terminal: [
+        `> workbench.run ${command}`,
+        "[phase-1] blocked: required matter metadata is incomplete",
+        `[phase-1] missing: ${missingMetadata.join(", ")}`,
+      ],
+    });
+    return;
+  }
+
+  setStatus({
+    mood: "idle",
+    card: "<strong>Running matter-init</strong><br />Hashing, preserving, arranging, and writing review logs.",
+    bar: "Running Skill",
+    terminal: [
       `> workbench.run ${command}`,
-      "[phase-1] blocked: required matter metadata is incomplete",
-      `[phase-1] missing: ${missingMetadata.join(", ")}`,
-    ].join("\n");
-    return;
-  }
-
-  if (!isServerBackedMatter()) {
-    renderBrowserMatterInitBlocked(command);
-    return;
-  }
-
-  statusCard.className = "status-card idle";
-  statusCard.innerHTML = "<strong>Running matter-init</strong><br />Hashing, preserving, arranging, and writing review logs.";
-  statusBarRight.innerHTML = "<span>Running Skill</span>";
-  terminalOutput.textContent = [
-    `> workbench.run ${command}`,
-    "[phase-1] running deterministic local intake...",
-  ].join("\n");
+      "[phase-1] running deterministic local intake...",
+    ],
+  });
 
   try {
     const response = await fetch("/api/matter-init", {
@@ -697,18 +950,16 @@ async function runMatterInit(command) {
   }
 }
 
-function switchToKnownMatter() {
-  refreshWorkspace();
-}
-
 function rejectUnknownSkill(command) {
-  statusCard.className = "status-card idle";
-  statusCard.innerHTML = `<strong>Unknown slash skill</strong><br /><code>${command || "(empty)"}</code> is not active in Phase 1.`;
-  statusBarRight.innerHTML = "<span>Skill Not Found</span>";
-  terminalOutput.textContent = [
-    `> workbench.run ${command || "(empty)"}`,
-    "[phase-1] rejected: only /matter-init is active in this prototype",
-  ].join("\n");
+  setStatus({
+    mood: "idle",
+    card: `<strong>Unknown slash skill</strong><br /><code>${command || "(empty)"}</code> is not active in Phase 1.`,
+    bar: "Skill Not Found",
+    terminal: [
+      `> workbench.run ${command || "(empty)"}`,
+      "[phase-1] rejected: only /matter-init is active in this prototype",
+    ],
+  });
 }
 
 commandForm.addEventListener("submit", (event) => {
@@ -723,9 +974,7 @@ commandForm.addEventListener("submit", (event) => {
   rejectUnknownSkill(command);
 });
 
-openFolderButton.addEventListener("click", openFolder);
-switchMatterButton.addEventListener("click", switchToKnownMatter);
-refreshExplorerButton.addEventListener("click", refreshActiveExplorer);
+refreshExplorerButton.addEventListener("click", () => refreshWorkspace());
 
 workspaceTree.addEventListener("click", (event) => {
   const fileButton = event.target.closest("[data-file-path]");
@@ -733,51 +982,26 @@ workspaceTree.addEventListener("click", (event) => {
   openFilePreview(fileButton.dataset.filePath, fileButton.dataset.previewable);
 });
 
-folderFallback.addEventListener("change", async () => {
-  const files = Array.from(folderFallback.files);
-  if (!files.length) {
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = "<strong>Folder selection cancelled</strong><br />Open Folder did not load a new matter.";
-    statusBarRight.innerHTML = "<span>Folder Not Loaded</span>";
-    terminalOutput.textContent = "[folder] no files returned from folder picker";
-    return;
-  }
-  const scan = scanFallbackFiles(files);
-  const matterMetadata = await readMatterJsonFromFallbackFiles(files, scan.rootName);
-  setActiveMatter({
-    name: scan.rootName,
-    folderName: scan.rootName,
-    inputLabel: `${scan.rootName} (browser-selected folder)`,
-    metaPrimary: "Local folder selected",
-    metaSecondary: "Ready for Phase 1 intake test.",
-    sourceMode: "browser-folder",
-    tree: null,
-    metadata: matterMetadata || {
-      clientName: "",
-      matterName: scan.rootName,
-      oppositeParty: "",
-      matterType: "",
-      jurisdiction: "",
-      briefDescription: "",
-    },
-    entries: scan.entries,
-    fileCount: scan.fileCount,
-    directoryCount: scan.directoryCount,
-  });
+mattersList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-matter-name]");
+  if (!button) return;
+  const name = button.dataset.matterName;
+  if (!name || name === mattersState.active) return;
+  switchToMatter(name);
 });
+
+newMatterButton.addEventListener("click", renderNewMatterForm);
 
 slashSkillButtons.forEach((button) => {
   button.addEventListener("click", () => {
     commandInput.value = button.dataset.skill;
     commandInput.focus();
     commandInput.select();
-    statusCard.className = "status-card idle";
-    statusCard.innerHTML = isServerBackedMatter()
-      ? "Ready to run <code>/matter-init</code>"
-      : "Browser preview mode. Server writes are disabled for <code>/matter-init</code>.";
-    statusBarRight.innerHTML = isServerBackedMatter()
-      ? "<span>Skill Ready</span>"
-      : "<span>Preview Only</span>";
+    setStatus({
+      mood: "idle",
+      card: "Ready to run <code>/matter-init</code>",
+      bar: "Skill Ready",
+    });
   });
 });
 
@@ -786,20 +1010,46 @@ metadataForm.addEventListener("input", () => {
     if (field.value.trim()) field.classList.remove("field-error");
   });
   syncMetadataFromForm();
-  statusCard.className = "status-card idle";
-  statusCard.innerHTML = isServerBackedMatter()
-    ? "Metadata changed. Run <code>/matter-init</code> to refresh the preview."
-    : "Metadata changed in browser preview mode. Server writes remain disabled.";
-  statusBarRight.innerHTML = isServerBackedMatter()
-    ? "<span>Skill Ready</span>"
-    : "<span>Preview Only</span>";
-  terminalOutput.textContent = isServerBackedMatter()
-    ? "[idle] Metadata changed. Run /matter-init to refresh the intake preview."
-    : "[idle] Metadata changed for browser preview only. No server write will run.";
+  setStatus({
+    mood: "idle",
+    card: "Metadata changed. Run <code>/matter-init</code> to refresh the preview.",
+    bar: "Skill Ready",
+    terminal: "[idle] Metadata changed. Run /matter-init to refresh the intake preview.",
+  });
 });
 
 setMetadataInputs(activeMatter.metadata);
-renderMatterCard();
 renderWorkspaceTree();
-renderSkillOverview();
-refreshWorkspace({ silent: true });
+
+async function bootstrap() {
+  let config;
+  try {
+    const response = await fetch("/api/config");
+    if (!response.ok) throw new Error(`config API returned ${response.status}`);
+    config = await response.json();
+  } catch (error) {
+    setStatus({
+      mood: "idle",
+      card: `<strong>Server unreachable</strong><br />${escapeHtml(error.message)}`,
+      bar: "Server Failed",
+      terminal: `[bootstrap] ${error.message}`,
+    });
+    return;
+  }
+  if (!config.mattersHome) {
+    renderFirstRun(config.defaultMattersHome);
+    return;
+  }
+  await loadMattersList();
+  if (config.hasActiveMatter) {
+    await refreshWorkspace({ silent: true });
+    return;
+  }
+  if (mattersState.matters.length === 1) {
+    await switchToMatter(mattersState.matters[0].name);
+    return;
+  }
+  renderBlankLanding();
+}
+
+bootstrap();

@@ -5,5 +5,8 @@
     "matter-init": "node matter-init-engine.mjs --apply"
   },
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "busboy": "^1.6.0"
+  }
 }

@@ -21,19 +21,13 @@
           <span class="sidebar-title">Matter Explorer</span>
         </div>
 
-        <div class="folder-entry">
-          <button id="openFolder" class="sidebar-action primary" type="button">Open Folder</button>
-          <div class="action-help">New matter</div>
-          <input id="folderFallback" type="file" webkitdirectory directory multiple hidden />
-          <button id="switchMatter" class="sidebar-action" type="button">Switch Matter</button>
-          <div class="action-help">Existing matter</div>
-        </div>
-
-        <div class="matter-card">
-          <div id="matterName" class="matter-name">Naveen Vs Mohit</div>
-          <div id="matterMetaPrimary" class="matter-meta">Company Law / India</div>
-          <div id="matterMetaSecondary" class="matter-meta">Phase 1 intake workbench only.</div>
-        </div>
+        <section id="mattersPicker" class="matters-picker" hidden>
+          <div class="tree-heading-row">
+            <div class="tree-heading">Matters</div>
+            <button id="newMatterButton" class="sidebar-action primary" type="button">+ New Matter</button>
+          </div>
+          <ul id="mattersList" class="matters-list"></ul>
+        </section>
 
         <div class="slash-section">
           <div class="tree-heading">Slash Skills</div>
@@ -46,27 +40,7 @@
             <button id="refreshExplorer" class="tree-refresh" type="button">Refresh</button>
           </div>
           <ul id="workspaceTree" class="tree-root">
-            <li>
-              <details open>
-                <summary>00_Inbox</summary>
-                <ul>
-                  <li>
-                    <details open>
-                      <summary>Load_0001_Initial</summary>
-                      <ul>
-                        <li>Evidence Files</li>
-                        <li>README.md</li>
-                        <li>Inbox_Loads.csv</li>
-                        <li>Inbox_Normalization_Log.csv</li>
-                      </ul>
-                    </details>
-                  </li>
-                </ul>
-              </details>
-            </li>
-            <li>10_Library</li>
-            <li>20_Workshop</li>
-            <li>30_Outbox</li>
+            <li class="tree-node">Loading workspace...</li>
           </ul>
         </div>
       </aside>
@@ -105,7 +79,7 @@
             </div>
 
             <div class="editor-toolbar">
-              <div id="breadcrumbs" class="breadcrumbs">case_naveen > 00_Inbox > Load_0001_Initial > README.md</div>
+              <div id="breadcrumbs" class="breadcrumbs">workbench</div>
             </div>
 
             <article class="editor-content" id="editorContent">
@@ -126,7 +100,7 @@
                 </div>
                 <div>
                   <dt>Output</dt>
-                  <dd>matter.json preview, raw_source_files, arranged_files, inbox logs</dd>
+                  <dd>matter.json preview, Originals, By Type, intake logs</dd>
                 </div>
                 <div>
                   <dt>Guardrail</dt>
@@ -172,7 +146,7 @@
               <ol class="pipeline-list">
                 <li>Confirm Phase 1 folder scaffold</li>
                 <li>Write matter metadata preview</li>
-                <li>Preserve source in raw_source_files</li>
+                <li>Preserve source in Originals</li>
                 <li>Arrange copies by file type</li>
                 <li>Generate inbox logs for review</li>
               </ol>
