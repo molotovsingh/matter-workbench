@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "node server.mjs",
+    "matter-init:dry-run": "node matter-init-engine.mjs",
+    "matter-init": "node matter-init-engine.mjs --apply"
+  },
+  "private": true,
+  "type": "module"
+}

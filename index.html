@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Legal Workbench Phase 1</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=phase1-explorer-3" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="activity-bar">
+        <div class="activity-logo">LW</div>
+        <button class="activity-item active">EX</button>
+        <div class="activity-spacer"></div>
+        <button class="activity-item">...</button>
+      </aside>
+
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Matter Explorer</span>
+        </div>
+
+        <div class="folder-entry">
+          <button id="openFolder" class="sidebar-action primary" type="button">Open Folder</button>
+          <div class="action-help">New matter</div>
+          <input id="folderFallback" type="file" webkitdirectory directory multiple hidden />
+          <button id="switchMatter" class="sidebar-action" type="button">Switch Matter</button>
+          <div class="action-help">Existing matter</div>
+        </div>
+
+        <div class="matter-card">
+          <div id="matterName" class="matter-name">Naveen Vs Mohit</div>
+          <div id="matterMetaPrimary" class="matter-meta">Company Law / India</div>
+          <div id="matterMetaSecondary" class="matter-meta">Phase 1 intake workbench only.</div>
+        </div>
+
+        <div class="slash-section">
+          <div class="tree-heading">Slash Skills</div>
+          <button class="slash-skill active" type="button" data-skill="/matter-init">/matter-init</button>
+        </div>
+
+        <div class="tree-section">
+          <div class="tree-heading-row">
+            <div class="tree-heading">Workspace</div>
+            <button id="refreshExplorer" class="tree-refresh" type="button">Refresh</button>
+          </div>
+          <ul id="workspaceTree" class="tree-root">
+            <li>
+              <details open>
+                <summary>00_Inbox</summary>
+                <ul>
+                  <li>
+                    <details open>
+                      <summary>Load_0001_Initial</summary>
+                      <ul>
+                        <li>Evidence Files</li>
+                        <li>README.md</li>
+                        <li>Inbox_Loads.csv</li>
+                        <li>Inbox_Normalization_Log.csv</li>
+                      </ul>
+                    </details>
+                  </li>
+                </ul>
+              </details>
+            </li>
+            <li>10_Library</li>
+            <li>20_Workshop</li>
+            <li>30_Outbox</li>
+          </ul>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <header class="titlebar">
+          <div class="title-left">Legal Workbench</div>
+          <div class="title-center">
+            <div class="title-text">legal-workbench / matter-init</div>
+          </div>
+          <div class="title-right">local</div>
+        </header>
+
+        <section class="command-strip">
+          <div class="command-label">Slash Skill</div>
+          <form id="commandForm" class="command-entry">
+            <input
+              id="commandInput"
+              class="command-input"
+              type="text"
+              value="/matter-init"
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Slash skill command"
+            />
+            <button id="runCommand" class="run-skill" type="submit">Run</button>
+          </form>
+        </section>
+
+        <section class="editor-layout">
+          <div class="editor-pane">
+            <div class="tab-bar">
+              <button class="tab active">matter.overview</button>
+              <button class="tab">README.md</button>
+              <button class="tab">00_Case_Index.md</button>
+            </div>
+
+            <div class="editor-toolbar">
+              <div id="breadcrumbs" class="breadcrumbs">case_naveen > 00_Inbox > Load_0001_Initial > README.md</div>
+            </div>
+
+            <article class="editor-content" id="editorContent">
+              <h1>/matter-init</h1>
+              <p>
+                Intake slash skill for turning the existing messy matter root
+                into a preserved, normalized, review-ready workspace.
+              </p>
+
+              <dl class="skill-contract">
+                <div>
+                  <dt>Input</dt>
+                  <dd><code>/Users/aks/case_naveen</code></dd>
+                </div>
+                <div>
+                  <dt>Transformation</dt>
+                  <dd>folder plus matter metadata to organized intake workspace</dd>
+                </div>
+                <div>
+                  <dt>Output</dt>
+                  <dd>matter.json preview, raw_source_files, arranged_files, inbox logs</dd>
+                </div>
+                <div>
+                  <dt>Guardrail</dt>
+                  <dd>original source remains untouched; ambiguity goes to lawyer review</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+
+          <aside class="inspector-pane">
+            <div class="panel-section">
+              <div class="panel-title">Matter Metadata</div>
+              <form id="metadataForm" class="metadata-form">
+                <label>
+                  <span>Client name</span>
+                  <input id="clientNameInput" type="text" value="Naveen Sharma" data-required="true" />
+                </label>
+                <label>
+                  <span>Matter name</span>
+                  <input id="matterNameInput" type="text" value="Naveen Vs Mohit" data-required="true" />
+                </label>
+                <label>
+                  <span>Opposite party</span>
+                  <input id="oppositePartyInput" type="text" value="Mohit" data-required="true" />
+                </label>
+                <label>
+                  <span>Matter type</span>
+                  <input id="matterTypeInput" type="text" value="Company Law" data-required="true" />
+                </label>
+                <label>
+                  <span>Jurisdiction</span>
+                  <input id="jurisdictionInput" type="text" value="India" data-required="true" />
+                </label>
+                <label>
+                  <span>Brief description</span>
+                  <textarea id="briefDescriptionInput" rows="3">Phase 1 intake workbench only.</textarea>
+                </label>
+              </form>
+            </div>
+
+            <div class="panel-section">
+              <div class="panel-title">Skill Contract</div>
+              <ol class="pipeline-list">
+                <li>Confirm Phase 1 folder scaffold</li>
+                <li>Write matter metadata preview</li>
+                <li>Preserve source in raw_source_files</li>
+                <li>Arrange copies by file type</li>
+                <li>Generate inbox logs for review</li>
+              </ol>
+            </div>
+
+            <div class="panel-section">
+              <div class="panel-title">Status</div>
+              <div id="statusCard" class="status-card idle">
+                Ready to run <code>/matter-init</code>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="bottom-panel">
+          <div class="bottom-header">
+            <span>Output</span>
+            <span class="bottom-meta">matter-init.log</span>
+          </div>
+          <pre id="terminalOutput" class="terminal-output">[idle] Waiting for command...
+          </pre>
+        </section>
+
+        <footer class="status-bar">
+          <div class="status-left">
+            <span>Phase 1</span>
+            <span>Intake</span>
+            <span>/matter-init</span>
+          </div>
+          <div class="status-right" id="statusBarRight">
+            <span>Skill Ready</span>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <script src="app.js?v=phase1-explorer-3"></script>
+  </body>
+ </html>
