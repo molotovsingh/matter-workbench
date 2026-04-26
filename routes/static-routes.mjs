@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { isInsideRoot } from "../shared/safe-paths.mjs";
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -16,7 +17,7 @@ export function resolveStaticPath(appDir, urlPath) {
   const cleanPath = decodeURIComponent(urlPath.split("?")[0]);
   const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
   const absolutePath = path.resolve(appDir, relativePath);
-  if (!absolutePath.startsWith(appDir)) return null;
+  if (!isInsideRoot(appDir, absolutePath)) return null;
   return absolutePath;
 }
 
