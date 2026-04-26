@@ -6,6 +6,7 @@ import { extractDocx, DOCX_ENGINE_FINGERPRINT } from "./extract-utils/docx-extra
 import { extractXlsx, XLSX_ENGINE_FINGERPRINT } from "./extract-utils/xlsx-extract.mjs";
 import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.mjs";
 import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
+import { extractRtf, RTF_ENGINE_FINGERPRINT } from "./extract-utils/rtf-extract.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
 
@@ -17,12 +18,18 @@ const ENGINE_VERSION = "extract-v1-deterministic";
 function pickExtractor(row) {
   const lowerName = (row.original_name || "").toLowerCase();
   const ext = lowerName.includes(".") ? lowerName.slice(lowerName.lastIndexOf(".")) : "";
+  if (ext === ".rtf") {
+    return { extractor: extractRtf, fingerprint: RTF_ENGINE_FINGERPRINT, pathField: "rtfPath" };
+  }
   if (row.category === "PDFs") {
     return { extractor: extractPdf, fingerprint: PDF_ENGINE_FINGERPRINT, pathField: "pdfPath" };
   }
   if (row.category === "Word Documents") {
     if (ext === ".doc") {
       return { skipReason: "legacy .doc binary not supported (only .docx)" };
+    }
+    if (ext !== ".docx") {
+      return { skipReason: `word document extension not supported: ${ext || "(none)"}` };
     }
     return { extractor: extractDocx, fingerprint: DOCX_ENGINE_FINGERPRINT, pathField: "docxPath" };
   }

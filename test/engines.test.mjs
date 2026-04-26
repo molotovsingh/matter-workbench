@@ -113,20 +113,21 @@ test("matter-init preserves originals, classifies working copies, and records du
   assert.equal(matterJson.intakes[0].intake_id, "INTAKE-01");
 });
 
-test("extract creates records for PDF, DOCX, spreadsheet, EML, and text while logging unsupported files", async () => {
+test("extract creates records for PDF, DOCX, RTF, spreadsheet, EML, and text while logging unsupported files", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "01-note.txt", "Plain text paragraph.\n\nSecond paragraph.");
   await writeSource(root, "02-data.csv", "Date,Event\n2026-04-20,Agreement signed\n");
   await writeSource(root, "03-mail.eml", "From: client@example.com\nTo: lawyer@example.com\nSubject: Facts\n\nEmail body.");
   await writeSimplePdf(await writeSource(root, "04-simple.pdf", ""));
   await writeSimpleDocx(await writeSource(root, "05-simple.docx", ""));
-  await writeSource(root, "06-script.py", "print('not evidence')\n");
+  await writeSource(root, "06-rich.rtf", "{\\rtf1\\ansi\\uc1\\b NOTICE\\b0\\par Possession delivered on \\u50?0 April 2026.\\par}");
+  await writeSource(root, "07-script.py", "print('not evidence')\n");
 
   await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
   const result = await runExtract({ matterRoot: root, dryRun: false });
 
-  assert.equal(result.counts.totalFiles, 6);
-  assert.equal(result.counts.extracted, 5);
+  assert.equal(result.counts.totalFiles, 7);
+  assert.equal(result.counts.extracted, 6);
   assert.equal(result.counts.skippedUnsupported, 1);
   assert.equal(result.counts.failed, 0);
 
@@ -137,9 +138,11 @@ test("extract creates records for PDF, DOCX, spreadsheet, EML, and text while lo
     "extracted",
     "extracted",
     "extracted",
+    "extracted",
     "skipped-unsupported-format",
   ]);
   assert.ok(logRows.some((row) => row.engine === "text-extract@1.0.0"));
+  assert.ok(logRows.some((row) => row.engine === "rtf-extract@1.0.0"));
   assert.ok(logRows.some((row) => row.engine.startsWith("xlsx@")));
   assert.ok(logRows.some((row) => row.engine.startsWith("mailparser@")));
   assert.ok(logRows.some((row) => row.engine.startsWith("pdfjs-dist@")));
@@ -147,9 +150,12 @@ test("extract creates records for PDF, DOCX, spreadsheet, EML, and text while lo
 
   const firstRecord = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
   assert.equal(firstRecord.schema_version, "extraction-record/v1");
+  const rtfRecord = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0006.json"), "utf8"));
+  assert.equal(rtfRecord.engine, "rtf-extract@1.0.0");
+  assert.match(rtfRecord.pages[0].blocks.map((block) => block.text).join("\n"), /Possession delivered on 20 April 2026/);
 
   const cached = await runExtract({ matterRoot: root, dryRun: false });
-  assert.equal(cached.counts.cached, 5);
+  assert.equal(cached.counts.cached, 6);
 });
 
 test("extraction cache is keyed on file register sha256", async () => {

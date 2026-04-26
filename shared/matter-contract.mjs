@@ -16,6 +16,7 @@ export const CATEGORY_BY_EXTENSION = new Map([
   [".pdf", "PDFs"],
   [".doc", "Word Documents"],
   [".docx", "Word Documents"],
+  [".rtf", "Word Documents"],
   [".xls", "Spreadsheets"],
   [".xlsx", "Spreadsheets"],
   [".csv", "Spreadsheets"],
