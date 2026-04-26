@@ -4,63 +4,25 @@ import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/pro
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toPosix } from "./path-utils.mjs";
+import { toCsv } from "./shared/csv.mjs";
+import {
+  classifyFile,
+  FILE_REGISTER_HEADERS,
+  INITIAL_INTAKE_DIR_NAME,
+  INITIAL_INTAKE_ID,
+  INTAKE_LOG_HEADERS,
+  MATTER_INIT_ENGINE_VERSION,
+  normalizeWorkingCopyName,
+} from "./shared/matter-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DEFAULT_MATTER_ROOT = process.env.MATTER_ROOT ? path.resolve(process.env.MATTER_ROOT) : null;
-const INTAKE_ID = "INTAKE-01";
-const INTAKE_DIR_NAME = "Intake 01 - Initial";
-const ENGINE_VERSION = "phase1-deterministic-v1";
 const ROOT_FILE_SKIP_NAMES = new Set([
   ".DS_Store",
   "matter.json",
 ]);
-
-const CATEGORY_BY_EXTENSION = new Map([
-  [".pdf", "PDFs"],
-  [".doc", "Word Documents"],
-  [".docx", "Word Documents"],
-  [".xls", "Spreadsheets"],
-  [".xlsx", "Spreadsheets"],
-  [".csv", "Spreadsheets"],
-  [".jpg", "Images"],
-  [".jpeg", "Images"],
-  [".png", "Images"],
-  [".heic", "Images"],
-  [".eml", "Emails"],
-  [".msg", "Emails"],
-  [".zip", "Archives"],
-  [".md", "Text Notes"],
-  [".txt", "Text Notes"],
-]);
-
-function csvEscape(value) {
-  const text = value === undefined || value === null ? "" : String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function toCsv(rows, headers) {
-  const lines = [headers.join(",")];
-  rows.forEach((row) => {
-    lines.push(headers.map((header) => csvEscape(row[header])).join(","));
-  });
-  return `${lines.join("\n")}\n`;
-}
-
-function normalizeName(name) {
-  const parsed = path.parse(name);
-  const stem = parsed.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120) || "unnamed";
-  return `${stem}${parsed.ext.toLowerCase()}`;
-}
-
-function classifyFile(filePath) {
-  return CATEGORY_BY_EXTENSION.get(path.extname(filePath).toLowerCase()) || "Needs Review";
-}
 
 function isIgnoredRootFile(name) {
   return name.startsWith(".") || ROOT_FILE_SKIP_NAMES.has(name);
@@ -234,12 +196,12 @@ export async function runMatterInit(options = {}) {
   const matterRoot = path.resolve(configuredMatterRoot);
   const metadata = options.metadata || {};
   const dryRun = Boolean(options.dryRun);
-  const intakeId = options.intakeId || INTAKE_ID;
-  const intakeDirName = options.intakeDirName || INTAKE_DIR_NAME;
+  const intakeId = options.intakeId || INITIAL_INTAKE_ID;
+  const intakeDirName = options.intakeDirName || INITIAL_INTAKE_DIR_NAME;
   const fileIdStart = Number.isFinite(options.fileIdStart) ? options.fileIdStart : 1;
   const priorHashes = options.priorHashes instanceof Map ? options.priorHashes : new Map();
   const receivedDate = options.receivedDate || new Date().toISOString().slice(0, 10);
-  const intakeLabel = options.intakeLabel || (intakeDirName === INTAKE_DIR_NAME ? "Initial" : "");
+  const intakeLabel = options.intakeLabel || (intakeDirName === INITIAL_INTAKE_DIR_NAME ? "Initial" : "");
   const paths = resolvePaths(matterRoot, intakeDirName);
   const rootStaging = await stageLooseRootFiles(paths, dryRun);
 
@@ -288,7 +250,7 @@ export async function runMatterInit(options = {}) {
         size_bytes: fileStat.size,
         duplicate_of: priorMatch,
         status: "duplicate-of-prior-intake",
-        engine_version: ENGINE_VERSION,
+        engine_version: MATTER_INIT_ENGINE_VERSION,
         notes: `Already present from prior intake as ${priorMatch}; not re-copied.`,
       });
       continue;
@@ -299,7 +261,7 @@ export async function runMatterInit(options = {}) {
 
     const originalDestination = path.join(paths.originalsDir, relativeSource);
     const category = classifyFile(sourcePath);
-    const workingCopyName = `${fileId}__${normalizeName(path.basename(sourcePath))}`;
+    const workingCopyName = `${fileId}__${normalizeWorkingCopyName(path.basename(sourcePath))}`;
     const workingCopyDestination = path.join(paths.byTypeDir, category, workingCopyName);
 
     const originalCopyStatus = await copyIfNeeded(sourcePath, originalDestination, sourceHash, dryRun);
@@ -319,7 +281,7 @@ export async function runMatterInit(options = {}) {
       size_bytes: fileStat.size,
       duplicate_of: intraBatchDup,
       status: intraBatchDup ? "exact-duplicate" : "unique",
-      engine_version: ENGINE_VERSION,
+      engine_version: MATTER_INIT_ENGINE_VERSION,
       notes: intraBatchDup ? `Exact duplicate of ${intraBatchDup}.` : "First-seen file for this checksum.",
     });
   }
@@ -343,14 +305,14 @@ export async function runMatterInit(options = {}) {
     working_copies_copied: workingCopiesCopied,
     loose_root_files_seen: rootStaging.rows.length,
     loose_root_files_staged: rootStaging.copied,
-    engine_version: ENGINE_VERSION,
+    engine_version: MATTER_INIT_ENGINE_VERSION,
     notes: "Deterministic copy-only intake. Source files are copied into the Inbox when needed; originals are not moved or modified.",
   }];
 
   const existingMatter = await readExistingMatterJson(matterRoot);
   const newIntakeEntry = {
     intake_id: intakeId,
-    engine_version: ENGINE_VERSION,
+    engine_version: MATTER_INIT_ENGINE_VERSION,
     intake_dir: toPosix(path.relative(matterRoot, paths.intakeDir)),
     received_date: receivedDate,
     label: intakeLabel,
@@ -404,43 +366,11 @@ export async function runMatterInit(options = {}) {
     await mkdir(paths.intakeDir, { recursive: true });
     await writeFile(
       paths.intakeLogPath,
-      toCsv(intakeLogRows, [
-        "intake_id",
-        "intake_dir",
-        "received_date",
-        "label",
-        "source_dir",
-        "originals_dir",
-        "by_type_dir",
-        "scanned_files",
-        "unique_files",
-        "duplicates_in_batch",
-        "duplicates_of_prior",
-        "originals_copied",
-        "working_copies_copied",
-        "loose_root_files_seen",
-        "loose_root_files_staged",
-        "engine_version",
-        "notes",
-      ]),
+      toCsv(intakeLogRows, INTAKE_LOG_HEADERS),
     );
     await writeFile(
       paths.fileRegisterPath,
-      toCsv(fileRegisterRows, [
-        "file_id",
-        "intake_id",
-        "source_path",
-        "original_path",
-        "working_copy_path",
-        "category",
-        "original_name",
-        "sha256",
-        "size_bytes",
-        "duplicate_of",
-        "status",
-        "engine_version",
-        "notes",
-      ]),
+      toCsv(fileRegisterRows, FILE_REGISTER_HEADERS),
     );
     await writeFile(paths.matterJsonPath, `${JSON.stringify(matterJson, null, 2)}\n`);
   }
