@@ -1,6 +1,7 @@
 {
   "scripts": {
     "start": "node server.mjs",
+    "test": "node --test",
     "matter-init:dry-run": "node matter-init-engine.mjs",
     "matter-init": "node matter-init-engine.mjs --apply",
     "extract:dry-run": "node extract-engine.mjs",

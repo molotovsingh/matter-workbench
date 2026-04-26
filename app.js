@@ -1,3 +1,7 @@
+import { getJson, postJson } from "./frontend/api-client.js";
+import { createMutableState } from "./frontend/state.js";
+import { extractSummary, renderExtractResultHtml } from "./frontend/views/extract-result.js";
+
 const terminalOutput = document.getElementById("terminalOutput");
 const editorContent = document.getElementById("editorContent");
 const statusBarRight = document.getElementById("statusBarRight");
@@ -25,9 +29,11 @@ const REQUIRED_METADATA = [
 ];
 const TERMINAL_LINE_CAP = 500;
 
-let mattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
+const initialMattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
+const mattersStore = createMutableState(initialMattersState);
+let mattersState = mattersStore.get();
 
-let activeMatter = {
+const initialActiveMatter = {
   folderName: "",
   inputLabel: "",
   fileCount: 0,
@@ -42,6 +48,8 @@ let activeMatter = {
     briefDescription: "",
   },
 };
+const activeMatterStore = createMutableState(initialActiveMatter);
+let activeMatter = activeMatterStore.get();
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -193,6 +201,7 @@ function renderSkillOverview() {
 
     <div class="form-actions">
       <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Run /matter-init</button>
+      <button type="button" class="run-skill-button secondary" id="runExtractButton">Run /extract</button>
       <button type="button" class="run-skill-button secondary" id="runDoctorButton">Run /doctor</button>
     </div>
   `;
@@ -200,6 +209,10 @@ function renderSkillOverview() {
   const runInitButton = document.getElementById("runMatterInitButton");
   if (runInitButton) {
     runInitButton.addEventListener("click", () => runMatterInit("/matter-init"));
+  }
+  const runExtractButton = document.getElementById("runExtractButton");
+  if (runExtractButton) {
+    runExtractButton.addEventListener("click", () => runExtract("/extract"));
   }
   const runDoctorButton = document.getElementById("runDoctorButton");
   if (runDoctorButton) {
@@ -226,7 +239,7 @@ function validateMetadata() {
 }
 
 function setActiveMatter(nextMatter, options = {}) {
-  activeMatter = { ...activeMatter, ...nextMatter };
+  activeMatter = activeMatterStore.merge(nextMatter);
   if (addFilesButton) addFilesButton.hidden = !activeMatter.folderName;
   breadcrumbs.textContent = activeMatter.folderName
     ? `${activeMatter.folderName} > overview`
@@ -262,9 +275,7 @@ async function refreshWorkspace(options = {}) {
   }
 
   try {
-    const response = await fetch("/api/workspace");
-    if (!response.ok) throw new Error(`workspace API returned ${response.status}`);
-    const workspace = await response.json();
+    const workspace = await getJson("/api/workspace");
     setActiveMatter(matterFromWorkspace(workspace), {
       preserveStatus: options.preserveStatus,
       preserveEditor: options.preserveEditor,
@@ -312,11 +323,9 @@ function renderMattersList() {
 
 async function loadMattersList() {
   try {
-    const response = await fetch("/api/matters");
-    if (!response.ok) throw new Error(`matters API returned ${response.status}`);
-    mattersState = await response.json();
+    mattersState = mattersStore.set(await getJson("/api/matters"));
   } catch {
-    mattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
+    mattersState = mattersStore.set(initialMattersState);
   }
   renderMattersList();
 }
@@ -329,14 +338,8 @@ async function switchToMatter(name) {
     terminal: `[matters] switching to ${name}`,
   });
   try {
-    const response = await fetch("/api/switch-matter", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || `switch-matter returned ${response.status}`);
-    mattersState = { ...mattersState, active: name };
+    const payload = await postJson("/api/switch-matter", { name });
+    mattersState = mattersStore.merge({ active: name });
     renderMattersList();
     setActiveMatter(matterFromWorkspace(payload));
   } catch (error) {
@@ -477,7 +480,7 @@ function renderFirstRun(defaultPath) {
 
 function renderBlankLanding() {
   setActivityActive("explorer");
-  activeMatter = {
+  activeMatter = activeMatterStore.set({
     folderName: "",
     inputLabel: "",
     fileCount: 0,
@@ -491,7 +494,7 @@ function renderBlankLanding() {
       jurisdiction: "",
       briefDescription: "",
     },
-  };
+  });
   if (addFilesButton) addFilesButton.hidden = true;
   workspaceTree.innerHTML = '<li class="tree-node">Pick a matter from the sidebar.</li>';
   breadcrumbs.textContent = "workbench > pick a matter";
@@ -1327,6 +1330,69 @@ async function runMatterInit(command) {
   }
 }
 
+function renderExtractResult(result) {
+  const { counts, totalSkipped } = extractSummary(result);
+
+  setStatus({
+    mood: counts.failed ? "idle" : "success",
+    card: `<strong>extract complete</strong><br />${counts.extracted || 0} extracted, ${counts.cached || 0} cached, ${totalSkipped} skipped.`,
+    bar: counts.failed ? "Extract Finished With Failures" : "Extract Complete",
+    terminal: result.outputLines || [],
+  });
+
+  editorContent.innerHTML = renderExtractResultHtml(result, escapeHtml);
+}
+
+async function runExtract(command) {
+  if (!activeMatter.folderName) {
+    setStatus({
+      mood: "idle",
+      card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /extract.",
+      bar: "No Matter",
+      terminal: "[extract] no active matter",
+    });
+    return;
+  }
+
+  setActivityActive("explorer");
+  breadcrumbs.textContent = `${activeMatter.folderName} > /extract`;
+  setStatus({
+    mood: "idle",
+    card: "<strong>Running /extract</strong><br />Generating extraction records...",
+    bar: "Extract Running",
+    terminal: [
+      `> workbench.run ${command}`,
+      "[extract] running deterministic local extraction...",
+    ],
+  });
+  editorContent.innerHTML = `<h1>/extract — ${escapeHtml(activeMatter.folderName)}</h1><p>Extracting...</p>`;
+
+  try {
+    const payload = await postJson("/api/extract", { dryRun: false });
+    renderExtractResult(payload);
+    await refreshWorkspace({ silent: true, preserveStatus: true, preserveEditor: true });
+  } catch (error) {
+    setStatus({
+      mood: "idle",
+      card: `<strong>Extract failed</strong><br />${escapeHtml(error.message)}`,
+      bar: "Extract Failed",
+      terminal: `[extract] failed: ${error.message}`,
+    });
+    editorContent.innerHTML = `
+      <h1>/extract — ${escapeHtml(activeMatter.folderName)}</h1>
+      <p class="form-error">Extraction failed: ${escapeHtml(error.message)}</p>
+      <div class="form-actions">
+        <button type="button" class="run-skill-button" id="runExtractRetry">Try again</button>
+        <button type="button" class="run-skill-button secondary" id="runExtractBack">Back to overview</button>
+      </div>
+    `;
+    const retry = document.getElementById("runExtractRetry");
+    if (retry) retry.addEventListener("click", () => runExtract(command));
+    const back = document.getElementById("runExtractBack");
+    if (back) back.addEventListener("click", goToExplorer);
+  }
+}
+
 async function runDoctor(command) {
   if (!activeMatter.folderName) {
     setStatus({
@@ -1551,6 +1617,7 @@ slashSkillButtons.forEach((button) => {
     }
     const skill = button.dataset.skill;
     if (skill === "/matter-init") runMatterInit(skill);
+    else if (skill === "/extract") runExtract(skill);
     else if (skill === "/doctor") runDoctor(skill);
   });
 });
@@ -1560,9 +1627,7 @@ renderWorkspaceTree();
 async function bootstrap() {
   let config;
   try {
-    const response = await fetch("/api/config");
-    if (!response.ok) throw new Error(`config API returned ${response.status}`);
-    config = await response.json();
+    config = await getJson("/api/config");
   } catch (error) {
     setStatus({
       mood: "idle",

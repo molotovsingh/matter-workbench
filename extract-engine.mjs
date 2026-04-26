@@ -1,13 +1,13 @@
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { toPosix } from "./path-utils.mjs";
 import { extractPdf, PDF_ENGINE_FINGERPRINT } from "./extract-utils/pdf-extract.mjs";
 import { extractDocx, DOCX_ENGINE_FINGERPRINT } from "./extract-utils/docx-extract.mjs";
 import { extractXlsx, XLSX_ENGINE_FINGERPRINT } from "./extract-utils/xlsx-extract.mjs";
 import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.mjs";
+import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
+import { parseCsv, toCsv } from "./shared/csv.mjs";
+import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,65 +38,13 @@ function pickExtractor(row) {
     }
     return { extractor: extractEml, fingerprint: EML_ENGINE_FINGERPRINT, pathField: "emlPath" };
   }
+  if (row.category === "Text Notes") {
+    if (ext !== ".txt" && ext !== ".md") {
+      return { skipReason: `text note extension not supported: ${ext || "(none)"}` };
+    }
+    return { extractor: extractText, fingerprint: TEXT_ENGINE_FINGERPRINT, pathField: "textPath" };
+  }
   return { skipReason: `category not yet supported: ${row.category}` };
-}
-
-function csvEscape(value) {
-  const text = value === undefined || value === null ? "" : String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function toCsv(rows, headers) {
-  const lines = [headers.join(",")];
-  rows.forEach((row) => {
-    lines.push(headers.map((header) => csvEscape(row[header])).join(","));
-  });
-  return `${lines.join("\n")}\n`;
-}
-
-function parseCsv(text) {
-  const rows = [];
-  let i = 0;
-  let field = "";
-  let row = [];
-  let inQuotes = false;
-  while (i < text.length) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
-        inQuotes = false; i += 1; continue;
-      }
-      field += ch; i += 1; continue;
-    }
-    if (ch === '"') { inQuotes = true; i += 1; continue; }
-    if (ch === ",") { row.push(field); field = ""; i += 1; continue; }
-    if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i += 1;
-      row.push(field); field = "";
-      if (row.length > 1 || row[0] !== "") rows.push(row);
-      row = []; i += 1; continue;
-    }
-    field += ch; i += 1;
-  }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    if (row.length > 1 || row[0] !== "") rows.push(row);
-  }
-  if (rows.length === 0) return [];
-  const headers = rows[0];
-  return rows.slice(1).map((r) => Object.fromEntries(headers.map((h, idx) => [h, r[idx] ?? ""])));
-}
-
-async function sha256Stream(filePath) {
-  const hash = createHash("sha256");
-  await new Promise((resolve, reject) => {
-    const stream = createReadStream(filePath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("error", reject);
-    stream.on("end", resolve);
-  });
-  return hash.digest("hex");
 }
 
 async function pathExists(filePath) {
@@ -161,6 +109,7 @@ export async function runExtract(options = {}) {
   };
   const outputLines = [`> workbench.run /extract${dryRun ? " (dry-run)" : ""}`];
   const perIntake = [];
+  const fileResults = [];
 
   for (const intake of targetIntakes) {
     const intakeDir = path.join(matterRoot, intake.intake_dir);
@@ -186,6 +135,8 @@ export async function runExtract(options = {}) {
         file_id: row.file_id,
         intake_id: row.intake_id || intake.intake_id,
         source_path: row.source_path,
+        original_name: row.original_name,
+        category: row.category,
         sha256: row.sha256,
         engine: "",
         page_count: "",
@@ -288,21 +239,29 @@ export async function runExtract(options = {}) {
       const logPath = path.join(intakeDir, "Extraction Log.csv");
       await writeFile(
         logPath,
-        toCsv(logRows, [
-          "file_id",
-          "intake_id",
-          "source_path",
-          "sha256",
-          "status",
-          "engine",
-          "page_count",
-          "ocr_required_pages",
-          "multi_column_pages",
-          "time_taken_ms",
-          "extracted_at",
-          "notes",
-        ]),
+        toCsv(logRows, EXTRACTION_LOG_HEADERS),
       );
+    }
+
+    fileResults.push(...logRows.map((row) => ({
+      file_id: row.file_id,
+      intake_id: row.intake_id,
+      source_path: row.source_path,
+      original_name: row.original_name || "",
+      category: row.category || "",
+      status: row.status,
+      engine: row.engine,
+      notes: row.notes,
+    })));
+
+    const attentionRows = logRows.filter((row) => (
+      row.status === "failed"
+      || row.status === "ocr-required-all"
+      || row.status.startsWith("skipped-")
+    ));
+    for (const row of attentionRows) {
+      const note = row.notes ? ` (${row.notes})` : "";
+      outputLines.push(`[extract] ${row.file_id}: ${row.status}${note}`);
     }
 
     perIntake.push({
@@ -328,6 +287,7 @@ export async function runExtract(options = {}) {
     engineVersion: ENGINE_VERSION,
     counts,
     perIntake,
+    fileResults,
     outputLines,
   };
 }
@@ -339,6 +299,7 @@ function emptyResult(dryRun, matterRoot, reason) {
     engineVersion: ENGINE_VERSION,
     counts: { totalFiles: 0, extracted: 0, cached: 0, skippedDuplicate: 0, skippedUnsupported: 0, ocrRequiredFiles: 0, failed: 0 },
     perIntake: [],
+    fileResults: [],
     outputLines: [`[extract] ${reason}`],
   };
 }
