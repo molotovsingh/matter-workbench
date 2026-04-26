@@ -14,14 +14,13 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
   if (!workspaceService) throw new Error("workspaceService is required");
 
   async function handleMultipartUpload(request) {
+    const contentType = request.headers["content-type"] || "";
+    if (!contentType.startsWith("multipart/form-data")) {
+      throw makeHttpError("Expected multipart/form-data", 400);
+    }
+
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "matter-upload-"));
     return new Promise((resolve, reject) => {
-      const contentType = request.headers["content-type"] || "";
-      if (!contentType.startsWith("multipart/form-data")) {
-        reject(makeHttpError("Expected multipart/form-data", 400));
-        return;
-      }
-
       const bb = busboy({
         headers: request.headers,
         limits: { fileSize: maxUploadBytes, files: 5000, fields: 20 },
