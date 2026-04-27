@@ -1,14 +1,18 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_MODEL,
+} from "./shared/ai-defaults.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
+import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "./shared/responses-client.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "create-listofdates-v1-ai";
-export const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
-export const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 3000;
+export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 const BLOCK_CHAR_LIMIT = 2800;
 const CHUNK_CHAR_LIMIT = 18000;
 
@@ -169,23 +173,15 @@ export async function runCreateListOfDates(options = {}) {
 export function createOpenAiProvider({
   apiKey,
   model = DEFAULT_OPENAI_MODEL,
-  endpoint = "https://api.openai.com/v1/responses",
+  endpoint = DEFAULT_RESPONSES_ENDPOINT,
   maxOutputTokens = DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
 } = {}) {
   return async function openAiListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, schema }) {
-    if (!apiKey) {
-      const error = new Error("OPENAI_API_KEY is required for /create_listofdates");
-      error.statusCode = 409;
-      throw error;
-    }
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
+    return requestResponsesJson({
+      apiKey,
+      endpoint,
+      missingApiKeyMessage: "OPENAI_API_KEY is required for /create_listofdates",
+      body: {
         model,
         max_output_tokens: maxOutputTokens,
         input: [
@@ -234,45 +230,14 @@ export function createOpenAiProvider({
             schema,
           },
         },
-      }),
+      },
     });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      const error = new Error(payload?.error?.message || `OpenAI Responses API returned ${response.status}`);
-      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-      throw error;
-    }
-    const outputText = extractOutputText(payload);
-    if (!outputText) {
-      const error = new Error("OpenAI response did not include output text");
-      error.statusCode = 502;
-      throw error;
-    }
-    try {
-      return JSON.parse(outputText);
-    } catch (parseError) {
-      const error = new Error(`OpenAI response was not valid JSON: ${parseError.message}`);
-      error.statusCode = 502;
-      throw error;
-    }
   };
 }
 
 function parsePositiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
-}
-
-function extractOutputText(payload) {
-  if (typeof payload?.output_text === "string") return payload.output_text;
-  const parts = [];
-  for (const item of payload?.output || []) {
-    for (const content of item.content || []) {
-      if (typeof content.text === "string") parts.push(content.text);
-    }
-  }
-  return parts.join("").trim();
 }
 
 async function readMatterJson(matterRoot) {

@@ -2,7 +2,7 @@ import path from "node:path";
 import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
-} from "../create-listofdates-engine.mjs";
+} from "../shared/ai-defaults.mjs";
 import { upsertLocalEnv } from "../shared/local-env.mjs";
 
 const OPENAI_KEY_PATTERN = /^sk-[A-Za-z0-9_-]+$/;
