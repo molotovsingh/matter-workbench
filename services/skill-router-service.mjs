@@ -183,6 +183,8 @@ export function createOpenAiSkillRouterProvider({
                 source_backed: skill.source_backed,
                 legal_setting_scope: skill.legal_setting_scope,
                 markdown_first: skill.markdown_first,
+                implementation_status: skill.implementation_status || "implemented",
+                version: skill.version,
               })),
               direct_mece_violation_rule: "same category + same goal + same input contract + same output contract",
               user_gate_choices: ["Approve modification", "Justify new skill"],

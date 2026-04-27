@@ -40,6 +40,7 @@
       "source_backed": "not_applicable",
       "legal_setting_scope": "general",
       "markdown_first": false,
+      "implementation_status": "implemented",
       "version": 1
     },
     {
@@ -67,25 +68,30 @@
       "source_backed": "required",
       "legal_setting_scope": "general",
       "markdown_first": false,
+      "implementation_status": "implemented",
       "version": 1
     },
     {
       "id": "create_listofdates",
       "slash": "/create_listofdates",
       "category": "Analyze",
-      "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",
+      "purpose": "Build a source-backed List of Dates packet from extraction records, including chronology entries, contradictions, unsupported assertions, missing periods, and client document requests.",
       "inputs": [
         "extraction-record/v1"
       ],
       "outputs": [
+        "list-of-dates-packet/v1",
         "10_Library/List of Dates.md",
         "10_Library/List of Dates.csv",
-        "10_Library/List of Dates.json"
+        "10_Library/List of Dates.json",
+        "10_Library/Timeline Gaps.md",
+        "10_Library/Client Document Requests.md"
       ],
       "upstream": [
         "/extract"
       ],
       "downstream": [
+        "/export_listofdates",
         "/extract_claims",
         "/draft_petition",
         "/review_chronology"
@@ -94,6 +100,29 @@
       "source_backed": "required",
       "legal_setting_scope": "general",
       "markdown_first": true,
+      "implementation_status": "implemented",
+      "version": 1
+    },
+    {
+      "id": "export_listofdates",
+      "slash": "/export_listofdates",
+      "category": "Export",
+      "purpose": "Render the List of Dates packet into human-readable review and export formats, starting with linked PDF output that points back to source previews.",
+      "inputs": [
+        "list-of-dates-packet/v1"
+      ],
+      "outputs": [
+        "20_Review/List of Dates - Linked.pdf"
+      ],
+      "upstream": [
+        "/create_listofdates"
+      ],
+      "downstream": [],
+      "mode": "deterministic",
+      "source_backed": "inherited",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "implementation_status": "planned",
       "version": 1
     },
     {
@@ -115,6 +144,7 @@
       "source_backed": "not_applicable",
       "legal_setting_scope": "general",
       "markdown_first": false,
+      "implementation_status": "implemented",
       "version": 1
     }
   ]

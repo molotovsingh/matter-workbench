@@ -24,9 +24,18 @@ test("skill registry lists current slash skills", async () => {
   assert.equal(registry.schema_version, "skill-registry/v1");
   assert.deepEqual(
     registry.skills.map((skill) => skill.slash),
-    ["/matter-init", "/extract", "/create_listofdates", "/doctor"],
+    ["/matter-init", "/extract", "/create_listofdates", "/export_listofdates", "/doctor"],
   );
-  assert.equal(registry.skills.find((skill) => skill.slash === "/create_listofdates").category, "Analyze");
+  const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
+  assert.equal(listOfDates.category, "Analyze");
+  assert.ok(listOfDates.outputs.includes("list-of-dates-packet/v1"));
+  assert.ok(listOfDates.outputs.includes("10_Library/Timeline Gaps.md"));
+
+  const exporter = registry.skills.find((skill) => skill.slash === "/export_listofdates");
+  assert.equal(exporter.category, "Export");
+  assert.equal(exporter.mode, "deterministic");
+  assert.equal(exporter.implementation_status, "planned");
+  assert.equal(registry.skills.find((skill) => skill.slash === "/extract").implementation_status, "implemented");
 });
 
 test("direct MECE overlap requires user approval instead of creating a duplicate skill", async () => {
@@ -153,4 +162,71 @@ test("forum-specific drafting request can be adjacent without violating existing
   assert.equal(result.mece_violation, false);
   assert.equal(result.legal_setting.case_type, "Writ Petition");
   assert.match(result.suggested_next_action, /markdown/i);
+});
+
+test("timeline gap requests are routed to create_listofdates packet", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async (payload) => {
+      assert.ok(payload.registry.skills.some((skill) => (
+        skill.slash === "/create_listofdates"
+        && skill.outputs.includes("list-of-dates-packet/v1")
+      )));
+      return {
+        decision: "run_existing_skill",
+        recommended_action: "run_existing_skill",
+        matched_skill: "/create_listofdates",
+        confidence: 0.92,
+        reason: "Timeline gaps are part of the List of Dates packet.",
+        user_gate_required: false,
+        suggested_next_action: "Use /create_listofdates to produce timeline gaps and client document requests.",
+        mece_violation: false,
+        legal_setting: legalSetting(),
+        override_requires: [],
+      };
+    },
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "Find missing timeline gaps and prepare client document requests.",
+  });
+
+  assert.equal(result.decision, "run_existing_skill");
+  assert.equal(result.recommended_action, "run_existing_skill");
+  assert.equal(result.matched_skill, "/create_listofdates");
+  assert.equal(result.mece_violation, false);
+});
+
+test("linked PDF export requests are routed to export_listofdates", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async (payload) => {
+      assert.ok(payload.registry.skills.some((skill) => (
+        skill.slash === "/export_listofdates"
+        && skill.inputs.includes("list-of-dates-packet/v1")
+        && skill.implementation_status === "planned"
+      )));
+      return {
+        decision: "run_existing_skill",
+        recommended_action: "run_existing_skill",
+        matched_skill: "/export_listofdates",
+        confidence: 0.88,
+        reason: "A human PDF with links is an export rendering of the List of Dates packet.",
+        user_gate_required: false,
+        suggested_next_action: "Use /export_listofdates once the packet exists.",
+        mece_violation: false,
+        legal_setting: legalSetting(),
+        override_requires: [],
+      };
+    },
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "Make a clickable PDF of the List of Dates where each event links to the source document.",
+  });
+
+  assert.equal(result.decision, "run_existing_skill");
+  assert.equal(result.recommended_action, "run_existing_skill");
+  assert.equal(result.matched_skill, "/export_listofdates");
+  assert.equal(result.mece_violation, false);
 });

@@ -60,6 +60,7 @@ function normalizeRegistry(registry, registryPath) {
       outputs: Array.isArray(skill.outputs) ? skill.outputs : [],
       upstream: Array.isArray(skill.upstream) ? skill.upstream : [],
       downstream: Array.isArray(skill.downstream) ? skill.downstream : [],
+      implementation_status: skill.implementation_status || "implemented",
       version: Number.isInteger(skill.version) ? skill.version : 1,
     };
   });
