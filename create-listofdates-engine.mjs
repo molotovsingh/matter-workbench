@@ -79,7 +79,7 @@ export async function runCreateListOfDates(options = {}) {
   const dryRun = Boolean(options.dryRun);
   const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env: process.env });
   const maxOutputTokens = options.maxOutputTokens
-    ? parsePositiveInteger(options.maxOutputTokens) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS
+    ? parsePositiveInteger(options.maxOutputTokens) || modelPolicy.maxOutputTokens
     : modelPolicy.maxOutputTokens;
   const model = options.model || modelPolicy.model;
   const aiRun = modelPolicyMetadata(modelPolicy, { model, maxOutputTokens });

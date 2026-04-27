@@ -223,7 +223,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
   process.env.OPENAI_MAX_OUTPUT_TOKENS = "3456";
 
   try {
-    const result = await runCreateListOfDates({ matterRoot: root });
+    const result = await runCreateListOfDates({ matterRoot: root, maxOutputTokens: "invalid" });
     const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
 
     assert.equal(result.aiRun.model, "policy-listofdates-model");
