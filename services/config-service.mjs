@@ -6,7 +6,7 @@ export function createConfigService({ appDir, env = process.env } = {}) {
   if (!appDir) throw new Error("appDir is required");
 
   const configPath = path.join(appDir, "config.json");
-  const defaultMattersHome = path.join(os.homedir(), "Documents", "Matter Workbench");
+  const defaultMattersHome = path.join(os.homedir(), "matters-matter-workbench");
   let mattersHome = env.MATTERS_HOME ? path.resolve(env.MATTERS_HOME) : null;
 
   async function load() {
