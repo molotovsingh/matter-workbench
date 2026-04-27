@@ -84,7 +84,7 @@ export function wireSkillRouterPanel() {
       });
       resultBox.innerHTML = renderRouterDecision(decision);
       resultBox.hidden = false;
-      wireGateButtons({ decision, overrideLabel, overrideInput, resultBox });
+      wireRouterGateButtons({ decision, overrideLabel, overrideInput, resultBox });
     } catch (error) {
       errorBox.textContent = error.message;
       errorBox.hidden = false;
@@ -96,7 +96,8 @@ export function wireSkillRouterPanel() {
   });
 }
 
-function renderRouterDecision(decision) {
+export function renderRouterDecision(decision, options = {}) {
+  const prefix = options.prefix || "skillRouter";
   const matchedSkill = decision.matched_skill || "none";
   const confidence = Number.isFinite(decision.confidence)
     ? `${Math.round(decision.confidence * 100)}%`
@@ -112,10 +113,10 @@ function renderRouterDecision(decision) {
     : "";
   const gateActions = decision.user_gate_required ? `
     <div class="form-actions skill-router-gate-actions">
-      <button type="button" id="skillRouterApproveModification">Approve modification</button>
-      <button type="button" class="secondary" id="skillRouterJustifyNew">Justify new skill</button>
+      <button type="button" id="${escapeHtml(prefix)}ApproveModification">Approve modification</button>
+      <button type="button" class="secondary" id="${escapeHtml(prefix)}JustifyNew">Justify new skill</button>
     </div>
-    <div id="skillRouterGateMessage" class="form-note"></div>
+    <div id="${escapeHtml(prefix)}GateMessage" class="form-note"></div>
   ` : "";
 
   return `
@@ -152,16 +153,25 @@ function renderLegalSetting(legalSetting = {}) {
   `).join("");
 }
 
-function wireGateButtons({ decision, overrideLabel, overrideInput, resultBox }) {
-  const gateMessage = document.getElementById("skillRouterGateMessage");
-  const approveButton = document.getElementById("skillRouterApproveModification");
-  const justifyButton = document.getElementById("skillRouterJustifyNew");
+export function wireRouterGateButtons({
+  prefix = "skillRouter",
+  decision,
+  overrideLabel,
+  overrideInput,
+  resultBox,
+  approveMessage,
+}) {
+  const gateMessage = document.getElementById(`${prefix}GateMessage`);
+  const approveButton = document.getElementById(`${prefix}ApproveModification`);
+  const justifyButton = document.getElementById(`${prefix}JustifyNew`);
 
   if (approveButton) {
     approveButton.addEventListener("click", () => {
-      gateMessage.textContent = decision.matched_skill
-        ? `Approved locally: treat this as a modification request for ${decision.matched_skill}.`
-        : "Approved locally: treat this as a modification request.";
+      if (gateMessage) {
+        gateMessage.textContent = approveMessage || (decision.matched_skill
+          ? `Approved locally: treat this as a modification request for ${decision.matched_skill}.`
+          : "Approved locally: treat this as a modification request.");
+      }
     });
   }
   if (justifyButton) {
@@ -169,7 +179,7 @@ function wireGateButtons({ decision, overrideLabel, overrideInput, resultBox }) 
       overrideLabel.hidden = false;
       overrideInput.focus();
       resultBox.scrollIntoView({ block: "nearest" });
-      gateMessage.textContent = "Add an override justification above, then run the check again.";
+      if (gateMessage) gateMessage.textContent = "Add an override justification above, then run the check again.";
     });
   }
 }

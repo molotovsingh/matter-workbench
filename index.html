@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Legal Workbench Phase 1</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=skill-router-1" />
+    <link rel="stylesheet" href="styles.css?v=ai-command-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -64,6 +64,15 @@
           <div class="editor-pane">
             <div class="editor-toolbar">
               <div id="breadcrumbs" class="breadcrumbs">workbench</div>
+              <form id="aiCommandForm" class="ai-command-form" autocomplete="off">
+                <input
+                  id="aiCommandInput"
+                  type="text"
+                  placeholder="Ask AI or check a proposed skill..."
+                  spellcheck="true"
+                />
+                <button id="aiCommandSubmit" type="submit">Route</button>
+              </form>
             </div>
 
             <article class="editor-content" id="editorContent">
@@ -94,6 +103,6 @@
       </main>
     </div>
 
-    <script type="module" src="app.js?v=skill-router-1"></script>
+    <script type="module" src="app.js?v=ai-command-1"></script>
   </body>
  </html>
