@@ -13,6 +13,7 @@ const VALID_DECISIONS = new Set([
   "new_skill",
   "needs_user_approval",
   "override_requested",
+  "planned_skill",
 ]);
 const VALID_RECOMMENDATIONS = new Set([...VALID_DECISIONS, "none"]);
 
@@ -229,13 +230,17 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
   const skillsBySlash = new Map((registry.skills || []).map((skill) => [skill.slash, skill]));
   const raw = rawDecision && typeof rawDecision === "object" ? rawDecision : {};
   const rawDecisionName = VALID_DECISIONS.has(raw.decision) ? raw.decision : "needs_user_approval";
-  const matchedSkill = skillsBySlash.has(raw.matched_skill) ? raw.matched_skill : "";
+  const rawMatchedSkill = collapseWhitespace(raw.matched_skill || "");
+  const matchedSkill = resolveMatchedSkill(rawMatchedSkill, skillsBySlash);
+  const matchedSkillCard = matchedSkill ? skillsBySlash.get(matchedSkill) : null;
   const confidence = clamp01(raw.confidence);
-  const meceViolation = Boolean(raw.mece_violation && matchedSkill);
+  const rawMeceViolation = Boolean(raw.mece_violation);
   const createIntent = hasCreateIntent(context.userRequest || "");
   const directOverlap = matchedSkill
     && (rawDecisionName === "modify_existing_skill" || (createIntent && rawDecisionName === "run_existing_skill"))
     && confidence >= DIRECT_OVERLAP_CONFIDENCE;
+  const meceViolation = rawMeceViolation || Boolean(directOverlap);
+  const plannedMatch = matchedSkillCard?.implementation_status === "planned";
 
   let decision = rawDecisionName;
   let recommendedAction = VALID_RECOMMENDATIONS.has(raw.recommended_action)
@@ -244,16 +249,30 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
   let userGateRequired = Boolean(raw.user_gate_required);
   let reason = collapseWhitespace(raw.reason || "No router reason provided.");
 
-  if (meceViolation || directOverlap) {
-    decision = "needs_user_approval";
-    recommendedAction = rawDecisionName === "run_existing_skill" ? "run_existing_skill" : "modify_existing_skill";
-    userGateRequired = true;
+  if (plannedMatch && rawDecisionName === "run_existing_skill") {
+    decision = "planned_skill";
+    recommendedAction = "planned_skill";
+    userGateRequired = false;
     reason = collapseWhitespace(
-      `The request overlaps with ${matchedSkill}. User approval is required before rerouting or overriding. ${reason}`,
+      `${matchedSkill} is registered as planned but is not runnable yet. ${reason}`,
     );
   }
 
-  if (decision === "override_requested") {
+  if (meceViolation || directOverlap) {
+    decision = "needs_user_approval";
+    if (rawDecisionName === "run_existing_skill") {
+      recommendedAction = "run_existing_skill";
+    } else {
+      recommendedAction = matchedSkill ? "modify_existing_skill" : "needs_user_approval";
+    }
+    userGateRequired = true;
+    const overlapTarget = matchedSkill || rawMatchedSkill || "a possible registry overlap";
+    reason = collapseWhitespace(
+      `The request overlaps with ${overlapTarget}. User approval is required before rerouting or overriding. ${reason}`,
+    );
+  }
+
+  if (decision === "needs_user_approval" || decision === "override_requested") {
     userGateRequired = true;
   }
 
@@ -261,18 +280,28 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
     decision,
     recommended_action: recommendedAction,
     matched_skill: matchedSkill,
-    matched_skill_card: matchedSkill ? skillsBySlash.get(matchedSkill) : null,
+    matched_skill_card: matchedSkillCard,
     confidence,
     reason,
     user_gate_required: userGateRequired,
     user_gate_choices: userGateRequired ? ["Approve modification", "Justify new skill"] : [],
     suggested_next_action: collapseWhitespace(raw.suggested_next_action || ""),
-    mece_violation: Boolean(meceViolation || directOverlap),
+    mece_violation: meceViolation,
     legal_setting: normalizeLegalSetting(raw.legal_setting),
     override_requires: Array.isArray(raw.override_requires)
       ? raw.override_requires.map((item) => collapseWhitespace(item)).filter(Boolean)
       : [],
   };
+}
+
+function resolveMatchedSkill(value, skillsBySlash) {
+  if (!value) return "";
+  if (skillsBySlash.has(value)) return value;
+  const normalizedValue = normalizeSkillKey(value);
+  for (const slash of skillsBySlash.keys()) {
+    if (normalizeSkillKey(slash) === normalizedValue) return slash;
+  }
+  return "";
 }
 
 function normalizeLegalSetting(value = {}) {
@@ -310,6 +339,10 @@ function clamp01(value) {
 
 function collapseWhitespace(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeSkillKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function hasCreateIntent(value) {

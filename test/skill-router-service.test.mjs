@@ -130,6 +130,60 @@ test("create intent cannot silently reroute to run existing skill", async () => 
   assert.equal(result.mece_violation, true);
 });
 
+test("needs_user_approval always preserves the user gate", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "needs_user_approval",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/create_listofdates",
+      confidence: 0.74,
+      reason: "The request may overlap with an existing chronology workflow.",
+      user_gate_required: false,
+      suggested_next_action: "Ask the user to approve modifying /create_listofdates or justify a separate skill.",
+      mece_violation: false,
+      legal_setting: legalSetting(),
+      override_requires: ["distinct purpose", "distinct output contract"],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "Create a related chronology workflow for the same extracted records.",
+  });
+
+  assert.equal(result.decision, "needs_user_approval");
+  assert.equal(result.user_gate_required, true);
+  assert.deepEqual(result.user_gate_choices, ["Approve modification", "Justify new skill"]);
+});
+
+test("raw MECE violations resolve fuzzy matched skill ids before gating", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "new_skill",
+      recommended_action: "new_skill",
+      matched_skill: "/create-listofdates",
+      confidence: 0.95,
+      reason: "The request is the same list-of-dates packet but the matched slash id uses a hyphen.",
+      user_gate_required: false,
+      suggested_next_action: "Create a new skill.",
+      mece_violation: true,
+      legal_setting: legalSetting(),
+      override_requires: ["distinct input contract", "distinct output contract"],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "Create a new list-of-dates skill for extracted records.",
+  });
+
+  assert.equal(result.decision, "needs_user_approval");
+  assert.equal(result.recommended_action, "modify_existing_skill");
+  assert.equal(result.matched_skill, "/create_listofdates");
+  assert.equal(result.user_gate_required, true);
+  assert.equal(result.mece_violation, true);
+});
+
 test("forum-specific drafting request can be adjacent without violating existing skills", async () => {
   const service = createSkillRouterService({
     registryService: registryService(),
@@ -225,8 +279,10 @@ test("linked PDF export requests are routed to export_listofdates", async () => 
     userRequest: "Make a clickable PDF of the List of Dates where each event links to the source document.",
   });
 
-  assert.equal(result.decision, "run_existing_skill");
-  assert.equal(result.recommended_action, "run_existing_skill");
+  assert.equal(result.decision, "planned_skill");
+  assert.equal(result.recommended_action, "planned_skill");
   assert.equal(result.matched_skill, "/export_listofdates");
+  assert.equal(result.matched_skill_card.implementation_status, "planned");
   assert.equal(result.mece_violation, false);
+  assert.match(result.reason, /not runnable yet/i);
 });
