@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -335,6 +339,42 @@ strong {
   font-size: 13px;
   margin-top: 10px;
   min-height: 18px;
+}
+
+.skill-router-form {
+  margin-top: 20px;
+}
+
+.skill-router-result {
+  max-width: 900px;
+  margin-top: 18px;
+}
+
+.skill-router-result h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.skill-router-contract {
+  margin-top: 0;
+}
+
+.skill-registry-table td:nth-child(4) {
+  line-height: 1.45;
+}
+
+.skill-router-chip {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  background: #1a1a1a;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.skill-router-gate-actions {
+  margin-top: 12px;
 }
 
 .tree-actions {

@@ -5,7 +5,15 @@ import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 
 export async function handleApiRequest({ request, requestUrl, response, services }) {
-  const { aiSettingsService, configService, matterStore, uploadService, workspaceService } = services;
+  const {
+    aiSettingsService,
+    configService,
+    matterStore,
+    skillRegistryService,
+    skillRouterService,
+    uploadService,
+    workspaceService,
+  } = services;
 
   if (request.method === "POST" && requestUrl.pathname === "/api/matter-init") {
     const root = matterStore.ensureMatterRoot();
@@ -60,6 +68,20 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "POST" && requestUrl.pathname === "/api/ai-settings/test") {
     sendJson(response, 200, await aiSettingsService.testConnection());
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/skills") {
+    sendJson(response, 200, await skillRegistryService.readRegistry());
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/skills/check-intent") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillRouterService.checkIntent({
+      userRequest: body.userRequest,
+      overrideJustification: body.overrideJustification,
+    }));
     return true;
   }
 

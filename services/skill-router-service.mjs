@@ -1,0 +1,316 @@
+import {
+  DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_MODEL,
+} from "../create-listofdates-engine.mjs";
+
+const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
+const DIRECT_OVERLAP_CONFIDENCE = 0.78;
+const VALID_DECISIONS = new Set([
+  "run_existing_skill",
+  "modify_existing_skill",
+  "create_or_modify_tuning",
+  "adjacent_skill",
+  "new_skill",
+  "needs_user_approval",
+  "override_requested",
+]);
+const VALID_RECOMMENDATIONS = new Set([...VALID_DECISIONS, "none"]);
+
+const ROUTER_OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "decision",
+    "recommended_action",
+    "matched_skill",
+    "confidence",
+    "reason",
+    "user_gate_required",
+    "suggested_next_action",
+    "mece_violation",
+    "legal_setting",
+    "override_requires",
+  ],
+  properties: {
+    decision: {
+      type: "string",
+      enum: [...VALID_DECISIONS],
+    },
+    recommended_action: {
+      type: "string",
+      enum: [...VALID_RECOMMENDATIONS],
+    },
+    matched_skill: {
+      type: "string",
+    },
+    confidence: {
+      type: "number",
+      minimum: 0,
+      maximum: 1,
+    },
+    reason: {
+      type: "string",
+    },
+    user_gate_required: {
+      type: "boolean",
+    },
+    suggested_next_action: {
+      type: "string",
+    },
+    mece_violation: {
+      type: "boolean",
+    },
+    legal_setting: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "jurisdiction",
+        "forum",
+        "case_type",
+        "procedure_stage",
+        "side",
+        "relief_type",
+      ],
+      properties: {
+        jurisdiction: { type: "string" },
+        forum: { type: "string" },
+        case_type: { type: "string" },
+        procedure_stage: { type: "string" },
+        side: { type: "string" },
+        relief_type: { type: "string" },
+      },
+    },
+    override_requires: {
+      type: "array",
+      items: {
+        type: "string",
+      },
+    },
+  },
+};
+
+export function createSkillRouterService({
+  registryService,
+  aiProvider,
+  env = process.env,
+  endpoint = "https://api.openai.com/v1/responses",
+} = {}) {
+  if (!registryService) throw new Error("registryService is required");
+
+  async function checkIntent({ userRequest, overrideJustification = "" } = {}) {
+    const requestText = typeof userRequest === "string" ? userRequest.trim() : "";
+    if (!requestText) {
+      const error = new Error("userRequest is required");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const registry = await registryService.readRegistry();
+    const provider = aiProvider || createOpenAiSkillRouterProvider({
+      apiKey: env.OPENAI_API_KEY,
+      model: env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
+      endpoint,
+      maxOutputTokens: parsePositiveInteger(env.OPENAI_ROUTER_MAX_OUTPUT_TOKENS)
+        || DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+    });
+
+    const rawDecision = await provider({
+      userRequest: requestText,
+      overrideJustification: String(overrideJustification || "").trim(),
+      registry,
+      schema: ROUTER_OUTPUT_SCHEMA,
+    });
+
+    return normalizeRouterDecision(rawDecision, registry, { userRequest: requestText });
+  }
+
+  return {
+    checkIntent,
+  };
+}
+
+export function createOpenAiSkillRouterProvider({
+  apiKey,
+  model = DEFAULT_OPENAI_MODEL,
+  endpoint = "https://api.openai.com/v1/responses",
+  maxOutputTokens = DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+} = {}) {
+  return async function openAiSkillRouterProvider({ userRequest, overrideJustification, registry, schema }) {
+    if (!apiKey) {
+      const error = new Error("OPENAI_API_KEY is required for skill intent routing");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: maxOutputTokens,
+        input: [
+          {
+            role: "system",
+            content: [
+              "You are the Legal Workbench skill router.",
+              "Classify a user's skill request against the supplied skill registry.",
+              "Be MECE: do not recommend duplicate skills when an existing skill has the same category, goal, input contract, and output contract.",
+              "If there is a direct MECE violation, recommend modifying the existing skill and require user approval.",
+              "Treat expert preferences or legal heuristics as skill tuning, not a new executable workflow.",
+              "Be legal-setting aware: forum, jurisdiction, case type, procedural stage, side, relief, and audience may justify profiles or tuning before new skills.",
+              "All AI legal work product should be markdown-first until export/print skills are mature; DOCX/PDF belong to Export skills.",
+              "Return only JSON in the requested schema.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              user_request: userRequest,
+              override_justification: overrideJustification,
+              registry_principles: registry.principles || {},
+              skill_registry: registry.skills.map((skill) => ({
+                slash: skill.slash,
+                category: skill.category,
+                purpose: skill.purpose,
+                inputs: skill.inputs,
+                outputs: skill.outputs,
+                upstream: skill.upstream,
+                downstream: skill.downstream,
+                mode: skill.mode,
+                source_backed: skill.source_backed,
+                legal_setting_scope: skill.legal_setting_scope,
+                markdown_first: skill.markdown_first,
+              })),
+              direct_mece_violation_rule: "same category + same goal + same input contract + same output contract",
+              user_gate_choices: ["Approve modification", "Justify new skill"],
+            }),
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "skill_router_decision",
+            description: "MECE-aware routing decision for legal-workbench skill requests.",
+            strict: true,
+            schema,
+          },
+        },
+      }),
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || `OpenAI Responses API returned ${response.status}`);
+      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
+      throw error;
+    }
+    const outputText = extractOutputText(payload);
+    if (!outputText) {
+      const error = new Error("OpenAI response did not include output text");
+      error.statusCode = 502;
+      throw error;
+    }
+    try {
+      return JSON.parse(outputText);
+    } catch (parseError) {
+      const error = new Error(`OpenAI response was not valid JSON: ${parseError.message}`);
+      error.statusCode = 502;
+      throw error;
+    }
+  };
+}
+
+export function normalizeRouterDecision(rawDecision, registry, context = {}) {
+  const skillsBySlash = new Map((registry.skills || []).map((skill) => [skill.slash, skill]));
+  const raw = rawDecision && typeof rawDecision === "object" ? rawDecision : {};
+  const rawDecisionName = VALID_DECISIONS.has(raw.decision) ? raw.decision : "needs_user_approval";
+  const matchedSkill = skillsBySlash.has(raw.matched_skill) ? raw.matched_skill : "";
+  const confidence = clamp01(raw.confidence);
+  const meceViolation = Boolean(raw.mece_violation && matchedSkill);
+  const createIntent = hasCreateIntent(context.userRequest || "");
+  const directOverlap = matchedSkill
+    && (rawDecisionName === "modify_existing_skill" || (createIntent && rawDecisionName === "run_existing_skill"))
+    && confidence >= DIRECT_OVERLAP_CONFIDENCE;
+
+  let decision = rawDecisionName;
+  let recommendedAction = VALID_RECOMMENDATIONS.has(raw.recommended_action)
+    ? raw.recommended_action
+    : "none";
+  let userGateRequired = Boolean(raw.user_gate_required);
+  let reason = collapseWhitespace(raw.reason || "No router reason provided.");
+
+  if (meceViolation || directOverlap) {
+    decision = "needs_user_approval";
+    recommendedAction = rawDecisionName === "run_existing_skill" ? "run_existing_skill" : "modify_existing_skill";
+    userGateRequired = true;
+    reason = collapseWhitespace(
+      `The request overlaps with ${matchedSkill}. User approval is required before rerouting or overriding. ${reason}`,
+    );
+  }
+
+  if (decision === "override_requested") {
+    userGateRequired = true;
+  }
+
+  return {
+    decision,
+    recommended_action: recommendedAction,
+    matched_skill: matchedSkill,
+    matched_skill_card: matchedSkill ? skillsBySlash.get(matchedSkill) : null,
+    confidence,
+    reason,
+    user_gate_required: userGateRequired,
+    user_gate_choices: userGateRequired ? ["Approve modification", "Justify new skill"] : [],
+    suggested_next_action: collapseWhitespace(raw.suggested_next_action || ""),
+    mece_violation: Boolean(meceViolation || directOverlap),
+    legal_setting: normalizeLegalSetting(raw.legal_setting),
+    override_requires: Array.isArray(raw.override_requires)
+      ? raw.override_requires.map((item) => collapseWhitespace(item)).filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeLegalSetting(value = {}) {
+  return {
+    jurisdiction: collapseWhitespace(value.jurisdiction || ""),
+    forum: collapseWhitespace(value.forum || ""),
+    case_type: collapseWhitespace(value.case_type || ""),
+    procedure_stage: collapseWhitespace(value.procedure_stage || ""),
+    side: collapseWhitespace(value.side || ""),
+    relief_type: collapseWhitespace(value.relief_type || ""),
+  };
+}
+
+function extractOutputText(payload) {
+  if (typeof payload?.output_text === "string") return payload.output_text;
+  const parts = [];
+  for (const item of payload?.output || []) {
+    for (const content of item.content || []) {
+      if (typeof content.text === "string") parts.push(content.text);
+    }
+  }
+  return parts.join("").trim();
+}
+
+function parsePositiveInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function clamp01(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(1, number));
+}
+
+function collapseWhitespace(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function hasCreateIntent(value) {
+  return /\b(add|build|create|make|new|scaffold)\b/i.test(String(value || ""))
+    && /\b(skill|workflow|slash command|slash skill)\b/i.test(String(value || ""));
+}

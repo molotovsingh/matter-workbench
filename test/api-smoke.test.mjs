@@ -50,6 +50,7 @@ test("server API smoke test keeps public routes stable", async () => {
     env: { MATTERS_HOME: mattersHome },
     host: "127.0.0.1",
     port: 0,
+    skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
     aiProvider: async () => ({
       entries: [{
         date_iso: "2026-04-20",
@@ -59,6 +60,25 @@ test("server API smoke test keeps public routes stable", async () => {
         needs_review: false,
         confidence: 0.9,
       }],
+    }),
+    skillRouterProvider: async () => ({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/create_listofdates",
+      confidence: 0.92,
+      reason: "The request overlaps with /create_listofdates.",
+      user_gate_required: false,
+      suggested_next_action: "Ask for approval to modify /create_listofdates.",
+      mece_violation: true,
+      legal_setting: {
+        jurisdiction: "",
+        forum: "",
+        case_type: "",
+        procedure_stage: "",
+        side: "",
+        relief_type: "",
+      },
+      override_requires: ["distinct output contract"],
     }),
   });
 
@@ -79,6 +99,13 @@ test("server API smoke test keeps public routes stable", async () => {
     const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
+    const skills = await getJson(baseUrl, "/api/skills");
+    assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
+    const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
+      userRequest: "Create a new list of dates skill",
+    });
+    assert.equal(skillIntent.decision, "needs_user_approval");
+    assert.equal(skillIntent.matched_skill, "/create_listofdates");
     const doctor = await postJson(baseUrl, "/api/doctor/scan");
     assert.deepEqual(doctor.issues, []);
   } finally {

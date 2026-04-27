@@ -1,5 +1,6 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
+import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 
 export function createMatterScreens(ctx) {
   const {
@@ -49,10 +50,17 @@ export function createMatterScreens(ctx) {
     const currentHome = mattersState.mattersHome || "";
     let aiSettings = null;
     let aiSettingsError = "";
+    let skillRegistry = null;
+    let skillRegistryError = "";
     try {
       aiSettings = await getJson("/api/ai-settings");
     } catch (error) {
       aiSettingsError = error.message;
+    }
+    try {
+      skillRegistry = await getJson("/api/skills");
+    } catch (error) {
+      skillRegistryError = error.message;
     }
     editorContent.innerHTML = `
       <h1>Settings</h1>
@@ -71,6 +79,7 @@ export function createMatterScreens(ctx) {
         <div id="settingsError" class="form-error" hidden></div>
       </form>
       ${renderAiSettingsForm(aiSettings, aiSettingsError)}
+      ${renderSkillRouterPanel(skillRegistry, skillRegistryError)}
     `;
     const form = document.getElementById("settingsForm");
     const input = document.getElementById("settingsMattersHome");
@@ -99,6 +108,7 @@ export function createMatterScreens(ctx) {
       }
     });
     wireAiSettingsForm();
+    wireSkillRouterPanel();
   }
 
   function renderFirstRun(defaultPath) {
