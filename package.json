@@ -5,7 +5,9 @@
     "matter-init:dry-run": "node matter-init-engine.mjs",
     "matter-init": "node matter-init-engine.mjs --apply",
     "extract:dry-run": "node extract-engine.mjs",
-    "extract": "node extract-engine.mjs --apply"
+    "extract": "node extract-engine.mjs --apply",
+    "create-listofdates:dry-run": "node create-listofdates-engine.mjs",
+    "create-listofdates": "node create-listofdates-engine.mjs --apply"
   },
   "private": true,
   "type": "module",

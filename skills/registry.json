@@ -1,0 +1,121 @@
+{
+  "schema_version": "skill-registry/v1",
+  "categories": [
+    "Ingest",
+    "Extract",
+    "Organize",
+    "Analyze",
+    "Draft",
+    "Review",
+    "Export",
+    "Maintain"
+  ],
+  "principles": {
+    "markdown_first_ai_legal_outputs": true,
+    "direct_mece_violation_requires_user_gate": true,
+    "docx_pdf_are_export_stage": true
+  },
+  "skills": [
+    {
+      "id": "matter-init",
+      "slash": "/matter-init",
+      "category": "Ingest",
+      "purpose": "Create deterministic matter intake structure, preserve originals, classify working copies, detect duplicates, and write matter metadata.",
+      "inputs": [
+        "source files",
+        "matter metadata"
+      ],
+      "outputs": [
+        "matter.json",
+        "00_Inbox/*/File Register.csv",
+        "00_Inbox/*/Intake Log.csv",
+        "00_Inbox/*/Originals",
+        "00_Inbox/*/By Type"
+      ],
+      "upstream": [],
+      "downstream": [
+        "/extract"
+      ],
+      "mode": "deterministic",
+      "source_backed": "not_applicable",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    },
+    {
+      "id": "extract",
+      "slash": "/extract",
+      "category": "Extract",
+      "purpose": "Convert supported working-copy documents into stable source-backed extraction records and text companions.",
+      "inputs": [
+        "00_Inbox/*/File Register.csv",
+        "working copy files"
+      ],
+      "outputs": [
+        "extraction-record/v1",
+        "00_Inbox/*/_extracted/*.json",
+        "00_Inbox/*/_extracted/*.txt",
+        "00_Inbox/*/Extraction Log.csv"
+      ],
+      "upstream": [
+        "/matter-init"
+      ],
+      "downstream": [
+        "/create_listofdates"
+      ],
+      "mode": "deterministic",
+      "source_backed": "required",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    },
+    {
+      "id": "create_listofdates",
+      "slash": "/create_listofdates",
+      "category": "Analyze",
+      "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",
+      "inputs": [
+        "extraction-record/v1"
+      ],
+      "outputs": [
+        "10_Library/List of Dates.md",
+        "10_Library/List of Dates.csv",
+        "10_Library/List of Dates.json"
+      ],
+      "upstream": [
+        "/extract"
+      ],
+      "downstream": [
+        "/extract_claims",
+        "/draft_petition",
+        "/review_chronology"
+      ],
+      "mode": "AI",
+      "source_backed": "required",
+      "legal_setting_scope": "general",
+      "markdown_first": true,
+      "version": 1
+    },
+    {
+      "id": "doctor",
+      "slash": "/doctor",
+      "category": "Maintain",
+      "purpose": "Detect and repair legacy or inconsistent local matter layout and metadata issues.",
+      "inputs": [
+        "matter folder"
+      ],
+      "outputs": [
+        "doctor scan results",
+        "doctor fix results",
+        ".doctor-backups"
+      ],
+      "upstream": [],
+      "downstream": [],
+      "mode": "deterministic",
+      "source_backed": "not_applicable",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    }
+  ]
+}

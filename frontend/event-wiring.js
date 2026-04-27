@@ -43,6 +43,7 @@ export function wireAppEvents(ctx, skills) {
       const skill = button.dataset.skill;
       if (skill === "/matter-init") skills.runMatterInit(skill);
       else if (skill === "/extract") skills.runExtract(skill);
+      else if (skill === "/create_listofdates") skills.runCreateListOfDates(skill);
       else if (skill === "/doctor") skills.runDoctor(skill);
     });
   });
