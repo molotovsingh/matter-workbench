@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
@@ -8,13 +9,14 @@ import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
 import { sendJson } from "./routes/http-utils.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
+import { loadLocalEnv } from "./shared/local-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function createWorkbenchServer(options = {}) {
-  const env = options.env || process.env;
   const appDir = options.appDir || __dirname;
+  const env = options.env || (await loadLocalEnv({ appDir, override: true })).env;
   const host = options.host || "127.0.0.1";
   const port = Number(options.port ?? env.PORT ?? 4173);
 
@@ -27,8 +29,12 @@ export async function createWorkbenchServer(options = {}) {
   });
   const workspaceService = createWorkspaceService({ matterStore });
   const uploadService = createUploadService({ matterStore, workspaceService });
+  const aiSettingsService = createAiSettingsService({ appDir, env });
   const services = {
+    aiProvider: options.aiProvider || null,
+    aiSettingsService,
     configService,
+    env,
     matterStore,
     uploadService,
     workspaceService,

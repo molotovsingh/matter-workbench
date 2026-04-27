@@ -31,7 +31,7 @@ test("server API smoke test keeps public routes stable", async () => {
   const matterRoot = path.join(mattersHome, "Smoke Matter");
   await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files"), { recursive: true });
   await mkdir(appDir, { recursive: true });
-  await writeFile(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files", "note.txt"), "Smoke text");
+  await writeFile(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files", "note.txt"), "Smoke event on 20 April 2026.");
   await runMatterInit({
     matterRoot,
     dryRun: false,
@@ -50,6 +50,16 @@ test("server API smoke test keeps public routes stable", async () => {
     env: { MATTERS_HOME: mattersHome },
     host: "127.0.0.1",
     port: 0,
+    aiProvider: async () => ({
+      entries: [{
+        date_iso: "2026-04-20",
+        date_text: "20 April 2026",
+        event: "Smoke event occurred.",
+        citation: "FILE-0001 p1.b1",
+        needs_review: false,
+        confidence: 0.9,
+      }],
+    }),
   });
 
   await new Promise((resolve) => app.server.listen(0, app.host, resolve));
@@ -66,6 +76,9 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(workspace.metadata.matterName, "Smoke Matter");
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
+    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
+    assert.equal(listOfDates.counts.entries, 1);
+    assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
     const doctor = await postJson(baseUrl, "/api/doctor/scan");
     assert.deepEqual(doctor.issues, []);
   } finally {

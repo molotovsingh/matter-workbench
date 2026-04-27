@@ -1,10 +1,11 @@
 import { runExtract } from "../extract-engine.mjs";
+import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 
 export async function handleApiRequest({ request, requestUrl, response, services }) {
-  const { configService, matterStore, uploadService, workspaceService } = services;
+  const { aiSettingsService, configService, matterStore, uploadService, workspaceService } = services;
 
   if (request.method === "POST" && requestUrl.pathname === "/api/matter-init") {
     const root = matterStore.ensureMatterRoot();
@@ -27,6 +28,38 @@ export async function handleApiRequest({ request, requestUrl, response, services
         ? body.intakeId.trim()
         : null,
     }));
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/create-listofdates") {
+    const root = matterStore.ensureMatterRoot();
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await runCreateListOfDates({
+      matterRoot: root,
+      dryRun: Boolean(body.dryRun),
+      aiProvider: services.aiProvider,
+      apiKey: services.env?.OPENAI_API_KEY,
+      model: typeof body.model === "string" && body.model.trim()
+        ? body.model.trim()
+        : services.env?.OPENAI_MODEL,
+      maxOutputTokens: services.env?.OPENAI_MAX_OUTPUT_TOKENS,
+    }));
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/ai-settings") {
+    sendJson(response, 200, aiSettingsService.readSettings());
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/ai-settings") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await aiSettingsService.saveSettings(body));
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/ai-settings/test") {
+    sendJson(response, 200, await aiSettingsService.testConnection());
     return true;
   }
 

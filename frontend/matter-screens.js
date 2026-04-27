@@ -1,4 +1,4 @@
-import { postJson } from "./api-client.js";
+import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 
 export function createMatterScreens(ctx) {
@@ -36,7 +36,7 @@ export function createMatterScreens(ctx) {
     }).join("");
   }
 
-  function renderSettings() {
+  async function renderSettings() {
     setActivityActive("settings");
     const mattersState = ctx.getMattersState();
     breadcrumbs.textContent = "settings";
@@ -47,6 +47,13 @@ export function createMatterScreens(ctx) {
       terminal: "[settings] viewing",
     });
     const currentHome = mattersState.mattersHome || "";
+    let aiSettings = null;
+    let aiSettingsError = "";
+    try {
+      aiSettings = await getJson("/api/ai-settings");
+    } catch (error) {
+      aiSettingsError = error.message;
+    }
     editorContent.innerHTML = `
       <h1>Settings</h1>
       <h2>Matters home</h2>
@@ -63,6 +70,7 @@ export function createMatterScreens(ctx) {
         </div>
         <div id="settingsError" class="form-error" hidden></div>
       </form>
+      ${renderAiSettingsForm(aiSettings, aiSettingsError)}
     `;
     const form = document.getElementById("settingsForm");
     const input = document.getElementById("settingsMattersHome");
@@ -90,6 +98,7 @@ export function createMatterScreens(ctx) {
         submit.textContent = "Save";
       }
     });
+    wireAiSettingsForm();
   }
 
   function renderFirstRun(defaultPath) {
@@ -189,4 +198,107 @@ export function createMatterScreens(ctx) {
     renderSettings,
     setActivityActive,
   };
+
+  function renderAiSettingsForm(settings, loadError) {
+    if (loadError) {
+      return `
+        <h2>AI settings</h2>
+        <p class="form-error">AI settings unavailable: ${escapeHtml(loadError)}</p>
+      `;
+    }
+    const model = settings?.model || "gpt-5.4-mini";
+    const maxOutputTokens = settings?.maxOutputTokens || 3000;
+    const status = settings?.apiKeyConfigured ? "Configured" : "Missing";
+    return `
+      <h2>AI settings</h2>
+      <p>Local OpenAI settings used by AI-driven skills such as <code>/create_listofdates</code>.</p>
+      <form class="new-matter-form" id="aiSettingsForm">
+        <dl class="matter-info-card">
+          <dt>Provider</dt><dd>${escapeHtml(settings?.provider || "OpenAI")}</dd>
+          <dt>API key</dt><dd id="aiKeyStatus">${escapeHtml(status)}</dd>
+          <dt>Settings file</dt><dd><code>${escapeHtml(settings?.envPath || ".env")}</code></dd>
+        </dl>
+        <label>
+          <span>Replace API key</span>
+          <input type="password" id="aiApiKey" placeholder="Leave blank to keep current key" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>
+          <span>Model</span>
+          <input type="text" id="aiModel" value="${escapeHtml(model)}" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>
+          <span>Max output tokens</span>
+          <input type="text" id="aiMaxOutputTokens" value="${escapeHtml(maxOutputTokens)}" inputmode="numeric" autocomplete="off" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" id="aiSettingsSubmit">Save AI settings</button>
+          <button type="button" class="secondary" id="aiSettingsTest">Test connection</button>
+        </div>
+        <div id="aiSettingsMessage" class="form-note"></div>
+        <div id="aiSettingsError" class="form-error" hidden></div>
+      </form>
+    `;
+  }
+
+  function wireAiSettingsForm() {
+    const form = document.getElementById("aiSettingsForm");
+    if (!form) return;
+    const keyInput = document.getElementById("aiApiKey");
+    const modelInput = document.getElementById("aiModel");
+    const maxInput = document.getElementById("aiMaxOutputTokens");
+    const submit = document.getElementById("aiSettingsSubmit");
+    const testButton = document.getElementById("aiSettingsTest");
+    const message = document.getElementById("aiSettingsMessage");
+    const errorBox = document.getElementById("aiSettingsError");
+    const keyStatus = document.getElementById("aiKeyStatus");
+
+    const showMessage = (text) => {
+      message.textContent = text;
+      errorBox.hidden = true;
+    };
+    const showError = (text) => {
+      errorBox.textContent = text;
+      errorBox.hidden = false;
+      message.textContent = "";
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submit.disabled = true;
+      submit.textContent = "Saving...";
+      try {
+        const body = {
+          model: modelInput.value.trim(),
+          maxOutputTokens: maxInput.value.trim(),
+        };
+        const apiKey = keyInput.value.trim();
+        if (apiKey) body.apiKey = apiKey;
+        const saved = await postJson("/api/ai-settings", body);
+        keyInput.value = "";
+        keyStatus.textContent = saved.apiKeyConfigured ? "Configured" : "Missing";
+        modelInput.value = saved.model;
+        maxInput.value = String(saved.maxOutputTokens);
+        showMessage("AI settings saved.");
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Save AI settings";
+      }
+    });
+
+    testButton.addEventListener("click", async () => {
+      testButton.disabled = true;
+      testButton.textContent = "Testing...";
+      try {
+        const result = await postJson("/api/ai-settings/test", {});
+        showMessage(`Connection OK using ${result.model} (${result.latencyMs} ms).`);
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        testButton.disabled = false;
+        testButton.textContent = "Test connection";
+      }
+    });
+  }
 }

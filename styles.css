@@ -37,6 +37,10 @@ strong {
   font-weight: 600;
 }
 
+.muted {
+  color: var(--muted);
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -324,6 +328,13 @@ strong {
   color: #f28b82;
   margin-top: 10px;
   font-size: 13px;
+}
+
+.form-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 10px;
+  min-height: 18px;
 }
 
 .tree-actions {
