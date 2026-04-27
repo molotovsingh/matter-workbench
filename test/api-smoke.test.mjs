@@ -112,3 +112,50 @@ test("server API smoke test keeps public routes stable", async () => {
     await new Promise((resolve) => app.server.close(resolve));
   }
 });
+
+test("overlap check reads file registers from every intake folder", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-overlap-test-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Two Intake Matter");
+  const firstHash = "a".repeat(64);
+  const secondHash = "b".repeat(64);
+
+  await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial"), { recursive: true });
+  await mkdir(path.join(matterRoot, "00_Inbox", "Intake 02 - Follow Up"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(
+    path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "File Register.csv"),
+    `file_id,sha256\nFILE-0001,${firstHash}\n`,
+  );
+  await writeFile(
+    path.join(matterRoot, "00_Inbox", "Intake 02 - Follow Up", "File Register.csv"),
+    `file_id,sha256\nFILE-0002,${secondHash}\n`,
+  );
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+  try {
+    const result = await postJson(baseUrl, "/api/matters/check-overlap", {
+      hashes: [secondHash],
+    });
+    assert.deepEqual(result.warnings, [{
+      matterName: "Two Intake Matter",
+      overlapCount: 1,
+      totalIncoming: 1,
+      matterTotalFiles: 2,
+      overlapPercent: 100,
+    }]);
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
