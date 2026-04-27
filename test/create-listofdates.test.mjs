@@ -4,7 +4,12 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runCreateListOfDates, createOpenAiProvider } from "../create-listofdates-engine.mjs";
+import {
+  DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+  DEFAULT_OPENAI_MODEL,
+  runCreateListOfDates,
+  createOpenAiProvider,
+} from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { parseCsv } from "../shared/csv.mjs";
@@ -98,10 +103,23 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.equal(result.counts.entries, 2);
   assert.equal(result.counts.rejectedEntries, 1);
   assert.deepEqual(result.entries.map((entry) => entry.date_iso), ["2026-04-20", "2026-05-01"]);
+  assert.deepEqual(result.aiRun, {
+    policyVersion: "model-policy/v1-current",
+    task: "source_backed_analysis",
+    tier: "source_backed_analysis",
+    provider: "openai-direct",
+    model: DEFAULT_OPENAI_MODEL,
+    maxOutputTokens: DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+    fallback: "fail_closed",
+  });
 
   await stat(path.join(root, "10_Library", "List of Dates.json"));
   await stat(path.join(root, "10_Library", "List of Dates.csv"));
   await stat(path.join(root, "10_Library", "List of Dates.md"));
+
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.deepEqual(jsonOutput.ai_run, result.aiRun);
+  assert.equal(jsonOutput.entries.length, 2);
 
   const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
   assert.equal(csvRows.length, 2);
@@ -205,7 +223,12 @@ test("create-listofdates default provider uses model policy env overrides", asyn
   process.env.OPENAI_MAX_OUTPUT_TOKENS = "3456";
 
   try {
-    await runCreateListOfDates({ matterRoot: root });
+    const result = await runCreateListOfDates({ matterRoot: root });
+    const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+
+    assert.equal(result.aiRun.model, "policy-listofdates-model");
+    assert.equal(result.aiRun.maxOutputTokens, 3456);
+    assert.deepEqual(jsonOutput.ai_run, result.aiRun);
   } finally {
     globalThis.fetch = originalFetch;
     for (const [key, value] of Object.entries(originalEnv)) {

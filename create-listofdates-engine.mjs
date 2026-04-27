@@ -81,9 +81,11 @@ export async function runCreateListOfDates(options = {}) {
   const maxOutputTokens = options.maxOutputTokens
     ? parsePositiveInteger(options.maxOutputTokens) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS
     : modelPolicy.maxOutputTokens;
+  const model = options.model || modelPolicy.model;
+  const aiRun = modelPolicyMetadata(modelPolicy, { model, maxOutputTokens });
   const provider = options.aiProvider || createOpenAiProvider({
     apiKey: options.apiKey || process.env.OPENAI_API_KEY,
-    model: options.model || modelPolicy.model,
+    model,
     endpoint: modelPolicy.endpoint,
     maxOutputTokens,
   });
@@ -144,6 +146,7 @@ export async function runCreateListOfDates(options = {}) {
         engine_version: ENGINE_VERSION,
         generated_at: new Date().toISOString(),
         matter: matterSummary(matterJson),
+        ai_run: aiRun,
         source_record_count: records.length,
         entries,
       }, null, 2)}\n`,
@@ -170,8 +173,21 @@ export async function runCreateListOfDates(options = {}) {
       rejectedEntries: rawEntries.length - entries.length,
     },
     outputPaths,
+    aiRun,
     entries,
     outputLines,
+  };
+}
+
+function modelPolicyMetadata(policy, { model, maxOutputTokens }) {
+  return {
+    policyVersion: policy.policyVersion,
+    task: policy.task,
+    tier: policy.tier,
+    provider: policy.provider,
+    model,
+    maxOutputTokens,
+    fallback: policy.fallback,
   };
 }
 
