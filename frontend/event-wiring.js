@@ -3,6 +3,12 @@ import { renderNewMatterForm } from "./views/new-matter.js";
 
 export function wireAppEvents(ctx, skills) {
   const { elements } = ctx;
+  const skillDispatch = {
+    "/matter-init": skills.runMatterInit,
+    "/extract": skills.runExtract,
+    "/create_listofdates": skills.runCreateListOfDates,
+    "/doctor": skills.runDoctor,
+  };
 
   elements.refreshExplorerButton.addEventListener("click", () => ctx.refreshWorkspace());
 
@@ -41,10 +47,15 @@ export function wireAppEvents(ctx, skills) {
         return;
       }
       const skill = button.dataset.skill;
-      if (skill === "/matter-init") skills.runMatterInit(skill);
-      else if (skill === "/extract") skills.runExtract(skill);
-      else if (skill === "/create_listofdates") skills.runCreateListOfDates(skill);
-      else if (skill === "/doctor") skills.runDoctor(skill);
+      const runSkill = skillDispatch[skill];
+      if (!runSkill) {
+        ctx.setStatus({
+          bar: "Unknown Skill",
+          terminal: `[skills] no runner is wired for ${skill || "unknown skill"}`,
+        });
+        return;
+      }
+      runSkill(skill);
     });
   });
 }
