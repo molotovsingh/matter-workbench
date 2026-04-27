@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import test from "node:test";
 import { createSkillRegistryService } from "../services/skill-registry-service.mjs";
 import { createSkillRouterService } from "../services/skill-router-service.mjs";
@@ -62,6 +63,57 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
   assert.equal(result.matched_skill, "/create_listofdates");
   assert.equal(result.mece_violation, true);
   assert.deepEqual(result.user_gate_choices, ["Approve modification", "Justify new skill"]);
+});
+
+test("skill router uses model policy env overrides for OpenAI requests", async () => {
+  const bodies = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      bodies.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        output_text: JSON.stringify({
+          decision: "adjacent_skill",
+          recommended_action: "adjacent_skill",
+          matched_skill: "",
+          confidence: 0.7,
+          reason: "No existing skill directly matches.",
+          user_gate_required: false,
+          suggested_next_action: "Consider a future skill.",
+          mece_violation: false,
+          legal_setting: legalSetting(),
+          override_requires: [],
+        }),
+      }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createSkillRouterService({
+      registryService: registryService(),
+      endpoint: `http://${address.address}:${address.port}/v1/responses`,
+      env: {
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "policy-router-model",
+        OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "777",
+      },
+    });
+
+    await service.checkIntent({ userRequest: "Create a future workflow helper." });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].model, "policy-router-model");
+  assert.equal(bodies[0].max_output_tokens, 777);
+  assert.equal(bodies[0].text.format.name, "skill_router_decision");
 });
 
 test("expert legal preference is routed as skill tuning", async () => {

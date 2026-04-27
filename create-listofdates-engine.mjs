@@ -7,6 +7,7 @@ import {
 } from "./shared/ai-defaults.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
+import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "./shared/responses-client.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 
@@ -76,11 +77,15 @@ export async function runCreateListOfDates(options = {}) {
   if (!matterRoot) throw new Error("MATTER_ROOT is not set. Pass options.matterRoot or set the env var.");
 
   const dryRun = Boolean(options.dryRun);
+  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env: process.env });
+  const maxOutputTokens = options.maxOutputTokens
+    ? parsePositiveInteger(options.maxOutputTokens) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS
+    : modelPolicy.maxOutputTokens;
   const provider = options.aiProvider || createOpenAiProvider({
     apiKey: options.apiKey || process.env.OPENAI_API_KEY,
-    model: options.model || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-    maxOutputTokens: parsePositiveInteger(options.maxOutputTokens || process.env.OPENAI_MAX_OUTPUT_TOKENS)
-      || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+    model: options.model || modelPolicy.model,
+    endpoint: modelPolicy.endpoint,
+    maxOutputTokens,
   });
 
   const matterJson = await readMatterJson(matterRoot);

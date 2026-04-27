@@ -178,3 +178,49 @@ test("OpenAI provider sends bounded structured output requests", async () => {
   assert.equal(bodies[0].text.format.type, "json_schema");
   assert.equal(bodies[0].text.format.strict, true);
 });
+
+test("create-listofdates default provider uses model policy env overrides", async () => {
+  const root = await prepareExtractedMatter();
+  const originalFetch = globalThis.fetch;
+  const originalEnv = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
+    OPENAI_MAX_OUTPUT_TOKENS: process.env.OPENAI_MAX_OUTPUT_TOKENS,
+  };
+  const requests = [];
+
+  globalThis.fetch = async (endpoint, init) => {
+    requests.push({
+      endpoint,
+      headers: init.headers,
+      body: JSON.parse(init.body),
+    });
+    return {
+      ok: true,
+      json: async () => ({ output_text: JSON.stringify({ entries: [] }) }),
+    };
+  };
+  process.env.OPENAI_API_KEY = "sk-test";
+  process.env.OPENAI_MODEL = "policy-listofdates-model";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "3456";
+
+  try {
+    await runCreateListOfDates({ matterRoot: root });
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].endpoint, "https://api.openai.com/v1/responses");
+  assert.equal(requests[0].headers.authorization, "Bearer sk-test");
+  assert.equal(requests[0].body.model, "policy-listofdates-model");
+  assert.equal(requests[0].body.max_output_tokens, 3456);
+  assert.equal(requests[0].body.text.format.name, "list_of_dates_chunk");
+});
