@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
-import { INITIAL_INTAKE_DIR_NAME, normalizeMatterMetadata } from "../shared/matter-contract.mjs";
+import { normalizeMatterMetadata } from "../shared/matter-contract.mjs";
 import { isInsideRoot, makeHttpError, toPosix, validateMatterName } from "../shared/safe-paths.mjs";
 
 export function createMatterStore({ configService, initialMatterRoot = null } = {}) {
@@ -188,15 +188,21 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
   }
 
   async function extractRegisterHashes(matterFolderName) {
-    const mattersHome = getMattersHome();
-    if (!mattersHome) return new Set();
-    const registerPath = path.join(mattersHome, matterFolderName, "00_Inbox", INITIAL_INTAKE_DIR_NAME, "File Register.csv");
-    try {
-      const rows = parseCsv(await readFile(registerPath, "utf8"));
-      return new Set(rows.map((row) => row.sha256).filter(Boolean));
-    } catch {
-      return new Set();
+    if (!getMattersHome()) return new Set();
+    const { matterPath } = matterPathForName(matterFolderName);
+    const hashes = new Set();
+    for (const folder of await listIntakeFolders(matterPath)) {
+      const registerPath = path.join(matterPath, "00_Inbox", folder.name, "File Register.csv");
+      try {
+        const rows = parseCsv(await readFile(registerPath, "utf8"));
+        for (const row of rows) {
+          if (row.sha256) hashes.add(row.sha256);
+        }
+      } catch {
+        // ignore missing or malformed historical registers
+      }
     }
+    return hashes;
   }
 
   function toMatterRelative(filePath) {
