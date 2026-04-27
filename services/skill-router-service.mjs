@@ -1,10 +1,11 @@
+import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
 import {
-  DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
-  DEFAULT_OPENAI_MODEL,
-} from "../shared/ai-defaults.mjs";
+  AI_TASKS,
+  DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  resolveModelPolicy,
+} from "../shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
 
-const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
 const DIRECT_OVERLAP_CONFIDENCE = 0.78;
 const VALID_DECISIONS = new Set([
   "run_existing_skill",
@@ -107,12 +108,12 @@ export function createSkillRouterService({
     }
 
     const registry = await registryService.readRegistry();
+    const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
     const provider = aiProvider || createOpenAiSkillRouterProvider({
       apiKey: env.OPENAI_API_KEY,
-      model: env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
+      model: modelPolicy.model,
       endpoint,
-      maxOutputTokens: parsePositiveInteger(env.OPENAI_ROUTER_MAX_OUTPUT_TOKENS)
-        || DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+      maxOutputTokens: modelPolicy.maxOutputTokens,
     });
 
     const rawDecision = await provider({
@@ -255,11 +256,6 @@ function normalizeLegalSetting(value = {}) {
     side: collapseWhitespace(value.side || ""),
     relief_type: collapseWhitespace(value.relief_type || ""),
   };
-}
-
-function parsePositiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
 }
 
 function clamp01(value) {
