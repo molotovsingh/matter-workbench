@@ -1,7 +1,8 @@
 import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
-} from "../create-listofdates-engine.mjs";
+} from "../shared/ai-defaults.mjs";
+import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
 
 const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
 const DIRECT_OVERLAP_CONFIDENCE = 0.78;
@@ -93,7 +94,7 @@ export function createSkillRouterService({
   registryService,
   aiProvider,
   env = process.env,
-  endpoint = "https://api.openai.com/v1/responses",
+  endpoint = DEFAULT_RESPONSES_ENDPOINT,
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
 
@@ -132,23 +133,15 @@ export function createSkillRouterService({
 export function createOpenAiSkillRouterProvider({
   apiKey,
   model = DEFAULT_OPENAI_MODEL,
-  endpoint = "https://api.openai.com/v1/responses",
+  endpoint = DEFAULT_RESPONSES_ENDPOINT,
   maxOutputTokens = DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
 } = {}) {
   return async function openAiSkillRouterProvider({ userRequest, overrideJustification, registry, schema }) {
-    if (!apiKey) {
-      const error = new Error("OPENAI_API_KEY is required for skill intent routing");
-      error.statusCode = 409;
-      throw error;
-    }
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
+    return requestResponsesJson({
+      apiKey,
+      endpoint,
+      missingApiKeyMessage: "OPENAI_API_KEY is required for skill intent routing",
+      body: {
         model,
         max_output_tokens: maxOutputTokens,
         input: [
@@ -198,28 +191,8 @@ export function createOpenAiSkillRouterProvider({
             schema,
           },
         },
-      }),
+      },
     });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      const error = new Error(payload?.error?.message || `OpenAI Responses API returned ${response.status}`);
-      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-      throw error;
-    }
-    const outputText = extractOutputText(payload);
-    if (!outputText) {
-      const error = new Error("OpenAI response did not include output text");
-      error.statusCode = 502;
-      throw error;
-    }
-    try {
-      return JSON.parse(outputText);
-    } catch (parseError) {
-      const error = new Error(`OpenAI response was not valid JSON: ${parseError.message}`);
-      error.statusCode = 502;
-      throw error;
-    }
   };
 }
 
@@ -282,17 +255,6 @@ function normalizeLegalSetting(value = {}) {
     side: collapseWhitespace(value.side || ""),
     relief_type: collapseWhitespace(value.relief_type || ""),
   };
-}
-
-function extractOutputText(payload) {
-  if (typeof payload?.output_text === "string") return payload.output_text;
-  const parts = [];
-  for (const item of payload?.output || []) {
-    for (const content of item.content || []) {
-      if (typeof content.text === "string") parts.push(content.text);
-    }
-  }
-  return parts.join("").trim();
 }
 
 function parsePositiveInteger(value) {
