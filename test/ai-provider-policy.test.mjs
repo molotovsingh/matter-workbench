@@ -76,7 +76,9 @@ test("provider config resolves OpenRouter source description policy", () => {
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1200",
-      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
     },
   });
   const providerConfig = resolveProviderConfig(policy);
@@ -86,7 +88,12 @@ test("provider config resolves OpenRouter source description policy", () => {
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     model: "meta-llama/source-description-model",
     maxOutputTokens: 1200,
-    providerOrder: ["akashml/fp8"],
+    providerOrder: [],
+    providerSort: "price",
+    maxPrice: {
+      prompt: 0.15,
+      completion: 0.60,
+    },
     requireParameters: true,
     allowFallbacks: false,
   });
@@ -99,6 +106,35 @@ test("provider config resolves OpenRouter source description policy", () => {
     maxOutputTokens: 1200,
     fallback: "fail_closed",
   });
+});
+
+test("provider config rejects mixed OpenRouter provider pin and price routing overrides", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+    },
+  });
+
+  assert.throws(
+    () => resolveProviderConfig(policy, {
+      providerOrder: ["akashml/fp8"],
+      providerSort: "price",
+    }),
+    /provider order cannot be combined with provider sort or max price routing/,
+  );
+});
+
+test("provider config rejects invalid OpenRouter provider sort overrides", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+    },
+  });
+
+  assert.throws(
+    () => resolveProviderConfig(policy, { providerSort: "cheap" }),
+    /Invalid OpenRouter provider sort: cheap/,
+  );
 });
 
 test("provider config rejects unsupported providers", () => {

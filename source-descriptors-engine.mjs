@@ -178,7 +178,7 @@ export async function runSourceDescriptors(options = {}) {
     schema: SOURCE_INDEX_OUTPUT_SCHEMA,
   });
   const descriptors = validateAndSortDescriptors(providerResponse, sourcePackets);
-  const aiRun = options.aiRun || providerSetup.aiRun;
+  const aiRun = options.aiRun || mergeAiRunMetadata(providerSetup.aiRun, providerResponse.ai_run);
   const generatedAt = options.generatedAt || new Date().toISOString();
   const artifact = {
     schema_version: SOURCE_INDEX_SCHEMA_VERSION,
@@ -232,6 +232,10 @@ export function createOpenRouterSourceDescriptorProvider({
   maxOutputTokens,
   model,
   providerOrder = [],
+  providerSort = "",
+  maxPrice = null,
+  requireParameters = true,
+  allowFallbacks = false,
 } = {}) {
   return async function openRouterSourceDescriptorProvider({ matter, sources, schema }) {
     if (!apiKey) {
@@ -274,8 +278,8 @@ export function createOpenRouterSourceDescriptorProvider({
       temperature: 0,
       max_tokens: maxOutputTokens,
       provider: {
-        require_parameters: true,
-        allow_fallbacks: false,
+        require_parameters: requireParameters,
+        allow_fallbacks: allowFallbacks,
       },
       response_format: {
         type: "json_schema",
@@ -287,6 +291,8 @@ export function createOpenRouterSourceDescriptorProvider({
       },
     };
     if (providerOrder.length) body.provider.order = providerOrder;
+    if (providerSort) body.provider.sort = providerSort;
+    if (maxPrice) body.provider.max_price = maxPrice;
 
     const response = await fetchImpl(endpoint, {
       method: "POST",
@@ -326,9 +332,11 @@ function resolveSourceDescriptorProvider(options) {
   }
   const providerConfig = resolveProviderConfig(policy, {
     endpoint: options.endpoint,
+    maxPrice: options.maxPrice,
     maxOutputTokens: options.maxOutputTokens,
     model,
     providerOrder: options.providerOrder,
+    providerSort: options.providerSort,
   });
   return {
     provider: createOpenRouterSourceDescriptorProvider({
@@ -338,6 +346,10 @@ function resolveSourceDescriptorProvider(options) {
       maxOutputTokens: providerConfig.maxOutputTokens,
       model: providerConfig.model,
       providerOrder: providerConfig.providerOrder,
+      providerSort: providerConfig.providerSort,
+      maxPrice: providerConfig.maxPrice,
+      requireParameters: providerConfig.requireParameters,
+      allowFallbacks: providerConfig.allowFallbacks,
     }),
     aiRun: options.aiRun || modelPolicyMetadata(policy, providerConfig),
   };
@@ -347,17 +359,76 @@ function parseOpenRouterJsonContent(payload) {
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string") {
     try {
-      return JSON.parse(content);
+      return attachOpenRouterAiRunMetadata(JSON.parse(content), payload);
     } catch (parseError) {
       const error = new Error(`OpenRouter response did not include valid JSON message content: ${parseError.message}`);
       error.statusCode = 502;
       throw error;
     }
   }
-  if (content && typeof content === "object") return content;
+  if (content && typeof content === "object") return attachOpenRouterAiRunMetadata(content, payload);
   const error = new Error("OpenRouter response did not include JSON message content");
   error.statusCode = 502;
   throw error;
+}
+
+function attachOpenRouterAiRunMetadata(content, payload) {
+  const aiRun = extractOpenRouterAiRunMetadata(payload);
+  if (!Object.keys(aiRun).length) return content;
+  return {
+    ...content,
+    ai_run: aiRun,
+  };
+}
+
+function mergeAiRunMetadata(baseAiRun, responseAiRun) {
+  if (!responseAiRun || typeof responseAiRun !== "object" || Array.isArray(responseAiRun)) return baseAiRun;
+  return {
+    ...baseAiRun,
+    ...responseAiRun,
+  };
+}
+
+function extractOpenRouterAiRunMetadata(payload) {
+  const metadata = {};
+  const returnedModel = normalizeOptionalString(payload?.model);
+  const returnedProvider = normalizeOptionalString(payload?.provider)
+    || normalizeOptionalString(payload?.provider_name)
+    || normalizeOptionalString(payload?.choices?.[0]?.provider);
+  const usage = normalizeOpenRouterUsage(payload?.usage);
+  if (returnedModel) metadata.returnedModel = returnedModel;
+  if (returnedProvider) metadata.returnedProvider = returnedProvider;
+  if (usage) metadata.usage = usage;
+  return metadata;
+}
+
+function normalizeOpenRouterUsage(usage) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const normalized = {};
+  const promptTokens = parseNonNegativeInteger(usage.prompt_tokens ?? usage.promptTokens);
+  const completionTokens = parseNonNegativeInteger(usage.completion_tokens ?? usage.completionTokens);
+  const totalTokens = parseNonNegativeInteger(usage.total_tokens ?? usage.totalTokens);
+  const cost = parseNonNegativeNumber(usage.cost);
+  if (promptTokens !== null) normalized.promptTokens = promptTokens;
+  if (completionTokens !== null) normalized.completionTokens = completionTokens;
+  if (totalTokens !== null) normalized.totalTokens = totalTokens;
+  if (cost !== null) normalized.cost = cost;
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function normalizeOptionalString(value) {
+  const text = String(value || "").trim();
+  return text || "";
+}
+
+function parseNonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : null;
+}
+
+function parseNonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 export function buildSourcePackets(records) {
