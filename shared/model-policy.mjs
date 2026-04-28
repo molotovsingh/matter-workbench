@@ -11,6 +11,7 @@ export const AI_TASKS = Object.freeze({
   SOURCE_BACKED_ANALYSIS: "source_backed_analysis",
   SOURCE_DESCRIPTION: "source_description",
   MATTER_QA: "matter_qa",
+  INTENT_CLASSIFIER: "intent_classifier",
 });
 
 export const AI_PROVIDERS = Object.freeze({
@@ -80,6 +81,16 @@ const TASK_POLICIES = Object.freeze({
     modelEnvKey: "OPENAI_MODEL",
     maxOutputTokensEnvKey: "OPENAI_MAX_OUTPUT_TOKENS",
     defaultMaxOutputTokens: DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+  }),
+  [AI_TASKS.INTENT_CLASSIFIER]: Object.freeze({
+    task: AI_TASKS.INTENT_CLASSIFIER,
+    tier: "router",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    fallback: "fail_closed",
+    modelEnvKey: "OPENAI_MODEL",
+    maxOutputTokensEnvKey: "OPENAI_ROUTER_MAX_OUTPUT_TOKENS",
+    defaultMaxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
   }),
 });
 

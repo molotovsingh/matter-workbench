@@ -96,6 +96,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     const body = await readRequestJson(request);
     sendJson(response, 200, await services.uniboxService.processInput({
       userInput: body.userInput,
+      conversationHistory: Array.isArray(body.conversationHistory) ? body.conversationHistory : [],
     }));
     return true;
   }

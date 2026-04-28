@@ -5,18 +5,54 @@ import { isInsideRoot, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import fs from "fs";
 import path from "path";
 
-const MAX_CONTEXT_CHARS = 32000;
+const MAX_CONTEXT_CHARS = 64000;
+const MAX_CONVERSATION_TURNS = 10;
 
 export function createMatterQaService({ matterStore, env = process.env } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
-  async function answerQuestion({ question, matterRoot } = {}) {
+  const conversationStore = new Map();
+
+  function getConversation(matterRoot) {
+    if (!conversationStore.has(matterRoot)) {
+      conversationStore.set(matterRoot, []);
+    }
+    return conversationStore.get(matterRoot);
+  }
+
+  function resetConversation(matterRoot) {
+    conversationStore.set(matterRoot, []);
+  }
+
+  async function answerQuestion({ question, matterRoot, conversationHistory = [] } = {}) {
     if (!question || typeof question !== "string") {
       throw Object.assign(new Error("question is required"), { statusCode: 400 });
     }
     const root = matterRoot || matterStore.ensureMatterRoot();
     const context = await buildMatterContext(root);
     const modelPolicy = resolveModelPolicy(AI_TASKS.MATTER_QA, { env });
+
+    const messages = [
+      {
+        role: "system",
+        content: [
+          "You are a legal matter assistant.",
+          "Answer questions using only the provided matter context.",
+          "Include source citations using the format FILE-NNNN pX.bY when referencing extraction records.",
+          "If the answer is not in the context, say so clearly.",
+          "Be concise and cite specific documents when possible.",
+          "Maintain conversation context from previous questions and answers.",
+        ].join(" "),
+      },
+      ...conversationHistory,
+      {
+        role: "user",
+        content: JSON.stringify({
+          question,
+          matter_context: context,
+        }),
+      },
+    ];
 
     const answer = await requestResponsesJson({
       apiKey: env.OPENAI_API_KEY,
@@ -25,25 +61,7 @@ export function createMatterQaService({ matterStore, env = process.env } = {}) {
       body: {
         model: modelPolicy.model,
         max_output_tokens: modelPolicy.maxOutputTokens,
-        input: [
-          {
-            role: "system",
-            content: [
-              "You are a legal matter assistant.",
-              "Answer questions using only the provided matter context.",
-              "Include source citations using the format FILE-NNNN pX.bY when referencing extraction records.",
-              "If the answer is not in the context, say so clearly.",
-              "Be concise and cite specific documents when possible.",
-            ].join(" "),
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              question,
-              matter_context: context,
-            }),
-          },
-        ],
+        input: messages,
         text: {
           format: {
             type: "json_schema",
@@ -72,15 +90,22 @@ export function createMatterQaService({ matterStore, env = process.env } = {}) {
       },
     });
 
+    const updatedHistory = [
+      ...conversationHistory,
+      { role: "user", content: question },
+      { role: "assistant", content: answer.answer || "No answer generated." },
+    ].slice(-MAX_CONVERSATION_TURNS * 2);
+
     return {
       answer: answer.answer || "No answer generated.",
       sources: Array.isArray(answer.sources) ? answer.sources : [],
       confidence: typeof answer.confidence === "number" ? answer.confidence : 0,
       question,
+      conversationHistory: updatedHistory,
     };
   }
 
-  return { answerQuestion };
+  return { answerQuestion, getConversation, resetConversation };
 }
 
 async function buildMatterContext(matterRoot) {
@@ -99,14 +124,22 @@ async function buildMatterContext(matterRoot) {
       if (fs.existsSync(registerPath)) {
         parts.push(`[${intake}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
       }
+
+      const extractedPath = path.join(inboxPath, intake, "_extracted");
+      if (fs.existsSync(extractedPath)) {
+        const records = collectExtractionRecords(extractedPath);
+        for (const record of records) {
+          parts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
+        }
+      }
     }
   }
 
   const libraryPath = path.join(matterRoot, "10_Library");
   if (fs.existsSync(libraryPath)) {
     const records = collectExtractionRecords(libraryPath);
-    for (const record of records.slice(0, 50)) {
-      parts.push(`[extraction record]\n${JSON.stringify(record).slice(0, 2000)}`);
+    for (const record of records.slice(0, 20)) {
+      parts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
     }
   }
 
@@ -114,6 +147,17 @@ async function buildMatterContext(matterRoot) {
   return fullContext.length > MAX_CONTEXT_CHARS
     ? fullContext.slice(0, MAX_CONTEXT_CHARS) + "\n...[truncated]"
     : fullContext;
+}
+
+function formatExtractionRecord(record) {
+  const pages = Array.isArray(record.pages) ? record.pages : [];
+  const blocks = pages.flatMap((p) => Array.isArray(p.blocks) ? p.blocks : []);
+  const textParts = blocks.map((b) => {
+    const id = b.id || "?";
+    const text = b.text || "";
+    return `${id}: ${text}`;
+  });
+  return textParts.join("\n");
 }
 
 function collectExtractionRecords(dir) {

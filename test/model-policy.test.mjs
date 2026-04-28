@@ -23,6 +23,8 @@ test("model policy lists current AI task names", () => {
     AI_TASKS.SKILL_ROUTER,
     AI_TASKS.SOURCE_BACKED_ANALYSIS,
     AI_TASKS.SOURCE_DESCRIPTION,
+    AI_TASKS.MATTER_QA,
+    AI_TASKS.INTENT_CLASSIFIER,
   ]);
 });
 
