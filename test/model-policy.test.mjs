@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   AI_PROVIDERS,
   AI_TASKS,
+  DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   MODEL_POLICY_VERSION,
   listModelPolicyTasks,
   resolveModelPolicy,
@@ -18,6 +20,7 @@ test("model policy lists current AI task names", () => {
   assert.deepEqual(listModelPolicyTasks(), [
     AI_TASKS.SKILL_ROUTER,
     AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    AI_TASKS.SOURCE_DESCRIPTION,
   ]);
 });
 
@@ -71,6 +74,40 @@ test("model policy preserves current environment override behavior", () => {
     model: "custom-model",
     maxOutputTokens: 2048,
     fallback: "fail_closed",
+  });
+});
+
+test("source description policy uses OpenRouter env configuration", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/llama-3.3-70b-instruct",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1400",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8, other/provider",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    tier: "source_description",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "meta-llama/llama-3.3-70b-instruct",
+    maxOutputTokens: 1400,
+    fallback: "fail_closed",
+    providerOrder: ["akashml/fp8", "other/provider"],
+  });
+});
+
+test("source description policy is unconfigured without an OpenRouter model", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    tier: "source_description",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "",
+    maxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+    fallback: "fail_closed",
+    providerOrder: [],
   });
 });
 

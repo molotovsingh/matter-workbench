@@ -71,11 +71,41 @@ test("provider metadata mirrors request-ready config without endpoint or keys", 
   });
 });
 
+test("provider config resolves OpenRouter source description policy", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1200",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8",
+    },
+  });
+  const providerConfig = resolveProviderConfig(policy);
+
+  assert.deepEqual(providerConfig, {
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "meta-llama/source-description-model",
+    maxOutputTokens: 1200,
+    providerOrder: ["akashml/fp8"],
+    requireParameters: true,
+    allowFallbacks: false,
+  });
+  assert.deepEqual(modelPolicyMetadata(policy, providerConfig), {
+    policyVersion: policy.policyVersion,
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    tier: "source_description",
+    provider: AI_PROVIDERS.OPENROUTER,
+    model: "meta-llama/source-description-model",
+    maxOutputTokens: 1200,
+    fallback: "fail_closed",
+  });
+});
+
 test("provider config rejects unsupported providers", () => {
   assert.throws(
     () => resolveProviderConfig({
-      provider: "openrouter",
-      endpoint: "https://openrouter.example.invalid/api/v1/responses",
+      provider: "made-up-provider",
+      endpoint: "https://example.invalid/api",
       model: "example",
       maxOutputTokens: 1000,
     }),
