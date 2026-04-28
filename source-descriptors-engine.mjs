@@ -22,6 +22,7 @@ const SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS = [
   "document_date must be null or a real ISO calendar date in YYYY-MM-DD form.",
   "If source text says the document is blurred, unclear, or low confidence, do not use a filename date as the document_date; use null, date_basis unknown, needs_review true, and lower confidence.",
   "For unknown party string fields, return an empty string, not None, unknown, or N/A.",
+  "Do not include FILE-NNNN identifiers in display_label or short_label; those identifiers belong only in file_id, evidence citations, and audit fields.",
   "Return JSON only in the requested schema.",
   "Use only the supplied source packets.",
 ];
@@ -504,6 +505,8 @@ function validateDescriptorShape(descriptor) {
   assertNonEmptyString(descriptor.source_path, `source_path for ${descriptor.file_id}`);
   assertNonEmptyString(descriptor.display_label, `display_label for ${descriptor.file_id}`);
   assertNonEmptyString(descriptor.short_label, `short_label for ${descriptor.file_id}`);
+  validateHumanLabel(descriptor.display_label, `display_label for ${descriptor.file_id}`);
+  validateHumanLabel(descriptor.short_label, `short_label for ${descriptor.file_id}`);
   if (!DOCUMENT_TYPES.has(descriptor.document_type)) throwProviderError(`Invalid document_type for ${descriptor.file_id}`);
   if (descriptor.document_date !== null && !isValidIsoDate(descriptor.document_date)) {
     throwProviderError(`Invalid document_date for ${descriptor.file_id}`);
@@ -543,6 +546,12 @@ function validateParties(parties, fileId) {
 function validateWarnings(warnings, fileId) {
   if (!Array.isArray(warnings) || !warnings.every((warning) => typeof warning === "string")) {
     throwProviderError(`warnings must be an array of strings for ${fileId}`);
+  }
+}
+
+function validateHumanLabel(label, fieldLabel) {
+  if (/\bFILE-\d{4,}\b/.test(label)) {
+    throwProviderError(`${fieldLabel} must not include FILE-NNNN identifiers`);
   }
 }
 

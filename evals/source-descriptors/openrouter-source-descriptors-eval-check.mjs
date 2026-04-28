@@ -25,6 +25,7 @@ test("OpenRouter source descriptor eval request is strict, synthetic, and no-fal
   assert.equal(body.response_format.json_schema.strict, true);
   assert.equal(body.response_format.json_schema.schema.additionalProperties, false);
   assert.equal(body.messages.length, 2);
+  assert.match(body.messages[0].content, /Do not include FILE-NNNN identifiers in display_label or short_label/);
 
   const userPayload = JSON.parse(body.messages[1].content);
   assert.equal(userPayload.contract_summary.schema_version, "source-index/v1");
@@ -129,6 +130,26 @@ test("OpenRouter source descriptor eval rejects incomplete source descriptors", 
   assert.throws(
     () => validateSourceDescriptorResponse(result),
     /Missing required source field short_label/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects FILE identifiers in human labels", () => {
+  const result = validSyntheticResult();
+  result.sources[0].display_label = "FILE-0001: Email from Sharma to Mehta dated 20 April 2026";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /display_label for FILE-0001 must not include FILE-NNNN identifiers/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects FILE identifiers in short labels", () => {
+  const result = validSyntheticResult();
+  result.sources[0].short_label = "FILE-0001 email";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /short_label for FILE-0001 must not include FILE-NNNN identifiers/,
   );
 });
 

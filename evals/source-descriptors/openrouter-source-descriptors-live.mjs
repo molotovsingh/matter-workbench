@@ -278,6 +278,7 @@ export function buildSourceDescriptorRequest({
           "document_date must be null or a real ISO calendar date in YYYY-MM-DD form.",
           "If source text says the document is blurred, unclear, or low confidence, do not use a filename date as the document_date; use null, date_basis unknown, needs_review true, and lower confidence.",
           "For unknown party string fields, return an empty string, not None, unknown, or N/A.",
+          "Do not include FILE-NNNN identifiers in display_label or short_label; those identifiers belong only in file_id, evidence citations, and audit fields.",
           "Return JSON only in the requested schema.",
           "Use only the supplied synthetic source packets.",
         ].join(" "),
@@ -340,6 +341,8 @@ export function validateSourceDescriptorResponse(result, fixtures = syntheticSou
     assertString(source.source_path, "source_path");
     assertString(source.display_label, "display_label");
     assertString(source.short_label, "short_label");
+    validateHumanLabel(source.display_label, `display_label for ${source.file_id}`);
+    validateHumanLabel(source.short_label, `short_label for ${source.file_id}`);
     if (!DOCUMENT_TYPES.has(source.document_type)) {
       throw new Error(`Invalid document_type for ${source.file_id}: ${source.document_type}`);
     }
@@ -468,6 +471,12 @@ function isValidIsoDate(value) {
 function validateWarnings(warnings, fileId) {
   if (!Array.isArray(warnings) || !warnings.every((warning) => typeof warning === "string")) {
     throw new Error(`warnings must be an array of strings for ${fileId}`);
+  }
+}
+
+function validateHumanLabel(label, fieldLabel) {
+  if (/\bFILE-\d{4,}\b/.test(label)) {
+    throw new Error(`${fieldLabel} must not include FILE-NNNN identifiers`);
   }
 }
 

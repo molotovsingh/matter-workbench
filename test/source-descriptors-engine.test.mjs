@@ -222,6 +222,7 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.match(requests[0].body.messages[0].content, /email_header for email headers, court_order_date for court order headings/);
   assert.match(requests[0].body.messages[0].content, /do not use a filename date as the document_date/);
   assert.match(requests[0].body.messages[0].content, /empty string, not None, unknown, or N\/A/);
+  assert.match(requests[0].body.messages[0].content, /Do not include FILE-NNNN identifiers in display_label or short_label/);
   const userPayload = JSON.parse(requests[0].body.messages[1].content);
   assert.equal(userPayload.contract_summary.display_label_should_include_reliable_document_date, true);
   assert.equal(userPayload.contract_summary.source_text_beats_filename_for_date_basis, true);
@@ -263,6 +264,28 @@ test("source descriptors default OpenRouter provider maps malformed JSON to prov
       assert.match(error.message, /OpenRouter response did not include valid JSON message content/);
       return true;
     },
+  );
+});
+
+test("source descriptors reject FILE identifiers in human labels", () => {
+  const packets = buildSourcePackets(extractionRecords());
+  const descriptors = validDescriptors(packets);
+  descriptors[0].display_label = "FILE-0001: Email from Sharma to Mehta dated 20 April 2026";
+
+  assert.throws(
+    () => validateAndSortDescriptors({ sources: descriptors }, packets),
+    /display_label for FILE-0001 must not include FILE-NNNN identifiers/,
+  );
+});
+
+test("source descriptors reject FILE identifiers in short labels", () => {
+  const packets = buildSourcePackets(extractionRecords());
+  const descriptors = validDescriptors(packets);
+  descriptors[0].short_label = "FILE-0001 email";
+
+  assert.throws(
+    () => validateAndSortDescriptors({ sources: descriptors }, packets),
+    /short_label for FILE-0001 must not include FILE-NNNN identifiers/,
   );
 });
 
