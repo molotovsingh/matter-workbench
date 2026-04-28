@@ -90,9 +90,15 @@ const skills = {
   runExtract: extractSkill.runExtract,
   runMatterInit: matterInitSkill.runMatterInit,
 };
+const skillDispatch = {
+  "/matter-init": skills.runMatterInit,
+  "/extract": skills.runExtract,
+  "/create_listofdates": skills.runCreateListOfDates,
+  "/doctor": skills.runDoctor,
+};
 const matterOverview = createMatterOverview(ctx, skills);
 ctx.renderSkillOverview = matterOverview.renderSkillOverview;
-const unibox = createUnibox(ctx);
+const unibox = createUnibox(ctx, skillDispatch);
 
 function clearActiveMatter() {
   activeMatter = activeMatterStore.set(createInitialActiveMatter());
@@ -228,7 +234,7 @@ async function bootstrap() {
   ctx.renderBlankLanding();
 }
 
-wireAppEvents(ctx, skills);
+wireAppEvents(ctx, skills, skillDispatch);
 unibox.wire();
 ctx.renderWorkspaceTree();
 syncModelSelector();

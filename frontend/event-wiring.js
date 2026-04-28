@@ -1,14 +1,8 @@
 import { renderAddFilesForm } from "./views/add-files.js";
 import { renderNewMatterForm } from "./views/new-matter.js";
 
-export function wireAppEvents(ctx, skills) {
+export function wireAppEvents(ctx, skills, skillDispatch = {}) {
   const { elements } = ctx;
-  const skillDispatch = {
-    "/matter-init": skills.runMatterInit,
-    "/extract": skills.runExtract,
-    "/create_listofdates": skills.runCreateListOfDates,
-    "/doctor": skills.runDoctor,
-  };
 
   elements.refreshExplorerButton.addEventListener("click", () => ctx.refreshWorkspace());
 

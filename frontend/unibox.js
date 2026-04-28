@@ -2,7 +2,7 @@ import { postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
 
-export function createUnibox(ctx) {
+export function createUnibox(ctx, skillDispatch = {}) {
   const {
     uniboxForm,
     uniboxInput,
@@ -132,6 +132,14 @@ export function createUnibox(ctx) {
         break;
       case "skill_router":
         resultHtml = renderSkillRouterResult(result.result);
+        if (result.intent === "run_skill"
+            && result.result.decision === "run_existing_skill"
+            && !result.result.user_gate_required
+            && result.result.matched_skill
+            && skillDispatch[result.result.matched_skill]) {
+          skillDispatch[result.result.matched_skill](result.result.matched_skill);
+          return;
+        }
         break;
       case "chat_response":
         resultHtml = renderChatResponse(result.result);
