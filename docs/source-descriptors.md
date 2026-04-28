@@ -69,7 +69,7 @@ Any implementation should preserve these rules:
 5. If the descriptor is missing, stale, or uncertain, downstream skills must still work with the raw citation.
 6. The classifier must not move files, rename files, edit extraction records, or change canonical citations.
 
-## Current State
+## Current Implemented Pipeline
 
 Extraction records already provide the hard reference layer:
 
@@ -78,9 +78,9 @@ Extraction records already provide the hard reference layer:
 - block handles, such as `p2.b1`.
 - external citations, such as `FILE-0003 p2.b1`.
 
-The list-of-dates engine already requires each AI event to cite a supplied block handle. That is the right foundation.
+The list-of-dates engine requires each AI event to cite a supplied block handle. That is the right foundation.
 
-The missing layer is a per-source description:
+The source descriptor layer now adds a per-source description:
 
 ```json
 {
@@ -95,7 +95,7 @@ The missing layer is a per-source description:
 }
 ```
 
-Once that exists, a list-of-dates entry can carry both the raw citation and the readable label:
+Once `Source Index.json` exists, a list-of-dates entry carries both the raw citation and the readable label:
 
 ```json
 {
@@ -104,12 +104,51 @@ Once that exists, a list-of-dates entry can carry both the raw citation and the 
   "citation": "FILE-0003 p2.b1",
   "source_file_id": "FILE-0003",
   "source_label": "Email from Sharma to Mehta dated 20 April 2026",
-  "source_document_type": "email",
-  "source_confidence": 0.91
+  "source_short_label": "Email from Sharma to Mehta"
 }
 ```
 
-## Proposed Artifact
+The implementation is deliberately display-only. `citation` remains the audit handle. `source_file_id`, `source_label`, and `source_short_label` are denormalized helper fields copied from `10_Library/Source Index.json` only when the source descriptor matches the current `file_id`, `sha256`, and `source_path`.
+
+If the source index is missing, invalid, stale, or contains a polluted human label such as `FILE-0003: Email from Sharma`, list-of-dates silently falls back to the current citation-based behavior.
+
+## End-to-End Smoke Result
+
+After the source index, OpenRouter source-description wiring, no-file-ID label guard, and list-of-dates enrichment landed, a disposable matter smoke passed through:
+
+```text
+/matter-init
+/extract
+/describe_sources
+/create_listofdates
+```
+
+The smoke source was a small legal notice text file. `Source Index.json` produced:
+
+```text
+Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026
+```
+
+`List of Dates.json` preserved the raw citation and added the readable source fields:
+
+```json
+{
+  "citation": "FILE-0001 p1.b2",
+  "source_file_id": "FILE-0001",
+  "source_label": "Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026",
+  "source_short_label": "Legal Notice, 20 April 2026"
+}
+```
+
+`List of Dates.md` rendered the lawyer-facing form:
+
+```text
+Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026 (FILE-0001 p1.b2)
+```
+
+That is the target behavior: readable legal label first, canonical audit handle preserved.
+
+## Source Index Artifact
 
 Create a generated artifact:
 
@@ -119,26 +158,31 @@ Create a generated artifact:
 
 This file describes source documents, not chronology events. It is advisory metadata over existing extraction records.
 
-Suggested top-level shape:
+Top-level shape:
 
 ```json
 {
   "schema_version": "source-index/v1",
-  "generated_at": "2026-04-28T09:30:00+05:30",
+  "engine_version": "source-descriptors-v1-skeleton",
+  "generated_at": "2026-04-28T09:30:00.000Z",
   "matter": {
     "matter_name": "Mehta vs Skyline",
     "client_name": "Mehta",
-    "opposite_party": "Skyline"
+    "opposite_party": "Skyline",
+    "matter_type": "Civil",
+    "jurisdiction": "India",
+    "brief_description": "Chronology and source descriptor example matter"
   },
   "ai_run": {
     "policyVersion": "model-policy/v1-current",
     "task": "source_description",
-    "tier": "source_classification",
+    "tier": "source_description",
     "provider": "openrouter",
-    "model": "meta-llama/...",
+    "model": "meta-llama/llama-3.3-70b-instruct",
     "maxOutputTokens": 1200,
     "fallback": "fail_closed"
   },
+  "source_record_count": 1,
   "sources": [
     {
       "file_id": "FILE-0003",
@@ -152,9 +196,14 @@ Suggested top-level shape:
       "parties": {
         "from": "Sharma",
         "to": ["Mehta"],
+        "cc": [],
         "author": "",
         "court": "",
-        "issuing_party": ""
+        "judge": "",
+        "issuing_party": "",
+        "recipient_party": "",
+        "deponent": "",
+        "signatory": ""
       },
       "confidence": 0.91,
       "needs_review": false,
@@ -172,7 +221,7 @@ Suggested top-level shape:
 
 The exact `matter` summary can match the existing list-of-dates artifact style. It is included so the artifact remains understandable when copied out of the matter folder.
 
-The `ai_run.provider` and `ai_run.model` values above show the intended future Llama/OpenRouter use case. They are not a requirement for the contract PR. The first runtime implementation can still use whatever provider policy supports at that point.
+The `ai_run.provider` and `ai_run.model` values record the provider policy actually used for the source-description run. They are observability metadata, not part of the citation contract.
 
 ## Field Notes
 
@@ -362,7 +411,7 @@ The event is proved by `FILE-0003 p2.b1`. The source label only explains what `F
 
 ## How List Of Dates Should Use This
 
-`/create_listofdates` should continue storing:
+`/create_listofdates` continues storing:
 
 ```json
 {
@@ -370,15 +419,14 @@ The event is proved by `FILE-0003 p2.b1`. The source label only explains what `F
 }
 ```
 
-Later, after `Source Index.json` exists, it can enrich entries:
+When a trusted `Source Index.json` exists, it enriches entries:
 
 ```json
 {
   "citation": "FILE-0003 p2.b1",
   "source_file_id": "FILE-0003",
   "source_label": "Email from Sharma to Mehta dated 20 April 2026",
-  "source_document_type": "email",
-  "source_needs_review": false
+  "source_short_label": "Email from Sharma to Mehta"
 }
 ```
 
@@ -388,17 +436,34 @@ If no descriptor exists, list-of-dates should fall back gracefully:
 
 ```json
 {
-  "citation": "FILE-0003 p2.b1",
-  "source_file_id": "FILE-0003",
-  "source_label": "FILE-0003",
-  "source_document_type": "unknown",
-  "source_needs_review": true
+  "citation": "FILE-0003 p2.b1"
 }
 ```
 
-If the source index is stale because the `sha256` no longer matches the current file register or extraction record, list-of-dates should also fall back to the raw `FILE-NNNN` label and mark the source label as needing review.
+If the source index is stale because the `sha256` or `source_path` no longer matches the current extraction record, list-of-dates also falls back to the raw citation behavior.
 
 The list-of-dates fields should be treated as denormalized display metadata. The authoritative source descriptor still lives in `Source Index.json`.
+
+## Presentation Language
+
+Keep the internal schema language as `source_*`. It is neutral and describes what the fields are.
+
+For lawyer-facing Markdown, PDF, or UI views, it is acceptable to use presentation labels such as **Exhibit / Source** or **Exhibit**. That is display language only. It should not rename the JSON fields or change the contract.
+
+Good presentation:
+
+```text
+Exhibit / Source:
+Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026 (FILE-0001 p1.b2)
+```
+
+Bad presentation:
+
+```text
+Exhibit: FILE-0001
+```
+
+The first form helps the lawyer read the chronology. The second form throws away the whole point of the descriptor.
 
 ## Why This Should Be Separate From `/extract`
 
@@ -460,7 +525,7 @@ This is a good first Llama/OpenRouter task because it is:
 - Useful even when imperfect, as long as confidence and review flags are honest.
 - Easy to verify against source snippets.
 
-But the first implementation should not let the model move files, rename folders, or change canonical citations. It should only write advisory metadata.
+The model must not move files, rename folders, or change canonical citations. It only writes advisory metadata.
 
 Proposed model-policy task name:
 
@@ -476,45 +541,34 @@ document_classification
 
 `source_description` is the better product name because the output is not just a category. It includes the readable label that downstream legal work needs.
 
-If Llama via OpenRouter is used later, that should be a provider-policy decision, not logic hidden inside the engine. The engine should ask for the `source_description` task and pass a structured source packet; the provider layer should decide which configured model satisfies that task.
+Llama via OpenRouter is wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; the provider layer decides which configured model satisfies that task.
 
-## Non-Goals
+## Remaining Non-Goals
 
-The first PR for this feature should not:
+The source descriptor and list-of-dates enrichment stack should still not:
 
 - Change `/extract`.
-- Change `/create_listofdates`.
 - Move or rename files.
 - Replace raw citations.
-- Add UI behavior.
-- Add OpenRouter runtime code.
+- Let readable labels become canonical citations.
 - Auto-merge descriptors into old chronology artifacts.
 
-## Implementation Sequence
+## Implementation Status
 
-Recommended sequence:
+Completed slices:
 
-1. Land this design note.
-2. Add a schema or contract test for `source-index/v1`.
-3. Add a `source_description` task to model policy, initially disabled or mapped conservatively.
-4. Add a new engine that reads extraction records and writes `10_Library/Source Index.json`.
-5. Add tests with emails, orders, notices, agreements, and unknown documents.
-6. Enrich `/create_listofdates` output with `source_label` while preserving `citation`.
-7. Add UI rendering that shows the label first and keeps the raw citation available.
+1. Landed this design note.
+2. Added `source-index/v1` schema and source descriptor engine skeleton.
+3. Added `source_description` model policy and OpenRouter provider wiring.
+4. Added source descriptor prompt and validator guardrails, including no `FILE-NNNN` in human labels.
+5. Enriched `/create_listofdates` output with `source_file_id`, `source_label`, and `source_short_label` while preserving `citation`.
+6. Verified the full chain on a disposable matter.
 
-## First Runtime PR Shape
+Next likely slices:
 
-When implementation starts, keep the first runtime PR narrow:
-
-- Add a `source-index/v1` schema.
-- Add a deterministic reader that gathers extraction records by `file_id`.
-- Add an engine entry point that accepts an injected provider in tests.
-- Use a fake provider in tests to return source descriptors.
-- Write `10_Library/Source Index.json`.
-- Do not call OpenRouter directly yet unless provider configuration has already landed.
-- Do not modify list-of-dates in the same PR.
-
-That gives the system a durable artifact before any UI or chronology enrichment depends on it.
+- Run a Gemini or other provider bakeoff against the same synthetic and disposable-matter checks.
+- Add UI or export presentation that labels the column **Exhibit / Source** while preserving raw citations.
+- Consider a manual refresh command for old chronology artifacts, rather than mutating historical outputs automatically.
 
 ## Testing Strategy
 
