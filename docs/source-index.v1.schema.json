@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://matter-workbench.local/schemas/source-index/v1",
+  "title": "Source Index (v1)",
+  "description": "Per-source-document descriptor artifact generated from extraction records. It adds lawyer-readable source labels while preserving canonical FILE-NNNN citations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engine_version",
+    "generated_at",
+    "matter",
+    "ai_run",
+    "source_record_count",
+    "sources"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "source-index/v1"
+    },
+    "engine_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "matter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matter_name",
+        "client_name",
+        "opposite_party",
+        "matter_type",
+        "jurisdiction",
+        "brief_description"
+      ],
+      "properties": {
+        "matter_name": { "type": "string" },
+        "client_name": { "type": "string" },
+        "opposite_party": { "type": "string" },
+        "matter_type": { "type": "string" },
+        "jurisdiction": { "type": "string" },
+        "brief_description": { "type": "string" }
+      }
+    },
+    "ai_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyVersion",
+        "task",
+        "tier",
+        "provider",
+        "model",
+        "maxOutputTokens",
+        "fallback"
+      ],
+      "properties": {
+        "policyVersion": { "type": "string" },
+        "task": { "type": "string" },
+        "tier": { "type": "string" },
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "maxOutputTokens": {
+          "anyOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        },
+        "fallback": { "type": "string" }
+      }
+    },
+    "source_record_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sourceDescriptor" }
+    }
+  },
+  "$defs": {
+    "sourceDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_id",
+        "sha256",
+        "source_path",
+        "display_label",
+        "short_label",
+        "document_type",
+        "document_date",
+        "date_basis",
+        "parties",
+        "confidence",
+        "needs_review",
+        "evidence",
+        "warnings"
+      ],
+      "properties": {
+        "file_id": {
+          "type": "string",
+          "pattern": "^FILE-\\d{4,}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "short_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "email",
+            "letter",
+            "legal_notice",
+            "court_order",
+            "pleading",
+            "application",
+            "reply",
+            "affidavit",
+            "agreement",
+            "invoice",
+            "receipt",
+            "bank_record",
+            "government_record",
+            "photo",
+            "screenshot",
+            "whatsapp_chat",
+            "unknown"
+          ]
+        },
+        "document_date": {
+          "anyOf": [
+            { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            { "type": "null" }
+          ]
+        },
+        "date_basis": {
+          "type": "string",
+          "enum": [
+            "email_header",
+            "document_heading",
+            "signature_block",
+            "court_order_date",
+            "file_name",
+            "body_text",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "parties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to",
+            "cc",
+            "author",
+            "court",
+            "judge",
+            "issuing_party",
+            "recipient_party",
+            "deponent",
+            "signatory"
+          ],
+          "properties": {
+            "from": { "type": "string" },
+            "to": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "cc": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "author": { "type": "string" },
+            "court": { "type": "string" },
+            "judge": { "type": "string" },
+            "issuing_party": { "type": "string" },
+            "recipient_party": { "type": "string" },
+            "deponent": { "type": "string" },
+            "signatory": { "type": "string" }
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "needs_review": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["citation", "reason"],
+            "properties": {
+              "citation": {
+                "type": "string",
+                "pattern": "^FILE-\\d{4,} p\\d+\\.b\\d+$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
