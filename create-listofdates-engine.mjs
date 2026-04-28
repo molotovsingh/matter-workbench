@@ -5,6 +5,7 @@ import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
 } from "./shared/ai-defaults.mjs";
+import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
@@ -78,16 +79,16 @@ export async function runCreateListOfDates(options = {}) {
 
   const dryRun = Boolean(options.dryRun);
   const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env: process.env });
-  const maxOutputTokens = options.maxOutputTokens
-    ? parsePositiveInteger(options.maxOutputTokens) || modelPolicy.maxOutputTokens
-    : modelPolicy.maxOutputTokens;
-  const model = options.model || modelPolicy.model;
-  const aiRun = modelPolicyMetadata(modelPolicy, { model, maxOutputTokens });
+  const providerConfig = resolveProviderConfig(modelPolicy, {
+    model: options.model,
+    maxOutputTokens: options.maxOutputTokens,
+  });
+  const aiRun = modelPolicyMetadata(modelPolicy, providerConfig);
   const provider = options.aiProvider || createOpenAiProvider({
     apiKey: options.apiKey || process.env.OPENAI_API_KEY,
-    model,
-    endpoint: modelPolicy.endpoint,
-    maxOutputTokens,
+    model: providerConfig.model,
+    endpoint: providerConfig.endpoint,
+    maxOutputTokens: providerConfig.maxOutputTokens,
   });
 
   const matterJson = await readMatterJson(matterRoot);
@@ -179,18 +180,6 @@ export async function runCreateListOfDates(options = {}) {
   };
 }
 
-function modelPolicyMetadata(policy, { model, maxOutputTokens }) {
-  return {
-    policyVersion: policy.policyVersion,
-    task: policy.task,
-    tier: policy.tier,
-    provider: policy.provider,
-    model,
-    maxOutputTokens,
-    fallback: policy.fallback,
-  };
-}
-
 export function createOpenAiProvider({
   apiKey,
   model = DEFAULT_OPENAI_MODEL,
@@ -254,11 +243,6 @@ export function createOpenAiProvider({
       },
     });
   };
-}
-
-function parsePositiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
 }
 
 async function readMatterJson(matterRoot) {

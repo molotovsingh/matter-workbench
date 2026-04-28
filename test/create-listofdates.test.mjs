@@ -228,6 +228,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
 
     assert.equal(result.aiRun.model, "policy-listofdates-model");
     assert.equal(result.aiRun.maxOutputTokens, 3456);
+    assert.equal(result.aiRun.provider, "openai-direct");
     assert.deepEqual(jsonOutput.ai_run, result.aiRun);
   } finally {
     globalThis.fetch = originalFetch;
