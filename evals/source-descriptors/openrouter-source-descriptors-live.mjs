@@ -251,8 +251,18 @@ export function syntheticSourceDescriptorFixtures() {
   ];
 }
 
-export function buildSourceDescriptorRequest({ model, sources = syntheticSourceDescriptorFixtures() } = {}) {
+export function buildSourceDescriptorRequest({
+  model,
+  providerOrder,
+  sources = syntheticSourceDescriptorFixtures(),
+} = {}) {
   if (!model) throw new Error("OPENROUTER_SOURCE_DESCRIPTION_MODEL is required when running the live eval");
+
+  const provider = {
+    require_parameters: true,
+    allow_fallbacks: false,
+  };
+  if (providerOrder?.length) provider.order = providerOrder;
 
   return {
     model,
@@ -262,6 +272,12 @@ export function buildSourceDescriptorRequest({ model, sources = syntheticSourceD
         content: [
           "You create source descriptors for legal matter source documents.",
           "Follow the Source Descriptors contract: keep FILE-NNNN citations canonical, add human-readable document labels, and never overstate weak evidence.",
+          "When a reliable document date is known, include that date in display_label.",
+          "In display_label and short_label, write dates in lawyer-readable form such as 20 April 2026, not ISO form such as 2026-04-20.",
+          "Use the strongest date_basis: email_header for email headers, court_order_date for court order headings, and file_name only when the filename is the best reliable evidence.",
+          "document_date must be null or a real ISO calendar date in YYYY-MM-DD form.",
+          "If source text says the document is blurred, unclear, or low confidence, do not use a filename date as the document_date; use null, date_basis unknown, needs_review true, and lower confidence.",
+          "For unknown party string fields, return an empty string, not None, unknown, or N/A.",
           "Return JSON only in the requested schema.",
           "Use only the supplied synthetic source packets.",
         ].join(" "),
@@ -275,7 +291,9 @@ export function buildSourceDescriptorRequest({ model, sources = syntheticSourceD
             schema_version: "source-index/v1",
             descriptor_key: ["file_id", "sha256"],
             evidence_required: true,
+            display_label_should_include_reliable_document_date: true,
             raw_citations_remain_canonical: true,
+            source_text_beats_filename_for_date_basis: true,
             prefer_unknown_over_guess: true,
           },
           sources,
@@ -284,10 +302,7 @@ export function buildSourceDescriptorRequest({ model, sources = syntheticSourceD
     ],
     temperature: 0,
     max_tokens: 1200,
-    provider: {
-      require_parameters: true,
-      allow_fallbacks: false,
-    },
+    provider,
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -328,8 +343,7 @@ export function validateSourceDescriptorResponse(result, fixtures = syntheticSou
     if (!DOCUMENT_TYPES.has(source.document_type)) {
       throw new Error(`Invalid document_type for ${source.file_id}: ${source.document_type}`);
     }
-    if (source.document_date !== null
-      && (typeof source.document_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(source.document_date))) {
+    if (source.document_date !== null && !isValidIsoDate(source.document_date)) {
       throw new Error(`Invalid document_date for ${source.file_id}`);
     }
     if (!DATE_BASES.has(source.date_basis)) throw new Error(`Invalid date_basis for ${source.file_id}: ${source.date_basis}`);
@@ -349,6 +363,7 @@ export function validateSourceDescriptorResponse(result, fixtures = syntheticSou
       throw new Error(`Missing useful display_label for ${source.file_id}`);
     }
     validateEvidence(source.evidence, source.file_id, fixture);
+    validateSyntheticQualityExpectations(source);
   }
 }
 
@@ -357,6 +372,7 @@ export async function runOpenRouterSourceDescriptorEval({
   appDir,
   fetchImpl = fetch,
   model,
+  providerOrder,
 } = {}) {
   await loadLocalEnv({ appDir: appDir || REPO_ROOT, override: false });
 
@@ -365,6 +381,7 @@ export async function runOpenRouterSourceDescriptorEval({
   }
   const effectiveApiKey = apiKey || process.env.OPENROUTER_API_KEY;
   const effectiveModel = model || process.env.OPENROUTER_SOURCE_DESCRIPTION_MODEL;
+  const effectiveProviderOrder = providerOrder || parseProviderOrder(process.env.OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER);
 
   if (!effectiveApiKey) {
     return { skipped: true, reason: "Set OPENROUTER_API_KEY to run the live eval." };
@@ -374,7 +391,11 @@ export async function runOpenRouterSourceDescriptorEval({
   }
 
   const fixtures = syntheticSourceDescriptorFixtures();
-  const body = buildSourceDescriptorRequest({ model: effectiveModel, sources: fixtures });
+  const body = buildSourceDescriptorRequest({
+    model: effectiveModel,
+    providerOrder: effectiveProviderOrder,
+    sources: fixtures,
+  });
   const response = await fetchImpl(OPENROUTER_CHAT_COMPLETIONS_ENDPOINT, {
     method: "POST",
     headers: {
@@ -395,6 +416,13 @@ export async function runOpenRouterSourceDescriptorEval({
   const result = parseOpenRouterJsonContent(payload);
   validateSourceDescriptorResponse(result, fixtures);
   return { skipped: false, model: effectiveModel, result };
+}
+
+function parseProviderOrder(value) {
+  return String(value || "")
+    .split(",")
+    .map((provider) => provider.trim())
+    .filter(Boolean);
 }
 
 function assertObject(value, label) {
@@ -422,8 +450,19 @@ function validateParties(parties, fileId) {
       }
     } else if (typeof parties[field] !== "string") {
       throw new Error(`parties.${field} must be a string for ${fileId}`);
+    } else if (/^(none|unknown|n\/a)$/i.test(parties[field].trim())) {
+      throw new Error(`parties.${field} should be empty instead of ${parties[field]} for ${fileId}`);
     }
   }
+}
+
+function isValidIsoDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
 }
 
 function validateWarnings(warnings, fileId) {
@@ -445,6 +484,36 @@ function validateEvidence(evidenceItems, fileId, fixture) {
     }
     if (!fixture.blocks.some((block) => block.citation === evidence.citation)) {
       throw new Error(`Evidence citation ${evidence.citation} does not belong to ${fileId}`);
+    }
+  }
+}
+
+function validateSyntheticQualityExpectations(source) {
+  if (source.file_id === "FILE-0001") {
+    if (source.document_type !== "email") throw new Error("FILE-0001 should be classified as email");
+    if (source.document_date !== "2026-04-20") throw new Error("FILE-0001 should use the email header date");
+    if (source.date_basis !== "email_header") throw new Error("FILE-0001 should use date_basis email_header");
+    if (!/20 (Apr|April) 2026/i.test(source.display_label)) {
+      throw new Error("FILE-0001 display_label should include 20 April 2026");
+    }
+  }
+
+  if (source.file_id === "FILE-0002") {
+    if (source.document_type !== "court_order") throw new Error("FILE-0002 should be classified as court_order");
+    if (source.document_date !== "2024-03-03") throw new Error("FILE-0002 should use the court order date");
+    if (source.date_basis !== "court_order_date") throw new Error("FILE-0002 should use date_basis court_order_date");
+    if (!/3 (Mar|March) 2024/i.test(source.display_label)) {
+      throw new Error("FILE-0002 display_label should include 3 March 2024");
+    }
+  }
+
+  if (source.file_id === "FILE-0003") {
+    if (source.document_date !== null) throw new Error("FILE-0003 should not use the filename date");
+    if (source.date_basis !== "unknown") throw new Error("FILE-0003 should use date_basis unknown");
+    if (source.needs_review !== true) throw new Error("FILE-0003 should need review");
+    if (source.confidence >= 0.7) throw new Error("FILE-0003 confidence should stay below 0.7");
+    if (/2021|1 Jan|January 1/i.test(source.display_label)) {
+      throw new Error("FILE-0003 display_label should not include the misleading filename date");
     }
   }
 }

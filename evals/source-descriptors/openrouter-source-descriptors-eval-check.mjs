@@ -12,9 +12,13 @@ import {
 } from "./openrouter-source-descriptors-live.mjs";
 
 test("OpenRouter source descriptor eval request is strict, synthetic, and no-fallback", () => {
-  const body = buildSourceDescriptorRequest({ model: "meta-llama/example-model" });
+  const body = buildSourceDescriptorRequest({
+    model: "meta-llama/example-model",
+    providerOrder: ["akashml/fp8"],
+  });
 
   assert.equal(body.model, "meta-llama/example-model");
+  assert.deepEqual(body.provider.order, ["akashml/fp8"]);
   assert.equal(body.provider.require_parameters, true);
   assert.equal(body.provider.allow_fallbacks, false);
   assert.equal(body.response_format.type, "json_schema");
@@ -24,7 +28,9 @@ test("OpenRouter source descriptor eval request is strict, synthetic, and no-fal
 
   const userPayload = JSON.parse(body.messages[1].content);
   assert.equal(userPayload.contract_summary.schema_version, "source-index/v1");
+  assert.equal(userPayload.contract_summary.display_label_should_include_reliable_document_date, true);
   assert.equal(userPayload.contract_summary.raw_citations_remain_canonical, true);
+  assert.equal(userPayload.contract_summary.source_text_beats_filename_for_date_basis, true);
   assert.ok(userPayload.sources.every((source) => source.original_name.startsWith("synthetic-")
     || source.original_name === "2021-01-01-important.png"));
 });
@@ -58,9 +64,11 @@ test("OpenRouter source descriptor eval loads local env before reading OpenRoute
   const originalRunFlag = process.env.RUN_OPENROUTER_SOURCE_TEST;
   const originalApiKey = process.env.OPENROUTER_API_KEY;
   const originalModel = process.env.OPENROUTER_SOURCE_DESCRIPTION_MODEL;
+  const originalProviderOrder = process.env.OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER;
   delete process.env.RUN_OPENROUTER_SOURCE_TEST;
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.OPENROUTER_SOURCE_DESCRIPTION_MODEL;
+  delete process.env.OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER;
 
   try {
     const appDir = await mkdtemp(path.join(os.tmpdir(), "source-descriptor-env-"));
@@ -68,6 +76,7 @@ test("OpenRouter source descriptor eval loads local env before reading OpenRoute
       "RUN_OPENROUTER_SOURCE_TEST=1",
       "OPENROUTER_API_KEY=sk-openrouter-test",
       "OPENROUTER_SOURCE_DESCRIPTION_MODEL=meta-llama/env-model",
+      "OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER=akashml/fp8",
       "",
     ].join("\n"));
 
@@ -89,12 +98,15 @@ test("OpenRouter source descriptor eval loads local env before reading OpenRoute
 
     assert.equal(result.skipped, false);
     assert.equal(result.model, "meta-llama/env-model");
-    assert.equal(JSON.parse(request.init.body).model, "meta-llama/env-model");
+    const requestBody = JSON.parse(request.init.body);
+    assert.equal(requestBody.model, "meta-llama/env-model");
+    assert.deepEqual(requestBody.provider.order, ["akashml/fp8"]);
     assert.equal(request.init.headers.authorization, "Bearer sk-openrouter-test");
   } finally {
     restoreEnv("RUN_OPENROUTER_SOURCE_TEST", originalRunFlag);
     restoreEnv("OPENROUTER_API_KEY", originalApiKey);
     restoreEnv("OPENROUTER_SOURCE_DESCRIPTION_MODEL", originalModel);
+    restoreEnv("OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER", originalProviderOrder);
   }
 });
 
@@ -117,6 +129,49 @@ test("OpenRouter source descriptor eval rejects incomplete source descriptors", 
   assert.throws(
     () => validateSourceDescriptorResponse(result),
     /Missing required source field short_label/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects weak semantic labels", () => {
+  const result = validSyntheticResult();
+  result.sources[0].date_basis = "file_name";
+  result.sources[0].display_label = "Email from Sharma to Mehta";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /FILE-0001 should use date_basis email_header/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects misleading filename dates for unclear scans", () => {
+  const result = validSyntheticResult();
+  result.sources[2].document_date = "2021-01-01";
+  result.sources[2].date_basis = "file_name";
+  result.sources[2].display_label = "Blurred scan of affidavit dated 1 January 2021";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /FILE-0003 should not use the filename date/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects impossible ISO dates", () => {
+  const result = validSyntheticResult();
+  result.sources[0].document_date = "2004-20-20";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /Invalid document_date for FILE-0001/,
+  );
+});
+
+test("OpenRouter source descriptor eval rejects literal None party fields", () => {
+  const result = validSyntheticResult();
+  result.sources[1].parties.author = "None";
+
+  assert.throws(
+    () => validateSourceDescriptorResponse(result),
+    /parties\.author should be empty instead of None for FILE-0002/,
   );
 });
 
