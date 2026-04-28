@@ -1,4 +1,5 @@
 import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
+import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import {
   AI_TASKS,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
@@ -95,7 +96,7 @@ export function createSkillRouterService({
   registryService,
   aiProvider,
   env = process.env,
-  endpoint = DEFAULT_RESPONSES_ENDPOINT,
+  endpoint,
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
 
@@ -109,11 +110,12 @@ export function createSkillRouterService({
 
     const registry = await registryService.readRegistry();
     const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
+    const providerConfig = resolveProviderConfig(modelPolicy, { endpoint });
     const provider = aiProvider || createOpenAiSkillRouterProvider({
       apiKey: env.OPENAI_API_KEY,
-      model: modelPolicy.model,
-      endpoint,
-      maxOutputTokens: modelPolicy.maxOutputTokens,
+      model: providerConfig.model,
+      endpoint: providerConfig.endpoint,
+      maxOutputTokens: providerConfig.maxOutputTokens,
     });
 
     const rawDecision = await provider({
