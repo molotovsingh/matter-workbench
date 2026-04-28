@@ -1,6 +1,9 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
+import { loadLocalEnv } from "./shared/local-env.mjs";
+import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -10,6 +13,18 @@ const OUTPUT_JSON_NAME = "Source Index.json";
 const OUTPUT_DIR_NAME = "10_Library";
 const BLOCK_CHAR_LIMIT = 1200;
 const MAX_BLOCKS_PER_SOURCE = 12;
+const SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS = [
+  "You create source descriptors for legal matter source documents.",
+  "Follow the Source Descriptors contract: keep FILE-NNNN citations canonical, add human-readable document labels, and never overstate weak evidence.",
+  "When a reliable document date is known, include that date in display_label.",
+  "In display_label and short_label, write dates in lawyer-readable form such as 20 April 2026, not ISO form such as 2026-04-20.",
+  "Use the strongest date_basis: email_header for email headers, court_order_date for court order headings, and file_name only when the filename is the best reliable evidence.",
+  "document_date must be null or a real ISO calendar date in YYYY-MM-DD form.",
+  "If source text says the document is blurred, unclear, or low confidence, do not use a filename date as the document_date; use null, date_basis unknown, needs_review true, and lower confidence.",
+  "For unknown party string fields, return an empty string, not None, unknown, or N/A.",
+  "Return JSON only in the requested schema.",
+  "Use only the supplied source packets.",
+];
 
 const DOCUMENT_TYPES = new Set([
   "email",
@@ -141,10 +156,8 @@ export async function runSourceDescriptors(options = {}) {
     : (process.env.MATTER_ROOT ? path.resolve(process.env.MATTER_ROOT) : null);
   if (!matterRoot) throw new Error("MATTER_ROOT is not set. Pass options.matterRoot or set the env var.");
 
-  const provider = options.provider || options.sourceDescriptorProvider;
-  if (typeof provider !== "function") {
-    throw new Error("sourceDescriptorProvider is required for source descriptor skeleton runs.");
-  }
+  const providerSetup = resolveSourceDescriptorProvider(options);
+  const provider = providerSetup.provider;
 
   const dryRun = Boolean(options.dryRun);
   const matterJson = await readMatterJson(matterRoot);
@@ -164,7 +177,7 @@ export async function runSourceDescriptors(options = {}) {
     schema: SOURCE_INDEX_OUTPUT_SCHEMA,
   });
   const descriptors = validateAndSortDescriptors(providerResponse, sourcePackets);
-  const aiRun = options.aiRun || fakeProviderMetadata();
+  const aiRun = options.aiRun || providerSetup.aiRun;
   const generatedAt = options.generatedAt || new Date().toISOString();
   const artifact = {
     schema_version: SOURCE_INDEX_SCHEMA_VERSION,
@@ -209,6 +222,141 @@ export async function runSourceDescriptors(options = {}) {
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
     ],
   };
+}
+
+export function createOpenRouterSourceDescriptorProvider({
+  apiKey,
+  endpoint,
+  fetchImpl = fetch,
+  maxOutputTokens,
+  model,
+  providerOrder = [],
+} = {}) {
+  return async function openRouterSourceDescriptorProvider({ matter, sources, schema }) {
+    if (!apiKey) {
+      const error = new Error("OPENROUTER_API_KEY is required for source description");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (!model) {
+      const error = new Error("OPENROUTER_SOURCE_DESCRIPTION_MODEL is required for source description");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content: SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS.join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            task: "Create source descriptors for these source packets.",
+            matter,
+            contract_summary: {
+              artifact: "10_Library/Source Index.json",
+              schema_version: SOURCE_INDEX_SCHEMA_VERSION,
+              descriptor_key: ["file_id", "sha256"],
+              evidence_required: true,
+              display_label_should_include_reliable_document_date: true,
+              raw_citations_remain_canonical: true,
+              source_text_beats_filename_for_date_basis: true,
+              prefer_unknown_over_guess: true,
+            },
+            sources,
+          }),
+        },
+      ],
+      temperature: 0,
+      max_tokens: maxOutputTokens,
+      provider: {
+        require_parameters: true,
+        allow_fallbacks: false,
+      },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "source_index",
+          strict: true,
+          schema,
+        },
+      },
+    };
+    if (providerOrder.length) body.provider.order = providerOrder;
+
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "http-referer": "https://github.com/molotovsingh/matter-workbench",
+        "x-title": "Matter Workbench Source Descriptors",
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || `OpenRouter returned ${response.status}`);
+      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
+      throw error;
+    }
+
+    return parseOpenRouterJsonContent(payload);
+  };
+}
+
+function resolveSourceDescriptorProvider(options) {
+  const injectedProvider = options.provider || options.sourceDescriptorProvider;
+  if (typeof injectedProvider === "function") {
+    return {
+      provider: injectedProvider,
+      aiRun: options.aiRun || fakeProviderMetadata(),
+    };
+  }
+
+  const env = options.env || process.env;
+  const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, { env });
+  const model = options.model || policy.model;
+  if (!model) {
+    throw new Error("sourceDescriptorProvider is required unless OPENROUTER_SOURCE_DESCRIPTION_MODEL is configured.");
+  }
+  const providerConfig = resolveProviderConfig(policy, {
+    endpoint: options.endpoint,
+    maxOutputTokens: options.maxOutputTokens,
+    model,
+    providerOrder: options.providerOrder,
+  });
+  return {
+    provider: createOpenRouterSourceDescriptorProvider({
+      apiKey: options.apiKey || env.OPENROUTER_API_KEY,
+      endpoint: providerConfig.endpoint,
+      fetchImpl: options.fetchImpl || fetch,
+      maxOutputTokens: providerConfig.maxOutputTokens,
+      model: providerConfig.model,
+      providerOrder: providerConfig.providerOrder,
+    }),
+    aiRun: options.aiRun || modelPolicyMetadata(policy, providerConfig),
+  };
+}
+
+function parseOpenRouterJsonContent(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === "string") {
+    try {
+      return JSON.parse(content);
+    } catch (parseError) {
+      const error = new Error(`OpenRouter response did not include valid JSON message content: ${parseError.message}`);
+      error.statusCode = 502;
+      throw error;
+    }
+  }
+  if (content && typeof content === "object") return content;
+  const error = new Error("OpenRouter response did not include JSON message content");
+  error.statusCode = 502;
+  throw error;
 }
 
 export function buildSourcePackets(records) {
@@ -496,6 +644,7 @@ function throwProviderError(message) {
 
 if (process.argv[1] === __filename) {
   const dryRun = !process.argv.includes("--apply");
+  await loadLocalEnv({ appDir: path.dirname(__filename), override: false });
   runSourceDescriptors({ dryRun })
     .then((result) => {
       console.log(result.outputLines.join("\n"));

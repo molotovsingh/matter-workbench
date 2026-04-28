@@ -2,7 +2,19 @@ import { AI_PROVIDERS } from "./model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT } from "./responses-client.mjs";
 
 export function resolveProviderConfig(policy, overrides = {}) {
-  assertOpenAiDirect(policy);
+  assertSupportedProvider(policy);
+
+  if (policy.provider === AI_PROVIDERS.OPENROUTER) {
+    return {
+      provider: policy.provider,
+      endpoint: overrides.endpoint || policy.endpoint,
+      model: overrides.model || policy.model,
+      maxOutputTokens: parsePositiveInteger(overrides.maxOutputTokens) || policy.maxOutputTokens,
+      providerOrder: normalizeProviderOrder(overrides.providerOrder) || policy.providerOrder || [],
+      requireParameters: true,
+      allowFallbacks: false,
+    };
+  }
 
   return {
     provider: policy.provider,
@@ -13,7 +25,7 @@ export function resolveProviderConfig(policy, overrides = {}) {
 }
 
 export function modelPolicyMetadata(policy, providerConfig = resolveProviderConfig(policy)) {
-  assertOpenAiDirect(policy);
+  assertSupportedProvider(policy);
 
   return {
     policyVersion: policy.policyVersion,
@@ -26,8 +38,9 @@ export function modelPolicyMetadata(policy, providerConfig = resolveProviderConf
   };
 }
 
-function assertOpenAiDirect(policy) {
+function assertSupportedProvider(policy) {
   if (policy?.provider === AI_PROVIDERS.OPENAI_DIRECT) return;
+  if (policy?.provider === AI_PROVIDERS.OPENROUTER) return;
 
   const error = new Error(`Unsupported AI provider: ${policy?.provider || "none"}`);
   error.statusCode = 400;
@@ -37,4 +50,11 @@ function assertOpenAiDirect(policy) {
 function parsePositiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function normalizeProviderOrder(value) {
+  if (Array.isArray(value)) return value.map((provider) => String(provider).trim()).filter(Boolean);
+  if (typeof value !== "string") return null;
+  const providers = value.split(",").map((provider) => provider.trim()).filter(Boolean);
+  return providers.length ? providers : null;
 }

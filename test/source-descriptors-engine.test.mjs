@@ -180,9 +180,110 @@ test("source descriptors engine requires injected provider and does not create n
   const root = await makeMatterRoot();
 
   await assert.rejects(
-    () => runSourceDescriptors({ matterRoot: root }),
+    () => runSourceDescriptors({ matterRoot: root, env: {} }),
     /sourceDescriptorProvider is required/,
   );
+});
+
+test("source descriptors default OpenRouter provider sends strict no-fallback request shape", async () => {
+  const root = await makeMatterRoot();
+  const requests = [];
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openrouter-test",
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1300",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8",
+    },
+    fetchImpl: async (endpoint, init) => {
+      const body = JSON.parse(init.body);
+      requests.push({ endpoint, headers: init.headers, body });
+      const userPayload = JSON.parse(body.messages[1].content);
+      return {
+        ok: true,
+        async json() {
+          return {
+            choices: [{ message: { content: JSON.stringify({ sources: validDescriptors(userPayload.sources) }) } }],
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].endpoint, "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-test");
+  assert.equal(requests[0].body.model, "meta-llama/source-description-model");
+  assert.equal(requests[0].body.max_tokens, 1300);
+  assert.match(requests[0].body.messages[0].content, /include that date in display_label/);
+  assert.match(requests[0].body.messages[0].content, /lawyer-readable form such as 20 April 2026/);
+  assert.match(requests[0].body.messages[0].content, /email_header for email headers, court_order_date for court order headings/);
+  assert.match(requests[0].body.messages[0].content, /do not use a filename date as the document_date/);
+  assert.match(requests[0].body.messages[0].content, /empty string, not None, unknown, or N\/A/);
+  const userPayload = JSON.parse(requests[0].body.messages[1].content);
+  assert.equal(userPayload.contract_summary.display_label_should_include_reliable_document_date, true);
+  assert.equal(userPayload.contract_summary.source_text_beats_filename_for_date_basis, true);
+  assert.deepEqual(requests[0].body.provider, {
+    require_parameters: true,
+    allow_fallbacks: false,
+    order: ["akashml/fp8"],
+  });
+  assert.equal(requests[0].body.response_format.type, "json_schema");
+  assert.equal(requests[0].body.response_format.json_schema.strict, true);
+  assert.equal(requests[0].body.response_format.json_schema.schema.properties.sources.type, "array");
+  assert.equal(result.aiRun.provider, "openrouter");
+  assert.equal(result.aiRun.model, "meta-llama/source-description-model");
+  assert.equal(result.aiRun.maxOutputTokens, 1300);
+  assert.equal(result.sources.length, 3);
+});
+
+test("source descriptors default OpenRouter provider maps malformed JSON to provider error", async () => {
+  const root = await makeMatterRoot();
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      },
+      fetchImpl: async () => ({
+        ok: true,
+        async json() {
+          return {
+            choices: [{ message: { content: "{not json" } }],
+          };
+        },
+      }),
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.match(error.message, /OpenRouter response did not include valid JSON message content/);
+      return true;
+    },
+  );
+});
+
+test("source descriptors default OpenRouter provider fails clearly without API key", async () => {
+  const root = await makeMatterRoot();
+  let called = false;
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      },
+      fetchImpl: async () => {
+        called = true;
+        throw new Error("network should not be called");
+      },
+    }),
+    /OPENROUTER_API_KEY is required for source description/,
+  );
+  assert.equal(called, false);
 });
 
 function extractionRecords() {
