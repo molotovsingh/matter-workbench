@@ -92,6 +92,14 @@ export async function handleApiRequest({ request, requestUrl, response, services
     return true;
   }
 
+  if (request.method === "POST" && requestUrl.pathname === "/api/unibox") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await services.uniboxService.processInput({
+      userInput: body.userInput,
+    }));
+    return true;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/config") {
     sendJson(response, 200, {
       mattersHome: configService.getMattersHome() || null,

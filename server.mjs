@@ -6,6 +6,7 @@ import { createConfigService } from "./services/config-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
+import { createUniboxService } from "./services/unibox-service.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
 import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
@@ -41,6 +42,11 @@ export async function createWorkbenchServer(options = {}) {
     aiProvider: options.skillRouterProvider || null,
     env,
   });
+  const uniboxService = createUniboxService({
+    matterStore,
+    skillRegistryService,
+    env,
+  });
   const services = {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
@@ -49,6 +55,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     skillRegistryService,
     skillRouterService,
+    uniboxService,
     uploadService,
     workspaceService,
   };

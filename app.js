@@ -3,7 +3,7 @@ import { createMutableState } from "./frontend/state.js";
 import { createStatusController } from "./frontend/status.js";
 import { createWorkspaceView } from "./frontend/workspace-view.js";
 import { createMatterScreens } from "./frontend/matter-screens.js";
-import { createAiCommandBox } from "./frontend/ai-command-box.js";
+import { createUnibox } from "./frontend/unibox.js";
 import { wireAppEvents } from "./frontend/event-wiring.js";
 import { createMatterOverview } from "./frontend/views/matter-overview.js";
 import { createMatterInitSkill } from "./frontend/skills/matter-init.js";
@@ -20,9 +20,9 @@ const elements = {
   refreshExplorerButton: document.getElementById("refreshExplorer"),
   addFilesButton: document.getElementById("addFilesButton"),
   breadcrumbs: document.getElementById("breadcrumbs"),
-  aiCommandForm: document.getElementById("aiCommandForm"),
-  aiCommandInput: document.getElementById("aiCommandInput"),
-  aiCommandSubmit: document.getElementById("aiCommandSubmit"),
+  uniboxForm: document.getElementById("uniboxForm"),
+  uniboxInput: document.getElementById("uniboxInput"),
+  uniboxSubmit: document.getElementById("uniboxSubmit"),
   mattersPicker: document.getElementById("mattersPicker"),
   mattersList: document.getElementById("mattersList"),
   newMatterButton: document.getElementById("newMatterButton"),
@@ -89,7 +89,7 @@ const skills = {
 };
 const matterOverview = createMatterOverview(ctx, skills);
 ctx.renderSkillOverview = matterOverview.renderSkillOverview;
-const aiCommandBox = createAiCommandBox(ctx);
+const unibox = createUnibox(ctx);
 
 function clearActiveMatter() {
   activeMatter = activeMatterStore.set(createInitialActiveMatter());
@@ -226,6 +226,6 @@ async function bootstrap() {
 }
 
 wireAppEvents(ctx, skills);
-aiCommandBox.wire();
+unibox.wire();
 ctx.renderWorkspaceTree();
 bootstrap();

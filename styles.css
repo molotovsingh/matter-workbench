@@ -805,6 +805,70 @@ summary {
   cursor: default;
 }
 
+.unibox-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(520px, 55vw);
+}
+
+.unibox-form input {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: #1f1f1f;
+  color: var(--text);
+  padding: 5px 8px;
+}
+
+.unibox-form button {
+  height: 26px;
+  border: 0;
+  background: var(--accent);
+  color: #0b0b0b;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+.unibox-form button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.unibox-result {
+  margin-top: 16px;
+}
+
+.unibox-next-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.qa-answer {
+  background: var(--panel-2);
+  padding: 16px;
+  border-left: 3px solid var(--accent);
+}
+
+.qa-text {
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.skill-router-chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  padding: 2px 8px;
+  margin: 2px;
+  font-size: 12px;
+  border-radius: 3px;
+}
+
 .ai-command-override-form {
   margin-top: 10px;
 }
