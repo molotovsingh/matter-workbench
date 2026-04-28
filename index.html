@@ -64,15 +64,6 @@
           <div class="editor-pane">
             <div class="editor-toolbar">
               <div id="breadcrumbs" class="breadcrumbs">workbench</div>
-              <form id="uniboxForm" class="unibox-form" autocomplete="off">
-                <input
-                  id="uniboxInput"
-                  type="text"
-                  placeholder="Ask, search, or run a skill..."
-                  spellcheck="true"
-                />
-                <button id="uniboxSubmit" type="submit">Go</button>
-              </form>
             </div>
 
             <article class="editor-content" id="editorContent">
@@ -101,8 +92,33 @@
           </div>
         </footer>
       </main>
+
+      <aside class="unibox-panel">
+        <div class="unibox-header-bar">
+          <span class="unibox-title">Unibox</span>
+          <div class="unibox-header-controls">
+            <select id="modelSelector" class="model-selector" title="AI Model">
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="o4-mini">o4-mini</option>
+              <option value="o3">o3</option>
+            </select>
+            <button class="btn-secondary" id="resetConversationBtn" type="button">New</button>
+          </div>
+        </div>
+        <div class="unibox-history" id="uniboxHistory"></div>
+        <form class="unibox-form" id="uniboxForm" autocomplete="off">
+          <input
+            id="uniboxInput"
+            type="text"
+            placeholder="Ask, search, or run a skill..."
+            spellcheck="true"
+          />
+          <button id="uniboxSubmit" type="submit">Go</button>
+        </form>
+      </aside>
     </div>
 
     <script type="module" src="app.js?v=ai-command-1"></script>
   </body>
- </html>
+</html>

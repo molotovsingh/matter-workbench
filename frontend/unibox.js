@@ -9,7 +9,12 @@ export function createUnibox(ctx) {
     uniboxSubmit,
     breadcrumbs,
     editorContent,
+    uniboxHistory,
+    resetConversationBtn,
   } = ctx.elements;
+
+  let conversationHistory = [];
+  let conversationTurns = [];
 
   function wire() {
     if (!uniboxForm) return;
@@ -22,6 +27,19 @@ export function createUnibox(ctx) {
     uniboxInput.addEventListener("input", () => {
       updatePlaceholder();
     });
+
+    if (resetConversationBtn) {
+      resetConversationBtn.addEventListener("click", resetConversation);
+    }
+
+    if (uniboxHistory) {
+      uniboxHistory.innerHTML = `
+        <div class="unibox-empty">
+          <div class="unibox-empty-icon">&#9673;</div>
+          <p>Ask about your matter, run a skill, or search documents.</p>
+        </div>
+      `;
+    }
   }
 
   function updatePlaceholder() {
@@ -55,7 +73,19 @@ export function createUnibox(ctx) {
     });
 
     try {
-      const result = await postJson("/api/unibox", { userInput });
+      const result = await postJson("/api/unibox", {
+        userInput,
+        conversationHistory,
+      });
+
+      if (result.conversationHistory) {
+        conversationHistory = result.conversationHistory;
+        conversationTurns.push({
+          question: userInput,
+          answer: result.result,
+        });
+      }
+
       renderResult(userInput, result);
       ctx.setStatus({
         mood: "idle",
@@ -77,9 +107,18 @@ export function createUnibox(ctx) {
     }
   }
 
-  function renderResult(userInput, result) {
-    const intentLabel = intentLabelMap[result.intent] || result.intent;
+  function resetConversation() {
+    conversationHistory = [];
+    conversationTurns = [];
+    uniboxInput.value = "";
+    if (uniboxHistory) {
+      uniboxHistory.innerHTML = `
+        <p class="form-note">Conversation reset. Ask a question about the current matter.</p>
+      `;
+    }
+  }
 
+  function renderResult(userInput, result) {
     let resultHtml = "";
     switch (result.displayType) {
       case "qa_answer":
@@ -91,6 +130,9 @@ export function createUnibox(ctx) {
       case "skill_router":
         resultHtml = renderSkillRouterResult(result.result);
         break;
+      case "chat_response":
+        resultHtml = renderChatResponse(result.result);
+        break;
       case "error":
         resultHtml = `<p class="form-error">${escapeHtml(result.result.message)}</p>`;
         break;
@@ -98,19 +140,39 @@ export function createUnibox(ctx) {
         resultHtml = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
     }
 
-    editorContent.innerHTML = `
-      <h1>Unibox</h1>
-      <p><strong>Input:</strong> <code>${escapeHtml(userInput)}</code></p>
-      <p><strong>Intent:</strong> <span class="skill-router-chip">${escapeHtml(intentLabel)}</span></p>
-      <div class="unibox-result">
-        ${resultHtml}
-      </div>
-      <div class="unibox-next-actions">
-        <strong>Next actions:</strong> ${renderNextActions(result.nextActions)}
-      </div>
-    `;
+    const conversationHtml = renderConversation();
+
+    if (uniboxHistory) {
+      uniboxHistory.innerHTML = `
+        ${conversationHtml}
+        <div class="chat-turn user">
+          <div class="chat-bubble user">${escapeHtml(userInput)}</div>
+        </div>
+        <div class="chat-turn assistant">
+          <div class="chat-bubble assistant">
+            ${resultHtml}
+          </div>
+        </div>
+      `;
+      uniboxHistory.scrollTop = uniboxHistory.scrollHeight;
+    }
 
     wireResultActions(userInput, result);
+  }
+
+  function renderConversation() {
+    if (!conversationTurns.length) return "";
+
+    return conversationTurns.map((turn, idx) => `
+      <div class="chat-turn user">
+        <div class="chat-bubble user">${escapeHtml(turn.question)}</div>
+      </div>
+      <div class="chat-turn assistant">
+        <div class="chat-bubble assistant">
+          ${renderQaAnswer(turn.answer)}
+        </div>
+      </div>
+    `).join("");
   }
 
   function renderQaAnswer(qa) {
@@ -127,6 +189,12 @@ export function createUnibox(ctx) {
         ${sources}
       </div>
     `;
+  }
+
+  function renderChatResponse(response) {
+    const message = response.message || "";
+    const formattedMessage = escapeHtml(message).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br />");
+    return `<div class="chat-response">${formattedMessage}</div>`;
   }
 
   function renderSearchResults(search) {
@@ -188,23 +256,28 @@ export function createUnibox(ctx) {
   }
 
   function renderError(message) {
-    breadcrumbs.textContent = "unibox";
-    editorContent.innerHTML = `
-      <h1>Unibox</h1>
-      <p class="form-error">${escapeHtml(message)}</p>
-    `;
+    if (breadcrumbs) breadcrumbs.textContent = "unibox";
+    if (uniboxHistory) {
+      uniboxHistory.innerHTML = `
+        <p class="form-error">${escapeHtml(message)}</p>
+      `;
+    }
   }
 
   return {
     wire,
     processInput,
+    resetConversation,
   };
 }
 
 const intentLabelMap = {
-  matter_qa: "Matter Q&A",
+  copilot_qa: "Copilot",
   search: "Search",
   run_skill: "Run Skill",
+  skill_request: "Skill Request",
   skill_router: "Skill Router",
+  greeting: "Greeting",
+  casual: "Casual",
   unknown: "Unknown",
 };

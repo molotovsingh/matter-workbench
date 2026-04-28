@@ -23,6 +23,9 @@ const elements = {
   uniboxForm: document.getElementById("uniboxForm"),
   uniboxInput: document.getElementById("uniboxInput"),
   uniboxSubmit: document.getElementById("uniboxSubmit"),
+  uniboxHistory: document.getElementById("uniboxHistory"),
+  resetConversationBtn: document.getElementById("resetConversationBtn"),
+  modelSelector: document.getElementById("modelSelector"),
   mattersPicker: document.getElementById("mattersPicker"),
   mattersList: document.getElementById("mattersList"),
   newMatterButton: document.getElementById("newMatterButton"),
@@ -228,4 +231,31 @@ async function bootstrap() {
 wireAppEvents(ctx, skills);
 unibox.wire();
 ctx.renderWorkspaceTree();
+syncModelSelector();
 bootstrap();
+
+async function syncModelSelector() {
+  if (!elements.modelSelector) return;
+  try {
+    const settings = await getJson("/api/ai-settings");
+    if (settings.model) {
+      const option = Array.from(elements.modelSelector.options).find((o) => o.value === settings.model);
+      if (option) {
+        elements.modelSelector.value = settings.model;
+      } else {
+        const custom = document.createElement("option");
+        custom.value = settings.model;
+        custom.textContent = settings.model;
+        elements.modelSelector.prepend(custom);
+        elements.modelSelector.value = settings.model;
+      }
+    }
+  } catch {}
+
+  elements.modelSelector.addEventListener("change", async () => {
+    const model = elements.modelSelector.value;
+    try {
+      await postJson("/api/ai-settings", { model, maxOutputTokens: "3000" });
+    } catch {}
+  });
+}
