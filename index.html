@@ -3,118 +3,123 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Legal Workbench Phase 1</title>
+    <title>Legal Workbench</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=ai-command-1" />
+    <link rel="stylesheet" href="styles.css?v=ui-update-1" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="activity-bar">
-        <div class="activity-logo">LW</div>
-        <button id="activityExplorer" class="activity-item active" type="button" title="Explorer">EX</button>
-        <button id="activitySettings" class="activity-item" type="button" title="Settings">SE</button>
+    <div class="app-shell" role="application">
+      <aside class="activity-bar" role="navigation" aria-label="Activity Bar">
+        <div class="activity-logo" title="Legal Workbench">LW</div>
+<button id="activityExplorer" class="activity-item active" type="button" title="Explorer" aria-label="Explorer">Explorer</button>
+<button id="activitySettings" class="activity-item" type="button" title="Settings" aria-label="Settings">Settings</button>
         <div class="activity-spacer"></div>
       </aside>
 
-      <aside class="sidebar">
+      <aside class="sidebar" role="complementary" aria-label="Sidebar">
         <div class="sidebar-header">
           <span class="sidebar-title">Matter Explorer</span>
         </div>
 
-        <section id="mattersPicker" class="matters-picker" hidden>
+        <section id="mattersPicker" class="matters-picker" hidden aria-label="Matters">
           <div class="tree-heading-row">
             <div class="tree-heading">Matters</div>
-            <button id="newMatterButton" class="sidebar-action primary" type="button">+ New Matter</button>
+            <button id="newMatterButton" class="sidebar-action primary" type="button" aria-label="Create new matter">+ New Matter</button>
           </div>
-          <ul id="mattersList" class="matters-list"></ul>
+          <ul id="mattersList" class="matters-list" role="listbox" aria-label="Matter list"></ul>
         </section>
 
-        <div class="slash-section">
+        <div class="slash-section" role="navigation" aria-label="Slash Skills">
           <div class="tree-heading">Slash Skills</div>
-          <button class="slash-skill active" type="button" data-skill="/matter-init">/matter-init</button>
-          <button class="slash-skill" type="button" data-skill="/extract">/extract</button>
-          <button class="slash-skill" type="button" data-skill="/create_listofdates">/create_listofdates</button>
-          <button class="slash-skill" type="button" data-skill="/doctor">/doctor</button>
+<button class="slash-skill active" type="button" data-skill="/matter-init" title="Run matter initialization skill" aria-label="Run matter initialization skill">/matter-init</button>
+<button class="slash-skill" type="button" data-skill="/extract" title="Extract key facts from documents" aria-label="Run extract skill">/extract</button>
+<button class="slash-skill" type="button" data-skill="/create_listofdates" title="Create timeline of events from documents" aria-label="Run create list of dates skill">/create_listofdates</button>
+<button class="slash-skill" type="button" data-skill="/doctor" title="Check document health/consistency" aria-label="Run doctor skill">/doctor</button>
         </div>
 
-        <div class="tree-section">
+        <div class="tree-section" role="tree" aria-label="Workspace Files">
           <div class="tree-heading-row">
             <div class="tree-heading">Workspace</div>
             <div class="tree-actions">
-              <button id="addFilesButton" class="tree-refresh" type="button" hidden>+ Add Files</button>
-              <button id="refreshExplorer" class="tree-refresh" type="button">Refresh</button>
+              <button id="addFilesButton" class="tree-refresh" type="button" hidden aria-label="Add files">+ Add Files</button>
+              <button id="refreshExplorer" class="tree-refresh" type="button" aria-label="Refresh explorer">Refresh</button>
             </div>
           </div>
-          <ul id="workspaceTree" class="tree-root">
-            <li class="tree-node">Loading workspace...</li>
+          <ul id="workspaceTree" class="tree-root" role="group">
+            <li class="tree-node" aria-live="polite">Loading workspace...</li>
           </ul>
         </div>
       </aside>
 
-      <main class="main-panel">
-        <header class="titlebar">
-          <div class="title-left">Legal Workbench</div>
-          <div class="title-center">
-            <div class="title-text">legal-workbench / matter-init</div>
+      <main class="main-panel" role="main">
+        <header class="titlebar" role="banner">
+          <div class="title-left">
+            <span class="status-item" aria-label="Application name">Legal Workbench</span>
           </div>
-          <div class="title-right">local</div>
+          <div class="title-center">
+            <div class="title-text" id="currentSkill" aria-live="polite">legal-workbench / matter-init</div>
+          </div>
+          <div class="title-right">
+            <span class="status-item" aria-label="Environment">local</span>
+          </div>
         </header>
 
-        <section class="editor-layout">
+        <section class="editor-layout" aria-label="Editor">
           <div class="editor-pane">
-            <div class="editor-toolbar">
-              <div id="breadcrumbs" class="breadcrumbs">workbench</div>
+            <div class="editor-toolbar" role="toolbar" aria-label="Editor toolbar">
+              <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumbs">workbench</div>
             </div>
 
-            <article class="editor-content" id="editorContent">
+            <article class="editor-content" id="editorContent" aria-live="polite">
               <h1>Welcome</h1>
               <p>Loading workbench...</p>
             </article>
           </div>
         </section>
 
-        <section class="bottom-panel">
+        <section class="bottom-panel" aria-label="Output Panel">
           <div class="bottom-header">
             <span>Output</span>
-            <span class="bottom-meta">matter-init.log</span>
+            <span class="bottom-meta" id="outputLogName">matter-init.log</span>
           </div>
-          <pre id="terminalOutput" class="terminal-output"></pre>
+          <pre id="terminalOutput" class="terminal-output" role="log" aria-live="polite" aria-atomic="false"></pre>
         </section>
 
-        <footer class="status-bar">
+        <footer class="status-bar" role="status" aria-live="polite">
           <div class="status-left">
-            <span>Phase 1</span>
-            <span>Intake</span>
-            <span>/matter-init</span>
+            <span class="status-item" id="statusPhase">Phase 1</span>
+            <span class="status-item" id="statusStage">Intake</span>
+            <span class="status-item" id="statusSkill">/matter-init</span>
           </div>
           <div class="status-right" id="statusBarRight">
-            <span>Skill Ready</span>
+            <span class="status-item" id="statusMessage">Skill Ready</span>
           </div>
         </footer>
       </main>
 
-      <aside class="unibox-panel">
+      <aside class="unibox-panel" role="complementary" aria-label="Unibox AI Assistant">
         <div class="unibox-header-bar">
           <span class="unibox-title">Unibox</span>
           <div class="unibox-header-controls">
-            <select id="modelSelector" class="model-selector" title="AI Model">
+            <select id="modelSelector" class="model-selector" title="AI Model" aria-label="Select AI Model">
               <option value="gpt-5.4-mini">gpt-5.4-mini</option>
               <option value="gpt-5.4">gpt-5.4</option>
               <option value="o4-mini">o4-mini</option>
               <option value="o3">o3</option>
             </select>
-            <button class="btn-secondary" id="resetConversationBtn" type="button">New</button>
+            <button class="btn-secondary" id="resetConversationBtn" type="button" aria-label="Start new conversation">New</button>
           </div>
         </div>
-        <div class="unibox-history" id="uniboxHistory"></div>
-        <form class="unibox-form" id="uniboxForm" autocomplete="off">
+        <div class="unibox-history" id="uniboxHistory" role="log" aria-live="polite" aria-label="Conversation history"></div>
+        <form class="unibox-form" id="uniboxForm" autocomplete="off" role="search" aria-label="Ask Unibox">
           <input
             id="uniboxInput"
             type="text"
-            placeholder="Ask, search, or run a skill..."
+            placeholder="Try: 'Summarize this document' or '/extract key clauses'"
             spellcheck="true"
+            aria-label="Type your question or command"
           />
-          <button id="uniboxSubmit" type="submit">Go</button>
+          <button id="uniboxSubmit" type="submit" aria-label="Submit">Go</button>
         </form>
       </aside>
     </div>
