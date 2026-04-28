@@ -291,6 +291,24 @@ test("unibox API baseline covers greeting, search, slash routing, Q&A, and follo
     assert.equal(searchNoFor.payload.displayType, "search_results");
     assert.equal(searchNoFor.payload.result.query, "Skyline");
 
+    const lookForSearch = await postJson(baseUrl, "/api/unibox", { userInput: "look for compensation" });
+    assert.equal(lookForSearch.ok, true);
+    assert.equal(lookForSearch.payload.intent, "search");
+    assert.equal(lookForSearch.payload.displayType, "search_results");
+    assert.equal(lookForSearch.payload.result.query, "compensation");
+
+    const locateSearch = await postJson(baseUrl, "/api/unibox", { userInput: "locate MCLR" });
+    assert.equal(locateSearch.ok, true);
+    assert.equal(locateSearch.payload.intent, "search");
+    assert.equal(locateSearch.payload.displayType, "search_results");
+    assert.equal(locateSearch.payload.result.query, "MCLR");
+
+    const showMeSearch = await postJson(baseUrl, "/api/unibox", { userInput: "show me Italian marble" });
+    assert.equal(showMeSearch.ok, true);
+    assert.equal(showMeSearch.payload.intent, "search");
+    assert.equal(showMeSearch.payload.displayType, "search_results");
+    assert.equal(showMeSearch.payload.result.query, "Italian marble");
+
     const slash = await postJson(baseUrl, "/api/unibox", { userInput: "/extract" });
     assert.equal(slash.ok, true);
     assert.equal(slash.payload.intent, "run_skill");
@@ -327,6 +345,11 @@ test("unibox API baseline covers greeting, search, slash routing, Q&A, and follo
     assert.equal(timelineQa.payload.displayType, "qa_answer");
     assert.match(timelineQa.payload.result.answer, /31 December 2023/);
     assert.deepEqual(timelineQa.payload.result.sources, ["DATES-01 p1.b1"]);
+
+    const casual = await postJson(baseUrl, "/api/unibox", { userInput: "thanks" });
+    assert.equal(casual.ok, true);
+    assert.equal(casual.payload.intent, "casual");
+    assert.equal(casual.payload.displayType, "chat_response");
   });
 });
 
@@ -377,5 +400,54 @@ test("unibox serves local-only intents without a matter loaded", async (t) => {
     assert.equal(slash.payload.intent, "run_skill");
     assert.equal(slash.payload.displayType, "skill_router");
     assert.ok(openAiCalls.length >= 1, "slash routing requires skill-router AI call");
+  });
+});
+
+test("unibox handles cross-intent search-to-QA sequence", async (t) => {
+  installFakeOpenAiResponses(t);
+  const { appDir, matterRoot } = await createBaselineMatter();
+
+  await withServer({
+    appDir,
+    matterRoot,
+    env: {
+      OPENAI_API_KEY: "test-key",
+      OPENAI_MODEL: "gpt-5.4-mini",
+      OPENAI_MAX_OUTPUT_TOKENS: "3000",
+      OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "1200",
+    },
+  }, async ({ baseUrl }) => {
+    const search = await postJson(baseUrl, "/api/unibox", { userInput: "find possession" });
+    assert.equal(search.ok, true);
+    assert.equal(search.payload.intent, "search");
+    assert.equal(search.payload.result.query, "possession");
+
+    const qa = await postJson(baseUrl, "/api/unibox", {
+      userInput: "what compensation can mehta claim for delayed possession?",
+    });
+    assert.equal(qa.ok, true);
+    assert.equal(qa.payload.intent, "copilot_qa");
+    assert.equal(qa.payload.displayType, "qa_answer");
+    assert.match(qa.payload.result.answer, /Rs\. 5,00,000/);
+  });
+});
+
+test("unibox rejects no-matter search without AI call", async (t) => {
+  const openAiCalls = installFakeOpenAiResponses(t);
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "unibox-no-matter-search-"));
+
+  await withServer({
+    appDir,
+    env: {
+      OPENAI_API_KEY: "test-key",
+      OPENAI_MODEL: "gpt-5.4-mini",
+      OPENAI_MAX_OUTPUT_TOKENS: "3000",
+    },
+  }, async ({ baseUrl }) => {
+    const searchNoMatter = await postJson(baseUrl, "/api/unibox", { userInput: "find Skyline" });
+    assert.equal(searchNoMatter.ok, true);
+    assert.equal(searchNoMatter.payload.displayType, "error");
+    assert.equal(searchNoMatter.payload.result.message, "Load a matter first before asking questions or searching.");
+    assert.equal(openAiCalls.length, 0, "no-matter search should not call AI");
   });
 });
