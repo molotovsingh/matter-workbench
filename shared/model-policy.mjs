@@ -10,6 +10,7 @@ export const AI_TASKS = Object.freeze({
   SKILL_ROUTER: "skill_router",
   SOURCE_BACKED_ANALYSIS: "source_backed_analysis",
   SOURCE_DESCRIPTION: "source_description",
+  MATTER_QA: "matter_qa",
 });
 
 export const AI_PROVIDERS = Object.freeze({
@@ -69,6 +70,16 @@ const TASK_POLICIES = Object.freeze({
     timeoutMsEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS",
     defaultTimeoutMs: DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
     defaultMaxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+  }),
+  [AI_TASKS.MATTER_QA]: Object.freeze({
+    task: AI_TASKS.MATTER_QA,
+    tier: "matter_qa",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    fallback: "fail_closed",
+    modelEnvKey: "OPENAI_MODEL",
+    maxOutputTokensEnvKey: "OPENAI_MAX_OUTPUT_TOKENS",
+    defaultMaxOutputTokens: DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   }),
 });
 

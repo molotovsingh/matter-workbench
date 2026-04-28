@@ -46,7 +46,7 @@ export function createUniboxService({
             nextActions: ["search", "ask_another"],
           };
         } catch (error) {
-          if (error.statusCode === 400 && !matterStore.hasMatterRoot?.()) {
+          if (error.statusCode === 400 && !matterStore.getMatterRoot?.()) {
             return {
               intent: "matter_qa",
               displayType: "error",
@@ -69,7 +69,7 @@ export function createUniboxService({
             nextActions: ["ask_about_result", "refine_search"],
           };
         } catch (error) {
-          if (error.statusCode === 400 && !matterStore.hasMatterRoot?.()) {
+          if (error.statusCode === 400 && !matterStore.getMatterRoot?.()) {
             return {
               intent: "search",
               displayType: "error",
