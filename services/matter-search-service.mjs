@@ -4,6 +4,8 @@ import path from "path";
 const MAX_RESULTS = 20;
 const SNIPPET_LENGTH = 200;
 
+const SKIP_DIRS = new Set(["Originals"]);
+
 export function createMatterSearchService({ matterStore } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
@@ -38,6 +40,7 @@ export function createMatterSearchService({ matterStore } = {}) {
       const relPath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
 
       if (entry.isDirectory()) {
+        if (shouldSkipDirectory(entry.name)) continue;
         await searchDirectory(fullPath, relPath, lowerQuery, results);
         continue;
       }
@@ -74,8 +77,16 @@ export function createMatterSearchService({ matterStore } = {}) {
   return { search };
 }
 
+function shouldSkipDirectory(name) {
+  return SKIP_DIRS.has(name) || name.startsWith(".");
+}
+
 function shouldSkipFile(filename) {
-  const skipExtensions = [".png", ".jpg", ".jpeg", ".gif", ".pdf", ".docx", ".xlsx", ".eml", ".zip"];
+  const skipExtensions = [
+    ".png", ".jpg", ".jpeg", ".gif", ".pdf",
+    ".docx", ".xlsx", ".eml", ".zip",
+    ".py", ".sh", ".js", ".mjs", ".bat", ".cmd",
+  ];
   const ext = path.extname(filename).toLowerCase();
   return skipExtensions.includes(ext);
 }

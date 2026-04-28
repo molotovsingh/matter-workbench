@@ -2,6 +2,14 @@ import { createIntentClassifierService } from "./intent-classifier-service.mjs";
 import { createMatterQaService } from "./matter-qa-service.mjs";
 import { createMatterSearchService } from "./matter-search-service.mjs";
 import { createSkillRouterService } from "./skill-router-service.mjs";
+import { isLocalOnlyIntent } from "../shared/local-intent.mjs";
+
+const SEARCH_VERB_PREFIX = /^(?:find|search\s*(?:for)?|look\s*(?:for)?|locate|show\s*me)\s+/i;
+
+export function extractSearchQuery(userInput) {
+  const stripped = userInput.replace(SEARCH_VERB_PREFIX, "").trim();
+  return stripped || userInput;
+}
 
 export function createUniboxService({
   matterStore,
@@ -16,38 +24,37 @@ export function createUniboxService({
   const searchService = createMatterSearchService({ matterStore });
   const skillRouter = createSkillRouterService({ registryService: skillRegistryService, env });
 
+  const NO_MATTER_ERROR = {
+    intent: "copilot_qa",
+    displayType: "error",
+    result: { message: "Load a matter first before asking questions or searching." },
+  };
+
   async function processInput({ userInput, conversationHistory = [] } = {}) {
     if (!userInput || typeof userInput !== "string") {
       throw Object.assign(new Error("userInput is required"), { statusCode: 400 });
+    }
+
+    if (!matterStore.getMatterRoot() && !isLocalOnlyIntent(userInput)) {
+      return NO_MATTER_ERROR;
     }
 
     const classification = await classifier.classifyIntent({ userInput, conversationHistory });
 
     switch (classification.intent) {
       case "copilot_qa": {
-        try {
-          const matterRoot = matterStore.getMatterRoot?.() || matterStore.ensureMatterRoot();
-          const answer = await qaService.answerQuestion({
-            question: userInput,
-            matterRoot,
-            conversationHistory,
-          });
-          return {
-            intent: "copilot_qa",
-            displayType: "qa_answer",
-            result: answer,
-            conversationHistory: answer.conversationHistory,
-          };
-        } catch (error) {
-          if (error.statusCode === 400 && !matterStore.getMatterRoot?.()) {
-            return {
-              intent: "copilot_qa",
-              displayType: "error",
-              result: { message: "Load a matter first before asking questions about it." },
-            };
-          }
-          throw error;
-        }
+        const matterRoot = matterStore.ensureMatterRoot();
+        const answer = await qaService.answerQuestion({
+          question: userInput,
+          matterRoot,
+          conversationHistory,
+        });
+        return {
+          intent: "copilot_qa",
+          displayType: "qa_answer",
+          result: answer,
+          conversationHistory: answer.conversationHistory,
+        };
       }
 
       case "run_skill": {
@@ -61,23 +68,13 @@ export function createUniboxService({
       }
 
       case "search": {
-        try {
-          const results = await searchService.search({ query: userInput });
-          return {
-            intent: "search",
-            displayType: "search_results",
-            result: results,
-          };
-        } catch (error) {
-          if (error.statusCode === 400 && !matterStore.getMatterRoot?.()) {
-            return {
-              intent: "search",
-              displayType: "error",
-              result: { message: "Load a matter first before searching." },
-            };
-          }
-          throw error;
-        }
+        const searchQuery = extractSearchQuery(userInput);
+        const results = await searchService.search({ query: searchQuery });
+        return {
+          intent: "search",
+          displayType: "search_results",
+          result: results,
+        };
       }
 
       case "skill_request": {

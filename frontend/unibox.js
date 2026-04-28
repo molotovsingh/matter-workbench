@@ -80,13 +80,16 @@ export function createUnibox(ctx) {
 
       if (result.conversationHistory) {
         conversationHistory = result.conversationHistory;
+      }
+
+      renderResult(userInput, result);
+
+      if (result.conversationHistory) {
         conversationTurns.push({
           question: userInput,
           answer: result.result,
         });
       }
-
-      renderResult(userInput, result);
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Unibox</strong><br />Intent: ${escapeHtml(result.intent)}`,

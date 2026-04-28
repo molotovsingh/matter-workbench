@@ -1,5 +1,6 @@
 import { resolveModelPolicy, AI_TASKS } from "../shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
+import { GREETINGS, CASUAL } from "../shared/local-intent.mjs";
 
 const VALID_INTENTS = new Set([
   "copilot_qa",
@@ -34,9 +35,6 @@ const CLASSIFIER_OUTPUT_SCHEMA = {
     },
   },
 };
-
-const GREETINGS = /^(hi|hello|hey|greetings|good morning|good afternoon|good evening|howdy|sup|yo)\b/i;
-const CASUAL = /^(thanks|thank you|bye|goodbye|see you|later|ok|okay|cool|awesome|great|nice)\b/i;
 
 export function createIntentClassifierService({
   skillRegistryService,

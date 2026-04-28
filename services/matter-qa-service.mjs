@@ -1,12 +1,12 @@
 import { resolveModelPolicy, AI_TASKS } from "../shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
 import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
-import { isInsideRoot, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import fs from "fs";
 import path from "path";
 
 const MAX_CONTEXT_CHARS = 64000;
 const MAX_CONVERSATION_TURNS = 10;
+const MAX_LIBRARY_RECORDS = 20;
 
 export function createMatterQaService({ matterStore, env = process.env } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
@@ -105,27 +105,24 @@ export function createMatterQaService({ matterStore, env = process.env } = {}) {
     };
   }
 
-  return { answerQuestion, getConversation, resetConversation };
-}
+  async function buildMatterContext(matterRoot) {
+    const parts = [];
 
-async function buildMatterContext(matterRoot) {
-  const parts = [];
+    const matterJsonPath = path.join(matterRoot, "matter.json");
+    if (fs.existsSync(matterJsonPath)) {
+      parts.push(`[matter.json]\n${fs.readFileSync(matterJsonPath, "utf8")}`);
+    }
 
-  const matterJsonPath = path.join(matterRoot, "matter.json");
-  if (fs.existsSync(matterJsonPath)) {
-    parts.push(`[matter.json]\n${fs.readFileSync(matterJsonPath, "utf8")}`);
-  }
-
-  const inboxPath = path.join(matterRoot, "00_Inbox");
-  if (fs.existsSync(inboxPath)) {
-    const intakes = fs.readdirSync(inboxPath).filter((f) => fs.statSync(path.join(inboxPath, f)).isDirectory());
+    const intakes = await matterStore.listIntakeFolders(matterRoot);
     for (const intake of intakes) {
-      const registerPath = path.join(inboxPath, intake, "File Register.csv");
+      const intakeDir = path.join(matterRoot, "00_Inbox", intake.name);
+
+      const registerPath = path.join(intakeDir, "File Register.csv");
       if (fs.existsSync(registerPath)) {
-        parts.push(`[${intake}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
+        parts.push(`[${intake.name}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
       }
 
-      const extractedPath = path.join(inboxPath, intake, "_extracted");
+      const extractedPath = path.join(intakeDir, "_extracted");
       if (fs.existsSync(extractedPath)) {
         const records = collectExtractionRecords(extractedPath);
         for (const record of records) {
@@ -133,20 +130,39 @@ async function buildMatterContext(matterRoot) {
         }
       }
     }
-  }
 
-  const libraryPath = path.join(matterRoot, "10_Library");
-  if (fs.existsSync(libraryPath)) {
-    const records = collectExtractionRecords(libraryPath);
-    for (const record of records.slice(0, 20)) {
-      parts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
+    for (const candidate of discoverTopLevelDirs(matterRoot)) {
+      if (candidate.name === "00_Inbox") continue;
+      const records = collectExtractionRecords(candidate.fullPath);
+      if (records.length) {
+        for (const record of records.slice(0, MAX_LIBRARY_RECORDS)) {
+          parts.push(`[${candidate.name}: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
+        }
+      }
     }
+
+    const fullContext = parts.join("\n\n---\n\n");
+    return fullContext.length > MAX_CONTEXT_CHARS
+      ? fullContext.slice(0, MAX_CONTEXT_CHARS) + "\n...[truncated]"
+      : fullContext;
   }
 
-  const fullContext = parts.join("\n\n---\n\n");
-  return fullContext.length > MAX_CONTEXT_CHARS
-    ? fullContext.slice(0, MAX_CONTEXT_CHARS) + "\n...[truncated]"
-    : fullContext;
+  return { answerQuestion, getConversation, resetConversation };
+}
+
+function discoverTopLevelDirs(matterRoot) {
+  const results = [];
+  try {
+    const entries = fs.readdirSync(matterRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith(".")) {
+        results.push({ name: entry.name, fullPath: path.join(matterRoot, entry.name) });
+      }
+    }
+  } catch {
+    // skip inaccessible directories
+  }
+  return results;
 }
 
 function formatExtractionRecord(record) {
