@@ -1,6 +1,6 @@
 # Unibox Bug Fixes — Tentative Plan
 
-**Status:** Implemented, 50/50 tests pass. Awaiting live verification against `mehta` sample matter before finalising.
+**Status:** Implemented, 59/59 tests pass. Browser verification pending for Bug 2 (double render).
 
 ## Summary of Changes
 
