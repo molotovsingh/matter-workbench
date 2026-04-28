@@ -51,6 +51,26 @@ async function prepareExtractedMatter() {
   return root;
 }
 
+async function readExtractionRecord(root, fileId = "FILE-0001") {
+  return JSON.parse(await readFile(
+    path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", `${fileId}.json`),
+    "utf8",
+  ));
+}
+
+async function writeSourceIndex(root, sources) {
+  const outputDir = path.join(root, "10_Library");
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    path.join(outputDir, "Source Index.json"),
+    `${JSON.stringify({
+      schema_version: "source-index/v1",
+      generated_at: "2026-04-28T00:00:00.000Z",
+      sources,
+    }, null, 2)}\n`,
+  );
+}
+
 test("create-listofdates calls an AI provider and writes cited chronology outputs", async () => {
   const root = await prepareExtractedMatter();
   const calls = [];
@@ -124,11 +144,159 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
   assert.equal(csvRows.length, 2);
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
+  assert.equal(csvRows[0].source_file_id, "FILE-0001");
+  assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[1].source_path, "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt");
 
   const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
   assert.match(markdown, /Agreement was signed/);
   assert.match(markdown, /FILE-0001 p1\.b2/);
+});
+
+test("create-listofdates enriches entries with Source Index labels without changing citations", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "Agreement note dated 20 April 2026",
+      short_label: "Agreement note",
+    },
+  ]);
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Agreement was signed by Mehta and Skyline.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].citation, "FILE-0001 p1.b1");
+  assert.equal(result.entries[0].source_file_id, "FILE-0001");
+  assert.equal(result.entries[0].source_label, "Agreement note dated 20 April 2026");
+  assert.equal(result.entries[0].source_short_label, "Agreement note");
+
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.equal(jsonOutput.entries[0].citation, "FILE-0001 p1.b1");
+  assert.equal(jsonOutput.entries[0].source_file_id, "FILE-0001");
+  assert.equal(jsonOutput.entries[0].source_label, "Agreement note dated 20 April 2026");
+  assert.equal(jsonOutput.entries[0].source_short_label, "Agreement note");
+
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
+  assert.equal(csvRows[0].source_file_id, "FILE-0001");
+  assert.equal(csvRows[0].source_label, "Agreement note dated 20 April 2026");
+  assert.equal(csvRows[0].source_short_label, "Agreement note");
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.match(markdown, /Agreement note dated 20 April 2026 \(FILE-0001 p1\.b1\)/);
+  assert.match(markdown, /FILE-0001 p1\.b1/);
+});
+
+test("create-listofdates ignores stale Source Index labels and keeps current citation behavior", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: "stale-sha",
+      source_path: record.source_path,
+      display_label: "Stale label that should not appear",
+      short_label: "Stale label",
+    },
+  ]);
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-05-01",
+          date_text: "01 May 2026",
+          event: "Notice was issued after the inspection.",
+          citation: "FILE-0001 p1.b2",
+          needs_review: false,
+          confidence: 0.89,
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].citation, "FILE-0001 p1.b2");
+  assert.equal(result.entries[0].source_file_id, "FILE-0001");
+  assert.equal(Object.hasOwn(result.entries[0], "source_label"), false);
+  assert.equal(Object.hasOwn(result.entries[0], "source_short_label"), false);
+
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  assert.equal(csvRows[0].citation, "FILE-0001 p1.b2");
+  assert.equal(csvRows[0].source_file_id, "FILE-0001");
+  assert.equal(csvRows[0].source_label, "");
+  assert.equal(csvRows[0].source_short_label, "");
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.doesNotMatch(markdown, /Stale label that should not appear/);
+  assert.match(markdown, /facts\.txt/);
+  assert.match(markdown, /FILE-0001 p1\.b2/);
+});
+
+test("create-listofdates ignores Source Index labels that contain file identifiers", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "FILE-0001: Agreement note dated 20 April 2026",
+      short_label: "FILE-0001 agreement note",
+    },
+  ]);
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Agreement was signed by Mehta and Skyline.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].citation, "FILE-0001 p1.b1");
+  assert.equal(result.entries[0].source_file_id, "FILE-0001");
+  assert.equal(Object.hasOwn(result.entries[0], "source_label"), false);
+  assert.equal(Object.hasOwn(result.entries[0], "source_short_label"), false);
+
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
+  assert.equal(csvRows[0].source_file_id, "FILE-0001");
+  assert.equal(csvRows[0].source_label, "");
+  assert.equal(csvRows[0].source_short_label, "");
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.doesNotMatch(markdown, /FILE-0001: Agreement note/);
+  assert.match(markdown, /facts\.txt/);
+  assert.match(markdown, /FILE-0001 p1\.b1/);
 });
 
 test("create-listofdates reports missing extraction records before calling AI", async () => {
