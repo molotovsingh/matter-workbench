@@ -195,7 +195,9 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1300",
-      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
     },
     fetchImpl: async (endpoint, init) => {
       const body = JSON.parse(init.body);
@@ -205,6 +207,14 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
         ok: true,
         async json() {
           return {
+            model: "meta-llama/source-description-model",
+            provider: "akashml/fp8",
+            usage: {
+              prompt_tokens: 321,
+              completion_tokens: 123,
+              total_tokens: 444,
+              cost: 0.0042,
+            },
             choices: [{ message: { content: JSON.stringify({ sources: validDescriptors(userPayload.sources) }) } }],
           };
         },
@@ -229,7 +239,11 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.deepEqual(requests[0].body.provider, {
     require_parameters: true,
     allow_fallbacks: false,
-    order: ["akashml/fp8"],
+    sort: "price",
+    max_price: {
+      prompt: 0.15,
+      completion: 0.60,
+    },
   });
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
@@ -237,6 +251,15 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(result.aiRun.provider, "openrouter");
   assert.equal(result.aiRun.model, "meta-llama/source-description-model");
   assert.equal(result.aiRun.maxOutputTokens, 1300);
+  assert.equal(result.aiRun.returnedModel, "meta-llama/source-description-model");
+  assert.equal(result.aiRun.returnedProvider, "akashml/fp8");
+  assert.deepEqual(result.aiRun.usage, {
+    promptTokens: 321,
+    completionTokens: 123,
+    totalTokens: 444,
+    cost: 0.0042,
+  });
+  assert.deepEqual(result.artifact.ai_run, result.aiRun);
   assert.equal(result.sources.length, 3);
 });
 

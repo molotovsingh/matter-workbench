@@ -20,6 +20,7 @@ export const AI_PROVIDERS = Object.freeze({
 export const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
 export const DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS = 1200;
 export const DEFAULT_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_PROVIDER_SORTS = new Set(["price", "throughput", "latency"]);
 
 const TASK_POLICIES = Object.freeze({
   [AI_TASKS.SKILL_ROUTER]: Object.freeze({
@@ -51,6 +52,9 @@ const TASK_POLICIES = Object.freeze({
     modelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
     maxOutputTokensEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS",
     providerOrderEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER",
+    providerSortEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT",
+    maxPromptPriceEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE",
+    maxCompletionPriceEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE",
     defaultMaxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   }),
 });
@@ -63,7 +67,7 @@ export function resolveModelPolicy(task, { env = process.env } = {}) {
     throw error;
   }
 
-  return {
+  const policy = {
     policyVersion: MODEL_POLICY_VERSION,
     task: base.task,
     tier: base.tier,
@@ -73,7 +77,13 @@ export function resolveModelPolicy(task, { env = process.env } = {}) {
     maxOutputTokens: parsePositiveInteger(env[base.maxOutputTokensEnvKey]) || base.defaultMaxOutputTokens,
     fallback: base.fallback,
     ...(base.providerOrderEnvKey ? { providerOrder: parseProviderOrder(env[base.providerOrderEnvKey]) } : {}),
+    ...(base.providerSortEnvKey ? parseProviderSortSetting(env[base.providerSortEnvKey]) : {}),
+    ...(base.maxPromptPriceEnvKey || base.maxCompletionPriceEnvKey
+      ? parseMaxPriceSetting(env[base.maxPromptPriceEnvKey], env[base.maxCompletionPriceEnvKey])
+      : {}),
   };
+  validateOpenRouterRouting(policy);
+  return policy;
 }
 
 export function listModelPolicyTasks() {
@@ -90,4 +100,39 @@ function parseProviderOrder(value) {
     .split(",")
     .map((provider) => provider.trim())
     .filter(Boolean);
+}
+
+function parseProviderSortSetting(value) {
+  const providerSort = String(value || "").trim();
+  return providerSort ? { providerSort } : {};
+}
+
+function parseMaxPriceSetting(promptValue, completionValue) {
+  const prompt = parsePositiveNumber(promptValue);
+  const completion = parsePositiveNumber(completionValue);
+  const maxPrice = {};
+  if (prompt !== null) maxPrice.prompt = prompt;
+  if (completion !== null) maxPrice.completion = completion;
+  return Object.keys(maxPrice).length ? { maxPrice } : {};
+}
+
+function parsePositiveNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function validateOpenRouterRouting(policy) {
+  if (policy.provider !== AI_PROVIDERS.OPENROUTER) return;
+
+  if (policy.providerSort && !OPENROUTER_PROVIDER_SORTS.has(policy.providerSort)) {
+    const error = new Error(`Invalid OpenRouter provider sort: ${policy.providerSort}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (policy.providerOrder?.length && (policy.providerSort || policy.maxPrice)) {
+    const error = new Error("OpenRouter provider order cannot be combined with provider sort or max price routing.");
+    error.statusCode = 400;
+    throw error;
+  }
 }

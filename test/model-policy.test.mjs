@@ -82,7 +82,9 @@ test("source description policy uses OpenRouter env configuration", () => {
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/llama-3.3-70b-instruct",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1400",
-      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8, other/provider",
+      OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
+      OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
     },
   }), {
     policyVersion: MODEL_POLICY_VERSION,
@@ -93,8 +95,38 @@ test("source description policy uses OpenRouter env configuration", () => {
     model: "meta-llama/llama-3.3-70b-instruct",
     maxOutputTokens: 1400,
     fallback: "fail_closed",
-    providerOrder: ["akashml/fp8", "other/provider"],
+    providerOrder: [],
+    providerSort: "price",
+    maxPrice: {
+      prompt: 0.15,
+      completion: 0.60,
+    },
   });
+});
+
+test("source description policy rejects mixed provider pin and price routing", () => {
+  assert.throws(
+    () => resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/llama-3.3-70b-instruct",
+        OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_ORDER: "akashml/fp8",
+        OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
+      },
+    }),
+    /provider order cannot be combined with provider sort or max price routing/,
+  );
+});
+
+test("source description policy rejects invalid provider sort", () => {
+  assert.throws(
+    () => resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/llama-3.3-70b-instruct",
+        OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "cheap",
+      },
+    }),
+    /Invalid OpenRouter provider sort: cheap/,
+  );
 });
 
 test("source description policy is unconfigured without an OpenRouter model", () => {

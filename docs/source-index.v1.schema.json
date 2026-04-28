@@ -71,7 +71,19 @@
             { "type": "null" }
           ]
         },
-        "fallback": { "type": "string" }
+        "fallback": { "type": "string" },
+        "returnedModel": { "type": "string" },
+        "returnedProvider": { "type": "string" },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "promptTokens": { "type": "integer", "minimum": 0 },
+            "completionTokens": { "type": "integer", "minimum": 0 },
+            "totalTokens": { "type": "integer", "minimum": 0 },
+            "cost": { "type": "number", "minimum": 0 }
+          }
+        }
       }
     },
     "source_record_count": {
