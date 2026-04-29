@@ -37,6 +37,15 @@ The first app integration should be boring on purpose:
 
 No automatic model fallback should be added in this slice. Fallback can come later after we have confidence metadata, error classes, and a review workflow.
 
+The first Mistral runtime provider is intentionally opt-in:
+
+```text
+MISTRAL_OCR_ENABLED=1
+MISTRAL_API_KEY=...
+```
+
+Without the explicit enable flag, `/extract` keeps the deterministic behavior and only records that OCR is required.
+
 ## Quality Gates
 
 An OCR pass is useful only if it improves the record while preserving traceability:

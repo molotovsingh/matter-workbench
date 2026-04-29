@@ -7,7 +7,9 @@ import { extractXlsx, XLSX_ENGINE_FINGERPRINT } from "./extract-utils/xlsx-extra
 import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.mjs";
 import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
 import { extractRtf, RTF_ENGINE_FINGERPRINT } from "./extract-utils/rtf-extract.mjs";
+import { createMistralOcrProvider } from "./extract-utils/mistral-ocr-provider.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
+import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +85,19 @@ function canUseCachedExtraction(cached, row, route, options) {
   return true;
 }
 
+function resolveOcrProvider(options) {
+  if (Object.hasOwn(options, "ocrProvider")) return options.ocrProvider;
+  const env = options.env || process.env;
+  if (env.MISTRAL_OCR_ENABLED !== "1") return null;
+  return createMistralOcrProvider({
+    apiKey: env.MISTRAL_API_KEY || "",
+    endpoint: env.MISTRAL_OCR_ENDPOINT,
+    model: env.MISTRAL_OCR_MODEL,
+    fetchImpl: options.fetchImpl,
+    timeoutMs: env.MISTRAL_OCR_TIMEOUT_MS,
+  });
+}
+
 export async function runExtract(options = {}) {
   const matterRoot = options.matterRoot
     ? path.resolve(options.matterRoot)
@@ -91,6 +106,7 @@ export async function runExtract(options = {}) {
 
   const dryRun = Boolean(options.dryRun);
   const intakeFilter = options.intakeFilter || null;
+  const ocrProvider = resolveOcrProvider(options);
 
   const matterJsonPath = path.join(matterRoot, "matter.json");
   const matterJson = await readJsonIfExists(matterJsonPath);
@@ -191,7 +207,7 @@ export async function runExtract(options = {}) {
 
       const recordPath = path.join(extractedDir, `${row.file_id}.json`);
       const cached = await readJsonIfExists(recordPath);
-      if (cached && canUseCachedExtraction(cached, row, route, options)) {
+      if (cached && canUseCachedExtraction(cached, row, route, { ocrProvider })) {
         logRows.push({
           ...baseLogRow,
           status: "cached",
@@ -212,7 +228,7 @@ export async function runExtract(options = {}) {
           fileId: row.file_id,
           sha256: row.sha256,
           sourcePath: row.working_copy_path,
-          ocrProvider: options.ocrProvider,
+          ocrProvider,
         });
       } catch (err) {
         logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `unhandled: ${err.message}` });
@@ -330,6 +346,7 @@ if (process.argv[1] === __filename) {
   const dryRun = !process.argv.includes("--apply");
   const intakeIdx = process.argv.indexOf("--intake");
   const intakeFilter = intakeIdx > -1 ? process.argv[intakeIdx + 1] : null;
+  await loadLocalEnv({ appDir: __dirname, override: false });
   runExtract({ dryRun, intakeFilter })
     .then((result) => {
       console.log(result.outputLines.join("\n"));

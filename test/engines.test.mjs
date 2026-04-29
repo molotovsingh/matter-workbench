@@ -269,3 +269,63 @@ test("extract keeps OCR-required status when injected OCR provider returns no us
   assert.equal(record.pages[0].blocks.length, 0);
   assert.ok(record.warnings.some((warning) => warning.includes("OCR provider returned no usable text")));
 });
+
+test("extract wires Mistral OCR only when the explicit env gate is enabled", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "gated-scan.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const withoutGate = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    env: { MISTRAL_API_KEY: "test-mistral-key" },
+    fetchImpl: async () => {
+      throw new Error("fetch should not be called without gate");
+    },
+  });
+  assert.equal(withoutGate.counts.ocrRequiredFiles, 1);
+
+  const fetchCalls = [];
+  const withGate = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    env: {
+      MISTRAL_OCR_ENABLED: "1",
+      MISTRAL_API_KEY: "test-mistral-key",
+    },
+    fetchImpl: async (endpoint, init) => {
+      fetchCalls.push({ endpoint, body: JSON.parse(init.body) });
+      return {
+        ok: true,
+        json: async () => ({
+          pages: [{ index: 0, markdown: "# NOTICE\n\nOCR text from Mistral.", confidence_scores: { average: 0.88 } }],
+        }),
+      };
+    },
+  });
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].body.model, "mistral-ocr-latest");
+  assert.match(fetchCalls[0].body.document.document_url, /^data:application\/pdf;base64,/);
+  assert.equal(withGate.counts.ocrRequiredFiles, 0);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "mistral-ocr-latest");
+  assert.equal(record.pages[0].blocks[0].text, "NOTICE");
+  assert.equal(record.pages[0].blocks[1].text, "OCR text from Mistral.");
+});
+
+test("extract fails clearly when Mistral OCR gate is enabled without a key", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "gated-scan-no-key.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  await assert.rejects(
+    () => runExtract({
+      matterRoot: root,
+      dryRun: false,
+      env: { MISTRAL_OCR_ENABLED: "1" },
+    }),
+    /MISTRAL_API_KEY is required for Mistral OCR/,
+  );
+});
