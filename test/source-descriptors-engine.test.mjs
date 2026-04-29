@@ -195,13 +195,14 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1300",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "45000",
       OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
     },
     fetchImpl: async (endpoint, init) => {
       const body = JSON.parse(init.body);
-      requests.push({ endpoint, headers: init.headers, body });
+      requests.push({ endpoint, headers: init.headers, body, initHasSignal: init.signal instanceof AbortSignal });
       const userPayload = JSON.parse(body.messages[1].content);
       return {
         ok: true,
@@ -227,6 +228,7 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-test");
   assert.equal(requests[0].body.model, "meta-llama/source-description-model");
   assert.equal(requests[0].body.max_tokens, 1300);
+  assert.equal(requests[0].initHasSignal, true);
   assert.match(requests[0].body.messages[0].content, /include that date in display_label/);
   assert.match(requests[0].body.messages[0].content, /lawyer-readable form such as 20 April 2026/);
   assert.match(requests[0].body.messages[0].content, /email_header for email headers, court_order_date for court order headings/);
@@ -261,6 +263,73 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   });
   assert.deepEqual(result.artifact.ai_run, result.aiRun);
   assert.equal(result.sources.length, 3);
+});
+
+test("source descriptors default OpenRouter provider times out hung requests", async () => {
+  const root = await makeMatterRoot();
+  let called = false;
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+      },
+      fetchImpl: async (_endpoint, init) => {
+        called = true;
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        });
+      },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 504);
+      assert.match(error.message, /timed out after 5ms/);
+      return true;
+    },
+  );
+  assert.equal(called, true);
+});
+
+test("source descriptors default OpenRouter provider times out stalled response bodies", async () => {
+  const root = await makeMatterRoot();
+  let called = false;
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+      },
+      fetchImpl: async (_endpoint, init) => {
+        called = true;
+        return {
+          ok: true,
+          json: async () => new Promise((_resolve, reject) => {
+            init.signal.addEventListener("abort", () => {
+              const error = new Error("aborted body");
+              error.name = "AbortError";
+              reject(error);
+            });
+          }),
+        };
+      },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 504);
+      assert.match(error.message, /timed out after 5ms/);
+      return true;
+    },
+  );
+  assert.equal(called, true);
 });
 
 test("source descriptors default OpenRouter provider maps malformed JSON to provider error", async () => {

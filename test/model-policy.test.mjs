@@ -6,6 +6,7 @@ import {
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+  DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
   MODEL_POLICY_VERSION,
   listModelPolicyTasks,
   resolveModelPolicy,
@@ -82,6 +83,7 @@ test("source description policy uses OpenRouter env configuration", () => {
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/llama-3.3-70b-instruct",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1400",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "45000",
       OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
@@ -94,6 +96,7 @@ test("source description policy uses OpenRouter env configuration", () => {
     endpoint: DEFAULT_OPENROUTER_ENDPOINT,
     model: "meta-llama/llama-3.3-70b-instruct",
     maxOutputTokens: 1400,
+    timeoutMs: 45000,
     fallback: "fail_closed",
     providerOrder: [],
     providerSort: "price",
@@ -138,6 +141,7 @@ test("source description policy is unconfigured without an OpenRouter model", ()
     endpoint: DEFAULT_OPENROUTER_ENDPOINT,
     model: "",
     maxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
     fallback: "fail_closed",
     providerOrder: [],
   });

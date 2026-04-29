@@ -179,7 +179,7 @@ Top-level shape:
     "tier": "source_description",
     "provider": "openrouter",
     "model": "meta-llama/llama-3.3-70b-instruct",
-    "maxOutputTokens": 1200,
+    "maxOutputTokens": 3000,
     "fallback": "fail_closed"
   },
   "source_record_count": 1,
@@ -542,6 +542,10 @@ document_classification
 `source_description` is the better product name because the output is not just a category. It includes the readable label that downstream legal work needs.
 
 Llama via OpenRouter is wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; the provider layer decides which configured model satisfies that task.
+
+For bakeoffs, use a source-description output budget around `3000` tokens. Smaller budgets can work for one tiny document, but source index responses contain a full descriptor object per source, including parties, evidence, warnings, and labels. The current default for `OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS` is `3000`.
+
+OpenRouter calls should also be bounded by `OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS`. The default timeout is 90 seconds. This matters because some model/provider routes can hang long enough to obscure whether the model is bad, the provider is slow, or routing failed.
 
 ## Remaining Non-Goals
 

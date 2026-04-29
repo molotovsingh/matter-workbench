@@ -236,6 +236,7 @@ export function createOpenRouterSourceDescriptorProvider({
   maxPrice = null,
   requireParameters = true,
   allowFallbacks = false,
+  timeoutMs,
 } = {}) {
   return async function openRouterSourceDescriptorProvider({ matter, sources, schema }) {
     if (!apiKey) {
@@ -294,17 +295,35 @@ export function createOpenRouterSourceDescriptorProvider({
     if (providerSort) body.provider.sort = providerSort;
     if (maxPrice) body.provider.max_price = maxPrice;
 
-    const response = await fetchImpl(endpoint, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Source Descriptors",
-      },
-      body: JSON.stringify(body),
-    });
-    const payload = await response.json().catch(() => null);
+    const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
+    let response;
+    let payload;
+    try {
+      response = await fetchImpl(endpoint, {
+        method: "POST",
+        headers: {
+          "authorization": `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          "http-referer": "https://github.com/molotovsingh/matter-workbench",
+          "x-title": "Matter Workbench Source Descriptors",
+        },
+        body: JSON.stringify(body),
+        ...(signal ? { signal } : {}),
+      });
+      payload = await response.json().catch((error) => {
+        if (signal?.aborted || error?.name === "AbortError") throw error;
+        return null;
+      });
+    } catch (error) {
+      if (signal?.aborted || error?.name === "AbortError") {
+        const timeoutError = new Error(`OpenRouter source description request timed out after ${timeoutMs}ms`);
+        timeoutError.statusCode = 504;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      cancelTimeout();
+    }
     if (!response.ok) {
       const error = new Error(payload?.error?.message || `OpenRouter returned ${response.status}`);
       error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
@@ -337,6 +356,7 @@ function resolveSourceDescriptorProvider(options) {
     model,
     providerOrder: options.providerOrder,
     providerSort: options.providerSort,
+    timeoutMs: options.timeoutMs,
   });
   return {
     provider: createOpenRouterSourceDescriptorProvider({
@@ -350,8 +370,24 @@ function resolveSourceDescriptorProvider(options) {
       maxPrice: providerConfig.maxPrice,
       requireParameters: providerConfig.requireParameters,
       allowFallbacks: providerConfig.allowFallbacks,
+      timeoutMs: providerConfig.timeoutMs,
     }),
     aiRun: options.aiRun || modelPolicyMetadata(policy, providerConfig),
+  };
+}
+
+function createRequestSignal(timeoutMs) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    return {
+      signal: null,
+      cancelTimeout: () => {},
+    };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    cancelTimeout: () => clearTimeout(timer),
   };
 }
 

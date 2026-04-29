@@ -12,6 +12,7 @@ export function resolveProviderConfig(policy, overrides = {}) {
       endpoint: overrides.endpoint || policy.endpoint,
       model: overrides.model || policy.model,
       maxOutputTokens: parsePositiveInteger(overrides.maxOutputTokens) || policy.maxOutputTokens,
+      timeoutMs: parsePositiveInteger(overrides.timeoutMs) || policy.timeoutMs,
       providerOrder: normalizeProviderOrder(overrides.providerOrder) || policy.providerOrder || [],
       providerSort: normalizeOptionalString(overrides.providerSort) || policy.providerSort || "",
       maxPrice: normalizeMaxPrice(overrides.maxPrice) || policy.maxPrice || null,
