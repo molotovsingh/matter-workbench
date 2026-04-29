@@ -415,6 +415,9 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-test");
   assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
   assert.equal(requests[0].body.max_tokens, 1800);
+  assert.match(requests[0].body.messages[0].content, /compact JSON object/);
+  assert.match(requests[0].body.messages[0].content, /Do not pretty-print/);
+  assert.match(requests[0].body.messages[0].content, /empty entries array/);
   assert.deepEqual(requests[0].body.provider, {
     require_parameters: true,
     allow_fallbacks: false,
@@ -519,6 +522,8 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
   assert.equal(requests.length, 1);
   assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
   assert.equal(requests[0].body.max_tokens, 1800);
+  assert.match(requests[0].body.messages[0].content, /compact JSON object/);
+  assert.match(requests[0].body.messages[0].content, /Do not pretty-print/);
   assert.equal(requests[0].body.provider.allow_fallbacks, false);
   assert.equal(requests[0].body.provider.require_parameters, true);
   assert.equal(requests[0].body.provider.sort, "price");
@@ -597,5 +602,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
   assert.equal(requests[0].headers.authorization, "Bearer sk-test");
   assert.equal(requests[0].body.model, "policy-listofdates-model");
   assert.equal(requests[0].body.max_output_tokens, 3456);
+  assert.match(requests[0].body.input[0].content, /compact JSON object/);
+  assert.match(requests[0].body.input[0].content, /Do not pretty-print/);
   assert.equal(requests[0].body.text.format.name, "list_of_dates_chunk");
 });

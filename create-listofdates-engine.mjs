@@ -34,6 +34,18 @@ const CSV_HEADERS = [
   "confidence",
 ];
 
+const LIST_OF_DATES_SYSTEM_PROMPT = [
+  "You are a careful Indian legal chronology assistant.",
+  "Create a source-backed list of dates from extracted document blocks.",
+  "Use only the supplied source blocks.",
+  "Extract legally or factually relevant dated events.",
+  "Do not invent dates, facts, parties, or citations.",
+  "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
+  "Return exactly one compact JSON object matching the requested schema.",
+  "Do not pretty-print, pad with whitespace, or continue after the closing brace.",
+  "If there are no dated legal events, return an empty entries array.",
+].join(" ");
+
 const OUTPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -232,15 +244,7 @@ export function createOpenAiProvider({
         input: [
           {
             role: "system",
-            content: [
-              "You are a careful Indian legal chronology assistant.",
-              "Create a source-backed list of dates from extracted document blocks.",
-              "Use only the supplied source blocks.",
-              "Extract legally or factually relevant dated events.",
-              "Do not invent dates, facts, parties, or citations.",
-              "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
-              "Return JSON only in the requested schema.",
-            ].join(" "),
+            content: LIST_OF_DATES_SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -291,15 +295,7 @@ export function createOpenRouterProvider({
       messages: [
         {
           role: "system",
-          content: [
-            "You are a careful Indian legal chronology assistant.",
-            "Create a source-backed list of dates from extracted document blocks.",
-            "Use only the supplied source blocks.",
-            "Extract legally or factually relevant dated events.",
-            "Do not invent dates, facts, parties, or citations.",
-            "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
-            "Return JSON only in the requested schema.",
-          ].join(" "),
+          content: LIST_OF_DATES_SYSTEM_PROMPT,
         },
         {
           role: "user",
