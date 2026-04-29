@@ -85,6 +85,26 @@ function canUseCachedExtraction(cached, row, route, options) {
   return true;
 }
 
+function extractionObservability(record, stats = {}) {
+  const pages = Array.isArray(record?.pages) ? record.pages : [];
+  const warnings = Array.isArray(record?.warnings) ? record.warnings : [];
+  const ocrApplied = Boolean(stats.ocrApplied || pages.some((page) => (
+    page.ocr_required === true
+    && Array.isArray(page.blocks)
+    && page.blocks.length > 0
+  )));
+  return {
+    engine: record?.engine || "",
+    page_count: record?.page_count ?? stats.pageCount ?? "",
+    ocr_applied: ocrApplied ? "yes" : "no",
+    ocr_provider_model: ocrApplied ? (record?.engine || "") : "",
+    ocr_required_pages: stats.ocrRequiredPageCount ?? pages.filter((page) => page.ocr_required === true).length,
+    low_confidence_pages: pages.filter((page) => Number(page.confidence_avg) < 0.75).length,
+    needs_review_pages: pages.filter((page) => page.needs_review === true).length,
+    provider_warnings_count: ocrApplied ? (stats.providerWarningsCount ?? warnings.length) : 0,
+  };
+}
+
 function resolveOcrProvider(options) {
   if (Object.hasOwn(options, "ocrProvider")) return options.ocrProvider;
   const env = options.env || process.env;
@@ -174,7 +194,12 @@ export async function runExtract(options = {}) {
         sha256: row.sha256,
         engine: "",
         page_count: "",
+        ocr_applied: "",
+        ocr_provider_model: "",
         ocr_required_pages: "",
+        low_confidence_pages: "",
+        needs_review_pages: "",
+        provider_warnings_count: "",
         multi_column_pages: "",
         time_taken_ms: "",
         extracted_at: "",
@@ -211,8 +236,7 @@ export async function runExtract(options = {}) {
         logRows.push({
           ...baseLogRow,
           status: "cached",
-          engine: cached.engine || route.fingerprint,
-          page_count: cached.page_count ?? "",
+          ...extractionObservability(cached),
           extracted_at: cached.extracted_at || "",
         });
         counts.cached += 1;
@@ -238,10 +262,9 @@ export async function runExtract(options = {}) {
         continue;
       }
       const elapsed = Date.now() - t0;
-      baseLogRow.engine = route.fingerprint;
 
       if (extraction.failureReason) {
-        logRows.push({ ...baseLogRow, status: "failed", time_taken_ms: elapsed, notes: extraction.failureReason });
+        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, time_taken_ms: elapsed, notes: extraction.failureReason });
         counts.failed += 1;
         intakeFailed += 1;
         outputLines.push(`[extract] ${row.file_id}: ${extraction.failureReason}`);
@@ -260,8 +283,7 @@ export async function runExtract(options = {}) {
       logRows.push({
         ...baseLogRow,
         status: allOcrRequired ? "ocr-required-all" : "extracted",
-        page_count: stats.pageCount,
-        ocr_required_pages: stats.ocrRequiredPageCount,
+        ...extractionObservability(extraction.record, stats),
         multi_column_pages: stats.multiColumnPageCount,
         time_taken_ms: elapsed,
         extracted_at: extraction.record.extracted_at,
