@@ -55,9 +55,8 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
     </dl>
     <h2>Outputs</h2>
     <p>
-      ${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : "No files written."}
+      ${outputPaths.markdown ? `<code>${escapeHtml(outputPaths.markdown)}</code>` : "No review files written."}
       ${outputPaths.csv ? `<br /><code>${escapeHtml(outputPaths.csv)}</code>` : ""}
-      ${outputPaths.markdown ? `<br /><code>${escapeHtml(outputPaths.markdown)}</code>` : ""}
     </p>
     <h2>Chronology</h2>
     <table class="extract-table">

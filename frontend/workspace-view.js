@@ -1,20 +1,24 @@
 import { escapeHtml, formatBytes } from "./dom-utils.js";
 
 function renderTreeNode(node, depth = 0) {
+  const label = node.displayName || node.name;
   if (node.kind === "file") {
     const previewable = node.previewable ? "true" : "false";
     const previewKind = node.previewKind || "";
-    const meta = node.size === undefined ? "" : `<span class="tree-meta">${formatBytes(node.size)}</span>`;
+    const metaParts = [node.fileId, node.size === undefined ? "" : formatBytes(node.size)].filter(Boolean);
+    const meta = metaParts.length ? `<span class="tree-meta">${escapeHtml(metaParts.join(" · "))}</span>` : "";
     return `
       <li class="tree-node tree-file">
         <button
           class="tree-file-button"
           type="button"
+          title="${escapeHtml(node.path)}"
           data-file-path="${escapeHtml(node.path)}"
+          data-file-label="${escapeHtml(label)}"
           data-previewable="${previewable}"
           data-preview-kind="${escapeHtml(previewKind)}"
         >
-          <span class="tree-name">${escapeHtml(node.name)}</span>
+          <span class="tree-name">${escapeHtml(label)}</span>
           ${meta}
         </button>
       </li>
@@ -30,8 +34,8 @@ function renderTreeNode(node, depth = 0) {
   return `
     <li class="tree-node tree-directory">
       <details${open}>
-        <summary>
-          <span class="tree-name">${escapeHtml(node.name)}${depth === 0 ? "" : "/"}</span>
+        <summary title="${escapeHtml(node.path || node.name)}">
+          <span class="tree-name">${escapeHtml(label)}${depth === 0 ? "" : "/"}</span>
           ${childCount}
         </summary>
         <ul>${childItems}${truncated}</ul>
@@ -51,9 +55,9 @@ export function createWorkspaceView(ctx) {
     workspaceTree.innerHTML = '<li class="tree-node">Loading workspace...</li>';
   }
 
-  async function openFilePreview(filePath, previewable, previewKind) {
+  async function openFilePreview(filePath, previewable, previewKind, displayName = "") {
     const activeMatter = ctx.getActiveMatter();
-    const fileName = filePath.split("/").pop() || filePath;
+    const fileName = displayName || filePath.split("/").pop() || filePath;
     breadcrumbs.textContent = `${activeMatter.folderName} > ${filePath}`;
 
     if (previewable !== "true") {
@@ -98,6 +102,7 @@ export function createWorkspaceView(ctx) {
       const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
+      const resultName = displayName || result.name;
 
       breadcrumbs.textContent = `${activeMatter.folderName} > ${result.path}`;
       ctx.setStatus({
@@ -107,7 +112,7 @@ export function createWorkspaceView(ctx) {
         terminal: `[explorer] opened ${result.path}`,
       });
       editorContent.innerHTML = `
-        <h1>${escapeHtml(result.name)}</h1>
+        <h1>${escapeHtml(resultName)}</h1>
         <p><code>${escapeHtml(result.path)}</code></p>
         <pre class="json-preview">${escapeHtml(result.content)}</pre>
       `;

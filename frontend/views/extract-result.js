@@ -63,8 +63,8 @@ export function renderExtractResultHtml(result, escapeHtml) {
   return `
     <h1>/extract result</h1>
     <p>
-      Extraction records were generated from working copies in the matter inbox.
-      Supported files write JSON and text companions under <code>_extracted/</code>.
+      Searchable text was generated from working copies in the matter inbox.
+      The underlying extraction records are kept as system files for search, citations, and audit checks.
     </p>
     <dl class="skill-contract">
       <div>

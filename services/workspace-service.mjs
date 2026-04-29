@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { parseCsv } from "../shared/csv.mjs";
 import { INITIAL_INTAKE_DIR_NAME } from "../shared/matter-contract.mjs";
 import { assertInsideRoot, makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 
@@ -13,6 +14,14 @@ const hiddenMatterEntries = new Set([
   ".git",
   ".playwright-cli",
   "phase1_legal_workbench",
+]);
+
+const hiddenSystemFiles = new Set([
+  "matter.json",
+  "File Register.csv",
+  "Intake Log.csv",
+  "Extraction Log.csv",
+  "List of Dates.json",
 ]);
 
 const previewExtensions = new Set([
@@ -63,20 +72,72 @@ export function createWorkspaceService({ matterStore } = {}) {
     return toPosix(path.relative(matterStore.ensureMatterRoot(), filePath));
   }
 
-  function isVisibleMatterEntry(entry, depth, scanContext = {}) {
+  function isVisibleMatterEntry(entry, depth, scanContext = {}, parentRelativePath = "") {
     const name = entry.name;
     if (name.startsWith(".")) return false;
     if (depth === 0 && hiddenMatterEntries.has(name)) return false;
+    if (entry.isDirectory() && name === "_extracted") return false;
+    if (entry.isFile() && hiddenSystemFiles.has(name)) return false;
+    if (entry.isFile() && path.extname(name).toLowerCase() === ".json" && isAnalysisDirectory(parentRelativePath)) {
+      return false;
+    }
     if (
       depth === 0
       && entry.isFile()
-      && name !== "matter.json"
       && scanContext.hideStagedRootSourceFiles
       && scanContext.stagedSourceFileNames.has(name)
     ) {
       return false;
     }
     return true;
+  }
+
+  function isAnalysisDirectory(relativePath) {
+    const topLevel = toPosix(relativePath).split("/").filter(Boolean)[0] || "";
+    return Boolean(topLevel && topLevel !== "00_Inbox");
+  }
+
+  function humanizeDirectoryName(name) {
+    if (name === "00_Inbox") return "Inbox";
+    if (name === "10_Library") return "Analysis Library";
+    if (name === "Source Files") return "Incoming Files";
+    if (name === "Originals") return "Original Uploaded Files";
+    if (name === "By Type") return "Organized Files";
+
+    const intakeMatch = name.match(/^Intake (\d{2,}) - (.+)$/);
+    if (intakeMatch) return `Intake ${intakeMatch[1]}: ${intakeMatch[2]}`;
+
+    return name;
+  }
+
+  function stripMachineFilePrefix(name) {
+    const match = name.match(/^(FILE-\d{4,})__(.+)$/);
+    return match ? match[2] : name;
+  }
+
+  async function readFileDisplayIndex(root) {
+    const index = new Map();
+    for (const intake of await matterStore.listIntakeFolders(root)) {
+      const registerPath = path.join(root, "00_Inbox", intake.name, "File Register.csv");
+      try {
+        const rows = parseCsv(await readFile(registerPath, "utf8"));
+        for (const row of rows) {
+          const fileId = row.file_id || "";
+          const originalName = row.original_name || "";
+          for (const field of ["source_path", "original_path", "working_copy_path"]) {
+            const relativePath = row[field];
+            if (!relativePath || !originalName) continue;
+            index.set(relativePath, {
+              displayName: originalName,
+              fileId,
+            });
+          }
+        }
+      } catch {
+        // Missing or malformed registers should not block the workspace tree.
+      }
+    }
+    return index;
   }
 
   async function readStagedSourceFileNames(root, intake) {
@@ -98,10 +159,10 @@ export function createWorkspaceService({ matterStore } = {}) {
     return names;
   }
 
-  async function scanMatterTree(root, depth = 0, scanContext = {}) {
+  async function scanMatterTree(root, depth = 0, scanContext = {}, parentRelativePath = "") {
     const directoryEntries = await readdir(root, { withFileTypes: true });
     const visibleEntries = directoryEntries
-      .filter((entry) => isVisibleMatterEntry(entry, depth, scanContext))
+      .filter((entry) => isVisibleMatterEntry(entry, depth, scanContext, parentRelativePath))
       .sort((a, b) => {
         if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
         return a.name.localeCompare(b.name);
@@ -119,12 +180,13 @@ export function createWorkspaceService({ matterStore } = {}) {
         directoryCount += 1;
         const childNode = {
           name: entry.name,
+          displayName: humanizeDirectoryName(entry.name),
           kind: "directory",
           path: relativePath,
           children: [],
         };
         if (depth < maxTreeDepth) {
-          const childScan = await scanMatterTree(absolutePath, depth + 1, scanContext);
+          const childScan = await scanMatterTree(absolutePath, depth + 1, scanContext, relativePath);
           childNode.children = childScan.children;
           fileCount += childScan.fileCount;
           directoryCount += childScan.directoryCount;
@@ -140,8 +202,11 @@ export function createWorkspaceService({ matterStore } = {}) {
         const ext = path.extname(entry.name).toLowerCase();
         const isText = previewExtensions.has(ext) && fileStat.size <= maxPreviewBytes;
         const isEmbeddable = embeddableExtensions.has(ext) && fileStat.size <= maxRawBytes;
+        const fileDisplay = scanContext.fileDisplayIndex?.get(relativePath);
         children.push({
           name: entry.name,
+          displayName: fileDisplay?.displayName || stripMachineFilePrefix(entry.name),
+          fileId: fileDisplay?.fileId || "",
           kind: "file",
           path: relativePath,
           size: fileStat.size,
@@ -164,9 +229,11 @@ export function createWorkspaceService({ matterStore } = {}) {
     const metadata = await matterStore.readMatterMetadata(root);
     const intake = await matterStore.readPrimaryIntake(root);
     const stagedSourceFileNames = intake ? await readStagedSourceFileNames(root, intake) : new Set();
+    const fileDisplayIndex = await readFileDisplayIndex(root);
     const treeScan = await scanMatterTree(root, 0, {
       hideStagedRootSourceFiles: Boolean(intake),
       stagedSourceFileNames,
+      fileDisplayIndex,
     });
 
     return {
@@ -177,6 +244,7 @@ export function createWorkspaceService({ matterStore } = {}) {
       directoryCount: treeScan.directoryCount,
       tree: {
         name: path.basename(root),
+        displayName: metadata.matterName || path.basename(root),
         kind: "directory",
         path: "",
         children: treeScan.children,

@@ -10,7 +10,7 @@ export function createMatterOverview(ctx, skills) {
     const fmt = (value, fallback) => escapeHtml(value && value.trim() ? value : fallback);
     const missing = validateMetadata(meta);
     const missingNote = missing.length
-      ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Edit <code>matter.json</code> on disk and refresh, or recreate the matter via <code>+ New Matter</code>.</p>`
+      ? `<p class="form-error">Missing matter details: ${escapeHtml(missing.join(", "))}. Update the matter details on disk and refresh, or recreate the matter via <code>+ New Matter</code>.</p>`
       : "";
 
     editorContent.innerHTML = `

@@ -17,14 +17,6 @@ export function createMatterInitSkill(ctx) {
       uniqueFiles: activeMatter.fileCount,
       duplicateFiles: 0,
     };
-    const paths = result.paths || {
-      sourceDir: "00_Inbox/Intake 01 - Initial/Source Files",
-      originalsDir: "00_Inbox/Intake 01 - Initial/Originals",
-      byTypeDir: "00_Inbox/Intake 01 - Initial/By Type",
-      intakeLogPath: "00_Inbox/Intake 01 - Initial/Intake Log.csv",
-      fileRegisterPath: "00_Inbox/Intake 01 - Initial/File Register.csv",
-    };
-
     ctx.setStatus({
       mood: "success",
       card: `<strong>matter-init ${escapeHtml(modeLabel)} complete</strong><br />${counts.scannedFiles} files scanned, ${counts.duplicateFiles} exact duplicates identified.`,
@@ -48,23 +40,29 @@ export function createMatterInitSkill(ctx) {
         </div>
         <div>
           <dt>Staged</dt>
-          <dd>${counts.looseRootFilesStaged || 0} loose root files copied into <code>${escapeHtml(paths.sourceDir)}</code></dd>
+          <dd>${counts.looseRootFilesStaged || 0} loose root files copied into Incoming Files</dd>
         </div>
         <div>
           <dt>Preserved</dt>
-          <dd>Originals copied under <code>${escapeHtml(paths.originalsDir)}</code></dd>
+          <dd>Untouched copies saved in Original Uploaded Files</dd>
         </div>
         <div>
           <dt>Arranged</dt>
-          <dd>Working copies grouped under <code>${escapeHtml(paths.byTypeDir)}</code> by file type</dd>
+          <dd>Working copies grouped in Organized Files by file type</dd>
         </div>
         <div>
-          <dt>Reported</dt>
-          <dd><code>${escapeHtml(paths.intakeLogPath)}</code> and <code>${escapeHtml(paths.fileRegisterPath)}</code></dd>
+          <dt>System records</dt>
+          <dd>Intake tracking and file index records updated for auditability</dd>
         </div>
       </dl>
-      <h2>matter.json</h2>
-      <pre class="json-preview">${escapeHtml(JSON.stringify(matterJson, null, 2))}</pre>
+      <h2>Matter details saved</h2>
+      <dl class="matter-info-card">
+        <dt>Client</dt><dd>${escapeHtml(matterJson.client_name || "")}</dd>
+        <dt>Matter name</dt><dd>${escapeHtml(matterJson.matter_name || "")}</dd>
+        <dt>Opposite party</dt><dd>${escapeHtml(matterJson.opposite_party || "")}</dd>
+        <dt>Matter type</dt><dd>${escapeHtml(matterJson.matter_type || "")}</dd>
+        <dt>Jurisdiction</dt><dd>${escapeHtml(matterJson.jurisdiction || "")}</dd>
+      </dl>
     `;
   }
 
@@ -86,7 +84,7 @@ export function createMatterInitSkill(ctx) {
         <div class="run-failure-card">
           <strong>matter-init can't run yet</strong>
           Missing required metadata: ${escapeHtml(missingMetadata.join(", "))}.<br />
-          Edit <code>matter.json</code> on disk and click Refresh, or recreate this matter via <code>+ New Matter</code>.
+          Update the matter details on disk and click Refresh, or recreate this matter via <code>+ New Matter</code>.
         </div>
       `;
       return;

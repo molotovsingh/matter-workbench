@@ -34,6 +34,21 @@ function lawyerFields(overrides = {}) {
   };
 }
 
+function flattenTree(node, nodes = []) {
+  nodes.push(node);
+  for (const child of node.children || []) flattenTree(child, nodes);
+  return nodes;
+}
+
+function findTreeNode(node, predicate) {
+  if (predicate(node)) return node;
+  for (const child of node.children || []) {
+    const match = findTreeNode(child, predicate);
+    if (match) return match;
+  }
+  return null;
+}
+
 test("server API smoke test keeps public routes stable", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-api-test-"));
   const appDir = path.join(tmp, "app");
@@ -109,11 +124,24 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(switched.folderName, "Smoke Matter");
     const workspace = await getJson(baseUrl, "/api/workspace");
     assert.equal(workspace.metadata.matterName, "Smoke Matter");
+    assert.ok(findTreeNode(workspace.tree, (node) => node.path === "00_Inbox" && node.displayName === "Inbox"));
+    assert.ok(findTreeNode(workspace.tree, (node) => node.path.endsWith("/By Type") && node.displayName === "Organized Files"));
+    assert.ok(findTreeNode(workspace.tree, (node) => node.name === "FILE-0001__note.txt" && node.displayName === "note.txt"));
+    assert.equal(findTreeNode(workspace.tree, (node) => node.name === "matter.json"), null);
+    assert.equal(findTreeNode(workspace.tree, (node) => node.name === "File Register.csv"), null);
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
     const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
+    const generatedWorkspace = await getJson(baseUrl, "/api/workspace");
+    const generatedNodes = flattenTree(generatedWorkspace.tree);
+    assert.ok(generatedNodes.some((node) => node.path === "10_Library" && node.displayName === "Analysis Library"));
+    assert.ok(generatedNodes.some((node) => node.path === "10_Library/List of Dates.md"));
+    assert.ok(generatedNodes.some((node) => node.path === "10_Library/List of Dates.csv"));
+    assert.equal(generatedNodes.some((node) => node.name === "_extracted"), false);
+    assert.equal(generatedNodes.some((node) => node.name === "Extraction Log.csv"), false);
+    assert.equal(generatedNodes.some((node) => node.path === "10_Library/List of Dates.json"), false);
     const skills = await getJson(baseUrl, "/api/skills");
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {

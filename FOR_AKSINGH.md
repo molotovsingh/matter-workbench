@@ -140,6 +140,10 @@ Key points:
 - `10_Library` contains outputs from skills like `/create_listofdates`.
 - The intake directory name pattern `Intake \d{2,}` is the contract identifier — don't hardcode "Intake 01."
 
+The UI now has a separate presentation layer for this tree. That means the filesystem can keep stable machine names like `00_Inbox`, `10_Library`, and `FILE-0001__notice.pdf`, while the app shows lawyer-readable labels like "Inbox," "Analysis Library," and "notice.pdf" with `FILE-0001` as supporting metadata. Machine-only records (`matter.json`, file registers, intake/extraction logs, `_extracted/`, and JSON analysis payloads) stay hidden from normal browsing. They still exist on disk because the engine, citations, search, and doctor checks need them, but a user should not have to mentally parse them during ordinary work.
+
+**Lesson:** A filesystem contract and a product interface are not the same thing. Good engineers keep the disk format boring and stable, then build a display layer that explains intent. Renaming `00_Inbox` on disk would be risky because every engine expects it. Displaying it as "Inbox" is cheap, safe, and much kinder to the human reading the screen.
+
 ## The AI Layer
 
 All AI calls go through `shared/responses-client.mjs`, which wraps the OpenAI **Responses API** (not the Chat Completions API). Every call uses structured output (`json_schema` format with `strict: true`), which means the AI is forced to return valid JSON matching a specific schema. This is crucial — no parsing failures, no "sorry I can't do that" free-text responses that break downstream code.
@@ -177,12 +181,8 @@ The OpenAI stub is key: it intercepts `fetch()` calls to `https://api.openai.com
 
 ## Things That Could Bite You Later
 
-1. **`renderConversation()` only renders Q&A turns correctly.** If a user does a search, then a Q&A, the history panel tries to use `renderQaAnswer()` for the search result too. This is a pre-existing bug, not introduced by our fixes. But it'll look broken as soon as someone checks the history panel after a search.
+1. **Search reads every file into memory.** The search service does `fs.readFileSync(fullPath, "utf8")` on every non-skipped file. For a matter with hundreds of large text files, this is O(n) memory. It works now because matters are small, but at scale you'd want an index.
 
-2. **`conversationTurns` doesn't reset on matter switch.** If you switch from "mehta" to "sharma" mid-conversation, the history panel still shows mehta's turns. The backend `conversationHistory` resets (it's keyed by `matterRoot`), but the frontend array doesn't clear.
+2. **The no-matter pre-check relies on `isLocalOnlyIntent()` being a superset of the classifier's local intents.** If someone adds a new local intent to the classifier without updating `local-intent.mjs`, that input will get the "load a matter first" error when no matter is active, even though the classifier would handle it fine. The sharing of patterns mitigates this, but it's not bulletproof — the classifier could learn new patterns from its AI prompt that the regex doesn't cover.
 
-3. **Search reads every file into memory.** The search service does `fs.readFileSync(fullPath, "utf8")` on every non-skipped file. For a matter with hundreds of large text files, this is O(n) memory. It works now because matters are small, but at scale you'd want an index.
-
-4. **The no-matter pre-check relies on `isLocalOnlyIntent()` being a superset of the classifier's local intents.** If someone adds a new local intent to the classifier without updating `local-intent.mjs`, that input will get the "load a matter first" error when no matter is active, even though the classifier would handle it fine. The sharing of patterns mitigates this, but it's not bulletproof — the classifier could learn new patterns from its AI prompt that the regex doesn't cover.
-
-5. **`shouldSkipDirectory` is a hardcoded set.** Ideally it would come from `matter-contract.mjs` alongside `CATEGORY_BY_EXTENSION`, so the contract is the single source of truth for what's a "display-only" directory.
+3. **Workspace presentation rules now live in `workspace-service.mjs`.** That is intentionally safer than changing the on-disk folder contract, but the mapping should eventually be centralized near `matter-contract.mjs` so folder names, hidden system artifacts, and display labels do not drift.

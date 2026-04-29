@@ -13,6 +13,7 @@ export function wireAppEvents(ctx, skills, skillDispatch = {}) {
       fileButton.dataset.filePath,
       fileButton.dataset.previewable,
       fileButton.dataset.previewKind || "",
+      fileButton.dataset.fileLabel || "",
     );
   });
 
