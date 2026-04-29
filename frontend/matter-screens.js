@@ -247,7 +247,9 @@ export function createMatterScreens(ctx) {
         <div id="aiSettingsMessage" class="form-note"></div>
         <div id="aiSettingsError" class="form-error" hidden></div>
       </form>
-      ${renderAiProviderStatus(settings?.aiTasks)}
+      <div id="aiProviderStatus">
+        ${renderAiProviderStatus(settings?.aiTasks)}
+      </div>
     `;
   }
 
@@ -310,6 +312,7 @@ export function createMatterScreens(ctx) {
     const message = document.getElementById("aiSettingsMessage");
     const errorBox = document.getElementById("aiSettingsError");
     const keyStatus = document.getElementById("aiKeyStatus");
+    const providerStatus = document.getElementById("aiProviderStatus");
 
     const showMessage = (text) => {
       message.textContent = text;
@@ -337,6 +340,7 @@ export function createMatterScreens(ctx) {
         keyStatus.textContent = saved.apiKeyConfigured ? "Configured" : "Missing";
         modelInput.value = saved.model;
         maxInput.value = String(saved.maxOutputTokens);
+        if (providerStatus) providerStatus.innerHTML = renderAiProviderStatus(saved.aiTasks);
         showMessage("AI settings saved.");
       } catch (error) {
         showError(error.message);
