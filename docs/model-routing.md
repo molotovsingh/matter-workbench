@@ -215,7 +215,7 @@ OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=meta-llama/llama-3.3-70b-instruct
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=3000
 OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS=90000
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_ORDER=
-OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=price
+OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE=
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE=
 ```
@@ -238,6 +238,8 @@ OpenRouter chronology requests are still fail-closed:
 - raw `FILE-NNNN pX.bY` citations remain canonical
 
 For `/create_listofdates`, use either a pinned provider order or price/latency routing, not both. `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT` accepts `price`, `throughput`, or `latency`. A provider order cannot be combined with `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT`, `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE`, or `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE`.
+
+The current recommended smoke-tested setting is `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency`. The final merged-path smoke hit OpenRouter `429` twice with `provider.sort=price`, while `provider.sort=latency` succeeded and returned provider `Friendli`.
 
 ## Provider Modes
 
