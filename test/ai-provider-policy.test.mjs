@@ -117,6 +117,9 @@ test("provider config resolves OpenRouter source-backed analysis policy", () => 
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "latency",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE: "0.2",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE: "0.8",
     },
   });
   const providerConfig = resolveProviderConfig(policy);
@@ -128,8 +131,11 @@ test("provider config resolves OpenRouter source-backed analysis policy", () => 
     maxOutputTokens: 1800,
     timeoutMs: 45000,
     providerOrder: [],
-    providerSort: "",
-    maxPrice: null,
+    providerSort: "latency",
+    maxPrice: {
+      prompt: 0.2,
+      completion: 0.8,
+    },
     requireParameters: true,
     allowFallbacks: false,
   });

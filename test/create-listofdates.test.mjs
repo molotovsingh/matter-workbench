@@ -374,6 +374,11 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
     model: "qwen/qwen3-source-backed",
     maxOutputTokens: 1800,
     timeoutMs: 45000,
+    providerSort: "price",
+    maxPrice: {
+      prompt: 0.15,
+      completion: 0.6,
+    },
     fetchImpl: async (endpoint, init) => {
       requests.push({
         endpoint,
@@ -413,6 +418,11 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.deepEqual(requests[0].body.provider, {
     require_parameters: true,
     allow_fallbacks: false,
+    sort: "price",
+    max_price: {
+      prompt: 0.15,
+      completion: 0.6,
+    },
   });
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
@@ -470,6 +480,9 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "price",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE: "0.15",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE: "0.60",
     },
     fetchImpl: async (endpoint, init) => {
       requests.push({ endpoint, body: JSON.parse(init.body) });
@@ -507,6 +520,12 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
   assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
   assert.equal(requests[0].body.max_tokens, 1800);
   assert.equal(requests[0].body.provider.allow_fallbacks, false);
+  assert.equal(requests[0].body.provider.require_parameters, true);
+  assert.equal(requests[0].body.provider.sort, "price");
+  assert.deepEqual(requests[0].body.provider.max_price, {
+    prompt: 0.15,
+    completion: 0.6,
+  });
   assert.equal(result.entries.length, 1);
   assert.deepEqual(result.aiRun, {
     policyVersion: "model-policy/v1-current",

@@ -146,6 +146,9 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "latency",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE: "0.2",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE: "0.8",
       OPENAI_API_KEY: "sk-openai-should-not-be-used",
       OPENAI_MODEL: "openai-model-should-not-be-used",
       OPENAI_MAX_OUTPUT_TOKENS: "999",
@@ -218,6 +221,11 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
     assert.equal(requests[0].body.max_tokens, 1800);
     assert.equal(requests[0].body.provider.require_parameters, true);
     assert.equal(requests[0].body.provider.allow_fallbacks, false);
+    assert.equal(requests[0].body.provider.sort, "latency");
+    assert.deepEqual(requests[0].body.provider.max_price, {
+      prompt: 0.2,
+      completion: 0.8,
+    });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
     assert.equal(listOfDates.aiRun.provider, "openrouter");

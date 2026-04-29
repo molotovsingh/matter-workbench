@@ -86,6 +86,9 @@ test("source-backed analysis policy can explicitly use OpenRouter", () => {
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "price",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE: "0.15",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE: "0.60",
     },
   }), {
     policyVersion: MODEL_POLICY_VERSION,
@@ -97,7 +100,40 @@ test("source-backed analysis policy can explicitly use OpenRouter", () => {
     maxOutputTokens: 1800,
     timeoutMs: 45000,
     fallback: "fail_closed",
+    providerOrder: [],
+    providerSort: "price",
+    maxPrice: {
+      prompt: 0.15,
+      completion: 0.60,
+    },
   });
+});
+
+test("source-backed OpenRouter policy rejects mixed provider pin and price routing", () => {
+  assert.throws(
+    () => resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+      env: {
+        SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+        OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+        OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_ORDER: "akashml/fp8",
+        OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "price",
+      },
+    }),
+    /provider order cannot be combined with provider sort or max price routing/,
+  );
+});
+
+test("source-backed OpenRouter policy rejects invalid provider sort", () => {
+  assert.throws(
+    () => resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+      env: {
+        SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+        OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+        OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "cheap",
+      },
+    }),
+    /Invalid OpenRouter provider sort: cheap/,
+  );
 });
 
 test("source-backed analysis policy rejects unsupported explicit providers", () => {

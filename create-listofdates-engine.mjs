@@ -201,6 +201,9 @@ function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl }) {
       model: providerConfig.model,
       requireParameters: providerConfig.requireParameters,
       allowFallbacks: providerConfig.allowFallbacks,
+      providerOrder: providerConfig.providerOrder,
+      providerSort: providerConfig.providerSort,
+      maxPrice: providerConfig.maxPrice,
       timeoutMs: providerConfig.timeoutMs,
     });
   }
@@ -264,6 +267,9 @@ export function createOpenRouterProvider({
   fetchImpl = fetch,
   maxOutputTokens,
   model,
+  providerOrder = [],
+  providerSort = "",
+  maxPrice = null,
   requireParameters = true,
   allowFallbacks = false,
   timeoutMs,
@@ -315,6 +321,9 @@ export function createOpenRouterProvider({
         },
       },
     };
+    if (providerOrder.length) body.provider.order = providerOrder;
+    if (providerSort) body.provider.sort = providerSort;
+    if (maxPrice) body.provider.max_price = maxPrice;
 
     const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
     let response;
