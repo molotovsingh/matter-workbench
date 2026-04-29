@@ -1,6 +1,6 @@
 # Model Routing Design
 
-This document is the guardrail before adding OpenRouter or any other model gateway to Matter Workbench.
+This document is the guardrail for OpenAI direct, OpenRouter, and any later model gateway in Matter Workbench.
 
 The short version:
 
@@ -23,25 +23,32 @@ The trap is to solve this by sprinkling model names inside each skill. That work
 
 ## Current State
 
-As of this design, the app has:
+As of the current implementation, the app has:
 
 - `shared/ai-defaults.mjs` for default OpenAI model constants.
 - `shared/responses-client.mjs` for OpenAI Responses API fetch, error mapping, output text extraction, and JSON parsing.
-- `create-listofdates-engine.mjs` using the shared Responses client for `/create_listofdates`.
-- `services/skill-router-service.mjs` using the shared Responses client for skill intent routing.
+- `shared/model-policy.mjs` for task-specific model policy resolution.
+- `shared/ai-provider-policy.mjs` for request-ready provider config and metadata.
+- `create-listofdates-engine.mjs` using OpenAI direct by default and an explicit OpenRouter path when configured.
+- `source-descriptors-engine.mjs` using OpenRouter for `source_description`.
+- `services/skill-router-service.mjs` using OpenAI direct for skill intent routing.
 - `skills/registry.json` describing current skills, but not yet declaring model policy.
 
-The shared client is intentionally thin. It knows how to make a Responses request and parse JSON. It does not know legal risk, task complexity, privacy requirements, or fallback strategy.
+The shared clients are intentionally thin. They know how to make provider requests and parse JSON. They do not decide legal risk, task complexity, privacy requirements, or fallback strategy.
 
-That is the missing layer.
+That judgment belongs in model policy.
 
 ## OpenRouter Fit
 
-OpenRouter can be useful here because it can provide access to multiple models behind one API surface. Its documentation describes both an OpenAI-like Chat API and a Responses endpoint at `https://openrouter.ai/api/v1/responses`. The Responses endpoint includes fields such as `model`, `models`, `provider`, `reasoning`, `text`, and `max_output_tokens`, which fit the direction of the current app.
+OpenRouter is useful here because it provides access to multiple models behind one API surface. Matter Workbench currently uses two API shapes:
+
+- OpenAI direct uses the OpenAI Responses API through `shared/responses-client.mjs`.
+- OpenRouter-backed legal tasks use `POST https://openrouter.ai/api/v1/chat/completions` with strict JSON schema output.
+
+The important contract is not the endpoint name. The important contract is that the model policy resolves the provider, model, token budget, timeout, structured-output requirement, and fallback posture before a skill makes a request.
 
 Relevant OpenRouter docs:
 
-- [Responses API create response](https://openrouter.ai/docs/api/api-reference/responses/create-responses)
 - [API overview and model routing fields](https://openrouter.ai/docs/api/reference/overview/)
 - [Provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)
 - [Model fallbacks](https://openrouter.ai/docs/guides/routing/model-fallbacks)
@@ -50,11 +57,11 @@ Important caution: OpenRouter routing is a provider capability, not a skill desi
 
 ## Non-Goals
 
-This design does not propose:
+This document still does not propose:
 
-- Adding OpenRouter code immediately.
+- Adding new provider code in documentation-only changes.
 - Changing prompts.
-- Changing skill registry schema in this PR.
+- Changing skill registry schema.
 - Moving every model choice into the UI.
 - Letting an AI model choose the production model policy.
 - Using the cheapest possible model for legal work by default.
@@ -179,11 +186,52 @@ The first implementation does not need all tiers. It can start with `router` and
 | --- | --- | --- |
 | `/matter-init` | None | deterministic |
 | `/extract` | None | deterministic |
-| `/create_listofdates` | OpenAI Responses, structured JSON | `source_backed_analysis` |
+| `/create_listofdates` | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `source_backed_analysis` |
+| `/describe_sources` | OpenRouter Chat Completions, structured JSON | `source_description` |
 | `/doctor` | None | deterministic |
 | Skill router | OpenAI Responses, structured JSON | `router` |
 
 This table shows why model routing should be central. The app already has deterministic skills and AI skills with different risk levels.
+
+## Runtime Environment Contract
+
+Use `.env.example` as the starting point for local configuration. Do not commit real keys.
+
+OpenAI direct remains the default for `/create_listofdates`:
+
+```text
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_MAX_OUTPUT_TOKENS=3000
+SOURCE_BACKED_ANALYSIS_PROVIDER=openai-direct
+```
+
+To route `/create_listofdates` through OpenRouter instead, set all of these explicitly:
+
+```text
+SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
+OPENROUTER_API_KEY=...
+OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=meta-llama/llama-3.3-70b-instruct
+OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=3000
+OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS=90000
+```
+
+This is intentionally separate from source-description settings:
+
+```text
+OPENROUTER_SOURCE_DESCRIPTION_MODEL=...
+OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=3000
+OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS=90000
+```
+
+The separation prevents a route-level bug where OpenAI model or token overrides accidentally shadow OpenRouter settings. If `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`, `/api/create-listofdates` must use `OPENROUTER_SOURCE_BACKED_ANALYSIS_*` for model and token budget, not `OPENAI_MODEL` or `OPENAI_MAX_OUTPUT_TOKENS`.
+
+OpenRouter chronology requests are still fail-closed:
+
+- `provider.require_parameters=true`
+- `provider.allow_fallbacks=false`
+- no automatic model fallback
+- raw `FILE-NNNN pX.bY` citations remain canonical
 
 ## Provider Modes
 
@@ -193,28 +241,30 @@ Use the existing `shared/responses-client.mjs` path with the configured OpenAI A
 
 This remains the safest default because it is already working and tested.
 
-### Mode 2: OpenRouter Responses Adapter
+### Mode 2: OpenRouter Chat Completions Adapter
 
-Add a separate adapter that targets `https://openrouter.ai/api/v1/responses` and passes policy-driven fields such as:
+Use a separate adapter that targets `https://openrouter.ai/api/v1/chat/completions` and passes policy-driven fields such as:
 
 - `model` for a single selected model.
-- `models` for fallback candidates.
-- `provider` for provider constraints.
-- `reasoning` for models that support configurable reasoning.
-- `max_output_tokens` from the resolved policy.
+- `provider.require_parameters=true`.
+- `provider.allow_fallbacks=false`.
+- `response_format.type=json_schema`.
+- `max_tokens` from the resolved policy.
+- `temperature=0` for stable source-backed extraction.
 
-This adapter should live beside, not inside, the current OpenAI client. The current `requestResponsesJson` can either become the low-level shared transport or remain the OpenAI-direct adapter while a new OpenRouter adapter handles OpenRouter-specific request fields.
+This adapter lives beside the OpenAI direct path. Skills keep their prompt and schema construction local, while the provider boundary handles request shape, API key selection, error mapping, timeout, and returned model/usage metadata.
 
 ### Mode 3: Hybrid
 
-Use OpenAI direct for high-risk legal work and OpenRouter for router or low-risk tasks.
+Use OpenAI direct for some tasks and OpenRouter for others, based on explicit task policy.
 
-This is likely the best first production posture if OpenRouter is added:
+The current production posture is:
 
 ```text
-skill router -> OpenRouter allowed
-create_listofdates -> OpenAI direct by default
-future drafting -> OpenAI direct by default until reviewed
+skill router -> OpenAI direct
+source_description -> OpenRouter
+create_listofdates -> OpenAI direct by default, OpenRouter only when SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
+future drafting -> not wired
 ```
 
 ## Privacy And Legal-Risk Constraints
@@ -264,7 +314,7 @@ A later config file could look like this:
     },
     "openrouter": {
       "enabled": false,
-      "endpoint": "https://openrouter.ai/api/v1/responses",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
       "allow_matter_documents": false
     }
   },
@@ -318,60 +368,27 @@ The design should make these cases boring:
 | Invalid JSON | Same-model retry later, then 502 |
 | Missing citations | Reject output in the skill validation layer |
 
-## Implementation Plan
+## Implementation Status
 
-### Phase 1: Policy Skeleton, No OpenRouter
+Completed:
 
-Add a small model policy module:
+1. Added `shared/model-policy.mjs` with current task policies.
+2. Added the provider-adapter boundary for request-ready config and metadata.
+3. Wired `source_description` to OpenRouter with strict JSON schema output.
+4. Wired `/create_listofdates` to keep OpenAI direct as default and opt into OpenRouter only with `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
+5. Added artifact metadata so generated outputs record policy version, task, tier, provider, model, token budget, fallback posture, and provider-returned usage when available.
+6. Added `.env.example` coverage for the implemented provider-selection env vars.
 
-```text
-shared/model-policy.mjs
-```
+Still not done:
 
-It maps known task names to current defaults. It should not change behavior yet.
-
-### Phase 2: Provider Adapter Interface
-
-Wrap the existing OpenAI direct client behind a provider interface. Keep `createOpenAiProvider` and `createOpenAiSkillRouterProvider` exports stable.
-
-### Phase 3: Registry Metadata
-
-Add optional `ai` metadata to `skills/registry.json`, but keep defaults for existing skills so old registry entries do not break.
-
-### Phase 4: OpenRouter Behind A Flag
-
-Add `OPENROUTER_API_KEY` and `AI_PROVIDER=openrouter` or a richer policy config. Start with router-only traffic. Do not send matter documents through OpenRouter until explicitly enabled.
-
-### Phase 5: UI And Logs
-
-Expose provider status and selected policy in settings. Record model usage in generated artifacts and server logs.
-
-### Phase 6: Legal-Output Expansion
-
-Only after the above is stable, allow high-risk skills to opt into OpenRouter with strict provider constraints and review gates.
-
-## First PR Recommendation
-
-The next coding PR should not add OpenRouter.
-
-Recommended first PR:
-
-```text
-Add shared/model-policy.mjs with current behavior only.
-```
-
-It should:
-
-- Define task names such as `skill_router` and `source_backed_analysis`.
-- Resolve current model and token defaults.
-- Keep OpenAI direct as the only active provider.
-- Add unit tests for policy resolution.
-- Not touch prompts, schemas, or settings UI.
-
-That gives the app a place to put routing decisions before any new provider enters the system.
+- No automatic model fallback.
+- No provider-selection UI.
+- No registry schema change.
+- No Gemini fallback or multi-provider orchestration.
+- No silent provider change for lawyer-facing skills.
 
 ## Decision
 
-OpenRouter is worth exploring, especially for low-risk router/classification work and model fallback experiments. But it should enter through a central policy/provider layer.
+OpenRouter is useful, but it must stay behind central model policy and provider adapters.
 
-Do not wire OpenRouter directly into `/create_listofdates` or the skill router. The architecture should make model choice inspectable, testable, and reversible.
+Do not wire provider-specific behavior directly into skills or routes. The architecture should make model choice inspectable, testable, and reversible.
