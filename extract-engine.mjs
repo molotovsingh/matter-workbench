@@ -72,6 +72,17 @@ async function readJsonIfExists(filePath) {
   }
 }
 
+function canUseCachedExtraction(cached, row, route, options) {
+  if (!cached || cached.sha256 !== row.sha256) return false;
+  if (route.fingerprint === PDF_ENGINE_FINGERPRINT && typeof options.ocrProvider === "function") {
+    const pages = Array.isArray(cached.pages) ? cached.pages : [];
+    const isOcrPlaceholder = pages.length > 0
+      && pages.every((page) => page.ocr_required === true && (!Array.isArray(page.blocks) || page.blocks.length === 0));
+    if (isOcrPlaceholder) return false;
+  }
+  return true;
+}
+
 export async function runExtract(options = {}) {
   const matterRoot = options.matterRoot
     ? path.resolve(options.matterRoot)
@@ -180,7 +191,7 @@ export async function runExtract(options = {}) {
 
       const recordPath = path.join(extractedDir, `${row.file_id}.json`);
       const cached = await readJsonIfExists(recordPath);
-      if (cached && cached.sha256 === row.sha256) {
+      if (cached && canUseCachedExtraction(cached, row, route, options)) {
         logRows.push({
           ...baseLogRow,
           status: "cached",
@@ -201,6 +212,7 @@ export async function runExtract(options = {}) {
           fileId: row.file_id,
           sha256: row.sha256,
           sourcePath: row.working_copy_path,
+          ocrProvider: options.ocrProvider,
         });
       } catch (err) {
         logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `unhandled: ${err.message}` });
@@ -221,7 +233,7 @@ export async function runExtract(options = {}) {
       }
 
       const stats = extraction.stats;
-      const allOcrRequired = stats.pageCount > 0 && stats.ocrRequiredPageCount === stats.pageCount;
+      const allOcrRequired = stats.pageCount > 0 && stats.ocrRequiredPageCount === stats.pageCount && !stats.ocrApplied;
       if (allOcrRequired) counts.ocrRequiredFiles += 1;
 
       if (!dryRun) {
@@ -237,6 +249,9 @@ export async function runExtract(options = {}) {
         multi_column_pages: stats.multiColumnPageCount,
         time_taken_ms: elapsed,
         extracted_at: extraction.record.extracted_at,
+        notes: allOcrRequired && Array.isArray(extraction.record.warnings)
+          ? extraction.record.warnings.join("; ")
+          : "",
       });
       counts.extracted += 1;
       intakeExtracted += 1;

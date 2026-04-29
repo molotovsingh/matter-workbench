@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { normalizeOcrProviderResult } from "./ocr-normalize.mjs";
 
 export const PDF_ENGINE_FINGERPRINT = "pdfjs-dist@4.10.38";
 const SCHEMA_VERSION = "extraction-record/v1";
@@ -18,7 +19,7 @@ async function loadPdfjs() {
   return pdfjsModule;
 }
 
-export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extractedAt }) {
+export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extractedAt, ocrProvider }) {
   const stamp = extractedAt || new Date().toISOString();
   let buffer;
   try {
@@ -91,6 +92,49 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
     });
   }
 
+  const shouldRunOcr = typeof ocrProvider === "function"
+    && pages.length > 0
+    && pages.every((page) => page.ocr_required && page.blocks.length === 0);
+
+  if (shouldRunOcr) {
+    try {
+      const providerResult = await ocrProvider({
+        pdfPath,
+        fileId,
+        sha256,
+        sourcePath,
+        pageCount: doc.numPages,
+      });
+      const normalizedOcr = normalizeOcrProviderResult(providerResult, { pageCount: doc.numPages });
+      const record = {
+        schema_version: SCHEMA_VERSION,
+        file_id: fileId,
+        sha256,
+        source_path: sourcePath,
+        engine: normalizedOcr.engine,
+        extracted_at: stamp,
+        language_detected: detectLanguages(normalizedOcr.flatText),
+        page_count: doc.numPages,
+        pages: normalizedOcr.pages,
+        warnings: [...fileWarnings, ...normalizedOcr.warnings],
+      };
+
+      return {
+        record,
+        flatText: normalizedOcr.flatText,
+        failureReason: null,
+        stats: {
+          pageCount: doc.numPages,
+          ocrRequiredPageCount: normalizedOcr.pages.filter((page) => page.ocr_required).length,
+          multiColumnPageCount,
+          ocrApplied: true,
+        },
+      };
+    } catch (err) {
+      fileWarnings.push(`OCR provider failed: ${err.message}`);
+    }
+  }
+
   const allText = pages.flatMap((p) => p.blocks.map((b) => b.text)).join(" ");
   const languageDetected = detectLanguages(allText);
 
@@ -119,6 +163,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
       pageCount: doc.numPages,
       ocrRequiredPageCount,
       multiColumnPageCount,
+      ocrApplied: false,
     },
   };
 }
