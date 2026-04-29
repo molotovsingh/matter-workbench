@@ -23,13 +23,12 @@ test("AI settings save model/token config and replace API key without exposing i
     maxOutputTokens: "2048",
   });
 
-  assert.deepEqual(saved, {
-    provider: "OpenAI",
-    apiKeyConfigured: true,
-    model: "gpt-5-mini",
-    maxOutputTokens: 2048,
-    envPath: path.join(appDir, ".env"),
-  });
+  assert.equal(saved.provider, "OpenAI");
+  assert.equal(saved.apiKeyConfigured, true);
+  assert.equal(saved.model, "gpt-5-mini");
+  assert.equal(saved.maxOutputTokens, 2048);
+  assert.equal(saved.envPath, path.join(appDir, ".env"));
+  assert.ok(saved.aiTasks.some((task) => task.task === "source_backed_analysis"));
   assert.equal(env.OPENAI_API_KEY, "sk-new_value");
   assert.equal(env.OPENAI_MODEL, "gpt-5-mini");
   assert.equal(env.OPENAI_MAX_OUTPUT_TOKENS, "2048");
@@ -39,6 +38,39 @@ test("AI settings save model/token config and replace API key without exposing i
   assert.match(text, /OPENAI_MODEL=gpt-5-mini/);
   assert.match(text, /OPENAI_MAX_OUTPUT_TOKENS=2048/);
   assert.match(text, /MATTERS_HOME=\/tmp\/matters/);
+});
+
+test("AI settings expose read-only provider status without secrets", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  const service = createAiSettingsService({
+    appDir,
+    env: {
+      OPENAI_API_KEY: "sk-openai-test",
+      OPENAI_MODEL: "openai-policy-model",
+      OPENAI_MAX_OUTPUT_TOKENS: "2400",
+      OPENROUTER_API_KEY: "sk-or-test",
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "meta-llama/listofdates-model",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "3000",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "90000",
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+    },
+  });
+
+  const settings = service.readSettings();
+  assert.equal(settings.aiTasks.length, 3);
+  const listOfDates = settings.aiTasks.find((task) => task.task === "source_backed_analysis");
+  assert.equal(listOfDates.label, "/create_listofdates");
+  assert.equal(listOfDates.provider, "openrouter");
+  assert.equal(listOfDates.model, "meta-llama/listofdates-model");
+  assert.equal(listOfDates.maxOutputTokens, 3000);
+  assert.equal(listOfDates.timeoutMs, 90000);
+  assert.equal(listOfDates.ready, true);
+  assert.equal(listOfDates.note, "Ready");
+
+  const serialized = JSON.stringify(settings);
+  assert.doesNotMatch(serialized, /sk-openai-test/);
+  assert.doesNotMatch(serialized, /sk-or-test/);
 });
 
 test("AI settings test connection sends a tiny server-side OpenAI request", async () => {

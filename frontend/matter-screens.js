@@ -221,7 +221,7 @@ export function createMatterScreens(ctx) {
     const status = settings?.apiKeyConfigured ? "Configured" : "Missing";
     return `
       <h2>AI settings</h2>
-      <p>Local OpenAI settings used by AI-driven skills such as <code>/create_listofdates</code>.</p>
+      <p>Local OpenAI direct settings. Provider routing for AI tasks is shown below.</p>
       <form class="new-matter-form" id="aiSettingsForm">
         <dl class="matter-info-card">
           <dt>Provider</dt><dd>${escapeHtml(settings?.provider || "OpenAI")}</dd>
@@ -247,7 +247,56 @@ export function createMatterScreens(ctx) {
         <div id="aiSettingsMessage" class="form-note"></div>
         <div id="aiSettingsError" class="form-error" hidden></div>
       </form>
+      ${renderAiProviderStatus(settings?.aiTasks)}
     `;
+  }
+
+  function renderAiProviderStatus(tasks = []) {
+    const rows = Array.isArray(tasks) && tasks.length
+      ? tasks.map((task) => {
+        const statusNote = task.ready || !task.note
+          ? ""
+          : `<br /><span class="muted">${escapeHtml(task.note)}</span>`;
+        return `
+          <tr>
+            <td><strong>${escapeHtml(task.label || task.task || "")}</strong><br /><span class="muted">${escapeHtml(task.surface || "")}</span></td>
+            <td><span class="provider-pill ${escapeHtml(providerClass(task.provider))}">${escapeHtml(providerLabel(task.provider))}</span></td>
+            <td>${task.model ? `<code>${escapeHtml(task.model)}</code>` : '<span class="muted">Not configured</span>'}</td>
+            <td>${task.maxOutputTokens ? escapeHtml(task.maxOutputTokens) : '<span class="muted">-</span>'}</td>
+            <td>${task.timeoutMs ? `${escapeHtml(task.timeoutMs)} ms` : '<span class="muted">-</span>'}</td>
+            <td>${escapeHtml(task.fallback || "")}</td>
+            <td><span class="provider-status ${task.ready ? "ready" : "needs-setup"}">${task.ready ? "Ready" : "Needs setup"}</span>${statusNote}</td>
+          </tr>
+        `;
+      }).join("")
+      : '<tr><td colspan="7">No AI task policies found.</td></tr>';
+    return `
+      <h2>AI provider routing</h2>
+      <table class="extract-table provider-status-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Provider</th>
+            <th>Model</th>
+            <th>Tokens</th>
+            <th>Timeout</th>
+            <th>Fallback</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function providerLabel(provider) {
+    if (provider === "openai-direct") return "OpenAI direct";
+    if (provider === "openrouter") return "OpenRouter";
+    return provider || "Unknown";
+  }
+
+  function providerClass(provider) {
+    return provider === "openrouter" ? "openrouter" : provider === "openai-direct" ? "openai-direct" : "unknown";
   }
 
   function wireAiSettingsForm() {

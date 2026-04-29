@@ -4,8 +4,29 @@ import {
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
 import { upsertLocalEnv } from "../shared/local-env.mjs";
+import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 
 const OPENAI_KEY_PATTERN = /^sk-[A-Za-z0-9_-]+$/;
+const AI_TASK_STATUS = [
+  {
+    task: AI_TASKS.SKILL_ROUTER,
+    label: "Skill router",
+    surface: "AI command routing",
+    modelEnvKey: "OPENAI_MODEL",
+  },
+  {
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    label: "/describe_sources",
+    surface: "Source Index.json labels",
+    modelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
+  },
+  {
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    label: "/create_listofdates",
+    surface: "List of Dates chronology",
+    modelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",
+  },
+];
 
 export function createAiSettingsService({
   appDir,
@@ -21,6 +42,7 @@ export function createAiSettingsService({
       model: env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
       maxOutputTokens: parsePositiveInteger(env.OPENAI_MAX_OUTPUT_TOKENS) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
       envPath: path.join(root, ".env"),
+      aiTasks: readAiTaskStatuses(),
     };
   }
 
@@ -99,6 +121,52 @@ export function createAiSettingsService({
     saveSettings,
     testConnection,
   };
+
+  function readAiTaskStatuses() {
+    return AI_TASK_STATUS.map((item) => {
+      try {
+        const policy = resolveModelPolicy(item.task, { env });
+        const apiKeyEnvKey = policy.provider === AI_PROVIDERS.OPENROUTER
+          ? "OPENROUTER_API_KEY"
+          : "OPENAI_API_KEY";
+        const apiKeyConfigured = Boolean(env[apiKeyEnvKey]);
+        const modelConfigured = Boolean(policy.model);
+        const missing = [];
+        if (!apiKeyConfigured) missing.push(`${apiKeyEnvKey} missing`);
+        if (!modelConfigured) missing.push(`${item.modelEnvKey} missing`);
+        return {
+          task: policy.task,
+          label: item.label,
+          surface: item.surface,
+          provider: policy.provider,
+          model: policy.model,
+          maxOutputTokens: policy.maxOutputTokens,
+          timeoutMs: policy.timeoutMs || null,
+          fallback: policy.fallback,
+          apiKeyConfigured,
+          modelConfigured,
+          ready: apiKeyConfigured && modelConfigured,
+          note: missing.length ? missing.join("; ") : "Ready",
+        };
+      } catch (error) {
+        return {
+          task: item.task,
+          label: item.label,
+          surface: item.surface,
+          provider: "",
+          model: "",
+          maxOutputTokens: null,
+          timeoutMs: null,
+          fallback: "",
+          apiKeyConfigured: false,
+          modelConfigured: false,
+          ready: false,
+          note: error.message,
+          error: error.message,
+        };
+      }
+    });
+  }
 }
 
 function parsePositiveInteger(value) {
