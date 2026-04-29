@@ -1,5 +1,5 @@
-const GREETINGS = /^(hi|hello|hey|greetings|good morning|good afternoon|good evening|howdy|sup|yo)\b/i;
-const CASUAL = /^(thanks|thank you|bye|goodbye|see you|later|ok|okay|cool|awesome|great|nice)\b/i;
+const GREETINGS = /^(?:(?:hi|hello|hey|greetings|howdy|sup|yo)(?:\s+there)?|good\s+(?:morning|afternoon|evening))[.!?]*$/i;
+const CASUAL = /^(?:thanks(?:\s+again)?|thank\s+you|bye|goodbye|see\s+you(?:\s+later)?|later|ok|okay|cool|awesome|great|nice)[.!?]*$/i;
 
 export function isLocalOnlyIntent(userInput) {
   if (!userInput || typeof userInput !== "string") return false;

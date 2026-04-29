@@ -7,6 +7,7 @@ import { extractSearchQuery } from "../services/unibox-service.mjs";
 import { isLocalOnlyIntent } from "../shared/local-intent.mjs";
 import { createMatterSearchService } from "../services/matter-search-service.mjs";
 import { createMatterQaService } from "../services/matter-qa-service.mjs";
+import { createMatterContextService } from "../services/matter-context-service.mjs";
 import { createConfigService } from "../services/config-service.mjs";
 import { createMatterStore } from "../services/matter-store.mjs";
 
@@ -59,6 +60,8 @@ test("isLocalOnlyIntent identifies slash commands", () => {
 
 test("isLocalOnlyIntent identifies greetings", () => {
   assert.equal(isLocalOnlyIntent("hello"), true);
+  assert.equal(isLocalOnlyIntent("hello there"), true);
+  assert.equal(isLocalOnlyIntent("hello!"), true);
   assert.equal(isLocalOnlyIntent("hey there"), true);
   assert.equal(isLocalOnlyIntent("good morning"), true);
   assert.equal(isLocalOnlyIntent("good evening"), true);
@@ -73,6 +76,7 @@ test("isLocalOnlyIntent identifies short casual remarks", () => {
   assert.equal(isLocalOnlyIntent("cool"), true);
   assert.equal(isLocalOnlyIntent("nice"), true);
   assert.equal(isLocalOnlyIntent("thank you"), true);
+  assert.equal(isLocalOnlyIntent("thanks again"), true);
   assert.equal(isLocalOnlyIntent("see you"), true);
 });
 
@@ -85,11 +89,15 @@ test("isLocalOnlyIntent rejects matter-requiring inputs", () => {
   assert.equal(isLocalOnlyIntent("summarize the notice"), false);
   assert.equal(isLocalOnlyIntent("who is the opposite party"), false);
   assert.equal(isLocalOnlyIntent("show me the compensation details"), false);
+  assert.equal(isLocalOnlyIntent("hi what is the contract about"), false);
+  assert.equal(isLocalOnlyIntent("hello find Skyline"), false);
+  assert.equal(isLocalOnlyIntent("good morning summarize the notice"), false);
 });
 
 test("isLocalOnlyIntent rejects long casual-like sentences", () => {
   assert.equal(isLocalOnlyIntent("thanks for the detailed analysis of the contract"), false);
   assert.equal(isLocalOnlyIntent("ok let's look at the Skyline agreement"), false);
+  assert.equal(isLocalOnlyIntent("ok search the Skyline agreement"), false);
 });
 
 test("isLocalOnlyIntent handles edge cases", () => {
@@ -164,6 +172,50 @@ test("search service finds results across diverse queries", async () => {
 
   const noResults = await searchService.search({ query: "xyznonexistent123" });
   assert.equal(noResults.totalResults, 0);
+});
+
+test("search service trims queries and counts matches beyond display cap", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-search-total-test-"));
+  const mattersHome = tmp;
+  const matterRoot = path.join(mattersHome, "Total Matter");
+  const appDir = path.join(tmp, "app");
+  const notesDir = path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "By Type", "Text Notes");
+
+  await mkdir(notesDir, { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  for (let i = 1; i <= 25; i += 1) {
+    await writeFile(path.join(notesDir, `note-${String(i).padStart(2, "0")}.txt`), `Skyline match ${i}`);
+  }
+
+  const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
+  await configService.load();
+  const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
+  const searchService = createMatterSearchService({ matterStore });
+
+  const results = await searchService.search({ query: "  Skyline  " });
+  assert.equal(results.query, "Skyline");
+  assert.equal(results.totalResults, 25);
+  assert.equal(results.results.length, 20);
+  assert.ok(results.results.every((result) => result.snippet.includes("**Skyline**")));
+});
+
+test("search service rejects blank query before requiring an active matter", async () => {
+  const searchService = createMatterSearchService({
+    matterStore: {
+      ensureMatterRoot() {
+        throw new Error("matter should not be required for blank query validation");
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => searchService.search({ query: "   " }),
+    (error) => {
+      assert.equal(error.message, "query is required");
+      assert.equal(error.statusCode, 400);
+      return true;
+    },
+  );
 });
 
 test("search service skips non-record file extensions", async () => {
@@ -269,10 +321,11 @@ test("QA service discovers intakes dynamically via matterStore", async () => {
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /Dynamic/);
+  assert.match(context, /FILE-0001,lease\.txt/);
 });
 
 test("QA service discovers library content without hardcoding 10_Library", async () => {
@@ -296,10 +349,74 @@ test("QA service discovers library content without hardcoding 10_Library", async
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /DATES-01/);
+  assert.match(context, /Event on 2026-04-20/);
+});
+
+test("QA service includes list-of-dates entries in library context", async (t) => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-qa-listofdates-test-"));
+  const mattersHome = tmp;
+  const matterRoot = path.join(mattersHome, "List Dates Matter");
+  const appDir = path.join(tmp, "app");
+
+  await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial"), { recursive: true });
+  await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(
+    path.join(matterRoot, "matter.json"),
+    JSON.stringify({ matter_name: "List Dates", intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }] }),
+  );
+  await writeFile(
+    path.join(matterRoot, "10_Library", "List of Dates.json"),
+    JSON.stringify({
+      schema_version: "list-of-dates/v1",
+      entries: [{
+        date_iso: "2026-04-20",
+        date_text: "20 April 2026",
+        event: "Possession deadline mentioned in the builder letter.",
+        citation: "FILE-0001 p1.b1",
+        original_name: "builder-letter.txt",
+      }],
+    }),
+  );
+
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  globalThis.fetch = async (_url, options = {}) => {
+    const body = JSON.parse(options.body || "{}");
+    const userPayload = JSON.parse(body.input.at(-1).content);
+    assert.match(userPayload.matter_context, /2026-04-20/);
+    assert.match(userPayload.matter_context, /Possession deadline/);
+    assert.match(userPayload.matter_context, /FILE-0001 p1\.b1/);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        output_text: JSON.stringify({
+          answer: "The list of dates includes the 20 April 2026 possession deadline.",
+          sources: ["FILE-0001 p1.b1"],
+          confidence: 0.86,
+        }),
+      }),
+    };
+  };
+
+  const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
+  await configService.load();
+  const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
+  const qaService = createMatterQaService({
+    matterStore,
+    env: { OPENAI_API_KEY: "test-key", OPENAI_MODEL: "gpt-5.4-mini" },
+  });
+
+  const answer = await qaService.answerQuestion({ question: "What are the key dates?", matterRoot });
+  assert.match(answer.answer, /20 April 2026/);
+  assert.deepEqual(answer.sources, ["FILE-0001 p1.b1"]);
 });
 
 test("QA service discovers extraction records across multiple intakes", async () => {
@@ -343,10 +460,11 @@ test("QA service discovers extraction records across multiple intakes", async ()
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /Initial notice about Skyline/);
+  assert.match(context, /Reply from Skyline rejecting claim/);
 });
 
 test("QA service works with employment dispute matter", async () => {
@@ -382,10 +500,11 @@ test("QA service works with employment dispute matter", async () => {
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /Sharma Employment Dispute/);
+  assert.match(context, /TechCorp offered Rs\. 18 LPA/);
 });
 
 test("QA service handles matter with no extraction records yet", async () => {
@@ -408,10 +527,11 @@ test("QA service handles matter with no extraction records yet", async () => {
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /Empty Extract/);
+  assert.match(context, /FILE-0001,contract\.pdf/);
 });
 
 test("QA service discovers custom-named library directory", async () => {
@@ -435,8 +555,9 @@ test("QA service discovers custom-named library directory", async () => {
   const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
   await configService.load();
   const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
-  const qaService = createMatterQaService({ matterStore, env: {} });
+  const contextService = createMatterContextService({ matterStore });
 
-  const context = await qaService.getConversation(matterRoot);
-  assert.ok(Array.isArray(context));
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /RISK-01/);
+  assert.match(context, /High risk clause on indemnification/);
 });

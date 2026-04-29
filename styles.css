@@ -323,6 +323,7 @@ strong {
 
 .unibox-form input {
   flex: 1;
+  min-width: 0;
   padding: 10px 14px;
   background: var(--input-bg);
   border: 1px solid var(--border);
@@ -1437,11 +1438,31 @@ code {
 
 @media (max-width: 900px) {
   .app-shell {
-    grid-template-columns: 48px 1fr;
+    grid-template-columns: 48px minmax(180px, 240px) minmax(0, 1fr);
   }
 
   .unibox-panel {
+    position: fixed;
+    left: 48px;
+    right: 0;
+    bottom: 26px;
+    z-index: 20;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  .unibox-header-bar,
+  .unibox-history {
     display: none;
+  }
+
+  .unibox-form {
+    padding: 10px 12px;
+  }
+
+  .main-panel {
+    padding-bottom: 64px;
   }
 }
 

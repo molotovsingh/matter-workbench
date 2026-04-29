@@ -14,6 +14,7 @@ export function extractSearchQuery(userInput) {
 export function createUniboxService({
   matterStore,
   skillRegistryService,
+  skillRouterService = null,
   env = process.env,
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
@@ -22,7 +23,7 @@ export function createUniboxService({
   const classifier = createIntentClassifierService({ skillRegistryService, env });
   const qaService = createMatterQaService({ matterStore, env });
   const searchService = createMatterSearchService({ matterStore });
-  const skillRouter = createSkillRouterService({ registryService: skillRegistryService, env });
+  const skillRouter = skillRouterService || createSkillRouterService({ registryService: skillRegistryService, env });
 
   const NO_MATTER_ERROR = {
     intent: "copilot_qa",
@@ -35,8 +36,9 @@ export function createUniboxService({
       throw Object.assign(new Error("userInput is required"), { statusCode: 400 });
     }
 
-    if (!matterStore.getMatterRoot() && !isLocalOnlyIntent(userInput)) {
-      return NO_MATTER_ERROR;
+    if (!matterStore.getMatterRoot()) {
+      if (userInput.trim().startsWith("/")) return NO_MATTER_ERROR;
+      if (!isLocalOnlyIntent(userInput)) return NO_MATTER_ERROR;
     }
 
     const classification = await classifier.classifyIntent({ userInput, conversationHistory });

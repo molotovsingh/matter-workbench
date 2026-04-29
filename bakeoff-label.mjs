@@ -3,8 +3,10 @@
 // using extracted text records (_extracted/FILE-NNNN.json), NOT raw documents.
 // This matches the current /describe_sources pipeline but does not evaluate
 // vision/document-native models or extraction quality.
+import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { extractResponsesOutputText } from "./shared/responses-client.mjs";
 
 const envPath = new URL(".env", import.meta.url).pathname;
 if (fs.existsSync(envPath)) {
@@ -199,7 +201,7 @@ async function callOpenAIResponses(model, messages, apiKey) {
     return { model, error: data.error?.message || resp.statusText, latencyMs };
   }
 
-  const content = data.output_text || "";
+  const content = extractResponsesOutputText(data);
   const usage = data.usage || {};
   const parsed = safeParseJson(content);
 
@@ -492,9 +494,14 @@ function scoreResult(parsed, groundTruth) {
   const forbiddenHits = (groundTruth.forbidden_label_keywords || []).filter((fk) => label.includes(fk));
   bd.labelClean = forbiddenHits.length === 0 ? 2 : forbiddenHits.length === 1 ? 1 : 0;
 
-  const partiesLower = (parsed.parties_mentioned || []).map((p) => p.toLowerCase());
+  const partiesLower = (parsed.parties_mentioned || [])
+    .map((p) => String(p || "").toLowerCase().trim())
+    .filter(Boolean);
   const partiesFound = groundTruth.required_parties.filter((rp) =>
-    partiesLower.some((p) => p.includes(rp) || rp.includes(p.split(" ")[0]))
+    partiesLower.some((p) => {
+      const firstToken = p.split(/\s+/)[0];
+      return p.includes(rp) || (firstToken && rp.includes(firstToken));
+    })
   );
   bd.parties = partiesFound.length >= groundTruth.required_parties.length * 0.5 ? 2 : partiesFound.length > 0 ? 1 : 0;
 
@@ -561,10 +568,10 @@ function printQualityGatedReport(results) {
     for (const fid of fileIds) {
       const r = results[m]?.find((x) => x.fileId === fid);
       const gt = GROUND_TRUTH[fid];
-      const score = r?.parsed ? scoreResult(r.parsed, gt) : { total: 0, maxTotal: 13, breakdown: {} };
+      const score = r?.parsed ? scoreResult(r.parsed, gt) : { total: 0, maxTotal: 15, breakdown: {} };
       total += score.total;
-      max += 13;
-      if (score.total >= 10) passes++;
+      max += score.maxTotal;
+      if (score.total >= 12) passes++;
       const expectedTypes = Array.isArray(gt.document_type) ? gt.document_type : [gt.document_type];
       docTypeCorrect.push(expectedTypes.includes((r?.parsed?.document_type || "").toLowerCase().trim()) ? 1 : 0);
     }

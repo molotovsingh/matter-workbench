@@ -102,6 +102,7 @@ const unibox = createUnibox(ctx, skillDispatch);
 
 function clearActiveMatter() {
   activeMatter = activeMatterStore.set(createInitialActiveMatter());
+  unibox.resetConversation({ quiet: true });
   return activeMatter;
 }
 
@@ -185,6 +186,7 @@ async function switchToMatter(name) {
     mattersState = mattersStore.merge({ active: name });
     ctx.renderMattersList();
     setActiveMatter(matterFromWorkspace(payload));
+    unibox.resetConversation({ message: `Conversation reset for ${name}. Ask about this matter or run a skill.` });
   } catch (error) {
     setStatus({
       mood: "idle",
@@ -242,8 +244,10 @@ bootstrap();
 
 async function syncModelSelector() {
   if (!elements.modelSelector) return;
+  let currentMaxOutputTokens = "3000";
   try {
     const settings = await getJson("/api/ai-settings");
+    currentMaxOutputTokens = String(settings.maxOutputTokens || currentMaxOutputTokens);
     if (settings.model) {
       const option = Array.from(elements.modelSelector.options).find((o) => o.value === settings.model);
       if (option) {
@@ -261,7 +265,19 @@ async function syncModelSelector() {
   elements.modelSelector.addEventListener("change", async () => {
     const model = elements.modelSelector.value;
     try {
-      await postJson("/api/ai-settings", { model, maxOutputTokens: "3000" });
-    } catch {}
+      const latest = await getJson("/api/ai-settings");
+      currentMaxOutputTokens = String(latest.maxOutputTokens || currentMaxOutputTokens);
+      const saved = await postJson("/api/ai-settings", { model, maxOutputTokens: currentMaxOutputTokens });
+      currentMaxOutputTokens = String(saved.maxOutputTokens || currentMaxOutputTokens);
+      setStatus({
+        bar: "Model Saved",
+        terminal: `[settings] model saved: ${saved.model}`,
+      });
+    } catch (error) {
+      setStatus({
+        bar: "Model Save Failed",
+        terminal: `[settings] model save failed: ${error.message}`,
+      });
+    }
   });
 }

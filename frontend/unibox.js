@@ -86,8 +86,17 @@ export function createUnibox(ctx, skillDispatch = {}) {
 
       if (result.conversationHistory) {
         conversationTurns.push({
-          question: userInput,
-          answer: result.result,
+          userInput,
+          intent: result.intent,
+          displayType: result.displayType,
+          result: result.result,
+        });
+      } else if (shouldKeepTurn(result)) {
+        conversationTurns.push({
+          userInput,
+          intent: result.intent,
+          displayType: result.displayType,
+          result: result.result,
         });
       }
       ctx.setStatus({
@@ -110,46 +119,33 @@ export function createUnibox(ctx, skillDispatch = {}) {
     }
   }
 
-  function resetConversation() {
+  function resetConversation(options = {}) {
+    const quiet = Boolean(options?.quiet);
+    const message = typeof options?.message === "string" ? options.message : "";
     conversationHistory = [];
     conversationTurns = [];
     uniboxInput.value = "";
     if (uniboxHistory) {
-      uniboxHistory.innerHTML = `
-        <p class="form-note">Conversation reset. Ask a question about the current matter.</p>
-      `;
+      uniboxHistory.innerHTML = quiet && !message
+        ? `
+          <div class="unibox-empty">
+            <div class="unibox-empty-icon">&#9673;</div>
+            <p>Ask about your matter, run a skill, or search documents.</p>
+          </div>
+        `
+        : message
+          ? `<p class="form-note">${escapeHtml(message)}</p>`
+        : `
+          <p class="form-note">Conversation reset. Ask a question about the current matter.</p>
+        `;
     }
   }
 
   function renderResult(userInput, result) {
-    let resultHtml = "";
-    switch (result.displayType) {
-      case "qa_answer":
-        resultHtml = renderQaAnswer(result.result);
-        break;
-      case "search_results":
-        resultHtml = renderSearchResults(result.result);
-        break;
-      case "skill_router":
-        resultHtml = renderSkillRouterResult(result.result);
-        if (result.intent === "run_skill"
-            && result.result.decision === "run_existing_skill"
-            && !result.result.user_gate_required
-            && result.result.matched_skill
-            && skillDispatch[result.result.matched_skill]) {
-          skillDispatch[result.result.matched_skill](result.result.matched_skill);
-          return;
-        }
-        break;
-      case "chat_response":
-        resultHtml = renderChatResponse(result.result);
-        break;
-      case "error":
-        resultHtml = `<p class="form-error">${escapeHtml(result.result.message)}</p>`;
-        break;
-      default:
-        resultHtml = `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-    }
+    const autoRunSkill = getAutoRunSkill(result);
+    const resultHtml = autoRunSkill
+      ? renderChatResponse({ message: `Running ${autoRunSkill}...` })
+      : renderResultBody(result.displayType, result.result);
 
     const conversationHtml = renderConversation();
 
@@ -169,6 +165,9 @@ export function createUnibox(ctx, skillDispatch = {}) {
     }
 
     wireResultActions(userInput, result);
+    if (autoRunSkill) {
+      skillDispatch[autoRunSkill](autoRunSkill);
+    }
   }
 
   function renderConversation() {
@@ -176,14 +175,50 @@ export function createUnibox(ctx, skillDispatch = {}) {
 
     return conversationTurns.map((turn, idx) => `
       <div class="chat-turn user">
-        <div class="chat-bubble user">${escapeHtml(turn.question)}</div>
+        <div class="chat-bubble user">${escapeHtml(turn.userInput)}</div>
       </div>
       <div class="chat-turn assistant">
         <div class="chat-bubble assistant">
-          ${renderQaAnswer(turn.answer)}
+          ${renderResultBody(turn.displayType, turn.result, turn.intent)}
         </div>
       </div>
     `).join("");
+  }
+
+  function renderResultBody(displayType, result, intent = "") {
+    switch (displayType) {
+      case "qa_answer":
+        return renderQaAnswer(result);
+      case "search_results":
+        return renderSearchResults(result);
+      case "skill_router": {
+        const runnableSkill = getAutoRunSkill({ intent, displayType, result });
+        return runnableSkill
+          ? renderChatResponse({ message: `Running ${runnableSkill}...` })
+          : renderSkillRouterResult(result);
+      }
+      case "chat_response":
+        return renderChatResponse(result);
+      case "error":
+        return `<p class="form-error">${escapeHtml(result.message)}</p>`;
+      default:
+        return `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    }
+  }
+
+  function shouldKeepTurn(result) {
+    return result.displayType === "skill_router"
+      || result.displayType === "search_results"
+      || result.displayType === "error";
+  }
+
+  function getAutoRunSkill(result) {
+    if (result.intent !== "run_skill") return "";
+    if (result.displayType !== "skill_router") return "";
+    if (result.result?.decision !== "run_existing_skill") return "";
+    if (result.result?.user_gate_required) return "";
+    const matchedSkill = result.result?.matched_skill || "";
+    return skillDispatch[matchedSkill] ? matchedSkill : "";
   }
 
   function renderQaAnswer(qa) {

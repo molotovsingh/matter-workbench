@@ -374,6 +374,15 @@ test("unibox returns local no-matter messaging without calling AI", async (t) =>
     assert.equal(result.payload.displayType, "error");
     assert.equal(result.payload.result.message, "Load a matter first before asking questions or searching.");
     assert.equal(openAiCalls.length, 0, "no-matter pre-check should block AI calls entirely");
+
+    const greetingPrefixedQuestion = await postJson(baseUrl, "/api/unibox", {
+      userInput: "hello what is this matter about?",
+    });
+
+    assert.equal(greetingPrefixedQuestion.ok, true);
+    assert.equal(greetingPrefixedQuestion.payload.displayType, "error");
+    assert.equal(greetingPrefixedQuestion.payload.result.message, "Load a matter first before asking questions or searching.");
+    assert.equal(openAiCalls.length, 0, "greeting-prefixed matter questions should still block without a matter");
   });
 });
 
@@ -397,9 +406,50 @@ test("unibox serves local-only intents without a matter loaded", async (t) => {
 
     const slash = await postJson(baseUrl, "/api/unibox", { userInput: "/extract" });
     assert.equal(slash.ok, true);
+    assert.equal(slash.payload.displayType, "error");
+    assert.equal(slash.payload.result.message, "Load a matter first before asking questions or searching.");
+    assert.equal(openAiCalls.length, 0, "no-matter slash commands should not call AI");
+  });
+});
+
+test("unibox slash routing reuses injected skill router provider", async () => {
+  const { appDir, matterRoot } = await createBaselineMatter();
+  let routerCalls = 0;
+
+  await withServer({
+    appDir,
+    matterRoot,
+    env: {},
+    skillRouterProvider: async ({ userRequest }) => {
+      routerCalls += 1;
+      assert.equal(userRequest, "/extract");
+      return {
+        decision: "run_existing_skill",
+        recommended_action: "run_existing_skill",
+        matched_skill: "/extract",
+        confidence: 0.99,
+        reason: "/extract handles extraction.",
+        user_gate_required: false,
+        suggested_next_action: "Run /extract.",
+        mece_violation: false,
+        legal_setting: {
+          jurisdiction: "",
+          forum: "",
+          case_type: "",
+          procedure_stage: "",
+          side: "",
+          relief_type: "",
+        },
+        override_requires: [],
+      };
+    },
+  }, async ({ baseUrl }) => {
+    const slash = await postJson(baseUrl, "/api/unibox", { userInput: "/extract" });
+    assert.equal(slash.ok, true);
     assert.equal(slash.payload.intent, "run_skill");
     assert.equal(slash.payload.displayType, "skill_router");
-    assert.ok(openAiCalls.length >= 1, "slash routing requires skill-router AI call");
+    assert.equal(slash.payload.result.matched_skill, "/extract");
+    assert.equal(routerCalls, 1);
   });
 });
 

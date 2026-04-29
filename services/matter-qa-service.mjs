@@ -1,17 +1,14 @@
 import { resolveModelPolicy, AI_TASKS } from "../shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
-import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
-import fs from "fs";
-import path from "path";
+import { createMatterContextService } from "./matter-context-service.mjs";
 
-const MAX_CONTEXT_CHARS = 64000;
 const MAX_CONVERSATION_TURNS = 10;
-const MAX_LIBRARY_RECORDS = 20;
 
 export function createMatterQaService({ matterStore, env = process.env } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
   const conversationStore = new Map();
+  const matterContextService = createMatterContextService({ matterStore });
 
   function getConversation(matterRoot) {
     if (!conversationStore.has(matterRoot)) {
@@ -29,7 +26,7 @@ export function createMatterQaService({ matterStore, env = process.env } = {}) {
       throw Object.assign(new Error("question is required"), { statusCode: 400 });
     }
     const root = matterRoot || matterStore.ensureMatterRoot();
-    const context = await buildMatterContext(root);
+    const context = await matterContextService.buildMatterContext(root);
     const modelPolicy = resolveModelPolicy(AI_TASKS.MATTER_QA, { env });
 
     const messages = [
@@ -105,95 +102,5 @@ export function createMatterQaService({ matterStore, env = process.env } = {}) {
     };
   }
 
-  async function buildMatterContext(matterRoot) {
-    const parts = [];
-
-    const matterJsonPath = path.join(matterRoot, "matter.json");
-    if (fs.existsSync(matterJsonPath)) {
-      parts.push(`[matter.json]\n${fs.readFileSync(matterJsonPath, "utf8")}`);
-    }
-
-    const intakes = await matterStore.listIntakeFolders(matterRoot);
-    for (const intake of intakes) {
-      const intakeDir = path.join(matterRoot, "00_Inbox", intake.name);
-
-      const registerPath = path.join(intakeDir, "File Register.csv");
-      if (fs.existsSync(registerPath)) {
-        parts.push(`[${intake.name}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
-      }
-
-      const extractedPath = path.join(intakeDir, "_extracted");
-      if (fs.existsSync(extractedPath)) {
-        const records = collectExtractionRecords(extractedPath);
-        for (const record of records) {
-          parts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
-        }
-      }
-    }
-
-    for (const candidate of discoverTopLevelDirs(matterRoot)) {
-      if (candidate.name === "00_Inbox") continue;
-      const records = collectExtractionRecords(candidate.fullPath);
-      if (records.length) {
-        for (const record of records.slice(0, MAX_LIBRARY_RECORDS)) {
-          parts.push(`[${candidate.name}: ${record.file_id || "unknown"}]\n${formatExtractionRecord(record)}`);
-        }
-      }
-    }
-
-    const fullContext = parts.join("\n\n---\n\n");
-    return fullContext.length > MAX_CONTEXT_CHARS
-      ? fullContext.slice(0, MAX_CONTEXT_CHARS) + "\n...[truncated]"
-      : fullContext;
-  }
-
   return { answerQuestion, getConversation, resetConversation };
-}
-
-function discoverTopLevelDirs(matterRoot) {
-  const results = [];
-  try {
-    const entries = fs.readdirSync(matterRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith(".")) {
-        results.push({ name: entry.name, fullPath: path.join(matterRoot, entry.name) });
-      }
-    }
-  } catch {
-    // skip inaccessible directories
-  }
-  return results;
-}
-
-function formatExtractionRecord(record) {
-  const pages = Array.isArray(record.pages) ? record.pages : [];
-  const blocks = pages.flatMap((p) => Array.isArray(p.blocks) ? p.blocks : []);
-  const textParts = blocks.map((b) => {
-    const id = b.id || "?";
-    const text = b.text || "";
-    return `${id}: ${text}`;
-  });
-  return textParts.join("\n");
-}
-
-function collectExtractionRecords(dir) {
-  const results = [];
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        results.push(...collectExtractionRecords(fullPath));
-      } else if (entry.name.endsWith(".json")) {
-        try {
-          results.push(JSON.parse(fs.readFileSync(fullPath, "utf8")));
-        } catch {
-          // skip unreadable files
-        }
-      }
-    }
-  } catch {
-    // skip inaccessible directories
-  }
-  return results;
 }

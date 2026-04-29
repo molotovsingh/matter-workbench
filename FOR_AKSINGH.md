@@ -15,6 +15,7 @@ server.mjs ─── routes/api-routes.mjs
                   ├── services/unibox-service.mjs      ← THE ORCHESTRATOR
                   │       ├── intent-classifier-service.mjs   (AI: what does the user want?)
                   │       ├── matter-qa-service.mjs          (AI: answer questions about the matter)
+                  │       ├── matter-context-service.mjs     (filesystem context for Q&A)
                   │       ├── matter-search-service.mjs      (grep the matter files)
                   │       └── skill-router-service.mjs       (AI: which skill matches?)
                   │
@@ -44,7 +45,7 @@ When you type something into the unibox:
 4. **Route by intent:**
    - `greeting` / `casual` → static response, no AI
    - `search` → strip search-verb prefix (`find`, `search for`, `look for`, etc.), then grep the matter files
-   - `copilot_qa` → build matter context (all extraction records + library files), send to AI with conversation history
+   - `copilot_qa` → ask `matter-context-service.mjs` for the matter context, then send it to AI with conversation history
    - `run_skill` → skill router AI call to match against the skill registry
    - `skill_request` → same skill router for create/modify intents
 
@@ -88,7 +89,7 @@ When you type something into the unibox:
 
 **Why it happened:** The original developer manually constructed paths with `fs.readdirSync` and string concatenation. It worked for the one matter type they tested. The `matterStore` already had `listIntakeFolders()` that uses the contract-aware pattern, but the Q&A service didn't use it.
 
-**The fix:** Use `matterStore.listIntakeFolders(matterRoot)` to discover intake directories dynamically. For library/output directories, enumerate top-level directories (skipping `00_Inbox`) and look for JSON records in each. This way, if someone creates `20_Analysis` or renames intakes, the Q&A service still finds the content.
+**The fix:** Use `matterStore.listIntakeFolders(matterRoot)` to discover intake directories dynamically. For library/output directories, enumerate top-level directories (skipping `00_Inbox`) and look for JSON records in each. This way, if someone creates `20_Analysis` or renames intakes, the Q&A path still finds the content. We later pulled that filesystem work into `services/matter-context-service.mjs`, so `matter-qa-service.mjs` can stay focused on the AI answer contract instead of becoming a mixed bag of path walking, record formatting, and OpenAI request code.
 
 **Lesson:** Hardcoded paths are technical debt even when they work. If you have a service that's supposed to discover content, it should discover it — not assume where it lives. The contract layer (`matter-contract.mjs`, `matterStore`) exists precisely to abstract away folder naming. Use it.
 

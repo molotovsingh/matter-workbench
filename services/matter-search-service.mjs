@@ -10,24 +10,25 @@ export function createMatterSearchService({ matterStore } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
   async function search({ query, matterRoot } = {}) {
-    if (!query || typeof query !== "string") {
+    if (typeof query !== "string" || !query.trim()) {
       throw Object.assign(new Error("query is required"), { statusCode: 400 });
     }
 
+    const normalizedQuery = query.trim();
     const root = matterRoot || matterStore.ensureMatterRoot();
-    const results = [];
-    const lowerQuery = query.toLowerCase();
+    const searchState = { totalMatches: 0, results: [] };
+    const lowerQuery = normalizedQuery.toLowerCase();
 
-    await searchDirectory(root, "", lowerQuery, results);
+    await searchDirectory(root, "", lowerQuery, searchState);
 
     return {
-      query,
-      totalResults: results.length,
-      results: results.slice(0, MAX_RESULTS),
+      query: normalizedQuery,
+      totalResults: searchState.totalMatches,
+      results: searchState.results,
     };
   }
 
-  async function searchDirectory(dir, relativeDir, lowerQuery, results) {
+  async function searchDirectory(dir, relativeDir, lowerQuery, searchState) {
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -41,11 +42,9 @@ export function createMatterSearchService({ matterStore } = {}) {
 
       if (entry.isDirectory()) {
         if (shouldSkipDirectory(entry.name)) continue;
-        await searchDirectory(fullPath, relPath, lowerQuery, results);
+        await searchDirectory(fullPath, relPath, lowerQuery, searchState);
         continue;
       }
-
-      if (results.length >= MAX_RESULTS) return;
 
       if (shouldSkipFile(entry.name)) continue;
 
@@ -55,6 +54,9 @@ export function createMatterSearchService({ matterStore } = {}) {
         const index = lowerContent.indexOf(lowerQuery);
         if (index === -1) continue;
 
+        searchState.totalMatches += 1;
+        if (searchState.results.length >= MAX_RESULTS) continue;
+
         const start = Math.max(0, index - SNIPPET_LENGTH / 2);
         const end = Math.min(content.length, index + lowerQuery.length + SNIPPET_LENGTH / 2);
         const snippet = content.slice(start, end).replace(/\n+/g, " ").trim();
@@ -63,7 +65,7 @@ export function createMatterSearchService({ matterStore } = {}) {
           (match) => `**${match}**`,
         );
 
-        results.push({
+        searchState.results.push({
           path: relPath,
           snippet: highlighted,
           line: content.slice(0, index).split("\n").length,

@@ -45,6 +45,7 @@ export async function createWorkbenchServer(options = {}) {
   const uniboxService = createUniboxService({
     matterStore,
     skillRegistryService,
+    skillRouterService,
     env,
   });
   const services = {
