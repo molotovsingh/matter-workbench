@@ -21,18 +21,21 @@ const __dirname = path.dirname(__filename);
 const DEFAULT_MATTER_ROOT = process.env.MATTER_ROOT ? path.resolve(process.env.MATTER_ROOT) : null;
 const ROOT_FILE_SKIP_NAMES = new Set([
   ".DS_Store",
+  "Thumbs.db",
   "matter.json",
 ]);
 
 function isIgnoredRootFile(name) {
-  return name.startsWith(".") || ROOT_FILE_SKIP_NAMES.has(name);
+  return name.startsWith(".") || name.startsWith("~$") || ROOT_FILE_SKIP_NAMES.has(name);
 }
 
 function isIgnoredPath(relativePath) {
   const parts = relativePath.split(path.sep);
   return parts.some((part) => (
     part === ".DS_Store"
+    || part === "Thumbs.db"
     || part.startsWith(".")
+    || part.startsWith("~$")
     || part === "Originals"
     || part === "By Type"
   ));
