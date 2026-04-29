@@ -7,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 import { runExtract } from "../extract-engine.mjs";
+import { PDF_ENGINE_FINGERPRINT } from "../extract-utils/pdf-extract.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { parseCsv } from "../shared/csv.mjs";
 
@@ -58,6 +59,31 @@ trailer
 << /Size 6 /Root 1 0 R >>
 startxref
 405
+%%EOF
+`);
+}
+
+async function writeBlankPdf(filePath) {
+  await writeFile(filePath, `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+xref
+0 4
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+trailer
+<< /Size 4 /Root 1 0 R >>
+startxref
+190
 %%EOF
 `);
 }
@@ -168,4 +194,78 @@ test("extraction cache is keyed on file register sha256", async () => {
   assert.equal(record.sha256, expected);
   const cached = await runExtract({ matterRoot: root, dryRun: false });
   assert.equal(cached.counts.cached, 1);
+});
+
+test("extract can use injected OCR provider for scanned PDFs while preserving page block citations", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "scanned-notice.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const calls = [];
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async (packet) => {
+      calls.push(packet);
+      return {
+        engine: "fake-mistral-ocr@1.0.0",
+        pages: [
+          {
+            page: 1,
+            markdown: "# LEGAL NOTICE\n\n**Possession notice** issued on 20 April 2026.\n\n- Reply within seven days.",
+            confidence: 0.91,
+            needs_review: false,
+          },
+        ],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].fileId, "FILE-0001");
+  assert.equal(calls[0].pageCount, 1);
+  assert.equal(result.counts.extracted, 1);
+  assert.equal(result.counts.ocrRequiredFiles, 0);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "fake-mistral-ocr@1.0.0");
+  assert.equal(record.pages[0].ocr_required, true);
+  assert.equal(record.pages[0].needs_review, false);
+  assert.deepEqual(record.pages[0].blocks.map((block) => block.id), ["p1.b1", "p1.b2", "p1.b3"]);
+  assert.deepEqual(record.pages[0].blocks.map((block) => block.type), ["heading", "paragraph", "list_item"]);
+  assert.equal(record.pages[0].blocks[0].text, "LEGAL NOTICE");
+  assert.equal(record.pages[0].blocks[1].text, "Possession notice issued on 20 April 2026.");
+  assert.equal(record.pages[0].blocks[2].text, "Reply within seven days.");
+
+  const flatText = await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.txt"), "utf8");
+  assert.match(flatText, /LEGAL NOTICE/);
+  assert.doesNotMatch(flatText, /[#*]/);
+});
+
+test("extract keeps OCR-required status when injected OCR provider returns no usable text", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "empty-scan.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async () => ({
+      engine: "fake-empty-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "", confidence: 0.99 }],
+    }),
+  });
+
+  assert.equal(result.counts.extracted, 1);
+  assert.equal(result.counts.ocrRequiredFiles, 1);
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.equal(logRows[0].status, "ocr-required-all");
+  assert.match(logRows[0].notes, /OCR provider failed: OCR provider returned no usable text/);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, PDF_ENGINE_FINGERPRINT);
+  assert.equal(record.pages[0].ocr_required, true);
+  assert.equal(record.pages[0].blocks.length, 0);
+  assert.ok(record.warnings.some((warning) => warning.includes("OCR provider returned no usable text")));
 });
