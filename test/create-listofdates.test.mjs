@@ -9,6 +9,7 @@ import {
   DEFAULT_OPENAI_MODEL,
   runCreateListOfDates,
   createOpenAiProvider,
+  createOpenRouterProvider,
 } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
@@ -363,6 +364,169 @@ test("OpenAI provider sends bounded structured output requests", async () => {
   assert.equal(bodies[0].max_output_tokens, 1234);
   assert.equal(bodies[0].text.format.type, "json_schema");
   assert.equal(bodies[0].text.format.strict, true);
+});
+
+test("OpenRouter provider sends strict no-fallback structured output requests", async () => {
+  const requests = [];
+  const provider = createOpenRouterProvider({
+    apiKey: "sk-openrouter-test",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "qwen/qwen3-source-backed",
+    maxOutputTokens: 1800,
+    timeoutMs: 45000,
+    fetchImpl: async (endpoint, init) => {
+      requests.push({
+        endpoint,
+        headers: init.headers,
+        body: JSON.parse(init.body),
+      });
+      return {
+        ok: true,
+        json: async () => ({
+          model: "qwen/qwen3-source-backed",
+          provider: "openrouter-test-provider",
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 5,
+            total_tokens: 17,
+            cost: 0.0002,
+          },
+          choices: [{ message: { content: JSON.stringify({ entries: [] }) } }],
+        }),
+      };
+    },
+  });
+
+  const response = await provider({
+    matter: {},
+    chunk: [],
+    chunkIndex: 1,
+    chunkCount: 1,
+    schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].endpoint, "https://openrouter.ai/api/v1/chat/completions");
+  assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-test");
+  assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
+  assert.equal(requests[0].body.max_tokens, 1800);
+  assert.deepEqual(requests[0].body.provider, {
+    require_parameters: true,
+    allow_fallbacks: false,
+  });
+  assert.equal(requests[0].body.response_format.type, "json_schema");
+  assert.equal(requests[0].body.response_format.json_schema.strict, true);
+  assert.equal(requests[0].body.response_format.json_schema.name, "list_of_dates_chunk");
+  assert.deepEqual(response.ai_run, {
+    returnedModel: "qwen/qwen3-source-backed",
+    returnedProvider: "openrouter-test-provider",
+    usage: {
+      promptTokens: 12,
+      completionTokens: 5,
+      totalTokens: 17,
+      cost: 0.0002,
+    },
+  });
+});
+
+test("OpenRouter provider maps malformed JSON to provider error", async () => {
+  const provider = createOpenRouterProvider({
+    apiKey: "sk-openrouter-test",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "qwen/qwen3-source-backed",
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "{not-json" } }],
+      }),
+    }),
+  });
+
+  await assert.rejects(
+    () => provider({
+      matter: {},
+      chunk: [],
+      chunkIndex: 1,
+      chunkCount: 1,
+      schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.match(error.message, /OpenRouter response did not include valid JSON message content/);
+      return true;
+    },
+  );
+});
+
+test("create-listofdates can opt into OpenRouter source-backed analysis provider", async () => {
+  const root = await prepareExtractedMatter();
+  const requests = [];
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    env: {
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+      OPENROUTER_API_KEY: "sk-openrouter-test",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+    },
+    fetchImpl: async (endpoint, init) => {
+      requests.push({ endpoint, body: JSON.parse(init.body) });
+      return {
+        ok: true,
+        json: async () => ({
+          model: "qwen/qwen3-source-backed",
+          provider: "openrouter-test-provider",
+          usage: {
+            prompt_tokens: 20,
+            completion_tokens: 10,
+            total_tokens: 30,
+            cost: 0.001,
+          },
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                entries: [{
+                  date_iso: "2026-04-20",
+                  date_text: "20 April 2026",
+                  event: "Agreement was signed by Mehta and Skyline.",
+                  citation: "FILE-0001 p1.b1",
+                  needs_review: false,
+                  confidence: 0.94,
+                }],
+              }),
+            },
+          }],
+        }),
+      };
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
+  assert.equal(requests[0].body.max_tokens, 1800);
+  assert.equal(requests[0].body.provider.allow_fallbacks, false);
+  assert.equal(result.entries.length, 1);
+  assert.deepEqual(result.aiRun, {
+    policyVersion: "model-policy/v1-current",
+    task: "source_backed_analysis",
+    tier: "source_backed_analysis",
+    provider: "openrouter",
+    model: "qwen/qwen3-source-backed",
+    maxOutputTokens: 1800,
+    fallback: "fail_closed",
+    returnedModel: "qwen/qwen3-source-backed",
+    returnedProvider: "openrouter-test-provider",
+    usage: {
+      promptTokens: 20,
+      completionTokens: 10,
+      totalTokens: 30,
+      cost: 0.001,
+    },
+  });
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.deepEqual(jsonOutput.ai_run, result.aiRun);
 });
 
 test("create-listofdates default provider uses model policy env overrides", async () => {

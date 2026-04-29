@@ -5,6 +5,7 @@ import {
   AI_TASKS,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
   MODEL_POLICY_VERSION,
@@ -76,6 +77,45 @@ test("model policy preserves current environment override behavior", () => {
     maxOutputTokens: 2048,
     fallback: "fail_closed",
   });
+});
+
+test("source-backed analysis policy can explicitly use OpenRouter", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+    env: {
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    tier: "source_backed_analysis",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "qwen/qwen3-source-backed",
+    maxOutputTokens: 1800,
+    timeoutMs: 45000,
+    fallback: "fail_closed",
+  });
+});
+
+test("source-backed analysis policy rejects unsupported explicit providers", () => {
+  assert.throws(
+    () => resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+      env: { SOURCE_BACKED_ANALYSIS_PROVIDER: "auto-router" },
+    }),
+    /Unsupported provider for source_backed_analysis: auto-router/,
+  );
+});
+
+test("source-backed OpenRouter policy has a default timeout", () => {
+  assert.equal(resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+    env: {
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+    },
+  }).timeoutMs, DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS);
 });
 
 test("source description policy uses OpenRouter env configuration", () => {

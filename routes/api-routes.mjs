@@ -3,6 +3,7 @@ import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
+import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 
 export async function handleApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -42,16 +43,22 @@ export async function handleApiRequest({ request, requestUrl, response, services
   if (request.method === "POST" && requestUrl.pathname === "/api/create-listofdates") {
     const root = matterStore.ensureMatterRoot();
     const body = await readRequestJson(request);
-    sendJson(response, 200, await runCreateListOfDates({
+    const env = services.env || {};
+    const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+    const options = {
       matterRoot: root,
       dryRun: Boolean(body.dryRun),
       aiProvider: services.aiProvider,
-      apiKey: services.env?.OPENAI_API_KEY,
-      model: typeof body.model === "string" && body.model.trim()
+      env,
+    };
+    if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
+      options.apiKey = env.OPENAI_API_KEY;
+      options.model = typeof body.model === "string" && body.model.trim()
         ? body.model.trim()
-        : services.env?.OPENAI_MODEL,
-      maxOutputTokens: services.env?.OPENAI_MAX_OUTPUT_TOKENS,
-    }));
+        : env.OPENAI_MODEL;
+      options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
+    }
+    sendJson(response, 200, await runCreateListOfDates(options));
     return true;
   }
 
