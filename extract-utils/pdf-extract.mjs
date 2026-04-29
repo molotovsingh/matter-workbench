@@ -128,6 +128,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
           ocrRequiredPageCount: normalizedOcr.pages.filter((page) => page.ocr_required).length,
           multiColumnPageCount,
           ocrApplied: true,
+          providerWarningsCount: normalizedOcr.warnings.length,
         },
       };
     } catch (err) {
@@ -164,6 +165,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
       ocrRequiredPageCount,
       multiColumnPageCount,
       ocrApplied: false,
+      providerWarningsCount: 0,
     },
   };
 }

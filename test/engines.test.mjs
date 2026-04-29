@@ -213,8 +213,9 @@ test("extract can use injected OCR provider for scanned PDFs while preserving pa
           {
             page: 1,
             markdown: "# LEGAL NOTICE\n\n**Possession notice** issued on 20 April 2026.\n\n- Reply within seven days.",
-            confidence: 0.91,
+            confidence: 0.7,
             needs_review: false,
+            warnings: ["smudged stamp"],
           },
         ],
       };
@@ -230,12 +231,22 @@ test("extract can use injected OCR provider for scanned PDFs while preserving pa
   const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
   assert.equal(record.engine, "fake-mistral-ocr@1.0.0");
   assert.equal(record.pages[0].ocr_required, true);
-  assert.equal(record.pages[0].needs_review, false);
+  assert.equal(record.pages[0].needs_review, true);
   assert.deepEqual(record.pages[0].blocks.map((block) => block.id), ["p1.b1", "p1.b2", "p1.b3"]);
   assert.deepEqual(record.pages[0].blocks.map((block) => block.type), ["heading", "paragraph", "list_item"]);
   assert.equal(record.pages[0].blocks[0].text, "LEGAL NOTICE");
   assert.equal(record.pages[0].blocks[1].text, "Possession notice issued on 20 April 2026.");
   assert.equal(record.pages[0].blocks[2].text, "Reply within seven days.");
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.equal(logRows[0].status, "extracted");
+  assert.equal(logRows[0].engine, "fake-mistral-ocr@1.0.0");
+  assert.equal(logRows[0].ocr_applied, "yes");
+  assert.equal(logRows[0].ocr_provider_model, "fake-mistral-ocr@1.0.0");
+  assert.equal(logRows[0].ocr_required_pages, "1");
+  assert.equal(logRows[0].low_confidence_pages, "1");
+  assert.equal(logRows[0].needs_review_pages, "1");
+  assert.equal(logRows[0].provider_warnings_count, "1");
 
   const flatText = await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.txt"), "utf8");
   assert.match(flatText, /LEGAL NOTICE/);
@@ -313,6 +324,14 @@ test("extract wires Mistral OCR only when the explicit env gate is enabled", asy
   assert.equal(record.engine, "mistral-ocr-latest");
   assert.equal(record.pages[0].blocks[0].text, "NOTICE");
   assert.equal(record.pages[0].blocks[1].text, "OCR text from Mistral.");
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.equal(logRows[0].status, "extracted");
+  assert.equal(logRows[0].engine, "mistral-ocr-latest");
+  assert.equal(logRows[0].ocr_applied, "yes");
+  assert.equal(logRows[0].ocr_provider_model, "mistral-ocr-latest");
+  assert.equal(logRows[0].low_confidence_pages, "0");
+  assert.equal(logRows[0].needs_review_pages, "0");
 });
 
 test("extract fails clearly when Mistral OCR gate is enabled without a key", async () => {
