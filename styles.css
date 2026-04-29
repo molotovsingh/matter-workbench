@@ -379,6 +379,54 @@ strong {
   margin-top: 12px;
 }
 
+.provider-status-table {
+  width: min(1040px, 100%);
+  max-width: 1040px;
+  table-layout: fixed;
+}
+
+.provider-status-table th,
+.provider-status-table td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.provider-status-table code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.provider-pill,
+.provider-status {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  background: #1a1a1a;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.provider-pill.openrouter {
+  border-color: #4b6f95;
+  color: #bcdcff;
+}
+
+.provider-pill.openai-direct {
+  border-color: #4f7660;
+  color: #c5f1d3;
+}
+
+.provider-status.ready {
+  border-color: #4f7660;
+  color: #c5f1d3;
+}
+
+.provider-status.needs-setup {
+  border-color: #8f6d3d;
+  color: #ffd591;
+}
+
 .tree-actions {
   display: flex;
   gap: 6px;
