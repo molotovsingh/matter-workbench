@@ -76,6 +76,7 @@ test("provider config resolves OpenRouter source description policy", () => {
     env: {
       OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "1200",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "45000",
       OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT: "price",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE: "0.15",
       OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE: "0.60",
@@ -88,6 +89,7 @@ test("provider config resolves OpenRouter source description policy", () => {
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     model: "meta-llama/source-description-model",
     maxOutputTokens: 1200,
+    timeoutMs: 45000,
     providerOrder: [],
     providerSort: "price",
     maxPrice: {

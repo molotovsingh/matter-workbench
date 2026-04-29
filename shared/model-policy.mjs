@@ -18,7 +18,8 @@ export const AI_PROVIDERS = Object.freeze({
 });
 
 export const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
-export const DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS = 1200;
+export const DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS = 3000;
+export const DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS = 90_000;
 export const DEFAULT_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_PROVIDER_SORTS = new Set(["price", "throughput", "latency"]);
 
@@ -55,6 +56,8 @@ const TASK_POLICIES = Object.freeze({
     providerSortEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT",
     maxPromptPriceEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MAX_PROMPT_PRICE",
     maxCompletionPriceEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MAX_COMPLETION_PRICE",
+    timeoutMsEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS",
+    defaultTimeoutMs: DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
     defaultMaxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   }),
 });
@@ -75,6 +78,7 @@ export function resolveModelPolicy(task, { env = process.env } = {}) {
     endpoint: base.endpoint,
     model: env[base.modelEnvKey] || (base.provider === AI_PROVIDERS.OPENAI_DIRECT ? DEFAULT_OPENAI_MODEL : ""),
     maxOutputTokens: parsePositiveInteger(env[base.maxOutputTokensEnvKey]) || base.defaultMaxOutputTokens,
+    ...(base.timeoutMsEnvKey ? { timeoutMs: parsePositiveInteger(env[base.timeoutMsEnvKey]) || base.defaultTimeoutMs } : {}),
     fallback: base.fallback,
     ...(base.providerOrderEnvKey ? { providerOrder: parseProviderOrder(env[base.providerOrderEnvKey]) } : {}),
     ...(base.providerSortEnvKey ? parseProviderSortSetting(env[base.providerSortEnvKey]) : {}),
