@@ -139,6 +139,32 @@ test("matter-init preserves originals, classifies working copies, and records du
   assert.equal(matterJson.intakes[0].intake_id, "INTAKE-01");
 });
 
+test("matter-init ignores OS junk and Office lockfiles before file registration", async () => {
+  const root = await makeMatterRoot();
+  await writeFile(path.join(root, "Thumbs.db"), "root thumbnails");
+  await writeFile(path.join(root, "~$root-lock.docx"), "root office lockfile");
+  await writeFile(path.join(root, "loose-root-note.txt"), "Loose root note dated 21 April 2026.\n");
+  await writeSource(root, ".DS_Store", "finder metadata");
+  await writeSource(root, "Thumbs.db", "windows thumbnails");
+  await writeSource(root, "~$agreement.docx", "office lockfile");
+  await writeSource(root, "agreement.pdf", "%PDF-1.4\n");
+  await writeSource(root, "notes.md", "Notes dated 20 April 2026.\n");
+
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const register = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "utf8"));
+  assert.deepEqual(register.map((row) => row.original_name), ["agreement.pdf", "loose-root-note.txt", "notes.md"]);
+  assert.deepEqual(register.map((row) => row.category), ["PDFs", "Text Notes", "Text Notes"]);
+  await assert.rejects(
+    () => stat(path.join(root, "00_Inbox", "Intake 01 - Initial", "Originals", "~$agreement.docx")),
+    { code: "ENOENT" },
+  );
+  await assert.rejects(
+    () => stat(path.join(root, "00_Inbox", "Intake 01 - Initial", "Source Files", "~$root-lock.docx")),
+    { code: "ENOENT" },
+  );
+});
+
 test("extract creates records for PDF, DOCX, RTF, spreadsheet, EML, and text while logging unsupported files", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "01-note.txt", "Plain text paragraph.\n\nSecond paragraph.");
