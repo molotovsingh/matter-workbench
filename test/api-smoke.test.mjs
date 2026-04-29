@@ -113,6 +113,122 @@ test("server API smoke test keeps public routes stable", async () => {
   }
 });
 
+test("create-listofdates API route uses OpenRouter-specific config when selected", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-api-openrouter-test-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "OpenRouter Matter");
+  await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(
+    path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files", "notice.txt"),
+    "Legal notice was issued on 20 April 2026.",
+  );
+  await runMatterInit({
+    matterRoot,
+    dryRun: false,
+    metadata: {
+      clientName: "OpenRouter Client",
+      matterName: "OpenRouter Matter",
+      oppositeParty: "Opposite",
+      matterType: "Test",
+      jurisdiction: "Local",
+      briefDescription: "",
+    },
+  });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {
+      MATTERS_HOME: mattersHome,
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+      OPENROUTER_API_KEY: "sk-openrouter-route-test",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+      OPENAI_API_KEY: "sk-openai-should-not-be-used",
+      OPENAI_MODEL: "openai-model-should-not-be-used",
+      OPENAI_MAX_OUTPUT_TOKENS: "999",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+  const realFetch = globalThis.fetch;
+  const requests = [];
+
+  globalThis.fetch = async (url, init) => {
+    const endpoint = String(url);
+    if (endpoint === "https://openrouter.ai/api/v1/chat/completions") {
+      requests.push({
+        endpoint,
+        headers: init.headers,
+        body: JSON.parse(init.body),
+      });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          model: "qwen/qwen3-source-backed",
+          provider: "route-test-provider",
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 8,
+            total_tokens: 20,
+            cost: 0.0007,
+          },
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                entries: [{
+                  date_iso: "2026-04-20",
+                  date_text: "20 April 2026",
+                  event: "Legal notice was issued.",
+                  citation: "FILE-0001 p1.b1",
+                  needs_review: false,
+                  confidence: 0.91,
+                }],
+              }),
+            },
+          }],
+        }),
+      };
+    }
+    return realFetch(url, init);
+  };
+
+  try {
+    await postJson(baseUrl, "/api/switch-matter", { name: "OpenRouter Matter" });
+    const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
+    assert.equal(extract.counts.extracted, 1);
+
+    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", {
+      dryRun: false,
+      model: "openai-body-model-should-not-be-used",
+    });
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-route-test");
+    assert.notEqual(requests[0].headers.authorization, "Bearer sk-openai-should-not-be-used");
+    assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
+    assert.equal(requests[0].body.max_tokens, 1800);
+    assert.equal(requests[0].body.provider.require_parameters, true);
+    assert.equal(requests[0].body.provider.allow_fallbacks, false);
+    assert.equal(listOfDates.counts.entries, 1);
+    assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
+    assert.equal(listOfDates.aiRun.provider, "openrouter");
+    assert.equal(listOfDates.aiRun.model, "qwen/qwen3-source-backed");
+    assert.equal(listOfDates.aiRun.returnedProvider, "route-test-provider");
+  } finally {
+    globalThis.fetch = realFetch;
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
 test("overlap check reads file registers from every intake folder", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-overlap-test-"));
   const appDir = path.join(tmp, "app");
