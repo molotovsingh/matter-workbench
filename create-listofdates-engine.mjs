@@ -8,7 +8,7 @@ import {
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
-import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
+import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "./shared/responses-client.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 
@@ -81,17 +81,20 @@ export async function runCreateListOfDates(options = {}) {
   if (!matterRoot) throw new Error("MATTER_ROOT is not set. Pass options.matterRoot or set the env var.");
 
   const dryRun = Boolean(options.dryRun);
-  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env: process.env });
+  const env = options.env || process.env;
+  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
   const providerConfig = resolveProviderConfig(modelPolicy, {
+    endpoint: options.endpoint,
     model: options.model,
     maxOutputTokens: options.maxOutputTokens,
+    timeoutMs: options.timeoutMs,
   });
-  const aiRun = modelPolicyMetadata(modelPolicy, providerConfig);
-  const provider = options.aiProvider || createOpenAiProvider({
-    apiKey: options.apiKey || process.env.OPENAI_API_KEY,
-    model: providerConfig.model,
-    endpoint: providerConfig.endpoint,
-    maxOutputTokens: providerConfig.maxOutputTokens,
+  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
+  const provider = options.aiProvider || createListOfDatesProvider({
+    providerConfig,
+    apiKey: options.apiKey,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
   });
 
   const matterJson = await readMatterJson(matterRoot);
@@ -114,6 +117,7 @@ export async function runCreateListOfDates(options = {}) {
   ];
 
   const rawEntries = [];
+  const responseAiRuns = [];
   for (const [index, chunk] of chunks.entries()) {
     const response = await provider({
       matter: matterSummary(matterJson),
@@ -128,11 +132,13 @@ export async function runCreateListOfDates(options = {}) {
       throw error;
     }
     rawEntries.push(...response.entries);
+    if (response.ai_run) responseAiRuns.push(response.ai_run);
     outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
   }
 
   const validEntries = validateAndHydrateEntries(rawEntries, blocks, sourceIndex);
   const entries = dedupeEntries(validEntries).sort(compareEntries);
+  const aiRun = mergeAiRunMetadata(baseAiRun, responseAiRuns);
 
   const outputDir = path.join(matterRoot, "10_Library");
   const outputPaths = {
@@ -161,6 +167,7 @@ export async function runCreateListOfDates(options = {}) {
   }
 
   outputLines.push(`[listofdates] accepted ${entries.length} cited date event(s)`);
+  outputLines.push(`[listofdates] provider ${aiRun.provider}: ${aiRun.model}`);
   outputLines.push(dryRun
     ? "[listofdates] dry run only. Re-run with apply to write list of dates."
     : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
@@ -182,6 +189,27 @@ export async function runCreateListOfDates(options = {}) {
     entries,
     outputLines,
   };
+}
+
+function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl }) {
+  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
+    return createOpenRouterProvider({
+      apiKey: apiKey || env.OPENROUTER_API_KEY,
+      endpoint: providerConfig.endpoint,
+      fetchImpl,
+      maxOutputTokens: providerConfig.maxOutputTokens,
+      model: providerConfig.model,
+      requireParameters: providerConfig.requireParameters,
+      allowFallbacks: providerConfig.allowFallbacks,
+      timeoutMs: providerConfig.timeoutMs,
+    });
+  }
+  return createOpenAiProvider({
+    apiKey: apiKey || env.OPENAI_API_KEY,
+    model: providerConfig.model,
+    endpoint: providerConfig.endpoint,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+  });
 }
 
 export function createOpenAiProvider({
@@ -213,26 +241,7 @@ export function createOpenAiProvider({
           },
           {
             role: "user",
-            content: JSON.stringify({
-              task: "Create list of dates from this chunk of extraction records.",
-              matter,
-              chunk_index: chunkIndex,
-              chunk_count: chunkCount,
-              instructions: [
-                "Include exact calendar dates only when the source gives day, month, and year.",
-                "Normalize dates to YYYY-MM-DD.",
-                "Write event text as a concise lawyer-reviewable fact from the cited block.",
-                "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
-                "Ignore bare years, statute years, section numbers, page numbers, and unrelated citation years unless tied to an event in the source block.",
-              ],
-              source_blocks: chunk.map((block) => ({
-                citation: block.citation,
-                source: block.original_name || block.source_path,
-                confidence: block.confidence,
-                needs_review: block.needs_review,
-                text: block.text,
-              })),
-            }),
+            content: JSON.stringify(listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount })),
           },
         ],
         text: {
@@ -247,6 +256,235 @@ export function createOpenAiProvider({
       },
     });
   };
+}
+
+export function createOpenRouterProvider({
+  apiKey,
+  endpoint,
+  fetchImpl = fetch,
+  maxOutputTokens,
+  model,
+  requireParameters = true,
+  allowFallbacks = false,
+  timeoutMs,
+} = {}) {
+  return async function openRouterListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, schema }) {
+    if (!apiKey) {
+      const error = new Error("OPENROUTER_API_KEY is required for /create_listofdates");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (!model) {
+      const error = new Error("OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL is required for /create_listofdates");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are a careful Indian legal chronology assistant.",
+            "Create a source-backed list of dates from extracted document blocks.",
+            "Use only the supplied source blocks.",
+            "Extract legally or factually relevant dated events.",
+            "Do not invent dates, facts, parties, or citations.",
+            "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
+            "Return JSON only in the requested schema.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: JSON.stringify(listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount })),
+        },
+      ],
+      temperature: 0,
+      max_tokens: maxOutputTokens,
+      provider: {
+        require_parameters: requireParameters,
+        allow_fallbacks: allowFallbacks,
+      },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "list_of_dates_chunk",
+          strict: true,
+          schema,
+        },
+      },
+    };
+
+    const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
+    let response;
+    let payload;
+    try {
+      response = await fetchImpl(endpoint, {
+        method: "POST",
+        headers: {
+          "authorization": `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          "http-referer": "https://github.com/molotovsingh/matter-workbench",
+          "x-title": "Matter Workbench List of Dates",
+        },
+        body: JSON.stringify(body),
+        ...(signal ? { signal } : {}),
+      });
+      payload = await response.json().catch((error) => {
+        if (signal?.aborted || error?.name === "AbortError") throw error;
+        return null;
+      });
+    } catch (error) {
+      if (signal?.aborted || error?.name === "AbortError") {
+        const timeoutError = new Error(`OpenRouter list-of-dates request timed out after ${timeoutMs}ms`);
+        timeoutError.statusCode = 504;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      cancelTimeout();
+    }
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || `OpenRouter returned ${response.status}`);
+      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
+      throw error;
+    }
+
+    return parseOpenRouterJsonContent(payload);
+  };
+}
+
+function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
+  return {
+    task: "Create list of dates from this chunk of extraction records.",
+    matter,
+    chunk_index: chunkIndex,
+    chunk_count: chunkCount,
+    instructions: [
+      "Include exact calendar dates only when the source gives day, month, and year.",
+      "Normalize dates to YYYY-MM-DD.",
+      "Write event text as a concise lawyer-reviewable fact from the cited block.",
+      "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
+      "Ignore bare years, statute years, section numbers, page numbers, and unrelated citation years unless tied to an event in the source block.",
+    ],
+    source_blocks: chunk.map((block) => ({
+      citation: block.citation,
+      source: block.original_name || block.source_path,
+      confidence: block.confidence,
+      needs_review: block.needs_review,
+      text: block.text,
+    })),
+  };
+}
+
+function createRequestSignal(timeoutMs) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    return {
+      signal: null,
+      cancelTimeout: () => {},
+    };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    cancelTimeout: () => clearTimeout(timer),
+  };
+}
+
+function parseOpenRouterJsonContent(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === "string") {
+    try {
+      return attachOpenRouterAiRunMetadata(JSON.parse(content), payload);
+    } catch (parseError) {
+      const error = new Error(`OpenRouter response did not include valid JSON message content: ${parseError.message}`);
+      error.statusCode = 502;
+      throw error;
+    }
+  }
+  if (content && typeof content === "object") return attachOpenRouterAiRunMetadata(content, payload);
+  const error = new Error("OpenRouter response did not include JSON message content");
+  error.statusCode = 502;
+  throw error;
+}
+
+function attachOpenRouterAiRunMetadata(content, payload) {
+  const aiRun = extractOpenRouterAiRunMetadata(payload);
+  if (!Object.keys(aiRun).length) return content;
+  return {
+    ...content,
+    ai_run: aiRun,
+  };
+}
+
+function mergeAiRunMetadata(baseAiRun, responseAiRuns) {
+  const aiRuns = Array.isArray(responseAiRuns) ? responseAiRuns : [responseAiRuns].filter(Boolean);
+  if (!aiRuns.length) return baseAiRun;
+  const merged = { ...baseAiRun };
+  const usage = {};
+  for (const aiRun of aiRuns) {
+    if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) continue;
+    if (aiRun.returnedModel) merged.returnedModel = aiRun.returnedModel;
+    if (aiRun.returnedProvider) merged.returnedProvider = aiRun.returnedProvider;
+    if (aiRun.usage) {
+      addNumber(usage, "promptTokens", aiRun.usage.promptTokens);
+      addNumber(usage, "completionTokens", aiRun.usage.completionTokens);
+      addNumber(usage, "totalTokens", aiRun.usage.totalTokens);
+      addNumber(usage, "cost", aiRun.usage.cost);
+    }
+  }
+  if (Object.keys(usage).length) merged.usage = usage;
+  return merged;
+}
+
+function extractOpenRouterAiRunMetadata(payload) {
+  const metadata = {};
+  const returnedModel = normalizeOptionalString(payload?.model);
+  const returnedProvider = normalizeOptionalString(payload?.provider)
+    || normalizeOptionalString(payload?.provider_name)
+    || normalizeOptionalString(payload?.choices?.[0]?.provider);
+  const usage = normalizeOpenRouterUsage(payload?.usage);
+  if (returnedModel) metadata.returnedModel = returnedModel;
+  if (returnedProvider) metadata.returnedProvider = returnedProvider;
+  if (usage) metadata.usage = usage;
+  return metadata;
+}
+
+function normalizeOpenRouterUsage(usage) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const normalized = {};
+  const promptTokens = parseNonNegativeInteger(usage.prompt_tokens ?? usage.promptTokens);
+  const completionTokens = parseNonNegativeInteger(usage.completion_tokens ?? usage.completionTokens);
+  const totalTokens = parseNonNegativeInteger(usage.total_tokens ?? usage.totalTokens);
+  const cost = parseNonNegativeNumber(usage.cost);
+  if (promptTokens !== null) normalized.promptTokens = promptTokens;
+  if (completionTokens !== null) normalized.completionTokens = completionTokens;
+  if (totalTokens !== null) normalized.totalTokens = totalTokens;
+  if (cost !== null) normalized.cost = cost;
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function normalizeOptionalString(value) {
+  const text = String(value || "").trim();
+  return text || "";
+}
+
+function parseNonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : null;
+}
+
+function parseNonNegativeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function addNumber(target, key, value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return;
+  target[key] = (target[key] || 0) + number;
 }
 
 async function readMatterJson(matterRoot) {

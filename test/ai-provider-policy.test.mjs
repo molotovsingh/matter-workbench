@@ -110,6 +110,40 @@ test("provider config resolves OpenRouter source description policy", () => {
   });
 });
 
+test("provider config resolves OpenRouter source-backed analysis policy", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, {
+    env: {
+      SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
+      OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
+    },
+  });
+  const providerConfig = resolveProviderConfig(policy);
+
+  assert.deepEqual(providerConfig, {
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "qwen/qwen3-source-backed",
+    maxOutputTokens: 1800,
+    timeoutMs: 45000,
+    providerOrder: [],
+    providerSort: "",
+    maxPrice: null,
+    requireParameters: true,
+    allowFallbacks: false,
+  });
+  assert.deepEqual(modelPolicyMetadata(policy, providerConfig), {
+    policyVersion: policy.policyVersion,
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    tier: "source_backed_analysis",
+    provider: AI_PROVIDERS.OPENROUTER,
+    model: "qwen/qwen3-source-backed",
+    maxOutputTokens: 1800,
+    fallback: "fail_closed",
+  });
+});
+
 test("provider config rejects mixed OpenRouter provider pin and price routing overrides", () => {
   const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
     env: {
