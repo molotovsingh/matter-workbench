@@ -17,11 +17,56 @@ const ENGINE_VERSION = "create-listofdates-v1-ai";
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 const BLOCK_CHAR_LIMIT = 2800;
 const CHUNK_CHAR_LIMIT = 18000;
+const LAWYER_FACING_PERSPECTIVE = "client_favourable";
+const EVENT_TYPES = [
+  "agreement",
+  "payment",
+  "notice",
+  "demand",
+  "reply",
+  "admission",
+  "denial",
+  "objection",
+  "deadline",
+  "deadline_missed",
+  "hearing",
+  "filing",
+  "inspection",
+  "contradiction",
+  "gap_marker",
+  "other",
+];
+const EVENT_TYPE_SET = new Set(EVENT_TYPES);
+const LIST_OF_DATES_SYSTEM_PROMPT = [
+  "You are a careful Indian legal chronology assistant.",
+  "Create a lawyer-facing, client-favourable, source-backed list of dates from extracted document blocks.",
+  "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
+  "Extract legally or factually relevant dated events.",
+  "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
+  "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
+  "Every legal_relevance sentence must be supported by the same cited block as the event.",
+  "Use claimed, denied, alleged, states, records, objected, failed, missed, demanded, or acknowledged for disputed facts.",
+  "Do not say fraud, bad faith, breach, breach proved, liability admitted, or equivalent unless the cited source says it.",
+  "Keep readable source labels separate from raw citations; raw FILE-NNNN pX.bY citations remain canonical.",
+  "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text.",
+  "Return one compact JSON object only, matching the requested schema.",
+].join(" ");
+const HIGH_RISK_CONCLUSION_TERMS = [
+  "fraud",
+  "bad faith",
+  "breach proved",
+  "liability admitted",
+];
+const RAW_CITATION_RE = /\bFILE-\d{4,}\s+p\d+\.b\d+\b/g;
 
 const CSV_HEADERS = [
   "date_iso",
   "date_text",
   "event",
+  "event_type",
+  "legal_relevance",
+  "issue_tags",
+  "perspective",
   "citation",
   "source_file_id",
   "source_label",
@@ -44,7 +89,18 @@ const OUTPUT_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["date_iso", "date_text", "event", "citation", "needs_review", "confidence"],
+        required: [
+          "date_iso",
+          "date_text",
+          "event",
+          "event_type",
+          "legal_relevance",
+          "issue_tags",
+          "perspective",
+          "citation",
+          "needs_review",
+          "confidence",
+        ],
         properties: {
           date_iso: {
             type: "string",
@@ -55,6 +111,27 @@ const OUTPUT_SCHEMA = {
           },
           event: {
             type: "string",
+          },
+          event_type: {
+            type: "string",
+            enum: EVENT_TYPES,
+          },
+          legal_relevance: {
+            type: "string",
+          },
+          issue_tags: {
+            type: "array",
+            minItems: 1,
+            maxItems: 8,
+            items: {
+              type: "string",
+              minLength: 1,
+              maxLength: 64,
+            },
+          },
+          perspective: {
+            type: "string",
+            enum: [LAWYER_FACING_PERSPECTIVE],
           },
           citation: {
             type: "string",
@@ -232,15 +309,7 @@ export function createOpenAiProvider({
         input: [
           {
             role: "system",
-            content: [
-              "You are a careful Indian legal chronology assistant.",
-              "Create a source-backed list of dates from extracted document blocks.",
-              "Use only the supplied source blocks.",
-              "Extract legally or factually relevant dated events.",
-              "Do not invent dates, facts, parties, or citations.",
-              "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
-              "Return JSON only in the requested schema.",
-            ].join(" "),
+            content: LIST_OF_DATES_SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -291,15 +360,7 @@ export function createOpenRouterProvider({
       messages: [
         {
           role: "system",
-          content: [
-            "You are a careful Indian legal chronology assistant.",
-            "Create a source-backed list of dates from extracted document blocks.",
-            "Use only the supplied source blocks.",
-            "Extract legally or factually relevant dated events.",
-            "Do not invent dates, facts, parties, or citations.",
-            "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
-            "Return JSON only in the requested schema.",
-          ].join(" "),
+          content: LIST_OF_DATES_SYSTEM_PROMPT,
         },
         {
           role: "user",
@@ -374,9 +435,19 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
       "Include exact calendar dates only when the source gives day, month, and year.",
       "Normalize dates to YYYY-MM-DD.",
       "Write event text as a concise lawyer-reviewable fact from the cited block.",
+      `Write perspective exactly as ${LAWYER_FACING_PERSPECTIVE}.`,
+      "Classify event_type using one allowed event type.",
+      "Write legal_relevance as one source-supported sentence explaining why this event matters to the declared client's case.",
+      "Use client-favourable legal framing only when the cited block supports it.",
+      "Use issue_tags as short conservative review handles such as payment, delay, possession, notice, deadline, contradiction, admission, denial, objection, evidence_gap, procedure, or damages.",
+      "Use claimed, denied, alleged, states, or records for disputed facts; do not present disputed allegations as proven.",
+      "Do not say fraud, bad faith, breach, breach proved, liability admitted, or equivalent unless the cited block itself says it.",
+      "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text; use the citation field only.",
+      "Do not collapse multiple same-day events when they carry different legal meaning or different citations.",
       "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
       "Ignore bare years, statute years, section numbers, page numbers, and unrelated citation years unless tied to an event in the source block.",
     ],
+    allowed_event_types: EVENT_TYPES,
     source_blocks: chunk.map((block) => ({
       citation: block.citation,
       source: block.original_name || block.source_path,
@@ -637,13 +708,22 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
     const block = blockByCitation.get(raw.citation);
     if (!block) continue;
     if (!isValidDateIso(raw.date_iso)) continue;
-    const event = String(raw.event || "").replace(/\s+/g, " ").trim();
+    const event = normalizeEventText(raw.event, block.text);
     const dateText = String(raw.date_text || "").replace(/\s+/g, " ").trim();
-    if (!event || !dateText) continue;
+    const eventType = normalizeEventType(raw.event_type);
+    const legalRelevance = normalizeLegalRelevance(raw.legal_relevance, block.text);
+    const issueTags = normalizeIssueTags(raw.issue_tags);
+    const perspective = String(raw.perspective || "").replace(/\s+/g, " ").trim();
+    if (!event || !dateText || !eventType || !legalRelevance || !issueTags.length) continue;
+    if (perspective !== LAWYER_FACING_PERSPECTIVE) continue;
     entries.push({
       date_iso: raw.date_iso,
       date_text: dateText,
-      event: event.slice(0, 1000),
+      event,
+      event_type: eventType,
+      legal_relevance: legalRelevance,
+      issue_tags: issueTags,
+      perspective,
       citation: raw.citation,
       file_id: block.file_id,
       source_file_id: block.file_id,
@@ -659,6 +739,71 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
     });
   }
   return entries;
+}
+
+function normalizeEventType(value) {
+  const eventType = String(value || "").trim().toLowerCase();
+  return EVENT_TYPE_SET.has(eventType) ? eventType : "";
+}
+
+function normalizeEventText(value, sourceText) {
+  const event = normalizeNarrativeText(value, sourceText);
+  if (!event) return "";
+  if (hasUnsupportedHighRiskConclusion(event, sourceText)) return "";
+  return event.slice(0, 1000);
+}
+
+function normalizeNarrativeText(value, sourceText) {
+  return softenUnsupportedConclusionLanguage(String(value || ""))
+    .replace(RAW_CITATION_RE, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/\(\s*\)/g, "")
+    .trim();
+}
+
+function normalizeLegalRelevance(value, sourceText) {
+  const relevance = normalizeNarrativeText(value, sourceText);
+  if (!relevance) return "";
+  if (hasUnsupportedHighRiskConclusion(relevance, sourceText)) return "";
+  return relevance.slice(0, 1000);
+}
+
+function softenUnsupportedConclusionLanguage(value) {
+  return value
+    .replace(/\bproves?\b/gi, "supports")
+    .replace(/\bproved\b/gi, "supported")
+    .replace(/\bconstitutes\s+a\s+breach\b/gi, "supports a contractual default issue")
+    .replace(/\bestablishing\s+the\s+breach\b/gi, "supporting the client's default issue")
+    .replace(/\bbreach\s+of\s+(?:the\s+)?agreement\b/gi, "contractual default issue")
+    .replace(/\bbreached\b/gi, "missed")
+    .replace(/\bbreach\b/gi, "default issue");
+}
+
+function hasUnsupportedHighRiskConclusion(relevance, sourceText) {
+  const source = String(sourceText || "").toLowerCase();
+  const text = relevance.toLowerCase();
+  return HIGH_RISK_CONCLUSION_TERMS.some((term) => text.includes(term) && !source.includes(term));
+}
+
+function normalizeIssueTags(value) {
+  const rawTags = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[,;]/);
+  const tags = [];
+  const seen = new Set();
+  for (const rawTag of rawTags) {
+    const tag = String(rawTag || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_")
+      .replace(/[^a-z0-9_]/g, "");
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag.slice(0, 64));
+    if (tags.length >= 8) break;
+  }
+  return tags;
 }
 
 function normalizeDisplayText(value) {
@@ -714,14 +859,14 @@ function matterSummary(matterJson) {
 
 function renderMarkdown(matterJson, entries) {
   const rows = entries.map((entry) => (
-    `| ${escapeMarkdownCell(entry.date_iso)} | ${escapeMarkdownCell(entry.event)} | ${escapeMarkdownCell(entry.citation)} | ${escapeMarkdownCell(formatSourceForDisplay(entry))} |`
+    `| ${escapeMarkdownCell(entry.date_iso)} | ${escapeMarkdownCell(entry.event)} | ${escapeMarkdownCell(entry.legal_relevance)} | ${escapeMarkdownCell(formatSourceForDisplay(entry))} |`
   ));
-  return `# List of Dates\n\nMatter: ${matterJson.matter_name || "Matter"}\n\nGenerated by ${ENGINE_VERSION}. Review before relying on this chronology.\n\n| Date | Event | Citation | Source |\n|---|---|---|---|\n${rows.join("\n")}\n`;
+  return `# List of Dates\n\nMatter: ${matterJson.matter_name || "Matter"}\n\nGenerated by ${ENGINE_VERSION}. Review before relying on this chronology.\n\n| Date | Event | Legal Relevance | Source |\n|---|---|---|---|\n${rows.join("\n")}\n`;
 }
 
 function formatSourceForDisplay(entry) {
   const fallback = entry.original_name || entry.source_path;
-  if (!entry.source_label) return fallback;
+  if (!entry.source_label) return fallback ? `${fallback} (${entry.citation})` : entry.citation;
   return `${entry.source_label} (${entry.citation})`;
 }
 
