@@ -6,5 +6,7 @@ node_modules/
 output/
 config.json
 skill-proposals.json
+.mcp.json.off
+.pi/
 .doctor-backups/
 .claude/

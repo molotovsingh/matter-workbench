@@ -16,7 +16,7 @@
   - `_extracted/`: JSON extraction records (`FILE-NNNN.json`) per intake
   - `10_Library/`: AI analysis outputs
 - **Skills**: Definitions in `skills/registry.json`. Invoked via slash commands. The frontend (`frontend/unibox.js`) auto-executes matched skills if `user_gate_required` is false.
-- **Frontend**: Static files served by backend, root `index.html`. 
+- **Frontend**: Static files served by backend, root `index.html`.
 
 ## Quirks & Conventions
 - **No external test framework**: Tests use Node.js built-in `node --test`.

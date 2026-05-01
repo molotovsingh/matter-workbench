@@ -2,7 +2,7 @@
 
 ## Summary
 
-The `/extract` engine preserves **near 100% of key labeling signals and content** across all 10 mehta documents. 
+The `/extract` engine preserves **near 100% of key labeling signals and content** across all 10 mehta documents.
 
 An initial audit suggested high text loss on PDFs, Word documents, and Spreadsheets, but this was a **false alarm** caused by comparing the extracted plaintext character count against the binary file byte size (e.g., comparing 2,000 characters of text to a 6.6KB zipped `.xlsx` file). A manual review of the raw extracted JSON and the original files confirms that the extraction fidelity is excellent.
 
@@ -25,7 +25,7 @@ FILE-0005, FILE-0006, and FILE-0010 are native PDFs extracted via `pdfjs-dist`.
 ### 3. Word Documents
 FILE-0009 (site inspection report) is a `.docx` extracted via `mammoth`.
 - **Content is fully preserved:** The inspection details, tables, and signatures are captured.
-- **False Alarm on FILE-0009:** The initial script flagged the word "defect" as missing. A raw `grep` of the original `document.xml` confirms the word "defect" does not exist in the document at all. 
+- **False Alarm on FILE-0009:** The initial script flagged the word "defect" as missing. A raw `grep` of the original `document.xml` confirms the word "defect" does not exist in the document at all.
 - **Verdict:** Excellent fidelity.
 
 ### 4. Text Files
