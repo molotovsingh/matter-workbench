@@ -24,6 +24,16 @@ async function getJson(baseUrl, pathName) {
   return payload;
 }
 
+function lawyerFields(overrides = {}) {
+  return {
+    event_type: "other",
+    legal_relevance: "Supports the client's chronology because the cited source records the event.",
+    issue_tags: ["chronology"],
+    perspective: "client_favourable",
+    ...overrides,
+  };
+}
+
 test("server API smoke test keeps public routes stable", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-api-test-"));
   const appDir = path.join(tmp, "app");
@@ -59,6 +69,11 @@ test("server API smoke test keeps public routes stable", async () => {
         citation: "FILE-0001 p1.b1",
         needs_review: false,
         confidence: 0.9,
+        ...lawyerFields({
+          event_type: "other",
+          legal_relevance: "Supports the client's chronology because the cited note records the smoke event date.",
+          issue_tags: ["chronology"],
+        }),
       }],
     }),
     skillRouterProvider: async () => ({
@@ -194,6 +209,11 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
                   citation: "FILE-0001 p1.b1",
                   needs_review: false,
                   confidence: 0.91,
+                  ...lawyerFields({
+                    event_type: "notice",
+                    legal_relevance: "Supports the client's notice chronology because the cited source records the legal notice date.",
+                    issue_tags: ["notice"],
+                  }),
                 }],
               }),
             },

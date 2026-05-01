@@ -72,6 +72,16 @@ async function writeSourceIndex(root, sources) {
   );
 }
 
+function lawyerFields(overrides = {}) {
+  return {
+    event_type: "other",
+    legal_relevance: "Supports the client's chronology because the cited source records the event.",
+    issue_tags: ["chronology"],
+    perspective: "client_favourable",
+    ...overrides,
+  };
+}
+
 test("create-listofdates calls an AI provider and writes cited chronology outputs", async () => {
   const root = await prepareExtractedMatter();
   const calls = [];
@@ -84,6 +94,11 @@ test("create-listofdates calls an AI provider and writes cited chronology output
       assert.equal(chunkIndex, 1);
       assert.equal(chunkCount, 1);
       assert.equal(schema.properties.entries.type, "array");
+      assert.ok(schema.properties.entries.items.required.includes("legal_relevance"));
+      assert.ok(schema.properties.entries.items.required.includes("event_type"));
+      assert.ok(schema.properties.entries.items.required.includes("issue_tags"));
+      assert.ok(schema.properties.entries.items.required.includes("perspective"));
+      assert.deepEqual(schema.properties.entries.items.properties.perspective.enum, ["client_favourable"]);
       assert.ok(chunk.some((block) => block.citation === "FILE-0001 p1.b1"));
       assert.ok(chunk.some((block) => block.citation === "FILE-0001 p1.b2"));
       return {
@@ -95,6 +110,11 @@ test("create-listofdates calls an AI provider and writes cited chronology output
             citation: "FILE-0001 p1.b1",
             needs_review: false,
             confidence: 0.94,
+            ...lawyerFields({
+              event_type: "agreement",
+              legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+              issue_tags: ["agreement"],
+            }),
           },
           {
             date_iso: "2026-05-01",
@@ -103,6 +123,11 @@ test("create-listofdates calls an AI provider and writes cited chronology output
             citation: "FILE-0001 p1.b2",
             needs_review: false,
             confidence: 0.89,
+            ...lawyerFields({
+              event_type: "notice",
+              legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+              issue_tags: ["notice", "inspection"],
+            }),
           },
           {
             date_iso: "2026-06-01",
@@ -111,6 +136,10 @@ test("create-listofdates calls an AI provider and writes cited chronology output
             citation: "FILE-9999 p1.b1",
             needs_review: true,
             confidence: 0.2,
+            ...lawyerFields({
+              legal_relevance: "Should be rejected because the citation is not supplied.",
+              issue_tags: ["evidence_gap"],
+            }),
           },
         ],
       };
@@ -141,16 +170,26 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
   assert.deepEqual(jsonOutput.ai_run, result.aiRun);
   assert.equal(jsonOutput.entries.length, 2);
+  assert.equal(jsonOutput.entries[0].event_type, "agreement");
+  assert.equal(jsonOutput.entries[0].perspective, "client_favourable");
+  assert.deepEqual(jsonOutput.entries[0].issue_tags, ["agreement"]);
+  assert.match(jsonOutput.entries[0].legal_relevance, /contract chronology/);
 
   const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
   assert.equal(csvRows.length, 2);
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
+  assert.equal(csvRows[0].event_type, "agreement");
+  assert.match(csvRows[0].legal_relevance, /contract chronology/);
+  assert.equal(csvRows[0].issue_tags, "agreement");
+  assert.equal(csvRows[0].perspective, "client_favourable");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
   assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[1].source_path, "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt");
 
   const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.match(markdown, /\| Date \| Event \| Legal Relevance \| Source \|/);
   assert.match(markdown, /Agreement was signed/);
+  assert.match(markdown, /contract chronology/);
   assert.match(markdown, /FILE-0001 p1\.b2/);
 });
 
@@ -178,6 +217,11 @@ test("create-listofdates enriches entries with Source Index labels without chang
           citation: "FILE-0001 p1.b1",
           needs_review: false,
           confidence: 0.94,
+          ...lawyerFields({
+            event_type: "agreement",
+            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+            issue_tags: ["agreement"],
+          }),
         },
       ],
     }),
@@ -230,6 +274,11 @@ test("create-listofdates ignores stale Source Index labels and keeps current cit
           citation: "FILE-0001 p1.b2",
           needs_review: false,
           confidence: 0.89,
+          ...lawyerFields({
+            event_type: "notice",
+            legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+            issue_tags: ["notice", "inspection"],
+          }),
         },
       ],
     }),
@@ -277,6 +326,11 @@ test("create-listofdates ignores Source Index labels that contain file identifie
           citation: "FILE-0001 p1.b1",
           needs_review: false,
           confidence: 0.94,
+          ...lawyerFields({
+            event_type: "agreement",
+            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+            issue_tags: ["agreement"],
+          }),
         },
       ],
     }),
@@ -298,6 +352,66 @@ test("create-listofdates ignores Source Index labels that contain file identifie
   assert.doesNotMatch(markdown, /FILE-0001: Agreement note/);
   assert.match(markdown, /facts\.txt/);
   assert.match(markdown, /FILE-0001 p1\.b1/);
+});
+
+test("create-listofdates rejects entries missing lawyer-facing fields", async () => {
+  const root = await prepareExtractedMatter();
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Agreement was signed by Mehta and Skyline.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.counts.candidateEntries, 1);
+  assert.equal(result.counts.entries, 0);
+  assert.equal(result.counts.rejectedEntries, 1);
+});
+
+test("create-listofdates softens event and relevance conclusion language", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "breach-note.txt", "Skyline alleged breach on 20 April 2026.");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Proves breach by Skyline FILE-0001 p1.b1.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "agreement",
+            legal_relevance: "Proves breach by Skyline FILE-0001 p1.b1.",
+            issue_tags: ["agreement"],
+          }),
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.counts.candidateEntries, 1);
+  assert.equal(result.counts.entries, 1);
+  assert.equal(result.counts.rejectedEntries, 0);
+  assert.doesNotMatch(result.entries[0].event, /\b(FILE-\d{4,}|proves?|breach)\b/i);
+  assert.match(result.entries[0].event, /supports default issue by Skyline/i);
+  assert.doesNotMatch(result.entries[0].legal_relevance, /\b(proves?|breach)\b/i);
+  assert.match(result.entries[0].legal_relevance, /supports default issue by Skyline/i);
 });
 
 test("create-listofdates reports missing extraction records before calling AI", async () => {
@@ -364,6 +478,10 @@ test("OpenAI provider sends bounded structured output requests", async () => {
   assert.equal(bodies[0].max_output_tokens, 1234);
   assert.equal(bodies[0].text.format.type, "json_schema");
   assert.equal(bodies[0].text.format.strict, true);
+  assert.match(bodies[0].input[0].content, /lawyer-facing, client-favourable/);
+  assert.match(bodies[0].input[0].content, /Every legal_relevance sentence must be supported/);
+  assert.match(bodies[0].input[1].content, /allowed_event_types/);
+  assert.match(bodies[0].input[1].content, /client_favourable/);
 });
 
 test("OpenRouter provider sends strict no-fallback structured output requests", async () => {
@@ -427,6 +545,10 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
   assert.equal(requests[0].body.response_format.json_schema.name, "list_of_dates_chunk");
+  assert.match(requests[0].body.messages[0].content, /lawyer-facing, client-favourable/);
+  assert.match(requests[0].body.messages[0].content, /Every legal_relevance sentence must be supported/);
+  assert.match(requests[0].body.messages[1].content, /allowed_event_types/);
+  assert.match(requests[0].body.messages[1].content, /client_favourable/);
   assert.deepEqual(response.ai_run, {
     returnedModel: "qwen/qwen3-source-backed",
     returnedProvider: "openrouter-test-provider",
@@ -507,6 +629,11 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
                   citation: "FILE-0001 p1.b1",
                   needs_review: false,
                   confidence: 0.94,
+                  ...lawyerFields({
+                    event_type: "agreement",
+                    legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+                    issue_tags: ["agreement"],
+                  }),
                 }],
               }),
             },
