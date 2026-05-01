@@ -37,6 +37,7 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
     aiProvider: async (payload) => {
       calls.push(payload);
       assert.match(payload.userRequest, /timeline|chronology/i);
+      assert.deepEqual(payload.conversationHistory, [{ role: "assistant", content: "Previous router context." }]);
       assert.ok(payload.registry.skills.some((skill) => skill.slash === "/create_listofdates"));
       return {
         decision: "modify_existing_skill",
@@ -55,6 +56,7 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
 
   const result = await service.checkIntent({
     userRequest: "Create a new skill to make a case timeline / chronology from extracted records.",
+    conversationHistory: [{ role: "assistant", content: "Previous router context." }],
   });
 
   assert.equal(calls.length, 1);
@@ -105,7 +107,10 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
       },
     });
 
-    await service.checkIntent({ userRequest: "Create a future workflow helper." });
+    await service.checkIntent({
+      userRequest: "Create a future workflow helper.",
+      conversationHistory: [{ role: "assistant", content: "Prior skill-router result." }],
+    });
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -115,6 +120,8 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
   assert.equal(bodies[0].max_output_tokens, 777);
   assert.equal(bodies[0].input[0].role, "system");
   assert.equal(bodies[0].text.format.name, "skill_router_decision");
+  const userPayload = JSON.parse(bodies[0].input[1].content);
+  assert.deepEqual(userPayload.conversation_history, [{ role: "assistant", content: "Prior skill-router result." }]);
 });
 
 test("expert legal preference is routed as skill tuning", async () => {
@@ -172,6 +179,118 @@ test("create intent cannot silently reroute to run existing skill", async () => 
   assert.equal(result.recommended_action, "run_existing_skill");
   assert.equal(result.user_gate_required, true);
   assert.equal(result.mece_violation, true);
+});
+
+test("new skill follow-up stays attached to proposed new skill", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/extract",
+      confidence: 0.86,
+      reason: "The follow-up mentions extracted records and is close to /extract.",
+      user_gate_required: true,
+      suggested_next_action: "Modify /extract.",
+      mece_violation: true,
+      legal_setting: legalSetting(),
+      override_requires: ["Approve modification"],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "It should gather the chronology, open objections, pending reliefs, and a short oral-argument checklist.",
+    conversationHistory: [{
+      role: "assistant",
+      content: [
+        "Skill router result.",
+        "intent=skill_request",
+        "decision=new_skill",
+        "recommended_action=new_skill",
+        "matched_skill=",
+        "user_gate_required=no",
+        "reason=Create a hearing preparation skill.",
+      ].join("\n"),
+    }],
+  });
+
+  assert.equal(result.decision, "new_skill");
+  assert.equal(result.recommended_action, "new_skill");
+  assert.equal(result.matched_skill, "");
+  assert.equal(result.user_gate_required, false);
+  assert.equal(result.mece_violation, false);
+  assert.match(result.reason, /follow-up refinement/);
+  assert.equal(result.suggested_next_action, "Continue refining the proposed skill.");
+  assert.deepEqual(result.override_requires, []);
+});
+
+test("adjacent skill follow-up stays attached to proposed workflow", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/extract",
+      confidence: 0.91,
+      reason: "The follow-up mentions extracted records and is close to /extract.",
+      user_gate_required: true,
+      suggested_next_action: "Modify /extract.",
+      mece_violation: true,
+      legal_setting: legalSetting(),
+      override_requires: ["Approve modification"],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "It should pull from extracted records, never edit source files, and include a checklist of questions for counsel.",
+    conversationHistory: [{
+      role: "assistant",
+      content: [
+        "Skill router result.",
+        "intent=skill_request",
+        "decision=adjacent_skill",
+        "recommended_action=adjacent_skill",
+        "matched_skill=/extract",
+        "user_gate_required=no",
+        "reason=Create an adjacent hearing preparation skill.",
+      ].join("\n"),
+    }],
+  });
+
+  assert.equal(result.decision, "adjacent_skill");
+  assert.equal(result.recommended_action, "adjacent_skill");
+  assert.equal(result.matched_skill, "");
+  assert.equal(result.user_gate_required, false);
+  assert.equal(result.mece_violation, false);
+  assert.match(result.reason, /follow-up refinement/);
+  assert.deepEqual(result.override_requires, []);
+});
+
+test("adjacent skill decisions do not display an existing skill as matched", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "adjacent_skill",
+      recommended_action: "adjacent_skill",
+      matched_skill: "/extract",
+      confidence: 0.88,
+      reason: "Hearing preparation is adjacent to extraction but not covered by it.",
+      user_gate_required: false,
+      suggested_next_action: "Create a hearing preparation skill.",
+      mece_violation: false,
+      legal_setting: legalSetting(),
+      override_requires: [],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "I need a new skill that builds a hearing preparation bundle from extracted records.",
+  });
+
+  assert.equal(result.decision, "adjacent_skill");
+  assert.equal(result.matched_skill, "");
+  assert.equal(result.matched_skill_card, null);
+  assert.equal(result.user_gate_required, false);
 });
 
 test("forum-specific drafting request can be adjacent without violating existing skills", async () => {

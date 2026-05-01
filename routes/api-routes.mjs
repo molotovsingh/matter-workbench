@@ -10,6 +10,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     aiSettingsService,
     configService,
     matterStore,
+    skillProposalService,
     skillRegistryService,
     skillRouterService,
     uploadService,
@@ -89,6 +90,24 @@ export async function handleApiRequest({ request, requestUrl, response, services
       userRequest: body.userRequest,
       overrideJustification: body.overrideJustification,
     }));
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/skill-proposals") {
+    sendJson(response, 200, await skillProposalService.listProposals());
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/skill-proposals") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillProposalService.createProposal(body));
+    return true;
+  }
+
+  if (request.method === "PATCH" && requestUrl.pathname.startsWith("/api/skill-proposals/")) {
+    const body = await readRequestJson(request);
+    const id = decodeURIComponent(requestUrl.pathname.slice("/api/skill-proposals/".length));
+    sendJson(response, 200, await skillProposalService.updateProposalStatus(id, body.status));
     return true;
   }
 

@@ -12,6 +12,15 @@ export async function postJson(url, body = {}) {
   return parseJsonResponse(response, url);
 }
 
+export async function patchJson(url, body = {}) {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse(response, url);
+}
+
 async function parseJsonResponse(response, label) {
   let payload = null;
   try {

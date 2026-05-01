@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./api-client.js";
+import { getJson, patchJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 
@@ -52,6 +52,8 @@ export function createMatterScreens(ctx) {
     let aiSettingsError = "";
     let skillRegistry = null;
     let skillRegistryError = "";
+    let skillProposals = null;
+    let skillProposalsError = "";
     try {
       aiSettings = await getJson("/api/ai-settings");
     } catch (error) {
@@ -61,6 +63,11 @@ export function createMatterScreens(ctx) {
       skillRegistry = await getJson("/api/skills");
     } catch (error) {
       skillRegistryError = error.message;
+    }
+    try {
+      skillProposals = await getJson("/api/skill-proposals");
+    } catch (error) {
+      skillProposalsError = error.message;
     }
     editorContent.innerHTML = `
       <h1>Settings</h1>
@@ -79,6 +86,7 @@ export function createMatterScreens(ctx) {
         <div id="settingsError" class="form-error" hidden></div>
       </form>
       ${renderAiSettingsForm(aiSettings, aiSettingsError)}
+      ${renderSkillProposalsPanel(skillProposals, skillProposalsError)}
       ${renderSkillRouterPanel(skillRegistry, skillRegistryError)}
     `;
     const form = document.getElementById("settingsForm");
@@ -108,6 +116,7 @@ export function createMatterScreens(ctx) {
       }
     });
     wireAiSettingsForm();
+    wireSkillProposalsPanel();
     wireSkillRouterPanel();
   }
 
@@ -299,6 +308,103 @@ export function createMatterScreens(ctx) {
 
   function providerClass(provider) {
     return provider === "openrouter" ? "openrouter" : provider === "openai-direct" ? "openai-direct" : "unknown";
+  }
+
+  function renderSkillProposalsPanel(store, loadError) {
+    if (loadError) {
+      return `
+        <h2>Proposed skills</h2>
+        <p class="form-error">Proposed skills unavailable: ${escapeHtml(loadError)}</p>
+      `;
+    }
+    const proposals = Array.isArray(store?.proposals) ? store.proposals : [];
+    const rows = proposals.map((proposal) => {
+      const decision = proposal.routerDecision || {};
+      const confidence = Number.isFinite(decision.confidence)
+        ? `${Math.round(decision.confidence * 100)}%`
+        : "n/a";
+      return `
+        <tr>
+          <td>
+            <strong>${escapeHtml(proposal.title || "Untitled Skill")}</strong>
+            <details class="skill-proposal-brief">
+              <summary>View brief</summary>
+              <pre>${escapeHtml(proposal.briefMarkdown || "")}</pre>
+            </details>
+          </td>
+          <td>
+            <select data-proposal-status="${escapeHtml(proposal.id || "")}" aria-label="Proposal status for ${escapeHtml(proposal.title || "skill proposal")}">
+              ${renderStatusOption(proposal.status, "proposed", "Proposed")}
+              ${renderStatusOption(proposal.status, "accepted_for_dev", "Accepted for dev")}
+              ${renderStatusOption(proposal.status, "dismissed", "Dismissed")}
+            </select>
+          </td>
+          <td>${escapeHtml(formatLocalDate(proposal.createdAt))}</td>
+          <td>${escapeHtml(decision.decision || "unchecked")}</td>
+          <td>${escapeHtml(confidence)}</td>
+          <td>${escapeHtml(proposal.matterName || "App-wide")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return `
+      <h2>Proposed skills</h2>
+      <p>Skill ideas saved from <code>/new_skill</code>. These are planning records only; they are not runnable slash commands.</p>
+      <table class="extract-table skill-proposals-table">
+        <thead>
+          <tr>
+            <th>Proposal</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Router decision</th>
+            <th>Confidence</th>
+            <th>Matter</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || '<tr><td colspan="6">No proposed skills yet. Start with <code>/new_skill</code> in Unibox.</td></tr>'}
+        </tbody>
+      </table>
+      <div id="skillProposalsMessage" class="form-note"></div>
+      <div id="skillProposalsError" class="form-error" hidden></div>
+    `;
+  }
+
+  function renderStatusOption(current, value, label) {
+    return `<option value="${escapeHtml(value)}"${current === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  }
+
+  function wireSkillProposalsPanel() {
+    const message = document.getElementById("skillProposalsMessage");
+    const errorBox = document.getElementById("skillProposalsError");
+    document.querySelectorAll("[data-proposal-status]").forEach((select) => {
+      select.addEventListener("change", async () => {
+        const id = select.dataset.proposalStatus;
+        select.disabled = true;
+        if (message) message.textContent = "";
+        if (errorBox) errorBox.hidden = true;
+        try {
+          const saved = await patchJson(`/api/skill-proposals/${encodeURIComponent(id)}`, {
+            status: select.value,
+          });
+          if (message) message.textContent = `${saved.title} status updated to ${saved.status}.`;
+        } catch (error) {
+          if (errorBox) {
+            errorBox.textContent = error.message;
+            errorBox.hidden = false;
+          }
+        } finally {
+          select.disabled = false;
+        }
+      });
+    });
+  }
+
+  function formatLocalDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString();
   }
 
   function wireAiSettingsForm() {

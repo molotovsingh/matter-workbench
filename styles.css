@@ -313,6 +313,41 @@ strong {
   color: var(--accent);
 }
 
+.skill-design-result {
+  line-height: 1.7;
+}
+
+.skill-design-meta {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.skill-design-result code,
+.skill-design-choices code {
+  background: #1e1e22;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-bright);
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.skill-design-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.skill-design-actions,
+.skill-proposal-actions .form-actions {
+  margin-top: 12px;
+}
+
 .unibox-form {
   display: flex;
   gap: 12px;
@@ -661,6 +696,44 @@ strong {
 
 .skill-registry-table td:nth-child(4) {
   line-height: 1.45;
+}
+
+.skill-proposals-table td {
+  vertical-align: top;
+}
+
+.skill-proposals-table select {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.skill-proposal-brief {
+  margin-top: 8px;
+}
+
+.skill-proposal-brief summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.skill-proposal-brief pre {
+  background: #1e1e22;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  max-width: 520px;
+  overflow-x: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.skill-proposal-saved code {
+  color: var(--success);
 }
 
 .skill-router-chip {
@@ -1025,6 +1098,7 @@ summary {
   grid-template-rows: 40px 1fr 180px 26px;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   box-shadow: -1px 0 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -1058,14 +1132,18 @@ summary {
 .editor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .editor-pane {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .editor-toolbar {
@@ -1142,6 +1220,15 @@ summary {
   background: var(--border);
 }
 
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn-secondary:disabled:hover {
+  background: var(--panel-2);
+}
+
 .skill-router-chip {
   display: inline-block;
   background: var(--accent-soft);
@@ -1157,7 +1244,7 @@ summary {
 }
 
 .editor-content {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   padding: 32px 40px;
   overflow: auto;

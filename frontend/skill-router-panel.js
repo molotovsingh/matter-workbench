@@ -4,7 +4,7 @@ import { escapeHtml } from "./dom-utils.js";
 export function renderSkillRouterPanel(registry, loadError) {
   if (loadError) {
     return `
-      <h2>Skill router</h2>
+      <h2>Runnable skills</h2>
       <p class="form-error">Skill registry unavailable: ${escapeHtml(loadError)}</p>
     `;
   }
@@ -20,8 +20,8 @@ export function renderSkillRouterPanel(registry, loadError) {
   `).join("");
 
   return `
-    <h2>Skill router</h2>
-    <p>Check proposed AI-native skills against the current registry before adding new workflow surface area.</p>
+    <h2>Runnable skills</h2>
+    <p>These slash commands are implemented and can run in the current workbench.</p>
     <table class="extract-table skill-registry-table">
       <thead>
         <tr>
@@ -35,6 +35,8 @@ export function renderSkillRouterPanel(registry, loadError) {
         ${rows || '<tr><td colspan="4">No registered skills.</td></tr>'}
       </tbody>
     </table>
+    <h2>Skill router</h2>
+    <p>Check proposed AI-native skills against the current registry before adding new workflow surface area.</p>
     <form class="new-matter-form skill-router-form" id="skillRouterForm">
       <label>
         <span>Proposed skill or change request</span>
@@ -176,10 +178,14 @@ export function wireRouterGateButtons({
   }
   if (justifyButton) {
     justifyButton.addEventListener("click", () => {
-      overrideLabel.hidden = false;
-      overrideInput.focus();
-      resultBox.scrollIntoView({ block: "nearest" });
-      if (gateMessage) gateMessage.textContent = "Add an override justification above, then run the check again.";
+      if (overrideLabel && overrideInput) {
+        overrideLabel.hidden = false;
+        overrideInput.focus();
+        resultBox?.scrollIntoView({ block: "nearest" });
+        if (gateMessage) gateMessage.textContent = "Add an override justification above, then run the check again.";
+        return;
+      }
+      if (gateMessage) gateMessage.textContent = "Add a short justification in your next Unibox message.";
     });
   }
 }

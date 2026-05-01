@@ -17,8 +17,10 @@ server.mjs ─── routes/api-routes.mjs
                   │       ├── matter-qa-service.mjs          (AI: answer questions about the matter)
                   │       ├── matter-context-service.mjs     (filesystem context for Q&A)
                   │       ├── matter-search-service.mjs      (grep the matter files)
+                  │       ├── skill-design-service.mjs       (guided /new_skill interviewer)
                   │       └── skill-router-service.mjs       (AI: which skill matches?)
                   │
+                  ├── services/skill-proposal-service.mjs ← app-wide proposed skill queue
                   ├── services/matter-store.mjs         ← where's the matter on disk?
                   ├── services/workspace-service.mjs    ← tree view, file preview
                   ├── services/config-service.mjs       ← settings persistence
@@ -40,14 +42,25 @@ server.mjs ─── routes/api-routes.mjs
 When you type something into the unibox:
 
 1. **Empty check** — empty input → 400 error
-2. **No-matter check** — if no active matter and the input isn't a local-only intent (greeting, slash command, casual remark), return "Load a matter first" immediately. No AI call wasted.
-3. **Intent classification** — AI call (OpenAI Responses API with structured output). Returns one of: `copilot_qa`, `search`, `run_skill`, `skill_request`, `greeting`, `casual`
-4. **Route by intent:**
+2. **Skill-design check** — `/new_skill` and active skill-design conversations bypass the normal matter requirement. This is a design conversation, not an executable registry skill.
+3. **No-matter check** — if no active matter and the input isn't a local-only intent (greeting, slash command, casual remark), return "Load a matter first" immediately. No AI call wasted.
+4. **Intent classification** — AI call (OpenAI Responses API with structured output). Returns one of: `copilot_qa`, `search`, `run_skill`, `skill_request`, `greeting`, `casual`
+5. **Route by intent:**
    - `greeting` / `casual` → static response, no AI
    - `search` → strip search-verb prefix (`find`, `search for`, `look for`, etc.), then grep the matter files
    - `copilot_qa` → ask `matter-context-service.mjs` for the matter context, then send it to AI with conversation history
    - `run_skill` → skill router AI call to match against the skill registry
    - `skill_request` → same skill router for create/modify intents
+
+### `/new_skill` Design Mode
+
+`/new_skill` is deliberately not listed in `skills/registry.json`. It does not execute a workflow and it does not edit the registry. It opens a guided design conversation so a lawyer can describe a rough idea in plain English.
+
+The important product distinction is between a **one-time Copilot question** and a **reusable skill**. If the user says, "what are the weakest facts to defend in the matter?", the system first asks whether to answer once for the active matter or turn that idea into a reusable workflow. If the user chooses reusable, it asks one question at a time: inputs, output, workflow stage, audience, source/citation rules, matter scope, and legal setting. Only after that does it produce a Skill Brief. The skill router is called later only if the user explicitly asks to check overlap.
+
+After overlap is checked, the user can save the brief as a **Proposed Skill**. That proposal is app-wide planning data stored in `skill-proposals.json`; it appears in Settings under "Proposed skills." It still is not runnable. This is intentional: a proposal is like a brief on a developer's desk, not a button wired into the machine. The runnable buttons remain only the commands in `skills/registry.json`.
+
+**Lesson:** Don't expose the machine's routing decision before the human has formed the idea, and don't let a planning artifact masquerade as executable software. A good product flow helps the user think first, checks MECE overlap second, and saves the result somewhere visible without pretending implementation already happened.
 
 ## The Five Bugs We Fixed (and Why They Existed)
 
@@ -155,6 +168,19 @@ Model selection is centralized in `shared/model-policy.mjs`. Different tasks get
 - `SOURCE_BACKED_ANALYSIS` → list-of-dates skill, medium budget
 
 Environment variable overrides let you test with cheaper models locally.
+
+### `/create_listofdates` Guardrails
+
+The list-of-dates engine is deliberately conservative. It is trying to produce a lawyer-useful chronology, not a searchable index of every sentence that contains a date.
+
+The current guardrails do three important things:
+- It excludes reference/control documents such as golden answer files and README case summaries before sending blocks to the model. Those files are useful for testing, but they are not evidence.
+- It prompts the model to prefer primary sources: agreements, notices, letters, emails, receipts, ledgers, bank statements, inspection reports, and client interview notes.
+- It caps dense same-source/same-date clusters after the model responds. If an inspection report generates ten rows for the same date, the engine keeps the strongest one or two legal facts and drops report formalities like signatures, annexures, and photo counts.
+
+That last point matters because AI often over-extracts. A chronology row should earn its place. "The site was only 55% complete" belongs. "The report was signed" usually does not, unless the signature itself is disputed.
+
+We also learned from the Raheja dummy case that objection emails need special treatment. A one-day reply saying "this parking change cannot take effect without a Clause 11.3 addendum" is not administrative noise. It is the client's contemporaneous protest, so the prompt now asks for objections, protests, refusals, and addendum demands as standalone chronology rows.
 
 ## The Skill System
 

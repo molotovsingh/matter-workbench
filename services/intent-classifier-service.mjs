@@ -149,19 +149,28 @@ export function createIntentClassifierService({
       },
     });
 
-    return normalizeClassification(raw, registry);
+    return normalizeClassification(raw, registry, trimmed);
   }
 
   return { classifyIntent };
 }
 
-function normalizeClassification(raw, registry) {
+function normalizeClassification(raw, registry, userInput = "") {
   const skillsBySlash = new Map((registry.skills || []).map((skill) => [skill.slash, skill]));
   const intent = VALID_INTENTS.has(raw.intent) ? raw.intent : "copilot_qa";
   const rawSkill = typeof raw.matched_skill === "string" ? raw.matched_skill : "";
   const matchedSkill = intent === "run_skill" && skillsBySlash.has(rawSkill) ? rawSkill : "";
   const confidence = clamp01(raw.confidence);
   const reason = collapseWhitespace(raw.reason || "");
+
+  if (intent === "run_skill" && isMatterQuestion(userInput) && !hasWorkflowAction(userInput)) {
+    return {
+      intent: "copilot_qa",
+      matched_skill: "",
+      confidence: Math.max(confidence, 0.85),
+      reason: `Matter question preserved as copilot Q&A. ${reason}`,
+    };
+  }
 
   if (intent === "run_skill" && !matchedSkill && rawSkill) {
     return {
@@ -183,4 +192,12 @@ function clamp01(value) {
 
 function collapseWhitespace(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function isMatterQuestion(value) {
+  return /^(?:what|which|why|how|when|who|where|is|are|was|were|do|does|did|can|could|should|would)\b/i.test(String(value || "").trim());
+}
+
+function hasWorkflowAction(value) {
+  return /\b(?:run|execute|start|use|invoke|apply|perform|organize|initiali[sz]e|extract|create|generate|build|make|prepare|draft|fix|repair|doctor|update|modify)\b/i.test(String(value || ""));
 }

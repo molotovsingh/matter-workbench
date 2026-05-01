@@ -21,6 +21,16 @@ async function postJson(baseUrl, pathName, body = {}) {
   };
 }
 
+async function getJson(baseUrl, pathName) {
+  const response = await fetch(`${baseUrl}${pathName}`);
+  const payload = await response.json();
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload,
+  };
+}
+
 async function withServer(options, fn) {
   const app = await createWorkbenchServer({
     host: "127.0.0.1",
@@ -180,6 +190,14 @@ function classifyFromFakeRequest(body) {
       reason: "The user wants to change the toolset.",
     };
   }
+  if (lower.includes("most important dates")) {
+    return {
+      intent: "run_skill",
+      matched_skill: "/create_listofdates",
+      confidence: 0.9,
+      reason: "The classifier mistook a dates question for a timeline workflow.",
+    };
+  }
 
   return {
     intent: "copilot_qa",
@@ -220,6 +238,13 @@ function answerFromFakeRequest(body) {
   const userPayload = JSON.parse(body.input.at(-1).content);
   const question = String(userPayload.question || "").toLowerCase();
 
+  if (question.includes("weakest facts")) {
+    return {
+      answer: "The weakest fact is the limited record explaining why the possession deadline moved after 31 December 2023. FILE-0001 p1.b1",
+      sources: ["FILE-0001 p1.b1"],
+      confidence: 0.84,
+    };
+  }
   if (question.includes("recheck") || question.includes("itemised")) {
     return {
       answer: [
@@ -245,6 +270,17 @@ function answerFromFakeRequest(body) {
     sources: ["FILE-0001 p1.b2"],
     confidence: 0.91,
   };
+}
+
+function appendUniboxHistory(history, userInput, payload) {
+  if (payload.conversationHistory) return payload.conversationHistory;
+  const summary = payload.result?.historySummary;
+  if (!summary) return history;
+  return [
+    ...history,
+    { role: "user", content: userInput },
+    { role: "assistant", content: summary },
+  ].slice(-20);
 }
 
 test("unibox API baseline covers greeting, search, slash routing, Q&A, and follow-up", async (t) => {
@@ -337,6 +373,14 @@ test("unibox API baseline covers greeting, search, slash routing, Q&A, and follo
     assert.deepEqual(followUp.payload.result.sources, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
     assert.equal(followUp.payload.conversationHistory.length, 4);
 
+    const datesQuestion = await postJson(baseUrl, "/api/unibox", {
+      userInput: "What are the most important dates in this matter?",
+    });
+    assert.equal(datesQuestion.ok, true);
+    assert.equal(datesQuestion.payload.intent, "copilot_qa");
+    assert.equal(datesQuestion.payload.displayType, "qa_answer");
+    assert.match(datesQuestion.payload.result.answer, /31 December 2023/);
+
     const timelineQa = await postJson(baseUrl, "/api/unibox", {
       userInput: "what is the timeline of dates and deadlines?",
     });
@@ -359,11 +403,7 @@ test("unibox returns local no-matter messaging without calling AI", async (t) =>
 
   await withServer({
     appDir,
-    env: {
-      OPENAI_API_KEY: "test-key",
-      OPENAI_MODEL: "gpt-5.4-mini",
-      OPENAI_MAX_OUTPUT_TOKENS: "3000",
-    },
+    env: {},
   }, async ({ baseUrl }) => {
     const result = await postJson(baseUrl, "/api/unibox", {
       userInput: "what is this matter about?",
@@ -392,11 +432,7 @@ test("unibox serves local-only intents without a matter loaded", async (t) => {
 
   await withServer({
     appDir,
-    env: {
-      OPENAI_API_KEY: "test-key",
-      OPENAI_MODEL: "gpt-5.4-mini",
-      OPENAI_MAX_OUTPUT_TOKENS: "3000",
-    },
+    env: {},
   }, async ({ baseUrl }) => {
     const greeting = await postJson(baseUrl, "/api/unibox", { userInput: "hello" });
     assert.equal(greeting.ok, true);
@@ -409,6 +445,141 @@ test("unibox serves local-only intents without a matter loaded", async (t) => {
     assert.equal(slash.payload.displayType, "error");
     assert.equal(slash.payload.result.message, "Load a matter first before asking questions or searching.");
     assert.equal(openAiCalls.length, 0, "no-matter slash commands should not call AI");
+  });
+});
+
+test("unibox starts /new_skill without a loaded matter", async (t) => {
+  const openAiCalls = installFakeOpenAiResponses(t);
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "unibox-new-skill-no-matter-"));
+
+  await withServer({
+    appDir,
+    env: {},
+  }, async ({ baseUrl }) => {
+    const response = await postJson(baseUrl, "/api/unibox", { userInput: "/new_skill" });
+    assert.equal(response.ok, true);
+    assert.equal(response.payload.intent, "skill_design");
+    assert.equal(response.payload.displayType, "skill_design");
+    assert.match(response.payload.result.message, /Tell me what you want/i);
+    assert.match(response.payload.result.historySummary, /Skill design state/);
+    assert.equal(openAiCalls.length, 0, "/new_skill should start locally without a matter or AI call");
+  });
+});
+
+test("unibox /new_skill handles one-off and reusable skill-design paths", async (t) => {
+  installFakeOpenAiResponses(t);
+  const { appDir, matterRoot } = await createBaselineMatter();
+  let routerCalls = 0;
+  let routedRequest = "";
+
+  await withServer({
+    appDir,
+    matterRoot,
+    env: {
+      OPENAI_API_KEY: "test-key",
+      OPENAI_MODEL: "gpt-5.4-mini",
+      OPENAI_MAX_OUTPUT_TOKENS: "3000",
+    },
+    skillRouterProvider: async ({ userRequest }) => {
+      routerCalls += 1;
+      routedRequest = userRequest;
+      return {
+        decision: "adjacent_skill",
+        recommended_action: "adjacent_skill",
+        matched_skill: "",
+        confidence: 0.86,
+        reason: "The brief describes a new review workflow.",
+        user_gate_required: false,
+        suggested_next_action: "Keep the brief for implementation planning.",
+        mece_violation: false,
+        legal_setting: {
+          jurisdiction: "",
+          forum: "",
+          case_type: "",
+          procedure_stage: "",
+          side: "",
+          relief_type: "",
+        },
+        override_requires: [],
+      };
+    },
+  }, async ({ baseUrl }) => {
+    let history = [];
+    const start = await postJson(baseUrl, "/api/unibox", { userInput: "/new_skill", conversationHistory: history });
+    assert.equal(start.payload.intent, "skill_design");
+    history = appendUniboxHistory(history, "/new_skill", start.payload);
+
+    const weakFacts = await postJson(baseUrl, "/api/unibox", {
+      userInput: "what are the weakest facts to defend in the matter?",
+      conversationHistory: history,
+    });
+    assert.equal(weakFacts.payload.intent, "skill_design");
+    assert.match(weakFacts.payload.result.message, /answer once/i);
+    assert.deepEqual(weakFacts.payload.result.choices, ["answer once", "make reusable"]);
+    history = appendUniboxHistory(history, "what are the weakest facts to defend in the matter?", weakFacts.payload);
+
+    const oneOff = await postJson(baseUrl, "/api/unibox", {
+      userInput: "answer once",
+      conversationHistory: history,
+    });
+    assert.equal(oneOff.payload.intent, "copilot_qa");
+    assert.equal(oneOff.payload.displayType, "qa_answer");
+    assert.match(oneOff.payload.result.answer, /weakest fact/i);
+
+    history = [];
+    const restart = await postJson(baseUrl, "/api/unibox", { userInput: "/new_skill", conversationHistory: history });
+    history = appendUniboxHistory(history, "/new_skill", restart.payload);
+    const reusablePrompt = await postJson(baseUrl, "/api/unibox", {
+      userInput: "what are the weakest facts to defend in the matter?",
+      conversationHistory: history,
+    });
+    history = appendUniboxHistory(history, "what are the weakest facts to defend in the matter?", reusablePrompt.payload);
+    const reusable = await postJson(baseUrl, "/api/unibox", { userInput: "make reusable", conversationHistory: history });
+    assert.equal(reusable.payload.intent, "skill_design");
+    assert.equal(reusable.payload.result.state.expectedSlot, "source_material");
+    assert.equal(reusable.payload.result.state.expectedSlotLabel, "Inputs");
+    assert.match(reusable.payload.result.message, /Next question \(2\/8\).*Inputs/s);
+    assert.match(reusable.payload.result.message, /What should it read/i);
+    history = appendUniboxHistory(history, "make reusable", reusable.payload);
+
+    for (const answer of [
+      "extracted records and the List of Dates",
+      "a ranked issue note with the weakest facts and why they matter",
+      "before hearing preparation or settlement review",
+      "arguing counsel",
+      "every weakness must cite FILE records and unsupported points must be separated",
+      "reusable across similar property disputes",
+      "India property disputes before consumer forum or RERA",
+    ]) {
+      const response = await postJson(baseUrl, "/api/unibox", { userInput: answer, conversationHistory: history });
+      history = appendUniboxHistory(history, answer, response.payload);
+      if (answer.startsWith("every weakness")) {
+        assert.equal(response.payload.result.state.expectedSlot, "matter_dependence");
+        assert.equal(response.payload.result.state.expectedSlotLabel, "Matter scope");
+        assert.match(response.payload.result.message, /Next question \(7\/8\).*Matter scope/s);
+        assert.match(response.payload.result.message, /property-dispute matters/i);
+      }
+      if (answer.includes("India property")) {
+        assert.equal(response.payload.intent, "skill_design");
+        assert.match(response.payload.result.briefMarkdown, /Weak Facts Analysis/);
+        assert.match(response.payload.result.briefMarkdown, /arguing counsel/);
+        assert.equal(routerCalls, 0, "completed skill brief should not call router automatically");
+      }
+    }
+
+    const overlap = await postJson(baseUrl, "/api/unibox", {
+      userInput: "check overlap",
+      conversationHistory: history,
+    });
+    assert.equal(overlap.payload.intent, "skill_request");
+    assert.equal(overlap.payload.displayType, "skill_router");
+    assert.equal(routerCalls, 1);
+    assert.match(routedRequest, /Proposed Legal Workbench skill/);
+    assert.match(routedRequest, /Weak Facts Analysis/);
+
+    const proposals = await getJson(baseUrl, "/api/skill-proposals");
+    assert.equal(proposals.ok, true);
+    assert.deepEqual(proposals.payload.proposals, [], "checking overlap should not auto-save a proposed skill");
   });
 });
 
@@ -449,6 +620,57 @@ test("unibox slash routing reuses injected skill router provider", async () => {
     assert.equal(slash.payload.intent, "run_skill");
     assert.equal(slash.payload.displayType, "skill_router");
     assert.equal(slash.payload.result.matched_skill, "/extract");
+    assert.equal(routerCalls, 1);
+  });
+});
+
+test("unibox guides vague skill creation requests instead of showing router internals", async (t) => {
+  installFakeOpenAiResponses(t);
+  const { appDir, matterRoot } = await createBaselineMatter();
+  let routerCalls = 0;
+
+  await withServer({
+    appDir,
+    matterRoot,
+    env: {
+      OPENAI_API_KEY: "test-key",
+      OPENAI_MODEL: "gpt-5.4-mini",
+      OPENAI_MAX_OUTPUT_TOKENS: "3000",
+    },
+    skillRouterProvider: async ({ userRequest }) => {
+      routerCalls += 1;
+      assert.equal(userRequest, "i want to create a new skill can u help");
+      return {
+        decision: "needs_user_approval",
+        recommended_action: "none",
+        matched_skill: "",
+        confidence: 0.92,
+        reason: "The user did not describe the workflow, inputs, outputs, or legal setting.",
+        user_gate_required: true,
+        suggested_next_action: "Ask the user for skill details.",
+        mece_violation: false,
+        legal_setting: {
+          jurisdiction: "",
+          forum: "",
+          case_type: "",
+          procedure_stage: "",
+          side: "",
+          relief_type: "",
+        },
+        override_requires: [],
+      };
+    },
+  }, async ({ baseUrl }) => {
+    const response = await postJson(baseUrl, "/api/unibox", {
+      userInput: "i want to create a new skill can u help",
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(response.payload.intent, "skill_design");
+    assert.equal(response.payload.displayType, "skill_design");
+    assert.match(response.payload.result.message, /Tell me what you want/i);
+    assert.doesNotMatch(response.payload.result.message, /MECE violation/i);
+    assert.match(response.payload.result.historySummary, /Skill design state/);
     assert.equal(routerCalls, 1);
   });
 });

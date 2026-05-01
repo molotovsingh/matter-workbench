@@ -100,7 +100,7 @@ export function createSkillRouterService({
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
 
-  async function checkIntent({ userRequest, overrideJustification = "" } = {}) {
+  async function checkIntent({ userRequest, overrideJustification = "", conversationHistory = [] } = {}) {
     const requestText = typeof userRequest === "string" ? userRequest.trim() : "";
     if (!requestText) {
       const error = new Error("userRequest is required");
@@ -121,11 +121,15 @@ export function createSkillRouterService({
     const rawDecision = await provider({
       userRequest: requestText,
       overrideJustification: String(overrideJustification || "").trim(),
+      conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
       registry,
       schema: ROUTER_OUTPUT_SCHEMA,
     });
 
-    return normalizeRouterDecision(rawDecision, registry, { userRequest: requestText });
+    return normalizeRouterDecision(rawDecision, registry, {
+      userRequest: requestText,
+      conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
+    });
   }
 
   return {
@@ -139,7 +143,7 @@ export function createOpenAiSkillRouterProvider({
   endpoint = DEFAULT_RESPONSES_ENDPOINT,
   maxOutputTokens = DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
 } = {}) {
-  return async function openAiSkillRouterProvider({ userRequest, overrideJustification, registry, schema }) {
+  return async function openAiSkillRouterProvider({ userRequest, overrideJustification, conversationHistory = [], registry, schema }) {
     return requestResponsesJson({
       apiKey,
       endpoint,
@@ -156,6 +160,9 @@ export function createOpenAiSkillRouterProvider({
               "Be MECE: do not recommend duplicate skills when an existing skill has the same category, goal, input contract, and output contract.",
               "If there is a direct MECE violation, recommend modifying the existing skill and require user approval.",
               "Treat expert preferences or legal heuristics as skill tuning, not a new executable workflow.",
+              "Use recent conversation history to resolve follow-up references like 'it', 'that skill', 'same workflow', or 'also'.",
+              "If the last skill-router turn proposed a new_skill or adjacent_skill, treat follow-up constraints as refinements to that same proposed skill unless the user names a different existing skill.",
+              "If the last skill-router turn proposed modifying an existing skill, keep that matched skill as the target for follow-up tuning unless the user explicitly changes target.",
               "Be legal-setting aware: forum, jurisdiction, case type, procedural stage, side, relief, and audience may justify profiles or tuning before new skills.",
               "All AI legal work product should be markdown-first until export/print skills are mature; DOCX/PDF belong to Export skills.",
               "Return only JSON in the requested schema.",
@@ -166,6 +173,7 @@ export function createOpenAiSkillRouterProvider({
             content: JSON.stringify({
               user_request: userRequest,
               override_justification: overrideJustification,
+              conversation_history: conversationHistory.slice(-8),
               registry_principles: registry.principles || {},
               skill_registry: registry.skills.map((skill) => ({
                 slash: skill.slash,
@@ -203,7 +211,13 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
   const skillsBySlash = new Map((registry.skills || []).map((skill) => [skill.slash, skill]));
   const raw = rawDecision && typeof rawDecision === "object" ? rawDecision : {};
   const rawDecisionName = VALID_DECISIONS.has(raw.decision) ? raw.decision : "needs_user_approval";
-  const matchedSkill = skillsBySlash.has(raw.matched_skill) ? raw.matched_skill : "";
+  const previousRouterTurn = lastRouterTurn(context.conversationHistory || []);
+  const preserveSkillProposal = ["new_skill", "adjacent_skill"].includes(previousRouterTurn?.decision)
+    && isFollowUpRequest(context.userRequest || "")
+    && !hasExplicitSkillTarget(context.userRequest || "", skillsBySlash);
+  const matchedSkill = preserveSkillProposal || rawDecisionName === "new_skill" || rawDecisionName === "adjacent_skill"
+    ? ""
+    : skillsBySlash.has(raw.matched_skill) ? raw.matched_skill : "";
   const confidence = clamp01(raw.confidence);
   const meceViolation = Boolean(raw.mece_violation && matchedSkill);
   const createIntent = hasCreateIntent(context.userRequest || "");
@@ -217,6 +231,7 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
     : "none";
   let userGateRequired = Boolean(raw.user_gate_required);
   let reason = collapseWhitespace(raw.reason || "No router reason provided.");
+  let suggestedNextAction = collapseWhitespace(raw.suggested_next_action || "");
 
   if (meceViolation || directOverlap) {
     decision = "needs_user_approval";
@@ -231,6 +246,15 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
     userGateRequired = true;
   }
 
+  if (preserveSkillProposal) {
+    const proposalDecision = previousRouterTurn.decision === "adjacent_skill" ? "adjacent_skill" : "new_skill";
+    decision = proposalDecision;
+    recommendedAction = proposalDecision;
+    userGateRequired = false;
+    reason = "This is a follow-up refinement to the previous proposed skill, not a request to modify an existing registered skill.";
+    suggestedNextAction = "Continue refining the proposed skill.";
+  }
+
   return {
     decision,
     recommended_action: recommendedAction,
@@ -240,13 +264,39 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
     reason,
     user_gate_required: userGateRequired,
     user_gate_choices: userGateRequired ? ["Approve modification", "Justify new skill"] : [],
-    suggested_next_action: collapseWhitespace(raw.suggested_next_action || ""),
+    suggested_next_action: suggestedNextAction,
     mece_violation: Boolean(meceViolation || directOverlap),
     legal_setting: normalizeLegalSetting(raw.legal_setting),
-    override_requires: Array.isArray(raw.override_requires)
+    override_requires: preserveSkillProposal
+      ? []
+      : Array.isArray(raw.override_requires)
       ? raw.override_requires.map((item) => collapseWhitespace(item)).filter(Boolean)
       : [],
   };
+}
+
+function lastRouterTurn(history) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const content = history[index]?.content || "";
+    if (!String(content).includes("Skill router result.")) continue;
+    return Object.fromEntries(
+      String(content)
+        .split("\n")
+        .map((line) => line.split("="))
+        .filter((parts) => parts.length >= 2)
+        .map(([key, ...rest]) => [key.trim(), rest.join("=").trim()]),
+    );
+  }
+  return null;
+}
+
+function isFollowUpRequest(value) {
+  return /^(?:it|that|this|also|same|please|make it|it should|that should|also make|keep it)\b/i.test(String(value || "").trim());
+}
+
+function hasExplicitSkillTarget(value, skillsBySlash) {
+  const text = String(value || "");
+  return [...skillsBySlash.keys()].some((slash) => text.includes(slash));
 }
 
 function normalizeLegalSetting(value = {}) {

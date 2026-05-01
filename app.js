@@ -24,6 +24,7 @@ const elements = {
   uniboxInput: document.getElementById("uniboxInput"),
   uniboxSubmit: document.getElementById("uniboxSubmit"),
   uniboxHistory: document.getElementById("uniboxHistory"),
+  exportConversationBtn: document.getElementById("exportConversationBtn"),
   resetConversationBtn: document.getElementById("resetConversationBtn"),
   modelSelector: document.getElementById("modelSelector"),
   mattersPicker: document.getElementById("mattersPicker"),

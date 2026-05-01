@@ -1,6 +1,7 @@
 import { createIntentClassifierService } from "./intent-classifier-service.mjs";
 import { createMatterQaService } from "./matter-qa-service.mjs";
 import { createMatterSearchService } from "./matter-search-service.mjs";
+import { createSkillDesignService } from "./skill-design-service.mjs";
 import { createSkillRouterService } from "./skill-router-service.mjs";
 import { isLocalOnlyIntent } from "../shared/local-intent.mjs";
 
@@ -13,6 +14,7 @@ export function extractSearchQuery(userInput) {
 
 export function createUniboxService({
   matterStore,
+  skillDesignService = null,
   skillRegistryService,
   skillRouterService = null,
   env = process.env,
@@ -23,6 +25,7 @@ export function createUniboxService({
   const classifier = createIntentClassifierService({ skillRegistryService, env });
   const qaService = createMatterQaService({ matterStore, env });
   const searchService = createMatterSearchService({ matterStore });
+  const skillDesign = skillDesignService || createSkillDesignService({ env });
   const skillRouter = skillRouterService || createSkillRouterService({ registryService: skillRegistryService, env });
 
   const NO_MATTER_ERROR = {
@@ -36,8 +39,62 @@ export function createUniboxService({
       throw Object.assign(new Error("userInput is required"), { statusCode: 400 });
     }
 
-    if (!matterStore.getMatterRoot()) {
-      if (userInput.trim().startsWith("/")) return NO_MATTER_ERROR;
+    const trimmed = userInput.trim();
+    const hasMatter = Boolean(matterStore.getMatterRoot());
+
+    if (skillDesign.isNewSkillCommand(trimmed) || skillDesign.hasActiveState(conversationHistory)) {
+      const designTurn = await skillDesign.processTurn({
+        userInput: trimmed,
+        conversationHistory,
+        hasMatter,
+      });
+
+      if (designTurn.action === "answer_once") {
+        if (!hasMatter) {
+          return {
+            intent: "skill_design",
+            displayType: "skill_design",
+            result: {
+              message: "Load a matter first before I answer that once. If you want a reusable skill instead, reply `make reusable`.",
+              choices: ["make reusable", "cancel"],
+              historySummary: designTurn.historySummary || "",
+            },
+          };
+        }
+        const matterRoot = matterStore.ensureMatterRoot();
+        const answer = await qaService.answerQuestion({
+          question: designTurn.question,
+          matterRoot,
+          conversationHistory: [],
+        });
+        return {
+          intent: "copilot_qa",
+          displayType: "qa_answer",
+          result: answer,
+          conversationHistory: answer.conversationHistory,
+        };
+      }
+
+      if (designTurn.action === "check_overlap") {
+        return {
+          intent: "skill_request",
+          displayType: "skill_router",
+          result: await skillRouter.checkIntent({
+            userRequest: designTurn.routerRequest,
+            conversationHistory,
+          }),
+        };
+      }
+
+      return {
+        intent: "skill_design",
+        displayType: "skill_design",
+        result: designTurn,
+      };
+    }
+
+    if (!hasMatter) {
+      if (trimmed.startsWith("/")) return NO_MATTER_ERROR;
       if (!isLocalOnlyIntent(userInput)) return NO_MATTER_ERROR;
     }
 
@@ -64,7 +121,7 @@ export function createUniboxService({
         return {
           intent: "run_skill",
           displayType: "skill_router",
-          result: await skillRouter.checkIntent({ userRequest: userInput }),
+          result: await skillRouter.checkIntent({ userRequest: userInput, conversationHistory }),
           matchedSkill: slash,
         };
       }
@@ -80,7 +137,14 @@ export function createUniboxService({
       }
 
       case "skill_request": {
-        const routerResult = await skillRouter.checkIntent({ userRequest: userInput });
+        const routerResult = await skillRouter.checkIntent({ userRequest: userInput, conversationHistory });
+        if (needsSkillDesignGuidance(routerResult)) {
+          return {
+            intent: "skill_design",
+            displayType: "skill_design",
+            result: skillDesign.start(),
+          };
+        }
         return {
           intent: "skill_request",
           displayType: "skill_router",
@@ -93,7 +157,7 @@ export function createUniboxService({
           intent: "greeting",
           displayType: "chat_response",
           result: {
-            message: "Hello! I'm your legal workbench assistant. I can help you with:\n\n• **Ask questions** about your current matter\n• **Search** across matter documents\n• **Run skills** like `/extract` or `/doctor`\n• **Create or modify** skills\n\nWhat would you like to do?",
+            message: "Hello! I'm your legal workbench assistant. I can help you with:\n\n• **Ask questions** about your current matter\n• **Search** across matter documents\n• **Run skills** like `/extract` or `/doctor`\n• **Design a new skill** with `/new_skill`\n\nWhat would you like to do?",
           },
         };
       }
@@ -119,4 +183,11 @@ export function createUniboxService({
   }
 
   return { processInput };
+}
+
+function needsSkillDesignGuidance(routerResult = {}) {
+  return routerResult.decision === "needs_user_approval"
+    && !routerResult.matched_skill
+    && !routerResult.mece_violation
+    && (!routerResult.recommended_action || routerResult.recommended_action === "none");
 }
