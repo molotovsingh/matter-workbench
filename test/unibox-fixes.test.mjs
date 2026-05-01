@@ -419,6 +419,51 @@ test("QA service includes list-of-dates entries in library context", async (t) =
   assert.deepEqual(answer.sources, ["FILE-0001 p1.b1"]);
 });
 
+test("QA context preserves library records when extraction context is large", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-qa-large-context-"));
+  const mattersHome = tmp;
+  const matterRoot = path.join(mattersHome, "Large Context Matter");
+  const appDir = path.join(tmp, "app");
+  const intakeDir = path.join(matterRoot, "00_Inbox", "Intake 01 - Initial");
+
+  await mkdir(path.join(intakeDir, "_extracted"), { recursive: true });
+  await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(
+    path.join(matterRoot, "matter.json"),
+    JSON.stringify({ matter_name: "Large Context", intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }] }),
+  );
+  await writeFile(
+    path.join(intakeDir, "_extracted", "FILE-0001.json"),
+    JSON.stringify({
+      file_id: "FILE-0001",
+      pages: [{
+        blocks: [{ id: "p1.b1", text: "bulk extraction ".repeat(7000) }],
+      }],
+    }),
+  );
+  await writeFile(
+    path.join(matterRoot, "10_Library", "List of Dates.json"),
+    JSON.stringify({
+      schema_version: "list-of-dates/v1",
+      entries: [{
+        date_iso: "2026-04-20",
+        event: "LIBRARY_DEADLINE survives context truncation.",
+        citation: "FILE-0002 p1.b1",
+      }],
+    }),
+  );
+
+  const configService = createConfigService({ appDir, env: { MATTERS_HOME: mattersHome } });
+  await configService.load();
+  const matterStore = createMatterStore({ configService, initialMatterRoot: matterRoot });
+  const contextService = createMatterContextService({ matterStore });
+
+  const context = await contextService.buildMatterContext(matterRoot);
+  assert.match(context, /LIBRARY_DEADLINE survives context truncation/);
+  assert.match(context, /\.\.\.\[truncated\]/);
+});
+
 test("QA service discovers extraction records across multiple intakes", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-qa-multi-intake-"));
   const mattersHome = tmp;

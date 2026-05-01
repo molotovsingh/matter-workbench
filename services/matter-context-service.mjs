@@ -3,17 +3,19 @@ import path from "node:path";
 
 const MAX_CONTEXT_CHARS = 64000;
 const MAX_LIBRARY_RECORDS = 20;
+const CONTEXT_SEPARATOR = "\n\n---\n\n";
 
 export function createMatterContextService({ matterStore } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
   async function buildMatterContext(matterRoot) {
     const root = matterRoot || matterStore.ensureMatterRoot();
-    const parts = [];
+    const priorityParts = [];
+    const secondaryParts = [];
 
     const matterJsonPath = path.join(root, "matter.json");
     if (fs.existsSync(matterJsonPath)) {
-      parts.push(`[matter.json]\n${fs.readFileSync(matterJsonPath, "utf8")}`);
+      priorityParts.push(`[matter.json]\n${fs.readFileSync(matterJsonPath, "utf8")}`);
     }
 
     const intakes = await matterStore.listIntakeFolders(root);
@@ -22,14 +24,14 @@ export function createMatterContextService({ matterStore } = {}) {
 
       const registerPath = path.join(intakeDir, "File Register.csv");
       if (fs.existsSync(registerPath)) {
-        parts.push(`[${intake.name}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
+        secondaryParts.push(`[${intake.name}/File Register.csv]\n${fs.readFileSync(registerPath, "utf8")}`);
       }
 
       const extractedPath = path.join(intakeDir, "_extracted");
       if (fs.existsSync(extractedPath)) {
         const records = collectExtractionRecords(extractedPath);
         for (const record of records) {
-          parts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatMatterContextRecord(record)}`);
+          secondaryParts.push(`[extraction record: ${record.file_id || "unknown"}]\n${formatMatterContextRecord(record)}`);
         }
       }
     }
@@ -39,18 +41,35 @@ export function createMatterContextService({ matterStore } = {}) {
       const records = collectExtractionRecords(candidate.fullPath);
       if (records.length) {
         for (const record of records.slice(0, MAX_LIBRARY_RECORDS)) {
-          parts.push(`[${candidate.name}: ${record.file_id || "unknown"}]\n${formatMatterContextRecord(record)}`);
+          priorityParts.push(`[${candidate.name}: ${record.file_id || "unknown"}]\n${formatMatterContextRecord(record)}`);
         }
       }
     }
 
-    const fullContext = parts.join("\n\n---\n\n");
-    return fullContext.length > MAX_CONTEXT_CHARS
-      ? fullContext.slice(0, MAX_CONTEXT_CHARS) + "\n...[truncated]"
-      : fullContext;
+    return buildBoundedContext(priorityParts, secondaryParts);
   }
 
   return { buildMatterContext };
+}
+
+function buildBoundedContext(priorityParts, secondaryParts) {
+  let context = "";
+  let truncated = false;
+  for (const part of [...priorityParts, ...secondaryParts]) {
+    const prefix = context ? CONTEXT_SEPARATOR : "";
+    const available = MAX_CONTEXT_CHARS - context.length - prefix.length;
+    if (available <= 0) {
+      truncated = true;
+      break;
+    }
+    if (part.length > available) {
+      context += `${prefix}${part.slice(0, available)}`;
+      truncated = true;
+      break;
+    }
+    context += `${prefix}${part}`;
+  }
+  return truncated ? `${context}\n...[truncated]` : context;
 }
 
 export function formatMatterContextRecord(record) {

@@ -37,11 +37,21 @@ const EVENT_TYPES = [
   "other",
 ];
 const EVENT_TYPE_SET = new Set(EVENT_TYPES);
+const EXCLUDED_CHRONOLOGY_SOURCE_PATTERNS = [
+  /\bgolden[-_\s]?list[-_\s]?of[-_\s]?dates\b/i,
+  /\breadme[-_\s]?case\b/i,
+];
+const SAME_SOURCE_DATE_LIMIT = 2;
 const LIST_OF_DATES_SYSTEM_PROMPT = [
   "You are a careful Indian legal chronology assistant.",
   "Create a lawyer-facing, client-favourable, source-backed list of dates from extracted document blocks.",
   "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
   "Extract legally or factually relevant dated events.",
+  "Prefer primary evidence such as agreements, notices, letters, emails, receipts, ledgers, bank statements, inspection reports, and client interview notes.",
+  "Do not use evaluation references, golden answers, README case summaries, generated chronologies, or other control documents as chronology sources.",
+  "Do not duplicate a fact from a summary block when the same fact is available from a primary source block.",
+  "Surface legal turning points: breach/default dates, demands/notices, objections or protests to disputed changes, payments and receipt mismatches, contradictory progress claims, disputed allotment changes, possession deadlines, site inspections, counsel authority, and relief demands.",
+  "Produce a lawyer-useful chronology, not an index of every dated sentence.",
   "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
   "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
   "Every legal_relevance sentence must be supported by the same cited block as the event.",
@@ -58,16 +68,6 @@ const HIGH_RISK_CONCLUSION_TERMS = [
   "liability admitted",
 ];
 const RAW_CITATION_RE = /\bFILE-\d{4,}\s+p\d+\.b\d+\b/g;
-const META_DOCUMENT_TYPE_SET = new Set([
-  "readme",
-  "manifest",
-  "index",
-  "file_index",
-  "bundle_index",
-  "exhibit_index",
-  "metadata",
-]);
-const META_SOURCE_NAME_RE = /\b(readme|manifest|(?:file|document|exhibit|bundle)\s*index|(?:file|document|exhibit|bundle)\s*list|table\s*of\s*contents|metadata)\b/i;
 
 const CSV_HEADERS = [
   "date_iso",
@@ -195,21 +195,13 @@ export async function runCreateListOfDates(options = {}) {
   const blocks = buildSourceBlocks(records, fileIndex);
   if (!blocks.length) throw new Error("Extraction records contain no text blocks to analyze.");
   const sourceIndex = await readSourceIndex(matterRoot, blocks);
-  const chronologyBlocks = filterChronologyCandidateBlocks(blocks, sourceIndex);
-  if (!chronologyBlocks.length) {
-    throw new Error("Extraction records contain no chronology-eligible text blocks to analyze.");
-  }
 
-  const chunks = chunkBlocks(chronologyBlocks);
-  const filteredBlockCount = blocks.length - chronologyBlocks.length;
+  const chunks = chunkBlocks(blocks);
   const outputLines = [
     `> workbench.run /create_listofdates${dryRun ? " (dry-run)" : ""}`,
     `[listofdates] read ${records.length} extraction record(s)`,
-    `[listofdates] sending ${chronologyBlocks.length} source block(s) in ${chunks.length} AI request(s)`,
+    `[listofdates] sending ${blocks.length} source block(s) in ${chunks.length} AI request(s)`,
   ];
-  if (filteredBlockCount) {
-    outputLines.push(`[listofdates] filtered ${filteredBlockCount} meta/index source block(s) before AI input`);
-  }
 
   const rawEntries = [];
   const responseAiRuns = [];
@@ -231,8 +223,8 @@ export async function runCreateListOfDates(options = {}) {
     outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
   }
 
-  const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
-  const entries = dedupeEntries(validEntries).sort(compareEntries);
+  const validEntries = validateAndHydrateEntries(rawEntries, blocks, sourceIndex);
+  const entries = pruneDenseSourceDateEntries(dedupeEntries(validEntries)).sort(compareEntries);
   const aiRun = mergeAiRunMetadata(baseAiRun, responseAiRuns);
 
   const outputDir = path.join(matterRoot, "10_Library");
@@ -273,8 +265,7 @@ export async function runCreateListOfDates(options = {}) {
     engineVersion: ENGINE_VERSION,
     counts: {
       recordsRead: records.length,
-      blocksSent: chronologyBlocks.length,
-      blocksFiltered: filteredBlockCount,
+      blocksSent: blocks.length,
       aiRequests: chunks.length,
       candidateEntries: rawEntries.length,
       entries: entries.length,
@@ -465,6 +456,15 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
       "Do not collapse multiple same-day events when they carry different legal meaning or different citations.",
       "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
       "Ignore bare years, statute years, section numbers, page numbers, and unrelated citation years unless tied to an event in the source block.",
+      "Skip source blocks whose source name indicates a golden answer, prior list of dates, README case summary, benchmark reference, or generated chronology.",
+      "Prefer actual payment/receipt/bank rows over contract payment-schedule rows when both describe the same payment.",
+      "If a row concerns a legal notice or demand, include the legal basis and relief demanded when present in the cited block.",
+      "If a party objects, protests, refuses, or demands an addendum for a disputed change, include that response as its own chronology row.",
+      "If a document is executed on one date but creates a different legally material deadline, include both dates when both are material.",
+      "If a row concerns a contradiction or mismatch, state the mismatch explicitly instead of only recording the isolated document date.",
+      "Keep one event per distinct legal fact; avoid repeating the same date/fact from both a primary document and a case summary.",
+      "For the same source document on the same date, usually return only one row; return two only if the source contains two separate legal facts such as progress delay plus specification mismatch.",
+      "Do not create separate rows for signatures, annexures, photographs, routine exports, or report formalities unless they independently affect a claim or deadline.",
     ],
     allowed_event_types: EVENT_TYPES,
     source_blocks: chunk.map((block) => ({
@@ -649,6 +649,8 @@ function buildSourceBlocks(records, fileIndex) {
   const blocks = [];
   for (const record of records) {
     const fileInfo = fileIndex.get(record.file_id) || {};
+    const originalName = fileInfo.original_name || path.basename(record.source_path || "");
+    if (shouldExcludeChronologySource(originalName, record.source_path)) continue;
     for (const page of record.pages || []) {
       for (const block of page.blocks || []) {
         if (!block?.id || typeof block.text !== "string" || !block.text.trim()) continue;
@@ -657,8 +659,7 @@ function buildSourceBlocks(records, fileIndex) {
           citation,
           file_id: record.file_id,
           source_path: record.source_path,
-          original_name: fileInfo.original_name || path.basename(record.source_path || ""),
-          category: fileInfo.category || "",
+          original_name: originalName,
           page: page.page,
           block_id: block.id,
           block_type: block.type || "",
@@ -674,6 +675,11 @@ function buildSourceBlocks(records, fileIndex) {
     }
   }
   return blocks;
+}
+
+function shouldExcludeChronologySource(originalName = "", sourcePath = "") {
+  const haystack = `${originalName}\n${sourcePath}`;
+  return EXCLUDED_CHRONOLOGY_SOURCE_PATTERNS.some((pattern) => pattern.test(haystack));
 }
 
 function chunkBlocks(blocks) {
@@ -712,43 +718,13 @@ async function readSourceIndex(matterRoot, blocks) {
     if (source.source_path !== block.source_path) continue;
     const label = normalizeDisplayText(source.display_label);
     const shortLabel = normalizeDisplayText(source.short_label);
-    const metadata = {
-      document_type: normalizeDisplayText(source.document_type).toLowerCase(),
-      display_label: label,
-      short_label: shortLabel,
-    };
-    if (label && !hasFileIdPrefix(label) && !hasFileIdPrefix(shortLabel)) {
-      metadata.source_label = label;
-      metadata.source_short_label = shortLabel || label;
-    }
-    index.set(source.file_id, metadata);
+    if (!label || hasFileIdPrefix(label) || hasFileIdPrefix(shortLabel)) continue;
+    index.set(source.file_id, {
+      source_label: label,
+      source_short_label: shortLabel || label,
+    });
   }
   return index;
-}
-
-function filterChronologyCandidateBlocks(blocks, sourceIndex = new Map()) {
-  return blocks.filter((block) => !isMetaChronologySource(block, sourceIndex.get(block.file_id)));
-}
-
-function isMetaChronologySource(block, sourceMetadata = {}) {
-  const documentType = normalizeDisplayText(sourceMetadata.document_type).toLowerCase();
-  if (META_DOCUMENT_TYPE_SET.has(documentType)) return true;
-
-  const names = [
-    sourceMetadata.display_label,
-    sourceMetadata.short_label,
-    block.original_name,
-    path.basename(block.source_path || ""),
-  ].map(normalizeEligibilityText).filter(Boolean);
-
-  return names.some((name) => META_SOURCE_NAME_RE.test(name));
-}
-
-function normalizeEligibilityText(value) {
-  return String(value || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) {
@@ -777,7 +753,7 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
       citation: raw.citation,
       file_id: block.file_id,
       source_file_id: block.file_id,
-      ...sourceLabelFields(sourceIndex.get(block.file_id)),
+      ...sourceIndex.get(block.file_id),
       source_path: block.source_path,
       original_name: block.original_name,
       page: block.page,
@@ -789,13 +765,6 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
     });
   }
   return entries;
-}
-
-function sourceLabelFields(sourceMetadata = {}) {
-  const fields = {};
-  if (sourceMetadata.source_label) fields.source_label = sourceMetadata.source_label;
-  if (sourceMetadata.source_short_label) fields.source_short_label = sourceMetadata.source_short_label;
-  return fields;
 }
 
 function normalizeEventType(value) {
@@ -894,6 +863,46 @@ function dedupeEntries(entries) {
     seen.add(key);
     return true;
   });
+}
+
+function pruneDenseSourceDateEntries(entries) {
+  const grouped = new Map();
+  for (const entry of entries) {
+    const key = `${entry.date_iso}|${entry.file_id || entry.source_path || entry.original_name}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(entry);
+  }
+
+  const kept = [];
+  for (const group of grouped.values()) {
+    if (group.length <= SAME_SOURCE_DATE_LIMIT) {
+      kept.push(...group);
+      continue;
+    }
+    kept.push(...group
+      .slice()
+      .sort((a, b) => scoreChronologyEntry(b) - scoreChronologyEntry(a) || compareEntries(a, b))
+      .slice(0, SAME_SOURCE_DATE_LIMIT));
+  }
+  return kept;
+}
+
+function scoreChronologyEntry(entry) {
+  const text = `${entry.event} ${entry.source_excerpt || ""}`.toLowerCase();
+  let score = 0;
+  if (/\b(legal notice|demand|relief|refund|compensation|costs?)\b/.test(text)) score += 30;
+  if (/\b(possession|deadline|breach|delay|handover|failed|default)\b/.test(text)) score += 26;
+  if (/\b(mismatch|differential|unreceipted|receipt|payment|paid|debit|instalment|misappropriat)\b/.test(text)) score += 24;
+  if (/\b(inspection|site visit|progress|completion|complete|plastering|plumbing|slab)\b/.test(text)) score += 22;
+  if (/\b(specification|flooring|tiles?|marble|substitution|material)\b/.test(text)) score += 22;
+  if (/\b(contradict|false|impossible|denied|contrary)\b/.test(text)) score += 20;
+  if (/\b(addendum|parking|allotment|reassign|clause|objected?|objection|protest|refus(?:e|ed|al))\b/.test(text)) score += 18;
+  if (/\b(agreement|contract|executed|promoter)\b/.test(text)) score += 14;
+  if (/\b(vakalatnama|counsel|authorized|represent)\b/.test(text)) score += 10;
+  if (/\b(signed|signature|annexure|photograph|photo|exported|conducted for|was conducted|verified)\b/.test(text)) score -= 10;
+  if (entry.needs_review) score -= 2;
+  score += Math.min(8, Math.floor(String(entry.event || "").length / 80));
+  return score;
 }
 
 function compareEntries(a, b) {

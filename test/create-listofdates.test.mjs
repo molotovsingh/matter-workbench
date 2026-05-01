@@ -59,20 +59,6 @@ async function readExtractionRecord(root, fileId = "FILE-0001") {
   ));
 }
 
-async function readFileRegister(root) {
-  return parseCsv(await readFile(
-    path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"),
-    "utf8",
-  ));
-}
-
-async function fileIdForOriginalName(root, originalName) {
-  const rows = await readFileRegister(root);
-  const row = rows.find((candidate) => candidate.original_name === originalName);
-  assert.ok(row, `Expected File Register row for ${originalName}`);
-  return row.file_id;
-}
-
 async function writeSourceIndex(root, sources) {
   const outputDir = path.join(root, "10_Library");
   await mkdir(outputDir, { recursive: true });
@@ -264,106 +250,6 @@ test("create-listofdates enriches entries with Source Index labels without chang
   assert.match(markdown, /FILE-0001 p1\.b1/);
 });
 
-test("create-listofdates filters manifest records before AI while preserving substantive duplicate events", async () => {
-  const root = await makeMatterRoot();
-  await writeSource(root, "README_MANIFEST.txt", [
-    "Case bundle manifest.",
-    "Agreement was signed on 20 April 2026.",
-  ].join("\n"));
-  await writeSource(root, "agreement.txt", "Agreement was signed on 20 April 2026 by Mehta and Skyline.");
-  await writeSource(root, "email.txt", "Agreement was signed on 20 April 2026 and circulated by email.");
-  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
-  await runExtract({ matterRoot: root, dryRun: false });
-
-  const manifestId = await fileIdForOriginalName(root, "README_MANIFEST.txt");
-  const agreementId = await fileIdForOriginalName(root, "agreement.txt");
-  const emailId = await fileIdForOriginalName(root, "email.txt");
-  const manifestRecord = await readExtractionRecord(root, manifestId);
-  const agreementRecord = await readExtractionRecord(root, agreementId);
-  const emailRecord = await readExtractionRecord(root, emailId);
-  await writeSourceIndex(root, [
-    {
-      file_id: manifestId,
-      sha256: manifestRecord.sha256,
-      source_path: manifestRecord.source_path,
-      display_label: "Readme Manifest - Case Bundle",
-      short_label: "Readme Manifest",
-      document_type: "unknown",
-    },
-    {
-      file_id: agreementId,
-      sha256: agreementRecord.sha256,
-      source_path: agreementRecord.source_path,
-      display_label: "Agreement note dated 20 April 2026",
-      short_label: "Agreement note",
-      document_type: "agreement",
-    },
-    {
-      file_id: emailId,
-      sha256: emailRecord.sha256,
-      source_path: emailRecord.source_path,
-      display_label: "Email note dated 20 April 2026",
-      short_label: "Email note",
-      document_type: "email",
-    },
-  ]);
-
-  const calls = [];
-  const result = await runCreateListOfDates({
-    matterRoot: root,
-    aiProvider: async ({ chunk }) => {
-      calls.push(chunk);
-      assert.equal(chunk.some((block) => block.file_id === manifestId), false);
-      assert.ok(chunk.some((block) => block.file_id === agreementId));
-      assert.ok(chunk.some((block) => block.file_id === emailId));
-      return {
-        entries: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
-            citation: `${agreementId} p1.b1`,
-            needs_review: false,
-            confidence: 0.94,
-            ...lawyerFields({
-              event_type: "agreement",
-              legal_relevance: "Supports the client's contract chronology because the agreement note records the signing date.",
-              issue_tags: ["agreement"],
-            }),
-          },
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
-            citation: `${emailId} p1.b1`,
-            needs_review: false,
-            confidence: 0.9,
-            ...lawyerFields({
-              event_type: "other",
-              legal_relevance: "Supports the client's contract chronology because the email note separately records circulation of the signed agreement.",
-              issue_tags: ["agreement", "email"],
-            }),
-          },
-        ],
-      };
-    },
-  });
-
-  assert.equal(calls.length, 1);
-  assert.equal(result.counts.blocksFiltered, manifestRecord.pages[0].blocks.length);
-  assert.equal(result.entries.length, 2);
-  assert.deepEqual(result.entries.map((entry) => entry.citation), [`${agreementId} p1.b1`, `${emailId} p1.b1`]);
-  assert.deepEqual(result.entries.map((entry) => entry.source_label), [
-    "Agreement note dated 20 April 2026",
-    "Email note dated 20 April 2026",
-  ]);
-
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
-  assert.doesNotMatch(markdown, /Readme Manifest/);
-  assert.match(markdown, new RegExp(`Agreement note dated 20 April 2026 \\(${agreementId} p1\\.b1\\)`));
-  assert.match(markdown, new RegExp(`Email note dated 20 April 2026 \\(${emailId} p1\\.b1\\)`));
-});
-
 test("create-listofdates ignores stale Source Index labels and keeps current citation behavior", async () => {
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
@@ -547,6 +433,141 @@ test("create-listofdates reports missing extraction records before calling AI", 
   assert.equal(called, false);
 });
 
+test("create-listofdates excludes reference and case-summary records from AI input", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "GOLDEN_LIST_OF_DATES.md", "Expected event on 01 January 2026.");
+  await writeSource(root, "README_CASE.txt", "CASE SUMMARY: Payment mismatch on 02 February 2026.");
+  await writeSource(root, "notice.txt", "Demand notice was issued on 03 March 2026.");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const calls = [];
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async ({ chunk }) => {
+      calls.push(chunk);
+      assert.ok(chunk.length > 0);
+      assert.equal(chunk.some((block) => /GOLDEN_LIST_OF_DATES|README_CASE/i.test(block.original_name)), false);
+      assert.equal(chunk.every((block) => block.original_name === "notice.txt"), true);
+      return {
+        entries: [{
+          date_iso: "2026-03-03",
+          date_text: "03 March 2026",
+          event: "Demand notice was issued.",
+          citation: chunk[0].citation,
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "notice",
+            legal_relevance: "Supports the client's notice chronology because the cited block records the demand notice date.",
+            issue_tags: ["notice"],
+          }),
+        }],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.recordsRead, 3);
+  assert.equal(result.counts.blocksSent, 1);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].original_name, "notice.txt");
+});
+
+test("create-listofdates prunes dense same-source same-date micro-events", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "inspection.txt", [
+    "On 12 February 2024 inspection recorded Tower B approximately 55% complete.",
+    "",
+    "On 12 February 2024 inspection found local vitrified tiles instead of Italian marble.",
+    "",
+    "On 12 February 2024 Annexure A recorded 28 site photographs.",
+    "",
+    "On 12 February 2024 the inspection report was signed by the allottee.",
+  ].join("\n"));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async ({ chunk }) => ({
+      entries: chunk.map((block, index) => ({
+        date_iso: "2024-02-12",
+        date_text: "12 February 2024",
+        event: [
+          "Inspection recorded Tower B approximately 55% complete.",
+          "Inspection found local vitrified tiles instead of Italian marble.",
+          "Annexure A recorded 28 site photographs.",
+          "The inspection report was signed by the allottee.",
+        ][index],
+        citation: block.citation,
+        needs_review: false,
+        confidence: 0.9,
+        ...lawyerFields({
+          event_type: index < 2 ? "inspection" : "other",
+          legal_relevance: "Supports the client's inspection chronology because the cited block records a site inspection fact.",
+          issue_tags: ["inspection"],
+        }),
+      })),
+    }),
+  });
+
+  assert.equal(result.counts.candidateEntries, 4);
+  assert.equal(result.counts.entries, 2);
+  assert.deepEqual(
+    result.entries.map((entry) => entry.event),
+    [
+      "Inspection recorded Tower B approximately 55% complete.",
+      "Inspection found local vitrified tiles instead of Italian marble.",
+    ],
+  );
+});
+
+test("create-listofdates prunes dense rows per source file, not display name", async () => {
+  const root = await makeMatterRoot();
+  for (const dir of ["site-a", "site-b"]) {
+    await writeSource(root, `${dir}/inspection.txt`, [
+      `On 12 February 2024 ${dir} inspection recorded Tower B approximately 55% complete.`,
+      "",
+      `On 12 February 2024 ${dir} inspection found local vitrified tiles instead of Italian marble.`,
+      "",
+      `On 12 February 2024 ${dir} Annexure A recorded 28 site photographs.`,
+      "",
+      `On 12 February 2024 ${dir} inspection report was signed by the allottee.`,
+    ].join("\n"));
+  }
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async ({ chunk }) => ({
+      entries: chunk.map((block) => ({
+        date_iso: "2024-02-12",
+        date_text: "12 February 2024",
+        event: block.text,
+        citation: block.citation,
+        needs_review: false,
+        confidence: 0.9,
+        ...lawyerFields({
+          event_type: /signed|Annexure/i.test(block.text) ? "other" : "inspection",
+          legal_relevance: "Supports the client's inspection chronology because the cited block records a site inspection fact.",
+          issue_tags: ["inspection"],
+        }),
+      })),
+    }),
+  });
+
+  assert.equal(result.counts.candidateEntries, 8);
+  assert.equal(result.counts.entries, 4);
+  assert.deepEqual(
+    [...new Set(result.entries.map((entry) => entry.file_id))].sort(),
+    ["FILE-0001", "FILE-0002"],
+  );
+  assert.equal(result.entries.filter((entry) => entry.file_id === "FILE-0001").length, 2);
+  assert.equal(result.entries.filter((entry) => entry.file_id === "FILE-0002").length, 2);
+});
+
 test("OpenAI provider requires an API key", async () => {
   const provider = createOpenAiProvider({ apiKey: "" });
   await assert.rejects(
@@ -594,8 +615,21 @@ test("OpenAI provider sends bounded structured output requests", async () => {
   assert.equal(bodies[0].text.format.strict, true);
   assert.match(bodies[0].input[0].content, /lawyer-facing, client-favourable/);
   assert.match(bodies[0].input[0].content, /Every legal_relevance sentence must be supported/);
+  assert.match(bodies[0].input[0].content, /Prefer primary evidence/);
+  assert.match(bodies[0].input[0].content, /golden answers/);
+  assert.match(bodies[0].input[0].content, /receipt mismatches/);
+  assert.match(bodies[0].input[0].content, /objections or protests/);
+  assert.match(bodies[0].input[0].content, /not an index of every dated sentence/);
   assert.match(bodies[0].input[1].content, /allowed_event_types/);
   assert.match(bodies[0].input[1].content, /client_favourable/);
+  const userPayload = JSON.parse(bodies[0].input[1].content);
+  assert.ok(userPayload.instructions.some((instruction) => /README case summary/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /legal notice or demand/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /demands an addendum/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /different legally material deadline/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /contradiction or mismatch/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /same source document on the same date/.test(instruction)));
+  assert.ok(userPayload.instructions.some((instruction) => /report formalities/.test(instruction)));
 });
 
 test("OpenRouter provider sends strict no-fallback structured output requests", async () => {
