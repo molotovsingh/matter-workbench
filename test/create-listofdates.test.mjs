@@ -351,9 +351,13 @@ test("create-listofdates filters manifest records before AI while preserving sub
 
   assert.equal(calls.length, 1);
   assert.equal(result.counts.blocksFiltered, manifestRecord.pages[0].blocks.length);
-  assert.equal(result.entries.length, 2);
-  assert.deepEqual(result.entries.map((entry) => entry.citation), [`${agreementId} p1.b1`, `${emailId} p1.b1`]);
-  assert.deepEqual(result.entries.map((entry) => entry.source_label), [
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].cluster_type, "corroborated_event");
+  assert.deepEqual(result.entries[0].supporting_sources.map((source) => source.citation), [
+    `${agreementId} p1.b1`,
+    `${emailId} p1.b1`,
+  ]);
+  assert.deepEqual(result.entries[0].supporting_sources.map((source) => source.source_label), [
     "Agreement note dated 20 April 2026",
     "Email note dated 20 April 2026",
   ]);
@@ -362,6 +366,241 @@ test("create-listofdates filters manifest records before AI while preserving sub
   assert.doesNotMatch(markdown, /Readme Manifest/);
   assert.match(markdown, new RegExp(`Agreement note dated 20 April 2026 \\(${agreementId} p1\\.b1\\)`));
   assert.match(markdown, new RegExp(`Email note dated 20 April 2026 \\(${emailId} p1\\.b1\\)`));
+});
+
+test("create-listofdates classifies corroboration, payment discrepancies, and true duplicates", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "bank.txt", [
+    "On 30 April 2023 Mehta paid Rs.10,00,000 to Skyline.",
+    "On 12 September 2023 Mehta paid Rs.15,70,000 to Skyline.",
+  ].join("\n\n"));
+  await writeSource(root, "receipt.txt", [
+    "Receipt dated 30 April 2023 acknowledged Rs.10,00,000 from Mehta.",
+    "Receipt dated 12 September 2023 acknowledged Rs.12,25,000 from Mehta.",
+  ].join("\n\n"));
+  await writeSource(root, "agreement.txt", "Possession deadline was 30 September 2024.");
+  await writeSource(root, "interview.txt", "Client interview confirms possession deadline was 30 September 2024.");
+  await writeSource(root, "notice.txt", "Legal notice was issued on 01 May 2026.");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const sourceNames = ["bank.txt", "receipt.txt", "agreement.txt", "interview.txt", "notice.txt"];
+  const fileIds = Object.fromEntries(await Promise.all(sourceNames.map(async (name) => [name, await fileIdForOriginalName(root, name)])));
+  const records = Object.fromEntries(await Promise.all(Object.entries(fileIds).map(async ([name, fileId]) => [name, await readExtractionRecord(root, fileId)])));
+  await writeSourceIndex(root, sourceNames.map((name) => ({
+    file_id: fileIds[name],
+    sha256: records[name].sha256,
+    source_path: records[name].source_path,
+    display_label: `${name} label`,
+    short_label: name,
+    document_type: name.includes("agreement") ? "agreement" : "unknown",
+  })));
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2023-04-30",
+          date_text: "30 April 2023",
+          event: "Mehta paid Rs.10,00,000 to Skyline.",
+          citation: `${fileIds["bank.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Supports the client's payment chronology because the bank statement records Rs.10,00,000.",
+            issue_tags: ["payment"],
+          }),
+        },
+        {
+          date_iso: "2023-04-30",
+          date_text: "30 April 2023",
+          event: "Receipt acknowledged Rs.10,00,000 from Mehta.",
+          citation: `${fileIds["receipt.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.91,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Corroborates the client's payment chronology because the receipt records Rs.10,00,000.",
+            issue_tags: ["payment", "receipt"],
+          }),
+        },
+        {
+          date_iso: "2023-09-12",
+          date_text: "12 September 2023",
+          event: "Mehta paid Rs.15,70,000 to Skyline.",
+          citation: `${fileIds["bank.txt"]} p1.b2`,
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Supports the client's payment discrepancy issue because the bank statement records Rs.15,70,000.",
+            issue_tags: ["payment", "contradiction"],
+          }),
+        },
+        {
+          date_iso: "2023-09-12",
+          date_text: "12 September 2023",
+          event: "Receipt acknowledged Rs.12,25,000 from Mehta.",
+          citation: `${fileIds["receipt.txt"]} p1.b2`,
+          needs_review: false,
+          confidence: 0.91,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Supports the client's payment discrepancy issue because the receipt records Rs.12,25,000, with a discrepancy of Rs.3,45,000.",
+            issue_tags: ["payment", "contradiction"],
+          }),
+        },
+        {
+          date_iso: "2024-09-30",
+          date_text: "30 September 2024",
+          event: "Possession deadline was 30 September 2024.",
+          citation: `${fileIds["agreement.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "deadline",
+            legal_relevance: "Supports the client's possession delay issue because the agreement records the possession deadline.",
+            issue_tags: ["possession", "deadline"],
+          }),
+        },
+        {
+          date_iso: "2024-09-30",
+          date_text: "30 September 2024",
+          event: "Client interview confirms possession deadline was 30 September 2024.",
+          citation: `${fileIds["interview.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.86,
+          ...lawyerFields({
+            event_type: "deadline",
+            legal_relevance: "Corroborates the client's possession delay issue because the interview records the same possession deadline.",
+            issue_tags: ["possession", "deadline"],
+          }),
+        },
+        {
+          date_iso: "2026-05-01",
+          date_text: "01 May 2026",
+          event: "Legal notice was issued.",
+          citation: `${fileIds["notice.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.92,
+          ...lawyerFields({
+            event_type: "notice",
+            legal_relevance: "Supports the client's notice chronology because the source records the notice date.",
+            issue_tags: ["notice"],
+          }),
+        },
+        {
+          date_iso: "2026-05-01",
+          date_text: "01 May 2026",
+          event: "Legal notice was issued.",
+          citation: `${fileIds["notice.txt"]} p1.b1`,
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "notice",
+            legal_relevance: "Supports the client's notice chronology because the source records the notice date.",
+            issue_tags: ["notice"],
+          }),
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.counts.acceptedEntries, 8);
+  assert.equal(result.counts.entries, 4);
+  assert.equal(result.counts.clusteredEntries, 4);
+
+  const entriesByDate = Object.fromEntries(result.entries.map((entry) => [entry.date_iso, entry]));
+  assert.equal(entriesByDate["2023-04-30"].cluster_type, "corroborated_event");
+  assert.deepEqual(entriesByDate["2023-04-30"].supporting_sources.map((source) => source.citation), [
+    `${fileIds["bank.txt"]} p1.b1`,
+    `${fileIds["receipt.txt"]} p1.b1`,
+  ]);
+
+  assert.equal(entriesByDate["2023-09-12"].cluster_type, "payment_discrepancy");
+  assert.equal(entriesByDate["2023-09-12"].event_type, "contradiction");
+  assert.match(entriesByDate["2023-09-12"].event, /Rs\.12,25,000 vs Rs\.15,70,000/);
+  assert.deepEqual(entriesByDate["2023-09-12"].supporting_sources.map((source) => source.citation), [
+    `${fileIds["bank.txt"]} p1.b2`,
+    `${fileIds["receipt.txt"]} p1.b2`,
+  ]);
+
+  assert.equal(entriesByDate["2024-09-30"].cluster_type, "corroborated_event");
+  assert.deepEqual(entriesByDate["2024-09-30"].supporting_sources.map((source) => source.source_file_id), [
+    fileIds["agreement.txt"],
+    fileIds["interview.txt"],
+  ]);
+
+  assert.equal(entriesByDate["2026-05-01"].cluster_type, "true_duplicate");
+  assert.deepEqual(entriesByDate["2026-05-01"].supporting_sources.map((source) => source.citation), [
+    `${fileIds["notice.txt"]} p1.b1`,
+  ]);
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.match(markdown, /Payment discrepancy: same-date sources record inconsistent amounts/);
+  assert.match(markdown, new RegExp(`bank\\.txt label \\(${fileIds["bank.txt"]} p1\\.b2\\)<br>receipt\\.txt label \\(${fileIds["receipt.txt"]} p1\\.b2\\)`));
+  assert.equal((markdown.match(/Legal notice was issued/g) || []).length, 1);
+});
+
+test("create-listofdates keeps separate same-day payments out of discrepancy clusters", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "booking-payment.txt", "On 30 April 2023 Mehta paid Rs.10,00,000 as booking amount to Skyline.");
+  await writeSource(root, "maintenance-deposit.txt", "On 30 April 2023 Mehta paid Rs.2,50,000 as maintenance deposit to Skyline.");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const bookingId = await fileIdForOriginalName(root, "booking-payment.txt");
+  const maintenanceId = await fileIdForOriginalName(root, "maintenance-deposit.txt");
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2023-04-30",
+          date_text: "30 April 2023",
+          event: "Mehta paid Rs.10,00,000 as booking amount to Skyline.",
+          citation: `${bookingId} p1.b1`,
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Supports the client's payment chronology because the source records a Rs.10,00,000 booking amount.",
+            issue_tags: ["payment"],
+          }),
+        },
+        {
+          date_iso: "2023-04-30",
+          date_text: "30 April 2023",
+          event: "Mehta paid Rs.2,50,000 as maintenance deposit to Skyline.",
+          citation: `${maintenanceId} p1.b1`,
+          needs_review: false,
+          confidence: 0.91,
+          ...lawyerFields({
+            event_type: "payment",
+            legal_relevance: "Supports the client's payment chronology because the source records a Rs.2,50,000 maintenance deposit.",
+            issue_tags: ["payment"],
+          }),
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.counts.acceptedEntries, 2);
+  assert.equal(result.counts.entries, 2);
+  assert.equal(result.counts.clusteredEntries, 0);
+  assert.deepEqual(result.entries.map((entry) => entry.cluster_type), ["single_event", "single_event"]);
+  assert.deepEqual(result.entries.map((entry) => entry.citation).sort(), [
+    `${bookingId} p1.b1`,
+    `${maintenanceId} p1.b1`,
+  ].sort());
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.doesNotMatch(markdown, /Payment discrepancy/);
+  assert.match(markdown, /Rs\.10,00,000 as booking amount/);
+  assert.match(markdown, /Rs\.2,50,000 as maintenance deposit/);
 });
 
 test("create-listofdates ignores stale Source Index labels and keeps current citation behavior", async () => {
