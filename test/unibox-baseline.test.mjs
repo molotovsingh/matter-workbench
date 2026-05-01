@@ -154,11 +154,33 @@ function buildFakeResponse(schemaName, body) {
       return classifyFromFakeRequest(body);
     case "skill_router_decision":
       return routeFromFakeRequest(body);
+    case "skill_design_update":
+      return skillDesignFromFakeRequest(body);
     case "matter_qa_answer":
       return answerFromFakeRequest(body);
     default:
       throw new Error(`Unexpected fake OpenAI schema: ${schemaName || "none"}`);
   }
+}
+
+function skillDesignFromFakeRequest(body) {
+  const userPayload = JSON.parse(body.input.at(-1).content);
+  const message = String(userPayload.latest_user_message || "").trim();
+  return {
+    slots: {
+      skill_name: "Contradiction Map",
+      purpose: message || "Map contradictions in the matter record",
+      source_material: "Extracted records and generated chronology",
+      output: "Issue note with contradiction table",
+      workflow_stage: "Before hearing preparation",
+      audience: "Arguing counsel",
+      source_citation_expectation: "Every contradiction must cite FILE records",
+      matter_dependence: "Reusable across litigation matters",
+      legal_setting: "General civil disputes",
+    },
+    next_question: "",
+    reason: "The fake provider fills a complete brief for deterministic tests.",
+  };
 }
 
 function classifyFromFakeRequest(body) {
@@ -466,6 +488,35 @@ test("unibox starts /new_skill without a loaded matter", async (t) => {
   });
 });
 
+test("unibox /new_skill uses AI settings saved after server start", async (t) => {
+  const openAiCalls = installFakeOpenAiResponses(t);
+  const { appDir, matterRoot } = await createBaselineMatter();
+
+  await withServer({
+    appDir,
+    matterRoot,
+    env: {},
+  }, async ({ baseUrl }) => {
+    const saved = await postJson(baseUrl, "/api/ai-settings", {
+      apiKey: "sk-late_key",
+      model: "gpt-late-model",
+      maxOutputTokens: "2400",
+    });
+    assert.equal(saved.ok, true);
+
+    const response = await postJson(baseUrl, "/api/unibox", {
+      userInput: "/new_skill build a contradiction map",
+    });
+    assert.equal(response.ok, true);
+    assert.equal(response.payload.intent, "skill_design");
+    assert.match(response.payload.result.briefMarkdown, /Contradiction Map/);
+
+    const designCall = openAiCalls.find((call) => call?.text?.format?.name === "skill_design_update");
+    assert.ok(designCall, "skill design should call OpenAI after settings are saved");
+    assert.equal(designCall.model, "gpt-late-model");
+  });
+});
+
 test("unibox /new_skill handles one-off and reusable skill-design paths", async (t) => {
   installFakeOpenAiResponses(t);
   const { appDir, matterRoot } = await createBaselineMatter();
@@ -576,6 +627,16 @@ test("unibox /new_skill handles one-off and reusable skill-design paths", async 
     assert.equal(routerCalls, 1);
     assert.match(routedRequest, /Proposed Legal Workbench skill/);
     assert.match(routedRequest, /Weak Facts Analysis/);
+    history = appendUniboxHistory(history, "check overlap", overlap.payload);
+    assert.match(history.at(-1).content, /"active":false/);
+
+    const postOverlapQa = await postJson(baseUrl, "/api/unibox", {
+      userInput: "what compensation can mehta claim?",
+      conversationHistory: history,
+    });
+    assert.equal(postOverlapQa.payload.intent, "copilot_qa");
+    assert.equal(postOverlapQa.payload.displayType, "qa_answer");
+    assert.match(postOverlapQa.payload.result.answer, /Rs\. 5,00,000 compensation/);
 
     const proposals = await getJson(baseUrl, "/api/skill-proposals");
     assert.equal(proposals.ok, true);

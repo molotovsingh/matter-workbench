@@ -76,12 +76,19 @@ export function createUniboxService({
       }
 
       if (designTurn.action === "check_overlap") {
+        const routerResult = await skillRouter.checkIntent({
+          userRequest: designTurn.routerRequest,
+          conversationHistory,
+        });
         return {
           intent: "skill_request",
           displayType: "skill_router",
-          result: await skillRouter.checkIntent({
-            userRequest: designTurn.routerRequest,
+          result: routerResult,
+          conversationHistory: appendRouterHistory({
             conversationHistory,
+            userInput: trimmed,
+            routerResult,
+            skillDesignHistorySummary: designTurn.historySummary,
           }),
         };
       }
@@ -190,4 +197,35 @@ function needsSkillDesignGuidance(routerResult = {}) {
     && !routerResult.matched_skill
     && !routerResult.mece_violation
     && (!routerResult.recommended_action || routerResult.recommended_action === "none");
+}
+
+function appendRouterHistory({
+  conversationHistory = [],
+  userInput = "",
+  routerResult = {},
+  skillDesignHistorySummary = "",
+} = {}) {
+  return [
+    ...conversationHistory,
+    { role: "user", content: userInput },
+    {
+      role: "assistant",
+      content: [
+        summarizeRouterResult(routerResult),
+        skillDesignHistorySummary,
+      ].filter(Boolean).join("\n"),
+    },
+  ].slice(-20);
+}
+
+function summarizeRouterResult(routerResult = {}) {
+  return [
+    "Skill router result.",
+    `decision=${routerResult.decision || ""}`,
+    `recommended_action=${routerResult.recommended_action || ""}`,
+    `matched_skill=${routerResult.matched_skill || ""}`,
+    `user_gate_required=${routerResult.user_gate_required ? "yes" : "no"}`,
+    `reason=${routerResult.reason || ""}`,
+    `next_action=${routerResult.suggested_next_action || ""}`,
+  ].join("\n");
 }

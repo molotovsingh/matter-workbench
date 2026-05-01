@@ -83,13 +83,16 @@ export function createSkillDesignService({
   env = process.env,
   endpoint = DEFAULT_RESPONSES_ENDPOINT,
 } = {}) {
-  const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
-  const provider = aiProvider || createOpenAiSkillDesignProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint,
-    model: modelPolicy.model,
-    maxOutputTokens: Math.min(modelPolicy.maxOutputTokens, DEFAULT_ROUTER_MAX_OUTPUT_TOKENS),
-  });
+  function resolveProvider() {
+    if (aiProvider) return aiProvider;
+    const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
+    return createOpenAiSkillDesignProvider({
+      apiKey: env.OPENAI_API_KEY,
+      endpoint,
+      model: modelPolicy.model,
+      maxOutputTokens: Math.min(modelPolicy.maxOutputTokens, DEFAULT_ROUTER_MAX_OUTPUT_TOKENS),
+    });
+  }
 
   async function processTurn({ userInput, conversationHistory = [], hasMatter = false } = {}) {
     const trimmed = String(userInput || "").trim();
@@ -103,7 +106,7 @@ export function createSkillDesignService({
         state,
         userInput: commandText,
         hasMatter,
-        provider,
+        provider: resolveProvider(),
       });
     }
 
@@ -137,9 +140,16 @@ export function createSkillDesignService({
           formatSlotPrompt(nextState, nextSlot),
         ].join("\n"), nextState);
       }
+      const closedState = {
+        ...existingState,
+        active: false,
+        phase: "overlap_checked",
+        expectedSlot: "",
+      };
       return {
         action: "check_overlap",
         routerRequest: buildRouterRequest(existingState),
+        historySummary: buildHistorySummary(closedState),
       };
     }
 
@@ -171,7 +181,7 @@ export function createSkillDesignService({
       state: existingState,
       userInput: trimmed,
       hasMatter,
-      provider,
+      provider: resolveProvider(),
     });
   }
 
