@@ -59,6 +59,20 @@ async function readExtractionRecord(root, fileId = "FILE-0001") {
   ));
 }
 
+async function readFileRegister(root) {
+  return parseCsv(await readFile(
+    path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"),
+    "utf8",
+  ));
+}
+
+async function fileIdForOriginalName(root, originalName) {
+  const rows = await readFileRegister(root);
+  const row = rows.find((candidate) => candidate.original_name === originalName);
+  assert.ok(row, `Expected File Register row for ${originalName}`);
+  return row.file_id;
+}
+
 async function writeSourceIndex(root, sources) {
   const outputDir = path.join(root, "10_Library");
   await mkdir(outputDir, { recursive: true });
@@ -248,6 +262,106 @@ test("create-listofdates enriches entries with Source Index labels without chang
   const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
   assert.match(markdown, /Agreement note dated 20 April 2026 \(FILE-0001 p1\.b1\)/);
   assert.match(markdown, /FILE-0001 p1\.b1/);
+});
+
+test("create-listofdates filters manifest records before AI while preserving substantive duplicate events", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "README_MANIFEST.txt", [
+    "Case bundle manifest.",
+    "Agreement was signed on 20 April 2026.",
+  ].join("\n"));
+  await writeSource(root, "agreement.txt", "Agreement was signed on 20 April 2026 by Mehta and Skyline.");
+  await writeSource(root, "email.txt", "Agreement was signed on 20 April 2026 and circulated by email.");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const manifestId = await fileIdForOriginalName(root, "README_MANIFEST.txt");
+  const agreementId = await fileIdForOriginalName(root, "agreement.txt");
+  const emailId = await fileIdForOriginalName(root, "email.txt");
+  const manifestRecord = await readExtractionRecord(root, manifestId);
+  const agreementRecord = await readExtractionRecord(root, agreementId);
+  const emailRecord = await readExtractionRecord(root, emailId);
+  await writeSourceIndex(root, [
+    {
+      file_id: manifestId,
+      sha256: manifestRecord.sha256,
+      source_path: manifestRecord.source_path,
+      display_label: "Readme Manifest - Case Bundle",
+      short_label: "Readme Manifest",
+      document_type: "unknown",
+    },
+    {
+      file_id: agreementId,
+      sha256: agreementRecord.sha256,
+      source_path: agreementRecord.source_path,
+      display_label: "Agreement note dated 20 April 2026",
+      short_label: "Agreement note",
+      document_type: "agreement",
+    },
+    {
+      file_id: emailId,
+      sha256: emailRecord.sha256,
+      source_path: emailRecord.source_path,
+      display_label: "Email note dated 20 April 2026",
+      short_label: "Email note",
+      document_type: "email",
+    },
+  ]);
+
+  const calls = [];
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async ({ chunk }) => {
+      calls.push(chunk);
+      assert.equal(chunk.some((block) => block.file_id === manifestId), false);
+      assert.ok(chunk.some((block) => block.file_id === agreementId));
+      assert.ok(chunk.some((block) => block.file_id === emailId));
+      return {
+        entries: [
+          {
+            date_iso: "2026-04-20",
+            date_text: "20 April 2026",
+            event: "Agreement was signed by Mehta and Skyline.",
+            citation: `${agreementId} p1.b1`,
+            needs_review: false,
+            confidence: 0.94,
+            ...lawyerFields({
+              event_type: "agreement",
+              legal_relevance: "Supports the client's contract chronology because the agreement note records the signing date.",
+              issue_tags: ["agreement"],
+            }),
+          },
+          {
+            date_iso: "2026-04-20",
+            date_text: "20 April 2026",
+            event: "Agreement was signed by Mehta and Skyline.",
+            citation: `${emailId} p1.b1`,
+            needs_review: false,
+            confidence: 0.9,
+            ...lawyerFields({
+              event_type: "other",
+              legal_relevance: "Supports the client's contract chronology because the email note separately records circulation of the signed agreement.",
+              issue_tags: ["agreement", "email"],
+            }),
+          },
+        ],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.blocksFiltered, manifestRecord.pages[0].blocks.length);
+  assert.equal(result.entries.length, 2);
+  assert.deepEqual(result.entries.map((entry) => entry.citation), [`${agreementId} p1.b1`, `${emailId} p1.b1`]);
+  assert.deepEqual(result.entries.map((entry) => entry.source_label), [
+    "Agreement note dated 20 April 2026",
+    "Email note dated 20 April 2026",
+  ]);
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.doesNotMatch(markdown, /Readme Manifest/);
+  assert.match(markdown, new RegExp(`Agreement note dated 20 April 2026 \\(${agreementId} p1\\.b1\\)`));
+  assert.match(markdown, new RegExp(`Email note dated 20 April 2026 \\(${emailId} p1\\.b1\\)`));
 });
 
 test("create-listofdates ignores stale Source Index labels and keeps current citation behavior", async () => {

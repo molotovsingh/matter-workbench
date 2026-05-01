@@ -58,6 +58,16 @@ const HIGH_RISK_CONCLUSION_TERMS = [
   "liability admitted",
 ];
 const RAW_CITATION_RE = /\bFILE-\d{4,}\s+p\d+\.b\d+\b/g;
+const META_DOCUMENT_TYPE_SET = new Set([
+  "readme",
+  "manifest",
+  "index",
+  "file_index",
+  "bundle_index",
+  "exhibit_index",
+  "metadata",
+]);
+const META_SOURCE_NAME_RE = /\b(readme|manifest|(?:file|document|exhibit|bundle)\s*index|(?:file|document|exhibit|bundle)\s*list|table\s*of\s*contents|metadata)\b/i;
 
 const CSV_HEADERS = [
   "date_iso",
@@ -185,13 +195,21 @@ export async function runCreateListOfDates(options = {}) {
   const blocks = buildSourceBlocks(records, fileIndex);
   if (!blocks.length) throw new Error("Extraction records contain no text blocks to analyze.");
   const sourceIndex = await readSourceIndex(matterRoot, blocks);
+  const chronologyBlocks = filterChronologyCandidateBlocks(blocks, sourceIndex);
+  if (!chronologyBlocks.length) {
+    throw new Error("Extraction records contain no chronology-eligible text blocks to analyze.");
+  }
 
-  const chunks = chunkBlocks(blocks);
+  const chunks = chunkBlocks(chronologyBlocks);
+  const filteredBlockCount = blocks.length - chronologyBlocks.length;
   const outputLines = [
     `> workbench.run /create_listofdates${dryRun ? " (dry-run)" : ""}`,
     `[listofdates] read ${records.length} extraction record(s)`,
-    `[listofdates] sending ${blocks.length} source block(s) in ${chunks.length} AI request(s)`,
+    `[listofdates] sending ${chronologyBlocks.length} source block(s) in ${chunks.length} AI request(s)`,
   ];
+  if (filteredBlockCount) {
+    outputLines.push(`[listofdates] filtered ${filteredBlockCount} meta/index source block(s) before AI input`);
+  }
 
   const rawEntries = [];
   const responseAiRuns = [];
@@ -213,7 +231,7 @@ export async function runCreateListOfDates(options = {}) {
     outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
   }
 
-  const validEntries = validateAndHydrateEntries(rawEntries, blocks, sourceIndex);
+  const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
   const entries = dedupeEntries(validEntries).sort(compareEntries);
   const aiRun = mergeAiRunMetadata(baseAiRun, responseAiRuns);
 
@@ -255,7 +273,8 @@ export async function runCreateListOfDates(options = {}) {
     engineVersion: ENGINE_VERSION,
     counts: {
       recordsRead: records.length,
-      blocksSent: blocks.length,
+      blocksSent: chronologyBlocks.length,
+      blocksFiltered: filteredBlockCount,
       aiRequests: chunks.length,
       candidateEntries: rawEntries.length,
       entries: entries.length,
@@ -639,6 +658,7 @@ function buildSourceBlocks(records, fileIndex) {
           file_id: record.file_id,
           source_path: record.source_path,
           original_name: fileInfo.original_name || path.basename(record.source_path || ""),
+          category: fileInfo.category || "",
           page: page.page,
           block_id: block.id,
           block_type: block.type || "",
@@ -692,13 +712,43 @@ async function readSourceIndex(matterRoot, blocks) {
     if (source.source_path !== block.source_path) continue;
     const label = normalizeDisplayText(source.display_label);
     const shortLabel = normalizeDisplayText(source.short_label);
-    if (!label || hasFileIdPrefix(label) || hasFileIdPrefix(shortLabel)) continue;
-    index.set(source.file_id, {
-      source_label: label,
-      source_short_label: shortLabel || label,
-    });
+    const metadata = {
+      document_type: normalizeDisplayText(source.document_type).toLowerCase(),
+      display_label: label,
+      short_label: shortLabel,
+    };
+    if (label && !hasFileIdPrefix(label) && !hasFileIdPrefix(shortLabel)) {
+      metadata.source_label = label;
+      metadata.source_short_label = shortLabel || label;
+    }
+    index.set(source.file_id, metadata);
   }
   return index;
+}
+
+function filterChronologyCandidateBlocks(blocks, sourceIndex = new Map()) {
+  return blocks.filter((block) => !isMetaChronologySource(block, sourceIndex.get(block.file_id)));
+}
+
+function isMetaChronologySource(block, sourceMetadata = {}) {
+  const documentType = normalizeDisplayText(sourceMetadata.document_type).toLowerCase();
+  if (META_DOCUMENT_TYPE_SET.has(documentType)) return true;
+
+  const names = [
+    sourceMetadata.display_label,
+    sourceMetadata.short_label,
+    block.original_name,
+    path.basename(block.source_path || ""),
+  ].map(normalizeEligibilityText).filter(Boolean);
+
+  return names.some((name) => META_SOURCE_NAME_RE.test(name));
+}
+
+function normalizeEligibilityText(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) {
@@ -727,7 +777,7 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
       citation: raw.citation,
       file_id: block.file_id,
       source_file_id: block.file_id,
-      ...sourceIndex.get(block.file_id),
+      ...sourceLabelFields(sourceIndex.get(block.file_id)),
       source_path: block.source_path,
       original_name: block.original_name,
       page: block.page,
@@ -739,6 +789,13 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
     });
   }
   return entries;
+}
+
+function sourceLabelFields(sourceMetadata = {}) {
+  const fields = {};
+  if (sourceMetadata.source_label) fields.source_label = sourceMetadata.source_label;
+  if (sourceMetadata.source_short_label) fields.source_short_label = sourceMetadata.source_short_label;
+  return fields;
 }
 
 function normalizeEventType(value) {
