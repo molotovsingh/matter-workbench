@@ -7,10 +7,13 @@ export function createListOfDatesSkill(ctx) {
 
   function renderListOfDatesResult(result) {
     const { counts } = listOfDatesSummary(result);
+    const accepted = counts.acceptedEntries ?? counts.entries ?? 0;
+    const rendered = counts.entries ?? accepted;
+    const clustered = counts.clusteredEntries ?? 0;
 
     ctx.setStatus({
       mood: "success",
-      card: `<strong>list of dates complete</strong><br />${counts.entries || 0} accepted from ${counts.candidateEntries || 0} AI candidate events.`,
+      card: `<strong>list of dates complete</strong><br />${rendered} chronology rows from ${accepted} accepted events${clustered ? `; ${clustered} clustered.` : "."}`,
       bar: "List of Dates Complete",
       terminal: result.outputLines || [],
     });
