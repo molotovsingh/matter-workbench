@@ -2,6 +2,8 @@
 
 This document maps the current Matter Workbench architecture as it exists in this repo. It is a maintenance artifact, not a roadmap. Keep future Unibox/v2 ideas out unless they are clearly marked as future work.
 
+Read the main diagram from left to right: the browser and CLI send actions into the local Node server or workflow engines, the engines use shared contracts and provider policies, and the result is written back as durable matter artifacts on disk.
+
 ## Maintenance Rule
 
 Update this diagram when adding a new route, service, engine, persistent artifact, provider path, or major lifecycle stage.
@@ -145,6 +147,23 @@ flowchart LR
   LodJson --> Library
   LodCsv --> Library
   LodMd --> Library
+
+  subgraph Verification["Verification and supervision"]
+    Tests["test/*.mjs<br/>node --test"]
+    Evals["evals/*<br/>smoke + golden checks"]
+    Docs["docs/*<br/>contracts, strategy, architecture"]
+  end
+
+  Tests --> Server
+  Tests --> MatterInit
+  Tests --> Extract
+  Tests --> SourceDescriptors
+  Tests --> ListOfDates
+  Evals --> SourceDescriptors
+  Evals --> MistralOcr
+  Evals --> ListOfDates
+  Docs --> MatterContract
+  Docs --> ModelPolicy
 ```
 
 ## Matter Lifecycle Map
