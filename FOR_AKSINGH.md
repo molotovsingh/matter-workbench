@@ -32,6 +32,12 @@ The current pipeline is:
 
 Each step leaves artifacts on disk. That is intentional. A legal workflow should not depend on memory inside a chat window. It should create files a lawyer can inspect, diff, copy, print, and challenge.
 
+For the current codebase diagram, lifecycle map, provider paths, persistent artifacts, and eval tooling, see:
+
+```text
+docs/codebase-diagram.md
+```
+
 ## The Current Beta State
 
 The project is now beta-ready for supervised use.

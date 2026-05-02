@@ -4,6 +4,12 @@ Standalone local workbench for inspecting and initializing legal matter folders.
 This app is intentionally outside any single matter folder. Point it at a matter
 with `MATTER_ROOT` when you want server-backed reads and writes.
 
+## Architecture Map
+
+For the current codebase map, lifecycle diagram, provider paths, persistent
+artifacts, and eval tooling, see
+[docs/codebase-diagram.md](docs/codebase-diagram.md).
+
 ## Scope
 
 - VS Code-style shell
