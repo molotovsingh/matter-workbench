@@ -1,4 +1,5 @@
 const PAYMENT_TAGS = new Set(["payment", "receipt", "instalment", "installment", "paid", "debit"]);
+const NOTICE_TAGS = new Set(["notice", "demand", "reply", "response", "objection"]);
 const STOPWORDS = new Set([
   "a",
   "an",
@@ -48,6 +49,9 @@ function canClusterEntries(cluster, entry) {
 function areRelatedChronologyEntries(a, b) {
   if (a.citation === b.citation && normalizeEventKey(a.event) === normalizeEventKey(b.event)) return true;
   if (isPaymentEntry(a) && isPaymentEntry(b)) return relatedPaymentEntries(a, b);
+  if (relatedNoticeEntries(a, b)) return true;
+  if (isNoticeEntry(a) || isNoticeEntry(b)) return false;
+  if (relatedCompletionEntries(a, b)) return true;
   const similarity = Math.max(
     textSimilarity(a.event, b.event),
     textSimilarity(`${a.event} ${a.legal_relevance}`, `${b.event} ${b.legal_relevance}`),
@@ -101,6 +105,32 @@ function isPaymentEntry(entry) {
   return (entry.issue_tags || []).some((tag) => PAYMENT_TAGS.has(String(tag).toLowerCase()));
 }
 
+function isNoticeEntry(entry) {
+  if (["notice", "demand", "reply", "objection"].includes(entry.event_type)) return true;
+  return (entry.issue_tags || []).some((tag) => NOTICE_TAGS.has(String(tag).toLowerCase()));
+}
+
+function relatedNoticeEntries(a, b) {
+  if (!isNoticeEntry(a) || !isNoticeEntry(b)) return false;
+  if (noticePosture(a) !== noticePosture(b)) return false;
+  if (!/\bnotice|demand|reply|response|objection\b/i.test(`${a.event} ${a.legal_relevance} ${b.event} ${b.legal_relevance}`)) {
+    return false;
+  }
+  return textSimilarity(`${a.event} ${a.legal_relevance}`, `${b.event} ${b.legal_relevance}`) >= 0.24;
+}
+
+function noticePosture(entry) {
+  const text = `${entry.event} ${entry.legal_relevance} ${(entry.issue_tags || []).join(" ")}`.toLowerCase();
+  if (entry.event_type === "reply" || /\b(reply|response|deni(?:ed|al)|acknowledg(?:ed|ement))\b/.test(text)) {
+    return "response";
+  }
+  if (entry.event_type === "objection" || /\bobjection|objected\b/.test(text)) return "objection";
+  if (entry.event_type === "demand" || entry.event_type === "notice" || /\b(?:legal|demand)\s+notice|notice\s+(?:issued|sent)|issued\s+a\s+demand\b/.test(text)) {
+    return "outbound_notice";
+  }
+  return "notice";
+}
+
 function relatedPaymentEntries(a, b) {
   if (overlappingNumbers(entryAmounts(a), entryAmounts(b))) return true;
   if (overlappingStrings(paymentOrdinals(a), paymentOrdinals(b))) return true;
@@ -125,6 +155,28 @@ function paymentOrdinals(entry) {
 function hasPaymentDiscrepancySignal(entry) {
   return /\b(discrepanc(?:y|ies)|difference|shortfall|contradict(?:ion|ory|ed|s)?|inconsistent)\b/i
     .test(`${entry.event} ${entry.legal_relevance} ${(entry.issue_tags || []).join(" ")}`);
+}
+
+function relatedCompletionEntries(a, b) {
+  if (a.date_iso !== b.date_iso) return false;
+  if (!hasCompletionContext(a) || !hasCompletionContext(b)) return false;
+  return overlappingNumbers(completionPercentages(a), completionPercentages(b));
+}
+
+function hasCompletionContext(entry) {
+  return /\b(complet(?:e|ed|ion)|progress|construction|site|inspection|work\s+progress)\b/i
+    .test(`${entry.event} ${entry.legal_relevance} ${(entry.issue_tags || []).join(" ")}`);
+}
+
+function completionPercentages(entry) {
+  const percentages = [];
+  const text = `${entry.event} ${entry.legal_relevance}`;
+  const pattern = /\b(\d{1,3})\s*(?:%|per\s*cent\b|percent\b)/gi;
+  for (const match of text.matchAll(pattern)) {
+    const value = Number(match[1]);
+    if (Number.isInteger(value) && value >= 0 && value <= 100) percentages.push(value);
+  }
+  return percentages;
 }
 
 function overlappingNumbers(a, b) {

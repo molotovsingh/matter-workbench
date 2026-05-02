@@ -112,3 +112,101 @@ test("clusterChronologyEntries collapses exact source duplicates", () => {
   assert.equal(clustered[0].cluster_type, "true_duplicate");
   assert.deepEqual(clustered[0].supporting_sources.map((source) => source.citation), ["FILE-0003 p1.b1"]);
 });
+
+test("clusterChronologyEntries clusters same-day notice formulations", () => {
+  const clustered = clusterChronologyEntries([
+    entry({
+      date_iso: "2024-03-14",
+      date_text: "14 March 2024",
+      event: "Legal notice was sent to Skyline.",
+      event_type: "notice",
+      legal_relevance: "Shows notice because the cited block records the client sent a legal notice.",
+      issue_tags: ["notice"],
+      citation: "FILE-0004 p1.b1",
+      source_file_id: "FILE-0004",
+      file_id: "FILE-0004",
+    }),
+    entry({
+      date_iso: "2024-03-14",
+      date_text: "14 March 2024",
+      event: "Legal demand notice was issued to Skyline.",
+      event_type: "demand",
+      legal_relevance: "Shows notice because the demand notice records the same grievance.",
+      issue_tags: ["notice", "demand"],
+      citation: "FILE-0005 p1.b1",
+      source_file_id: "FILE-0005",
+      file_id: "FILE-0005",
+    }),
+  ]);
+
+  assert.equal(clustered.length, 1);
+  assert.equal(clustered[0].cluster_type, "corroborated_event");
+  assert.deepEqual(clustered[0].supporting_sources.map((source) => source.citation), [
+    "FILE-0004 p1.b1",
+    "FILE-0005 p1.b1",
+  ]);
+});
+
+test("clusterChronologyEntries does not cluster unrelated same-day notice postures only by tag", () => {
+  const clustered = clusterChronologyEntries([
+    entry({
+      date_iso: "2024-03-14",
+      date_text: "14 March 2024",
+      event: "Client issued a demand notice seeking possession.",
+      event_type: "notice",
+      legal_relevance: "Shows notice because the cited block records the client's demand.",
+      issue_tags: ["notice"],
+      citation: "FILE-0004 p1.b1",
+      source_file_id: "FILE-0004",
+      file_id: "FILE-0004",
+    }),
+    entry({
+      date_iso: "2024-03-14",
+      date_text: "14 March 2024",
+      event: "Skyline denied liability and demanded outstanding payment.",
+      event_type: "reply",
+      legal_relevance: "Records the opposing party's denial and demand for payment.",
+      issue_tags: ["notice"],
+      citation: "FILE-0005 p1.b1",
+      source_file_id: "FILE-0005",
+      file_id: "FILE-0005",
+    }),
+  ]);
+
+  assert.equal(clustered.length, 2);
+  assert.deepEqual(clustered.map((candidate) => candidate.cluster_type), ["single_event", "single_event"]);
+});
+
+test("clusterChronologyEntries keeps different-dated completion claims separate", () => {
+  const clustered = clusterChronologyEntries([
+    entry({
+      date_iso: "2023-10-01",
+      date_text: "01 October 2023",
+      event: "Developer update claimed construction was 85% complete.",
+      event_type: "inspection",
+      legal_relevance: "Records the developer's claimed construction progress at 85%.",
+      issue_tags: ["construction", "progress"],
+      citation: "FILE-0006 p1.b1",
+      source_file_id: "FILE-0006",
+      file_id: "FILE-0006",
+    }),
+    entry({
+      date_iso: "2023-10-15",
+      date_text: "15 October 2023",
+      event: "Skyline claimed the project was 85 percent complete.",
+      event_type: "inspection",
+      legal_relevance: "Records Skyline's repeated construction completion claim of 85%.",
+      issue_tags: ["construction", "progress"],
+      citation: "FILE-0007 p1.b1",
+      source_file_id: "FILE-0007",
+      file_id: "FILE-0007",
+    }),
+  ]);
+
+  assert.equal(clustered.length, 2);
+  assert.deepEqual(clustered.map((candidate) => candidate.cluster_type), ["single_event", "single_event"]);
+  assert.deepEqual(clustered.map((candidate) => candidate.citation), [
+    "FILE-0006 p1.b1",
+    "FILE-0007 p1.b1",
+  ]);
+});
