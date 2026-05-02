@@ -9,6 +9,7 @@ export function listOfDatesSummary(result) {
 export function renderListOfDatesResultHtml(result, escapeHtml) {
   const { counts, entries } = listOfDatesSummary(result);
   const outputPaths = result.outputPaths || {};
+  const outputActions = renderOutputActions(outputPaths, escapeHtml);
   const rows = entries.length
     ? entries.map((entry) => `
       <tr>
@@ -68,11 +69,7 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
       </div>
     </dl>
     <h2>Outputs</h2>
-    <p>
-      ${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : "No files written."}
-      ${outputPaths.csv ? `<br /><code>${escapeHtml(outputPaths.csv)}</code>` : ""}
-      ${outputPaths.markdown ? `<br /><code>${escapeHtml(outputPaths.markdown)}</code>` : ""}
-    </p>
+    ${outputActions || "<p>No shareable files written.</p>"}
     <h2>Chronology</h2>
     <div class="table-scroll">
       <table class="extract-table listofdates-table">
@@ -89,6 +86,28 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
       </table>
     </div>
   `;
+}
+
+export function listOfDatesRawFileUrl(filePath) {
+  return `/api/file-raw?path=${encodeURIComponent(String(filePath || ""))}`;
+}
+
+function renderOutputActions(outputPaths, escapeHtml) {
+  const markdownPath = outputPaths.markdown || "";
+  const csvPath = outputPaths.csv || "";
+  if (!markdownPath && !csvPath) return "";
+  return `
+    <div class="form-actions listofdates-output-actions">
+      ${markdownPath ? `<button type="button" class="run-skill-button" id="copyListOfDatesMarkdown" data-path="${escapeHtml(markdownPath)}">Copy Markdown</button>` : ""}
+      ${markdownPath ? `<a class="run-skill-button secondary" href="${escapeHtml(listOfDatesRawFileUrl(markdownPath))}" download="${escapeHtml(downloadName(markdownPath))}">Download Markdown</a>` : ""}
+      ${csvPath ? `<a class="run-skill-button secondary" href="${escapeHtml(listOfDatesRawFileUrl(csvPath))}" download="${escapeHtml(downloadName(csvPath))}">Download CSV</a>` : ""}
+      <span class="listofdates-copy-status" id="listOfDatesCopyStatus" role="status" aria-live="polite"></span>
+    </div>
+  `;
+}
+
+function downloadName(filePath) {
+  return String(filePath || "").split(/[\\/]/).pop() || "download";
 }
 
 function renderSourceCell(entry, escapeHtml) {
