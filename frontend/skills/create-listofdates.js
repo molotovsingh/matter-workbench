@@ -1,6 +1,10 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
-import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
+import {
+  listOfDatesRawFileUrl,
+  listOfDatesSummary,
+  renderListOfDatesResultHtml,
+} from "../views/listofdates-result.js";
 
 export function createListOfDatesSkill(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -19,6 +23,7 @@ export function createListOfDatesSkill(ctx) {
     });
 
     editorContent.innerHTML = renderListOfDatesResultHtml(result, escapeHtml);
+    wireListOfDatesOutputActions();
   }
 
   async function runCreateListOfDates(command) {
@@ -74,4 +79,49 @@ export function createListOfDatesSkill(ctx) {
   }
 
   return { renderListOfDatesResult, runCreateListOfDates };
+}
+
+function wireListOfDatesOutputActions() {
+  const copyButton = document.getElementById("copyListOfDatesMarkdown");
+  if (!copyButton) return;
+  const status = document.getElementById("listOfDatesCopyStatus");
+  copyButton.addEventListener("click", async () => {
+    const markdownPath = copyButton.dataset.path || "";
+    if (!markdownPath) return;
+    copyButton.disabled = true;
+    setCopyStatus(status, "Copying...");
+    try {
+      const response = await fetch(listOfDatesRawFileUrl(markdownPath));
+      if (!response.ok) throw new Error(`Markdown file returned ${response.status}`);
+      await copyTextToClipboard(await response.text());
+      setCopyStatus(status, "Copied Markdown.");
+    } catch (error) {
+      setCopyStatus(status, `Copy failed: ${error.message}`);
+    } finally {
+      copyButton.disabled = false;
+    }
+  });
+}
+
+function setCopyStatus(status, message) {
+  if (status) status.textContent = message;
+}
+
+async function copyTextToClipboard(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
 }

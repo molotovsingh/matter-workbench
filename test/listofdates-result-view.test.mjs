@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
-import { renderListOfDatesResultHtml } from "../frontend/views/listofdates-result.js";
+import { listOfDatesRawFileUrl, renderListOfDatesResultHtml } from "../frontend/views/listofdates-result.js";
 
 test("list-of-dates result view renders lawyer-facing chronology columns", () => {
   const html = renderListOfDatesResultHtml({
@@ -50,5 +50,20 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
   assert.match(html, /payment discrepancy/);
   assert.match(html, /Accepted events/);
   assert.match(html, /Rendered rows/);
+  assert.match(html, /id="copyListOfDatesMarkdown"/);
+  assert.match(html, /data-path="10_Library\/List of Dates\.md"/);
+  assert.match(html, /Copy Markdown/);
+  assert.match(html, /Download Markdown/);
+  assert.match(html, /Download CSV/);
+  assert.match(html, /href="\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.md"/);
+  assert.match(html, /href="\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.csv"/);
+  assert.doesNotMatch(html, /10_Library\/List of Dates\.json/);
   assert.doesNotMatch(html, /<th>Confidence<\/th>/);
+});
+
+test("list-of-dates raw file links encode workspace paths", () => {
+  assert.equal(
+    listOfDatesRawFileUrl("10_Library/List of Dates.md"),
+    "/api/file-raw?path=10_Library%2FList%20of%20Dates.md",
+  );
 });

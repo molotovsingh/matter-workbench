@@ -892,6 +892,24 @@ summary {
   overflow-x: auto;
 }
 
+.listofdates-output-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.listofdates-output-actions a.run-skill-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.listofdates-copy-status {
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 18px;
+}
+
 .listofdates-table {
   min-width: 1040px;
 }
