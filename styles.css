@@ -887,6 +887,35 @@ summary {
   letter-spacing: 0.08em;
 }
 
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.listofdates-table {
+  min-width: 1040px;
+}
+
+.source-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-stack-item {
+  display: block;
+}
+
+.cluster-pill {
+  display: inline-block;
+  border: 1px solid var(--border);
+  background: #1a1a1a;
+  color: #cfd4da;
+  padding: 3px 7px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .matter-info-card {
   padding: 14px 16px;
   margin: 16px 0 24px;
