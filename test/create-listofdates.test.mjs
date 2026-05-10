@@ -814,7 +814,7 @@ test("create-listofdates filters non-merits rows and sharpens legal relevance", 
         {
           date_iso: "2026-05-07",
           date_text: "07 May 2026",
-          event: "Vakalatnama executed by Mehta.",
+          event: "Client executed Vakalatnama in favour of Adv. Meenakshi Pillai.",
           citation: "FILE-0001 p1.b3",
           needs_review: false,
           confidence: 0.9,

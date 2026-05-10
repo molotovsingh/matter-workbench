@@ -74,7 +74,7 @@ const META_DOCUMENT_TYPE_SET = new Set([
   "metadata",
 ]);
 const META_SOURCE_NAME_RE = /\b(readme|manifest|(?:file|document|exhibit|bundle)\s*index|(?:file|document|exhibit|bundle)\s*list|table\s*of\s*contents|metadata)\b/i;
-const NON_MERITS_EVENT_RE = /\b(?:client\s+interview\s+transcript\s+recorded|transcript\s+(?:was\s+)?recorded|email\s+correspondence\s+exported|e-?mail\s+export(?:ed)?|gmail\s+export(?:ed)?|file\s+export(?:ed)?|vakalatnama\s+(?:was\s+)?executed|vakalatnama\s+execution)\b/i;
+const NON_MERITS_EVENT_RE = /\b(?:client\s+interview\s+transcript\s+recorded|transcript\s+(?:was\s+)?recorded|email\s+correspondence\s+exported|e-?mail\s+export(?:ed)?|gmail\s+export(?:ed)?|file\s+export(?:ed)?|vakalatnama(?:\s+(?:was\s+)?executed|\s+execution)?|executed\s+vakalatnama)\b/i;
 
 const CSV_HEADERS = [
   "date_iso",
