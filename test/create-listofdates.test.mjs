@@ -767,6 +767,92 @@ test("create-listofdates softens event and relevance conclusion language", async
   assert.match(result.entries[0].legal_relevance, /supports default issue by Skyline/i);
 });
 
+test("create-listofdates filters non-merits rows and sharpens legal relevance", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "mixed-chronology.txt", [
+    "Client interview transcript recorded on 05 May 2026.",
+    "",
+    "Email correspondence exported from client's Gmail account on 06 May 2026.",
+    "",
+    "Vakalatnama executed by Mehta on 07 May 2026.",
+    "",
+    "Skyline replied on 14 March 2024 demanding payment despite Mehta's complaint and request for milestone confirmation. Mehta's wife was hospitalized after the dispute.",
+  ].join("\n"));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-05-05",
+          date_text: "05 May 2026",
+          event: "Client interview transcript recorded.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "other",
+            legal_relevance: "This event is relevant to the client's case because the transcript was recorded.",
+            issue_tags: ["procedure"],
+          }),
+        },
+        {
+          date_iso: "2026-05-06",
+          date_text: "06 May 2026",
+          event: "Email correspondence exported from client's Gmail account.",
+          citation: "FILE-0001 p1.b2",
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "other",
+            legal_relevance: "This event is relevant because email correspondence was exported.",
+            issue_tags: ["procedure"],
+          }),
+        },
+        {
+          date_iso: "2026-05-07",
+          date_text: "07 May 2026",
+          event: "Vakalatnama executed by Mehta.",
+          citation: "FILE-0001 p1.b3",
+          needs_review: false,
+          confidence: 0.9,
+          ...lawyerFields({
+            event_type: "filing",
+            legal_relevance: "This event is relevant because the vakalatnama was executed.",
+            issue_tags: ["procedure"],
+          }),
+        },
+        {
+          date_iso: "2024-03-14",
+          date_text: "14 March 2024",
+          event: "Skyline replied demanding payment despite Mehta's complaint.",
+          citation: "FILE-0001 p1.b4",
+          needs_review: false,
+          confidence: 0.92,
+          ...lawyerFields({
+            event_type: "reply",
+            legal_relevance: "This event is relevant to the client's case because Skyline's response shows their willingness to resolve it and demonstrates emotional and financial impact.",
+            issue_tags: ["notice", "hardship"],
+          }),
+        },
+      ],
+    }),
+  });
+
+  assert.equal(result.counts.candidateEntries, 4);
+  assert.equal(result.counts.acceptedEntries, 1);
+  assert.equal(result.counts.rejectedEntries, 3);
+  assert.equal(result.entries.length, 1);
+  assert.equal(result.entries[0].citation, "FILE-0001 p1.b4");
+  assert.doesNotMatch(result.entries[0].event, /transcript|exported|vakalatnama/i);
+  assert.doesNotMatch(result.entries[0].legal_relevance, /This event is relevant|willingness|demonstrates/i);
+  assert.match(result.entries[0].legal_relevance, /Supports the client's case/i);
+  assert.match(result.entries[0].legal_relevance, /records the opposing party's stated response/i);
+  assert.match(result.entries[0].legal_relevance, /may support hardship and consequential prejudice, subject to proof/i);
+});
+
 test("create-listofdates reports missing extraction records before calling AI", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "facts.txt", "Agreement was signed on 20 April 2026.");
@@ -873,12 +959,50 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
     },
   });
 
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["entries"],
+    properties: {
+      entries: {
+        type: "array",
+        minItems: 1,
+        maxItems: 3,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["citation", "confidence", "issue_tags"],
+          properties: {
+            citation: {
+              type: "string",
+              pattern: "^FILE-\\d{4,} p\\d+\\.b\\d+$",
+            },
+            confidence: {
+              type: "number",
+              minimum: 0,
+              maximum: 1,
+            },
+            issue_tags: {
+              type: "array",
+              maxItems: 8,
+              items: {
+                type: "string",
+                minLength: 1,
+                maxLength: 64,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
   const response = await provider({
     matter: {},
     chunk: [],
     chunkIndex: 1,
     chunkCount: 1,
-    schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
+    schema,
   });
 
   assert.equal(requests.length, 1);
@@ -886,6 +1010,7 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(requests[0].headers.authorization, "Bearer sk-openrouter-test");
   assert.equal(requests[0].body.model, "qwen/qwen3-source-backed");
   assert.equal(requests[0].body.max_tokens, 1800);
+  assert.equal(Object.hasOwn(requests[0].body, "temperature"), false);
   assert.deepEqual(requests[0].body.provider, {
     require_parameters: true,
     allow_fallbacks: false,
@@ -898,6 +1023,17 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
   assert.equal(requests[0].body.response_format.json_schema.name, "list_of_dates_chunk");
+  const requestSchema = requests[0].body.response_format.json_schema.schema;
+  assert.equal(Object.hasOwn(requestSchema.properties.entries, "minItems"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries, "maxItems"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.citation, "pattern"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.confidence, "minimum"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.confidence, "maximum"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.issue_tags, "maxItems"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.issue_tags.items, "minLength"), false);
+  assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.issue_tags.items, "maxLength"), false);
+  assert.equal(schema.properties.entries.maxItems, 3);
+  assert.equal(schema.properties.entries.items.properties.confidence.maximum, 1);
   assert.match(requests[0].body.messages[0].content, /lawyer-facing, client-favourable/);
   assert.match(requests[0].body.messages[0].content, /Every legal_relevance sentence must be supported/);
   assert.match(requests[0].body.messages[1].content, /allowed_event_types/);
@@ -912,6 +1048,52 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
       cost: 0.0002,
     },
   });
+});
+
+test("OpenRouter provider surfaces upstream provider error details", async () => {
+  const provider = createOpenRouterProvider({
+    apiKey: "sk-openrouter-test",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "anthropic/claude-sonnet-4.6",
+    fetchImpl: async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: "Provider returned error",
+          code: 400,
+          metadata: {
+            provider_name: "Anthropic",
+            raw: JSON.stringify({
+              type: "error",
+              error: {
+                type: "invalid_request_error",
+                message: "output_config.format.schema: For 'number' type, properties maximum, minimum are not supported",
+              },
+            }),
+          },
+        },
+      }),
+    }),
+  });
+
+  await assert.rejects(
+    () => provider({
+      matter: {},
+      chunk: [],
+      chunkIndex: 1,
+      chunkCount: 1,
+      schema: { type: "object", properties: {}, additionalProperties: false, required: [] },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.providerName, "Anthropic");
+      assert.match(error.message, /Provider returned error/);
+      assert.match(error.message, /provider: Anthropic/);
+      assert.match(error.message, /maximum, minimum are not supported/);
+      return true;
+    },
+  );
 });
 
 test("OpenRouter provider maps malformed JSON to provider error", async () => {

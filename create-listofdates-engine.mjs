@@ -46,7 +46,12 @@ const LIST_OF_DATES_SYSTEM_PROMPT = [
   "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
   "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
   "Every legal_relevance sentence must be supported by the same cited block as the event.",
+  "Write legal_relevance with sharp lawyer verbs: supports, rebuts, corroborates, contradicts, records, shows notice, or preserves objection.",
+  "Avoid generic phrases such as this event is relevant, this payment is relevant, crucial, or foundational.",
   "Use claimed, denied, alleged, states, records, objected, failed, missed, demanded, or acknowledged for disputed facts.",
+  "Frame opposing-party responses as demands, denials, acknowledgements, or notices; do not praise willingness to resolve or accommodate.",
+  "For medical, hardship, or consequential-prejudice material, use may support and subject to proof unless the source proves the fact.",
+  "Do not include metadata events such as transcript recorded, email export, file export, or vakalatnama execution unless they are legally material to the merits chronology.",
   "Do not say fraud, bad faith, breach, breach proved, liability admitted, or equivalent unless the cited source says it.",
   "Keep readable source labels separate from raw citations; raw FILE-NNNN pX.bY citations remain canonical.",
   "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text.",
@@ -69,6 +74,7 @@ const META_DOCUMENT_TYPE_SET = new Set([
   "metadata",
 ]);
 const META_SOURCE_NAME_RE = /\b(readme|manifest|(?:file|document|exhibit|bundle)\s*index|(?:file|document|exhibit|bundle)\s*list|table\s*of\s*contents|metadata)\b/i;
+const NON_MERITS_EVENT_RE = /\b(?:client\s+interview\s+transcript\s+recorded|transcript\s+(?:was\s+)?recorded|email\s+correspondence\s+exported|e-?mail\s+export(?:ed)?|gmail\s+export(?:ed)?|file\s+export(?:ed)?|vakalatnama\s+(?:was\s+)?executed|vakalatnama\s+execution)\b/i;
 
 const CSV_HEADERS = [
   "date_iso",
@@ -384,6 +390,7 @@ export function createOpenRouterProvider({
       throw error;
     }
 
+    const requestSchema = toOpenRouterCompatibleJsonSchema(schema);
     const body = {
       model,
       messages: [
@@ -396,7 +403,6 @@ export function createOpenRouterProvider({
           content: JSON.stringify(listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount })),
         },
       ],
-      temperature: 0,
       max_tokens: maxOutputTokens,
       provider: {
         require_parameters: requireParameters,
@@ -407,7 +413,7 @@ export function createOpenRouterProvider({
         json_schema: {
           name: "list_of_dates_chunk",
           strict: true,
-          schema,
+          schema: requestSchema,
         },
       },
     };
@@ -444,14 +450,92 @@ export function createOpenRouterProvider({
     } finally {
       cancelTimeout();
     }
-    if (!response.ok) {
-      const error = new Error(payload?.error?.message || `OpenRouter returned ${response.status}`);
-      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-      throw error;
-    }
+    if (!response.ok || payload?.error) throw createOpenRouterError(response, payload);
 
     return parseOpenRouterJsonContent(payload);
   };
+}
+
+function toOpenRouterCompatibleJsonSchema(schema) {
+  return stripUnsupportedJsonSchemaKeywords(schema);
+}
+
+const OPENROUTER_STRICT_SCHEMA_UNSUPPORTED_KEYS = new Set([
+  "exclusiveMaximum",
+  "exclusiveMinimum",
+  "format",
+  "maxItems",
+  "maxLength",
+  "maximum",
+  "minItems",
+  "minLength",
+  "minimum",
+  "multipleOf",
+  "pattern",
+]);
+
+function stripUnsupportedJsonSchemaKeywords(value) {
+  if (Array.isArray(value)) return value.map(stripUnsupportedJsonSchemaKeywords);
+  if (!value || typeof value !== "object") return value;
+  const copy = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (OPENROUTER_STRICT_SCHEMA_UNSUPPORTED_KEYS.has(key)) continue;
+    copy[key] = stripUnsupportedJsonSchemaKeywords(child);
+  }
+  return copy;
+}
+
+function createOpenRouterError(response, payload) {
+  const errorPayload = payload?.error || {};
+  const error = new Error(formatOpenRouterErrorMessage(response, errorPayload));
+  error.statusCode = mapOpenRouterErrorStatus(response?.status, errorPayload.code);
+  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
+  if (providerName) error.providerName = providerName;
+  if (errorPayload.code) error.openRouterCode = errorPayload.code;
+  return error;
+}
+
+function formatOpenRouterErrorMessage(response, errorPayload = {}) {
+  const baseMessage = normalizeOptionalString(errorPayload.message) || `OpenRouter returned ${response?.status || "an error"}`;
+  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
+  const rawMessage = summarizeOpenRouterRawError(errorPayload?.metadata?.raw);
+  const parts = [baseMessage];
+  if (providerName) parts.push(`provider: ${providerName}`);
+  if (rawMessage) parts.push(`upstream: ${rawMessage}`);
+  return parts.join(" | ");
+}
+
+function summarizeOpenRouterRawError(raw) {
+  if (!raw) return "";
+  if (typeof raw === "string") {
+    try {
+      return summarizeOpenRouterRawError(JSON.parse(raw)) || truncateErrorDetail(raw);
+    } catch {
+      return truncateErrorDetail(raw);
+    }
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) return truncateErrorDetail(String(raw));
+  const message = normalizeOptionalString(raw?.error?.message)
+    || normalizeOptionalString(raw?.message)
+    || normalizeOptionalString(raw?.error);
+  if (message) return truncateErrorDetail(message);
+  try {
+    return truncateErrorDetail(JSON.stringify(raw));
+  } catch {
+    return "";
+  }
+}
+
+function truncateErrorDetail(value, limit = 500) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 1)}...`;
+}
+
+function mapOpenRouterErrorStatus(responseStatus, errorCode) {
+  const status = Number(errorCode) || Number(responseStatus);
+  if (status >= 500) return 503;
+  return 502;
 }
 
 function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
@@ -467,9 +551,14 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
       `Write perspective exactly as ${LAWYER_FACING_PERSPECTIVE}.`,
       "Classify event_type using one allowed event type.",
       "Write legal_relevance as one source-supported sentence explaining why this event matters to the declared client's case.",
+      "Prefer precise legal relevance forms: Supports that the client performed payment obligations; Rebuts any suggestion that the client was in default; Corroborates delay despite payment; Shows the opposing party had notice before responding; Preserves the client's objection.",
+      "Avoid generic relevance text such as this event is relevant, this payment is relevant, crucial, or foundational.",
       "Use client-favourable legal framing only when the cited block supports it.",
       "Use issue_tags as short conservative review handles such as payment, delay, possession, notice, deadline, contradiction, admission, denial, objection, evidence_gap, procedure, or damages.",
       "Use claimed, denied, alleged, states, or records for disputed facts; do not present disputed allegations as proven.",
+      "Frame opposing-party responses as demands, denials, acknowledgements, or notices; do not characterize them as willingness to resolve or accommodate.",
+      "For hardship, hospitalization, or medical facts, write may support hardship or consequential prejudice, subject to proof.",
+      "Exclude transcript-recorded, email-export, file-export, and vakalatnama-executed metadata rows unless the cited block makes them legally material to the merits chronology.",
       "Do not say fraud, bad faith, breach, breach proved, liability admitted, or equivalent unless the cited block itself says it.",
       "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text; use the citation field only.",
       "Do not collapse multiple same-day events when they carry different legal meaning or different citations.",
@@ -776,6 +865,7 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
     const perspective = String(raw.perspective || "").replace(/\s+/g, " ").trim();
     if (!event || !dateText || !eventType || !legalRelevance || !issueTags.length) continue;
     if (perspective !== LAWYER_FACING_PERSPECTIVE) continue;
+    if (isNonMeritsChronologyEntry({ event, legalRelevance, eventType, issueTags })) continue;
     entries.push({
       date_iso: raw.date_iso,
       date_text: dateText,
@@ -830,10 +920,34 @@ function normalizeNarrativeText(value, sourceText) {
 }
 
 function normalizeLegalRelevance(value, sourceText) {
-  const relevance = normalizeNarrativeText(value, sourceText);
+  const relevance = sharpenLegalRelevanceLanguage(normalizeNarrativeText(value, sourceText));
   if (!relevance) return "";
   if (hasUnsupportedHighRiskConclusion(relevance, sourceText)) return "";
   return relevance.slice(0, 1000);
+}
+
+function isNonMeritsChronologyEntry({ event, legalRelevance, eventType, issueTags }) {
+  const text = `${event} ${legalRelevance} ${eventType} ${(issueTags || []).join(" ")}`;
+  return NON_MERITS_EVENT_RE.test(text);
+}
+
+function sharpenLegalRelevanceLanguage(value) {
+  return String(value || "")
+    .replace(/\bThis event is relevant to the client's case because\b/gi, "Supports the client's case because")
+    .replace(/\bThis event is relevant because\b/gi, "Supports the client's chronology because")
+    .replace(/\bThis payment is relevant as it shows\b/gi, "Supports")
+    .replace(/\bThis notice is relevant as it marks\b/gi, "Shows notice by marking")
+    .replace(/\bThis notice is relevant because\b/gi, "Shows notice because")
+    .replace(/\bThis communication is relevant because\b/gi, "Records")
+    .replace(/\bcrucial\b/gi, "relevant")
+    .replace(/\bfoundational\b/gi, "relevant")
+    .replace(/\bdemonstrates\b/gi, "may support")
+    .replace(/\bshows\s+(?:their|its|Skyline'?s|the opposing party'?s)\s+willingness\s+to\s+(?:accommodate|resolve)(?:\s+(?:it|the dispute|the issue|the grievance))?/gi, "records the opposing party's stated response to the complaint")
+    .replace(/\bwillingness\s+to\s+(?:accommodate|resolve)(?:\s+(?:it|the dispute|the issue|the grievance))?/gi, "stated response to the complaint")
+    .replace(/\bmay support\s+(?:the\s+)?emotional and financial impact\b/gi, "may support hardship and consequential prejudice, subject to proof")
+    .replace(/\bemotional and financial impact\b/gi, "hardship and consequential prejudice, subject to proof")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function softenUnsupportedConclusionLanguage(value) {
