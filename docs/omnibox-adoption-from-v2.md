@@ -362,13 +362,13 @@ Current repo posture:
 
 - `00_Inbox` is already real and heavily used by `/matter-init` and `/extract`;
 - `10_Library` is already real and used for `Source Index.json` and `List of Dates.*`;
-- `20_Workshop`, `30_Drafts`, and `40_Dispatch` are not yet first-class runtime lanes in this repo.
+- `20_Workshop`, `30_Drafts`, and `40_Dispatch` are now created by `/matter-init` as empty lanes for future work.
 
 Adoption rule:
 
 > Borrow the lane philosophy before borrowing the v2 configurable-skill machinery.
 
-The first lane adoption should be conservative:
+The first lane adoption is conservative:
 
 - define the lane names in this repo's shared matter contract;
 - create empty `20_Workshop`, `30_Drafts`, and `40_Dispatch` folders during `/matter-init`;

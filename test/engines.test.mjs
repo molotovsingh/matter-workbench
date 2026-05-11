@@ -134,9 +134,17 @@ test("matter-init preserves originals, classifies working copies, and records du
 
   await stat(path.join(root, "00_Inbox", "Intake 01 - Initial", "Originals", "a-note.txt"));
   await stat(path.join(root, register[0].working_copy_path));
+  await stat(path.join(root, "10_Library"));
+  await stat(path.join(root, "20_Workshop"));
+  await stat(path.join(root, "30_Drafts"));
+  await stat(path.join(root, "40_Dispatch"));
   const matterJson = JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
   assert.equal(Array.isArray(matterJson.intakes), true);
   assert.equal(matterJson.intakes[0].intake_id, "INTAKE-01");
+  assert.deepEqual(
+    matterJson.workspace_lanes.map((lane) => lane.path),
+    ["00_Inbox", "10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"],
+  );
 });
 
 test("matter-init ignores OS junk and Office lockfiles before file registration", async () => {

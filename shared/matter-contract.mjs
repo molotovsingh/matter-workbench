@@ -1,4 +1,9 @@
 import path from "node:path";
+export {
+  MATTER_WORKSPACE_LANE_LABELS,
+  MATTER_WORKSPACE_LANES,
+  workspaceLaneLabel,
+} from "./workspace-lanes.mjs";
 
 export const INITIAL_INTAKE_ID = "INTAKE-01";
 export const INITIAL_INTAKE_DIR_NAME = "Intake 01 - Initial";

@@ -141,9 +141,22 @@ Matter Name/
     List of Dates.json
     List of Dates.csv
     List of Dates.md
+  20_Workshop/
+  30_Drafts/
+  40_Dispatch/
 ```
 
 The naming is deliberately boring. In legal work, boring structure is power. The folder tree is not decoration; it is the audit trail.
+
+The app now treats these top-level folders as **lanes**:
+
+- `00_Inbox` is where evidence arrives and is preserved.
+- `10_Library` is the analysis library: source labels, chronologies, and other source-backed outputs.
+- `20_Workshop` is for lawyer thinking: issues, contradictions, fact gaps, and strategy notes.
+- `30_Drafts` is for draft legal outputs.
+- `40_Dispatch` is for reviewed material that is ready to send or export.
+
+The explorer can show friendly names like **Analysis Library**, but the disk keeps the canonical folder names. That split is intentional: lawyers get readable labels, engineers and audits get stable paths.
 
 ## The Engines
 
