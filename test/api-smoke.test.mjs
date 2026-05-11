@@ -172,12 +172,19 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.ok(Array.isArray(skills.categories));
     assert.ok(Array.isArray(skills.skills));
     assert.equal(skills.builtins, undefined);
+    assert.ok(skills.skills.some((skill) => skill.slash === "/context_preview"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
     assert.equal(
       skills.skills.find((skill) => skill.slash === "/create_listofdates").runner_key,
       "/create_listofdates",
     );
+    const contextPreview = await getJson(baseUrl, "/api/matter-context");
+    assert.equal(contextPreview.schema_version, "matter-context-preview/v1");
+    assert.equal(contextPreview.counts.sources, 1);
+    assert.equal(contextPreview.counts.evidence_blocks_included, 1);
+    assert.ok(contextPreview.top_sources[0].sample_citations.includes("FILE-0001 p1.b1"));
+    assert.doesNotMatch(JSON.stringify(contextPreview), /Smoke event on 20 April 2026/);
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
       userRequest: "Create a new list of dates skill",
     });

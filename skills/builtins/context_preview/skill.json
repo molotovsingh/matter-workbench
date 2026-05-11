@@ -1,0 +1,29 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "context_preview",
+  "slash": "/context_preview",
+  "title": "Context Preview",
+  "category": "Review",
+  "purpose": "Show a read-only summary of the bounded matter context packet for future Q&A/search without exposing raw source text.",
+  "mode": "deterministic",
+  "matter_required": true,
+  "paid_provider_call": false,
+  "rerun_guarded": false,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "matter-context-packet/v1"
+  ],
+  "outputs": [
+    "matter context preview",
+    "copyable context report"
+  ],
+  "upstream": [
+    "/extract"
+  ],
+  "downstream": [],
+  "default_lane": "",
+  "runner_key": "/context_preview",
+  "version": 1
+}

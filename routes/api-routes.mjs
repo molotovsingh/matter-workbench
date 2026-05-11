@@ -10,6 +10,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
   const {
     aiSettingsService,
     configService,
+    matterContextService,
     matterStore,
     matterStatusService,
     skillRegistryService,
@@ -207,6 +208,11 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "GET" && requestUrl.pathname === "/api/matter-status") {
     sendJson(response, 200, await matterStatusService.readMatterStatus());
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/matter-context") {
+    sendJson(response, 200, await matterContextService.readMatterContextPreview());
     return true;
   }
 

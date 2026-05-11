@@ -10,6 +10,7 @@ import { createMatterOverview } from "./frontend/views/matter-overview.js";
 import { createMatterInitSkill } from "./frontend/skills/matter-init.js";
 import { createExtractSkill } from "./frontend/skills/extract.js";
 import { createDescribeSourcesSkill } from "./frontend/skills/describe-sources.js";
+import { createContextPreviewSkill } from "./frontend/skills/context-preview.js";
 import { createListOfDatesSkill } from "./frontend/skills/create-listofdates.js";
 import { createDoctorSkill } from "./frontend/skills/doctor.js";
 import { escapeHtml, matterFromWorkspace } from "./frontend/dom-utils.js";
@@ -89,17 +90,20 @@ ctx.setActivityActive = matterScreens.setActivityActive;
 const matterInitSkill = createMatterInitSkill(ctx);
 const extractSkill = createExtractSkill(ctx);
 const describeSourcesSkill = createDescribeSourcesSkill(ctx);
+const contextPreviewSkill = createContextPreviewSkill(ctx);
 const listOfDatesSkill = createListOfDatesSkill(ctx);
 const doctorSkill = createDoctorSkill(ctx);
 const skillDispatch = {
   "/matter-init": matterInitSkill.runMatterInit,
   "/extract": extractSkill.runExtract,
   "/describe_sources": describeSourcesSkill.runDescribeSources,
+  "/context_preview": contextPreviewSkill.runContextPreview,
   "/create_listofdates": listOfDatesSkill.runCreateListOfDates,
   "/doctor": doctorSkill.runDoctor,
 };
 const skills = {
   runCreateListOfDates: listOfDatesSkill.runCreateListOfDates,
+  runContextPreview: contextPreviewSkill.runContextPreview,
   runDescribeSources: describeSourcesSkill.runDescribeSources,
   runDoctor: doctorSkill.runDoctor,
   runExtract: extractSkill.runExtract,

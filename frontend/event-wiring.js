@@ -7,6 +7,7 @@ export function wireAppEvents(ctx, skills) {
     "/matter-init": skills.runMatterInit,
     "/extract": skills.runExtract,
     "/describe_sources": skills.runDescribeSources,
+    "/context_preview": skills.runContextPreview,
     "/create_listofdates": skills.runCreateListOfDates,
     "/doctor": skills.runDoctor,
   };

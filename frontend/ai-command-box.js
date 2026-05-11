@@ -6,6 +6,7 @@ const SLASH_COMMANDS = new Set([
   "/matter-init",
   "/extract",
   "/describe_sources",
+  "/context_preview",
   "/create_listofdates",
   "/doctor",
 ]);
@@ -24,6 +25,10 @@ const SLASH_COMMAND_SUGGESTIONS = [
     description: "Generate lawyer-readable source labels. Paid reruns ask first.",
   },
   {
+    command: "/context_preview",
+    description: "Preview the bounded evidence packet for future Q&A/search. No provider call.",
+  },
+  {
     command: "/create_listofdates",
     description: "Generate the lawyer-facing chronology. Paid reruns ask first.",
   },
@@ -37,6 +42,8 @@ const COMMAND_ALIASES = new Map([
   ["extract", "/extract"],
   ["describe sources", "/describe_sources"],
   ["source labels", "/describe_sources"],
+  ["context", "/context_preview"],
+  ["show context", "/context_preview"],
   ["list of dates", "/create_listofdates"],
   ["chronology", "/create_listofdates"],
   ["doctor", "/doctor"],
