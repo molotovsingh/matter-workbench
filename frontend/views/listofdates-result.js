@@ -68,11 +68,8 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
       </div>
     </dl>
     <h2>Outputs</h2>
-    <p>
-      ${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : "No files written."}
-      ${outputPaths.csv ? `<br /><code>${escapeHtml(outputPaths.csv)}</code>` : ""}
-      ${outputPaths.markdown ? `<br /><code>${escapeHtml(outputPaths.markdown)}</code>` : ""}
-    </p>
+    ${renderOutputPaths(outputPaths, escapeHtml)}
+    ${renderOutputActions(outputPaths, escapeHtml)}
     <h2>Chronology</h2>
     <div class="table-scroll">
       <table class="extract-table listofdates-table">
@@ -88,6 +85,51 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
         <tbody>${rows}</tbody>
       </table>
     </div>
+  `;
+}
+
+function renderOutputPaths(outputPaths, escapeHtml) {
+  if (!outputPaths.json && !outputPaths.csv && !outputPaths.markdown) {
+    return "<p>No files written.</p>";
+  }
+
+  return `
+    <p>
+      ${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : ""}
+      ${outputPaths.csv ? `<br /><code>${escapeHtml(outputPaths.csv)}</code>` : ""}
+      ${outputPaths.markdown ? `<br /><code>${escapeHtml(outputPaths.markdown)}</code>` : ""}
+    </p>
+  `;
+}
+
+function renderOutputActions(outputPaths, escapeHtml) {
+  if (!outputPaths.markdown) return "";
+  return `
+    <div class="artifact-actions" data-listofdates-artifact-actions>
+      <button
+        type="button"
+        class="run-skill-button"
+        data-listofdates-copy-markdown
+        data-path="${escapeHtml(outputPaths.markdown)}"
+      >
+        Copy Markdown
+      </button>
+      ${renderDownloadLink(outputPaths.markdown, "Download Markdown", escapeHtml)}
+      ${outputPaths.csv ? renderDownloadLink(outputPaths.csv, "Download CSV", escapeHtml) : ""}
+      <span class="artifact-action-status muted" data-listofdates-action-status></span>
+    </div>
+  `;
+}
+
+function renderDownloadLink(filePath, label, escapeHtml) {
+  const fileName = filePath.split("/").pop() || filePath;
+  const href = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
+  return `
+    <a
+      class="run-skill-button secondary"
+      href="${escapeHtml(href)}"
+      download="${escapeHtml(fileName)}"
+    >${escapeHtml(label)}</a>
   `;
 }
 

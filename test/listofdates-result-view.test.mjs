@@ -50,5 +50,11 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
   assert.match(html, /payment discrepancy/);
   assert.match(html, /Accepted events/);
   assert.match(html, /Rendered rows/);
+  assert.match(html, /Copy Markdown/);
+  assert.match(html, /Download Markdown/);
+  assert.match(html, /Download CSV/);
+  assert.match(html, /data-listofdates-copy-markdown/);
+  assert.match(html, /\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.md/);
+  assert.match(html, /\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.csv/);
   assert.doesNotMatch(html, /<th>Confidence<\/th>/);
 });

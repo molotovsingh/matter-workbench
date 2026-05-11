@@ -19,6 +19,29 @@ export function createListOfDatesSkill(ctx) {
     });
 
     editorContent.innerHTML = renderListOfDatesResultHtml(result, escapeHtml);
+    wireListOfDatesArtifactActions();
+  }
+
+  function wireListOfDatesArtifactActions() {
+    const copyButton = editorContent.querySelector("[data-listofdates-copy-markdown]");
+    if (!copyButton) return;
+    const status = editorContent.querySelector("[data-listofdates-action-status]");
+
+    copyButton.addEventListener("click", async () => {
+      const filePath = copyButton.dataset.path;
+      if (!filePath) return;
+      setArtifactActionStatus(status, "Copying Markdown...");
+      copyButton.disabled = true;
+      try {
+        const markdown = await readWorkspaceTextFile(filePath);
+        await writeClipboardText(markdown);
+        setArtifactActionStatus(status, "Markdown copied.");
+      } catch (error) {
+        setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+      } finally {
+        copyButton.disabled = false;
+      }
+    });
   }
 
   async function runCreateListOfDates(command) {
@@ -74,4 +97,39 @@ export function createListOfDatesSkill(ctx) {
   }
 
   return { renderListOfDatesResult, runCreateListOfDates };
+}
+
+async function readWorkspaceTextFile(filePath) {
+  const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
+  if (typeof result.content !== "string") throw new Error("file preview did not include text content");
+  return result.content;
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const scratch = document.createElement("textarea");
+  scratch.value = text;
+  scratch.setAttribute("readonly", "");
+  scratch.style.position = "fixed";
+  scratch.style.top = "-9999px";
+  document.body.appendChild(scratch);
+  scratch.select();
+  try {
+    if (!document.execCommand("copy")) throw new Error("clipboard copy was rejected");
+  } finally {
+    document.body.removeChild(scratch);
+  }
+}
+
+function setArtifactActionStatus(statusElement, message, isError = false) {
+  if (!statusElement) return;
+  statusElement.textContent = message;
+  statusElement.classList.toggle("form-error", isError);
+  statusElement.classList.toggle("muted", !isError);
 }
