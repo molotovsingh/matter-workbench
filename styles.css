@@ -145,7 +145,8 @@ strong {
 }
 
 .matter-card,
-.matter-info-card {
+.matter-info-card,
+.matter-pipeline-card {
   background: var(--panel-2);
   border: 1px solid var(--border);
 }
@@ -963,6 +964,73 @@ summary {
 .matter-info-card dd {
   margin: 0;
   color: var(--text);
+}
+
+.matter-pipeline-card {
+  max-width: 980px;
+  margin: 16px 0 24px;
+  padding: 14px 16px;
+}
+
+.matter-pipeline-card h2 {
+  margin-top: 0;
+}
+
+.pipeline-stage-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pipeline-stage {
+  border: 1px solid var(--border);
+  background: #171717;
+  padding: 10px 12px;
+}
+
+.pipeline-stage-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pipeline-stage-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.pipeline-state {
+  border: 1px solid var(--border);
+  padding: 3px 7px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.pipeline-state.present {
+  border-color: #4f7660;
+  color: #c5f1d3;
+}
+
+.pipeline-state.not-run {
+  color: var(--muted);
+}
+
+.pipeline-artifacts,
+.pipeline-ai-run {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.pipeline-artifacts code,
+.pipeline-ai-run code {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .run-skill-button {

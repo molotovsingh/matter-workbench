@@ -154,6 +154,13 @@ test("server API smoke test keeps public routes stable", async () => {
     const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
+    const matterStatus = await getJson(baseUrl, "/api/matter-status");
+    assert.deepEqual(matterStatus.stages.map((stage) => [stage.slash, stage.state]), [
+      ["/matter-init", "present"],
+      ["/extract", "present"],
+      ["/describe_sources", "present"],
+      ["/create_listofdates", "present"],
+    ]);
     const skills = await getJson(baseUrl, "/api/skills");
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
