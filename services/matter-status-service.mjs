@@ -39,12 +39,14 @@ export function createMatterStatusService({ matterStore } = {}) {
     const sourceIndexPath = path.join(root, SOURCE_INDEX_RELATIVE);
     const sourceIndexPresent = await fileExists(sourceIndexPath);
     const sourceIndex = sourceIndexPresent ? await readJsonIfPossible(sourceIndexPath) : null;
+    const sourceRerunAdvice = await describeSourcesRerunAdvice(root);
 
     const listOfDatesJsonPath = path.join(root, LIST_OF_DATES_JSON_RELATIVE);
     const listOfDatesMarkdownPath = path.join(root, LIST_OF_DATES_MARKDOWN_RELATIVE);
     const listOfDatesJsonPresent = await fileExists(listOfDatesJsonPath);
     const listOfDatesMarkdownPresent = await fileExists(listOfDatesMarkdownPath);
     const listOfDates = listOfDatesJsonPresent ? await readJsonIfPossible(listOfDatesJsonPath) : null;
+    const listRerunAdvice = await listOfDatesRerunAdvice(root);
 
     const stages = [
       stage({
@@ -74,6 +76,7 @@ export function createMatterStatusService({ matterStore } = {}) {
         present: sourceIndexPresent,
         artifacts: sourceIndexPresent ? [SOURCE_INDEX_RELATIVE] : [],
         aiRun: normalizeAiRun(sourceIndex?.ai_run),
+        rerunAdvice: sourceRerunAdvice,
       }),
       stage({
         id: "create-listofdates",
@@ -85,6 +88,8 @@ export function createMatterStatusService({ matterStore } = {}) {
           ...(listOfDatesJsonPresent ? [LIST_OF_DATES_JSON_RELATIVE] : []),
         ],
         aiRun: normalizeAiRun(listOfDates?.ai_run),
+        metrics: listOfDatesMetrics(listOfDates),
+        rerunAdvice: listRerunAdvice,
       }),
     ];
 
@@ -352,7 +357,7 @@ function normalizeSkillName(skill) {
   return String(skill || "").trim();
 }
 
-function stage({ id, slash, label, present, artifacts = [], aiRun = null }) {
+function stage({ id, slash, label, present, artifacts = [], aiRun = null, metrics = null, rerunAdvice = null }) {
   return {
     id,
     slash,
@@ -361,7 +366,20 @@ function stage({ id, slash, label, present, artifacts = [], aiRun = null }) {
     state: present ? "present" : "not_run",
     artifacts,
     ...(aiRun ? { aiRun } : {}),
+    ...(metrics ? { metrics } : {}),
+    ...(rerunAdvice ? { rerunAdvice } : {}),
   };
+}
+
+function listOfDatesMetrics(listOfDates) {
+  if (!listOfDates || typeof listOfDates !== "object" || Array.isArray(listOfDates)) return null;
+  const rows = Number.isInteger(listOfDates.counts?.entries)
+    ? listOfDates.counts.entries
+    : Array.isArray(listOfDates.entries)
+      ? listOfDates.entries.length
+      : null;
+  if (!Number.isInteger(rows) || rows < 0) return null;
+  return { rows };
 }
 
 async function fileExists(filePath) {

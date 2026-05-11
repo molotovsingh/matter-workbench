@@ -108,6 +108,7 @@ export function renderMatterPipelineStatus(status, escape) {
         </div>
         ${renderStageArtifacts(stage.artifacts, escape)}
         ${renderStageAiRun(stage.aiRun, escape)}
+        ${renderStageRerunHint(stage, escape)}
       </div>
     `).join("")
     : '<p class="muted">No pipeline status available.</p>';
@@ -140,4 +141,83 @@ function renderStageAiRun(aiRun, escape) {
       ${model ? `<code>${escape(model)}</code>` : ""}
     </div>
   `;
+}
+
+function renderStageRerunHint(stage, escape) {
+  const advice = stage?.rerunAdvice;
+  if (!advice) return "";
+  const state = advice.state || "unknown";
+  const stateLabel = rerunStateLabel(state);
+  const hint = rerunHintText(advice);
+  const meta = rerunHintMeta(stage, advice);
+
+  return `
+    <div class="pipeline-rerun-hint ${escape(rerunStateClass(state))}">
+      <strong>${escape(stateLabel)}</strong>
+      <span>${escape(hint)}</span>
+      ${meta.length ? `<div class="pipeline-rerun-meta">${meta.map((item) => `<span>${escape(item)}</span>`).join("")}</div>` : ""}
+    </div>
+  `;
+}
+
+function rerunHintText(advice) {
+  if (advice.shouldConfirm) {
+    return "Clicking Run will show a confirmation before starting a paid provider call.";
+  }
+  if (advice.state === "stale") {
+    return `${advice.reason || "Newer upstream inputs were found."} Rerun recommended; no confirmation will be shown.`;
+  }
+  if (advice.state === "missing") {
+    return "No current artifact exists, so the next run will not ask for overwrite confirmation.";
+  }
+  if (advice.state === "failed") {
+    return "The existing artifact could not be read, so rerun is allowed without confirmation.";
+  }
+  if (advice.state === "missing_upstream") {
+    return "Upstream inputs are missing, so rerun is allowed without overwrite confirmation.";
+  }
+  return advice.reason || "Rerun confirmation is not required.";
+}
+
+function rerunHintMeta(stage, advice) {
+  const meta = [];
+  if (advice.lastRunAt) meta.push(`Last run ${formatDateTime(advice.lastRunAt)}`);
+  const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
+  if (providerModel) meta.push(providerModel);
+  if (Number.isInteger(stage?.metrics?.rows)) {
+    meta.push(`${stage.metrics.rows} row${stage.metrics.rows === 1 ? "" : "s"}`);
+  }
+  if (advice.newestInputPath) meta.push(`Newest input ${advice.newestInputPath}`);
+  return meta;
+}
+
+function rerunStateLabel(state) {
+  return ({
+    current: "Current",
+    stale: "Stale",
+    missing: "Not run",
+    failed: "Needs rerun",
+    missing_upstream: "Missing inputs",
+  })[state] || "Status unknown";
+}
+
+function rerunStateClass(state) {
+  return ({
+    current: "current",
+    stale: "stale",
+    missing: "missing",
+    failed: "failed",
+    missing_upstream: "missing-upstream",
+  })[state] || "unknown";
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
