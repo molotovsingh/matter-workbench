@@ -1,9 +1,9 @@
 # Beta Testing: Lawyer-Facing List of Dates
 
-This is the supervised beta handoff for the full matter pipeline:
+This is the supervised beta handoff for the current app workflow:
 
 ```text
-/extract -> /describe_sources -> /create_listofdates
+pick matter -> status -> open library -> /extract -> /describe_sources -> /create_listofdates
 ```
 
 The pipeline is ready for real-matter testing with lawyer review. It is not court-ready without review. Treat the generated chronology as lawyer-review-ready work product: useful, source-backed, and auditable, but still requiring professional judgment before use.
@@ -26,24 +26,67 @@ Use `.env.example` as the base. For beta testing, use:
 
 ```text
 MISTRAL_OCR_ENABLED=1
-SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
-OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
+OPENROUTER_SOURCE_DESCRIPTION_MODEL=meta-llama/llama-3.3-70b-instruct
 OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=6000
+SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
+OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=openai/gpt-4.1
+OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
+OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=8000
 ```
 
-Keep real API keys only in local `.env`.
+Keep real API keys only in local `.env`. At minimum, a live beta run needs:
+
+```text
+MISTRAL_API_KEY=...
+OPENROUTER_API_KEY=...
+```
 
 The `latency` route is the recommended `/create_listofdates` OpenRouter route for now because the final smoke run succeeded through that path. Do not enable automatic model fallback for beta testing. Provider failures should fail closed instead of writing partial bad artifacts.
 
-## How to Run
+## Current Tester Workflow
 
-In the app, run:
+Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands and opens workspace lanes. It is not a chat surface, Q&A tool, semantic search box, or drafting copilot yet.
+
+1. Pick a matter from the sidebar.
+2. Type `status` in the Command rail.
+   - Confirm the matter pipeline panel appears.
+   - Check whether `/extract`, `/describe_sources`, and `/create_listofdates` are current, stale, missing, or not run.
+3. Type `open library`.
+   - This opens `10_Library` / Analysis Library.
+   - Existing source labels and List of Dates artifacts should be visible there.
+4. Run `/extract`.
+   - This updates extraction records and `Extraction Log.csv`.
+   - If Mistral OCR is enabled, scanned PDFs may make Mistral OCR calls.
+5. Run `/describe_sources`.
+   - This writes `10_Library/Source Index.json`.
+   - If the existing artifact is current, the app shows a rerun warning before making a paid provider call.
+   - Cancel should leave the existing artifact unchanged.
+6. Run `/create_listofdates`.
+   - This writes `10_Library/List of Dates.json`, `.csv`, and `.md`.
+   - If the existing artifact is current, the app shows a rerun warning before making a paid provider call.
+   - If upstream inputs are stale or missing, the app may allow the run without an overwrite warning.
+7. Review outputs in `open library`.
+8. Use `Copy Report` when sharing behavior.
+   - The report should include matter name, folder, typed command, matched command, status, provider/model when available, artifact paths, and latest visible terminal lines.
+   - It should not include API keys, `.env`, raw source document text, or full extraction records.
+
+Useful Command rail inputs:
 
 ```text
 /extract
 /describe_sources
 /create_listofdates
+status
+open inbox
+open library
+open workshop
+open drafts
+open dispatch
 ```
+
+The lane commands are navigation-only. They do not run providers, write artifacts, move files, or generate documents.
+
+## CLI Smoke Option
 
 For CLI smoke testing, set `MATTER_ROOT` and run:
 
@@ -61,6 +104,32 @@ Then inspect:
 10_Library/List of Dates.json
 10_Library/List of Dates.md
 ```
+
+## Where Outputs Live
+
+The durable artifacts testers should inspect are:
+
+```text
+00_Inbox/Intake */Extraction Log.csv       extraction/OCR run log
+00_Inbox/Intake */File Register.csv        canonical file ids and hashes
+_extracted/                                extraction-record/v1 JSON records
+10_Library/Source Index.json               source-index/v1 readable source labels
+10_Library/List of Dates.json              structured lawyer-facing chronology
+10_Library/List of Dates.csv               spreadsheet review copy
+10_Library/List of Dates.md                lawyer-facing review artifact
+```
+
+The app may show friendly lane labels:
+
+```text
+00_Inbox      Inbox
+10_Library    Analysis Library
+20_Workshop   Workshop
+30_Drafts     Drafts
+40_Dispatch   Dispatch
+```
+
+The disk paths remain canonical. When reporting an issue, include the canonical path as well as the friendly label.
 
 ## What Looks Good
 
@@ -87,6 +156,9 @@ The readable label helps the lawyer. The raw citation remains the audit handle.
 
 For each matter, reviewers should mark:
 
+- whether the Command rail action did what the tester expected;
+- whether a paid rerun warning appeared when a current artifact already existed;
+- whether Cancel preserved the existing artifact;
 - missing legally important events;
 - overstated legal relevance;
 - duplicate rows that should have clustered;
@@ -112,8 +184,11 @@ The beta goal is to learn whether the chronology helps the lawyer see the case f
 - OpenRouter can still return malformed JSON or transient provider errors.
 - `/describe_sources` may need a retry if the provider returns metadata that fails local validation.
 - Source descriptors may need rerun if extraction records or source hashes shift.
+- `/create_listofdates` may run without confirmation when upstream inputs are newer than the existing artifact. That is intentional: the artifact is stale, not current.
 - Reviewers must check for missing events and overstated legal relevance.
 - Cluster completeness needs human review, especially for payment and discrepancy clusters.
+- The Command rail is not a legal Q&A/search/chat system yet.
+- Lane commands are just navigation; they do not validate whether a lane is legally complete.
 - This is not "court-ready without review"; it is "lawyer-review-ready."
 
 ## Smoke Evidence
