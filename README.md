@@ -1,8 +1,9 @@
 # Matter Workbench
 
-Standalone local workbench for inspecting and initializing legal matter folders.
-This app is intentionally outside any single matter folder. Point it at a matter
-with `MATTER_ROOT` when you want server-backed reads and writes.
+Standalone local workbench for initializing, extracting, source-labeling, and
+reviewing legal matter folders. This app is intentionally outside any single
+matter folder. Point it at a matter with `MATTER_ROOT` when you want
+server-backed reads and writes.
 
 ## Architecture Map
 
@@ -10,19 +11,24 @@ For the current codebase map, lifecycle diagram, provider paths, persistent
 artifacts, and eval tooling, see
 [docs/codebase-diagram.md](docs/codebase-diagram.md).
 
+## Beta Workflow
+
+For the current tester-facing workflow, Command rail commands, recommended
+local env, paid rerun behavior, and review checklist, see
+[docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
+
 ## Scope
 
-- VS Code-style shell
-- One active slash skill: `/matter-init`
-- Focus on intake initialization only
-- One matter per server process, pinned by `MATTER_ROOT` at startup
-- Matter context is read from that root's `matter.json`
-- Slash skills are entered in the top command strip
+- Local legal matter workbench with a Matter Explorer, Command rail, and durable disk artifacts
+- Current runnable skills: `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, and `/doctor`
+- One active matter at a time, selected from the in-app Matters list or pinned by `MATTER_ROOT`
+- Matter context is read from the active matter's `matter.json`
+- The right-side Command rail runs deterministic slash commands, opens workspace lanes, shows status, and keeps paid rerun guardrails
 - Matter metadata is captured before `/matter-init` runs
-- `server.mjs` enables local filesystem writes for the deterministic intake engine
+- `server.mjs` enables local filesystem writes for deterministic intake, extraction, source labeling, and chronology engines
 - The Matter Explorer reflects the current matter root from disk
 
-## Phase 1 behavior
+## Matter Intake Behavior
 
 `/matter-init` is responsible for:
 
@@ -40,12 +46,13 @@ The intended skill shape is:
   folder + matter metadata -> preserved raw source -> arranged inbox -> review logs
 ```
 
-Future document-specific skills should follow the same pattern: explicit verb,
-bounded input, deterministic output, and lawyer review before downstream use.
+Other document-specific skills follow the same pattern: explicit verb, bounded
+input, durable output, and lawyer review before downstream use.
 
-In the UI, the sidebar shows available slash skills. The top command strip is
-where the lawyer/operator types the skill, for example `/matter-init`, and runs
-it against the open matter.
+In the UI, the sidebar shows available slash skills and the right-side Command
+rail accepts exact commands such as `/matter-init`, `/extract`, `open library`,
+or `status`. Paid AI skills keep the rerun confirmation guardrails when current
+artifacts already exist.
 
 The Matter Explorer loads the current matter from the local Node server, reads
 metadata from `matter.json`, and renders the visible workspace tree. Text files
