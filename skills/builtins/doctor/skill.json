@@ -1,0 +1,28 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "doctor",
+  "slash": "/doctor",
+  "title": "Doctor",
+  "category": "Maintain",
+  "purpose": "Detect and repair legacy or inconsistent local matter layout and metadata issues.",
+  "mode": "deterministic",
+  "matter_required": true,
+  "paid_provider_call": false,
+  "rerun_guarded": false,
+  "source_backed": "not_applicable",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "matter folder"
+  ],
+  "outputs": [
+    "doctor scan results",
+    "doctor fix results",
+    ".doctor-backups"
+  ],
+  "upstream": [],
+  "downstream": [],
+  "default_lane": "",
+  "runner_key": "/doctor",
+  "version": 1
+}

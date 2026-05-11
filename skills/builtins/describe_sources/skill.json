@@ -1,0 +1,30 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "describe_sources",
+  "slash": "/describe_sources",
+  "title": "Describe Sources",
+  "category": "Organize",
+  "purpose": "Create a validated Source Index with lawyer-readable labels for each extracted source document.",
+  "mode": "AI",
+  "matter_required": true,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "extraction-record/v1"
+  ],
+  "outputs": [
+    "10_Library/Source Index.json"
+  ],
+  "upstream": [
+    "/extract"
+  ],
+  "downstream": [
+    "/create_listofdates"
+  ],
+  "default_lane": "10_Library",
+  "runner_key": "/describe_sources",
+  "version": 1
+}

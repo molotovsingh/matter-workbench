@@ -15,6 +15,13 @@
     "direct_mece_violation_requires_user_gate": true,
     "docx_pdf_are_export_stage": true
   },
+  "builtins": [
+    "matter-init",
+    "extract",
+    "describe_sources",
+    "create_listofdates",
+    "doctor"
+  ],
   "skills": [
     {
       "id": "matter-init",

@@ -37,6 +37,10 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
     aiProvider: async (payload) => {
       calls.push(payload);
       assert.match(payload.userRequest, /timeline|chronology/i);
+      assert.deepEqual(
+        payload.registry.skills.map((skill) => skill.slash),
+        ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/doctor"],
+      );
       assert.ok(payload.registry.skills.some((skill) => skill.slash === "/create_listofdates"));
       return {
         decision: "modify_existing_skill",
