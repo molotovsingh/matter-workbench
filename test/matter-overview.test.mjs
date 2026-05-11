@@ -15,18 +15,36 @@ test("matter overview renders read-only pipeline status", () => {
       {
         slash: "/describe_sources",
         label: "Describe Sources",
-        present: false,
+        present: true,
         artifacts: [],
+        rerunAdvice: {
+          state: "stale",
+          shouldConfirm: false,
+          reason: "newer extraction records were found",
+          newestInputPath: "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json",
+        },
       },
       {
         slash: "/create_listofdates",
         label: "Create List of Dates",
         present: true,
         artifacts: ["10_Library/List of Dates.md"],
+        metrics: {
+          rows: 36,
+        },
         aiRun: {
           provider: "openrouter",
           model: "openai/gpt-4.1",
           returnedProvider: "Friendli",
+        },
+        rerunAdvice: {
+          state: "current",
+          shouldConfirm: true,
+          artifactPath: "10_Library/List of Dates.md",
+          lastRunAt: "2026-05-11T14:16:00.000Z",
+          provider: "Friendli",
+          model: "openai/gpt-4.1",
+          reason: "No newer extraction records or Source Index changes were found.",
         },
       },
     ],
@@ -36,8 +54,11 @@ test("matter overview renders read-only pipeline status", () => {
   assert.match(html, /\/matter-init/);
   assert.match(html, /Present/);
   assert.match(html, /\/describe_sources/);
-  assert.match(html, /Not run/);
+  assert.match(html, /Stale/);
+  assert.match(html, /Rerun recommended; no confirmation will be shown/);
   assert.match(html, /10_Library\/List of Dates\.md/);
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
+  assert.match(html, /Clicking Run will show a confirmation/);
+  assert.match(html, /36 rows/);
 });

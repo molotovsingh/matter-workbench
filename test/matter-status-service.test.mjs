@@ -22,6 +22,9 @@ test("matter status derives pipeline state from existing artifacts", async () =>
   })}\n`);
   await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
   await writeFile(path.join(root, "10_Library", "List of Dates.json"), `${JSON.stringify({
+    counts: {
+      entries: 36,
+    },
     ai_run: {
       provider: "openrouter",
       model: "openai/gpt-4.1",
@@ -45,8 +48,15 @@ test("matter status derives pipeline state from existing artifacts", async () =>
     ["/create_listofdates", "present"],
   ]);
   assert.ok(status.stages.find((stage) => stage.slash === "/extract").artifacts.some((artifact) => artifact.includes("_extracted")));
-  assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").aiRun.returnedProvider, "akashml/fp8");
-  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").aiRun.model, "openai/gpt-4.1");
+  const sourceStage = status.stages.find((stage) => stage.slash === "/describe_sources");
+  const listStage = status.stages.find((stage) => stage.slash === "/create_listofdates");
+  assert.equal(sourceStage.aiRun.returnedProvider, "akashml/fp8");
+  assert.equal(sourceStage.rerunAdvice.state, "current");
+  assert.equal(sourceStage.rerunAdvice.shouldConfirm, true);
+  assert.equal(listStage.aiRun.model, "openai/gpt-4.1");
+  assert.equal(listStage.metrics.rows, 36);
+  assert.equal(listStage.rerunAdvice.state, "current");
+  assert.equal(listStage.rerunAdvice.shouldConfirm, true);
 });
 
 test("matter status treats missing artifacts as not run", async () => {
