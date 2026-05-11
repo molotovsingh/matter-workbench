@@ -65,6 +65,7 @@ const LANE_COMMANDS = new Map([
 ]);
 
 const STATUS_ALIASES = new Set(["show status", "status"]);
+const SKILLS_ALIASES = new Set(["open skills", "show skills", "skills"]);
 
 export function createAiCommandBox(ctx, options = {}) {
   const {
@@ -142,6 +143,11 @@ export function createAiCommandBox(ctx, options = {}) {
     try {
       if (parsedCommand.type === "status") {
         showMatterStatus(userRequest);
+        updateReport({ status: "ran" });
+        return;
+      }
+      if (parsedCommand.type === "skills") {
+        await showSkillsPage(userRequest);
         updateReport({ status: "ran" });
         return;
       }
@@ -268,6 +274,28 @@ export function createAiCommandBox(ctx, options = {}) {
         document.getElementById("matterPipelineStatus")?.scrollIntoView?.({ block: "start" });
       }, 0);
     }
+  }
+
+  async function showSkillsPage(userRequest) {
+    if (!ctx.renderSkills) {
+      renderCommandError("Skills view is unavailable.");
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Command unavailable</strong><br />Skills view is not wired.",
+        bar: "Command Unavailable",
+        terminal: "[ai-command] skills view unavailable",
+      });
+      updateReport({ status: "failed" });
+      return;
+    }
+
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> opens the read-only Skills page.`,
+      bar: "Command Matched",
+      terminal: `[ai-command] ${userRequest} -> skills`,
+    });
+    await ctx.renderSkills();
   }
 
   async function checkIntent({ userRequest, overrideJustification }) {
@@ -598,6 +626,7 @@ export function parseDeterministicCommand(input) {
   const searchCommand = parseSearchCommand(normalized);
   if (searchCommand) return searchCommand;
   if (STATUS_ALIASES.has(normalized)) return { type: "status" };
+  if (SKILLS_ALIASES.has(normalized)) return { type: "skills", input: normalized };
   const lanePath = LANE_COMMANDS.get(normalized);
   if (lanePath) return { type: "lane", input: normalized, lanePath };
   if (SLASH_COMMANDS.has(normalized)) return { type: "skill", command: normalized };

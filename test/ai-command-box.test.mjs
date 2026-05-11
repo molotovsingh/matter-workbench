@@ -31,6 +31,9 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("open dispatch"), { type: "lane", input: "open dispatch", lanePath: "40_Dispatch" });
   assert.deepEqual(parseDeterministicCommand("show status"), { type: "status" });
   assert.deepEqual(parseDeterministicCommand("status"), { type: "status" });
+  assert.deepEqual(parseDeterministicCommand("open skills"), { type: "skills", input: "open skills" });
+  assert.deepEqual(parseDeterministicCommand("show skills"), { type: "skills", input: "show skills" });
+  assert.deepEqual(parseDeterministicCommand("skills"), { type: "skills", input: "skills" });
 });
 
 test("command parser does not fuzzy-match unsupported text", () => {
@@ -135,6 +138,24 @@ test("command box opens workspace lanes without running a skill", async () => {
   assert.deepEqual(calls, []);
   assert.deepEqual(openedLanes, ["10_Library"]);
   assert.equal(ctx.statusCalls.at(-1).bar, "Lane Opened");
+});
+
+test("command box opens the read-only skills page without running a skill", async () => {
+  const calls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "open skills" });
+  const box = createAiCommandBox(ctx, {
+    skillDispatch: {
+      "/extract": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(calls, []);
+  assert.equal(ctx.renderedSkills, true);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skills");
 });
 
 test("command box dispatches context search aliases without provider routing", async () => {
@@ -315,6 +336,7 @@ function fakeCtx({
   const aiCommandInput = fakeInput(inputValue);
   return {
     renderedOverview: false,
+    renderedSkills: false,
     statusCalls,
     elements: {
       aiCommandForm: form,
@@ -332,6 +354,13 @@ function fakeCtx({
     openWorkspaceLane,
     renderSkillOverview() {
       this.renderedOverview = true;
+    },
+    async renderSkills() {
+      this.renderedSkills = true;
+      this.setStatus({
+        bar: "Skills",
+        terminal: "[skills] viewing registry",
+      });
     },
     setStatus(status) {
       statusCalls.push(status);
