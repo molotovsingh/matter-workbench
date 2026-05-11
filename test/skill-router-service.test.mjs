@@ -25,7 +25,7 @@ test("skill registry lists current slash skills", async () => {
   assert.equal(registry.schema_version, "skill-registry/v1");
   assert.deepEqual(
     registry.skills.map((skill) => skill.slash),
-    ["/matter-init", "/extract", "/create_listofdates", "/doctor"],
+    ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/doctor"],
   );
   assert.equal(registry.skills.find((skill) => skill.slash === "/create_listofdates").category, "Analyze");
 });

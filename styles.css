@@ -896,6 +896,10 @@ summary {
   min-width: 1040px;
 }
 
+.source-descriptors-table {
+  min-width: 760px;
+}
+
 .artifact-actions {
   display: flex;
   flex-wrap: wrap;

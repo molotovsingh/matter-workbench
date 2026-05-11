@@ -6,6 +6,7 @@ export function wireAppEvents(ctx, skills) {
   const skillDispatch = {
     "/matter-init": skills.runMatterInit,
     "/extract": skills.runExtract,
+    "/describe_sources": skills.runDescribeSources,
     "/create_listofdates": skills.runCreateListOfDates,
     "/doctor": skills.runDoctor,
   };

@@ -61,9 +61,33 @@
         "/matter-init"
       ],
       "downstream": [
+        "/describe_sources",
         "/create_listofdates"
       ],
       "mode": "deterministic",
+      "source_backed": "required",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    },
+    {
+      "id": "describe_sources",
+      "slash": "/describe_sources",
+      "category": "Organize",
+      "purpose": "Create a validated Source Index with lawyer-readable labels for each extracted source document.",
+      "inputs": [
+        "extraction-record/v1"
+      ],
+      "outputs": [
+        "10_Library/Source Index.json"
+      ],
+      "upstream": [
+        "/extract"
+      ],
+      "downstream": [
+        "/create_listofdates"
+      ],
+      "mode": "AI",
       "source_backed": "required",
       "legal_setting_scope": "general",
       "markdown_first": false,
@@ -75,7 +99,8 @@
       "category": "Analyze",
       "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",
       "inputs": [
-        "extraction-record/v1"
+        "extraction-record/v1",
+        "10_Library/Source Index.json"
       ],
       "outputs": [
         "10_Library/List of Dates.md",

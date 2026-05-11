@@ -1,6 +1,7 @@
 import { runExtract } from "../extract-engine.mjs";
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
+import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
@@ -36,6 +37,18 @@ export async function handleApiRequest({ request, requestUrl, response, services
       intakeFilter: typeof body.intakeId === "string" && body.intakeId.trim()
         ? body.intakeId.trim()
         : null,
+    }));
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/describe-sources") {
+    const root = matterStore.ensureMatterRoot();
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await runSourceDescriptors({
+      matterRoot: root,
+      dryRun: Boolean(body.dryRun),
+      env: services.env || {},
+      sourceDescriptorProvider: services.sourceDescriptorProvider,
     }));
     return true;
   }
