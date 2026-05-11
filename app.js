@@ -24,6 +24,7 @@ const elements = {
   aiCommandForm: document.getElementById("aiCommandForm"),
   aiCommandInput: document.getElementById("aiCommandInput"),
   aiCommandSubmit: document.getElementById("aiCommandSubmit"),
+  aiCommandSuggestions: document.getElementById("aiCommandSuggestions"),
   aiCommandCopyReport: document.getElementById("aiCommandCopyReport"),
   aiCommandReportStatus: document.getElementById("aiCommandReportStatus"),
   mattersPicker: document.getElementById("mattersPicker"),

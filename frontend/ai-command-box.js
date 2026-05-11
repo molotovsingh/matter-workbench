@@ -10,6 +10,29 @@ const SLASH_COMMANDS = new Set([
   "/doctor",
 ]);
 
+const SLASH_COMMAND_SUGGESTIONS = [
+  {
+    command: "/matter-init",
+    description: "Initialize the matter folders and file register.",
+  },
+  {
+    command: "/extract",
+    description: "Extract text and OCR-ready records from registered files.",
+  },
+  {
+    command: "/describe_sources",
+    description: "Generate lawyer-readable source labels. Paid reruns ask first.",
+  },
+  {
+    command: "/create_listofdates",
+    description: "Generate the lawyer-facing chronology. Paid reruns ask first.",
+  },
+  {
+    command: "/doctor",
+    description: "Check and repair known matter workspace issues.",
+  },
+];
+
 const COMMAND_ALIASES = new Map([
   ["extract", "/extract"],
   ["describe sources", "/describe_sources"],
@@ -26,6 +49,7 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandForm,
     aiCommandInput,
     aiCommandSubmit,
+    aiCommandSuggestions,
     aiCommandCopyReport,
     aiCommandReportStatus,
     breadcrumbs,
@@ -38,6 +62,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   let latestReport = null;
+  let activeSuggestionIndex = -1;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -47,12 +72,21 @@ export function createAiCommandBox(ctx, options = {}) {
         userRequest: aiCommandInput.value.trim(),
       });
     });
+    aiCommandInput?.addEventListener?.("input", () => renderSlashSuggestions());
+    aiCommandInput?.addEventListener?.("focus", () => renderSlashSuggestions());
+    aiCommandInput?.addEventListener?.("keydown", async (event) => {
+      await handleSuggestionKeydown(event);
+    });
+    aiCommandInput?.addEventListener?.("blur", () => {
+      setTimeout(hideSlashSuggestions, 120);
+    });
     if (aiCommandCopyReport) {
       aiCommandCopyReport.addEventListener("click", copyLatestReport);
     }
   }
 
   async function handleCommand({ userRequest }) {
+    hideSlashSuggestions();
     if (!userRequest) {
       renderCommandError("Enter a slash command or proposed skill request.");
       return;
@@ -263,6 +297,81 @@ export function createAiCommandBox(ctx, options = {}) {
     `;
   }
 
+  function renderSlashSuggestions() {
+    if (!aiCommandSuggestions || !aiCommandInput) return;
+    const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
+    if (!suggestions.length) {
+      hideSlashSuggestions();
+      return;
+    }
+    activeSuggestionIndex = Math.min(Math.max(activeSuggestionIndex, 0), suggestions.length - 1);
+    aiCommandSuggestions.hidden = false;
+    aiCommandSuggestions.innerHTML = suggestions.map((suggestion, index) => `
+      <button
+        type="button"
+        class="command-suggestion${index === activeSuggestionIndex ? " active" : ""}"
+        data-command-suggestion="${escapeHtml(suggestion.command)}"
+        role="option"
+        aria-selected="${index === activeSuggestionIndex ? "true" : "false"}"
+      >
+        <strong>${escapeHtml(suggestion.command)}</strong>
+        <span>${escapeHtml(suggestion.description)}</span>
+      </button>
+    `).join("");
+    aiCommandSuggestions.querySelectorAll("[data-command-suggestion]").forEach((button) => {
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", async () => {
+        await runSuggestedCommand(button.dataset.commandSuggestion);
+      });
+    });
+  }
+
+  async function handleSuggestionKeydown(event) {
+    if (!aiCommandInput || !aiCommandSuggestions) return;
+    const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
+    if (!suggestions.length) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      activeSuggestionIndex = activeSuggestionIndex < 0
+        ? 0
+        : (activeSuggestionIndex + 1) % suggestions.length;
+      renderSlashSuggestions();
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      activeSuggestionIndex = activeSuggestionIndex < 0
+        ? suggestions.length - 1
+        : (activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+      renderSlashSuggestions();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      hideSlashSuggestions();
+      return;
+    }
+    if (event.key === "Enter" && !aiCommandSuggestions.hidden && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      await runSuggestedCommand(suggestions[activeSuggestionIndex].command);
+    }
+  }
+
+  async function runSuggestedCommand(command) {
+    if (!command || !aiCommandInput) return;
+    aiCommandInput.value = command;
+    hideSlashSuggestions();
+    await handleCommand({ userRequest: command });
+  }
+
+  function hideSlashSuggestions() {
+    activeSuggestionIndex = -1;
+    if (!aiCommandSuggestions) return;
+    aiCommandSuggestions.hidden = true;
+    aiCommandSuggestions.innerHTML = "";
+  }
+
   function startReport({ typedInput, matchedCommand, status }) {
     const activeMatter = ctx.getActiveMatter?.() || {};
     latestReport = {
@@ -405,6 +514,13 @@ export function parseDeterministicCommand(input) {
   const aliasCommand = COMMAND_ALIASES.get(normalized);
   if (aliasCommand) return { type: "skill", command: aliasCommand };
   return null;
+}
+
+export function listSlashCommandSuggestions(input) {
+  const raw = String(input || "");
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed.startsWith("/")) return [];
+  return SLASH_COMMAND_SUGGESTIONS.filter((suggestion) => suggestion.command.startsWith(trimmed));
 }
 
 function normalizeCommandInput(input) {
