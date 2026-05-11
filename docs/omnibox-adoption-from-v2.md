@@ -430,6 +430,8 @@ They build context from:
 
 The current repo should not jump straight to Q&A, but it should eventually add a similar **matter context reader** before allowing the omnibox to answer factual questions about the matter.
 
+The contract for that reader now lives in [`docs/matter-context-reader-contract.md`](matter-context-reader-contract.md). Treat that document as the next boundary before implementing any Q&A/search runtime.
+
 Adoption guidance:
 
 - create a source-backed context boundary before adding broad copilot Q&A;
