@@ -131,10 +131,17 @@ flowchart LR
     LodJson["10_Library/List of Dates.json"]
     LodCsv["10_Library/List of Dates.csv"]
     LodMd["10_Library/List of Dates.md"]
+    Workshop["20_Workshop/"]
+    Drafts["30_Drafts/"]
+    Dispatch["40_Dispatch/"]
   end
 
   MatterInit --> MatterJson
   MatterInit --> Inbox
+  MatterInit --> Library
+  MatterInit --> Workshop
+  MatterInit --> Drafts
+  MatterInit --> Dispatch
   MatterInit --> FileRegister
   Extract --> Extracted
   Extract --> ExtractionLog

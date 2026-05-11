@@ -1,6 +1,7 @@
 import { escapeHtml, formatBytes } from "./dom-utils.js";
+import { workspaceLaneLabel } from "../shared/workspace-lanes.mjs";
 
-function renderTreeNode(node, depth = 0) {
+export function renderTreeNode(node, depth = 0) {
   if (node.kind === "file") {
     const previewable = node.previewable ? "true" : "false";
     const previewKind = node.previewKind || "";
@@ -26,12 +27,14 @@ function renderTreeNode(node, depth = 0) {
   const childCount = children.length ? `<span class="tree-meta">${children.length}</span>` : "";
   const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
+  const displayName = workspaceLaneLabel(node.path, node.name);
+  const canonicalName = displayName !== node.name ? `<span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
 
   return `
     <li class="tree-node tree-directory">
       <details${open}>
         <summary>
-          <span class="tree-name">${escapeHtml(node.name)}${depth === 0 ? "" : "/"}</span>
+          <span class="tree-name">${escapeHtml(displayName)}${depth === 0 ? "" : "/"}${canonicalName}</span>
           ${childCount}
         </summary>
         <ul>${childItems}${truncated}</ul>

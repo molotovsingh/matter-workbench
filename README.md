@@ -90,8 +90,16 @@ Naveen vs Mohit/
                                           File Register.csv, Intake Log.csv)
     Intake 02 - 2026-05-08 client email/ (second batch with optional label)
     Intake 03 - 2026-05-15/               (third batch, no label)
+  10_Library/                             (source-backed analysis artifacts)
+  20_Workshop/                            (issue notes and review work)
+  30_Drafts/                              (draft legal outputs)
+  40_Dispatch/                            (reviewed sendable material)
   matter.json                             (intakes: [...] array)
 ```
+
+The folder names stay canonical on disk. The explorer may show friendlier labels
+such as `Analysis Library` for `10_Library`, but file paths and artifacts keep
+using the stable folder names.
 
 `FILE-NNNN` ids continue across batches (so you'll see FILE-0051 in Intake 02
 if Intake 01 had 50 files). Files whose SHA-256 already appears in a prior

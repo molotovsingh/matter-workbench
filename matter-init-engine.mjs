@@ -11,6 +11,7 @@ import {
   INITIAL_INTAKE_DIR_NAME,
   INITIAL_INTAKE_ID,
   INTAKE_LOG_HEADERS,
+  MATTER_WORKSPACE_LANES,
   MATTER_INIT_ENGINE_VERSION,
   normalizeWorkingCopyName,
 } from "./shared/matter-contract.mjs";
@@ -191,6 +192,21 @@ function resolvePaths(matterRoot, intakeDirName) {
   };
 }
 
+async function ensureWorkspaceLanes(matterRoot, dryRun) {
+  const rows = MATTER_WORKSPACE_LANES.map((lane) => ({
+    ...lane,
+    absolutePath: path.join(matterRoot, lane.path),
+  }));
+  if (!dryRun) {
+    await Promise.all(rows.map((lane) => mkdir(lane.absolutePath, { recursive: true })));
+  }
+  return rows.map((lane) => ({
+    path: lane.path,
+    label: lane.label,
+    purpose: lane.purpose,
+  }));
+}
+
 export async function runMatterInit(options = {}) {
   const configuredMatterRoot = options.matterRoot || DEFAULT_MATTER_ROOT;
   if (!configuredMatterRoot) {
@@ -206,6 +222,7 @@ export async function runMatterInit(options = {}) {
   const receivedDate = options.receivedDate || new Date().toISOString().slice(0, 10);
   const intakeLabel = options.intakeLabel || (intakeDirName === INITIAL_INTAKE_DIR_NAME ? "Initial" : "");
   const paths = resolvePaths(matterRoot, intakeDirName);
+  const workspaceLanes = await ensureWorkspaceLanes(matterRoot, dryRun);
   const rootStaging = await stageLooseRootFiles(paths, dryRun);
 
   const sourceFiles = [];
@@ -361,6 +378,7 @@ export async function runMatterInit(options = {}) {
     jurisdiction: metadata.jurisdiction || existingMatter.jurisdiction || "",
     brief_description: metadata.briefDescription || existingMatter.brief_description || "",
     workspace_mode: existingMatter.workspace_mode || "legal",
+    workspace_lanes: workspaceLanes,
     intakes: intakesArray,
   };
   delete matterJson.phase_1_intake;
@@ -393,6 +411,7 @@ export async function runMatterInit(options = {}) {
       workingCopiesCopied,
       looseRootFilesSeen: rootStaging.rows.length,
       looseRootFilesStaged: rootStaging.copied,
+      workspaceLanes: workspaceLanes.length,
     },
     intake: {
       intake_id: intakeId,
@@ -424,6 +443,7 @@ export async function runMatterInit(options = {}) {
       `[intake] duplicates of prior intake: ${duplicatesOfPrior}`,
       `[intake] originals: ${toPosix(path.relative(matterRoot, paths.originalsDir))}`,
       `[intake] by type: ${toPosix(path.relative(matterRoot, paths.byTypeDir))}`,
+      `[workspace] lanes: ${workspaceLanes.map((lane) => lane.path).join(", ")}`,
       `[intake] wrote logs: ${toPosix(path.relative(matterRoot, paths.intakeLogPath))}, ${toPosix(path.relative(matterRoot, paths.fileRegisterPath))}`,
       "[intake] status: complete - deterministic intake ready for lawyer review",
     ],
