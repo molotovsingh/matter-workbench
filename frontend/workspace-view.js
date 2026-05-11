@@ -175,8 +175,12 @@ function wireListOfDatesPreviewActions(markdown) {
 
 async function writeClipboardText(text) {
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for embedded browser contexts that expose Clipboard API but deny write permission.
+    }
   }
 
   const scratch = document.createElement("textarea");
