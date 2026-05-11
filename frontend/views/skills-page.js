@@ -99,6 +99,7 @@ function renderSavedIdeaCard(idea, escape) {
   const status = idea.status || "proposed";
   const matter = idea.matter || {};
   const matterLabel = matter.matterName || matter.folderName || "No matter attached";
+  const brief = normalizeDesignBriefForView(idea.designBrief);
   return `
     <article class="skill-card skill-idea-card">
       <div class="skill-card-header">
@@ -108,6 +109,7 @@ function renderSavedIdeaCard(idea, escape) {
         </div>
         <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
       </div>
+      <p class="muted">Original idea</p>
       <p>${escape(idea.text || "")}</p>
       <dl class="skill-card-meta">
         <div><dt>Created</dt><dd>${escape(idea.createdAt || "")}</dd></div>
@@ -115,6 +117,73 @@ function renderSavedIdeaCard(idea, escape) {
         <div><dt>Folder</dt><dd>${escape(matter.folderName || "None")}</dd></div>
         <div><dt>Runtime</dt><dd>Not runnable</dd></div>
       </dl>
+      <details class="skill-idea-brief">
+        <summary>Design brief <span class="muted">Not runnable yet</span></summary>
+        <p class="muted">
+          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, activation, or matter artifacts.
+        </p>
+        <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
+          <label>
+            <span>Intended user</span>
+            <input type="text" name="intendedUser" value="${escape(brief.intendedUser)}" autocomplete="off" />
+          </label>
+          <label>
+            <span>Problem / job to be done</span>
+            <textarea name="problem">${escape(brief.problem)}</textarea>
+          </label>
+          <label>
+            <span>Expected inputs</span>
+            <textarea name="expectedInputs">${escape(brief.expectedInputs)}</textarea>
+          </label>
+          <label>
+            <span>Expected output artifact</span>
+            <input type="text" name="expectedOutputArtifact" value="${escape(brief.expectedOutputArtifact)}" autocomplete="off" />
+          </label>
+          <div class="skill-idea-brief-grid">
+            ${renderSelectField({
+              name: "targetLane",
+              label: "Target lane",
+              value: brief.targetLane,
+              options: [
+                ["", "Not chosen"],
+                ["10_Library", "10_Library - Analysis Library"],
+                ["20_Workshop", "20_Workshop - Strategy Workshop"],
+                ["30_Drafts", "30_Drafts - Drafts"],
+                ["40_Dispatch", "40_Dispatch - Dispatch"],
+              ],
+            }, escape)}
+            ${renderSelectField({
+              name: "paidPosture",
+              label: "Paid/free posture",
+              value: brief.paidPosture,
+              options: [
+                ["", "Not chosen"],
+                ["free", "Free/local"],
+                ["paid", "Paid/provider-backed"],
+                ["unknown", "Unknown"],
+              ],
+            }, escape)}
+            ${renderSelectField({
+              name: "riskLevel",
+              label: "Risk level",
+              value: brief.riskLevel,
+              options: [
+                ["", "Not assessed"],
+                ["low", "Low"],
+                ["medium", "Medium"],
+                ["high", "High"],
+              ],
+            }, escape)}
+          </div>
+          <label>
+            <span>Notes</span>
+            <textarea name="notes">${escape(brief.notes)}</textarea>
+          </label>
+          <div class="form-actions">
+            <button type="submit">Save design brief</button>
+          </div>
+        </form>
+      </details>
       <div class="form-actions">
         <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="marked_for_future"${status === "marked_for_future" ? " disabled" : ""}>Mark for future</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
@@ -133,6 +202,32 @@ function statusClass(status) {
   if (status === "dismissed") return "not-run";
   if (status === "marked_for_future") return "present";
   return "pending";
+}
+
+function normalizeDesignBriefForView(designBrief = {}) {
+  return {
+    intendedUser: designBrief.intendedUser || "",
+    problem: designBrief.problem || "",
+    expectedInputs: designBrief.expectedInputs || "",
+    expectedOutputArtifact: designBrief.expectedOutputArtifact || "",
+    targetLane: designBrief.targetLane || "",
+    paidPosture: designBrief.paidPosture || "",
+    riskLevel: designBrief.riskLevel || "",
+    notes: designBrief.notes || "",
+  };
+}
+
+function renderSelectField({ name, label, value, options }, escape) {
+  return `
+    <label>
+      <span>${escape(label)}</span>
+      <select name="${escape(name)}">
+        ${options.map(([optionValue, optionLabel]) => `
+          <option value="${escape(optionValue)}"${optionValue === value ? " selected" : ""}>${escape(optionLabel)}</option>
+        `).join("")}
+      </select>
+    </label>
+  `;
 }
 
 function renderSkillsStats(summary, escape) {

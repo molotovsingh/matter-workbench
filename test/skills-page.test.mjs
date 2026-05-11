@@ -104,6 +104,16 @@ test("skills page renders built-in skill governance metadata and matter artifact
             matterName: "Mehta vs Skyline",
             folderName: "Mehta vs Skyline",
           },
+          designBrief: {
+            intendedUser: "Litigation associate",
+            problem: "Turn pleadings into issue-wise review notes.",
+            expectedInputs: "Pleadings, replies, and annexures.",
+            expectedOutputArtifact: "20_Workshop/Issue-wise Pleadings Summary.md",
+            targetLane: "20_Workshop",
+            paidPosture: "paid",
+            riskLevel: "medium",
+            notes: "Design only. Not runnable yet.",
+          },
         },
         {
           id: "idea_test_2",
@@ -124,6 +134,16 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Saved Ideas/);
   assert.match(html, /create a skill to summarize pleadings/);
   assert.match(html, /new skill bundle exhibits/);
+  assert.match(html, /Design brief/);
+  assert.match(html, /Not runnable yet/);
+  assert.match(html, /data-skill-idea-brief-form/);
+  assert.match(html, /Litigation associate/);
+  assert.match(html, /Turn pleadings into issue-wise review notes\./);
+  assert.match(html, /20_Workshop\/Issue-wise Pleadings Summary\.md/);
+  assert.match(html, /value="20_Workshop" selected/);
+  assert.match(html, /value="paid" selected/);
+  assert.match(html, /value="medium" selected/);
+  assert.match(html, /Save design brief/);
   assert.match(html, /Mark for future/);
   assert.match(html, /Dismiss/);
   assert.match(html, /Marked for future/);
@@ -138,7 +158,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /10_Library\/List of Dates\.md/);
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
-  assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env/);
+  assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
 });
 
 test("skills page supports no-matter planning mode without an error", () => {
