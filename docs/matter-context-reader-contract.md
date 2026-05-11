@@ -293,7 +293,9 @@ for overwriting source labels, chronologies, drafts, or dispatch materials.
 
 ## Command Rail Rule
 
-The Command rail remains deterministic until Q&A/search is explicitly added.
+The Command rail remains deterministic until provider-backed Q&A is explicitly
+added. Local context search may use this packet, but it must stay read-only,
+bounded, and citation-preserving.
 
 Allowed now:
 
@@ -301,6 +303,9 @@ Allowed now:
 status
 open library
 open drafts
+/context_preview
+/context_search
+find payment
 /extract
 /describe_sources
 /create_listofdates
@@ -310,7 +315,6 @@ Not added by this contract:
 
 ```text
 what happened in this matter?
-find limitation issues
 draft a notice
 summarize all emails
 ```

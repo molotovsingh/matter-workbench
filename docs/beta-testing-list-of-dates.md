@@ -45,7 +45,7 @@ The `latency` route is the recommended `/create_listofdates` OpenRouter route fo
 
 ## Current Tester Workflow
 
-Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands and opens workspace lanes. It is not a chat surface, Q&A tool, semantic search box, or drafting copilot yet.
+Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet.
 
 1. Pick a matter from the sidebar.
 2. Type `status` in the Command rail.
@@ -66,7 +66,11 @@ Use the light-themed app and the right-side Command rail. The Command rail is de
    - If the existing artifact is current, the app shows a rerun warning before making a paid provider call.
    - If upstream inputs are stale or missing, the app may allow the run without an overwrite warning.
 7. Review outputs in `open library`.
-8. Use `Copy Report` when sharing behavior.
+8. Type `find <term>` or `search <term>` only when you want local context search.
+   - This searches the bounded context packet, not raw files.
+   - It should show source labels and raw `FILE-NNNN pX.bY` citations.
+   - It should not call an AI provider or write artifacts.
+9. Use `Copy Report` when sharing behavior.
    - The report should include matter name, folder, typed command, matched command, status, provider/model when available, artifact paths, and latest visible terminal lines.
    - It should not include API keys, `.env`, raw source document text, or full extraction records.
 
@@ -75,7 +79,11 @@ Useful Command rail inputs:
 ```text
 /extract
 /describe_sources
+/context_preview
+/context_search
 /create_listofdates
+find payment
+search notice
 status
 open inbox
 open library
@@ -84,7 +92,7 @@ open drafts
 open dispatch
 ```
 
-The lane commands are navigation-only. They do not run providers, write artifacts, move files, or generate documents.
+The lane commands and local context search are read-only. They do not run providers, write artifacts, move files, or generate documents.
 
 ## CLI Smoke Option
 
@@ -187,7 +195,7 @@ The beta goal is to learn whether the chronology helps the lawyer see the case f
 - `/create_listofdates` may run without confirmation when upstream inputs are newer than the existing artifact. That is intentional: the artifact is stale, not current.
 - Reviewers must check for missing events and overstated legal relevance.
 - Cluster completeness needs human review, especially for payment and discrepancy clusters.
-- The Command rail is not a legal Q&A/search/chat system yet.
+- The Command rail has local context search, but it is not legal Q&A, semantic search, chat, or drafting copilot yet.
 - Lane commands are just navigation; they do not validate whether a lane is legally complete.
 - This is not "court-ready without review"; it is "lawyer-review-ready."
 

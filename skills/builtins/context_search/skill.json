@@ -1,0 +1,29 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "context_search",
+  "slash": "/context_search",
+  "title": "Context Search",
+  "category": "Review",
+  "purpose": "Search the bounded matter context packet locally and return source labels plus raw citations without calling an AI provider.",
+  "mode": "deterministic",
+  "matter_required": true,
+  "paid_provider_call": false,
+  "rerun_guarded": false,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "matter-context-packet/v1"
+  ],
+  "outputs": [
+    "context search results",
+    "copyable search report"
+  ],
+  "upstream": [
+    "/extract"
+  ],
+  "downstream": [],
+  "default_lane": "",
+  "runner_key": "/context_search",
+  "version": 1
+}

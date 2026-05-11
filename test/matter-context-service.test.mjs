@@ -6,6 +6,8 @@ import test from "node:test";
 import {
   buildMatterContextPacket,
   MATTER_CONTEXT_PACKET_SCHEMA_VERSION,
+  MATTER_CONTEXT_SEARCH_SCHEMA_VERSION,
+  searchMatterContextPacket,
   summarizeMatterContextPacket,
 } from "../services/matter-context-service.mjs";
 import { toCsv } from "../shared/csv.mjs";
@@ -203,6 +205,70 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(summary.top_sources[0].source_short_label, "Legal notice, 20 Apr 2026");
   assert.deepEqual(summary.top_sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
   assert.doesNotMatch(JSON.stringify(summary), /Agreement was signed on 20 April 2026/);
+});
+
+test("matter context search returns source labels, snippets, and raw citations from bounded packet", async () => {
+  const root = await makeMatterRoot();
+  const sourcePath = "00_Inbox/Intake 01 - Initial/By Type/PDFs/FILE-0001__notice.pdf";
+  await writeRegister(root, [
+    {
+      file_id: "FILE-0001",
+      intake_id: "INTAKE-01",
+      source_path: "00_Inbox/Intake 01 - Initial/Source Files/notice.pdf",
+      original_path: "00_Inbox/Intake 01 - Initial/Originals/FILE-0001__notice.pdf",
+      working_copy_path: sourcePath,
+      category: "PDFs",
+      original_name: "notice.pdf",
+      sha256: HASH_ONE,
+      size_bytes: "128",
+      duplicate_of: "",
+      status: "unique",
+    },
+  ]);
+  await writeExtractionRecord(root, extractionRecord({
+    sourcePath,
+    blocks: [
+      "Agreement was signed on 20 April 2026.",
+      "Skyline acknowledged the complaint on 14 March 2024 after receiving the legal notice.",
+    ],
+  }));
+  await writeSourceIndex(root, [
+    {
+      file_id: "FILE-0001",
+      sha256: HASH_ONE,
+      source_path: sourcePath,
+      display_label: "Legal Notice from Mehta to Skyline, 20 April 2026",
+      short_label: "Legal notice, 20 Apr 2026",
+      document_type: "legal_notice",
+      document_date: "2026-04-20",
+      needs_review: false,
+    },
+  ]);
+
+  const packet = await buildMatterContextPacket(root);
+  const result = searchMatterContextPacket(packet, "legal notice", {
+    searchedAt: "2026-05-12T10:00:00.000Z",
+    snippetChars: 80,
+  });
+
+  assert.equal(result.schema_version, MATTER_CONTEXT_SEARCH_SCHEMA_VERSION);
+  assert.equal(result.searched_at, "2026-05-12T10:00:00.000Z");
+  assert.equal(result.query, "legal notice");
+  assert.equal(result.counts.searched_blocks, 2);
+  assert.equal(result.counts.matches, 2);
+  assert.equal(result.counts.sources, 1);
+  assert.deepEqual(result.results.map((match) => match.citation), ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
+  assert.equal(result.results[0].source_short_label, "Legal notice, 20 Apr 2026");
+  assert.equal(result.results[0].document_type, "legal_notice");
+  assert.match(result.results[1].snippet, /legal notice/i);
+  assert.ok(result.results.every((match) => match.snippet.length <= 85));
+});
+
+test("matter context search rejects empty queries clearly", async () => {
+  assert.throws(
+    () => searchMatterContextPacket({ evidence_blocks: [] }, "   "),
+    /Search query is required/,
+  );
 });
 
 test("matter context packet does not read excluded secrets, raw files, logs, binaries, or prior chat", async () => {
