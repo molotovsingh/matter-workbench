@@ -35,6 +35,7 @@ const elements = {
   mattersList: document.getElementById("mattersList"),
   newMatterButton: document.getElementById("newMatterButton"),
   activityExplorer: document.getElementById("activityExplorer"),
+  activitySkills: document.getElementById("activitySkills"),
   activitySettings: document.getElementById("activitySettings"),
   slashSkillButtons: document.querySelectorAll("[data-skill]"),
 };
@@ -86,6 +87,7 @@ ctx.renderBlankLanding = matterScreens.renderBlankLanding;
 ctx.renderFirstRun = matterScreens.renderFirstRun;
 ctx.renderMattersList = matterScreens.renderMattersList;
 ctx.renderSettings = matterScreens.renderSettings;
+ctx.renderSkills = matterScreens.renderSkills;
 ctx.setActivityActive = matterScreens.setActivityActive;
 
 const matterInitSkill = createMatterInitSkill(ctx);

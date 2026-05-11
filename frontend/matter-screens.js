@@ -1,11 +1,13 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
+import { renderSkillsPageHtml } from "./views/skills-page.js";
 
 export function createMatterScreens(ctx) {
   const {
     activityExplorer,
     activitySettings,
+    activitySkills,
     addFilesButton,
     breadcrumbs,
     editorContent,
@@ -15,7 +17,8 @@ export function createMatterScreens(ctx) {
   } = ctx.elements;
 
   function setActivityActive(which) {
-    activityExplorer.classList.toggle("active", which !== "settings");
+    activityExplorer.classList.toggle("active", which === "explorer");
+    activitySkills?.classList.toggle("active", which === "skills");
     activitySettings.classList.toggle("active", which === "settings");
   }
 
@@ -109,6 +112,45 @@ export function createMatterScreens(ctx) {
     });
     wireAiSettingsForm();
     wireSkillRouterPanel();
+  }
+
+  async function renderSkills() {
+    setActivityActive("skills");
+    breadcrumbs.textContent = "skills";
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Skills</strong><br />Viewing read-only built-in skill contracts.",
+      bar: "Skills",
+      terminal: "[skills] viewing registry",
+    });
+    editorContent.innerHTML = `
+      <h1>Skills</h1>
+      <p class="muted">Loading built-in skill contracts...</p>
+    `;
+
+    let registry = {};
+    let loadError = "";
+    let matterStatus = null;
+    let statusError = "";
+    try {
+      registry = await getJson("/api/skills");
+    } catch (error) {
+      loadError = error.message;
+    }
+    if (ctx.getActiveMatter().folderName) {
+      try {
+        matterStatus = await getJson("/api/matter-status");
+      } catch (error) {
+        statusError = error.message;
+      }
+    }
+    editorContent.innerHTML = renderSkillsPageHtml({
+      registry,
+      matterStatus,
+      loadError,
+      statusError,
+      activeMatter: ctx.getActiveMatter(),
+    }, escapeHtml);
   }
 
   function renderFirstRun(defaultPath) {
@@ -205,6 +247,7 @@ export function createMatterScreens(ctx) {
     renderBlankLanding,
     renderFirstRun,
     renderMattersList,
+    renderSkills,
     renderSettings,
     setActivityActive,
   };
