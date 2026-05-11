@@ -34,6 +34,39 @@ function lawyerFields(overrides = {}) {
   };
 }
 
+function sourceDescriptorFor(packet, overrides = {}) {
+  return {
+    file_id: packet.file_id,
+    sha256: packet.sha256,
+    source_path: packet.source_path,
+    display_label: "Note recording smoke event, 20 April 2026",
+    short_label: "Smoke event note, 20 April 2026",
+    document_type: "letter",
+    document_date: "2026-04-20",
+    date_basis: "body_text",
+    parties: {
+      from: "",
+      to: [],
+      cc: [],
+      author: "",
+      court: "",
+      judge: "",
+      issuing_party: "Smoke",
+      recipient_party: "Opposite",
+      deponent: "",
+      signatory: "",
+    },
+    confidence: 0.86,
+    needs_review: false,
+    evidence: [{
+      citation: packet.blocks?.[0]?.citation || `${packet.file_id} p1.b1`,
+      reason: "The note text records the smoke event date.",
+    }],
+    warnings: [],
+    ...overrides,
+  };
+}
+
 test("server API smoke test keeps public routes stable", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-api-test-"));
   const appDir = path.join(tmp, "app");
@@ -95,6 +128,9 @@ test("server API smoke test keeps public routes stable", async () => {
       },
       override_requires: ["distinct output contract"],
     }),
+    sourceDescriptorProvider: async ({ sources }) => ({
+      sources: sources.map((source) => sourceDescriptorFor(source)),
+    }),
   });
 
   await new Promise((resolve) => app.server.listen(0, app.host, resolve));
@@ -111,11 +147,16 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(workspace.metadata.matterName, "Smoke Matter");
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
+    const sourceDescriptors = await postJson(baseUrl, "/api/describe-sources", { dryRun: false });
+    assert.equal(sourceDescriptors.counts.descriptors, 1);
+    assert.equal(sourceDescriptors.outputPaths.json, "10_Library/Source Index.json");
+    assert.equal(sourceDescriptors.sources[0].file_id, "FILE-0001");
     const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
     const skills = await getJson(baseUrl, "/api/skills");
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
+    assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
       userRequest: "Create a new list of dates skill",
     });

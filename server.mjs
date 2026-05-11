@@ -49,6 +49,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     skillRegistryService,
     skillRouterService,
+    sourceDescriptorProvider: options.sourceDescriptorProvider || null,
     uploadService,
     workspaceService,
   };
