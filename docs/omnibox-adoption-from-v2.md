@@ -163,9 +163,19 @@ It can run known commands:
 /matter-init
 /extract
 /describe_sources
+/context_preview
+/context_search
 /create_listofdates
 /doctor
 status
+open inbox
+open library
+open workshop
+open drafts
+open dispatch
+open skills
+find <term>
+search <term>
 ```
 
 It can also route unsupported proposed-skill text to the existing registry overlap check:
@@ -178,7 +188,7 @@ That is good news. We do not need to graft v2's whole Unibox runtime into this r
 
 ## Current Command Rail Contract
 
-As of the merged Command V0 slices, the right-side rail has four responsibilities:
+As of the merged Command V0 slices, the right-side rail has six responsibilities:
 
 1. **Deterministic command execution.**
    Exact slash commands and a tiny static alias map dispatch to the same frontend skill runners used by sidebar and overview buttons.
@@ -192,11 +202,17 @@ As of the merged Command V0 slices, the right-side rail has four responsibilitie
 4. **Slash discoverability.**
    Typing `/` shows the known slash skills with short descriptions. Selecting a suggestion simply fills and runs that deterministic command path.
 
+5. **Local matter inspection.**
+   `context`, `show context`, `find <term>`, and `search <term>` inspect the bounded matter context packet. They do not read raw files, call a provider, or write matter artifacts.
+
+6. **Workspace and skill supervision navigation.**
+   Lane commands such as `open library` and `open drafts`, plus `open skills`, move the user through existing read-only surfaces without changing matter state.
+
 The rail deliberately does **not** do these things yet:
 
 - chat transcript;
-- copilot Q&A;
-- full-document search;
+- provider-backed copilot Q&A;
+- semantic/vector search or raw-file search;
 - fuzzy paid-skill matching;
 - conversation memory;
 - configurable skill creation or editing;
@@ -368,7 +384,7 @@ Adoption rule:
 
 > Borrow the lane philosophy before borrowing the v2 configurable-skill machinery.
 
-The first lane adoption is conservative:
+Lane adoption is intentionally conservative:
 
 - define the lane names in this repo's shared matter contract;
 - create empty `20_Workshop`, `30_Drafts`, and `40_Dispatch` folders during `/matter-init`;
@@ -385,17 +401,27 @@ Later, new skills can route outputs naturally:
 | `30_Drafts` | lawyer-facing drafts: notices, pleadings, client emails, applications |
 | `40_Dispatch` | final reviewed material ready to send or export |
 
-The omnibox should eventually understand these lanes:
+The Command rail now understands simple lane navigation:
 
 ```text
+open inbox
+open library
 open workshop
+open drafts
+open dispatch
+show library
 show drafts
-copy list of dates from library
+open skills
+```
+
+Future provider-backed commands may later build on the same lane vocabulary:
+
+```text
 prepare a notice draft
 what is ready for dispatch?
 ```
 
-But this should not be part of the first deterministic command-box PR. Treat folder-lane adoption as a separate small PR after command execution is stable.
+But lane navigation is not document generation. It should stay read-only until a separate draft or dispatch workflow defines what it writes, validates, and overwrites.
 
 ## Other V2 Patterns I Initially Underweighted
 
@@ -480,7 +506,8 @@ V2 split broad route and UI responsibilities into focused modules:
 - `routes/matter-routes.mjs`;
 - pure frontend helpers such as `unibox-input`, `unibox-suggestions`, `unibox-status`, and `unibox-result-rendering`.
 
-This repo should not refactor just to look like v2. But once command-box logic grows past the first deterministic slice, the same pressure will appear.
+This repo should not refactor just to look like v2. But as Command rail logic
+grows, the same pressure will appear.
 
 Adoption guidance:
 
@@ -702,16 +729,52 @@ This gives later copilot mode a safe source boundary.
 
 V2 has `matter-qa-service.mjs` and `matter-search-service.mjs`.
 
-This repo should not import that yet. Add Q&A/search only after the command runner is solid, because Q&A needs a separate evidence contract:
+This repo should not import that yet. Add provider-backed Q&A only after the
+context packet and local context search are solid, because Q&A needs a separate
+answer contract:
 
 - what sources are searched;
 - how citations are displayed;
 - whether answers are written to disk;
 - whether outputs are chat-only or artifacts.
 
+The first Q&A contract now lives in
+[`docs/copilot-qna-contract.md`](copilot-qna-contract.md). Use that document
+before implementing `/ask`, `ask <question>`, provider-backed matter answers,
+conversation export for Q&A, or citation validation for model answers.
+
+Borrow the v2 idea of answer + sources + confidence, but do not borrow the full
+free-text intent classifier as the first step. In this repo, Q&A should start as
+an explicit command:
+
+```text
+/ask what compensation can Mehta claim?
+ask what compensation can Mehta claim?
+```
+
+Local context search stays separate:
+
+```text
+find payment
+search legal notice
+```
+
+Search is provider-free retrieval. Q&A is provider-backed synthesis and must
+validate citations against `matter-context-packet/v1`.
+
 ### Milestone 9: Configurable Skills
 
 This remains later.
+
+The contract for borrowing v2's new-skill creation flow now lives in
+[`docs/new-skill-creation-contract.md`](new-skill-creation-contract.md).
+Use that document before implementing `/new_skill`, saved ideas, draft
+configurable skills, golden validation, or activation.
+
+The contract for changing existing configurable skills now lives in
+[`docs/skill-modification-contract.md`](skill-modification-contract.md). Use
+that document before implementing `modify skill`, draft revisions, version
+activation, stale-draft handling, or rollback.
 
 Before configurable skills enter this repo, require:
 
@@ -723,101 +786,85 @@ Before configurable skills enter this repo, require:
 - visible applied preferences;
 - no mutation of code-backed skills like `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, or `/doctor`.
 
-V2's configurable-skill docs are a useful future map, but this repo should not start there.
+V2's configurable-skill docs are a useful future map, but this repo should not
+copy the full runtime in one slice. Borrow the lifecycle: draft brief, overlap
+check, saved idea, draft skill, test, golden, validation, activation. Do not
+make a saved idea runnable.
 
-## Proposed Next Runtime PR
+For modification, borrow the revision lifecycle: active skill stays live, change
+request creates a draft revision, draft runs by internal revision id, validation
+is required, activation keeps the slash stable, and rollback restores old
+behavior as a draft rather than live behavior.
+
+## Current Runtime Checkpoint
+
+The deterministic Command rail work has now landed.
+
+Implemented:
+
+- right-side Command rail, not a chat transcript;
+- deterministic slash commands and static aliases;
+- paid rerun guardrails for `/describe_sources` and `/create_listofdates`;
+- slash suggestions;
+- `Copy Report`;
+- workspace lane navigation;
+- local context preview and local context search;
+- read-only Skills tab powered by built-in skill stubs.
+
+Not implemented:
+
+- provider-backed Copilot Q&A;
+- broad AI intent execution;
+- saved skill ideas or proposal inbox;
+- draft configurable skills;
+- skill modification/revision activation;
+- golden validation for user-created skills;
+- chat memory.
+
+This is the correct stopping point for Command V0. The next work should add one governance capability at a time, without turning the rail into half-chat.
+
+## Suggested Next Runtime PR
 
 Title:
 
 ```text
-Add deterministic command box actions
+Add saved skill ideas / proposal inbox
 ```
 
 Scope:
 
-- Extend `frontend/ai-command-box.js` or rename it to a neutral command-box module.
-- Pass `skillDispatch` into the command box from `app.js`.
-- Add a local deterministic parser for exact slash commands and a tiny alias map.
-- Dispatch only existing frontend skill runners.
-- Support `show status` by rendering or focusing the matter overview status panel.
-- Preserve `/api/skills/check-intent` behavior for proposed skill/change requests.
-- Do not add an AI intent classifier.
-- Do not add v2 Unibox panel layout.
-- Do not add configurable skills.
-- Do not bypass rerun guardrails.
-
-Likely files:
-
-```text
-app.js
-index.html
-frontend/ai-command-box.js
-frontend/event-wiring.js
-frontend/views/matter-overview.js
-styles.css
-test/api-smoke.test.mjs
-test/command-box.test.mjs
-```
-
-The exact file list may be smaller. Prefer smaller.
+- let the Command rail capture text such as `I want a skill that...` as a proposed skill idea;
+- run the existing skill-router overlap check as a non-executing review step;
+- save the idea/proposal only after user confirmation;
+- show saved ideas in the read-only Skills tab as a proposal inbox;
+- make it clear that saved ideas are not runnable slash commands;
+- do not create draft configurable skills yet;
+- do not call a provider to run or test the idea;
+- do not mutate built-in skill stubs.
 
 Acceptance criteria:
 
-- Typing `/extract` runs the same path as the sidebar `/extract` button.
-- Typing `/describe_sources` invokes the existing `/describe_sources` skill and shows the same rerun confirmation when current.
-- Typing `/create_listofdates` invokes the existing skill and shows the same rerun confirmation when current.
-- Typing `show status` shows the matter overview or pipeline status without a paid call.
-- Unsupported input shows a clear message and does not call a provider unless the user explicitly uses the skill-router check path.
-- Existing skill-router tests still pass.
-- `npm test` passes.
-- Browser smoke on `http://127.0.0.1:4173/` confirms no console errors.
+- saving an idea writes only the proposal record or future agreed storage artifact;
+- saved ideas appear under a clearly labeled proposal section in Skills;
+- built-in Skills tab behavior remains read-only;
+- overlap results are visible but cannot directly activate a skill;
+- no new provider-backed Q&A or drafting path is introduced.
 
-## Suggested Parser Shape For PR #57
+## Guardrails For Future Command Work
 
-Keep it intentionally boring:
-
-```text
-normalize input
-  -> exact slash match?
-  -> static alias match?
-  -> local status command?
-  -> otherwise route as skill-router/proposed-skill check
-```
-
-Example mapping:
-
-```text
-"/matter-init"          -> /matter-init
-"/extract"              -> /extract
-"/describe_sources"     -> /describe_sources
-"/create_listofdates"   -> /create_listofdates
-"/doctor"               -> /doctor
-"extract"               -> /extract
-"describe sources"      -> /describe_sources
-"source labels"         -> /describe_sources
-"list of dates"         -> /create_listofdates
-"chronology"            -> /create_listofdates
-"doctor"                -> /doctor
-"show status"           -> status view
-"status"                -> status view
-```
-
-Avoid fuzzy matching in the next runtime PR. A wrong fuzzy match on a paid skill is worse than asking the user to type the slash command.
-
-## Guardrails For The Implementation
-
-The command box must not become a shortcut around safety.
+The Command rail must not become a shortcut around safety.
 
 Rules:
 
-- If a skill button would show rerun confirmation, the command box must show it too.
-- If a skill requires a loaded matter, the command box must enforce that through the same skill runner.
-- If a provider fails closed, the command box must display that failure instead of pretending the command succeeded.
+- If a skill button would show rerun confirmation, the Command rail must show it too.
+- If a skill requires a loaded matter, the Command rail must enforce that through the same skill runner.
+- If a provider fails closed, the Command rail must display that failure instead of pretending the command succeeded.
 - If the input is ambiguous, do not guess. Show possible commands or route to skill-router as a non-executing check.
 - Do not write a separate command execution backend unless the frontend dispatch path becomes unmaintainable.
+- Do not let saved ideas, draft skills, or Q&A answers become durable legal artifacts without explicit artifact contracts.
 
 ## Decision
 
-Go, but only for deterministic V0.
+Keep borrowing v2 product patterns selectively.
 
-Do not jump straight to a full v2 Unibox. The current Command rail is useful precisely because it preserves everything that made the beta stable.
+Do not jump to a full v2 Unibox. The current Command rail is useful precisely because it preserves everything that made the beta stable.

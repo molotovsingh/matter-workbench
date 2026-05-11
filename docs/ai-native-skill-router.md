@@ -2,10 +2,26 @@
 
 The skill router sits before skill creation or modification. It reads a natural-language user request, compares it against `skills/registry.json`, and returns a structured routing decision.
 
+The current Skills tab is read-only. It displays built-in skill stubs and
+matter-derived artifact status, but it does not create, edit, activate, or run
+configurable skills.
+
+`GET /api/skills` should remain the shared metadata source for the Command
+rail, Skills tab, router context, and future supervision flows. The router
+compares capability requests; it does not own runtime execution.
+
+For the future user-created-skill lifecycle, see
+[New Skill Creation Contract](new-skill-creation-contract.md). The router is
+only the overlap gate. It must not by itself create runnable skills.
+
+For future changes to existing configurable skills, see
+[Skill Modification Contract](skill-modification-contract.md). The router may
+recommend modification, but it must not mutate or activate a skill.
+
 ## Product Principle
 
 ```text
-AI box = natural language command layer
+Command rail = deterministic command layer and proposal capture surface
 Skill Router = architectural gatekeeper
 Skill Registry = source of truth for capabilities
 Slash Skills = auditable execution machinery
@@ -14,6 +30,59 @@ Artifacts/logs = audit trail
 ```
 
 The router may use AI for fuzzy language understanding, but the app owns the gate. It must not silently create duplicate skills.
+
+The router is not the future Copilot Q&A engine. Matter questions should follow
+[Copilot Q&A Contract](copilot-qna-contract.md), use the bounded context packet,
+and validate citations. Skill routing decides whether a user wants a capability
+or workflow change.
+
+## Relationship To New Skill Creation
+
+The router decides whether a user idea overlaps existing capability. It is not
+the skill lifecycle.
+
+A future `/new_skill` flow should use this order:
+
+```text
+draft skill brief
+  -> router overlap check
+  -> save idea in proposal inbox
+  -> create draft configurable skill later
+  -> test draft later
+  -> save golden later
+  -> validate later
+  -> activate later
+```
+
+The router may recommend `new_skill`, `adjacent_skill`, or
+`modify_existing_skill`, but saving an idea must not create a live slash command.
+Draft configurable skills must stay blocked until validation passes.
+
+## Relationship To Skill Modification
+
+When the router recommends `modify_existing_skill`, the next step should be a
+visible user gate:
+
+```text
+Approve modification
+  -> create draft revision
+  -> test revised behavior
+  -> save or paste golden
+  -> validate
+  -> activate
+```
+
+The router must not:
+
+- edit the active skill brief;
+- create a hidden replacement skill;
+- activate a revision;
+- weaken citation/source rules from an AI decision alone.
+
+Built-in code-backed skills are not editable through this path. A request to
+change `/extract`, `/describe_sources`, `/create_listofdates`, or another
+built-in skill is a product/engineering change request, not a configurable-skill
+revision.
 
 ## MECE Categories
 
