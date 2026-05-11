@@ -106,11 +106,14 @@ export function createWorkspaceView(ctx) {
         bar: "File Preview",
         terminal: `[explorer] opened ${result.path}`,
       });
+      const listOfDatesActions = renderListOfDatesPreviewActions(result.path, escapeHtml);
       editorContent.innerHTML = `
         <h1>${escapeHtml(result.name)}</h1>
         <p><code>${escapeHtml(result.path)}</code></p>
+        ${listOfDatesActions}
         <pre class="json-preview">${escapeHtml(result.content)}</pre>
       `;
+      if (listOfDatesActions) wireListOfDatesPreviewActions(result.content);
     } catch (error) {
       ctx.setStatus({
         mood: "idle",
@@ -122,4 +125,77 @@ export function createWorkspaceView(ctx) {
   }
 
   return { openFilePreview, renderWorkspaceTree };
+}
+
+export function renderListOfDatesPreviewActions(filePath, escape) {
+  if (!isListOfDatesMarkdownPath(filePath)) return "";
+  const fileName = filePath.split("/").pop() || "List of Dates.md";
+  const rawUrl = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
+  return `
+    <div class="artifact-actions" data-listofdates-preview-actions>
+      <button
+        type="button"
+        class="run-skill-button"
+        data-workspace-copy-markdown
+      >
+        Copy Markdown
+      </button>
+      <a
+        class="run-skill-button secondary"
+        href="${escape(rawUrl)}"
+        download="${escape(fileName)}"
+      >Download Markdown</a>
+      <span class="artifact-action-status muted" data-workspace-copy-status></span>
+    </div>
+  `;
+}
+
+function isListOfDatesMarkdownPath(filePath) {
+  return String(filePath || "").replace(/\\/g, "/").toLowerCase() === "10_library/list of dates.md";
+}
+
+function wireListOfDatesPreviewActions(markdown) {
+  const copyButton = document.querySelector("[data-workspace-copy-markdown]");
+  if (!copyButton) return;
+  const status = document.querySelector("[data-workspace-copy-status]");
+
+  copyButton.addEventListener("click", async () => {
+    setArtifactActionStatus(status, "Copying Markdown...");
+    copyButton.disabled = true;
+    try {
+      await writeClipboardText(markdown);
+      setArtifactActionStatus(status, "Markdown copied.");
+    } catch (error) {
+      setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+    } finally {
+      copyButton.disabled = false;
+    }
+  });
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for embedded browser contexts that expose Clipboard API but deny write permission.
+    }
+  }
+
+  const scratch = document.createElement("textarea");
+  scratch.value = text;
+  scratch.setAttribute("readonly", "");
+  scratch.style.position = "fixed";
+  scratch.style.top = "-9999px";
+  document.body.appendChild(scratch);
+  scratch.select();
+  document.execCommand("copy");
+  scratch.remove();
+}
+
+function setArtifactActionStatus(status, message, isError = false) {
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("form-error", isError);
 }

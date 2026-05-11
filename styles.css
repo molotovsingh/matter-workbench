@@ -896,6 +896,29 @@ summary {
   min-width: 1040px;
 }
 
+.artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+
+.artifact-actions .run-skill-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.artifact-action-status {
+  min-height: 18px;
+  font-size: 13px;
+}
+
+.artifact-action-status.form-error {
+  margin-top: 0;
+}
+
 .source-stack {
   display: flex;
   flex-direction: column;
