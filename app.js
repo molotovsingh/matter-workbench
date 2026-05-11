@@ -75,6 +75,7 @@ ctx.setStatus = setStatus;
 
 const workspaceView = createWorkspaceView(ctx);
 ctx.openFilePreview = workspaceView.openFilePreview;
+ctx.openWorkspaceLane = workspaceView.openWorkspaceLane;
 ctx.renderWorkspaceTree = workspaceView.renderWorkspaceTree;
 
 const matterScreens = createMatterScreens(ctx);
