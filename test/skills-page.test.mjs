@@ -99,7 +99,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
           text: "create a skill to summarize pleadings",
           createdAt: "2026-05-12T10:00:00.000Z",
           updatedAt: "2026-05-12T10:00:00.000Z",
-          status: "proposed",
+          status: "incomplete",
           matter: {
             matterName: "Mehta vs Skyline",
             folderName: "Mehta vs Skyline",
@@ -114,13 +114,29 @@ test("skills page renders built-in skill governance metadata and matter artifact
             riskLevel: "medium",
             notes: "Design only. Not runnable yet.",
           },
+          readiness: {
+            state: "ready_for_review",
+            ready: true,
+            passedCount: 8,
+            totalCount: 8,
+            items: [
+              { key: "intendedUser", label: "Intended user present", passed: true },
+              { key: "problem", label: "Problem/job present", passed: true },
+              { key: "expectedInputs", label: "Expected inputs present", passed: true },
+              { key: "expectedOutputArtifact", label: "Expected output artifact present", passed: true },
+              { key: "targetLane", label: "Target lane selected", passed: true },
+              { key: "paidPosture", label: "Paid/free posture selected", passed: true },
+              { key: "riskLevel", label: "Risk level selected", passed: true },
+              { key: "notes", label: "Notes or acceptance criteria present", passed: true },
+            ],
+          },
         },
         {
           id: "idea_test_2",
           text: "new skill bundle exhibits",
           createdAt: "2026-05-12T11:00:00.000Z",
           updatedAt: "2026-05-12T11:05:00.000Z",
-          status: "marked_for_future",
+          status: "parked",
           matter: {
             matterName: "",
             folderName: "",
@@ -144,9 +160,13 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /value="paid" selected/);
   assert.match(html, /value="medium" selected/);
   assert.match(html, /Save design brief/);
-  assert.match(html, /Mark for future/);
+  assert.match(html, /Readiness checklist/);
+  assert.match(html, /Ready for review/);
+  assert.match(html, /Incomplete 0\/8/);
+  assert.match(html, /Mark ready for review/);
+  assert.match(html, /Park idea/);
   assert.match(html, /Dismiss/);
-  assert.match(html, /Marked for future/);
+  assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
   assert.match(html, /Paid AI Skills/);
   assert.match(html, /Deterministic Skills/);

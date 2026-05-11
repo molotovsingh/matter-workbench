@@ -421,7 +421,7 @@ export function createAiCommandBox(ctx, options = {}) {
         <p><code>${escapeHtml(userRequest)}</code></p>
         <p>This is a proposal record only. It did not create a skill, run a provider, allocate a slash command, or change built-in skills.</p>
         <dl class="skill-card-meta">
-          <div><dt>Status</dt><dd>${escapeHtml(idea.status || "proposed")}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(idea.status || "incomplete")}</dd></div>
           <div><dt>Created</dt><dd>${escapeHtml(idea.createdAt || "")}</dd></div>
           <div><dt>Matter</dt><dd>${escapeHtml(matter.matterName || matter.folderName || "None")}</dd></div>
           <div><dt>Folder</dt><dd>${escapeHtml(matter.folderName || "None")}</dd></div>

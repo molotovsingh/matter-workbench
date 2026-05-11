@@ -224,7 +224,7 @@ test("command box saves explicit skill ideas without running skills or router ch
           id: "idea_test_1",
           text: body.text,
           createdAt: "2026-05-12T10:00:00.000Z",
-          status: "proposed",
+          status: "incomplete",
           matter: {
             matterName: "Demo Matter",
             folderName: "Demo Matter",

@@ -96,10 +96,12 @@ function renderSavedIdeas(ideas, escape) {
 }
 
 function renderSavedIdeaCard(idea, escape) {
-  const status = idea.status || "proposed";
+  const status = normalizeIdeaStatusForView(idea.status);
   const matter = idea.matter || {};
   const matterLabel = matter.matterName || matter.folderName || "No matter attached";
   const brief = normalizeDesignBriefForView(idea.designBrief);
+  const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
   return `
     <article class="skill-card skill-idea-card">
       <div class="skill-card-header">
@@ -176,7 +178,7 @@ function renderSavedIdeaCard(idea, escape) {
             }, escape)}
           </div>
           <label>
-            <span>Notes</span>
+            <span>Notes / acceptance criteria</span>
             <textarea name="notes">${escape(brief.notes)}</textarea>
           </label>
           <div class="form-actions">
@@ -184,8 +186,10 @@ function renderSavedIdeaCard(idea, escape) {
           </div>
         </form>
       </details>
+      ${renderReadinessChecklist(readiness, escape)}
       <div class="form-actions">
-        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="marked_for_future"${status === "marked_for_future" ? " disabled" : ""}>Mark for future</button>
+        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
       </div>
     </article>
@@ -193,15 +197,23 @@ function renderSavedIdeaCard(idea, escape) {
 }
 
 function statusLabel(status) {
-  if (status === "marked_for_future") return "Marked for future";
+  if (status === "ready_for_review") return "Ready for review";
+  if (status === "parked") return "Parked";
   if (status === "dismissed") return "Dismissed";
-  return "Proposed";
+  return "Incomplete";
 }
 
 function statusClass(status) {
   if (status === "dismissed") return "not-run";
-  if (status === "marked_for_future") return "present";
+  if (status === "ready_for_review") return "present";
   return "pending";
+}
+
+function normalizeIdeaStatusForView(status) {
+  if (status === "proposed") return "incomplete";
+  if (status === "marked_for_future") return "parked";
+  if (["incomplete", "ready_for_review", "parked", "dismissed"].includes(status)) return status;
+  return "incomplete";
 }
 
 function normalizeDesignBriefForView(designBrief = {}) {
@@ -227,6 +239,64 @@ function renderSelectField({ name, label, value, options }, escape) {
         `).join("")}
       </select>
     </label>
+  `;
+}
+
+function normalizeReadinessForView(readiness, brief) {
+  if (readiness && Array.isArray(readiness.items)) {
+    return {
+      state: readiness.state || (readiness.ready ? "ready_for_review" : "incomplete"),
+      ready: Boolean(readiness.ready),
+      passedCount: Number(readiness.passedCount || 0),
+      totalCount: Number(readiness.totalCount || readiness.items.length),
+      items: readiness.items.map((item) => ({
+        key: item.key || "",
+        label: item.label || item.key || "Readiness item",
+        passed: Boolean(item.passed),
+      })),
+    };
+  }
+  const items = [
+    ["intendedUser", "Intended user present"],
+    ["problem", "Problem/job present"],
+    ["expectedInputs", "Expected inputs present"],
+    ["expectedOutputArtifact", "Expected output artifact present"],
+    ["targetLane", "Target lane selected"],
+    ["paidPosture", "Paid/free posture selected"],
+    ["riskLevel", "Risk level selected"],
+    ["notes", "Notes or acceptance criteria present"],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    passed: Boolean(brief[key]),
+  }));
+  const passedCount = items.filter((item) => item.passed).length;
+  const ready = passedCount === items.length;
+  return {
+    state: ready ? "ready_for_review" : "incomplete",
+    ready,
+    passedCount,
+    totalCount: items.length,
+    items,
+  };
+}
+
+function renderReadinessChecklist(readiness, escape) {
+  return `
+    <div class="skill-idea-readiness">
+      <div class="skill-idea-readiness-header">
+        <strong>Readiness checklist</strong>
+        <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Ready for review" : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`}</span>
+      </div>
+      <ul>
+        ${readiness.items.map((item) => `
+          <li class="${item.passed ? "passed" : "missing"}">
+            <span>${item.passed ? "OK" : "Missing"}</span>
+            ${escape(item.label)}
+          </li>
+        `).join("")}
+      </ul>
+    </div>
   `;
 }
 

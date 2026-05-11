@@ -187,7 +187,7 @@ test("server API smoke test keeps public routes stable", async () => {
       text: "create a skill to summarize pleadings",
     });
     assert.equal(savedIdea.idea.text, "create a skill to summarize pleadings");
-    assert.equal(savedIdea.idea.status, "proposed");
+    assert.equal(savedIdea.idea.status, "incomplete");
     assert.equal(savedIdea.idea.matter.matterName, "Smoke Matter");
     assert.equal(savedIdea.idea.matter.folderName, "Smoke Matter");
     const briefIdea = await postJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(savedIdea.idea.id)}/design-brief`, {
@@ -205,10 +205,11 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(briefIdea.idea.text, "create a skill to summarize pleadings");
     assert.equal(briefIdea.idea.designBrief.targetLane, "20_Workshop");
     assert.equal(briefIdea.idea.designBrief.riskLevel, "medium");
+    assert.equal(briefIdea.idea.readiness.ready, true);
     const markedIdea = await postJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(savedIdea.idea.id)}/status`, {
-      status: "marked_for_future",
+      status: "ready_for_review",
     });
-    assert.equal(markedIdea.idea.status, "marked_for_future");
+    assert.equal(markedIdea.idea.status, "ready_for_review");
     assert.equal(markedIdea.idea.designBrief.expectedOutputArtifact, "20_Workshop/Issue-wise Notes.md");
     const contextPreview = await getJson(baseUrl, "/api/matter-context");
     assert.equal(contextPreview.schema_version, "matter-context-preview/v1");
