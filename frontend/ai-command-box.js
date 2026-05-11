@@ -1,4 +1,4 @@
-import { postJson } from "./api-client.js";
+import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
 
@@ -26,10 +26,18 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandForm,
     aiCommandInput,
     aiCommandSubmit,
+    aiCommandCopyReport,
+    aiCommandReportStatus,
     breadcrumbs,
     editorContent,
+    statusBarRight,
+    terminalOutput,
   } = ctx.elements;
   const skillDispatch = options.skillDispatch || {};
+  const now = options.now || (() => new Date());
+  const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
+  const writeClipboardText = options.writeClipboardText || writeClipboard;
+  let latestReport = null;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -39,6 +47,9 @@ export function createAiCommandBox(ctx, options = {}) {
         userRequest: aiCommandInput.value.trim(),
       });
     });
+    if (aiCommandCopyReport) {
+      aiCommandCopyReport.addEventListener("click", copyLatestReport);
+    }
   }
 
   async function handleCommand({ userRequest }) {
@@ -60,11 +71,18 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   async function runDeterministicCommand(parsedCommand, userRequest) {
+    startReport({
+      typedInput: userRequest,
+      matchedCommand: parsedCommand.command || "status",
+      status: "pending",
+    });
     aiCommandSubmit.disabled = true;
     aiCommandSubmit.textContent = parsedCommand.type === "status" ? "Opening..." : "Running...";
+    const restoreStatus = captureStatusDuringCommand();
     try {
       if (parsedCommand.type === "status") {
         showMatterStatus(userRequest);
+        updateReport({ status: "ran" });
         return;
       }
 
@@ -77,6 +95,7 @@ export function createAiCommandBox(ctx, options = {}) {
           bar: "Command Unavailable",
           terminal: `[ai-command] no runner for ${parsedCommand.command}`,
         });
+        updateReport({ status: "failed" });
         return;
       }
 
@@ -87,7 +106,18 @@ export function createAiCommandBox(ctx, options = {}) {
         terminal: `[ai-command] ${userRequest} -> ${parsedCommand.command}`,
       });
       await runSkill(parsedCommand.command);
+      if (latestReport?.status === "pending" || latestReport?.status === "warned") {
+        updateReport({ status: "ran" });
+      }
+    } catch (error) {
+      updateReport({ status: "failed" });
+      throw error;
     } finally {
+      restoreStatus();
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
@@ -126,6 +156,11 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
 
+    startReport({
+      typedInput: userRequest,
+      matchedCommand: "router/check",
+      status: "pending",
+    });
     aiCommandSubmit.disabled = true;
     aiCommandSubmit.textContent = "Checking...";
     breadcrumbs.textContent = "command";
@@ -142,6 +177,11 @@ export function createAiCommandBox(ctx, options = {}) {
         overrideJustification,
       });
       renderCommandDecision({ userRequest, overrideJustification, decision });
+      updateReport({
+        status: "checked",
+        routerDecision: decision.decision || "",
+        routerMatchedSkill: decision.matched_skill || "",
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Router decision</strong><br />${escapeHtml(decision.decision)}${decision.matched_skill ? ` for <code>${escapeHtml(decision.matched_skill)}</code>` : ""}.`,
@@ -150,6 +190,7 @@ export function createAiCommandBox(ctx, options = {}) {
       });
     } catch (error) {
       renderCommandError(error.message);
+      updateReport({ status: "failed", error: error.message });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Command check failed</strong><br />${escapeHtml(error.message)}`,
@@ -157,6 +198,10 @@ export function createAiCommandBox(ctx, options = {}) {
         terminal: `[ai-command] failed: ${error.message}`,
       });
     } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
@@ -218,9 +263,136 @@ export function createAiCommandBox(ctx, options = {}) {
     `;
   }
 
+  function startReport({ typedInput, matchedCommand, status }) {
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    latestReport = {
+      timestamp: now().toISOString(),
+      matterName: activeMatter.metadata?.matterName || activeMatter.folderName || "No active matter",
+      matterFolder: activeMatter.folderName || "",
+      typedInput,
+      matchedCommand,
+      status,
+      routerDecision: "",
+      routerMatchedSkill: "",
+      providerModel: "",
+      artifacts: [],
+      statusBar: getStatusBarText(),
+      terminalLines: getLatestTerminalLines(),
+      error: "",
+    };
+    setReportStatus("Report tracking current command.");
+    setCopyReportEnabled(true);
+  }
+
+  function updateReport(patch) {
+    if (!latestReport) return;
+    latestReport = { ...latestReport, ...patch };
+    setCopyReportEnabled(true);
+  }
+
+  function captureStatusDuringCommand() {
+    const originalSetStatus = ctx.setStatus;
+    ctx.setStatus = (status = {}) => {
+      originalSetStatus(status);
+      captureStatusForReport(status);
+    };
+    return () => {
+      ctx.setStatus = originalSetStatus;
+    };
+  }
+
+  function captureStatusForReport(status = {}) {
+    if (!latestReport) return;
+    const bar = String(status.bar || "");
+    const terminalLines = normalizeTerminalLines(status.terminal);
+    const patch = {
+      statusBar: bar || getStatusBarText(),
+      terminalLines: getLatestTerminalLines(),
+    };
+    if (/rerun confirmation/i.test(bar)) patch.status = "warned";
+    if (/cancelled/i.test(bar) || terminalLines.some((line) => /cancelled by user/i.test(line))) patch.status = "cancelled";
+    if (/failed|unavailable/i.test(bar) || terminalLines.some((line) => /\bfailed\b/i.test(line))) patch.status = "failed";
+    if (/complete|matter status/i.test(bar)) patch.status = "ran";
+    updateReport(patch);
+  }
+
+  async function copyLatestReport() {
+    if (!latestReport) {
+      setReportStatus("Run or check a command first.", true);
+      return;
+    }
+    setReportStatus("Copying report...");
+    if (aiCommandCopyReport) aiCommandCopyReport.disabled = true;
+    try {
+      const report = await enrichReport(latestReport);
+      await writeClipboardText(formatCommandReport(report));
+      latestReport = report;
+      setReportStatus("Report copied.");
+    } catch (error) {
+      setReportStatus(`Copy failed: ${error.message}`, true);
+    } finally {
+      setCopyReportEnabled(Boolean(latestReport));
+    }
+  }
+
+  async function enrichReport(report) {
+    if (!report?.matchedCommand || report.matchedCommand === "router/check" || report.matchedCommand === "status") {
+      return {
+        ...report,
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      };
+    }
+    try {
+      const status = await loadMatterStatus();
+      const stage = Array.isArray(status?.stages)
+        ? status.stages.find((candidate) => candidate.slash === report.matchedCommand)
+        : null;
+      if (!stage) return report;
+      const aiRun = stage.aiRun || {};
+      const provider = aiRun.returnedProvider || aiRun.provider || stage.rerunAdvice?.provider || "";
+      const model = aiRun.model || stage.rerunAdvice?.model || "";
+      return {
+        ...report,
+        providerModel: [provider, model].filter(Boolean).join(" / "),
+        artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      };
+    } catch {
+      return {
+        ...report,
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      };
+    }
+  }
+
+  function setCopyReportEnabled(enabled) {
+    if (aiCommandCopyReport) aiCommandCopyReport.disabled = !enabled;
+  }
+
+  function setReportStatus(message, isError = false) {
+    if (!aiCommandReportStatus) return;
+    aiCommandReportStatus.textContent = message;
+    aiCommandReportStatus.classList?.toggle?.("form-error", Boolean(isError));
+  }
+
+  function getStatusBarText() {
+    return statusBarRight?.textContent?.trim?.() || "";
+  }
+
+  function getLatestTerminalLines() {
+    const existing = terminalOutput?.textContent
+      ? terminalOutput.textContent.split("\n").map((line) => line.trim()).filter(Boolean)
+      : [];
+    return existing.slice(-8);
+  }
+
   return {
     checkIntent,
     handleCommand,
+    copyLatestReport,
     wire,
   };
 }
@@ -240,4 +412,55 @@ function normalizeCommandInput(input) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function normalizeTerminalLines(terminal) {
+  if (terminal === undefined || terminal === null) return [];
+  const values = Array.isArray(terminal) ? terminal : [terminal];
+  return values.map((line) => String(line)).filter(Boolean);
+}
+
+function formatCommandReport(report) {
+  const lines = [
+    "# Command Report",
+    "",
+    `- Matter: ${report.matterName || "Unknown"}`,
+    `- Matter folder: ${report.matterFolder || "Unknown"}`,
+    `- Timestamp: ${report.timestamp || ""}`,
+    `- Typed input: \`${report.typedInput || ""}\``,
+    `- Matched command: \`${report.matchedCommand || "none"}\``,
+    `- Status: ${report.status || "unknown"}`,
+  ];
+
+  if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
+  if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
+  if (report.error) lines.push(`- Error: ${report.error}`);
+  if (Array.isArray(report.artifacts) && report.artifacts.length) {
+    lines.push("- Artifact paths touched/preserved:");
+    for (const artifact of report.artifacts.slice(0, 8)) {
+      lines.push(`  - \`${artifact}\``);
+    }
+  }
+  if (report.statusBar) lines.push(`- Visible status: ${report.statusBar}`);
+  if (Array.isArray(report.terminalLines) && report.terminalLines.length) {
+    lines.push("", "## Latest Terminal Lines", "", "```text", ...report.terminalLines, "```");
+  }
+  return lines.join("\n");
+}
+
+async function writeClipboard(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  if (typeof document === "undefined") throw new Error("clipboard is unavailable");
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-1000px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
 }
