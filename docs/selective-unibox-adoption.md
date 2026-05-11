@@ -6,6 +6,8 @@ Audience: main coding session for `matter-workbench`
 
 Status: planning note only. Do not treat this as a runtime change.
 
+Detailed command-box adoption guidance now lives in [Omnibox Adoption From V2](omnibox-adoption-from-v2.md).
+
 ## Executive Summary
 
 The current `matter-workbench` repo is stable enough to preserve as a beta checkpoint before beginning the next product direction. The next direction should be selective adoption of useful Unibox/v2 ideas, not a wholesale migration to the v2 or prototype architecture.

@@ -1,0 +1,732 @@
+# Omnibox Adoption From V2
+
+Date: 2026-05-11
+
+Audience: main coding session for `matter-workbench`
+
+Status: planning note only. This document compares the current repo with the working Unibox ideas in `matter-workbench-v2` and `matter-workbench-opencode-unibox`. It does not propose a wholesale migration.
+
+## Executive Summary
+
+The next product direction should be an **incremental omnibox** over the current explicit skill system.
+
+That means:
+
+```text
+User types or clicks one command surface
+  -> app explains the matched action
+  -> app applies status and rerun/cost guardrails
+  -> app invokes the same explicit skill runner
+  -> existing engines write the same durable artifacts
+```
+
+The omnibox should be the front desk. The existing engines remain the engine room.
+
+The current repo is now strong enough to support this because it already has:
+
+- visible slash skills;
+- `/describe_sources` as a first-class app skill;
+- matter pipeline status derived from files;
+- rerun guardrails for paid AI skills;
+- rerun hints before the user clicks;
+- source-backed `List of Dates` artifacts with readable labels and raw citations;
+- a skill registry and AI skill-router service.
+
+The v2/opencode repos prove useful UX and routing patterns. They should inform this repo, not replace its foundations.
+
+## Source Files Inspected
+
+### Current Repo
+
+```text
+/Users/aksingh/matter-workbench/app.js
+/Users/aksingh/matter-workbench/index.html
+/Users/aksingh/matter-workbench/frontend/ai-command-box.js
+/Users/aksingh/matter-workbench/frontend/event-wiring.js
+/Users/aksingh/matter-workbench/frontend/views/matter-overview.js
+/Users/aksingh/matter-workbench/frontend/skill-router-panel.js
+/Users/aksingh/matter-workbench/services/skill-router-service.mjs
+/Users/aksingh/matter-workbench/services/matter-status-service.mjs
+/Users/aksingh/matter-workbench/skills/registry.json
+/Users/aksingh/matter-workbench/docs/selective-unibox-adoption.md
+/Users/aksingh/matter-workbench/docs/codebase-diagram.md
+```
+
+### V2 Repo
+
+```text
+/Users/aksingh/matter-workbench-v2/app.js
+/Users/aksingh/matter-workbench-v2/index.html
+/Users/aksingh/matter-workbench-v2/frontend/unibox.js
+/Users/aksingh/matter-workbench-v2/frontend/unibox-suggestions.js
+/Users/aksingh/matter-workbench-v2/frontend/unibox-input.js
+/Users/aksingh/matter-workbench-v2/frontend/unibox-result-rendering.js
+/Users/aksingh/matter-workbench-v2/frontend/unibox-status.js
+/Users/aksingh/matter-workbench-v2/services/unibox-service.mjs
+/Users/aksingh/matter-workbench-v2/services/intent-classifier-service.mjs
+/Users/aksingh/matter-workbench-v2/services/skill-router-service.mjs
+/Users/aksingh/matter-workbench-v2/services/skill-router-decision.mjs
+/Users/aksingh/matter-workbench-v2/docs/codebase-diagram.md
+/Users/aksingh/matter-workbench-v2/docs/ai-native-skill-router.md
+/Users/aksingh/matter-workbench-v2/docs/configurable-skill-modification-approaches.md
+/Users/aksingh/matter-workbench-v2/docs/new-skill-adaptive-interview-plan.md
+```
+
+### Opencode Unibox Repo
+
+```text
+/Users/aksingh/matter-workbench-opencode-unibox/app.js
+/Users/aksingh/matter-workbench-opencode-unibox/index.html
+/Users/aksingh/matter-workbench-opencode-unibox/frontend/unibox.js
+/Users/aksingh/matter-workbench-opencode-unibox/frontend/skill-router-panel.js
+/Users/aksingh/matter-workbench-opencode-unibox/services/unibox-service.mjs
+```
+
+## Current Repo Baseline
+
+This repo already has a small command surface:
+
+```text
+index.html
+  -> toolbar form #aiCommandForm
+app.js
+  -> createAiCommandBox(ctx)
+frontend/ai-command-box.js
+  -> POST /api/skills/check-intent
+services/skill-router-service.mjs
+  -> MECE skill-router decision
+```
+
+But this is currently a **router/check surface**, not a proper command runner.
+
+It can ask:
+
+```text
+Does this proposed skill overlap with an existing skill?
+```
+
+It does not yet do the better omnibox job:
+
+```text
+Run /extract
+Show matter status
+Run /describe_sources, but warn me if current
+Create List of Dates, but respect rerun guardrails
+Copy List of Dates Markdown
+```
+
+That is good news. We do not need to graft v2's whole right-side Unibox panel into this repo. We can evolve the existing toolbar command box carefully.
+
+## What V2 Does Well
+
+### 1. One Surface For Questions, Search, Skills, And Skill Ideas
+
+V2's `frontend/unibox.js` accepts a broad input:
+
+```text
+Ask about your matter, run a skill, or search documents.
+```
+
+Its backend `services/unibox-service.mjs` classifies into:
+
+```text
+copilot_qa
+run_skill
+search
+skill_request
+greeting
+casual
+```
+
+This is a useful future shape. It lets the user stay in one surface instead of hunting through separate panels.
+
+Do not copy it immediately. This repo should first prove command execution deterministically.
+
+### 2. Slash Suggestions
+
+V2's `frontend/unibox-suggestions.js` is the most directly reusable UX pattern.
+
+It builds suggestion items from:
+
+- built-in registry skills;
+- configurable skills;
+- proposed skills;
+- `/new_skill`.
+
+It also marks some suggestions as not selectable, with a reason such as `Validate in Skills`.
+
+For this repo, a first version should only use built-in skills from `skills/registry.json` and local frontend dispatch. No configurable skills yet.
+
+Useful behavior to borrow:
+
+- show slash suggestions when the input starts with `/`;
+- support keyboard navigation;
+- show skill purpose and category;
+- disable commands that are not runnable in the current app;
+- cache registry reads briefly, then invalidate after skill registry changes.
+
+### 3. Placeholder Copy That Tracks Intent
+
+V2's `frontend/unibox-input.js` changes the placeholder based on the input shape:
+
+```text
+/...       -> Run a skill, e.g. /extract
+what/why   -> Ask about the current matter
+find       -> Search across matter documents
+default    -> Ask, search, or run a skill
+```
+
+This is small but good. It teaches the user what the box can do without a manual.
+
+For this repo, use a narrower version:
+
+```text
+Type /extract, /describe_sources, /create_listofdates, or show status
+```
+
+### 4. Matched Skill Explanation
+
+V2 keeps the router decision explicit through `renderRouterDecision(...)`:
+
+- decision;
+- recommended action;
+- matched skill;
+- confidence;
+- MECE violation;
+- user gate;
+- reason;
+- next action;
+- legal setting;
+- override requirements.
+
+This is better than a magic assistant because the user can see why the app matched something.
+
+For this repo, apply that idea to both deterministic and AI-routed commands:
+
+```text
+Matched: /create_listofdates
+Reason: exact slash command
+This may call OpenRouter.
+Existing artifact is current, so confirmation will appear.
+```
+
+### 5. Auto-Run Only When Safe
+
+V2's `frontend/unibox-result-rendering.js` has a useful rule:
+
+```text
+auto-run only if decision === run_existing_skill
+and user_gate_required is false
+and the matched skill has a frontend dispatch function
+```
+
+That is a sound pattern, but this repo needs one more constraint:
+
+```text
+auto-run must still pass rerun advice for paid skills
+```
+
+If `/create_listofdates` is current, an omnibox command must not bypass the confirmation introduced in PR #55.
+
+### 6. Conversation Export
+
+V2's `frontend/unibox-export.js` and conversation model let the user export a chat. This is useful later for audit and handoff.
+
+Do not include it in the next runtime PR. It is a later polish once the command surface is real.
+
+## What Opencode Adds
+
+The opencode repo is a useful earlier version of the same idea:
+
+- simpler `frontend/unibox.js`;
+- simpler `services/unibox-service.mjs`;
+- no heavier configurable-skill runtime;
+- same broad product instinct: ask, search, run skills, design skills.
+
+The practical lesson is that Unibox can begin small. The first version does not need v2's full configurable-skill lifecycle.
+
+## Folder Lane Pattern Worth Borrowing
+
+V2 has a stronger matter-folder lane model than this repo currently uses.
+
+In `/Users/aksingh/matter-workbench-v2/shared/matter-contract.mjs`, the top-level matter lanes are:
+
+```text
+00_Inbox
+10_Library
+20_Workshop
+30_Drafts
+40_Dispatch
+```
+
+This is worth adopting because it gives both the lawyer and the omnibox a clear mental model:
+
+```text
+Inbox    = what came in
+Library  = what we know and can rely on
+Workshop = what we are thinking through
+Drafts   = what we are preparing
+Dispatch = what is ready to send
+```
+
+Current repo posture:
+
+- `00_Inbox` is already real and heavily used by `/matter-init` and `/extract`;
+- `10_Library` is already real and used for `Source Index.json` and `List of Dates.*`;
+- `20_Workshop`, `30_Drafts`, and `40_Dispatch` are not yet first-class runtime lanes in this repo.
+
+Adoption rule:
+
+> Borrow the lane philosophy before borrowing the v2 configurable-skill machinery.
+
+The first lane adoption should be conservative:
+
+- define the lane names in this repo's shared matter contract;
+- create empty `20_Workshop`, `30_Drafts`, and `40_Dispatch` folders during `/matter-init`;
+- keep existing `Source Index.json` and `List of Dates.*` in `10_Library`;
+- do not move existing artifacts;
+- do not add configurable-skill routing just to justify the folders.
+
+Later, new skills can route outputs naturally:
+
+| Lane | Best use |
+|---|---|
+| `10_Library` | stable source-backed knowledge: source labels, chronologies, summaries |
+| `20_Workshop` | review work: issue notes, fact gaps, contradictions, strategy memos |
+| `30_Drafts` | lawyer-facing drafts: notices, pleadings, client emails, applications |
+| `40_Dispatch` | final reviewed material ready to send or export |
+
+The omnibox should eventually understand these lanes:
+
+```text
+open workshop
+show drafts
+copy list of dates from library
+prepare a notice draft
+what is ready for dispatch?
+```
+
+But this should not be part of the first deterministic command-box PR. Treat folder-lane adoption as a separate small PR after command execution is stable.
+
+## Other V2 Patterns I Initially Underweighted
+
+### 1. Workspace Presentation Is A Product Boundary
+
+V2 has `services/workspace-presentation.mjs`, which keeps the file tree lawyer-readable:
+
+- hides machine files such as `matter.json`, extraction logs, and JSON internals in normal browsing;
+- humanizes folders such as `00_Inbox` to `Inbox` and `10_Library` to `Analysis Library`;
+- strips `FILE-NNNN__` machine prefixes for display;
+- keeps previewability rules in one place.
+
+This matters for omnibox because commands like `open library`, `show drafts`, or `copy chronology` need the same human-facing names the user sees in the file tree.
+
+Adoption guidance:
+
+- when folder lanes are introduced, add or extract a small workspace-presentation helper in this repo;
+- do not scatter display-name rules across the tree renderer, command box, and artifact actions;
+- keep canonical paths machine-stable while making UI labels lawyer-readable.
+
+### 2. Matter Context Is The Missing Boundary Before Copilot Q&A
+
+V2's `services/matter-context-service.mjs` and `services/matter-context-helpers.mjs` are a useful preview of the future Q&A layer.
+
+They build context from:
+
+- `matter.json`;
+- File Registers;
+- extraction records;
+- selected non-inbox library/work-product records;
+- bounded context formatting.
+
+The current repo should not jump straight to Q&A, but it should eventually add a similar **matter context reader** before allowing the omnibox to answer factual questions about the matter.
+
+Adoption guidance:
+
+- create a source-backed context boundary before adding broad copilot Q&A;
+- make citations mandatory for matter-specific factual answers;
+- distinguish chat-only answers from durable artifacts;
+- keep context collection testable and separate from the model prompt.
+
+### 3. Skills Need A Visible Supervision Surface, Not Just Chat
+
+V2's Skills page is more than configuration UI. It is a supervision surface for:
+
+- saved ideas;
+- draft skills;
+- active skills;
+- draft revisions;
+- validation;
+- activation;
+- restore-as-draft history.
+
+That matters because the omnibox should be allowed to start a skill idea or modification, but it should not hide the lifecycle inside chat.
+
+Adoption guidance:
+
+- let the omnibox collect or route the idea;
+- use a visible Skills-style screen later for review, test run, golden, validation, activation, and rollback;
+- do not activate reusable skill behavior from a single chat answer.
+
+### 4. No-Matter Gating Should Be Visible Before The Click
+
+V2's Skills smoke notes caught a practical UX bug: matter-required actions looked available even when no matter was active, then failed only after click.
+
+The lesson applies directly to the command box:
+
+- if no matter is selected, commands like `/extract`, `/describe_sources`, `/create_listofdates`, and matter Q&A should say that up front;
+- non-matter actions such as settings, skill-idea review, or help can remain available;
+- avoid making the user discover context requirements by triggering failed runs.
+
+### 5. Route And Helper Modularity Becomes Valuable Later
+
+V2 split broad route and UI responsibilities into focused modules:
+
+- `routes/workflow-routes.mjs`;
+- `routes/skill-router-routes.mjs`;
+- `routes/unibox-routes.mjs`;
+- `routes/settings-routes.mjs`;
+- `routes/matter-routes.mjs`;
+- pure frontend helpers such as `unibox-input`, `unibox-suggestions`, `unibox-status`, and `unibox-result-rendering`.
+
+This repo should not refactor just to look like v2. But once command-box logic grows past the first deterministic slice, the same pressure will appear.
+
+Adoption guidance:
+
+- start small inside existing files;
+- extract pure parser/suggestion/status helpers once tests need direct access;
+- split API routes only when route responsibilities become crowded;
+- keep business rules in services/engines, not HTTP handlers.
+
+## What Not To Copy
+
+Do not copy these into this repo yet:
+
+- the full v2 right-side Unibox panel layout;
+- central Unibox orchestration as the main runtime path;
+- configurable skill creation or revision runtime;
+- `/new_skill` adaptive interview;
+- configurable skill rollback;
+- search/Q&A over matter documents;
+- auto-running AI-classified commands without local confirmation;
+- any durable state that competes with matter files on disk.
+
+These are valuable later, but importing them now would make the stable beta harder to reason about.
+
+## Product Rule For This Repo
+
+The omnibox may make the app easier to operate. It may not make the app less auditable.
+
+Every command should resolve to one of these outcomes:
+
+```text
+run an existing explicit skill
+show status
+open or copy an existing artifact
+explain that the command is not supported yet
+route a proposed skill/change request for review
+```
+
+Every paid or artifact-overwriting action must respect:
+
+- matter pipeline status;
+- rerun advice;
+- explicit confirmation when current;
+- fail-closed provider behavior;
+- existing frontend skill runners.
+
+## Recommended Milestones
+
+### Milestone 0: Explicit App Foundation
+
+Mostly complete.
+
+Already landed:
+
+- `/describe_sources` visible in the app;
+- matter pipeline status panel;
+- paid rerun guardrails;
+- rerun status hints;
+- List of Dates copy/download actions.
+
+Why this matters:
+
+> A command box is only useful when it can point to reliable underlying actions.
+
+### Milestone 1: Deterministic Command Box V0
+
+This is the next implementation slice.
+
+Goal:
+
+```text
+Use the existing toolbar command box to run known commands deterministically.
+```
+
+Supported inputs:
+
+```text
+/matter-init
+/extract
+/describe_sources
+/create_listofdates
+/doctor
+show status
+status
+```
+
+Optional plain-language aliases may be included only if they are static and obvious:
+
+```text
+extract
+describe sources
+source labels
+list of dates
+chronology
+doctor
+```
+
+No AI intent classification in this milestone.
+
+The command box should:
+
+1. parse the input locally;
+2. show the matched command briefly in the editor/status area;
+3. dispatch to the same frontend skill function used by sidebar buttons;
+4. let each skill's existing rerun guardrail run normally;
+5. show a clear unsupported-command message when there is no deterministic match.
+
+### Milestone 2: Slash Suggestions
+
+Borrow the v2 pattern after V0 works.
+
+Add:
+
+- suggestions when input starts with `/`;
+- skill purpose/category from `/api/skills`;
+- keyboard navigation;
+- disabled reason if a command is listed but not runnable;
+- no configurable-skill or proposed-skill entries yet.
+
+This should be a separate PR because suggestions are mostly UI behavior and keyboard handling.
+
+### Milestone 3: Status-Aware Command Preview
+
+Use `/api/matter-status` and `/api/rerun-advice` before dispatch.
+
+Example:
+
+```text
+Matched: /create_listofdates
+Status: current
+Existing artifact: 10_Library/List of Dates.md
+Clicking run will ask before a paid provider call.
+```
+
+For stale:
+
+```text
+Matched: /describe_sources
+Status: stale
+Newer extraction records were found.
+Rerun is recommended and will not show overwrite confirmation.
+```
+
+This makes the command box feel intelligent without adding AI.
+
+### Milestone 4: AI Intent Routing With Approval
+
+Only after deterministic commands and status preview are boring.
+
+Then allow:
+
+```text
+make a chronology
+refresh source labels
+check this matter
+```
+
+The AI router may propose a match, but it should not secretly run.
+
+Required output:
+
+```text
+Matched: /create_listofdates
+Reason: user asked for a chronology from the current matter
+Cost/risk: may call OpenRouter and overwrite List of Dates artifacts
+Action: Run /create_listofdates
+```
+
+Run only after explicit click/confirm, and still respect rerun advice.
+
+### Milestone 5: Multi-Step Plan Suggestions
+
+After AI routing is safe, the box can propose workflows:
+
+```text
+This matter has extraction records but no Source Index.
+Suggested plan:
+1. Run /describe_sources
+2. Run /create_listofdates
+```
+
+The first version should not auto-run the whole chain. Each paid step should require the same confirmation rules as direct clicks.
+
+### Milestone 6: Folder Lanes As First-Class Matter Destinations
+
+Adopt v2's folder-lane model as a small repo-foundation slice.
+
+Scope:
+
+- add shared constants for `00_Inbox`, `10_Library`, `20_Workshop`, `30_Drafts`, and `40_Dispatch`;
+- create missing lane folders during `/matter-init`;
+- update workspace presentation so the lane labels are lawyer-readable;
+- centralize hidden-machine-file and display-name rules instead of scattering them through UI code;
+- do not move existing artifacts;
+- do not add configurable skills in the same PR.
+
+This gives later omnibox commands better destinations:
+
+```text
+show workshop
+open drafts
+prepare this for dispatch
+```
+
+### Milestone 7: Matter Context Boundary
+
+Before Q&A/search, create a tested reader for source-backed matter context.
+
+Scope:
+
+- collect matter metadata, file registers, extraction records, and stable library artifacts;
+- bound the context size;
+- preserve raw `FILE-NNNN pX.bY` citation handles;
+- keep context collection separate from the model call;
+- add tests for which files are included and excluded.
+
+This gives later copilot mode a safe source boundary.
+
+### Milestone 8: Matter Q&A And Search
+
+V2 has `matter-qa-service.mjs` and `matter-search-service.mjs`.
+
+This repo should not import that yet. Add Q&A/search only after the command runner is solid, because Q&A needs a separate evidence contract:
+
+- what sources are searched;
+- how citations are displayed;
+- whether answers are written to disk;
+- whether outputs are chat-only or artifacts.
+
+### Milestone 9: Configurable Skills
+
+This remains later.
+
+Before configurable skills enter this repo, require:
+
+- output contracts;
+- goldens;
+- validation gates;
+- draft revisions;
+- rollback-as-draft;
+- visible applied preferences;
+- no mutation of code-backed skills like `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, or `/doctor`.
+
+V2's configurable-skill docs are a useful future map, but this repo should not start there.
+
+## Proposed Next Runtime PR
+
+Title:
+
+```text
+Add deterministic command box actions
+```
+
+Scope:
+
+- Extend `frontend/ai-command-box.js` or rename it to a neutral command-box module.
+- Pass `skillDispatch` into the command box from `app.js`.
+- Add a local deterministic parser for exact slash commands and a tiny alias map.
+- Dispatch only existing frontend skill runners.
+- Support `show status` by rendering or focusing the matter overview status panel.
+- Preserve `/api/skills/check-intent` behavior for proposed skill/change requests.
+- Do not add an AI intent classifier.
+- Do not add v2 Unibox panel layout.
+- Do not add configurable skills.
+- Do not bypass rerun guardrails.
+
+Likely files:
+
+```text
+app.js
+index.html
+frontend/ai-command-box.js
+frontend/event-wiring.js
+frontend/views/matter-overview.js
+styles.css
+test/api-smoke.test.mjs
+test/command-box.test.mjs
+```
+
+The exact file list may be smaller. Prefer smaller.
+
+Acceptance criteria:
+
+- Typing `/extract` runs the same path as the sidebar `/extract` button.
+- Typing `/describe_sources` invokes the existing `/describe_sources` skill and shows the same rerun confirmation when current.
+- Typing `/create_listofdates` invokes the existing skill and shows the same rerun confirmation when current.
+- Typing `show status` shows the matter overview or pipeline status without a paid call.
+- Unsupported input shows a clear message and does not call a provider unless the user explicitly uses the skill-router check path.
+- Existing skill-router tests still pass.
+- `npm test` passes.
+- Browser smoke on `http://127.0.0.1:4173/` confirms no console errors.
+
+## Suggested Parser Shape For PR #57
+
+Keep it intentionally boring:
+
+```text
+normalize input
+  -> exact slash match?
+  -> static alias match?
+  -> local status command?
+  -> otherwise route as skill-router/proposed-skill check
+```
+
+Example mapping:
+
+```text
+"/matter-init"          -> /matter-init
+"/extract"              -> /extract
+"/describe_sources"     -> /describe_sources
+"/create_listofdates"   -> /create_listofdates
+"/doctor"               -> /doctor
+"extract"               -> /extract
+"describe sources"      -> /describe_sources
+"source labels"         -> /describe_sources
+"list of dates"         -> /create_listofdates
+"chronology"            -> /create_listofdates
+"doctor"                -> /doctor
+"show status"           -> status view
+"status"                -> status view
+```
+
+Avoid fuzzy matching in the next runtime PR. A wrong fuzzy match on a paid skill is worse than asking the user to type the slash command.
+
+## Guardrails For The Implementation
+
+The command box must not become a shortcut around safety.
+
+Rules:
+
+- If a skill button would show rerun confirmation, the command box must show it too.
+- If a skill requires a loaded matter, the command box must enforce that through the same skill runner.
+- If a provider fails closed, the command box must display that failure instead of pretending the command succeeded.
+- If the input is ambiguous, do not guess. Show possible commands or route to skill-router as a non-executing check.
+- Do not write a separate command execution backend unless the frontend dispatch path becomes unmaintainable.
+
+## Decision
+
+Go, but only for deterministic V0.
+
+Do not jump straight to a full v2 Unibox. The next safe step is to make the current toolbar command box actually useful while preserving everything that made the beta stable.
