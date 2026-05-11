@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
 
 export function createListOfDatesSkill(ctx) {
@@ -53,6 +54,31 @@ export function createListOfDatesSkill(ctx) {
         bar: "No Matter",
         terminal: "[listofdates] no active matter",
       });
+      return;
+    }
+
+    if (!await confirmCurrentArtifactRerun({
+      ctx,
+      skill: "/create_listofdates",
+      escapeHtml,
+      title: `/create_listofdates — ${activeMatter.folderName}`,
+      confirmLabel: "Run /create_listofdates anyway",
+    })) {
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Run cancelled</strong><br />Existing List of Dates artifacts were left unchanged.",
+        bar: "List of Dates Cancelled",
+        terminal: "[listofdates] rerun cancelled by user",
+      });
+      editorContent.innerHTML = `
+        <h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p>Run cancelled. Existing <code>10_Library/List of Dates.md</code> and <code>10_Library/List of Dates.json</code> were left unchanged.</p>
+        <div class="form-actions">
+          <button type="button" class="run-skill-button secondary" id="runListOfDatesBack">Back to overview</button>
+        </div>
+      `;
+      const back = document.getElementById("runListOfDatesBack");
+      if (back) back.addEventListener("click", ctx.goToExplorer);
       return;
     }
 

@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import {
   renderSourceDescriptorsResultHtml,
   sourceDescriptorsSummary,
@@ -31,6 +32,31 @@ export function createDescribeSourcesSkill(ctx) {
         bar: "No Matter",
         terminal: "[source-index] no active matter",
       });
+      return;
+    }
+
+    if (!await confirmCurrentArtifactRerun({
+      ctx,
+      skill: "/describe_sources",
+      escapeHtml,
+      title: `/describe_sources — ${activeMatter.folderName}`,
+      confirmLabel: "Run /describe_sources anyway",
+    })) {
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Run cancelled</strong><br />Existing Source Index artifact was left unchanged.",
+        bar: "Source Descriptors Cancelled",
+        terminal: "[source-index] rerun cancelled by user",
+      });
+      editorContent.innerHTML = `
+        <h1>/describe_sources — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p>Run cancelled. Existing <code>10_Library/Source Index.json</code> was left unchanged.</p>
+        <div class="form-actions">
+          <button type="button" class="run-skill-button secondary" id="runDescribeSourcesBack">Back to overview</button>
+        </div>
+      `;
+      const back = document.getElementById("runDescribeSourcesBack");
+      if (back) back.addEventListener("click", ctx.goToExplorer);
       return;
     }
 
