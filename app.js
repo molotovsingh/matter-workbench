@@ -4,6 +4,7 @@ import { createStatusController } from "./frontend/status.js";
 import { createWorkspaceView } from "./frontend/workspace-view.js";
 import { createMatterScreens } from "./frontend/matter-screens.js";
 import { createAiCommandBox } from "./frontend/ai-command-box.js";
+import { createThemeController } from "./frontend/theme.js";
 import { wireAppEvents } from "./frontend/event-wiring.js";
 import { createMatterOverview } from "./frontend/views/matter-overview.js";
 import { createMatterInitSkill } from "./frontend/skills/matter-init.js";
@@ -27,6 +28,7 @@ const elements = {
   aiCommandSuggestions: document.getElementById("aiCommandSuggestions"),
   aiCommandCopyReport: document.getElementById("aiCommandCopyReport"),
   aiCommandReportStatus: document.getElementById("aiCommandReportStatus"),
+  themeToggleButton: document.getElementById("themeToggleButton"),
   mattersPicker: document.getElementById("mattersPicker"),
   mattersList: document.getElementById("mattersList"),
   newMatterButton: document.getElementById("newMatterButton"),
@@ -34,6 +36,8 @@ const elements = {
   activitySettings: document.getElementById("activitySettings"),
   slashSkillButtons: document.querySelectorAll("[data-skill]"),
 };
+
+createThemeController({ button: elements.themeToggleButton }).wire();
 
 const initialMattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
 const mattersStore = createMutableState(initialMattersState);
