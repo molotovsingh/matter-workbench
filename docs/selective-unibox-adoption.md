@@ -157,7 +157,42 @@ Important constraint:
 - Keep messages factual.
 - Do not hide fail-closed behavior behind optimistic UI.
 
-### 5. Configurable Skill Ideas, But Later
+### 5. Rerun Guardrails For Paid Or Durable Skills
+
+The app should eventually protect users from accidentally rerunning expensive or durable skills when the existing artifact is still current.
+
+This is not just a generic "Are you sure?" prompt. It should be staleness-aware.
+
+Future behavior:
+
+```text
+/create_listofdates was last run on 2026-05-11 at 18:42.
+It used openai/gpt-4.1 via OpenRouter and wrote 36 chronology rows.
+No newer extraction records or Source Index changes were found.
+
+Run it again anyway?
+```
+
+Skills that should get this treatment:
+
+- `/describe_sources`, because it can spend provider tokens and overwrites `Source Index.json`;
+- `/create_listofdates`, because it can spend provider tokens and overwrites chronology artifacts;
+- OCR-backed `/extract`, when OCR is enabled and cached extraction records already exist;
+- future drafting or dispatch skills that create lawyer-facing artifacts.
+
+The check should distinguish:
+
+- **current**: all upstream inputs are older than the generated artifact;
+- **stale**: upstream inputs changed after the artifact was generated;
+- **missing**: the artifact does not exist yet;
+- **failed**: the last run failed and no valid artifact was written;
+- **forced rerun**: the user intentionally chose to regenerate.
+
+Do not implement this as ad hoc prompts inside each button handler. The status panel or a small shared rerun-advice service should compute it from durable artifacts, source hashes, extraction record timestamps, and artifact metadata. The UI can then show a consistent confirmation only when the skill is current and rerunning would spend money or overwrite a valid artifact.
+
+This belongs after the matter pipeline status panel, because the status panel provides most of the read-side facts needed for a good rerun decision.
+
+### 6. Configurable Skill Ideas, But Later
 
 Configurable skills are promising, but they are dangerous if added too early.
 
@@ -202,6 +237,7 @@ Also do not change these foundations without a separate design review:
 | Workflow status surface | Yes | Read existing artifacts/logs | Matter pipeline status panel |
 | `/describe_sources` as visible step | Yes | Add route plus frontend skill wrapper | First-class source labels |
 | Provider/run visibility | Yes | Read `ai_run` metadata from artifacts | Run metadata panel |
+| Paid/durable rerun guardrails | Yes, later | Staleness-aware confirmation from artifacts | After status panel |
 | Configurable skill revisions | Later | Require contracts, goldens, validation, rollback | Design note only |
 | Unibox central orchestration | No for now | Keep engines and routes explicit | None |
 | Frontend rewrite | No | Increment current shell | None |
@@ -295,6 +331,28 @@ Acceptance criteria:
 - Status derives from actual files.
 - Missing artifacts are shown as missing, not failed.
 - Failed runs are surfaced from logs where available.
+
+## Recommended Later PR
+
+### PR 4: Staleness-Aware Rerun Guardrails
+
+Scope:
+
+- add shared rerun advice for costly or durable skills;
+- start with `/describe_sources` and `/create_listofdates`;
+- use existing artifacts, extraction records, source hashes, and generated artifact metadata;
+- show a confirmation only when a valid artifact already exists and upstream inputs have not changed;
+- allow explicit rerun when the user confirms;
+- do not silently block a stale rerun when fresh intake or new source material exists.
+
+Acceptance criteria:
+
+- Existing first runs do not gain extra prompts.
+- Stale artifacts clearly invite regeneration.
+- Current artifacts warn before paid regeneration.
+- Confirmation text names the skill, last run time, provider/model where known, and generated artifact.
+- The decision is derived from durable files, not from browser memory.
+- Tests cover current, stale, missing, and failed artifact states.
 
 ## Branch And PR Discipline
 
