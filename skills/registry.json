@@ -19,6 +19,7 @@
     "matter-init",
     "extract",
     "describe_sources",
+    "context_preview",
     "create_listofdates",
     "doctor"
   ],
@@ -95,6 +96,28 @@
         "/create_listofdates"
       ],
       "mode": "AI",
+      "source_backed": "required",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    },
+    {
+      "id": "context_preview",
+      "slash": "/context_preview",
+      "category": "Review",
+      "purpose": "Show a read-only summary of the bounded matter context packet for future Q&A/search without exposing raw source text.",
+      "inputs": [
+        "matter-context-packet/v1"
+      ],
+      "outputs": [
+        "matter context preview",
+        "copyable context report"
+      ],
+      "upstream": [
+        "/extract"
+      ],
+      "downstream": [],
+      "mode": "deterministic",
       "source_backed": "required",
       "legal_setting_scope": "general",
       "markdown_first": false,

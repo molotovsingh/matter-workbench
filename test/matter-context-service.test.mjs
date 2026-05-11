@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   buildMatterContextPacket,
   MATTER_CONTEXT_PACKET_SCHEMA_VERSION,
+  summarizeMatterContextPacket,
 } from "../services/matter-context-service.mjs";
 import { toCsv } from "../shared/csv.mjs";
 
@@ -184,6 +185,7 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(packet.sources[0].source_label, "Legal Notice from Mehta to Skyline, 20 April 2026");
   assert.equal(packet.sources[0].source_short_label, "Legal notice, 20 Apr 2026");
   assert.equal(packet.sources[0].document_type, "legal_notice");
+  assert.deepEqual(packet.sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
   assert.equal(packet.evidence_blocks.length, 2);
   assert.deepEqual(packet.evidence_blocks.map((block) => block.citation), [
     "FILE-0001 p1.b1",
@@ -193,6 +195,14 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.json"));
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.md"));
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
+
+  const summary = summarizeMatterContextPacket(packet);
+  assert.equal(summary.schema_version, "matter-context-preview/v1");
+  assert.equal(summary.counts.sources, 1);
+  assert.equal(summary.counts.evidence_blocks_included, 2);
+  assert.equal(summary.top_sources[0].source_short_label, "Legal notice, 20 Apr 2026");
+  assert.deepEqual(summary.top_sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
+  assert.doesNotMatch(JSON.stringify(summary), /Agreement was signed on 20 April 2026/);
 });
 
 test("matter context packet does not read excluded secrets, raw files, logs, binaries, or prior chat", async () => {
@@ -246,6 +256,9 @@ test("matter context packet handles missing Source Index without dropping raw ci
   assert.equal(packet.sources[0].source_short_label, "");
   assert.equal(packet.evidence_blocks[0].citation, "FILE-0001 p1.b1");
   assert.equal(packet.evidence_blocks[0].source_label, "");
+  const summary = summarizeMatterContextPacket(packet);
+  assert.equal(summary.source_index_present, false);
+  assert.ok(summary.warnings.some((warning) => warning.includes("Source Index.json not found")));
 });
 
 test("matter context packet bounds source and block counts deterministically", async () => {

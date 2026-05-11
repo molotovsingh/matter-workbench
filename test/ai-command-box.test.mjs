@@ -11,6 +11,9 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("extract"), { type: "skill", command: "/extract" });
   assert.deepEqual(parseDeterministicCommand("describe sources"), { type: "skill", command: "/describe_sources" });
   assert.deepEqual(parseDeterministicCommand("source labels"), { type: "skill", command: "/describe_sources" });
+  assert.deepEqual(parseDeterministicCommand("/context_preview"), { type: "skill", command: "/context_preview" });
+  assert.deepEqual(parseDeterministicCommand("context"), { type: "skill", command: "/context_preview" });
+  assert.deepEqual(parseDeterministicCommand("show context"), { type: "skill", command: "/context_preview" });
   assert.deepEqual(parseDeterministicCommand("list of dates"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("doctor"), { type: "skill", command: "/doctor" });
@@ -34,7 +37,7 @@ test("command parser does not fuzzy-match unsupported text", () => {
 test("slash command suggestions are explicit and description-backed", () => {
   assert.deepEqual(
     listSlashCommandSuggestions("/").map((suggestion) => suggestion.command),
-    ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/doctor"],
+    ["/matter-init", "/extract", "/describe_sources", "/context_preview", "/create_listofdates", "/doctor"],
   );
   assert.deepEqual(
     listSlashCommandSuggestions("/de").map((suggestion) => suggestion.command),
@@ -42,6 +45,7 @@ test("slash command suggestions are explicit and description-backed", () => {
   );
   assert.equal(listSlashCommandSuggestions("chronology").length, 0);
   assert.match(listSlashCommandSuggestions("/create")[0].description, /chronology/i);
+  assert.match(listSlashCommandSuggestions("/context")[0].description, /evidence packet/i);
 });
 
 test("command box dispatches deterministic slash commands through injected skill runners", async () => {
