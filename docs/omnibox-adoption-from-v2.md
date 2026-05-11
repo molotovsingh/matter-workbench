@@ -70,6 +70,7 @@ The v2/opencode repos prove useful UX and routing patterns. They should inform t
 /Users/aksingh/matter-workbench-v2/docs/ai-native-skill-router.md
 /Users/aksingh/matter-workbench-v2/docs/configurable-skill-modification-approaches.md
 /Users/aksingh/matter-workbench-v2/docs/new-skill-adaptive-interview-plan.md
+/Users/aksingh/Desktop/Matter_Workbench_Walkthrough_mehta_full.pdf
 ```
 
 ### Opencode Unibox Repo
@@ -80,6 +81,58 @@ The v2/opencode repos prove useful UX and routing patterns. They should inform t
 /Users/aksingh/matter-workbench-opencode-unibox/frontend/unibox.js
 /Users/aksingh/matter-workbench-opencode-unibox/frontend/skill-router-panel.js
 /Users/aksingh/matter-workbench-opencode-unibox/services/unibox-service.mjs
+```
+
+## V2 Walkthrough PDF: What It Adds
+
+`/Users/aksingh/Desktop/Matter_Workbench_Walkthrough_mehta_full.pdf` is useful because it is not only a repo map. It is a product teaching artifact.
+
+The important lesson is the order in which it teaches the app:
+
+```text
+pick matter
+  -> understand overview
+  -> inspect files and generated outputs
+  -> understand skills
+  -> treat settings carefully
+  -> use the Unibox inside active matter context
+```
+
+That sequence should influence this repo's selective adoption work more than the exact v2 file layout.
+
+Product ideas worth borrowing from the PDF:
+
+- start with a one-page product summary before diagrams;
+- explain Matter Workbench as a local legal workspace, not as an AI chat app;
+- make "pick the right matter first" the first rule;
+- treat Files as the review surface for source folders and generated legal outputs;
+- treat Skills as reusable supervised legal workflows;
+- treat Settings as app-wide configuration, not day-to-day matter notes;
+- frame the Unibox as "ask, search, or run skills" inside the active matter.
+
+Architecture ideas worth borrowing from the PDF:
+
+- use simple layer diagrams for browser workspace, Node API server, routes/services, engines, AI, and local matter folders;
+- show user action flowing to frontend, routes, services, and matter-folder artifacts;
+- make the safety habit visible: matter-bound actions should confirm an active matter before expensive work or writes.
+
+Important constraint:
+
+> The PDF is a v2 artifact. Its diagram pages should inform this repo's direction, but they should not be copied as the current architecture map for `matter-workbench`.
+
+Several diagram labels are v2-specific, including `frontend/unibox.js`, `routes/unibox-routes.mjs`, `services/unibox-service.mjs`, and the broader Q&A/search/configurable-skill runtime. Those are future/reference ideas here, not current checkout facts.
+
+For this repo, the adoption note should therefore separate:
+
+```text
+current architecture
+  = files that exist and behavior that works now
+
+selective adoption
+  = v2 product patterns to borrow in small PRs
+
+future state
+  = ask/search/copilot/configurable-skill behavior after guardrails exist
 ```
 
 ## Current Repo Baseline
