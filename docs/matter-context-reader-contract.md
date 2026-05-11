@@ -1,30 +1,43 @@
 # Matter Context Reader Contract
 
-This document defines the next safe boundary before Matter Workbench grows from
-a deterministic Command rail into matter Q&A or search.
+This document defines the safe evidence boundary before Matter Workbench grows
+from a deterministic Command rail into provider-backed matter Q&A or broader
+search.
 
 The current beta is intentionally explicit:
 
 ```text
 status
 open library
+open skills
 /extract
 /describe_sources
 /create_listofdates
 ```
 
 Those commands create durable artifacts with clear file paths and rerun
-guardrails. A future Q&A/search surface is different. It may answer a question
-without writing an artifact, but it still needs a disciplined source boundary.
-That boundary is the **Matter Context Reader**.
+guardrails. Local context preview/search now inspects the bounded packet without
+provider calls. Future provider-backed Q&A is different: it may answer a
+question without writing an artifact, but it still needs this disciplined
+source boundary.
 
-This is a contract note only. It does not add runtime Q&A, search, chat memory,
-provider calls, or artifact writes.
+This is a contract note. The deterministic packet builder and local
+preview/search surfaces now exist; provider-backed Q&A, chat memory, and
+artifact-writing chat do not.
+
+The downstream provider-backed Q&A contract lives in
+[Copilot Q&A Contract](copilot-qna-contract.md). This document defines the
+evidence packet; that document defines answer behavior, citation validation,
+provider/cost posture, and chat-only boundaries.
+
+The read-only Skills tab may display context-preview/search capability as skill
+metadata, but it must not treat the context packet as a hidden chat memory or
+as permission to run provider-backed Q&A.
 
 ## Goal
 
-Build a deterministic local reader that turns the active matter folder into a
-bounded, source-backed context packet for future matter Q&A/search.
+Maintain a deterministic local reader that turns the active matter folder into a
+bounded, source-backed context packet for local search and future matter Q&A.
 
 The reader should answer one question before any model is called:
 
@@ -37,10 +50,10 @@ validate, bound, and label the source material that a future model call may use.
 
 ## Non-Goals
 
-Do not add these in the context-reader slice:
+Do not add these through the context-reader path:
 
 - chat UI;
-- broad semantic search;
+- broad semantic/vector search;
 - copilot Q&A;
 - drafting;
 - configurable skills;
@@ -49,8 +62,9 @@ Do not add these in the context-reader slice:
 - new matter state files;
 - writes to `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch`.
 
-The first implementation should be a read-only service or helper, not a new
-product surface.
+The current implementation is read-only. Future product surfaces may display
+packet stats and local search results, but they must not turn the packet into a
+hidden mutable matter state file.
 
 ## Inputs
 
@@ -258,8 +272,9 @@ Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026 (
 
 ## Chat-Only Versus Artifact Outputs
 
-Future Q&A/search answers are chat-only unless the user explicitly runs an
-artifact-producing skill.
+Future provider-backed Q&A answers are chat-only unless the user explicitly
+runs an artifact-producing skill. Local context search remains a read-only
+retrieval surface.
 
 Chat-only answers:
 
@@ -279,8 +294,8 @@ guardrails.
 The context reader itself should not make provider calls. It is deterministic
 local plumbing.
 
-Future Q&A/search model calls must make provider use visible. The UI should
-show, at minimum:
+Future provider-backed Q&A model calls must make provider use visible. The UI
+should show, at minimum:
 
 - provider;
 - model;
@@ -290,6 +305,9 @@ show, at minimum:
 Paid rerun guardrails remain mandatory for artifact-producing skills such as
 `/describe_sources` and `/create_listofdates`. Q&A must not become a side door
 for overwriting source labels, chronologies, drafts, or dispatch materials.
+
+See [Copilot Q&A Contract](copilot-qna-contract.md) before adding any
+provider-backed `/ask` behavior.
 
 ## Command Rail Rule
 
@@ -321,6 +339,9 @@ summarize all emails
 
 Those are future Q&A/search or drafting behaviors and need their own runtime
 PRs.
+
+The first provider-backed Q&A command should be explicit, such as `/ask` or
+`ask <question>`, and should use this context packet rather than raw files.
 
 ## First Runtime Slice Acceptance Criteria
 

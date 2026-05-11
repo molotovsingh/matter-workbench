@@ -128,9 +128,10 @@ Current beta flow is:
 /extract -> /describe_sources -> /create_listofdates
 ```
 
-But `/describe_sources` is currently engine-facing rather than fully app-facing.
+`/describe_sources` is now app-facing through the same visible skill flow as
+extract and list of dates.
 
-Future candidate:
+Implemented posture:
 
 - Add an API route for source descriptors.
 - Add a frontend skill module.
@@ -161,7 +162,9 @@ Important constraint:
 
 ### 5. Rerun Guardrails For Paid Or Durable Skills
 
-The app should eventually protect users from accidentally rerunning expensive or durable skills when the existing artifact is still current.
+The app now protects users from accidentally rerunning expensive or durable
+source-description and list-of-dates skills when the existing artifact is still
+current.
 
 This is not just a generic "Are you sure?" prompt. It should be staleness-aware.
 
@@ -175,10 +178,13 @@ No newer extraction records or Source Index changes were found.
 Run it again anyway?
 ```
 
-Skills that should get this treatment:
+Skills with this treatment now:
 
 - `/describe_sources`, because it can spend provider tokens and overwrites `Source Index.json`;
 - `/create_listofdates`, because it can spend provider tokens and overwrites chronology artifacts;
+
+Possible future extensions:
+
 - OCR-backed `/extract`, when OCR is enabled and cached extraction records already exist;
 - future drafting or dispatch skills that create lawyer-facing artifacts.
 
@@ -190,15 +196,52 @@ The check should distinguish:
 - **failed**: the last run failed and no valid artifact was written;
 - **forced rerun**: the user intentionally chose to regenerate.
 
-Do not implement this as ad hoc prompts inside each button handler. The status panel or a small shared rerun-advice service should compute it from durable artifacts, source hashes, extraction record timestamps, and artifact metadata. The UI can then show a consistent confirmation only when the skill is current and rerunning would spend money or overwrite a valid artifact.
+Do not implement this as ad hoc prompts inside each button handler. The status
+panel and shared rerun-advice logic should keep deriving the decision from
+durable artifacts, source hashes, extraction record timestamps, and artifact
+metadata. The UI should show a consistent confirmation only when the skill is
+current and rerunning would spend money or overwrite a valid artifact.
 
-This belongs after the matter pipeline status panel, because the status panel provides most of the read-side facts needed for a good rerun decision.
+The read-only matter pipeline status panel is now the user's preview of those
+facts before they click.
 
-### 6. Configurable Skill Ideas, But Later
+### 6. Copilot Q&A, But Only After Context Search
+
+V2 proves that a single Unibox can answer matter questions, search, run skills,
+and start skill ideas. This repo should not copy that whole runtime at once.
+
+The future Q&A contract now lives in
+[`copilot-qna-contract.md`](copilot-qna-contract.md). Use it before adding
+provider-backed `/ask`, matter answers, chat export for Q&A, or citation
+validation for model answers.
+
+The safe order is:
+
+```text
+matter-context-packet/v1
+  -> /context_preview
+  -> /context_search
+  -> explicit /ask or ask <question>
+  -> broader intent routing later
+```
+
+Do not make arbitrary unsupported text auto-route into paid Q&A first. Q&A is
+provider-backed synthesis; local context search is provider-free evidence
+retrieval. Keep those surfaces distinct.
+
+### 7. Configurable Skill Ideas, But Later
 
 Configurable skills are promising, but they are dangerous if added too early.
 
 Do not start with runtime configurable skills in this repo.
+
+The read-only Skills tab now exists. It is a governance surface for built-ins,
+paid/deterministic posture, and future proposal review; it is not a creation or
+editing surface yet.
+
+The next safe step is saved skill ideas / proposal inbox: capture "I want a
+skill that..." as a non-runnable idea, run the overlap check, and show it in
+Skills. Do not create draft runnable skills in that same slice.
 
 Prerequisites before configurable skills:
 
@@ -211,6 +254,11 @@ Prerequisites before configurable skills:
 - test coverage proving bad drafts cannot overwrite good active behavior.
 
 This repo can learn from v2's rollback and revision approach later, but only after simpler UI/workflow adoption is done.
+
+The future modification contract now lives in
+[`skill-modification-contract.md`](skill-modification-contract.md). Use it
+before adding modify-skill, configurable-skill revisions, stale-draft checks, or
+rollback-as-draft behavior.
 
 ## What We Should Not Borrow
 

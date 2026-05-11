@@ -45,7 +45,7 @@ The `latency` route is the recommended `/create_listofdates` OpenRouter route fo
 
 ## Current Tester Workflow
 
-Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet.
+Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet. Future provider-backed Q&A is parked in [Copilot Q&A Contract](copilot-qna-contract.md).
 
 1. Pick a matter from the sidebar.
 2. Type `status` in the Command rail.
@@ -73,6 +73,10 @@ Use the light-themed app and the right-side Command rail. The Command rail is de
 9. Use `Copy Report` when sharing behavior.
    - The report should include matter name, folder, typed command, matched command, status, provider/model when available, artifact paths, and latest visible terminal lines.
    - It should not include API keys, `.env`, raw source document text, or full extraction records.
+10. Use `open skills` when you want to inspect available capabilities.
+    - The Skills tab is read-only in this beta.
+    - It shows built-in skills, deterministic versus paid posture, and current matter status where available.
+    - It does not create, edit, activate, or run configurable skills.
 
 Useful Command rail inputs:
 
@@ -90,6 +94,7 @@ open library
 open workshop
 open drafts
 open dispatch
+open skills
 ```
 
 The lane commands and local context search are read-only. They do not run providers, write artifacts, move files, or generate documents.
