@@ -137,38 +137,74 @@ future state
 
 ## Current Repo Baseline
 
-This repo already has a small command surface:
+This repo now has a small command surface:
 
 ```text
 index.html
-  -> toolbar form #aiCommandForm
+  -> right-side Command panel
+  -> form #aiCommandForm
 app.js
   -> createAiCommandBox(ctx)
 frontend/ai-command-box.js
+  -> deterministic slash command parser
+  -> static alias parser
+  -> slash suggestions
+  -> Copy Report
   -> POST /api/skills/check-intent
 services/skill-router-service.mjs
   -> MECE skill-router decision
 ```
 
-But this is currently a **router/check surface**, not a proper command runner.
+This is currently a **Command rail**, not a chat surface.
 
-It can ask:
+It can run known commands:
+
+```text
+/matter-init
+/extract
+/describe_sources
+/create_listofdates
+/doctor
+status
+```
+
+It can also route unsupported proposed-skill text to the existing registry overlap check:
 
 ```text
 Does this proposed skill overlap with an existing skill?
 ```
 
-It does not yet do the better omnibox job:
+That is good news. We do not need to graft v2's whole Unibox runtime into this repo. We can evolve the current Command rail carefully.
 
-```text
-Run /extract
-Show matter status
-Run /describe_sources, but warn me if current
-Create List of Dates, but respect rerun guardrails
-Copy List of Dates Markdown
-```
+## Current Command Rail Contract
 
-That is good news. We do not need to graft v2's whole right-side Unibox panel into this repo. We can evolve the existing toolbar command box carefully.
+As of the merged Command V0 slices, the right-side rail has four responsibilities:
+
+1. **Deterministic command execution.**
+   Exact slash commands and a tiny static alias map dispatch to the same frontend skill runners used by sidebar and overview buttons.
+
+2. **Safety-preserving rerun behavior.**
+   `/describe_sources` and `/create_listofdates` still use the existing rerun guardrails. The Command rail may not bypass paid-call confirmation.
+
+3. **Shareable command reports.**
+   `Copy Report` exports a bounded Markdown report for the latest command interaction: matter name, matter folder, typed input, matched command or router/check result, status, timestamp, provider/model when available, artifact paths, visible status, and recent terminal lines.
+
+4. **Slash discoverability.**
+   Typing `/` shows the known slash skills with short descriptions. Selecting a suggestion simply fills and runs that deterministic command path.
+
+The rail deliberately does **not** do these things yet:
+
+- chat transcript;
+- copilot Q&A;
+- full-document search;
+- fuzzy paid-skill matching;
+- conversation memory;
+- configurable skill creation or editing;
+- direct AI intent execution beyond the existing non-running router/check path.
+
+The rule for future work:
+
+> If it can spend money, mutate artifacts, or claim facts about a matter, it must go through the same explicit skill, artifact, and confirmation contracts as the sidebar buttons.
 
 ## What V2 Does Well
 
@@ -508,12 +544,12 @@ Why this matters:
 
 ### Milestone 1: Deterministic Command Box V0
 
-This is the next implementation slice.
+Status: implemented in the current Command rail.
 
 Goal:
 
 ```text
-Use the existing toolbar command box to run known commands deterministically.
+Use the right-side Command panel to run known commands deterministically.
 ```
 
 Supported inputs:
@@ -551,7 +587,7 @@ The command box should:
 
 ### Milestone 2: Slash Suggestions
 
-Borrow the v2 pattern after V0 works.
+Status: implemented for built-in slash skills only.
 
 Add:
 
@@ -782,4 +818,4 @@ Rules:
 
 Go, but only for deterministic V0.
 
-Do not jump straight to a full v2 Unibox. The next safe step is to make the current toolbar command box actually useful while preserving everything that made the beta stable.
+Do not jump straight to a full v2 Unibox. The current Command rail is useful precisely because it preserves everything that made the beta stable.
