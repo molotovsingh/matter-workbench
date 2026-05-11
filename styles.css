@@ -124,7 +124,8 @@ button {
 }
 
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -1418,6 +1419,57 @@ summary {
 .skill-card h3 {
   margin: 4px 0 0;
   font-size: 16px;
+}
+
+.skill-idea-card {
+  grid-column: 1 / -1;
+}
+
+.skill-idea-brief {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.skill-idea-brief summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.skill-idea-brief-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.skill-idea-brief-form label > span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.skill-idea-brief-form input,
+.skill-idea-brief-form textarea,
+.skill-idea-brief-form select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text);
+  font: inherit;
+}
+
+.skill-idea-brief-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.skill-idea-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .skill-slash {

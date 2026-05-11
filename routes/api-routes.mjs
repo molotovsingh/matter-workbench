@@ -114,6 +114,16 @@ export async function handleApiRequest({ request, requestUrl, response, services
     return true;
   }
 
+  const skillIdeaDesignBriefMatch = requestUrl.pathname.match(/^\/api\/skill-ideas\/([^/]+)\/design-brief$/);
+  if (request.method === "POST" && skillIdeaDesignBriefMatch) {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillIdeasService.updateIdeaDesignBrief(
+      decodeURIComponent(skillIdeaDesignBriefMatch[1]),
+      body.designBrief || {},
+    ));
+    return true;
+  }
+
   const skillIdeaStatusMatch = requestUrl.pathname.match(/^\/api\/skill-ideas\/([^/]+)\/status$/);
   if (request.method === "POST" && skillIdeaStatusMatch) {
     const body = await readRequestJson(request);

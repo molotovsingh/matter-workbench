@@ -164,6 +164,53 @@ export function createMatterScreens(ctx) {
   }
 
   function wireSkillIdeaActions() {
+    editorContent.querySelectorAll?.("[data-skill-idea-brief-form]")?.forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const id = form.dataset.skillIdeaId;
+        if (!id) return;
+        const submit = form.querySelector("button[type='submit']");
+        const originalText = submit?.textContent || "Save design brief";
+        if (submit) {
+          submit.disabled = true;
+          submit.textContent = "Saving...";
+        }
+        try {
+          const formData = new FormData(form);
+          await postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, {
+            designBrief: {
+              intendedUser: formData.get("intendedUser") || "",
+              problem: formData.get("problem") || "",
+              expectedInputs: formData.get("expectedInputs") || "",
+              expectedOutputArtifact: formData.get("expectedOutputArtifact") || "",
+              targetLane: formData.get("targetLane") || "",
+              paidPosture: formData.get("paidPosture") || "",
+              riskLevel: formData.get("riskLevel") || "",
+              notes: formData.get("notes") || "",
+            },
+          });
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Design brief saved</strong><br />Still not runnable. No provider call or matter artifact was created.",
+            bar: "Skill Idea Saved",
+            terminal: `[skill-ideas] saved design brief for ${id}`,
+          });
+          await renderSkills();
+        } catch (error) {
+          if (submit) {
+            submit.disabled = false;
+            submit.textContent = originalText;
+          }
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Design brief save failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Skill Idea Failed",
+            terminal: `[skill-ideas] design brief failed: ${error.message}`,
+          });
+        }
+      });
+    });
+
     editorContent.querySelectorAll?.("[data-skill-idea-id][data-skill-idea-status]")?.forEach((button) => {
       button.addEventListener("click", async () => {
         const id = button.dataset.skillIdeaId;
