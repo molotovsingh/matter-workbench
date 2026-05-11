@@ -83,6 +83,13 @@ const extractSkill = createExtractSkill(ctx);
 const describeSourcesSkill = createDescribeSourcesSkill(ctx);
 const listOfDatesSkill = createListOfDatesSkill(ctx);
 const doctorSkill = createDoctorSkill(ctx);
+const skillDispatch = {
+  "/matter-init": matterInitSkill.runMatterInit,
+  "/extract": extractSkill.runExtract,
+  "/describe_sources": describeSourcesSkill.runDescribeSources,
+  "/create_listofdates": listOfDatesSkill.runCreateListOfDates,
+  "/doctor": doctorSkill.runDoctor,
+};
 const skills = {
   runCreateListOfDates: listOfDatesSkill.runCreateListOfDates,
   runDescribeSources: describeSourcesSkill.runDescribeSources,
@@ -92,7 +99,7 @@ const skills = {
 };
 const matterOverview = createMatterOverview(ctx, skills);
 ctx.renderSkillOverview = matterOverview.renderSkillOverview;
-const aiCommandBox = createAiCommandBox(ctx);
+const aiCommandBox = createAiCommandBox(ctx, { skillDispatch });
 
 function clearActiveMatter() {
   activeMatter = activeMatterStore.set(createInitialActiveMatter());

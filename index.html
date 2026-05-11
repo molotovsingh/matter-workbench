@@ -65,15 +65,6 @@
           <div class="editor-pane">
             <div class="editor-toolbar">
               <div id="breadcrumbs" class="breadcrumbs">workbench</div>
-              <form id="aiCommandForm" class="ai-command-form" autocomplete="off">
-                <input
-                  id="aiCommandInput"
-                  type="text"
-                  placeholder="Ask AI or check a proposed skill..."
-                  spellcheck="true"
-                />
-                <button id="aiCommandSubmit" type="submit">Route</button>
-              </form>
             </div>
 
             <article class="editor-content" id="editorContent">
@@ -81,6 +72,40 @@
               <p>Loading workbench...</p>
             </article>
           </div>
+
+          <aside class="command-panel" aria-label="Command box">
+            <div class="command-panel-header">
+              <div>
+                <div class="command-panel-kicker">Command</div>
+                <h2>Run work safely</h2>
+              </div>
+              <span class="command-panel-badge">V0</span>
+            </div>
+            <p class="command-panel-copy">
+              Run known slash skills, open status, or check whether a new skill idea overlaps existing work.
+            </p>
+            <div class="command-panel-examples" aria-label="Command examples">
+              <code>/extract</code>
+              <code>/describe_sources</code>
+              <code>chronology</code>
+              <code>status</code>
+            </div>
+            <form id="aiCommandForm" class="ai-command-form" autocomplete="off">
+              <label class="command-panel-label" for="aiCommandInput">Type a command</label>
+              <div class="command-panel-input-row">
+                <input
+                  id="aiCommandInput"
+                  type="text"
+                  placeholder="/extract, /describe_sources, /create_listofdates, or status"
+                  spellcheck="true"
+                />
+                <button id="aiCommandSubmit" type="submit">Go</button>
+              </div>
+            </form>
+            <p class="command-panel-note">
+              Paid reruns still ask first. This is a command runner, not a chat transcript yet.
+            </p>
+          </aside>
         </section>
 
         <section class="bottom-panel">
