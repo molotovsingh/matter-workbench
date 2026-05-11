@@ -743,7 +743,7 @@ summary {
 
 .editor-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 320px;
   min-height: 0;
 }
 
@@ -773,25 +773,99 @@ summary {
   flex: 1;
 }
 
+.command-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  border-left: 1px solid var(--border);
+  background: #202022;
+  overflow-y: auto;
+}
+
+.command-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.command-panel-kicker,
+.command-panel-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.command-panel h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+.command-panel-badge {
+  border: 1px solid rgba(14, 99, 156, 0.6);
+  color: #9bd2ff;
+  background: rgba(14, 99, 156, 0.14);
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.command-panel-copy,
+.command-panel-note {
+  color: #c7cbd1;
+  line-height: 1.5;
+}
+
+.command-panel-copy {
+  margin: 14px 0;
+}
+
+.command-panel-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.command-panel-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.command-panel-examples code {
+  border: 1px solid var(--border);
+  background: #181818;
+  color: #cfe8ff;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 .ai-command-form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.command-panel-input-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: min(520px, 55vw);
 }
 
 .ai-command-form input {
   width: 100%;
   min-width: 0;
-  height: 26px;
+  height: 32px;
   border: 1px solid var(--border);
   background: #1f1f1f;
   color: var(--text);
-  padding: 5px 8px;
+  padding: 6px 8px;
 }
 
 .ai-command-form button {
-  height: 26px;
+  height: 32px;
   border: 0;
   background: var(--accent);
   color: #0b0b0b;
@@ -1169,6 +1243,21 @@ code {
 }
 
 @media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 48px minmax(220px, 280px) 1fr;
+  }
+
+  .editor-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .command-panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    max-height: 220px;
+  }
+
   .skill-contract,
   .matter-info-card {
     grid-template-columns: 1fr;
