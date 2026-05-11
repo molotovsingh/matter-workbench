@@ -132,10 +132,17 @@ export function createMatterScreens(ctx) {
     let loadError = "";
     let matterStatus = null;
     let statusError = "";
+    let skillIdeas = null;
+    let skillIdeasError = "";
     try {
       registry = await getJson("/api/skills");
     } catch (error) {
       loadError = error.message;
+    }
+    try {
+      skillIdeas = await getJson("/api/skill-ideas");
+    } catch (error) {
+      skillIdeasError = error.message;
     }
     if (ctx.getActiveMatter().folderName) {
       try {
@@ -149,8 +156,37 @@ export function createMatterScreens(ctx) {
       matterStatus,
       loadError,
       statusError,
+      skillIdeas,
+      skillIdeasError,
       activeMatter: ctx.getActiveMatter(),
     }, escapeHtml);
+    wireSkillIdeaActions();
+  }
+
+  function wireSkillIdeaActions() {
+    editorContent.querySelectorAll?.("[data-skill-idea-id][data-skill-idea-status]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const id = button.dataset.skillIdeaId;
+        const status = button.dataset.skillIdeaStatus;
+        if (!id || !status) return;
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = "Saving...";
+        try {
+          await postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status });
+          await renderSkills();
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = originalText;
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Skill idea update failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Skill Idea Failed",
+            terminal: `[skill-ideas] update failed: ${error.message}`,
+          });
+        }
+      });
+    });
   }
 
   function renderFirstRun(defaultPath) {

@@ -4,6 +4,7 @@ import {
   createAiCommandBox,
   listSlashCommandSuggestions,
   parseDeterministicCommand,
+  parseSkillIdeaInput,
 } from "../frontend/ai-command-box.js";
 
 test("command parser maps exact slash commands and static aliases", () => {
@@ -40,6 +41,31 @@ test("command parser does not fuzzy-match unsupported text", () => {
   assert.equal(parseDeterministicCommand("please extract this"), null);
   assert.equal(parseDeterministicCommand("/describe-sources"), null);
   assert.equal(parseDeterministicCommand("create a list of dates skill"), null);
+});
+
+test("skill idea parser detects explicit proposal phrases only", () => {
+  assert.deepEqual(parseSkillIdeaInput("create a skill to summarize pleadings"), {
+    type: "skill_idea",
+    text: "create a skill to summarize pleadings",
+    idea: "summarize pleadings",
+  });
+  assert.deepEqual(parseSkillIdeaInput("new skill bundle exhibits"), {
+    type: "skill_idea",
+    text: "new skill bundle exhibits",
+    idea: "bundle exhibits",
+  });
+  assert.deepEqual(parseSkillIdeaInput("I need a skill that checks limitation"), {
+    type: "skill_idea",
+    text: "I need a skill that checks limitation",
+    idea: "checks limitation",
+  });
+  assert.deepEqual(parseSkillIdeaInput("can we make a skill for filing bundles"), {
+    type: "skill_idea",
+    text: "can we make a skill for filing bundles",
+    idea: "filing bundles",
+  });
+  assert.equal(parseSkillIdeaInput("please extract this"), null);
+  assert.equal(parseSkillIdeaInput("list of dates"), null);
 });
 
 test("slash command suggestions are explicit and description-backed", () => {
@@ -183,6 +209,42 @@ test("command box dispatches context search aliases without provider routing", a
     typedInput: "find payment receipts",
   }]);
   assert.equal(ctx.statusCalls.at(-1).bar, "Context Search Ready");
+});
+
+test("command box saves explicit skill ideas without running skills or router check", async () => {
+  const calls = [];
+  const savedIdeas = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "create a skill to summarize pleadings" });
+  const box = createAiCommandBox(ctx, {
+    saveSkillIdea: async (body) => {
+      savedIdeas.push(body);
+      return {
+        idea: {
+          id: "idea_test_1",
+          text: body.text,
+          createdAt: "2026-05-12T10:00:00.000Z",
+          status: "proposed",
+          matter: {
+            matterName: "Demo Matter",
+            folderName: "Demo Matter",
+          },
+        },
+      };
+    },
+    skillDispatch: {
+      "/extract": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(savedIdeas, [{ text: "create a skill to summarize pleadings" }]);
+  assert.deepEqual(calls, []);
+  assert.match(ctx.elements.editorContent.innerHTML, /Saved as skill idea/);
+  assert.match(ctx.elements.editorContent.innerHTML, /did not create a skill/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Saved");
 });
 
 test("command box lane command asks for a matter before opening lanes", async () => {

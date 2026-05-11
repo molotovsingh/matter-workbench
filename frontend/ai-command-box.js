@@ -83,6 +83,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const skillDispatch = options.skillDispatch || {};
   const now = options.now || (() => new Date());
   const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
+  const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   let latestReport = null;
   let activeSuggestionIndex = -1;
@@ -118,6 +119,12 @@ export function createAiCommandBox(ctx, options = {}) {
     const parsedCommand = parseDeterministicCommand(userRequest);
     if (parsedCommand) {
       await runDeterministicCommand(parsedCommand, userRequest);
+      return;
+    }
+
+    const skillIdea = parseSkillIdeaInput(userRequest);
+    if (skillIdea) {
+      await saveSkillIdeaProposal(skillIdea, userRequest);
       return;
     }
 
@@ -353,6 +360,75 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
+  }
+
+  async function saveSkillIdeaProposal(skillIdea, userRequest) {
+    startReport({
+      typedInput: userRequest,
+      matchedCommand: "skill_idea/proposal",
+      status: "pending",
+    });
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Saving...";
+    breadcrumbs.textContent = "command";
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Command</strong><br />Saving this as a non-running skill idea.",
+      bar: "Saving Skill Idea",
+      terminal: `[skill-ideas] saving proposal: ${userRequest}`,
+    });
+
+    try {
+      const payload = await saveSkillIdea({ text: skillIdea.text });
+      const idea = payload.idea || {};
+      renderSavedSkillIdea({ idea, userRequest });
+      updateReport({
+        status: "saved",
+        skillIdeaId: idea.id || "",
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Saved as skill idea</strong><br />This proposal is not a runnable skill. Review it in Skills under Saved Ideas.`,
+        bar: "Skill Idea Saved",
+        terminal: `[skill-ideas] saved ${idea.id || "proposal"}`,
+      });
+    } catch (error) {
+      renderCommandError(error.message);
+      updateReport({ status: "failed", error: error.message });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill idea not saved</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Idea Failed",
+        terminal: `[skill-ideas] failed: ${error.message}`,
+      });
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  function renderSavedSkillIdea({ idea, userRequest }) {
+    breadcrumbs.textContent = "command";
+    const matter = idea.matter || {};
+    editorContent.innerHTML = `
+      <h1>Command</h1>
+      <section class="skill-router-result">
+        <h2>Saved as skill idea</h2>
+        <p><code>${escapeHtml(userRequest)}</code></p>
+        <p>This is a proposal record only. It did not create a skill, run a provider, allocate a slash command, or change built-in skills.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Status</dt><dd>${escapeHtml(idea.status || "proposed")}</dd></div>
+          <div><dt>Created</dt><dd>${escapeHtml(idea.createdAt || "")}</dd></div>
+          <div><dt>Matter</dt><dd>${escapeHtml(matter.matterName || matter.folderName || "None")}</dd></div>
+          <div><dt>Folder</dt><dd>${escapeHtml(matter.folderName || "None")}</dd></div>
+        </dl>
+        <p class="muted">Open Skills to review this under Saved Ideas.</p>
+      </section>
+    `;
   }
 
   function renderCommandDecision({ userRequest, overrideJustification, decision }) {
@@ -684,6 +760,7 @@ function formatCommandReport(report) {
   ];
 
   if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
+  if (report.skillIdeaId) lines.push(`- Saved skill idea: ${report.skillIdeaId}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
   if (report.error) lines.push(`- Error: ${report.error}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {
@@ -697,6 +774,29 @@ function formatCommandReport(report) {
     lines.push("", "## Latest Terminal Lines", "", "```text", ...report.terminalLines, "```");
   }
   return lines.join("\n");
+}
+
+export function parseSkillIdeaInput(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const normalized = normalizeCommandInput(raw);
+  const patterns = [
+    /^create a skill to (.+)$/,
+    /^new skill (.+)$/,
+    /^i need a skill that (.+)$/,
+    /^can we make a skill for (.+)$/,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match?.[1]?.trim()) {
+      return {
+        type: "skill_idea",
+        text: raw.replace(/\s+/g, " "),
+        idea: match[1].trim(),
+      };
+    }
+  }
+  return null;
 }
 
 async function writeClipboard(text) {

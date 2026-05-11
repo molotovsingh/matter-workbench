@@ -18,8 +18,10 @@ export function skillsPageSummary(registry = {}, matterStatus = null) {
 export function renderSkillsPageHtml({
   registry = {},
   matterStatus = null,
+  skillIdeas = null,
   loadError = "",
   statusError = "",
+  skillIdeasError = "",
   activeMatter = {},
 } = {}, escapeHtml) {
   const summary = skillsPageSummary(registry, matterStatus);
@@ -32,6 +34,9 @@ export function renderSkillsPageHtml({
   const statusWarning = statusError
     ? `<p class="form-warning">Matter status unavailable: ${escapeHtml(statusError)}</p>`
     : "";
+  const ideasWarning = skillIdeasError
+    ? `<p class="form-warning">Saved ideas unavailable: ${escapeHtml(skillIdeasError)}</p>`
+    : "";
 
   return `
     <div class="skills-page">
@@ -42,7 +47,9 @@ export function renderSkillsPageHtml({
       <p class="muted">${matterNote}</p>
       ${registryError}
       ${statusWarning}
+      ${ideasWarning}
       ${renderSkillsStats(summary, escapeHtml)}
+      ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
       <section>
         <h2>Built-in Skills</h2>
         <p class="muted">These are code-backed capabilities. They are not editable from the app.</p>
@@ -71,6 +78,61 @@ export function renderSkillsPageHtml({
       </section>
     </div>
   `;
+}
+
+function renderSavedIdeas(ideas, escape) {
+  const normalized = Array.isArray(ideas) ? ideas : [];
+  return `
+    <section>
+      <h2>Saved Ideas</h2>
+      <p class="muted">Non-running proposal inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or activation.</p>
+      ${normalized.length ? `
+        <div class="skills-grid">
+          ${normalized.map((idea) => renderSavedIdeaCard(idea, escape)).join("")}
+        </div>
+      ` : '<p class="muted">No saved skill ideas yet. Use the Command rail with text like <code>create a skill to summarize pleadings</code>.</p>'}
+    </section>
+  `;
+}
+
+function renderSavedIdeaCard(idea, escape) {
+  const status = idea.status || "proposed";
+  const matter = idea.matter || {};
+  const matterLabel = matter.matterName || matter.folderName || "No matter attached";
+  return `
+    <article class="skill-card skill-idea-card">
+      <div class="skill-card-header">
+        <div>
+          <div class="skill-slash"><code>proposal</code></div>
+          <h3>Saved Skill Idea</h3>
+        </div>
+        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+      </div>
+      <p>${escape(idea.text || "")}</p>
+      <dl class="skill-card-meta">
+        <div><dt>Created</dt><dd>${escape(idea.createdAt || "")}</dd></div>
+        <div><dt>Matter</dt><dd>${escape(matterLabel)}</dd></div>
+        <div><dt>Folder</dt><dd>${escape(matter.folderName || "None")}</dd></div>
+        <div><dt>Runtime</dt><dd>Not runnable</dd></div>
+      </dl>
+      <div class="form-actions">
+        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="marked_for_future"${status === "marked_for_future" ? " disabled" : ""}>Mark for future</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+      </div>
+    </article>
+  `;
+}
+
+function statusLabel(status) {
+  if (status === "marked_for_future") return "Marked for future";
+  if (status === "dismissed") return "Dismissed";
+  return "Proposed";
+}
+
+function statusClass(status) {
+  if (status === "dismissed") return "not-run";
+  if (status === "marked_for_future") return "present";
+  return "pending";
 }
 
 function renderSkillsStats(summary, escape) {

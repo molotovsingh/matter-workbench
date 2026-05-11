@@ -1,3 +1,4 @@
+import path from "node:path";
 import { runExtract } from "../extract-engine.mjs";
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
@@ -13,6 +14,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     matterContextService,
     matterStore,
     matterStatusService,
+    skillIdeasService,
     skillRegistryService,
     skillRouterService,
     uploadService,
@@ -95,6 +97,30 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "GET" && requestUrl.pathname === "/api/skills") {
     sendJson(response, 200, await skillRegistryService.readRegistry());
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/skill-ideas") {
+    sendJson(response, 200, await skillIdeasService.listIdeas());
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/skill-ideas") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillIdeasService.createIdea({
+      text: body.text,
+      matter: await readActiveMatterSummary(matterStore),
+    }));
+    return true;
+  }
+
+  const skillIdeaStatusMatch = requestUrl.pathname.match(/^\/api\/skill-ideas\/([^/]+)\/status$/);
+  if (request.method === "POST" && skillIdeaStatusMatch) {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillIdeasService.updateIdeaStatus(
+      decodeURIComponent(skillIdeaStatusMatch[1]),
+      body.status,
+    ));
     return true;
   }
 
@@ -246,4 +272,20 @@ export async function handleApiRequest({ request, requestUrl, response, services
   }
 
   return false;
+}
+
+async function readActiveMatterSummary(matterStore) {
+  const root = matterStore.getMatterRoot?.();
+  if (!root) return null;
+  const folderName = matterStore.activeMatterNameWithinHome?.() || path.basename(root);
+  let metadata = {};
+  try {
+    metadata = await matterStore.readMatterMetadata(root);
+  } catch {
+    metadata = {};
+  }
+  return {
+    folderName,
+    matterName: metadata.matterName || folderName,
+  };
 }

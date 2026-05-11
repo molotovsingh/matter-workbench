@@ -91,9 +91,42 @@ test("skills page renders built-in skill governance metadata and matter artifact
         },
       ],
     },
+    skillIdeas: {
+      schema_version: "skill-ideas/v1",
+      ideas: [
+        {
+          id: "idea_test_1",
+          text: "create a skill to summarize pleadings",
+          createdAt: "2026-05-12T10:00:00.000Z",
+          updatedAt: "2026-05-12T10:00:00.000Z",
+          status: "proposed",
+          matter: {
+            matterName: "Mehta vs Skyline",
+            folderName: "Mehta vs Skyline",
+          },
+        },
+        {
+          id: "idea_test_2",
+          text: "new skill bundle exhibits",
+          createdAt: "2026-05-12T11:00:00.000Z",
+          updatedAt: "2026-05-12T11:05:00.000Z",
+          status: "marked_for_future",
+          matter: {
+            matterName: "",
+            folderName: "",
+          },
+        },
+      ],
+    },
     activeMatter: { folderName: "Mehta vs Skyline" },
   }, escapeHtml);
 
+  assert.match(html, /Saved Ideas/);
+  assert.match(html, /create a skill to summarize pleadings/);
+  assert.match(html, /new skill bundle exhibits/);
+  assert.match(html, /Mark for future/);
+  assert.match(html, /Dismiss/);
+  assert.match(html, /Marked for future/);
   assert.match(html, /Built-in Skills/);
   assert.match(html, /Paid AI Skills/);
   assert.match(html, /Deterministic Skills/);
@@ -116,6 +149,7 @@ test("skills page supports no-matter planning mode without an error", () => {
 
   assert.match(html, /planning mode/i);
   assert.match(html, /No matter is selected/);
+  assert.match(html, /No saved skill ideas yet/);
   assert.match(html, /\/extract/);
   assert.doesNotMatch(html, /form-error/);
 });
