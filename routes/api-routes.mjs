@@ -210,6 +210,11 @@ export async function handleApiRequest({ request, requestUrl, response, services
     return true;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/rerun-advice") {
+    sendJson(response, 200, await matterStatusService.readRerunAdvice(requestUrl.searchParams.get("skill") || ""));
+    return true;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/file") {
     sendJson(response, 200, await workspaceService.readFilePreview(requestUrl.searchParams.get("path") || ""));
     return true;
