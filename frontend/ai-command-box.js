@@ -7,6 +7,7 @@ const SLASH_COMMANDS = new Set([
   "/extract",
   "/describe_sources",
   "/context_preview",
+  "/context_search",
   "/create_listofdates",
   "/doctor",
 ]);
@@ -27,6 +28,10 @@ const SLASH_COMMAND_SUGGESTIONS = [
   {
     command: "/context_preview",
     description: "Preview the bounded evidence packet for future Q&A/search. No provider call.",
+  },
+  {
+    command: "/context_search",
+    description: "Search the bounded matter context locally. No provider call.",
   },
   {
     command: "/create_listofdates",
@@ -128,7 +133,11 @@ export function createAiCommandBox(ctx, options = {}) {
       status: "pending",
     });
     aiCommandSubmit.disabled = true;
-    aiCommandSubmit.textContent = parsedCommand.type === "skill" ? "Running..." : "Opening...";
+    aiCommandSubmit.textContent = parsedCommand.type === "search"
+      ? "Searching..."
+      : parsedCommand.type === "skill"
+        ? "Running..."
+        : "Opening...";
     const restoreStatus = captureStatusDuringCommand();
     try {
       if (parsedCommand.type === "status") {
@@ -139,6 +148,13 @@ export function createAiCommandBox(ctx, options = {}) {
       if (parsedCommand.type === "lane") {
         const result = showWorkspaceLane(parsedCommand, userRequest);
         updateReport({ status: result?.ok ? "ran" : "failed" });
+        return;
+      }
+      if (parsedCommand.type === "search") {
+        await runContextSearch(parsedCommand, userRequest);
+        if (latestReport?.status === "pending" || latestReport?.status === "warned") {
+          updateReport({ status: "ran" });
+        }
         return;
       }
 
@@ -198,6 +214,33 @@ export function createAiCommandBox(ctx, options = {}) {
       terminal: `[ai-command] ${userRequest} -> ${parsedCommand.lanePath}`,
     });
     return ctx.openWorkspaceLane(parsedCommand.lanePath);
+  }
+
+  async function runContextSearch(parsedCommand, userRequest) {
+    const runSearch = skillDispatch[parsedCommand.command];
+    if (!runSearch) {
+      renderCommandError(`No runner is wired for ${parsedCommand.command}.`);
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Command unavailable</strong><br />No runner is wired for <code>${escapeHtml(parsedCommand.command)}</code>.`,
+        bar: "Command Unavailable",
+        terminal: `[ai-command] no runner for ${parsedCommand.command}`,
+      });
+      updateReport({ status: "failed" });
+      return;
+    }
+
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> searches the bounded matter context.`,
+      bar: "Command Matched",
+      terminal: `[ai-command] ${userRequest} -> ${parsedCommand.command}`,
+    });
+    await runSearch({
+      command: parsedCommand.command,
+      query: parsedCommand.query,
+      typedInput: userRequest,
+    });
   }
 
   function showMatterStatus(userRequest) {
@@ -552,12 +595,30 @@ export function createAiCommandBox(ctx, options = {}) {
 export function parseDeterministicCommand(input) {
   const normalized = normalizeCommandInput(input);
   if (!normalized) return null;
+  const searchCommand = parseSearchCommand(normalized);
+  if (searchCommand) return searchCommand;
   if (STATUS_ALIASES.has(normalized)) return { type: "status" };
   const lanePath = LANE_COMMANDS.get(normalized);
   if (lanePath) return { type: "lane", input: normalized, lanePath };
   if (SLASH_COMMANDS.has(normalized)) return { type: "skill", command: normalized };
   const aliasCommand = COMMAND_ALIASES.get(normalized);
   if (aliasCommand) return { type: "skill", command: aliasCommand };
+  return null;
+}
+
+function parseSearchCommand(normalized) {
+  if (normalized === "search" || normalized === "find" || normalized === "/context_search") {
+    return { type: "search", command: "/context_search", query: "" };
+  }
+  for (const prefix of ["search ", "find ", "/context_search "]) {
+    if (normalized.startsWith(prefix)) {
+      return {
+        type: "search",
+        command: "/context_search",
+        query: normalized.slice(prefix.length).trim(),
+      };
+    }
+  }
   return null;
 }
 

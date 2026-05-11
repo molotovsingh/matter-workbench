@@ -211,6 +211,13 @@ export async function handleApiRequest({ request, requestUrl, response, services
     return true;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/matter-context/search") {
+    sendJson(response, 200, await matterContextService.searchMatterContext({
+      query: requestUrl.searchParams.get("q") || "",
+    }));
+    return true;
+  }
+
   if (request.method === "GET" && requestUrl.pathname === "/api/matter-context") {
     sendJson(response, 200, await matterContextService.readMatterContextPreview());
     return true;

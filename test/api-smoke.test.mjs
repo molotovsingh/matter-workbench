@@ -173,6 +173,7 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.ok(Array.isArray(skills.skills));
     assert.equal(skills.builtins, undefined);
     assert.ok(skills.skills.some((skill) => skill.slash === "/context_preview"));
+    assert.ok(skills.skills.some((skill) => skill.slash === "/context_search"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
     assert.equal(
@@ -185,6 +186,12 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(contextPreview.counts.evidence_blocks_included, 1);
     assert.ok(contextPreview.top_sources[0].sample_citations.includes("FILE-0001 p1.b1"));
     assert.doesNotMatch(JSON.stringify(contextPreview), /Smoke event on 20 April 2026/);
+    const contextSearch = await getJson(baseUrl, `/api/matter-context/search?q=${encodeURIComponent("smoke event")}`);
+    assert.equal(contextSearch.schema_version, "matter-context-search/v1");
+    assert.equal(contextSearch.counts.matches, 1);
+    assert.equal(contextSearch.results[0].citation, "FILE-0001 p1.b1");
+    assert.equal(contextSearch.results[0].source_short_label, "Smoke event note, 20 April 2026");
+    assert.match(contextSearch.results[0].snippet, /Smoke event/);
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
       userRequest: "Create a new list of dates skill",
     });

@@ -10,6 +10,7 @@ const EXPECTED_SLASHES = [
   "/extract",
   "/describe_sources",
   "/context_preview",
+  "/context_search",
   "/create_listofdates",
   "/doctor",
 ];
@@ -27,6 +28,7 @@ test("skill registry reads all built-in skill stubs", async () => {
     "built-in-skill/v1",
     "built-in-skill/v1",
     "built-in-skill/v1",
+    "built-in-skill/v1",
   ]);
 
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
@@ -38,6 +40,10 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(contextPreview.paid_provider_call, false);
   assert.equal(contextPreview.rerun_guarded, false);
   assert.equal(contextPreview.category, "Review");
+  const contextSearch = registry.skills.find((skill) => skill.slash === "/context_search");
+  assert.equal(contextSearch.paid_provider_call, false);
+  assert.equal(contextSearch.rerun_guarded, false);
+  assert.equal(contextSearch.category, "Review");
   assert.equal(listOfDates.category, "Analyze");
   assert.equal(listOfDates.mode, "AI");
   assert.equal(listOfDates.markdown_first, true);

@@ -20,6 +20,7 @@
     "extract",
     "describe_sources",
     "context_preview",
+    "context_search",
     "create_listofdates",
     "doctor"
   ],
@@ -112,6 +113,28 @@
       "outputs": [
         "matter context preview",
         "copyable context report"
+      ],
+      "upstream": [
+        "/extract"
+      ],
+      "downstream": [],
+      "mode": "deterministic",
+      "source_backed": "required",
+      "legal_setting_scope": "general",
+      "markdown_first": false,
+      "version": 1
+    },
+    {
+      "id": "context_search",
+      "slash": "/context_search",
+      "category": "Review",
+      "purpose": "Search the bounded matter context packet locally and return source labels plus raw citations without calling an AI provider.",
+      "inputs": [
+        "matter-context-packet/v1"
+      ],
+      "outputs": [
+        "context search results",
+        "copyable search report"
       ],
       "upstream": [
         "/extract"
