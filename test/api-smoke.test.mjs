@@ -180,6 +180,20 @@ test("server API smoke test keeps public routes stable", async () => {
       skills.skills.find((skill) => skill.slash === "/create_listofdates").runner_key,
       "/create_listofdates",
     );
+    const initialIdeas = await getJson(baseUrl, "/api/skill-ideas");
+    assert.equal(initialIdeas.schema_version, "skill-ideas/v1");
+    assert.deepEqual(initialIdeas.ideas, []);
+    const savedIdea = await postJson(baseUrl, "/api/skill-ideas", {
+      text: "create a skill to summarize pleadings",
+    });
+    assert.equal(savedIdea.idea.text, "create a skill to summarize pleadings");
+    assert.equal(savedIdea.idea.status, "proposed");
+    assert.equal(savedIdea.idea.matter.matterName, "Smoke Matter");
+    assert.equal(savedIdea.idea.matter.folderName, "Smoke Matter");
+    const markedIdea = await postJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(savedIdea.idea.id)}/status`, {
+      status: "marked_for_future",
+    });
+    assert.equal(markedIdea.idea.status, "marked_for_future");
     const contextPreview = await getJson(baseUrl, "/api/matter-context");
     assert.equal(contextPreview.schema_version, "matter-context-preview/v1");
     assert.equal(contextPreview.counts.sources, 1);
