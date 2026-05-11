@@ -168,8 +168,16 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(listRerunAdvice.shouldConfirm, true);
     assert.equal(listRerunAdvice.artifactPath, "10_Library/List of Dates.md");
     const skills = await getJson(baseUrl, "/api/skills");
+    assert.equal(skills.schema_version, "skill-registry/v1");
+    assert.ok(Array.isArray(skills.categories));
+    assert.ok(Array.isArray(skills.skills));
+    assert.equal(skills.builtins, undefined);
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
+    assert.equal(
+      skills.skills.find((skill) => skill.slash === "/create_listofdates").runner_key,
+      "/create_listofdates",
+    );
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
       userRequest: "Create a new list of dates skill",
     });

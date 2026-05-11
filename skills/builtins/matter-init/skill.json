@@ -1,0 +1,33 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "matter-init",
+  "slash": "/matter-init",
+  "title": "Matter Init",
+  "category": "Ingest",
+  "purpose": "Create deterministic matter intake structure, preserve originals, classify working copies, detect duplicates, and write matter metadata.",
+  "mode": "deterministic",
+  "matter_required": false,
+  "paid_provider_call": false,
+  "rerun_guarded": false,
+  "source_backed": "not_applicable",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "source files",
+    "matter metadata"
+  ],
+  "outputs": [
+    "matter.json",
+    "00_Inbox/*/File Register.csv",
+    "00_Inbox/*/Intake Log.csv",
+    "00_Inbox/*/Originals",
+    "00_Inbox/*/By Type"
+  ],
+  "upstream": [],
+  "downstream": [
+    "/extract"
+  ],
+  "default_lane": "00_Inbox",
+  "runner_key": "/matter-init",
+  "version": 1
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "extract",
+  "slash": "/extract",
+  "title": "Extract",
+  "category": "Extract",
+  "purpose": "Convert supported working-copy documents into stable source-backed extraction records and text companions.",
+  "mode": "deterministic",
+  "matter_required": true,
+  "paid_provider_call": false,
+  "rerun_guarded": false,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "00_Inbox/*/File Register.csv",
+    "working copy files"
+  ],
+  "outputs": [
+    "extraction-record/v1",
+    "00_Inbox/*/_extracted/*.json",
+    "00_Inbox/*/_extracted/*.txt",
+    "00_Inbox/*/Extraction Log.csv"
+  ],
+  "upstream": [
+    "/matter-init"
+  ],
+  "downstream": [
+    "/describe_sources",
+    "/create_listofdates"
+  ],
+  "default_lane": "00_Inbox",
+  "runner_key": "/extract",
+  "version": 1
+}

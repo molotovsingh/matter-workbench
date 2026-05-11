@@ -1,0 +1,35 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "create_listofdates",
+  "slash": "/create_listofdates",
+  "title": "Create List of Dates",
+  "category": "Analyze",
+  "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",
+  "mode": "AI",
+  "matter_required": true,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": true,
+  "inputs": [
+    "extraction-record/v1",
+    "10_Library/Source Index.json"
+  ],
+  "outputs": [
+    "10_Library/List of Dates.md",
+    "10_Library/List of Dates.csv",
+    "10_Library/List of Dates.json"
+  ],
+  "upstream": [
+    "/extract"
+  ],
+  "downstream": [
+    "/extract_claims",
+    "/draft_petition",
+    "/review_chronology"
+  ],
+  "default_lane": "10_Library",
+  "runner_key": "/create_listofdates",
+  "version": 1
+}
