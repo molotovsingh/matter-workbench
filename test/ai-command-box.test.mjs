@@ -14,6 +14,13 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("list of dates"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("doctor"), { type: "skill", command: "/doctor" });
+  assert.deepEqual(parseDeterministicCommand("open inbox"), { type: "lane", input: "open inbox", lanePath: "00_Inbox" });
+  assert.deepEqual(parseDeterministicCommand("open library"), { type: "lane", input: "open library", lanePath: "10_Library" });
+  assert.deepEqual(parseDeterministicCommand("show library"), { type: "lane", input: "show library", lanePath: "10_Library" });
+  assert.deepEqual(parseDeterministicCommand("open workshop"), { type: "lane", input: "open workshop", lanePath: "20_Workshop" });
+  assert.deepEqual(parseDeterministicCommand("open drafts"), { type: "lane", input: "open drafts", lanePath: "30_Drafts" });
+  assert.deepEqual(parseDeterministicCommand("show drafts"), { type: "lane", input: "show drafts", lanePath: "30_Drafts" });
+  assert.deepEqual(parseDeterministicCommand("open dispatch"), { type: "lane", input: "open dispatch", lanePath: "40_Dispatch" });
   assert.deepEqual(parseDeterministicCommand("show status"), { type: "status" });
   assert.deepEqual(parseDeterministicCommand("status"), { type: "status" });
 });
@@ -88,6 +95,59 @@ test("command box status command renders matter overview without running a skill
   assert.deepEqual(calls, []);
   assert.equal(ctx.renderedOverview, true);
   assert.equal(ctx.statusCalls.at(-1).bar, "Matter Status");
+});
+
+test("command box opens workspace lanes without running a skill", async () => {
+  const calls = [];
+  const openedLanes = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "open library",
+    openWorkspaceLane: (lanePath) => {
+      openedLanes.push(lanePath);
+      ctx.setStatus({
+        bar: "Lane Opened",
+        terminal: `[workspace] opened ${lanePath}`,
+      });
+      return { ok: true };
+    },
+  });
+  const box = createAiCommandBox(ctx, {
+    skillDispatch: {
+      "/create_listofdates": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(calls, []);
+  assert.deepEqual(openedLanes, ["10_Library"]);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Lane Opened");
+});
+
+test("command box lane command asks for a matter before opening lanes", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "show drafts",
+    activeMatter: { folderName: "" },
+    openWorkspaceLane: (lanePath) => {
+      ctx.setStatus({
+        bar: "No Matter",
+        terminal: `[workspace] lane requested without active matter: ${lanePath}`,
+      });
+      return { ok: false, reason: "no_matter" };
+    },
+  });
+  const box = createAiCommandBox(ctx);
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.statusCalls.at(-1).bar, "No Matter");
+  assert.match(ctx.elements.terminalOutput.textContent, /without active matter/);
 });
 
 test("command box keyboard suggestion selection fills and runs the command", async () => {
@@ -206,7 +266,12 @@ test("command report records paid rerun cancellation without running a new artif
   assert.match(copied, /\[listofdates\] rerun cancelled by user/);
 });
 
-function fakeCtx({ form, inputValue }) {
+function fakeCtx({
+  form,
+  inputValue,
+  activeMatter = { folderName: "Demo Matter" },
+  openWorkspaceLane,
+}) {
   const statusCalls = [];
   const terminalOutput = { textContent: "" };
   const statusBarRight = { textContent: "" };
@@ -226,7 +291,8 @@ function fakeCtx({ form, inputValue }) {
       statusBarRight,
       terminalOutput,
     },
-    getActiveMatter: () => ({ folderName: "Demo Matter" }),
+    getActiveMatter: () => activeMatter,
+    openWorkspaceLane,
     renderSkillOverview() {
       this.renderedOverview = true;
     },

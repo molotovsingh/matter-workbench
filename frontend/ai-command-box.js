@@ -42,6 +42,16 @@ const COMMAND_ALIASES = new Map([
   ["doctor", "/doctor"],
 ]);
 
+const LANE_COMMANDS = new Map([
+  ["open inbox", "00_Inbox"],
+  ["open library", "10_Library"],
+  ["show library", "10_Library"],
+  ["open workshop", "20_Workshop"],
+  ["open drafts", "30_Drafts"],
+  ["show drafts", "30_Drafts"],
+  ["open dispatch", "40_Dispatch"],
+]);
+
 const STATUS_ALIASES = new Set(["show status", "status"]);
 
 export function createAiCommandBox(ctx, options = {}) {
@@ -107,16 +117,21 @@ export function createAiCommandBox(ctx, options = {}) {
   async function runDeterministicCommand(parsedCommand, userRequest) {
     startReport({
       typedInput: userRequest,
-      matchedCommand: parsedCommand.command || "status",
+      matchedCommand: parsedCommand.command || parsedCommand.input || "status",
       status: "pending",
     });
     aiCommandSubmit.disabled = true;
-    aiCommandSubmit.textContent = parsedCommand.type === "status" ? "Opening..." : "Running...";
+    aiCommandSubmit.textContent = parsedCommand.type === "skill" ? "Running..." : "Opening...";
     const restoreStatus = captureStatusDuringCommand();
     try {
       if (parsedCommand.type === "status") {
         showMatterStatus(userRequest);
         updateReport({ status: "ran" });
+        return;
+      }
+      if (parsedCommand.type === "lane") {
+        const result = showWorkspaceLane(parsedCommand, userRequest);
+        updateReport({ status: result?.ok ? "ran" : "failed" });
         return;
       }
 
@@ -155,6 +170,27 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
+  }
+
+  function showWorkspaceLane(parsedCommand, userRequest) {
+    if (!ctx.openWorkspaceLane) {
+      renderCommandError("Workspace lane navigation is unavailable.");
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Command unavailable</strong><br />Workspace lane navigation is not wired.",
+        bar: "Command Unavailable",
+        terminal: `[ai-command] lane navigation unavailable for ${parsedCommand.lanePath}`,
+      });
+      return { ok: false, reason: "unwired" };
+    }
+
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> opens <code>${escapeHtml(parsedCommand.lanePath)}</code>.`,
+      bar: "Command Matched",
+      terminal: `[ai-command] ${userRequest} -> ${parsedCommand.lanePath}`,
+    });
+    return ctx.openWorkspaceLane(parsedCommand.lanePath);
   }
 
   function showMatterStatus(userRequest) {
@@ -510,6 +546,8 @@ export function parseDeterministicCommand(input) {
   const normalized = normalizeCommandInput(input);
   if (!normalized) return null;
   if (STATUS_ALIASES.has(normalized)) return { type: "status" };
+  const lanePath = LANE_COMMANDS.get(normalized);
+  if (lanePath) return { type: "lane", input: normalized, lanePath };
   if (SLASH_COMMANDS.has(normalized)) return { type: "skill", command: normalized };
   const aliasCommand = COMMAND_ALIASES.get(normalized);
   if (aliasCommand) return { type: "skill", command: aliasCommand };

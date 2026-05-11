@@ -1,5 +1,5 @@
 import { escapeHtml, formatBytes } from "./dom-utils.js";
-import { workspaceLaneLabel } from "../shared/workspace-lanes.mjs";
+import { MATTER_WORKSPACE_LANES, workspaceLaneLabel } from "../shared/workspace-lanes.mjs";
 
 export function renderTreeNode(node, depth = 0) {
   if (node.kind === "file") {
@@ -32,7 +32,7 @@ export function renderTreeNode(node, depth = 0) {
 
   return `
     <li class="tree-node tree-directory">
-      <details${open}>
+      <details${open} data-directory-path="${escapeHtml(node.path || "")}">
         <summary>
           <span class="tree-name">${escapeHtml(displayName)}${depth === 0 ? "" : "/"}${canonicalName}</span>
           ${childCount}
@@ -127,7 +127,115 @@ export function createWorkspaceView(ctx) {
     }
   }
 
-  return { openFilePreview, renderWorkspaceTree };
+  function openWorkspaceLane(lanePath) {
+    const activeMatter = ctx.getActiveMatter();
+    const lane = MATTER_WORKSPACE_LANES.find((candidate) => candidate.path === lanePath);
+    const laneLabel = lane?.label || workspaceLaneLabel(lanePath, lanePath);
+
+    if (!activeMatter.folderName) {
+      breadcrumbs.textContent = "workbench";
+      editorContent.innerHTML = `
+        <h1>${escapeHtml(laneLabel)}</h1>
+        <p class="form-error">Pick a matter first.</p>
+      `;
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before opening a workspace lane.",
+        bar: "No Matter",
+        terminal: `[workspace] lane requested without active matter: ${lanePath}`,
+      });
+      return { ok: false, reason: "no_matter" };
+    }
+
+    const laneNode = findTreeNodeByPath(activeMatter.tree, lanePath);
+    breadcrumbs.textContent = `${activeMatter.folderName} > ${lanePath}`;
+
+    if (!laneNode) {
+      editorContent.innerHTML = `
+        <h1>${escapeHtml(laneLabel)}</h1>
+        <p><code>${escapeHtml(lanePath)}</code></p>
+        <p class="form-error">This lane folder is missing from the active matter.</p>
+      `;
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Lane missing</strong><br /><code>${escapeHtml(lanePath)}</code> was not found in this matter.`,
+        bar: "Lane Missing",
+        terminal: `[workspace] missing lane ${lanePath}`,
+      });
+      return { ok: false, reason: "missing_lane" };
+    }
+
+    expandWorkspaceLane(workspaceTree, lanePath);
+    editorContent.innerHTML = renderWorkspaceLaneView(lane, laneNode);
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>${escapeHtml(laneLabel)}</strong><br />Opened <code>${escapeHtml(lanePath)}</code> without running a skill.`,
+      bar: "Lane Opened",
+      terminal: `[workspace] opened ${lanePath}`,
+    });
+    return { ok: true, empty: !(laneNode.children || []).length };
+  }
+
+  return { openFilePreview, openWorkspaceLane, renderWorkspaceTree };
+}
+
+export function findTreeNodeByPath(node, relativePath) {
+  if (!node) return null;
+  const target = String(relativePath || "").replace(/\\/g, "/");
+  const current = String(node.path || "").replace(/\\/g, "/");
+  if (current === target) return node;
+  for (const child of node.children || []) {
+    const found = findTreeNodeByPath(child, target);
+    if (found) return found;
+  }
+  return null;
+}
+
+export function renderWorkspaceLaneView(lane, laneNode) {
+  const children = laneNode?.children || [];
+  const label = lane?.label || workspaceLaneLabel(laneNode?.path, laneNode?.name || "Workspace Lane");
+  const path = lane?.path || laneNode?.path || "";
+  const purpose = lane?.purpose || "matter workspace files";
+  const files = children.filter((child) => child.kind === "file").length;
+  const folders = children.filter((child) => child.kind !== "file").length;
+  const contents = children.length
+    ? `
+      <ul class="lane-preview-list">
+        ${children.slice(0, 16).map((child) => `
+          <li class="lane-preview-item">
+            <span>${escapeHtml(child.kind === "file" ? "File" : "Folder")}</span>
+            <strong>${escapeHtml(child.name || child.path || "Untitled")}</strong>
+            ${child.size === undefined ? "" : `<code>${formatBytes(child.size)}</code>`}
+          </li>
+        `).join("")}
+      </ul>
+      ${children.length > 16 ? `<p class="muted">Showing 16 of ${children.length} entries.</p>` : ""}
+    `
+    : '<p class="muted">This lane is empty.</p>';
+
+  return `
+    <h1>${escapeHtml(label)}</h1>
+    <p><code>${escapeHtml(path)}</code></p>
+    <section class="lane-preview-card">
+      <p>${escapeHtml(purpose)}</p>
+      <div class="lane-preview-meta">
+        <span>${files} files</span>
+        <span>${folders} folders</span>
+      </div>
+      ${contents}
+    </section>
+  `;
+}
+
+function expandWorkspaceLane(workspaceTree, lanePath) {
+  if (!workspaceTree?.querySelectorAll) return;
+  const detailsElements = workspaceTree.querySelectorAll("[data-directory-path]");
+  for (const details of detailsElements) {
+    if (details.dataset?.directoryPath !== lanePath) continue;
+    details.open = true;
+    details.scrollIntoView?.({ block: "nearest" });
+    return;
+  }
 }
 
 export function renderListOfDatesPreviewActions(filePath, escape) {
