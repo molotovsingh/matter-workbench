@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
+import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
@@ -29,6 +30,7 @@ export async function createWorkbenchServer(options = {}) {
     configService,
     initialMatterRoot: options.matterRoot || env.MATTER_ROOT || null,
   });
+  const matterStatusService = createMatterStatusService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
   const uploadService = createUploadService({ matterStore, workspaceService });
   const aiSettingsService = createAiSettingsService({ appDir, env });
@@ -47,6 +49,7 @@ export async function createWorkbenchServer(options = {}) {
     configService,
     env,
     matterStore,
+    matterStatusService,
     skillRegistryService,
     skillRouterService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,
