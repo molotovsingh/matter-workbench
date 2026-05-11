@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createAiCommandBox,
+  listSlashCommandSuggestions,
   parseDeterministicCommand,
 } from "../frontend/ai-command-box.js";
 
@@ -21,6 +22,19 @@ test("command parser does not fuzzy-match unsupported text", () => {
   assert.equal(parseDeterministicCommand("please extract this"), null);
   assert.equal(parseDeterministicCommand("/describe-sources"), null);
   assert.equal(parseDeterministicCommand("create a list of dates skill"), null);
+});
+
+test("slash command suggestions are explicit and description-backed", () => {
+  assert.deepEqual(
+    listSlashCommandSuggestions("/").map((suggestion) => suggestion.command),
+    ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/doctor"],
+  );
+  assert.deepEqual(
+    listSlashCommandSuggestions("/de").map((suggestion) => suggestion.command),
+    ["/describe_sources"],
+  );
+  assert.equal(listSlashCommandSuggestions("chronology").length, 0);
+  assert.match(listSlashCommandSuggestions("/create")[0].description, /chronology/i);
 });
 
 test("command box dispatches deterministic slash commands through injected skill runners", async () => {
@@ -74,6 +88,26 @@ test("command box status command renders matter overview without running a skill
   assert.deepEqual(calls, []);
   assert.equal(ctx.renderedOverview, true);
   assert.equal(ctx.statusCalls.at(-1).bar, "Matter Status");
+});
+
+test("command box keyboard suggestion selection fills and runs the command", async () => {
+  const calls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "/" });
+  const box = createAiCommandBox(ctx, {
+    skillDispatch: {
+      "/extract": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await ctx.elements.aiCommandInput.fire("input");
+  await ctx.elements.aiCommandInput.keydown("ArrowDown");
+  await ctx.elements.aiCommandInput.keydown("Enter");
+
+  assert.deepEqual(calls, ["/extract"]);
+  assert.equal(ctx.elements.aiCommandInput.value, "/extract");
+  assert.equal(ctx.elements.aiCommandSuggestions.hidden, true);
 });
 
 test("command box copies a safe markdown report for the latest command", async () => {
@@ -176,13 +210,15 @@ function fakeCtx({ form, inputValue }) {
   const statusCalls = [];
   const terminalOutput = { textContent: "" };
   const statusBarRight = { textContent: "" };
+  const aiCommandInput = fakeInput(inputValue);
   return {
     renderedOverview: false,
     statusCalls,
     elements: {
       aiCommandForm: form,
-      aiCommandInput: { value: inputValue },
+      aiCommandInput,
       aiCommandSubmit: { disabled: false, textContent: "Go" },
+      aiCommandSuggestions: fakeSuggestions(),
       aiCommandCopyReport: fakeButton(),
       aiCommandReportStatus: fakeClassedText(),
       breadcrumbs: { textContent: "" },
@@ -203,6 +239,47 @@ function fakeCtx({ form, inputValue }) {
           ? `${terminalOutput.textContent}\n${lines.join("\n")}`
           : lines.join("\n");
       }
+    },
+  };
+}
+
+function fakeInput(value) {
+  const listeners = new Map();
+  return {
+    value,
+    addEventListener(event, handler) {
+      listeners.set(event, handler);
+    },
+    async fire(event) {
+      if (listeners.has(event)) await listeners.get(event)({});
+    },
+    async keydown(key) {
+      if (!listeners.has("keydown")) return;
+      await listeners.get("keydown")({
+        key,
+        preventDefault() {},
+      });
+    },
+  };
+}
+
+function fakeSuggestions() {
+  return {
+    hidden: true,
+    _innerHTML: "",
+    buttons: [],
+    set innerHTML(value) {
+      this._innerHTML = value;
+      this.buttons = Array.from(value.matchAll(/data-command-suggestion="([^"]+)"/g)).map((match) => ({
+        dataset: { commandSuggestion: match[1] },
+        addEventListener() {},
+      }));
+    },
+    get innerHTML() {
+      return this._innerHTML;
+    },
+    querySelectorAll() {
+      return this.buttons;
     },
   };
 }
