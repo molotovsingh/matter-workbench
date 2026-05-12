@@ -42,6 +42,19 @@ test("skill idea interview detects adjacent list-of-dates improvement", () => {
   );
 });
 
+test("skill idea interview treats pleading summary as a new skill, not list-of-dates modification", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "make a new skill that summarises the best case pleadings for the lawyer",
+    idea: "summarises the best case pleadings for the lawyer",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.targetSkill, "");
+  assert.equal(interview.designBrief.targetLane, "20_Workshop");
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
+  assert.doesNotMatch(interview.understood, /Create List of Dates/);
+});
+
 test("adaptive skill idea parser catches adjacent improvement requests without skill wording", () => {
   assert.deepEqual(parseAdaptiveSkillIdeaInput("can list of dates also flag limitation issues"), {
     type: "skill_idea",

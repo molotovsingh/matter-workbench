@@ -1043,6 +1043,87 @@ summary {
   font-size: 12px;
 }
 
+.command-panel-session {
+  margin-top: 12px;
+}
+
+.command-interview {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 12px;
+}
+
+.command-interview h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.command-interview-question {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.command-interview-question strong {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.command-interview-question p {
+  margin: 4px 0;
+}
+
+.command-interview-answers {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.command-interview-answers li {
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.command-interview-answers li span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.command-interview-answers li strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.command-interview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.command-interview-actions button {
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 9px;
+}
+
+.command-interview-actions button:not(.secondary) {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .ai-command-form input {
   width: 100%;
   min-width: 0;
