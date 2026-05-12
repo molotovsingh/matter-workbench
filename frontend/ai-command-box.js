@@ -91,6 +91,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const now = options.now || (() => new Date());
   const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
   const loadSkillRegistry = options.loadSkillRegistry || (() => getJson("/api/skills"));
+  const checkSkillIntent = options.checkSkillIntent || ((body) => postJson("/api/skills/check-intent", body));
   const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
   const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
   const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
@@ -333,7 +334,6 @@ export function createAiCommandBox(ctx, options = {}) {
     });
     aiCommandSubmit.disabled = true;
     aiCommandSubmit.textContent = "Checking...";
-    breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
       card: "<strong>Command</strong><br />Checking this future skill idea against the current skill list.",
@@ -342,11 +342,11 @@ export function createAiCommandBox(ctx, options = {}) {
     });
 
     try {
-      const decision = await postJson("/api/skills/check-intent", {
+      const decision = await checkSkillIntent({
         userRequest,
         overrideJustification,
       });
-      renderCommandDecision({ userRequest, overrideJustification, decision });
+      renderCommandRailDecision({ userRequest, overrideJustification, decision });
       updateReport({
         status: "checked",
         routerDecision: decision.decision || "",
@@ -359,7 +359,7 @@ export function createAiCommandBox(ctx, options = {}) {
         terminal: `[ai-command] ${decision.decision}${decision.matched_skill ? ` -> ${decision.matched_skill}` : ""}`,
       });
     } catch (error) {
-      renderCommandError(error.message);
+      renderCommandRailError(error.message);
       updateReport({ status: "failed", error: error.message });
       ctx.setStatus({
         mood: "idle",
@@ -393,20 +393,12 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandInput.value = "";
     aiCommandInput.placeholder = "Answer the current question";
     aiCommandSubmit.textContent = "Answer";
-    breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
       card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
       bar: "Skill Idea Interview",
       terminal: `[skill-ideas] interview opened: ${userRequest}`,
     });
-    editorContent.innerHTML = `
-      <h1>Command</h1>
-      <section class="skill-router-result">
-        <h2>Skill idea interview</h2>
-        <p>The active interview is in the Command rail. This is not runnable yet and will not call a provider.</p>
-      </section>
-    `;
     renderSkillIdeaSession();
   }
 
@@ -521,7 +513,6 @@ export function createAiCommandBox(ctx, options = {}) {
         ? await updateSkillIdeaDesignBrief(existingIdea.id, payloadBody.designBrief)
         : await saveSkillIdea(payloadBody);
       const idea = payload.idea || {};
-      renderSavedSkillIdea({ idea, userRequest: interview.originalText });
       session.savedIdea = idea;
       session.editingSavedIdea = false;
       session.ready = true;
@@ -857,25 +848,6 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  function renderSavedSkillIdea({ idea, userRequest }) {
-    breadcrumbs.textContent = "command";
-    const matter = idea.matter || {};
-    editorContent.innerHTML = `
-      <h1>Command</h1>
-      <section class="skill-router-result">
-        <h2>Saved as skill idea</h2>
-        <p><code>${escapeHtml(userRequest)}</code></p>
-        <p>This is a proposal record only. It did not create a skill, run a provider, allocate a slash command, or change built-in skills. Continue in the Command rail to copy the review packet, mark ready, edit answers, or open Skills.</p>
-        <dl class="skill-card-meta">
-          <div><dt>Status</dt><dd>${escapeHtml(idea.status || "incomplete")}</dd></div>
-          <div><dt>Created</dt><dd>${escapeHtml(idea.createdAt || "")}</dd></div>
-          <div><dt>Matter</dt><dd>${escapeHtml(matter.matterName || matter.folderName || "None")}</dd></div>
-          <div><dt>Folder</dt><dd>${escapeHtml(matter.folderName || "None")}</dd></div>
-        </dl>
-      </section>
-    `;
-  }
-
   function renderCommandDecision({ userRequest, overrideJustification, decision }) {
     editorContent.innerHTML = `
       <h1>Command</h1>
@@ -924,11 +896,119 @@ export function createAiCommandBox(ctx, options = {}) {
     });
   }
 
+  function renderCommandRailDecision({ userRequest, overrideJustification, decision }) {
+    if (!aiCommandSession) {
+      renderCommandDecision({ userRequest, overrideJustification, decision });
+      return;
+    }
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = renderInlineRouterDecision({ userRequest, overrideJustification, decision });
+    wireCommandRailDecisionActions({ userRequest, decision });
+  }
+
+  function renderInlineRouterDecision({ userRequest, overrideJustification, decision }) {
+    const matchedSkill = decision.matched_skill || "none";
+    const confidence = Number.isFinite(decision.confidence)
+      ? `${Math.round(decision.confidence * 100)}%`
+      : "n/a";
+    const gateActions = decision.user_gate_required ? `
+      <button type="button" class="secondary" data-command-router-action="approve">Approve modification</button>
+      <button type="button" class="secondary" data-command-router-action="justify">Justify new skill</button>
+    ` : "";
+    return `
+      <section class="command-interview command-router-result" aria-live="polite">
+        <h3>Router/check result</h3>
+        <p class="muted">This response stays in the Command rail. Nothing ran.</p>
+        <p><code>${escapeHtml(userRequest)}</code></p>
+        <dl class="skill-card-meta">
+          <div><dt>Decision</dt><dd>${escapeHtml(decision.decision || "")}</dd></div>
+          <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>
+          <div><dt>Matched skill</dt><dd><code>${escapeHtml(matchedSkill)}</code></dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(confidence)}</dd></div>
+          <div><dt>Reason</dt><dd>${escapeHtml(decision.reason || "")}</dd></div>
+          <div><dt>Next action</dt><dd>${escapeHtml(decision.suggested_next_action || "")}</dd></div>
+        </dl>
+        <form class="ai-command-override-form" data-command-router-override hidden>
+          <label>
+            <span>Override justification</span>
+            <textarea data-command-router-override-input spellcheck="true" placeholder="Explain the distinct purpose, input, output, workflow stage, legal setting, or audience.">${escapeHtml(overrideJustification || "")}</textarea>
+          </label>
+          <div class="command-interview-actions">
+            <button type="submit">Re-check</button>
+          </div>
+          <div class="form-error" data-command-router-override-error hidden></div>
+        </form>
+        <div class="command-interview-actions">
+          ${gateActions}
+          <button type="button" class="secondary" data-command-router-action="open-full">Open full result</button>
+        </div>
+        <div class="form-note" data-command-router-message></div>
+      </section>
+    `;
+  }
+
+  function wireCommandRailDecisionActions({ userRequest, decision }) {
+    if (!aiCommandSession?.querySelectorAll) return;
+    const message = aiCommandSession.querySelector?.("[data-command-router-message]");
+    const overrideForm = aiCommandSession.querySelector?.("[data-command-router-override]");
+    const overrideInput = aiCommandSession.querySelector?.("[data-command-router-override-input]");
+    const overrideError = aiCommandSession.querySelector?.("[data-command-router-override-error]");
+    aiCommandSession.querySelectorAll("[data-command-router-action]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.commandRouterAction;
+        if (action === "approve") {
+          if (message) {
+            message.textContent = decision.matched_skill
+              ? `Approved locally: this should become a modification request for ${decision.matched_skill}.`
+              : "Approved locally: this should become a modification request.";
+          }
+          return;
+        }
+        if (action === "justify") {
+          if (overrideForm) overrideForm.hidden = false;
+          overrideInput?.focus?.();
+          if (message) message.textContent = "Add an override justification, then re-check.";
+          return;
+        }
+        if (action === "open-full") {
+          renderCommandDecision({ userRequest, overrideJustification: overrideInput?.value?.trim?.() || "", decision });
+        }
+      });
+    });
+    overrideForm?.addEventListener?.("submit", async (event) => {
+      event.preventDefault();
+      const nextJustification = overrideInput?.value?.trim?.() || "";
+      if (!nextJustification) {
+        if (overrideError) {
+          overrideError.textContent = "Override justification is required.";
+          overrideError.hidden = false;
+        }
+        return;
+      }
+      if (overrideError) overrideError.hidden = true;
+      await checkIntent({ userRequest, overrideJustification: nextJustification });
+    });
+  }
+
   function renderCommandError(message) {
     breadcrumbs.textContent = "command";
     editorContent.innerHTML = `
       <h1>Command</h1>
       <p class="form-error">${escapeHtml(message)}</p>
+    `;
+  }
+
+  function renderCommandRailError(message) {
+    if (!aiCommandSession) {
+      renderCommandError(message);
+      return;
+    }
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Command check failed</h3>
+        <p class="form-error">${escapeHtml(message)}</p>
+      </section>
     `;
   }
 
@@ -1231,9 +1311,10 @@ export function parseSkillIdeaInput(input) {
   if (!raw) return null;
   const normalized = normalizeCommandInput(raw);
   const patterns = [
-    /^create a skil{1,2} to (.+)$/,
-    /^make a new skil{1,2} that (.+)$/,
-    /^make a skil{1,2} that (.+)$/,
+    /^create a new skil{1,2} (?:for|to) (.+)$/,
+    /^create a skil{1,2} (?:for|to) (.+)$/,
+    /^make a new skil{1,2} (?:for|that) (.+)$/,
+    /^make a skil{1,2} (?:for|that) (.+)$/,
     /^new skil{1,2} (.+)$/,
     /^i need a skil{1,2} that (.+)$/,
     /^can we make a skil{1,2} for (.+)$/,

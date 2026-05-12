@@ -44,41 +44,27 @@ test("command parser does not fuzzy-match unsupported text", () => {
 });
 
 test("skill idea parser detects explicit proposal phrases only", () => {
-  assert.deepEqual(parseSkillIdeaInput("create a skill to summarize pleadings"), {
-    type: "skill_idea",
-    text: "create a skill to summarize pleadings",
-    idea: "summarize pleadings",
-  });
-  assert.deepEqual(parseSkillIdeaInput("create a skil to summarise the best case pleadings"), {
-    type: "skill_idea",
-    text: "create a skil to summarise the best case pleadings",
-    idea: "summarise the best case pleadings",
-  });
-  assert.deepEqual(parseSkillIdeaInput("make a new skill that summarises the best case pleadings for the lawyer"), {
-    type: "skill_idea",
-    text: "make a new skill that summarises the best case pleadings for the lawyer",
-    idea: "summarises the best case pleadings for the lawyer",
-  });
-  assert.deepEqual(parseSkillIdeaInput("make a skill that extracts prayer clauses"), {
-    type: "skill_idea",
-    text: "make a skill that extracts prayer clauses",
-    idea: "extracts prayer clauses",
-  });
-  assert.deepEqual(parseSkillIdeaInput("new skill bundle exhibits"), {
-    type: "skill_idea",
-    text: "new skill bundle exhibits",
-    idea: "bundle exhibits",
-  });
-  assert.deepEqual(parseSkillIdeaInput("I need a skill that checks limitation"), {
-    type: "skill_idea",
-    text: "I need a skill that checks limitation",
-    idea: "checks limitation",
-  });
-  assert.deepEqual(parseSkillIdeaInput("can we make a skill for filing bundles"), {
-    type: "skill_idea",
-    text: "can we make a skill for filing bundles",
-    idea: "filing bundles",
-  });
+  const cases = [
+    ["create a new skill for checking limitation", "checking limitation"],
+    ["create a new skill to check limitation", "check limitation"],
+    ["create a skill for filing bundles", "filing bundles"],
+    ["create a skill to summarize pleadings", "summarize pleadings"],
+    ["make a new skill for checking limitation", "checking limitation"],
+    ["make a new skill that summarises the best case pleadings for the lawyer", "summarises the best case pleadings for the lawyer"],
+    ["make a skill for extracting prayer clauses", "extracting prayer clauses"],
+    ["make a skill that extracts prayer clauses", "extracts prayer clauses"],
+    ["new skill bundle exhibits", "bundle exhibits"],
+    ["I need a skill that checks limitation", "checks limitation"],
+    ["can we make a skill for filing bundles", "filing bundles"],
+    ["create a new skil for checking if limitatation is for or against the client", "checking if limitatation is for or against the client"],
+  ];
+  for (const [input, idea] of cases) {
+    assert.deepEqual(parseSkillIdeaInput(input), {
+      type: "skill_idea",
+      text: input,
+      idea,
+    });
+  }
   assert.equal(parseSkillIdeaInput("please extract this"), null);
   assert.equal(parseSkillIdeaInput("list of dates"), null);
 });
@@ -228,10 +214,18 @@ test("command box dispatches context search aliases without provider routing", a
 
 test("command box opens deterministic skill idea interview session without running skills or router check", async () => {
   const calls = [];
+  let copied = "";
   const savedIdeas = [];
   const form = fakeForm();
-  const ctx = fakeCtx({ form, inputValue: "create a skill to summarize pleadings" });
+  const ctx = fakeCtx({ form, inputValue: "create a new skill for checking if limitation is for or against the client" });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
   const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit skill ideas");
+    },
+    writeClipboardText: async (text) => {
+      copied = text;
+    },
     saveSkillIdea: async (body) => {
       savedIdeas.push(body);
       return {
@@ -261,8 +255,61 @@ test("command box opens deterministic skill idea interview session without runni
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Temporary browser-memory session/);
-  assert.match(ctx.elements.editorContent.innerHTML, /active interview is in the Command rail/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+  await box.copyLatestReport();
+  assert.match(copied, /- Matched command: `skill_idea\/interview`/);
+});
+
+test("command box catches typo skill idea phrasing before router check", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "create a new skil for checking if limitatation is for or against the client" });
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit skill ideas");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 2/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+});
+
+test("command box renders router fallback inside the rail without replacing the central pane", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "please evaluate whether this overlaps a skill" });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async (body) => {
+      assert.equal(body.userRequest, "please evaluate whether this overlaps a skill");
+      return {
+        decision: "modification_candidate",
+        recommended_action: "Review existing skill before adding anything new.",
+        matched_skill: "/create_listofdates",
+        confidence: 0.72,
+        reason: "The request sounds close to chronology output.",
+        suggested_next_action: "Clarify whether this changes an existing skill.",
+        user_gate_required: true,
+      };
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Router\/check result/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /modification_candidate/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /72%/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Open full result/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Approve modification/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Router Ready");
 });
 
 test("command box skill idea interview session saves answers into a design brief", async () => {
@@ -357,7 +404,6 @@ test("command box skill idea interview session saves answers into a design brief
   assert.equal(savedIdeas[0].designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
   assert.match(savedIdeas[0].designBrief.notes, /Every point needs source labels and FILE citations/);
   assert.match(savedIdeas[0].designBrief.notes, /Whole matter pleadings only/);
-  assert.match(ctx.elements.editorContent.innerHTML, /Saved as skill idea/);
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Saved skill idea/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Incomplete - ready to mark for review/);
