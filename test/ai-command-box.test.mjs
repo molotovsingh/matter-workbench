@@ -268,9 +268,15 @@ test("command box opens deterministic skill idea interview session without runni
 test("command box skill idea interview session saves answers into a design brief", async () => {
   const calls = [];
   const savedIdeas = [];
+  const statusUpdates = [];
+  const designBriefUpdates = [];
+  let copied = "";
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "make a new skill that summarises the best case pleadings for the lawyer" });
   const box = createAiCommandBox(ctx, {
+    loadSkillRegistry: async () => ({
+      skills: [],
+    }),
     saveSkillIdea: async (body) => {
       savedIdeas.push(body);
       return {
@@ -279,12 +285,51 @@ test("command box skill idea interview session saves answers into a design brief
           text: body.text,
           createdAt: "2026-05-12T10:00:00.000Z",
           status: "incomplete",
+          designBrief: body.designBrief,
+          readiness: completeReadiness(),
           matter: {
             matterName: "Demo Matter",
             folderName: "Demo Matter",
           },
         },
       };
+    },
+    updateSkillIdeaDesignBrief: async (id, designBrief) => {
+      designBriefUpdates.push({ id, designBrief });
+      return {
+        idea: {
+          id,
+          text: savedIdeas[0].text,
+          createdAt: "2026-05-12T10:00:00.000Z",
+          status: "ready_for_review",
+          designBrief,
+          readiness: completeReadiness(),
+          matter: {
+            matterName: "Demo Matter",
+            folderName: "Demo Matter",
+          },
+        },
+      };
+    },
+    updateSkillIdeaStatus: async (id, status) => {
+      statusUpdates.push({ id, status });
+      return {
+        idea: {
+          id,
+          text: savedIdeas[0].text,
+          createdAt: "2026-05-12T10:00:00.000Z",
+          status,
+          designBrief: savedIdeas[0].designBrief,
+          readiness: completeReadiness(),
+          matter: {
+            matterName: "Demo Matter",
+            folderName: "Demo Matter",
+          },
+        },
+      };
+    },
+    writeClipboardText: async (text) => {
+      copied = text;
     },
     skillDispatch: {
       "/create_listofdates": async (command) => calls.push(command),
@@ -313,7 +358,37 @@ test("command box skill idea interview session saves answers into a design brief
   assert.match(savedIdeas[0].designBrief.notes, /Every point needs source labels and FILE citations/);
   assert.match(savedIdeas[0].designBrief.notes, /Whole matter pleadings only/);
   assert.match(ctx.elements.editorContent.innerHTML, /Saved as skill idea/);
-  assert.equal(ctx.elements.aiCommandSession.hidden, true);
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Saved skill idea/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Incomplete - ready to mark for review/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Review Packet/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Mark ready for review/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Open in Skills/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Start another idea/);
+
+  await box.handleCommand({ userRequest: "copy review packet" });
+  assert.match(copied, /^# Skill Idea Review Packet/);
+  assert.match(copied, /- Status: Incomplete - ready to mark for review/);
+  assert.match(copied, /This is not a runnable skill/);
+  assert.doesNotMatch(copied, /API_KEY|\.env|source document text/i);
+
+  await box.handleCommand({ userRequest: "mark ready for review" });
+  assert.deepEqual(statusUpdates, [{ id: "idea_session_1", status: "ready_for_review" }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Status<\/dt><dd>Ready for review/);
+
+  await box.handleCommand({ userRequest: "edit answers" });
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  await box.handleCommand({ userRequest: "Use exhibit labels and raw citations." });
+  await box.handleCommand({ userRequest: "Whole matter pleadings only." });
+  await box.handleCommand({ userRequest: "Civil litigation review." });
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Ready to save updates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Save updates/);
+  await box.handleCommand({ userRequest: "save updates" });
+  assert.equal(savedIdeas.length, 1);
+  assert.equal(designBriefUpdates.length, 1);
+  assert.equal(designBriefUpdates[0].id, "idea_session_1");
+  assert.match(designBriefUpdates[0].designBrief.notes, /Use exhibit labels and raw citations/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Saved skill idea/);
 });
 
 test("command box interview detects adjacent list-of-dates improvement", async () => {
@@ -524,6 +599,26 @@ function fakeCtx({
           : lines.join("\n");
       }
     },
+  };
+}
+
+function completeReadiness() {
+  const items = [
+    ["intendedUser", "Intended user present"],
+    ["problem", "Problem/job present"],
+    ["expectedInputs", "Expected inputs present"],
+    ["expectedOutputArtifact", "Expected output artifact present"],
+    ["targetLane", "Target lane selected"],
+    ["paidPosture", "Paid/free posture selected"],
+    ["riskLevel", "Risk level selected"],
+    ["notes", "Notes or acceptance criteria present"],
+  ].map(([key, label]) => ({ key, label, passed: true }));
+  return {
+    state: "ready_for_review",
+    ready: true,
+    passedCount: items.length,
+    totalCount: items.length,
+    items,
   };
 }
 
