@@ -10,6 +10,7 @@ import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-poli
 export async function handleApiRequest({ request, requestUrl, response, services }) {
   const {
     aiSettingsService,
+    commandInteractionLogService,
     configService,
     matterContextService,
     matterStore,
@@ -140,6 +141,15 @@ export async function handleApiRequest({ request, requestUrl, response, services
     sendJson(response, 200, await skillRouterService.checkIntent({
       userRequest: body.userRequest,
       overrideJustification: body.overrideJustification,
+    }));
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/command-interactions") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await commandInteractionLogService.appendInteraction({
+      ...body,
+      matter: await readActiveMatterSummary(matterStore),
     }));
     return true;
   }

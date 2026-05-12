@@ -214,6 +214,7 @@ test("command box dispatches context search aliases without provider routing", a
 
 test("command box opens deterministic skill idea interview session without running skills or router check", async () => {
   const calls = [];
+  const interactionLogs = [];
   let copied = "";
   const savedIdeas = [];
   const form = fakeForm();
@@ -223,6 +224,7 @@ test("command box opens deterministic skill idea interview session without runni
     checkSkillIntent: async () => {
       throw new Error("router/check should not be called for explicit skill ideas");
     },
+    logCommandInteraction: async (body) => interactionLogs.push(body),
     writeClipboardText: async (text) => {
       copied = text;
     },
@@ -257,8 +259,34 @@ test("command box opens deterministic skill idea interview session without runni
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Temporary browser-memory session/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+  assert.equal(interactionLogs.length, 1);
+  assert.equal(interactionLogs[0].matched_command, "skill_idea/interview");
+  assert.equal(interactionLogs[0].rendered_state, "skill_idea/interview");
+  assert.equal(interactionLogs[0].status, "opened_interview");
+  assert.equal(interactionLogs[0].provider_run_invoked, false);
   await box.copyLatestReport();
   assert.match(copied, /- Matched command: `skill_idea\/interview`/);
+});
+
+test("command interaction logging failure does not block command behavior", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "create a skill to summarize pleadings" });
+  const box = createAiCommandBox(ctx, {
+    logCommandInteraction: () => {
+      throw new Error("local log unavailable");
+    },
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit skill ideas");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
 });
 
 test("command box catches typo skill idea phrasing before router check", async () => {
@@ -280,10 +308,12 @@ test("command box catches typo skill idea phrasing before router check", async (
 });
 
 test("command box renders router fallback inside the rail without replacing the central pane", async () => {
+  const interactionLogs = [];
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "please evaluate whether this overlaps a skill" });
   ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
   const box = createAiCommandBox(ctx, {
+    logCommandInteraction: async (body) => interactionLogs.push(body),
     checkSkillIntent: async (body) => {
       assert.equal(body.userRequest, "please evaluate whether this overlaps a skill");
       return {
@@ -310,10 +340,17 @@ test("command box renders router fallback inside the rail without replacing the 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open full result/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Approve modification/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Router Ready");
+  assert.equal(interactionLogs.length, 1);
+  assert.equal(interactionLogs[0].matched_command, "router/check");
+  assert.equal(interactionLogs[0].rendered_state, "router/check");
+  assert.equal(interactionLogs[0].status, "router_checked");
+  assert.equal(interactionLogs[0].router_decision.matched_skill, "/create_listofdates");
+  assert.equal(interactionLogs[0].provider_run_invoked, true);
 });
 
 test("command box skill idea interview session saves answers into a design brief", async () => {
   const calls = [];
+  const interactionLogs = [];
   const savedIdeas = [];
   const statusUpdates = [];
   const designBriefUpdates = [];
@@ -321,6 +358,7 @@ test("command box skill idea interview session saves answers into a design brief
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "make a new skill that summarises the best case pleadings for the lawyer" });
   const box = createAiCommandBox(ctx, {
+    logCommandInteraction: async (body) => interactionLogs.push(body),
     loadSkillRegistry: async () => ({
       skills: [],
     }),
@@ -387,6 +425,9 @@ test("command box skill idea interview session saves answers into a design brief
   await form.submit();
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   await box.handleCommand({ userRequest: "Every point needs source labels and FILE citations." });
+  assert.equal(interactionLogs.at(-1).status, "question_answered");
+  assert.equal(interactionLogs.at(-1).rendered_state, "skill_idea/question");
+  assert.equal(interactionLogs.at(-1).typed_input, "Every point needs source labels and FILE citations.");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 2 of 3/);
   await box.handleCommand({ userRequest: "Whole matter pleadings only." });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 3 of 3/);
@@ -400,6 +441,9 @@ test("command box skill idea interview session saves answers into a design brief
 
   assert.deepEqual(calls, []);
   assert.equal(savedIdeas.length, 1);
+  assert.equal(interactionLogs.at(-1).status, "saved_idea");
+  assert.equal(interactionLogs.at(-1).skill_idea_id, "idea_session_1");
+  assert.equal(interactionLogs.at(-1).provider_run_invoked, false);
   assert.equal(savedIdeas[0].text, "make a new skill that summarises the best case pleadings for the lawyer");
   assert.equal(savedIdeas[0].designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
   assert.match(savedIdeas[0].designBrief.notes, /Every point needs source labels and FILE citations/);

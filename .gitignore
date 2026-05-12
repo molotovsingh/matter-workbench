@@ -3,6 +3,7 @@ node_modules/
 .env
 .npm-cache/
 .playwright-cli/
+.local/
 output/
 config.json
 skill-ideas.json

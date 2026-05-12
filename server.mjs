@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAiSettingsService } from "./services/ai-settings-service.mjs";
+import { createCommandInteractionLogService } from "./services/command-interaction-log-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
@@ -37,6 +38,10 @@ export async function createWorkbenchServer(options = {}) {
   const workspaceService = createWorkspaceService({ matterStore });
   const uploadService = createUploadService({ matterStore, workspaceService });
   const aiSettingsService = createAiSettingsService({ appDir, env });
+  const commandInteractionLogService = createCommandInteractionLogService({
+    appDir,
+    logPath: options.commandInteractionLogPath,
+  });
   const skillIdeasService = createSkillIdeasService({
     appDir,
     ideasPath: options.skillIdeasPath,
@@ -53,6 +58,7 @@ export async function createWorkbenchServer(options = {}) {
   const services = {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
+    commandInteractionLogService,
     configService,
     env,
     matterStore,
