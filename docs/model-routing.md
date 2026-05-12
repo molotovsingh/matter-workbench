@@ -193,6 +193,46 @@ The first implementation does not need all tiers. It can start with `router` and
 
 This table shows why model routing should be central. The app already has deterministic skills and AI skills with different risk levels.
 
+## Skill Model Policy
+
+The saved-skill governance flow should not inherit the strongest model just because it is about skills. Different stages have different risk and cost profiles.
+
+Current deterministic stages:
+
+| Stage | Model Posture | Reason |
+| --- | --- | --- |
+| Skill idea capture | No model | It records user intent and must not imply a runnable skill was created. |
+| Skill interview V0 | No model | It uses deterministic templates and saves answers into the design brief. |
+| Readiness gate | No model | It checks whether required design-brief fields are present. |
+| Command rail slash dispatch | No model | Exact slash commands and static aliases run the same explicit skill runners as the UI buttons. |
+
+Current AI-assisted stage:
+
+| Stage | Model Posture | Reason |
+| --- | --- | --- |
+| Skill router / overlap check | Cheap, fast router tier is acceptable | The router classifies or checks overlap. It should not receive full matter documents by default. |
+
+Future stages need separate task names before they get model selectors or runtime provider choices:
+
+```js
+AI_TASKS.SKILL_ROUTER
+AI_TASKS.SKILL_DESIGN_REVIEW
+AI_TASKS.SKILL_AUTHORING
+AI_TASKS.CONFIGURABLE_SKILL_RUN
+AI_TASKS.CONFIGURABLE_SKILL_VALIDATION
+```
+
+Recommended future policy:
+
+| Future Stage | Model Posture | Rule |
+| --- | --- | --- |
+| Skill design review | Strong model | Review a completed brief for overlap, ambiguity, risk, and missing acceptance criteria. |
+| Prompt/schema authoring | Highest available model | Fail closed, require human review, and do not activate generated work automatically. |
+| Configurable skill validation | Strong or task-specific model | Validate against goldens and citation rules before activation. |
+| Runnable configurable skill execution | Skill's own task policy | Do not always use the highest model. A deterministic skill stays deterministic; a source-backed legal skill uses source-backed policy; a drafting skill uses drafting policy. |
+
+Do not add a visible model selector for skill work until these task names are stable. Settings may later show model posture per task, and the Skills tab may later show labels such as `Authoring model: premium` or `Run model: source-backed analysis policy`. The lawyer should not have to choose models while describing an idea.
+
 ## Runtime Environment Contract
 
 Use `.env.example` as the starting point for local configuration. Do not commit real keys.
