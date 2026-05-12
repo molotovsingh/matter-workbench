@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const SKILL_IDEAS_SCHEMA_VERSION = "skill-ideas/v1";
-export const SKILL_IDEA_STATUSES = new Set(["proposed", "dismissed", "marked_for_future"]);
+export const SKILL_IDEA_STATUSES = new Set(["incomplete", "ready_for_review", "parked", "dismissed"]);
 export const SKILL_IDEA_TARGET_LANES = new Set(["", "10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
 export const SKILL_IDEA_PAID_POSTURES = new Set(["", "free", "paid", "unknown"]);
 export const SKILL_IDEA_RISK_LEVELS = new Set(["", "low", "medium", "high"]);
@@ -21,6 +21,20 @@ const EMPTY_DESIGN_BRIEF = Object.freeze({
   riskLevel: "",
   notes: "",
 });
+const LEGACY_STATUS_MAP = new Map([
+  ["proposed", "incomplete"],
+  ["marked_for_future", "parked"],
+]);
+const READINESS_CHECKS = Object.freeze([
+  ["intendedUser", "Intended user present"],
+  ["problem", "Problem/job present"],
+  ["expectedInputs", "Expected inputs present"],
+  ["expectedOutputArtifact", "Expected output artifact present"],
+  ["targetLane", "Target lane selected"],
+  ["paidPosture", "Paid/free posture selected"],
+  ["riskLevel", "Risk level selected"],
+  ["notes", "Notes or acceptance criteria present"],
+]);
 
 export function createSkillIdeasService({
   appDir,
@@ -48,15 +62,16 @@ export function createSkillIdeasService({
       text: normalizedText,
       createdAt: timestamp,
       updatedAt: timestamp,
-      status: "proposed",
+      status: "incomplete",
       matter: normalizeMatterSummary(matter),
       designBrief: normalizeDesignBrief({}),
     };
-    store.ideas.push(idea);
+    const normalizedIdea = normalizeStoredIdea(idea);
+    store.ideas.push(normalizedIdea);
     await writeStore(store);
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea,
+      idea: normalizedIdea,
     };
   }
 
@@ -67,11 +82,16 @@ export function createSkillIdeasService({
     const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
     if (!idea) throw makeHttpError("Skill idea not found", 404);
     idea.designBrief = normalizeDesignBrief(designBrief);
+    if (idea.status === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+      idea.status = "incomplete";
+    }
     idea.updatedAt = now().toISOString();
+    const normalizedIdea = normalizeStoredIdea(idea);
+    Object.assign(idea, normalizedIdea);
     await writeStore(store);
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea,
+      idea: normalizedIdea,
     };
   }
 
@@ -85,12 +105,17 @@ export function createSkillIdeasService({
     const store = await readStore();
     const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
     if (!idea) throw makeHttpError("Skill idea not found", 404);
+    if (normalizedStatus === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+      throw makeHttpError("Skill idea is not ready for review", 400);
+    }
     idea.status = normalizedStatus;
     idea.updatedAt = now().toISOString();
+    const normalizedIdea = normalizeStoredIdea(idea);
+    Object.assign(idea, normalizedIdea);
     await writeStore(store);
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea,
+      idea: normalizedIdea,
     };
   }
 
@@ -156,7 +181,12 @@ function normalizeMatterSummary(matter) {
 }
 
 function normalizeStoredIdea(idea) {
-  const status = SKILL_IDEA_STATUSES.has(idea?.status) ? idea.status : "proposed";
+  const designBrief = normalizeDesignBrief(idea?.designBrief);
+  const readiness = calculateSkillIdeaReadiness(designBrief);
+  let status = normalizeIdeaStatus(idea?.status);
+  if (status === "ready_for_review" && !readiness.ready) {
+    status = "incomplete";
+  }
   return {
     id: String(idea?.id || "").trim(),
     text: String(idea?.text || "").trim(),
@@ -164,8 +194,32 @@ function normalizeStoredIdea(idea) {
     updatedAt: String(idea?.updatedAt || idea?.createdAt || "").trim(),
     status,
     matter: normalizeMatterSummary(idea?.matter),
-    designBrief: normalizeDesignBrief(idea?.designBrief),
+    designBrief,
+    readiness,
   };
+}
+
+export function calculateSkillIdeaReadiness(designBrief = {}) {
+  const normalized = normalizeDesignBrief(designBrief);
+  const items = READINESS_CHECKS.map(([key, label]) => ({
+    key,
+    label,
+    passed: Boolean(normalized[key]),
+  }));
+  const ready = items.every((item) => item.passed);
+  return {
+    state: ready ? "ready_for_review" : "incomplete",
+    ready,
+    passedCount: items.filter((item) => item.passed).length,
+    totalCount: items.length,
+    items,
+  };
+}
+
+function normalizeIdeaStatus(status) {
+  const normalized = String(status || "").trim();
+  const mapped = LEGACY_STATUS_MAP.get(normalized) || normalized;
+  return SKILL_IDEA_STATUSES.has(mapped) ? mapped : "incomplete";
 }
 
 function normalizeDesignBrief(designBrief) {

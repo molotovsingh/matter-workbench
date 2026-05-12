@@ -1472,6 +1472,46 @@ summary {
   gap: 10px;
 }
 
+.skill-idea-readiness {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  margin-top: 12px;
+  padding: 10px;
+}
+
+.skill-idea-readiness-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.skill-idea-readiness ul {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+
+.skill-idea-readiness li {
+  display: flex;
+  gap: 8px;
+}
+
+.skill-idea-readiness li span {
+  min-width: 48px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.skill-idea-readiness li.passed span {
+  color: var(--success);
+}
+
 .skill-slash {
   color: var(--muted);
   font-size: 12px;
