@@ -47,9 +47,13 @@ test("skill idea parser detects explicit proposal phrases only", () => {
   const cases = [
     ["create a new skill for checking limitation", "checking limitation"],
     ["create a new skill to check limitation", "check limitation"],
+    ["create a new skill that does one job - checks limitation", "does one job - checks limitation"],
+    ["create new skill that checks limitation", "checks limitation"],
     ["create a skill for filing bundles", "filing bundles"],
     ["create a skill to summarize pleadings", "summarize pleadings"],
+    ["create a skill that checks limitation", "checks limitation"],
     ["make a new skill for checking limitation", "checking limitation"],
+    ["make new skill that checks limitation", "checks limitation"],
     ["make a new skill that summarises the best case pleadings for the lawyer", "summarises the best case pleadings for the lawyer"],
     ["make a skill for extracting prayer clauses", "extracting prayer clauses"],
     ["make a skill that extracts prayer clauses", "extracts prayer clauses"],
@@ -307,6 +311,32 @@ test("command box catches typo skill idea phrasing before router check", async (
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 2/);
   assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+});
+
+test("command box starts skill idea interview for create-new-skill-that without active matter", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "create a new skill that does one job - checks if the issue is within or outside of limitation",
+    activeMatter: null,
+  });
+  ctx.elements.editorContent.innerHTML = "<h1>Landing</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit skill ideas");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Landing</h1>");
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
 });
 
 test("command box renders router fallback inside the rail without replacing the central pane", async () => {

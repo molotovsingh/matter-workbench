@@ -1428,10 +1428,10 @@ export function parseSkillIdeaInput(input) {
   if (!raw) return null;
   const normalized = normalizeCommandInput(raw);
   const patterns = [
-    /^create a new skil{1,2} (?:for|to) (.+)$/,
-    /^create a skil{1,2} (?:for|to) (.+)$/,
-    /^make a new skil{1,2} (?:for|that) (.+)$/,
-    /^make a skil{1,2} (?:for|that) (.+)$/,
+    /^create (?:a )?new skil{1,2} (?:for|to|that) (.+)$/,
+    /^create (?:a )?skil{1,2} (?:for|to|that) (.+)$/,
+    /^make (?:a )?new skil{1,2} (?:for|to|that) (.+)$/,
+    /^make (?:a )?skil{1,2} (?:for|to|that) (.+)$/,
     /^new skil{1,2} (.+)$/,
     /^i need a skil{1,2} that (.+)$/,
     /^can we make a skil{1,2} for (.+)$/,
