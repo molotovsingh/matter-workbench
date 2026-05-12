@@ -49,6 +49,21 @@ test("skill idea parser detects explicit proposal phrases only", () => {
     text: "create a skill to summarize pleadings",
     idea: "summarize pleadings",
   });
+  assert.deepEqual(parseSkillIdeaInput("create a skil to summarise the best case pleadings"), {
+    type: "skill_idea",
+    text: "create a skil to summarise the best case pleadings",
+    idea: "summarise the best case pleadings",
+  });
+  assert.deepEqual(parseSkillIdeaInput("make a new skill that summarises the best case pleadings for the lawyer"), {
+    type: "skill_idea",
+    text: "make a new skill that summarises the best case pleadings for the lawyer",
+    idea: "summarises the best case pleadings for the lawyer",
+  });
+  assert.deepEqual(parseSkillIdeaInput("make a skill that extracts prayer clauses"), {
+    type: "skill_idea",
+    text: "make a skill that extracts prayer clauses",
+    idea: "extracts prayer clauses",
+  });
   assert.deepEqual(parseSkillIdeaInput("new skill bundle exhibits"), {
     type: "skill_idea",
     text: "new skill bundle exhibits",
@@ -211,7 +226,7 @@ test("command box dispatches context search aliases without provider routing", a
   assert.equal(ctx.statusCalls.at(-1).bar, "Context Search Ready");
 });
 
-test("command box saves explicit skill ideas without running skills or router check", async () => {
+test("command box opens deterministic skill idea interview session without running skills or router check", async () => {
   const calls = [];
   const savedIdeas = [];
   const form = fakeForm();
@@ -240,11 +255,85 @@ test("command box saves explicit skill ideas without running skills or router ch
   box.wire();
   await form.submit();
 
-  assert.deepEqual(savedIdeas, [{ text: "create a skill to summarize pleadings" }]);
+  assert.deepEqual(savedIdeas, []);
   assert.deepEqual(calls, []);
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Temporary browser-memory session/);
+  assert.match(ctx.elements.editorContent.innerHTML, /active interview is in the Command rail/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
+test("command box skill idea interview session saves answers into a design brief", async () => {
+  const calls = [];
+  const savedIdeas = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "make a new skill that summarises the best case pleadings for the lawyer" });
+  const box = createAiCommandBox(ctx, {
+    saveSkillIdea: async (body) => {
+      savedIdeas.push(body);
+      return {
+        idea: {
+          id: "idea_session_1",
+          text: body.text,
+          createdAt: "2026-05-12T10:00:00.000Z",
+          status: "incomplete",
+          matter: {
+            matterName: "Demo Matter",
+            folderName: "Demo Matter",
+          },
+        },
+      };
+    },
+    skillDispatch: {
+      "/create_listofdates": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  await box.handleCommand({ userRequest: "Every point needs source labels and FILE citations." });
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 2 of 3/);
+  await box.handleCommand({ userRequest: "Whole matter pleadings only." });
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 3 of 3/);
+  await box.handleCommand({ userRequest: "Use lawyer-facing language but avoid final conclusions." });
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Ready to save this skill idea/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Save idea/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Edit answers/);
+  assert.deepEqual(savedIdeas, []);
+
+  await box.handleCommand({ userRequest: "save idea" });
+
+  assert.deepEqual(calls, []);
+  assert.equal(savedIdeas.length, 1);
+  assert.equal(savedIdeas[0].text, "make a new skill that summarises the best case pleadings for the lawyer");
+  assert.equal(savedIdeas[0].designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
+  assert.match(savedIdeas[0].designBrief.notes, /Every point needs source labels and FILE citations/);
+  assert.match(savedIdeas[0].designBrief.notes, /Whole matter pleadings only/);
   assert.match(ctx.elements.editorContent.innerHTML, /Saved as skill idea/);
-  assert.match(ctx.elements.editorContent.innerHTML, /did not create a skill/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Saved");
+  assert.equal(ctx.elements.aiCommandSession.hidden, true);
+});
+
+test("command box interview detects adjacent list-of-dates improvement", async () => {
+  const calls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "can list of dates also flag limitation issues" });
+  const box = createAiCommandBox(ctx, {
+    skillDispatch: {
+      "/create_listofdates": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(calls, []);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Likely related skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What should change/);
 });
 
 test("command box lane command asks for a matter before opening lanes", async () => {
@@ -405,6 +494,7 @@ function fakeCtx({
       aiCommandInput,
       aiCommandSubmit: { disabled: false, textContent: "Go" },
       aiCommandSuggestions: fakeSuggestions(),
+      aiCommandSession: fakeSession(),
       aiCommandCopyReport: fakeButton(),
       aiCommandReportStatus: fakeClassedText(),
       breadcrumbs: { textContent: "" },
@@ -474,6 +564,16 @@ function fakeSuggestions() {
     },
     querySelectorAll() {
       return this.buttons;
+    },
+  };
+}
+
+function fakeSession() {
+  return {
+    hidden: true,
+    innerHTML: "",
+    querySelectorAll() {
+      return [];
     },
   };
 }

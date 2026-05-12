@@ -109,6 +109,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     const body = await readRequestJson(request);
     sendJson(response, 200, await skillIdeasService.createIdea({
       text: body.text,
+      designBrief: body.designBrief || {},
       matter: await readActiveMatterSummary(matterStore),
     }));
     return true;

@@ -28,6 +28,7 @@ const elements = {
   aiCommandInput: document.getElementById("aiCommandInput"),
   aiCommandSubmit: document.getElementById("aiCommandSubmit"),
   aiCommandSuggestions: document.getElementById("aiCommandSuggestions"),
+  aiCommandSession: document.getElementById("aiCommandSession"),
   aiCommandCopyReport: document.getElementById("aiCommandCopyReport"),
   aiCommandReportStatus: document.getElementById("aiCommandReportStatus"),
   themeToggleButton: document.getElementById("themeToggleButton"),

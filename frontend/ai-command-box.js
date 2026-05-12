@@ -1,5 +1,10 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
+import {
+  buildSkillIdeaInterview,
+  buildSkillIdeaPayloadFromInterview,
+  parseAdaptiveSkillIdeaInput,
+} from "./skill-idea-interview.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
 
 const SLASH_COMMANDS = new Set([
@@ -73,6 +78,7 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandInput,
     aiCommandSubmit,
     aiCommandSuggestions,
+    aiCommandSession,
     aiCommandCopyReport,
     aiCommandReportStatus,
     breadcrumbs,
@@ -87,6 +93,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   let latestReport = null;
   let activeSuggestionIndex = -1;
+  let currentSkillIdeaInterview = null;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -111,8 +118,12 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function handleCommand({ userRequest }) {
     hideSlashSuggestions();
+    if (currentSkillIdeaInterview) {
+      await handleSkillIdeaInterviewInput(userRequest);
+      return;
+    }
     if (!userRequest) {
-      renderCommandError("Enter a slash command or proposed skill request.");
+      renderCommandError("Enter a slash command or future skill idea.");
       return;
     }
 
@@ -122,9 +133,9 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
 
-    const skillIdea = parseSkillIdeaInput(userRequest);
+    const skillIdea = parseSkillIdeaInput(userRequest) || parseAdaptiveSkillIdeaInput(userRequest);
     if (skillIdea) {
-      await saveSkillIdeaProposal(skillIdea, userRequest);
+      showSkillIdeaInterview(skillIdea, userRequest);
       return;
     }
 
@@ -307,7 +318,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function checkIntent({ userRequest, overrideJustification }) {
     if (!userRequest) {
-      renderCommandError("Enter a command or proposed skill request.");
+      renderCommandError("Enter a command or future skill idea.");
       return;
     }
 
@@ -321,7 +332,7 @@ export function createAiCommandBox(ctx, options = {}) {
     breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Command</strong><br />Checking this proposed skill request against the registry.",
+      card: "<strong>Command</strong><br />Checking this future skill idea against the current skill list.",
       bar: "Command Check",
       terminal: `[ai-command] checking intent: ${userRequest}`,
     });
@@ -362,26 +373,123 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  async function saveSkillIdeaProposal(skillIdea, userRequest) {
+  function showSkillIdeaInterview(skillIdea, userRequest) {
+    const interview = buildSkillIdeaInterview(skillIdea, userRequest);
+    currentSkillIdeaInterview = {
+      interview,
+      answers: {},
+      questionIndex: 0,
+      ready: false,
+    };
     startReport({
       typedInput: userRequest,
-      matchedCommand: "skill_idea/proposal",
-      status: "pending",
+      matchedCommand: "skill_idea/interview",
+      status: "interview",
     });
-    aiCommandSubmit.disabled = true;
-    aiCommandSubmit.textContent = "Saving...";
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "Answer the current question";
+    aiCommandSubmit.textContent = "Answer";
     breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Command</strong><br />Saving this as a non-running skill idea.",
-      bar: "Saving Skill Idea",
-      terminal: `[skill-ideas] saving proposal: ${userRequest}`,
+      card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
+      bar: "Skill Idea Interview",
+      terminal: `[skill-ideas] interview opened: ${userRequest}`,
     });
+    editorContent.innerHTML = `
+      <h1>Command</h1>
+      <section class="skill-router-result">
+        <h2>Skill idea interview</h2>
+        <p>The active interview is in the Command rail. This is not runnable yet and will not call a provider.</p>
+      </section>
+    `;
+    renderSkillIdeaSession();
+  }
 
+  async function handleSkillIdeaInterviewInput(userRequest) {
+    const session = currentSkillIdeaInterview;
+    if (!session) return;
+    const normalized = normalizeCommandInput(userRequest);
+    if (normalized === "cancel") {
+      cancelSkillIdeaInterview();
+      return;
+    }
+    if (!userRequest) {
+      renderSkillIdeaSession("Answer the current question, or choose Cancel.");
+      return;
+    }
+    if (session.ready) {
+      if (normalized === "save idea") {
+        await saveSkillIdeaInterviewSession();
+        return;
+      }
+      if (normalized === "edit answers" || normalized === "edit") {
+        session.ready = false;
+        session.questionIndex = 0;
+        aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
+        aiCommandSubmit.textContent = "Answer";
+        renderSkillIdeaSession();
+        return;
+      }
+      renderSkillIdeaSession("Use Save idea, Edit answers, or Cancel.");
+      return;
+    }
+
+    const question = session.interview.questions[session.questionIndex];
+    if (!question) {
+      session.ready = true;
+      renderSkillIdeaSession();
+      return;
+    }
+    session.answers[question.id] = userRequest.trim();
+    session.questionIndex += 1;
+    aiCommandInput.value = "";
+    if (session.questionIndex >= session.interview.questions.length) {
+      session.ready = true;
+      aiCommandInput.placeholder = "Type Save idea, Edit answers, or Cancel";
+      aiCommandSubmit.textContent = "Go";
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Ready to save</strong><br />Review the interview summary, then save or cancel.",
+        bar: "Skill Idea Ready",
+        terminal: "[skill-ideas] interview ready to save",
+      });
+    } else {
+      aiCommandInput.placeholder = "Answer the current question";
+      aiCommandSubmit.textContent = "Answer";
+      const nextIndex = session.questionIndex + 1;
+      const total = session.interview.questions.length;
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill idea interview</strong><br />Question ${nextIndex} of ${total}.`,
+        bar: `Question ${nextIndex} of ${total}`,
+        terminal: `[skill-ideas] question ${nextIndex} of ${total}`,
+      });
+    }
+    renderSkillIdeaSession();
+  }
+
+  async function saveSkillIdeaInterviewSession() {
+    const session = currentSkillIdeaInterview;
+    if (!session) return;
+    const { interview, answers } = session;
+    const payloadBody = buildSkillIdeaPayloadFromInterview({
+      interview,
+      answers,
+      designBrief: interview.designBrief,
+    });
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Saving...";
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Saving idea</strong><br />Saving a non-running design brief.",
+      bar: "Saving Skill Idea",
+      terminal: `[skill-ideas] saving interview: ${interview.originalText}`,
+    });
     try {
-      const payload = await saveSkillIdea({ text: skillIdea.text });
+      const payload = await saveSkillIdea(payloadBody);
       const idea = payload.idea || {};
-      renderSavedSkillIdea({ idea, userRequest });
+      renderSavedSkillIdea({ idea, userRequest: interview.originalText });
       updateReport({
         status: "saved",
         skillIdeaId: idea.id || "",
@@ -392,6 +500,10 @@ export function createAiCommandBox(ctx, options = {}) {
         bar: "Skill Idea Saved",
         terminal: `[skill-ideas] saved ${idea.id || "proposal"}`,
       });
+      currentSkillIdeaInterview = null;
+      clearSkillIdeaSession();
+      aiCommandInput.value = "";
+      aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
     } catch (error) {
       renderCommandError(error.message);
       updateReport({ status: "failed", error: error.message });
@@ -408,6 +520,126 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  function renderSkillIdeaSession(errorMessage = "") {
+    if (!aiCommandSession || !currentSkillIdeaInterview) return;
+    const { interview, answers, questionIndex, ready } = currentSkillIdeaInterview;
+    aiCommandSession.hidden = false;
+    if (ready) {
+      aiCommandSession.innerHTML = `
+        <section class="command-interview" aria-live="polite">
+          <h3>Ready to save this skill idea</h3>
+          <p class="muted">Not runnable yet. Saving creates a design brief only.</p>
+          ${renderSkillIdeaUnderstood(interview)}
+          ${renderAnsweredQuestions(interview, answers)}
+          ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
+          <div class="command-interview-actions">
+            <button type="button" data-skill-interview-action="save">Save idea</button>
+            <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
+            <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
+          </div>
+        </section>
+      `;
+      wireSkillIdeaSessionActions();
+      return;
+    }
+    const total = interview.questions.length;
+    const question = interview.questions[questionIndex] || {};
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Skill idea interview</h3>
+        <p class="muted">Temporary browser-memory session. Refreshing may lose it.</p>
+        ${renderSkillIdeaUnderstood(interview)}
+        <div class="command-interview-question">
+          <strong>Question ${questionIndex + 1} of ${total}</strong>
+          <p>${escapeHtml(question.label || "")}</p>
+          ${question.placeholder ? `<p class="muted">${escapeHtml(question.placeholder)}</p>` : ""}
+        </div>
+        ${renderAnsweredQuestions(interview, answers)}
+        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
+        </div>
+      </section>
+    `;
+    wireSkillIdeaSessionActions();
+  }
+
+  function renderSkillIdeaUnderstood(interview) {
+    return `
+        <div class="skill-idea-understood">
+          <strong>What I understood</strong>
+          <p>${escapeHtml(interview.understood)}</p>
+          ${interview.targetSkill ? `<p class="muted">Likely related skill: <code>${escapeHtml(interview.targetSkill)}</code></p>` : ""}
+        </div>
+    `;
+  }
+
+  function renderAnsweredQuestions(interview, answers) {
+    const answered = interview.questions
+      .filter((question) => answers[question.id])
+      .map((question) => `
+        <li>
+          <span>${escapeHtml(question.label)}</span>
+          <strong>${escapeHtml(answers[question.id])}</strong>
+        </li>
+      `).join("");
+    if (!answered) return "";
+    return `
+      <ul class="command-interview-answers">
+        ${answered}
+      </ul>
+    `;
+  }
+
+  function wireSkillIdeaSessionActions() {
+    aiCommandSession?.querySelectorAll?.("[data-skill-interview-action]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.skillInterviewAction;
+        if (action === "save") {
+          await saveSkillIdeaInterviewSession();
+          return;
+        }
+        if (action === "edit") {
+          await handleSkillIdeaInterviewInput("edit answers");
+          return;
+        }
+        if (action === "cancel") {
+          cancelSkillIdeaInterview();
+        }
+      });
+    });
+  }
+
+  function cancelSkillIdeaInterview() {
+    currentSkillIdeaInterview = null;
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandSubmit.disabled = false;
+    aiCommandSubmit.textContent = "Go";
+    clearSkillIdeaSession();
+    updateReport({ status: "cancelled" });
+    editorContent.innerHTML = `
+      <h1>Command</h1>
+      <section class="skill-router-result">
+        <h2>Skill idea cancelled</h2>
+        <p>No idea was saved. Nothing ran.</p>
+      </section>
+    `;
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Skill idea cancelled</strong><br />No idea was saved and nothing ran.",
+      bar: "Skill Idea Cancelled",
+      terminal: "[skill-ideas] interview cancelled",
+    });
+  }
+
+  function clearSkillIdeaSession() {
+    if (aiCommandSession) {
+      aiCommandSession.hidden = true;
+      aiCommandSession.innerHTML = "";
     }
   }
 
@@ -489,6 +721,10 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function renderSlashSuggestions() {
     if (!aiCommandSuggestions || !aiCommandInput) return;
+    if (currentSkillIdeaInterview) {
+      hideSlashSuggestions();
+      return;
+    }
     const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
     if (!suggestions.length) {
       hideSlashSuggestions();
@@ -518,6 +754,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function handleSuggestionKeydown(event) {
     if (!aiCommandInput || !aiCommandSuggestions) return;
+    if (currentSkillIdeaInterview) return;
     const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
     if (!suggestions.length) return;
 
@@ -781,10 +1018,12 @@ export function parseSkillIdeaInput(input) {
   if (!raw) return null;
   const normalized = normalizeCommandInput(raw);
   const patterns = [
-    /^create a skill to (.+)$/,
-    /^new skill (.+)$/,
-    /^i need a skill that (.+)$/,
-    /^can we make a skill for (.+)$/,
+    /^create a skil{1,2} to (.+)$/,
+    /^make a new skil{1,2} that (.+)$/,
+    /^make a skil{1,2} that (.+)$/,
+    /^new skil{1,2} (.+)$/,
+    /^i need a skil{1,2} that (.+)$/,
+    /^can we make a skil{1,2} for (.+)$/,
   ];
   for (const pattern of patterns) {
     const match = normalized.match(pattern);

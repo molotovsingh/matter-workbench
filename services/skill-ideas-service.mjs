@@ -53,7 +53,7 @@ export function createSkillIdeasService({
     };
   }
 
-  async function createIdea({ text, matter = null } = {}) {
+  async function createIdea({ text, matter = null, designBrief = {} } = {}) {
     const normalizedText = normalizeIdeaText(text);
     const timestamp = now().toISOString();
     const store = await readStore();
@@ -64,7 +64,7 @@ export function createSkillIdeasService({
       updatedAt: timestamp,
       status: "incomplete",
       matter: normalizeMatterSummary(matter),
-      designBrief: normalizeDesignBrief({}),
+      designBrief: normalizeDesignBrief(designBrief),
     };
     const normalizedIdea = normalizeStoredIdea(idea);
     store.ideas.push(normalizedIdea);
