@@ -126,19 +126,45 @@ The final saved brief must contain every field. The interview can be adaptive, b
 
 ### 1. Idea
 
-The user may start from a future command such as:
+The current app can capture explicit skill-idea phrases from the Command rail
+and save them as non-running ideas in the Skills tab.
+
+Examples:
 
 ```text
-/new_skill prepare a filing bundle index
+create a skill to prepare a filing bundle index
+make a new skill that summarises the best case pleadings for the lawyer
 ```
 
-or from a button in a future Skills screen.
-
-In the current repo, do not add this until the design and storage contract are accepted.
+This stage records intent only. It does not allocate a slash command, generate
+a prompt, run a provider, or create a matter artifact.
 
 ### 2. Draft Brief
 
-The app may use AI to infer a skill brief, but the summary must be visible and editable before saving.
+The current app uses deterministic templates for the skill interview. It does
+not call a provider while capturing the idea, asking V0 interview questions, or
+checking readiness.
+
+If a later slice adds AI-assisted design review or brief drafting, the summary
+must be visible and editable before saving. That later work must follow the
+model policy in [Model Routing Design](model-routing.md), not ad hoc model
+selection inside the Command rail.
+
+Current model boundary:
+
+- skill idea capture: deterministic, no model;
+- skill interview V0: deterministic, no model;
+- readiness gate: deterministic, no model;
+- router or overlap check: cheap/fast model is acceptable;
+- future skill design review: strong model;
+- future prompt/schema authoring: highest available model, fail closed, human
+  review required;
+- future runnable skill execution: use the skill's own task policy, not always
+  the highest model.
+
+Do not add a visible model selector to this flow until task names and policies
+are stable. A lawyer should describe the workflow they need; the app policy
+should decide which model posture applies.
 
 The app should ask only targeted questions for missing or risky fields. It should not expose internal slot names or ask the same fixed questionnaire for every idea.
 
@@ -227,23 +253,26 @@ Defer:
 - provider-backed Q&A as part of skill creation;
 - editing built-in skills from chat.
 
-Those are useful later, but the first implementation should be smaller and auditable.
+Those are useful later, but each implementation should remain small and auditable.
 
-## First Implementation Slice
+## Current Implemented Governance Slice
 
-The first runtime PR should be a saved-idea/proposal inbox only:
+The current runtime supports the safe front half of this lifecycle:
 
-- capture a proposed skill idea from the Command rail or Skills tab;
-- run the existing skill-router overlap check as a non-executing review step;
-- save the idea only after user confirmation;
-- expose saved ideas in the existing read-only Skills tab;
-- mark saved ideas clearly as not runnable;
-- do not allocate a slash command;
-- do not create draft configurable-skill records yet;
-- do not add provider-backed draft running.
+- capture an explicit skill idea from the Command rail;
+- open a deterministic interview session;
+- save the idea and design brief in the Skills tab;
+- calculate readiness from completed design-brief fields;
+- mark ideas as proposed, parked, dismissed, or ready for review;
+- keep every saved idea clearly marked as not runnable.
 
-If an AI brief-drafting provider is added later, it must be gated and tested
-with fake providers. It must not make saved ideas runnable.
+It still does not allocate a slash command, generate prompts, create draft
+configurable-skill records, call a provider, run a draft, or write matter
+artifacts.
+
+If an AI design-review or brief-drafting provider is added later, it must be
+gated by model policy and tested with fake providers. It must not make saved
+ideas runnable.
 
 ## Acceptance Criteria For Future Runtime Work
 

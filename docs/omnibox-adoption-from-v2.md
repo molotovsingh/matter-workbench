@@ -208,6 +208,9 @@ As of the merged Command V0 slices, the right-side rail has six responsibilities
 6. **Workspace and skill supervision navigation.**
    Lane commands such as `open library` and `open drafts`, plus `open skills`, move the user through existing read-only surfaces without changing matter state.
 
+7. **Skill idea capture and interview.**
+   Explicit skill-idea phrases open a deterministic interview session and save a non-running idea/design brief. This is not a model-backed authoring flow.
+
 The rail deliberately does **not** do these things yet:
 
 - chat transcript;
@@ -215,7 +218,7 @@ The rail deliberately does **not** do these things yet:
 - semantic/vector search or raw-file search;
 - fuzzy paid-skill matching;
 - conversation memory;
-- configurable skill creation or editing;
+- configurable skill generation, execution, or activation;
 - direct AI intent execution beyond the existing non-running router/check path.
 
 The rule for future work:
@@ -810,45 +813,34 @@ Implemented:
 - workspace lane navigation;
 - local context preview and local context search;
 - read-only Skills tab powered by built-in skill stubs.
+- saved skill ideas, design briefs, readiness gates, and deterministic skill interview V0.
 
 Not implemented:
 
 - provider-backed Copilot Q&A;
 - broad AI intent execution;
-- saved skill ideas or proposal inbox;
-- draft configurable skills;
+- draft runnable configurable skills;
 - skill modification/revision activation;
 - golden validation for user-created skills;
 - chat memory.
 
-This is the correct stopping point for Command V0. The next work should add one governance capability at a time, without turning the rail into half-chat.
+This is still a deterministic governance surface, not a model selector or chat surface. Future skill design review, prompt/schema authoring, configurable-skill validation, and configurable-skill execution should use the task policy described in [Model Routing Design](model-routing.md). Do not make the lawyer choose a model while describing a skill idea.
 
-## Suggested Next Runtime PR
+## Next Runtime Direction
 
-Title:
+The saved-idea inbox, design brief, readiness gate, and deterministic interview
+are now in place. The next configurable-skill work should stay on that ladder:
 
-```text
-Add saved skill ideas / proposal inbox
-```
+- design review before generation;
+- explicit human confirmation before any prompt/schema authoring;
+- validation against a golden before activation;
+- no provider-backed Q&A or drafting path as a side effect of skill creation;
+- no mutation of built-in skill stubs.
 
-Scope:
-
-- let the Command rail capture text such as `I want a skill that...` as a proposed skill idea;
-- run the existing skill-router overlap check as a non-executing review step;
-- save the idea/proposal only after user confirmation;
-- show saved ideas in the read-only Skills tab as a proposal inbox;
-- make it clear that saved ideas are not runnable slash commands;
-- do not create draft configurable skills yet;
-- do not call a provider to run or test the idea;
-- do not mutate built-in skill stubs.
-
-Acceptance criteria:
-
-- saving an idea writes only the proposal record or future agreed storage artifact;
-- saved ideas appear under a clearly labeled proposal section in Skills;
-- built-in Skills tab behavior remains read-only;
-- overlap results are visible but cannot directly activate a skill;
-- no new provider-backed Q&A or drafting path is introduced.
+Model usage for those future stages should follow
+[`docs/model-routing.md`](model-routing.md). In particular, skill authoring may
+justify a premium model later, but idea capture, interview, and readiness remain
+deterministic.
 
 ## Guardrails For Future Command Work
 
