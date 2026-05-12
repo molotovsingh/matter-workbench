@@ -92,6 +92,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
   const loadSkillRegistry = options.loadSkillRegistry || (() => getJson("/api/skills"));
   const checkSkillIntent = options.checkSkillIntent || ((body) => postJson("/api/skills/check-intent", body));
+  const logCommandInteraction = options.logCommandInteraction || ((body) => postJson("/api/command-interactions", body));
   const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
   const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
   const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
@@ -218,6 +219,10 @@ export function createAiCommandBox(ctx, options = {}) {
       updateReport({
         statusBar: getStatusBarText(),
         terminalLines: getLatestTerminalLines(),
+      });
+      recordCommandInteraction({
+        renderedState: `command/${parsedCommand.type}`,
+        providerRunInvoked: parsedCommand.type === "skill",
       });
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
@@ -352,6 +357,12 @@ export function createAiCommandBox(ctx, options = {}) {
         routerDecision: decision.decision || "",
         routerMatchedSkill: decision.matched_skill || "",
       });
+      recordCommandInteraction({
+        renderedState: "router/check",
+        status: "router_checked",
+        routerDecision: decision,
+        providerRunInvoked: true,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Router decision</strong><br />${escapeHtml(decision.decision)}${decision.matched_skill ? ` for <code>${escapeHtml(decision.matched_skill)}</code>` : ""}.`,
@@ -361,6 +372,12 @@ export function createAiCommandBox(ctx, options = {}) {
     } catch (error) {
       renderCommandRailError(error.message);
       updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "router/check",
+        status: "failed",
+        providerRunInvoked: true,
+        error: error.message,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Command check failed</strong><br />${escapeHtml(error.message)}`,
@@ -389,6 +406,11 @@ export function createAiCommandBox(ctx, options = {}) {
       typedInput: userRequest,
       matchedCommand: "skill_idea/interview",
       status: "interview",
+    });
+    recordCommandInteraction({
+      renderedState: "skill_idea/interview",
+      status: "opened_interview",
+      providerRunInvoked: false,
     });
     aiCommandInput.value = "";
     aiCommandInput.placeholder = "Answer the current question";
@@ -464,6 +486,12 @@ export function createAiCommandBox(ctx, options = {}) {
     }
     session.answers[question.id] = userRequest.trim();
     session.questionIndex += 1;
+    recordCommandInteraction({
+      typedInput: userRequest.trim(),
+      renderedState: "skill_idea/question",
+      status: "question_answered",
+      providerRunInvoked: false,
+    });
     aiCommandInput.value = "";
     if (session.questionIndex >= session.interview.questions.length) {
       session.ready = true;
@@ -520,6 +548,12 @@ export function createAiCommandBox(ctx, options = {}) {
         status: existingIdea?.id ? "updated" : "saved",
         skillIdeaId: idea.id || "",
       });
+      recordCommandInteraction({
+        renderedState: "skill_idea/saved",
+        status: existingIdea?.id ? "updated_idea" : "saved_idea",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>${existingIdea?.id ? "Skill idea updated" : "Saved as skill idea"}</strong><br />Continue here: copy a review packet, mark ready, edit answers, or open Skills.`,
@@ -533,6 +567,12 @@ export function createAiCommandBox(ctx, options = {}) {
     } catch (error) {
       renderCommandError(error.message);
       updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "skill_idea/save",
+        status: "failed",
+        providerRunInvoked: false,
+        error: error.message,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Skill idea not saved</strong><br />${escapeHtml(error.message)}`,
@@ -704,6 +744,12 @@ export function createAiCommandBox(ctx, options = {}) {
       const registry = await loadSkillRegistry().catch(() => ({}));
       await writeClipboardText(formatSkillIdeaReviewPacket(idea, registry));
       updateReport({ status: "copied", skillIdeaId: idea.id || "" });
+      recordCommandInteraction({
+        renderedState: "skill_idea/review_packet",
+        status: "copied_review_packet",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+      });
       ctx.setStatus({
         mood: "idle",
         card: "<strong>Review packet copied</strong><br />No provider call, prompt generation, or matter artifact write occurred.",
@@ -713,6 +759,13 @@ export function createAiCommandBox(ctx, options = {}) {
       renderSkillIdeaSession();
     } catch (error) {
       renderSkillIdeaSession(`Copy failed: ${error.message}`);
+      recordCommandInteraction({
+        renderedState: "skill_idea/review_packet",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+        error: error.message,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Review packet copy failed</strong><br />${escapeHtml(error.message)}`,
@@ -734,6 +787,12 @@ export function createAiCommandBox(ctx, options = {}) {
       const payload = await updateSkillIdeaStatus(idea.id, "ready_for_review");
       session.savedIdea = payload.idea || { ...idea, status: "ready_for_review" };
       updateReport({ status: "ready_for_review", skillIdeaId: session.savedIdea.id || "" });
+      recordCommandInteraction({
+        renderedState: "skill_idea/ready",
+        status: "ready_for_review",
+        skillIdeaId: session.savedIdea.id || "",
+        providerRunInvoked: false,
+      });
       ctx.setStatus({
         mood: "idle",
         card: "<strong>Marked ready for review</strong><br />Still not runnable. No provider call or matter artifact was created.",
@@ -743,6 +802,13 @@ export function createAiCommandBox(ctx, options = {}) {
       renderSkillIdeaSession();
     } catch (error) {
       renderSkillIdeaSession(`Mark ready failed: ${error.message}`);
+      recordCommandInteraction({
+        renderedState: "skill_idea/ready",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+        error: error.message,
+      });
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Skill idea update failed</strong><br />${escapeHtml(error.message)}`,
@@ -780,6 +846,11 @@ export function createAiCommandBox(ctx, options = {}) {
       card: "<strong>Ready for another idea</strong><br />Type a new skill idea in the Command rail.",
       bar: "Skill Idea",
       terminal: "[skill-ideas] ready for another idea",
+    });
+    recordCommandInteraction({
+      renderedState: "skill_idea/start_another",
+      status: "started_another_idea",
+      providerRunInvoked: false,
     });
   }
 
@@ -826,6 +897,11 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSubmit.textContent = "Go";
     clearSkillIdeaSession();
     updateReport({ status: "cancelled" });
+    recordCommandInteraction({
+      renderedState: "skill_idea/interview",
+      status: "cancelled",
+      providerRunInvoked: false,
+    });
     editorContent.innerHTML = `
       <h1>Command</h1>
       <section class="skill-router-result">
@@ -1117,6 +1193,36 @@ export function createAiCommandBox(ctx, options = {}) {
     if (!latestReport) return;
     latestReport = { ...latestReport, ...patch };
     setCopyReportEnabled(true);
+  }
+
+  function recordCommandInteraction(patch = {}) {
+    if (!latestReport) return;
+    const report = { ...latestReport, ...patch };
+    const body = {
+      timestamp: report.timestamp,
+      typed_input: report.typedInput,
+      matched_command: report.matchedCommand,
+      rendered_state: report.renderedState || patch.renderedState || "",
+      status: report.status,
+      skill_idea_id: report.skillIdeaId || "",
+      router_decision: patch.routerDecision || (
+        report.routerDecision
+          ? {
+              decision: report.routerDecision,
+              matched_skill: report.routerMatchedSkill,
+            }
+          : null
+      ),
+      provider_run_invoked: Boolean(patch.providerRunInvoked),
+      errors: report.error ? [report.error] : [],
+      status_bar: report.statusBar || getStatusBarText(),
+      terminal_lines: report.terminalLines || getLatestTerminalLines(),
+    };
+    try {
+      Promise.resolve(logCommandInteraction(body)).catch(() => {});
+    } catch {
+      // Local beta diagnostics must never block Command rail behavior.
+    }
   }
 
   function captureStatusDuringCommand() {

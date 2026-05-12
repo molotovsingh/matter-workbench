@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -72,6 +72,7 @@ test("server API smoke test keeps public routes stable", async () => {
   const appDir = path.join(tmp, "app");
   const mattersHome = path.join(tmp, "matters");
   const matterRoot = path.join(mattersHome, "Smoke Matter");
+  const commandInteractionLogPath = path.join(tmp, "command-interactions.jsonl");
   await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files"), { recursive: true });
   await mkdir(appDir, { recursive: true });
   await writeFile(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files", "note.txt"), "Smoke event on 20 April 2026.");
@@ -93,6 +94,7 @@ test("server API smoke test keeps public routes stable", async () => {
     env: { MATTERS_HOME: mattersHome },
     host: "127.0.0.1",
     port: 0,
+    commandInteractionLogPath,
     skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
     aiProvider: async () => ({
       entries: [{
@@ -234,6 +236,27 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     assert.equal(skillIntent.decision, "needs_user_approval");
     assert.equal(skillIntent.matched_skill, "/create_listofdates");
+    const commandInteraction = await postJson(baseUrl, "/api/command-interactions", {
+      typed_input: "Create a new list of dates skill",
+      matched_command: "router/check",
+      rendered_state: "router/check",
+      status: "router_checked",
+      provider_run_invoked: true,
+      router_decision: skillIntent,
+      terminal_lines: ["[ai-command] needs_user_approval -> /create_listofdates"],
+      apiKey: "sk-should-not-be-logged",
+      copiedReviewPacket: "full copied packet should not be persisted",
+    });
+    assert.equal(commandInteraction.logged, true);
+    const commandLog = await readFile(commandInteractionLogPath, "utf8");
+    const commandLogRecord = JSON.parse(commandLog.trim());
+    assert.equal(commandLogRecord.schema_version, "command-interaction-log/v1");
+    assert.equal(commandLogRecord.matter.matter_name, "Smoke Matter");
+    assert.equal(commandLogRecord.matter.folder_name, "Smoke Matter");
+    assert.equal(commandLogRecord.matched_command, "router/check");
+    assert.equal(commandLogRecord.router_decision.matched_skill, "/create_listofdates");
+    assert.equal(commandLogRecord.provider_run_invoked, true);
+    assert.doesNotMatch(commandLog, /sk-should-not-be-logged|full copied packet/);
     const doctor = await postJson(baseUrl, "/api/doctor/scan");
     assert.deepEqual(doctor.issues, []);
   } finally {
