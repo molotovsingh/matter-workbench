@@ -105,9 +105,9 @@ export function createAiCommandBox(ctx, options = {}) {
     if (!aiCommandForm) return;
     aiCommandForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      await handleCommand({
-        userRequest: aiCommandInput.value.trim(),
-      });
+      const userRequest = aiCommandInput.value.trim();
+      if (userRequest) clearCommandInput();
+      await handleCommand({ userRequest });
     });
     aiCommandInput?.addEventListener?.("input", () => renderSlashSuggestions());
     aiCommandInput?.addEventListener?.("focus", () => renderSlashSuggestions());
@@ -429,6 +429,7 @@ export function createAiCommandBox(ctx, options = {}) {
     if (!session) return;
     const normalized = normalizeCommandInput(userRequest);
     if (normalized === "cancel") {
+      clearCommandInput();
       cancelSkillIdeaInterview();
       return;
     }
@@ -438,27 +439,33 @@ export function createAiCommandBox(ctx, options = {}) {
     }
     if (session.ready) {
       if (normalized === "save idea") {
+        clearCommandInput();
         await saveSkillIdeaInterviewSession();
         return;
       }
       if (normalized === "save updates") {
+        clearCommandInput();
         await saveSkillIdeaInterviewSession();
         return;
       }
       if (session.savedIdea) {
         if (normalized === "copy review packet") {
+          clearCommandInput();
           await copySavedSkillIdeaReviewPacket();
           return;
         }
         if (normalized === "mark ready for review" || normalized === "mark ready") {
+          clearCommandInput();
           await markSavedSkillIdeaReady();
           return;
         }
         if (normalized === "open in skills" || normalized === "open skills") {
+          clearCommandInput();
           await openSavedSkillIdeaInSkills();
           return;
         }
         if (normalized === "start another idea") {
+          clearCommandInput();
           startAnotherSkillIdea();
           return;
         }
@@ -492,7 +499,7 @@ export function createAiCommandBox(ctx, options = {}) {
       status: "question_answered",
       providerRunInvoked: false,
     });
-    aiCommandInput.value = "";
+    clearCommandInput();
     if (session.questionIndex >= session.interview.questions.length) {
       session.ready = true;
       aiCommandInput.placeholder = "Type Save idea, Edit answers, or Cancel";
@@ -1166,6 +1173,10 @@ export function createAiCommandBox(ctx, options = {}) {
     if (!aiCommandSuggestions) return;
     aiCommandSuggestions.hidden = true;
     aiCommandSuggestions.innerHTML = "";
+  }
+
+  function clearCommandInput() {
+    if (aiCommandInput) aiCommandInput.value = "";
   }
 
   function startReport({ typedInput, matchedCommand, status }) {

@@ -251,6 +251,7 @@ test("command box opens deterministic skill idea interview session without runni
   box.wire();
   await form.submit();
 
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.deepEqual(savedIdeas, []);
   assert.deepEqual(calls, []);
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
@@ -301,6 +302,7 @@ test("command box catches typo skill idea phrasing before router check", async (
   box.wire();
   await form.submit();
 
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 2/);
@@ -331,6 +333,7 @@ test("command box renders router fallback inside the rail without replacing the 
   box.wire();
   await form.submit();
 
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Router\/check result/);
@@ -423,13 +426,16 @@ test("command box skill idea interview session saves answers into a design brief
 
   box.wire();
   await form.submit();
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   await box.handleCommand({ userRequest: "Every point needs source labels and FILE citations." });
   assert.equal(interactionLogs.at(-1).status, "question_answered");
   assert.equal(interactionLogs.at(-1).rendered_state, "skill_idea/question");
   assert.equal(interactionLogs.at(-1).typed_input, "Every point needs source labels and FILE citations.");
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 2 of 3/);
   await box.handleCommand({ userRequest: "Whole matter pleadings only." });
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 3 of 3/);
   await box.handleCommand({ userRequest: "Use lawyer-facing language but avoid final conclusions." });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Ready to save this skill idea/);
@@ -469,8 +475,11 @@ test("command box skill idea interview session saves answers into a design brief
   await box.handleCommand({ userRequest: "edit answers" });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   await box.handleCommand({ userRequest: "Use exhibit labels and raw citations." });
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   await box.handleCommand({ userRequest: "Whole matter pleadings only." });
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   await box.handleCommand({ userRequest: "Civil litigation review." });
+  assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Ready to save updates/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Save updates/);
   await box.handleCommand({ userRequest: "save updates" });
