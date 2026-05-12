@@ -6,6 +6,7 @@ import {
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
+import { formatSkillIdeaReviewPacket } from "./views/skills-page.js";
 
 const SLASH_COMMANDS = new Set([
   "/matter-init",
@@ -89,7 +90,10 @@ export function createAiCommandBox(ctx, options = {}) {
   const skillDispatch = options.skillDispatch || {};
   const now = options.now || (() => new Date());
   const loadMatterStatus = options.loadMatterStatus || (() => getJson("/api/matter-status"));
+  const loadSkillRegistry = options.loadSkillRegistry || (() => getJson("/api/skills"));
   const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
+  const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
+  const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   let latestReport = null;
   let activeSuggestionIndex = -1;
@@ -423,7 +427,30 @@ export function createAiCommandBox(ctx, options = {}) {
         await saveSkillIdeaInterviewSession();
         return;
       }
+      if (normalized === "save updates") {
+        await saveSkillIdeaInterviewSession();
+        return;
+      }
+      if (session.savedIdea) {
+        if (normalized === "copy review packet") {
+          await copySavedSkillIdeaReviewPacket();
+          return;
+        }
+        if (normalized === "mark ready for review" || normalized === "mark ready") {
+          await markSavedSkillIdeaReady();
+          return;
+        }
+        if (normalized === "open in skills" || normalized === "open skills") {
+          await openSavedSkillIdeaInSkills();
+          return;
+        }
+        if (normalized === "start another idea") {
+          startAnotherSkillIdea();
+          return;
+        }
+      }
       if (normalized === "edit answers" || normalized === "edit") {
+        session.editingSavedIdea = Boolean(session.savedIdea);
         session.ready = false;
         session.questionIndex = 0;
         aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
@@ -431,7 +458,9 @@ export function createAiCommandBox(ctx, options = {}) {
         renderSkillIdeaSession();
         return;
       }
-      renderSkillIdeaSession("Use Save idea, Edit answers, or Cancel.");
+      renderSkillIdeaSession(session.savedIdea
+        ? "Use Copy Review Packet, Mark ready for review, Edit answers, Open in Skills, Start another idea, or Cancel."
+        : "Use Save idea, Edit answers, or Cancel.");
       return;
     }
 
@@ -487,23 +516,29 @@ export function createAiCommandBox(ctx, options = {}) {
       terminal: `[skill-ideas] saving interview: ${interview.originalText}`,
     });
     try {
-      const payload = await saveSkillIdea(payloadBody);
+      const existingIdea = session.savedIdea;
+      const payload = existingIdea?.id
+        ? await updateSkillIdeaDesignBrief(existingIdea.id, payloadBody.designBrief)
+        : await saveSkillIdea(payloadBody);
       const idea = payload.idea || {};
       renderSavedSkillIdea({ idea, userRequest: interview.originalText });
+      session.savedIdea = idea;
+      session.editingSavedIdea = false;
+      session.ready = true;
       updateReport({
-        status: "saved",
+        status: existingIdea?.id ? "updated" : "saved",
         skillIdeaId: idea.id || "",
       });
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Saved as skill idea</strong><br />This proposal is not a runnable skill. Review it in Skills under Saved Ideas.`,
-        bar: "Skill Idea Saved",
-        terminal: `[skill-ideas] saved ${idea.id || "proposal"}`,
+        card: `<strong>${existingIdea?.id ? "Skill idea updated" : "Saved as skill idea"}</strong><br />Continue here: copy a review packet, mark ready, edit answers, or open Skills.`,
+        bar: existingIdea?.id ? "Skill Idea Updated" : "Skill Idea Saved",
+        terminal: `[skill-ideas] ${existingIdea?.id ? "updated" : "saved"} ${idea.id || "proposal"}`,
       });
-      currentSkillIdeaInterview = null;
-      clearSkillIdeaSession();
       aiCommandInput.value = "";
-      aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+      aiCommandInput.placeholder = "Copy Review Packet, Mark ready, Edit answers, Open in Skills, or Start another idea";
+      aiCommandSubmit.textContent = "Go";
+      renderSkillIdeaSession();
     } catch (error) {
       renderCommandError(error.message);
       updateReport({ status: "failed", error: error.message });
@@ -525,18 +560,24 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function renderSkillIdeaSession(errorMessage = "") {
     if (!aiCommandSession || !currentSkillIdeaInterview) return;
-    const { interview, answers, questionIndex, ready } = currentSkillIdeaInterview;
+    const { interview, answers, questionIndex, ready, savedIdea, editingSavedIdea } = currentSkillIdeaInterview;
     aiCommandSession.hidden = false;
+    if (ready && savedIdea && !editingSavedIdea) {
+      aiCommandSession.innerHTML = renderSavedSkillIdeaSession({ idea: savedIdea, interview, answers, errorMessage });
+      wireSkillIdeaSessionActions();
+      return;
+    }
     if (ready) {
+      const isUpdate = Boolean(savedIdea);
       aiCommandSession.innerHTML = `
         <section class="command-interview" aria-live="polite">
-          <h3>Ready to save this skill idea</h3>
-          <p class="muted">Not runnable yet. Saving creates a design brief only.</p>
+          <h3>${isUpdate ? "Ready to save updates" : "Ready to save this skill idea"}</h3>
+          <p class="muted">Not runnable yet. ${isUpdate ? "Saving updates the design brief only." : "Saving creates a design brief only."}</p>
           ${renderSkillIdeaUnderstood(interview)}
           ${renderAnsweredQuestions(interview, answers)}
           ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
           <div class="command-interview-actions">
-            <button type="button" data-skill-interview-action="save">Save idea</button>
+            <button type="button" data-skill-interview-action="save">${isUpdate ? "Save updates" : "Save idea"}</button>
             <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
             <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
           </div>
@@ -594,6 +635,163 @@ export function createAiCommandBox(ctx, options = {}) {
     `;
   }
 
+  function renderSavedSkillIdeaSession({ idea, interview, answers, errorMessage = "" }) {
+    const brief = idea.designBrief || {};
+    const readiness = idea.readiness || {};
+    const status = String(idea.status || "incomplete");
+    const checklistReady = Boolean(readiness.ready);
+    const statusText = status === "ready_for_review"
+      ? "Ready for review"
+      : checklistReady
+        ? "Incomplete - ready to mark for review"
+        : "Incomplete";
+    const checklistText = checklistReady
+      ? "Complete"
+      : `Incomplete ${Number(readiness.passedCount || 0)}/${Number(readiness.totalCount || 0)}`;
+    return `
+      <section class="command-interview" aria-live="polite">
+        <h3>Saved skill idea</h3>
+        <p class="muted">Not runnable yet. No prompt, code, provider call, activation, or matter artifact has been generated.</p>
+        ${renderSkillIdeaUnderstood(interview)}
+        <dl class="skill-card-meta">
+          <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
+          <div><dt>Checklist</dt><dd>${escapeHtml(checklistText)}</dd></div>
+          <div><dt>Output</dt><dd>${escapeHtml(brief.expectedOutputArtifact || "Not specified")}</dd></div>
+          <div><dt>Lane</dt><dd>${escapeHtml(brief.targetLane || "Not specified")}</dd></div>
+          <div><dt>Risk</dt><dd>${escapeHtml(brief.riskLevel || "Not assessed")}</dd></div>
+        </dl>
+        <details class="skill-idea-brief" open>
+          <summary>Design brief <span class="muted">Not runnable yet</span></summary>
+          <dl class="skill-card-meta">
+            <div><dt>User</dt><dd>${escapeHtml(brief.intendedUser || "Not specified")}</dd></div>
+            <div><dt>Problem</dt><dd>${escapeHtml(brief.problem || "Not specified")}</dd></div>
+            <div><dt>Inputs</dt><dd>${escapeHtml(brief.expectedInputs || "Not specified")}</dd></div>
+            <div><dt>Paid/free</dt><dd>${escapeHtml(brief.paidPosture || "Not specified")}</dd></div>
+          </dl>
+          ${brief.notes ? `<p class="muted">${escapeHtml(brief.notes)}</p>` : ""}
+        </details>
+        ${renderAnsweredQuestions(interview, answers)}
+        ${renderSavedSkillIdeaChecklist(readiness)}
+        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
+        <div class="command-interview-actions">
+          <button type="button" data-skill-interview-action="copy-packet">Copy Review Packet</button>
+          <button type="button" class="secondary" data-skill-interview-action="mark-ready"${checklistReady && status !== "ready_for_review" ? "" : " disabled"}>Mark ready for review</button>
+          <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
+          <button type="button" class="secondary" data-skill-interview-action="open-skills">Open in Skills</button>
+          <button type="button" class="secondary" data-skill-interview-action="start-another">Start another idea</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSavedSkillIdeaChecklist(readiness = {}) {
+    const items = Array.isArray(readiness.items) ? readiness.items : [];
+    if (!items.length) return "";
+    return `
+      <div class="skill-idea-readiness">
+        <div class="skill-idea-readiness-header">
+          <strong>Readiness checklist</strong>
+          <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Complete" : "Incomplete"}</span>
+        </div>
+        <ul>
+          ${items.map((item) => `
+            <li class="${item.passed ? "passed" : "missing"}">
+              <span>${item.passed ? "OK" : "Missing"}</span>
+              ${escapeHtml(item.label || item.key || "Readiness item")}
+            </li>
+          `).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
+  async function copySavedSkillIdeaReviewPacket() {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    if (!idea) return;
+    try {
+      const registry = await loadSkillRegistry().catch(() => ({}));
+      await writeClipboardText(formatSkillIdeaReviewPacket(idea, registry));
+      updateReport({ status: "copied", skillIdeaId: idea.id || "" });
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Review packet copied</strong><br />No provider call, prompt generation, or matter artifact write occurred.",
+        bar: "Skill Idea Packet Copied",
+        terminal: `[skill-ideas] copied review packet for ${idea.id || "proposal"}`,
+      });
+      renderSkillIdeaSession();
+    } catch (error) {
+      renderSkillIdeaSession(`Copy failed: ${error.message}`);
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Review packet copy failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Idea Copy Failed",
+        terminal: `[skill-ideas] copy failed: ${error.message}`,
+      });
+    }
+  }
+
+  async function markSavedSkillIdeaReady() {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    if (!idea?.id) return;
+    if (!idea.readiness?.ready) {
+      renderSkillIdeaSession("Complete every readiness item before marking ready.");
+      return;
+    }
+    try {
+      const payload = await updateSkillIdeaStatus(idea.id, "ready_for_review");
+      session.savedIdea = payload.idea || { ...idea, status: "ready_for_review" };
+      updateReport({ status: "ready_for_review", skillIdeaId: session.savedIdea.id || "" });
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Marked ready for review</strong><br />Still not runnable. No provider call or matter artifact was created.",
+        bar: "Skill Idea Ready",
+        terminal: `[skill-ideas] marked ready ${session.savedIdea.id || idea.id}`,
+      });
+      renderSkillIdeaSession();
+    } catch (error) {
+      renderSkillIdeaSession(`Mark ready failed: ${error.message}`);
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill idea update failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Idea Failed",
+        terminal: `[skill-ideas] mark ready failed: ${error.message}`,
+      });
+    }
+  }
+
+  async function openSavedSkillIdeaInSkills() {
+    currentSkillIdeaInterview = null;
+    clearSkillIdeaSession();
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandSubmit.textContent = "Go";
+    await showSkillsPage("open skills");
+  }
+
+  function startAnotherSkillIdea() {
+    currentSkillIdeaInterview = null;
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "create a skill to...";
+    aiCommandSubmit.disabled = false;
+    aiCommandSubmit.textContent = "Go";
+    clearSkillIdeaSession();
+    editorContent.innerHTML = `
+      <h1>Command</h1>
+      <section class="skill-router-result">
+        <h2>Start another idea</h2>
+        <p>Type the next skill idea in the Command rail. Nothing will run until it becomes a validated skill in a later workflow.</p>
+      </section>
+    `;
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Ready for another idea</strong><br />Type a new skill idea in the Command rail.",
+      bar: "Skill Idea",
+      terminal: "[skill-ideas] ready for another idea",
+    });
+  }
+
   function wireSkillIdeaSessionActions() {
     aiCommandSession?.querySelectorAll?.("[data-skill-interview-action]")?.forEach((button) => {
       button.addEventListener("click", async () => {
@@ -604,6 +802,22 @@ export function createAiCommandBox(ctx, options = {}) {
         }
         if (action === "edit") {
           await handleSkillIdeaInterviewInput("edit answers");
+          return;
+        }
+        if (action === "copy-packet") {
+          await copySavedSkillIdeaReviewPacket();
+          return;
+        }
+        if (action === "mark-ready") {
+          await markSavedSkillIdeaReady();
+          return;
+        }
+        if (action === "open-skills") {
+          await openSavedSkillIdeaInSkills();
+          return;
+        }
+        if (action === "start-another") {
+          startAnotherSkillIdea();
           return;
         }
         if (action === "cancel") {
@@ -651,14 +865,13 @@ export function createAiCommandBox(ctx, options = {}) {
       <section class="skill-router-result">
         <h2>Saved as skill idea</h2>
         <p><code>${escapeHtml(userRequest)}</code></p>
-        <p>This is a proposal record only. It did not create a skill, run a provider, allocate a slash command, or change built-in skills.</p>
+        <p>This is a proposal record only. It did not create a skill, run a provider, allocate a slash command, or change built-in skills. Continue in the Command rail to copy the review packet, mark ready, edit answers, or open Skills.</p>
         <dl class="skill-card-meta">
           <div><dt>Status</dt><dd>${escapeHtml(idea.status || "incomplete")}</dd></div>
           <div><dt>Created</dt><dd>${escapeHtml(idea.createdAt || "")}</dd></div>
           <div><dt>Matter</dt><dd>${escapeHtml(matter.matterName || matter.folderName || "None")}</dd></div>
           <div><dt>Folder</dt><dd>${escapeHtml(matter.folderName || "None")}</dd></div>
         </dl>
-        <p class="muted">Open Skills to review this under Saved Ideas.</p>
       </section>
     `;
   }
