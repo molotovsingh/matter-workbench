@@ -1,7 +1,10 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
-import { renderSkillsPageHtml } from "./views/skills-page.js";
+import {
+  formatSkillIdeaReviewPacket,
+  renderSkillsPageHtml,
+} from "./views/skills-page.js";
 
 export function createMatterScreens(ctx) {
   const {
@@ -160,10 +163,49 @@ export function createMatterScreens(ctx) {
       skillIdeasError,
       activeMatter: ctx.getActiveMatter(),
     }, escapeHtml);
-    wireSkillIdeaActions();
+    wireSkillIdeaActions({
+      ideas: skillIdeas?.ideas || [],
+      registry,
+    });
   }
 
-  function wireSkillIdeaActions() {
+  function wireSkillIdeaActions({ ideas = [], registry = {} } = {}) {
+    const ideaById = new Map((Array.isArray(ideas) ? ideas : [])
+      .map((idea) => [idea.id, idea]));
+    editorContent.querySelectorAll?.("[data-skill-idea-copy-packet]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const id = button.dataset.skillIdeaId;
+        const idea = ideaById.get(id);
+        const status = editorContent.querySelector(`[data-skill-idea-copy-status="${cssEscape(id || "")}"]`);
+        if (!idea) {
+          setArtifactActionStatus(status, "Idea not found.", true);
+          return;
+        }
+        button.disabled = true;
+        setArtifactActionStatus(status, "Copying review packet...");
+        try {
+          await writeClipboardText(formatSkillIdeaReviewPacket(idea, registry));
+          setArtifactActionStatus(status, "Review packet copied.");
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Review packet copied</strong><br />No provider call, prompt generation, or matter artifact write occurred.",
+            bar: "Skill Idea Packet Copied",
+            terminal: `[skill-ideas] copied review packet for ${id}`,
+          });
+        } catch (error) {
+          setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Review packet copy failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Skill Idea Copy Failed",
+            terminal: `[skill-ideas] copy failed: ${error.message}`,
+          });
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
     editorContent.querySelectorAll?.("[data-skill-idea-brief-form]")?.forEach((form) => {
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -234,6 +276,40 @@ export function createMatterScreens(ctx) {
         }
       });
     });
+  }
+
+  function setArtifactActionStatus(element, message, isError = false) {
+    if (!element) return;
+    element.textContent = message;
+    element.classList.toggle("form-error", Boolean(isError));
+  }
+
+  async function writeClipboardText(text) {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        // Fall back to the hidden textarea path below.
+      }
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      if (!document.execCommand("copy")) throw new Error("clipboard copy was rejected");
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  function cssEscape(value) {
+    if (window.CSS?.escape) return window.CSS.escape(value);
+    return String(value).replace(/["\\]/g, "\\$&");
   }
 
   function renderFirstRun(defaultPath) {

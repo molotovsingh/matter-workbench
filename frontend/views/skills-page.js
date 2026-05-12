@@ -15,6 +15,60 @@ export function skillsPageSummary(registry = {}, matterStatus = null) {
   };
 }
 
+export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
+  const status = normalizeIdeaStatusForView(idea.status);
+  const brief = normalizeDesignBriefForView(idea.designBrief);
+  const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const classification = classifySkillIdeaForReview(idea, registry);
+  const matter = idea.matter || {};
+  const openQuestions = buildSkillIdeaOpenQuestions({ brief, readiness });
+  const statusText = reviewPacketStatusText(status, readiness);
+  const checklistText = readiness.ready
+    ? "Complete"
+    : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`;
+  const lines = [
+    "# Skill Idea Review Packet",
+    "",
+    `- Idea id: ${packetValue(idea.id)}`,
+    `- Status: ${statusText}`,
+    `- Checklist: ${checklistText}`,
+    `- Suggested classification: ${classification}`,
+    `- Matter: ${packetValue(matter.matterName || matter.folderName)}`,
+    `- Matter folder: ${packetValue(matter.folderName)}`,
+    "",
+    "## Original User Text",
+    "",
+    packetBlock(idea.text),
+    "",
+    "## Design Brief",
+    "",
+    `- Intended user: ${packetValue(brief.intendedUser)}`,
+    `- Problem / job to be done: ${packetValue(brief.problem)}`,
+    `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
+    `- Expected output artifact: ${packetValue(brief.expectedOutputArtifact)}`,
+    `- Target lane: ${packetValue(brief.targetLane)}`,
+    `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
+    `- Risk level: ${packetValue(brief.riskLevel)}`,
+    "",
+    "## Interview Answers / Notes",
+    "",
+    packetBlock(brief.notes),
+    "",
+    "## Readiness Checklist",
+    "",
+    ...readiness.items.map((item) => `- ${item.passed ? "[x]" : "[ ]"} ${item.label}`),
+    "",
+    "## Open Questions",
+    "",
+    ...openQuestions.map((question) => `- ${question}`),
+    "",
+    "## Boundary",
+    "",
+    "This is not a runnable skill. No prompt, code, or provider call has been generated.",
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
 export function renderSkillsPageHtml({
   registry = {},
   matterStatus = null,
@@ -188,9 +242,11 @@ function renderSavedIdeaCard(idea, escape) {
       </details>
       ${renderReadinessChecklist(readiness, escape)}
       <div class="form-actions">
+        <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
         <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+        <span class="artifact-action-status muted" data-skill-idea-copy-status="${escape(idea.id || "")}"></span>
       </div>
     </article>
   `;
@@ -201,6 +257,14 @@ function statusLabel(status) {
   if (status === "parked") return "Parked";
   if (status === "dismissed") return "Dismissed";
   return "Incomplete";
+}
+
+function reviewPacketStatusText(status, readiness) {
+  const label = statusLabel(status);
+  if (status === "incomplete" && readiness.ready) {
+    return `${label} - ready to mark for review`;
+  }
+  return label;
 }
 
 function statusClass(status) {
@@ -279,6 +343,46 @@ function normalizeReadinessForView(readiness, brief) {
     totalCount: items.length,
     items,
   };
+}
+
+function classifySkillIdeaForReview(idea, registry) {
+  const primaryText = `${idea?.text || ""}\n${idea?.designBrief?.problem || ""}\n${idea?.designBrief?.expectedOutputArtifact || ""}`;
+  const notes = String(idea?.designBrief?.notes || "");
+  const targetSkill = extractTargetSkill(notes) || extractTargetSkill(primaryText);
+  const knownSlashes = new Set((Array.isArray(registry?.skills) ? registry.skills : [])
+    .map((skill) => skill.slash)
+    .filter(Boolean));
+  if (targetSkill && knownSlashes.has(targetSkill)) return `modification candidate (${targetSkill})`;
+  if (targetSkill) return `adjacent skill improvement (${targetSkill})`;
+  if (/\b(list\s+of\s+dates|chronolog|timeline|describe\s+sources|source\s+labels?|context\s+search|find|search)\b/i.test(primaryText)) {
+    return "adjacent skill improvement";
+  }
+  return "new skill idea";
+}
+
+function extractTargetSkill(text) {
+  const match = String(text || "").match(/\bTarget skill:\s*(\/[a-z0-9_-]+)/i);
+  return match?.[1] || "";
+}
+
+function buildSkillIdeaOpenQuestions({ brief, readiness }) {
+  const questions = readiness.items
+    .filter((item) => !item.passed)
+    .map((item) => `Complete readiness item: ${item.label}.`);
+  if (brief.paidPosture === "unknown") questions.push("Confirm whether this should be free/local or paid/provider-backed.");
+  if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output artifact, if any.");
+  if (!brief.targetLane) questions.push("Confirm the target workspace lane.");
+  return questions.length ? questions : ["None from the readiness checklist."];
+}
+
+function packetValue(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "Not specified";
+}
+
+function packetBlock(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "Not specified";
 }
 
 function renderReadinessChecklist(readiness, escape) {
