@@ -986,10 +986,10 @@ export function parseSkillIdeaInput(input) {
   if (!raw) return null;
   const normalized = normalizeCommandInput(raw);
   const patterns = [
-    /^create a skill to (.+)$/,
-    /^new skill (.+)$/,
-    /^i need a skill that (.+)$/,
-    /^can we make a skill for (.+)$/,
+    /^create a skil{1,2} to (.+)$/,
+    /^new skil{1,2} (.+)$/,
+    /^i need a skil{1,2} that (.+)$/,
+    /^can we make a skil{1,2} for (.+)$/,
   ];
   for (const pattern of patterns) {
     const match = normalized.match(pattern);

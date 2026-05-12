@@ -49,6 +49,11 @@ test("skill idea parser detects explicit proposal phrases only", () => {
     text: "create a skill to summarize pleadings",
     idea: "summarize pleadings",
   });
+  assert.deepEqual(parseSkillIdeaInput("create a skil to summarise the best case pleadings"), {
+    type: "skill_idea",
+    text: "create a skil to summarise the best case pleadings",
+    idea: "summarise the best case pleadings",
+  });
   assert.deepEqual(parseSkillIdeaInput("new skill bundle exhibits"), {
     type: "skill_idea",
     text: "new skill bundle exhibits",
