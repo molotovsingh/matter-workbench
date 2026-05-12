@@ -185,11 +185,17 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.deepEqual(initialIdeas.ideas, []);
     const savedIdea = await postJson(baseUrl, "/api/skill-ideas", {
       text: "create a skill to summarize pleadings",
+      designBrief: {
+        intendedUser: "Legal team",
+        problem: "Summarize pleadings.",
+      },
     });
     assert.equal(savedIdea.idea.text, "create a skill to summarize pleadings");
     assert.equal(savedIdea.idea.status, "incomplete");
     assert.equal(savedIdea.idea.matter.matterName, "Smoke Matter");
     assert.equal(savedIdea.idea.matter.folderName, "Smoke Matter");
+    assert.equal(savedIdea.idea.designBrief.intendedUser, "Legal team");
+    assert.equal(savedIdea.idea.readiness.passedCount, 2);
     const briefIdea = await postJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(savedIdea.idea.id)}/design-brief`, {
       designBrief: {
         intendedUser: "Litigation associate",

@@ -106,6 +106,33 @@ test("skill ideas service saves and reloads design brief fields without changing
   assert.equal(listed.ideas[0].readiness.ready, true);
 });
 
+test("skill ideas service can create an idea with an initial design brief", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-"));
+  const service = createSkillIdeasService({
+    appDir,
+    now: () => new Date("2026-05-12T10:20:00.000Z"),
+    idFactory: () => "idea_test_initial_brief",
+  });
+
+  const created = await service.createIdea({
+    text: "create a skill to summarize pleadings",
+    designBrief: {
+      intendedUser: "Legal team",
+      problem: "Summarize pleadings.",
+      expectedInputs: "Pleadings and annexures.",
+      expectedOutputArtifact: "20_Workshop/Pleadings Summary.md",
+      targetLane: "20_Workshop",
+      paidPosture: "unknown",
+      riskLevel: "medium",
+      notes: "Interview answers captured.",
+    },
+  });
+
+  assert.equal(created.idea.status, "incomplete");
+  assert.equal(created.idea.designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
+  assert.equal(created.idea.readiness.ready, true);
+});
+
 test("skill ideas service gates ready-for-review status on complete design brief", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-"));
   let tick = 0;

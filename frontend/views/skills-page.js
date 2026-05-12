@@ -68,11 +68,11 @@ export function renderSkillsPageHtml({
       <section class="skills-future-card">
         <h2>Coming Later: Configurable Skills</h2>
         <p>
-          User-created and editable skills are future work. This page does not create, modify, activate, validate, or run draft skills.
+          User-created and editable skills are future work. This page does not create, modify, approve, or run draft skills.
         </p>
         <ul>
           <li>No new skill creation.</li>
-          <li>No draft revisions, golden validation, or activation.</li>
+          <li>No draft revisions, golden checks, or runnable draft skills.</li>
           <li>No chat, Q&amp;A, provider call, or matter artifact write.</li>
         </ul>
       </section>
@@ -85,7 +85,7 @@ function renderSavedIdeas(ideas, escape) {
   return `
     <section>
       <h2>Saved Ideas</h2>
-      <p class="muted">Non-running proposal inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or activation.</p>
+      <p class="muted">Non-running idea inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or runnable skills.</p>
       ${normalized.length ? `
         <div class="skills-grid">
           ${normalized.map((idea) => renderSavedIdeaCard(idea, escape)).join("")}
@@ -122,7 +122,7 @@ function renderSavedIdeaCard(idea, escape) {
       <details class="skill-idea-brief">
         <summary>Design brief <span class="muted">Not runnable yet</span></summary>
         <p class="muted">
-          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, activation, or matter artifacts.
+          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, runnable skills, or matter artifacts.
         </p>
         <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
           <label>

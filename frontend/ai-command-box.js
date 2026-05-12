@@ -1,5 +1,10 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
+import {
+  buildSkillIdeaInterview,
+  buildSkillIdeaPayloadFromInterview,
+  parseAdaptiveSkillIdeaInput,
+} from "./skill-idea-interview.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
 
 const SLASH_COMMANDS = new Set([
@@ -87,6 +92,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   let latestReport = null;
   let activeSuggestionIndex = -1;
+  let currentSkillIdeaInterview = null;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -112,7 +118,7 @@ export function createAiCommandBox(ctx, options = {}) {
   async function handleCommand({ userRequest }) {
     hideSlashSuggestions();
     if (!userRequest) {
-      renderCommandError("Enter a slash command or proposed skill request.");
+      renderCommandError("Enter a slash command or future skill idea.");
       return;
     }
 
@@ -122,9 +128,9 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
 
-    const skillIdea = parseSkillIdeaInput(userRequest);
+    const skillIdea = parseSkillIdeaInput(userRequest) || parseAdaptiveSkillIdeaInput(userRequest);
     if (skillIdea) {
-      await saveSkillIdeaProposal(skillIdea, userRequest);
+      showSkillIdeaInterview(skillIdea, userRequest);
       return;
     }
 
@@ -307,7 +313,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function checkIntent({ userRequest, overrideJustification }) {
     if (!userRequest) {
-      renderCommandError("Enter a command or proposed skill request.");
+      renderCommandError("Enter a command or future skill idea.");
       return;
     }
 
@@ -321,7 +327,7 @@ export function createAiCommandBox(ctx, options = {}) {
     breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Command</strong><br />Checking this proposed skill request against the registry.",
+      card: "<strong>Command</strong><br />Checking this future skill idea against the current skill list.",
       bar: "Command Check",
       terminal: `[ai-command] checking intent: ${userRequest}`,
     });
@@ -362,26 +368,47 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  async function saveSkillIdeaProposal(skillIdea, userRequest) {
+  function showSkillIdeaInterview(skillIdea, userRequest) {
+    const interview = buildSkillIdeaInterview(skillIdea, userRequest);
+    currentSkillIdeaInterview = interview;
     startReport({
       typedInput: userRequest,
-      matchedCommand: "skill_idea/proposal",
-      status: "pending",
+      matchedCommand: "skill_idea/interview",
+      status: "interview",
     });
-    aiCommandSubmit.disabled = true;
-    aiCommandSubmit.textContent = "Saving...";
     breadcrumbs.textContent = "command";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Command</strong><br />Saving this as a non-running skill idea.",
-      bar: "Saving Skill Idea",
-      terminal: `[skill-ideas] saving proposal: ${userRequest}`,
+      card: "<strong>Skill idea interview</strong><br />Answer a few questions before saving. Nothing will run.",
+      bar: "Skill Idea Interview",
+      terminal: `[skill-ideas] interview opened: ${userRequest}`,
     });
+    renderSkillIdeaInterview({ interview });
+  }
 
+  async function saveSkillIdeaInterview({ interview, form }) {
+    const designBrief = readDesignBriefFromForm(form, interview.designBrief);
+    const answers = readInterviewAnswersFromForm(form, interview.questions);
+    const payloadBody = buildSkillIdeaPayloadFromInterview({
+      interview,
+      answers,
+      designBrief,
+    });
+    const submit = form.querySelector?.("[data-skill-idea-save]");
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Saving...";
+    }
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Saving idea</strong><br />Saving a non-running design brief.",
+      bar: "Saving Skill Idea",
+      terminal: `[skill-ideas] saving interview: ${interview.originalText}`,
+    });
     try {
-      const payload = await saveSkillIdea({ text: skillIdea.text });
+      const payload = await saveSkillIdea(payloadBody);
       const idea = payload.idea || {};
-      renderSavedSkillIdea({ idea, userRequest });
+      renderSavedSkillIdea({ idea, userRequest: interview.originalText });
       updateReport({
         status: "saved",
         skillIdeaId: idea.id || "",
@@ -406,9 +433,187 @@ export function createAiCommandBox(ctx, options = {}) {
         statusBar: getStatusBarText(),
         terminalLines: getLatestTerminalLines(),
       });
-      aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = "Save idea";
+      }
     }
+  }
+
+  function renderSkillIdeaInterview({ interview }) {
+    editorContent.innerHTML = `
+      <h1>Command</h1>
+      <section class="skill-router-result skill-idea-interview">
+        <h2>Skill idea interview</h2>
+        <p class="muted">Not runnable yet. This card saves a design brief only.</p>
+        <div class="skill-idea-understood">
+          <strong>What I understood</strong>
+          <p>${escapeHtml(interview.understood)}</p>
+          ${interview.targetSkill ? `<p class="muted">Likely related skill: <code>${escapeHtml(interview.targetSkill)}</code></p>` : ""}
+        </div>
+        <form class="skill-idea-interview-form" id="skillIdeaInterviewForm">
+          <div class="skill-idea-question-list">
+            ${interview.questions.map((question) => `
+              <label>
+                <span>Question</span>
+                <strong>${escapeHtml(question.label)}</strong>
+                <textarea data-interview-answer="${escapeHtml(question.id)}" placeholder="${escapeHtml(question.placeholder || "")}"></textarea>
+              </label>
+            `).join("")}
+          </div>
+          <details class="skill-idea-brief" id="skillIdeaInterviewBrief">
+            <summary>Edit inferred design brief</summary>
+            <p class="muted">These fields are saved into the same design brief shown in Skills.</p>
+            ${renderDesignBriefFields(interview.designBrief)}
+          </details>
+          <div class="form-actions">
+            <button type="submit" data-skill-idea-save>Save idea</button>
+            <button type="button" class="secondary" data-skill-idea-edit>Edit</button>
+            <button type="button" class="secondary" data-skill-idea-cancel>Cancel</button>
+          </div>
+        </form>
+      </section>
+    `;
+    wireSkillIdeaInterviewForm(interview);
+  }
+
+  function wireSkillIdeaInterviewForm(interview) {
+    if (typeof document === "undefined") return;
+    const form = document.getElementById("skillIdeaInterviewForm");
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await saveSkillIdeaInterview({ interview, form });
+    });
+    form.querySelector("[data-skill-idea-edit]")?.addEventListener("click", () => {
+      const details = document.getElementById("skillIdeaInterviewBrief");
+      if (details) details.open = true;
+      details?.querySelector?.("input, textarea, select")?.focus?.();
+    });
+    form.querySelector("[data-skill-idea-cancel]")?.addEventListener("click", () => {
+      currentSkillIdeaInterview = null;
+      updateReport({ status: "cancelled" });
+      editorContent.innerHTML = `
+        <h1>Command</h1>
+        <section class="skill-router-result">
+          <h2>Skill idea cancelled</h2>
+          <p>No idea was saved. Nothing ran.</p>
+        </section>
+      `;
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Skill idea cancelled</strong><br />No idea was saved and nothing ran.",
+        bar: "Skill Idea Cancelled",
+        terminal: "[skill-ideas] interview cancelled",
+      });
+    });
+  }
+
+  function renderDesignBriefFields(brief) {
+    return `
+      <div class="skill-idea-brief-form">
+        <label>
+          <span>Intended user</span>
+          <input type="text" name="intendedUser" value="${escapeHtml(brief.intendedUser || "")}" />
+        </label>
+        <label>
+          <span>Problem / job to be done</span>
+          <textarea name="problem">${escapeHtml(brief.problem || "")}</textarea>
+        </label>
+        <label>
+          <span>Expected inputs</span>
+          <textarea name="expectedInputs">${escapeHtml(brief.expectedInputs || "")}</textarea>
+        </label>
+        <label>
+          <span>Expected output artifact</span>
+          <input type="text" name="expectedOutputArtifact" value="${escapeHtml(brief.expectedOutputArtifact || "")}" />
+        </label>
+        <div class="skill-idea-brief-grid">
+          ${renderSelect({
+            name: "targetLane",
+            value: brief.targetLane || "",
+            options: [
+              ["", "Not chosen"],
+              ["10_Library", "10_Library - Analysis Library"],
+              ["20_Workshop", "20_Workshop - Strategy Workshop"],
+              ["30_Drafts", "30_Drafts - Drafts"],
+              ["40_Dispatch", "40_Dispatch - Dispatch"],
+            ],
+          })}
+          ${renderSelect({
+            name: "paidPosture",
+            value: brief.paidPosture || "",
+            options: [
+              ["", "Not chosen"],
+              ["free", "Free/local"],
+              ["paid", "Paid/provider-backed"],
+              ["unknown", "Unknown"],
+            ],
+          })}
+          ${renderSelect({
+            name: "riskLevel",
+            value: brief.riskLevel || "",
+            options: [
+              ["", "Not assessed"],
+              ["low", "Low"],
+              ["medium", "Medium"],
+              ["high", "High"],
+            ],
+          })}
+        </div>
+        <label>
+          <span>Notes / acceptance criteria</span>
+          <textarea name="notes">${escapeHtml(brief.notes || "")}</textarea>
+        </label>
+      </div>
+    `;
+  }
+
+  function renderSelect({ name, value, options }) {
+    return `
+      <label>
+        <span>${escapeHtml(labelForBriefField(name))}</span>
+        <select name="${escapeHtml(name)}">
+          ${options.map(([optionValue, optionLabel]) => `
+            <option value="${escapeHtml(optionValue)}"${optionValue === value ? " selected" : ""}>${escapeHtml(optionLabel)}</option>
+          `).join("")}
+        </select>
+      </label>
+    `;
+  }
+
+  function labelForBriefField(name) {
+    if (name === "targetLane") return "Target lane";
+    if (name === "paidPosture") return "Paid/free posture";
+    if (name === "riskLevel") return "Risk level";
+    return name;
+  }
+
+  function readDesignBriefFromForm(form, fallback = {}) {
+    return {
+      intendedUser: readNamedFormValue(form, "intendedUser", fallback.intendedUser),
+      problem: readNamedFormValue(form, "problem", fallback.problem),
+      expectedInputs: readNamedFormValue(form, "expectedInputs", fallback.expectedInputs),
+      expectedOutputArtifact: readNamedFormValue(form, "expectedOutputArtifact", fallback.expectedOutputArtifact),
+      targetLane: readNamedFormValue(form, "targetLane", fallback.targetLane),
+      paidPosture: readNamedFormValue(form, "paidPosture", fallback.paidPosture),
+      riskLevel: readNamedFormValue(form, "riskLevel", fallback.riskLevel),
+      notes: readNamedFormValue(form, "notes", fallback.notes),
+    };
+  }
+
+  function readInterviewAnswersFromForm(form, questions = []) {
+    const answers = {};
+    for (const question of questions) {
+      const field = form.querySelector?.(`[data-interview-answer="${question.id}"]`);
+      answers[question.id] = String(field?.value || "").trim();
+    }
+    return answers;
+  }
+
+  function readNamedFormValue(form, name, fallback = "") {
+    const field = form.querySelector?.(`[name="${name}"]`);
+    return String(field?.value || fallback || "").trim();
   }
 
   function renderSavedSkillIdea({ idea, userRequest }) {

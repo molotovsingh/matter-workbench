@@ -1512,6 +1512,46 @@ summary {
   color: var(--success);
 }
 
+.skill-idea-interview {
+  max-width: 860px;
+}
+
+.skill-idea-understood {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.skill-idea-question-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.skill-idea-question-list label > span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.skill-idea-question-list strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.skill-idea-question-list textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 76px;
+  padding: 8px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text);
+  resize: vertical;
+}
+
 .skill-slash {
   color: var(--muted);
   font-size: 12px;

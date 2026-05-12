@@ -211,7 +211,7 @@ test("command box dispatches context search aliases without provider routing", a
   assert.equal(ctx.statusCalls.at(-1).bar, "Context Search Ready");
 });
 
-test("command box saves explicit skill ideas without running skills or router check", async () => {
+test("command box opens deterministic skill idea interview without running skills or router check", async () => {
   const calls = [];
   const savedIdeas = [];
   const form = fakeForm();
@@ -240,11 +240,34 @@ test("command box saves explicit skill ideas without running skills or router ch
   box.wire();
   await form.submit();
 
-  assert.deepEqual(savedIdeas, [{ text: "create a skill to summarize pleadings" }]);
+  assert.deepEqual(savedIdeas, []);
   assert.deepEqual(calls, []);
-  assert.match(ctx.elements.editorContent.innerHTML, /Saved as skill idea/);
-  assert.match(ctx.elements.editorContent.innerHTML, /did not create a skill/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Saved");
+  assert.match(ctx.elements.editorContent.innerHTML, /What I understood/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Question/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Save idea/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Not runnable yet/);
+  assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Pleadings Summary\.md/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
+test("command box interview detects adjacent list-of-dates improvement", async () => {
+  const calls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "can list of dates also flag limitation issues" });
+  const box = createAiCommandBox(ctx, {
+    skillDispatch: {
+      "/create_listofdates": async (command) => calls.push(command),
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(calls, []);
+  assert.match(ctx.elements.editorContent.innerHTML, /Likely related skill/);
+  assert.match(ctx.elements.editorContent.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.editorContent.innerHTML, /What should change/);
+  assert.match(ctx.elements.editorContent.innerHTML, /What must stay unchanged/);
 });
 
 test("command box lane command asks for a matter before opening lanes", async () => {
