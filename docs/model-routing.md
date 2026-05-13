@@ -202,7 +202,7 @@ Current deterministic stages:
 | Stage | Model Posture | Reason |
 | --- | --- | --- |
 | Skill idea capture | No model | It records user intent and must not imply a runnable skill was created. |
-| Skill interview V0 | No model | It uses deterministic templates and saves answers into the design brief. |
+| Skill interview V1 | Deterministic fallback | It uses lawyer-facing templates for interview planning and saves answers into the design brief. A future model-backed planner may only plan questions, not generate runnable skills. |
 | Readiness gate | No model | It checks whether required design-brief fields are present. |
 | Command rail slash dispatch | No model | Exact slash commands and static aliases run the same explicit skill runners as the UI buttons. |
 
@@ -211,11 +211,13 @@ Current AI-assisted stage:
 | Stage | Model Posture | Reason |
 | --- | --- | --- |
 | Skill router / overlap check | Cheap, fast router tier is acceptable | The router classifies or checks overlap. It should not receive full matter documents by default. |
+| Skill design interview planner | Strong model only if explicitly enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, List of Dates content, logs, `.env`, API keys, or chat history. |
 
-Future stages need separate task names before they get model selectors or runtime provider choices:
+Skill work needs separate task names before any selector or runtime provider choice becomes visible:
 
 ```js
 AI_TASKS.SKILL_ROUTER
+AI_TASKS.SKILL_DESIGN_INTERVIEW
 AI_TASKS.SKILL_DESIGN_REVIEW
 AI_TASKS.SKILL_AUTHORING
 AI_TASKS.CONFIGURABLE_SKILL_RUN
