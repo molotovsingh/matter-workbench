@@ -17,14 +17,16 @@ For the current tester-facing workflow, Command rail commands, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
 
-For the proposed guarded matter-preparation workflow, see
-[docs/prepare-matter-contract.md](docs/prepare-matter-contract.md). This is a
-design contract only; `/prepare_matter` is not a runnable command yet.
+For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
+It plans and runs existing preparation stages while keeping paid source labeling
+behind an explicit confirmation. Superseded planning contracts now live under
+[docs/archive/2026-05-13](docs/archive/2026-05-13).
 
 ## Scope
 
 - Local legal matter workbench with a Matter Explorer, Command rail, and durable disk artifacts
-- Current runnable skills: `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, and `/doctor`
+- Current built-in actions: `/prepare_matter`, `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, `/context_preview`, `/context_search`, and `/doctor`
+- Approved configurable skills can be created from reviewed samples and then run as their own slash commands
 - One active matter at a time, selected from the in-app Matters list or pinned by `MATTER_ROOT`
 - Matter context is read from the active matter's `matter.json`
 - The right-side Command rail runs deterministic slash commands, opens workspace lanes, shows status, and keeps paid rerun guardrails

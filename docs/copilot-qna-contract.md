@@ -15,9 +15,9 @@ packet locally.
 
 That is different from Copilot Q&A.
 
-The current Skills tab is also read-only. It can explain capabilities and
-provider posture, but it is not a chat surface and does not create or activate
-skills.
+The Skills tab is a governance surface for built-in and configurable skills. It
+can explain capabilities, provider posture, sample history, and skill-factory
+health, but it is not a Q&A/chat surface.
 
 Copilot Q&A would let the user ask:
 
