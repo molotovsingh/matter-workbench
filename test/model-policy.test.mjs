@@ -5,6 +5,8 @@ import {
   AI_TASKS,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
+  DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
   DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
@@ -21,6 +23,7 @@ import { DEFAULT_RESPONSES_ENDPOINT } from "../shared/responses-client.mjs";
 test("model policy lists current AI task names", () => {
   assert.deepEqual(listModelPolicyTasks(), [
     AI_TASKS.SKILL_ROUTER,
+    AI_TASKS.SKILL_DESIGN_INTERVIEW,
     AI_TASKS.SOURCE_BACKED_ANALYSIS,
     AI_TASKS.SOURCE_DESCRIPTION,
   ]);
@@ -36,6 +39,39 @@ test("skill router policy matches current OpenAI-direct defaults", () => {
     model: DEFAULT_OPENAI_MODEL,
     maxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
     fallback: "fail_closed",
+  });
+});
+
+test("skill design interview policy is OpenRouter-ready with deterministic fallback", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    tier: "skill_design_interview",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "",
+    maxOutputTokens: DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
+    fallback: "deterministic_fallback",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, {
+    env: {
+      SKILL_INTERVIEW_PLANNER_PROVIDER: "openrouter",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL: "anthropic/claude-opus-4.1",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS: "2200",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS: "30000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    tier: "skill_design_interview",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "anthropic/claude-opus-4.1",
+    maxOutputTokens: 2200,
+    timeoutMs: 30000,
+    fallback: "deterministic_fallback",
   });
 });
 

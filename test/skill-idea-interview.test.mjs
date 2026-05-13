@@ -3,26 +3,67 @@ import test from "node:test";
 import {
   buildSkillIdeaInterview,
   buildSkillIdeaPayloadFromInterview,
+  planSkillIdeaInterview,
   parseAdaptiveSkillIdeaInput,
 } from "../frontend/skill-idea-interview.js";
 
-test("skill idea interview infers a simple pleading-summary brief without provider routing", () => {
+test("skill idea interview plans limitation review with legally apt questions", () => {
   const interview = buildSkillIdeaInterview({
-    text: "create a skill to summarize pleadings",
-    idea: "summarize pleadings",
+    text: "create a new skill that checks if the issue is within or outside of limitation",
+    idea: "checks if the issue is within or outside of limitation",
   });
 
   assert.equal(interview.mode, "new_skill");
   assert.equal(interview.targetSkill, "");
-  assert.match(interview.understood, /summarize pleadings/i);
+  assert.match(interview.understood, /limitation review skill/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Limitation Review.md");
+  assert.equal(interview.designBrief.targetLane, "20_Workshop");
+  assert.equal(interview.designBrief.riskLevel, "high");
+  assert.match(interview.defaultAssumptions.join("\n"), /every limitation date and conclusion must cite source labels plus raw FILE-NNNN pX\.bY citations/i);
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["limitationPosition", "decisionShape", "legalSetting"],
+  );
+  assert.match(interview.questions[0].label, /Whose limitation position/i);
+  assert.doesNotMatch(interview.questions[0].label, /citation/i);
+});
+
+test("skill idea interview plans pleading summary with pleading-specific questions", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "make a new skill that summarises the best case pleadings for the lawyer",
+    idea: "summarises the best case pleadings for the lawyer",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.targetSkill, "");
+  assert.match(interview.understood, /pleading-review skill/i);
   assert.equal(interview.designBrief.targetLane, "20_Workshop");
   assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
   assert.equal(interview.designBrief.paidPosture, "unknown");
   assert.equal(interview.designBrief.riskLevel, "medium");
   assert.deepEqual(
     interview.questions.map((question) => question.id),
-    ["citationDiscipline", "matterScope", "legalSetting"],
+    ["outputShape", "pleadingScope", "factTreatment"],
   );
+  assert.match(interview.questions[0].examples.join(" "), /issue-wise matrix/);
+  assert.match(interview.questions[2].label, /admitted facts, disputed allegations, and unsupported assertions/i);
+});
+
+test("skill idea interview plans evidence-gap review with gap-specific questions", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "create a skill to find missing documents and evidence gaps",
+    idea: "find missing documents and evidence gaps",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.match(interview.understood, /evidence-gap skill/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Evidence Gaps.md");
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["gapGrouping", "followUps", "gapPriority"],
+  );
+  assert.match(interview.questions[1].label, /follow-up documents or questions/i);
+  assert.match(interview.questions[2].label, /critical vs optional gaps/i);
 });
 
 test("skill idea interview detects adjacent list-of-dates improvement", () => {
@@ -55,6 +96,38 @@ test("skill idea interview treats pleading summary as a new skill, not list-of-d
   assert.doesNotMatch(interview.understood, /Create List of Dates/);
 });
 
+test("skill interview planner falls back deterministically without provider configuration", async () => {
+  const interview = await planSkillIdeaInterview({
+    text: "create a skill to find missing documents and evidence gaps",
+    idea: "find missing documents and evidence gaps",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Evidence Gaps.md");
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["gapGrouping", "followUps", "gapPriority"],
+  );
+});
+
+test("skill interview planner falls back deterministically when provider fails", async () => {
+  const interview = await planSkillIdeaInterview({
+    text: "create a new skill that checks if the issue is within or outside of limitation",
+    idea: "checks if the issue is within or outside of limitation",
+  }, "", {
+    plannerProvider: async () => {
+      throw new Error("planner unavailable");
+    },
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Limitation Review.md");
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["limitationPosition", "decisionShape", "legalSetting"],
+  );
+});
+
 test("adaptive skill idea parser catches adjacent improvement requests without skill wording", () => {
   assert.deepEqual(parseAdaptiveSkillIdeaInput("can list of dates also flag limitation issues"), {
     type: "skill_idea",
@@ -67,25 +140,26 @@ test("adaptive skill idea parser catches adjacent improvement requests without s
 
 test("skill idea interview payload stores answers in design brief notes", () => {
   const interview = buildSkillIdeaInterview({
-    text: "create a skill to summarize pleadings",
-    idea: "summarize pleadings",
+    text: "make a new skill that summarises the best case pleadings for the lawyer",
+    idea: "summarises the best case pleadings for the lawyer",
   });
   const payload = buildSkillIdeaPayloadFromInterview({
     interview,
     answers: {
-      citationDiscipline: "Every point needs FILE-NNNN pX.bY citations.",
-      matterScope: "Whole matter.",
-      legalSetting: "Civil recovery; avoid final conclusions.",
+      outputShape: "Issue-wise matrix.",
+      pleadingScope: "Plaint and written statement.",
+      factTreatment: "Separate admissions, disputes, and unsupported assertions.",
     },
     designBrief: {
       expectedOutputArtifact: "20_Workshop/Pleading Issues.md",
     },
   });
 
-  assert.equal(payload.text, "create a skill to summarize pleadings");
+  assert.equal(payload.text, "make a new skill that summarises the best case pleadings for the lawyer");
   assert.equal(payload.designBrief.expectedOutputArtifact, "20_Workshop/Pleading Issues.md");
   assert.equal(payload.designBrief.targetLane, "20_Workshop");
   assert.match(payload.designBrief.notes, /Interview answers:/);
-  assert.match(payload.designBrief.notes, /Every point needs FILE-NNNN pX\.bY citations/);
-  assert.match(payload.designBrief.notes, /Civil recovery; avoid final conclusions/);
+  assert.match(payload.designBrief.notes, /Default evidence rule:/);
+  assert.match(payload.designBrief.notes, /Issue-wise matrix/);
+  assert.match(payload.designBrief.notes, /Separate admissions, disputes, and unsupported assertions/);
 });

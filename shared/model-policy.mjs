@@ -8,6 +8,7 @@ export const MODEL_POLICY_VERSION = "model-policy/v1-current";
 
 export const AI_TASKS = Object.freeze({
   SKILL_ROUTER: "skill_router",
+  SKILL_DESIGN_INTERVIEW: "skill_design_interview",
   SOURCE_BACKED_ANALYSIS: "source_backed_analysis",
   SOURCE_DESCRIPTION: "source_description",
 });
@@ -18,6 +19,8 @@ export const AI_PROVIDERS = Object.freeze({
 });
 
 export const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
+export const DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS = 1800;
+export const DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS = 45_000;
 export const DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS = 90_000;
 export const DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS = 3000;
 export const DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS = 90_000;
@@ -34,6 +37,21 @@ const TASK_POLICIES = Object.freeze({
     modelEnvKey: "OPENAI_MODEL",
     maxOutputTokensEnvKey: "OPENAI_ROUTER_MAX_OUTPUT_TOKENS",
     defaultMaxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  }),
+  [AI_TASKS.SKILL_DESIGN_INTERVIEW]: Object.freeze({
+    task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    tier: "skill_design_interview",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    fallback: "deterministic_fallback",
+    providerEnvKey: "SKILL_INTERVIEW_PLANNER_PROVIDER",
+    modelEnvKey: "OPENAI_MODEL",
+    maxOutputTokensEnvKey: "OPENAI_MAX_OUTPUT_TOKENS",
+    openRouterModelEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL",
+    openRouterMaxOutputTokensEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS",
+    timeoutMsEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS",
+    defaultMaxOutputTokens: DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
+    defaultTimeoutMs: DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
   }),
   [AI_TASKS.SOURCE_BACKED_ANALYSIS]: Object.freeze({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,

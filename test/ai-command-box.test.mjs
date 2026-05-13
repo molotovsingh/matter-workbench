@@ -309,7 +309,7 @@ test("command box catches typo skill idea phrasing before router check", async (
   assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 2/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
 });
 

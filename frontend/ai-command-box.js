@@ -3,6 +3,7 @@ import { escapeHtml } from "./dom-utils.js";
 import {
   buildSkillIdeaInterview,
   buildSkillIdeaPayloadFromInterview,
+  planSkillIdeaInterview,
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
@@ -97,6 +98,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
   const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
   const writeClipboardText = options.writeClipboardText || writeClipboard;
+  const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
   let latestReport = null;
   let activeSuggestionIndex = -1;
   let currentSkillIdeaInterview = null;
@@ -141,7 +143,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
     const skillIdea = parseSkillIdeaInput(userRequest) || parseAdaptiveSkillIdeaInput(userRequest);
     if (skillIdea) {
-      showSkillIdeaInterview(skillIdea, userRequest);
+      await showSkillIdeaInterview(skillIdea, userRequest);
       return;
     }
 
@@ -394,8 +396,17 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  function showSkillIdeaInterview(skillIdea, userRequest) {
-    const interview = buildSkillIdeaInterview(skillIdea, userRequest);
+  async function showSkillIdeaInterview(skillIdea, userRequest) {
+    let interview = null;
+    let plannerFallbackMessage = "";
+    try {
+      interview = await planSkillIdeaInterviewFn(skillIdea, userRequest, {
+        activeMatter: ctx.getActiveMatter?.() || null,
+      });
+    } catch (error) {
+      plannerFallbackMessage = error.message || "planner unavailable";
+      interview = buildSkillIdeaInterview(skillIdea, userRequest);
+    }
     currentSkillIdeaInterview = {
       interview,
       answers: {},
@@ -419,7 +430,12 @@ export function createAiCommandBox(ctx, options = {}) {
       mood: "idle",
       card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
       bar: "Skill Idea Interview",
-      terminal: `[skill-ideas] interview opened: ${userRequest}`,
+      terminal: plannerFallbackMessage
+        ? [
+          `[skill-ideas] planner fallback: ${plannerFallbackMessage}`,
+          `[skill-ideas] interview opened: ${userRequest}`,
+        ]
+        : `[skill-ideas] interview opened: ${userRequest}`,
     });
     renderSkillIdeaSession();
   }
@@ -634,7 +650,8 @@ export function createAiCommandBox(ctx, options = {}) {
         <div class="command-interview-question">
           <strong>Question ${questionIndex + 1} of ${total}</strong>
           <p>${escapeHtml(question.label || "")}</p>
-          ${question.placeholder ? `<p class="muted">${escapeHtml(question.placeholder)}</p>` : ""}
+          ${question.help ? `<p>${escapeHtml(question.help)}</p>` : ""}
+          ${renderQuestionExamples(question)}
         </div>
         ${renderAnsweredQuestions(interview, answers)}
         ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
@@ -651,9 +668,28 @@ export function createAiCommandBox(ctx, options = {}) {
         <div class="skill-idea-understood">
           <strong>What I understood</strong>
           <p>${escapeHtml(interview.understood)}</p>
+          ${renderDefaultAssumptions(interview)}
           ${interview.targetSkill ? `<p class="muted">Likely related skill: <code>${escapeHtml(interview.targetSkill)}</code></p>` : ""}
         </div>
     `;
+  }
+
+  function renderDefaultAssumptions(interview) {
+    const assumptions = Array.isArray(interview.defaultAssumptions) ? interview.defaultAssumptions : [];
+    if (!assumptions.length) return "";
+    return `
+      <ul class="command-interview-answers">
+        ${assumptions.map((assumption) => `<li><span>Default</span><strong>${escapeHtml(assumption)}</strong></li>`).join("")}
+      </ul>
+    `;
+  }
+
+  function renderQuestionExamples(question) {
+    const examples = Array.isArray(question.examples) ? question.examples.filter(Boolean) : [];
+    if (examples.length) {
+      return `<p class="muted">Examples: ${escapeHtml(examples.join(", "))}.</p>`;
+    }
+    return question.placeholder ? `<p class="muted">${escapeHtml(question.placeholder)}</p>` : "";
   }
 
   function renderAnsweredQuestions(interview, answers) {
