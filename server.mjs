@@ -10,6 +10,7 @@ import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
+import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
@@ -55,6 +56,12 @@ export async function createWorkbenchServer(options = {}) {
   const skillSamplesService = createSkillSamplesService({
     appDir,
     samplesPath: options.skillSamplesPath,
+  });
+  const skillFactoryHealthService = createSkillFactoryHealthService({
+    appDir,
+    ideasPath: options.skillIdeasPath,
+    samplesPath: options.skillSamplesPath,
+    skillsPath: options.configurableSkillsPath,
   });
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
@@ -104,6 +111,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStatusService,
     prepareMatterService,
     skillIdeasService,
+    skillFactoryHealthService,
     skillInterviewPlannerService,
     skillRegistryService,
     skillRouterService,
