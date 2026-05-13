@@ -1,3 +1,5 @@
+import { formatSkillIdeaImplementationBriefMarkdown } from "../skill-idea-implementation-brief.js";
+
 export function skillsPageSummary(registry = {}, matterStatus = null) {
   const skills = Array.isArray(registry.skills) ? registry.skills : [];
   const stages = Array.isArray(matterStatus?.stages) ? matterStatus.stages : [];
@@ -67,6 +69,10 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
     "This is not a runnable skill. No prompt, code, or provider call has been generated.",
   ];
   return `${lines.join("\n")}\n`;
+}
+
+export function formatSkillIdeaImplementationBrief(idea = {}, registry = {}) {
+  return formatSkillIdeaImplementationBriefMarkdown(idea, registry);
 }
 
 export function renderSkillsPageHtml({
@@ -243,6 +249,7 @@ function renderSavedIdeaCard(idea, escape) {
       ${renderReadinessChecklist(readiness, escape)}
       <div class="form-actions">
         <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
+        <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
         <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
         <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>

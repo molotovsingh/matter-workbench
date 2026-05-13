@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
 import {
+  formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
   renderSkillsPageHtml,
   skillsPageSummary,
@@ -166,6 +167,8 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Incomplete 0\/8/);
   assert.match(html, /Copy Review Packet/);
   assert.match(html, /data-skill-idea-copy-packet/);
+  assert.match(html, /Copy Implementation Brief/);
+  assert.match(html, /data-skill-idea-copy-implementation-brief/);
   assert.match(html, /Mark ready for review/);
   assert.match(html, /Park idea/);
   assert.match(html, /Dismiss/);
@@ -182,6 +185,106 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
   assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
+});
+
+test("skill idea implementation brief classifies client-update email as a new skill", () => {
+  const packet = formatSkillIdeaImplementationBrief({
+    id: "idea_client_email",
+    text: "new skill: draft a warm client update email after reading List of Dates",
+    status: "ready_for_review",
+    matter: {
+      matterName: "Ayesha vs Japan Airlines",
+      folderName: "Ayesha Vs Japan Airlines",
+    },
+    designBrief: {
+      intendedUser: "Lawyer preparing client communication",
+      problem: "Draft a warm client update email after reading List of Dates.",
+      expectedInputs: "10_Library/List of Dates.md, Source Index, matter metadata.",
+      expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+      targetLane: "30_Drafts",
+      paidPosture: "paid",
+      riskLevel: "high",
+      notes: "Client-facing draft. Do not send automatically.",
+    },
+  }, registryFixture());
+
+  assert.match(packet, /^# Skill Idea Implementation Brief/);
+  assert.match(packet, /- Proposal type: New skill/);
+  assert.match(packet, /- Title: Client Update Email/);
+  assert.match(packet, /- Proposed slash command: \/client_update_email/);
+  assert.match(packet, /- Output artifact: 30_Drafts\/Client Update Email\.md/);
+  assert.match(packet, /- Target lane: 30_Drafts/);
+  assert.match(packet, /Client-facing draft; lawyer must review before sending/);
+  assert.match(packet, /do not expose raw FILE-NNNN pX\.bY citations/i);
+  assert.match(packet, /## Acceptance Tests/);
+  assert.match(packet, /A client-update idea is classified as a new skill, not a List of Dates modification/);
+  assert.match(packet, /## Non-Goals/);
+  assert.match(packet, /Do not send email/);
+  assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
+  assert.doesNotMatch(packet, /API_KEY|OPENAI_API_KEY|MISTRAL_API_KEY|\.env|BEGIN EXTRACTION RECORD|raw document text/i);
+});
+
+test("skill idea implementation brief keeps party and officer mapping as a new skill", () => {
+  const packet = formatSkillIdeaImplementationBrief({
+    id: "idea_party_map",
+    text: "new skill: discover formal party names, officers, aliases, and relationships",
+    status: "incomplete",
+    designBrief: {
+      intendedUser: "Paralegal",
+      problem: "Discover formal party names, officers, aliases, and relationships.",
+      expectedInputs: "Matter context, pleadings, correspondence, and contracts.",
+      expectedOutputArtifact: "20_Workshop/Party and Officer Map.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "high",
+      notes: "Every identity claim must cite sources.",
+    },
+  }, registryFixture());
+
+  assert.match(packet, /- Proposal type: New skill/);
+  assert.match(packet, /- Title: Party and Officer Map/);
+  assert.match(packet, /- Proposed slash command: \/party_officer_map/);
+  assert.match(packet, /20_Workshop\/Party and Officer Map\.md/);
+  assert.match(packet, /Every formal name, officer, alias, role, and relationship must cite readable source labels plus raw FILE-NNNN pX\.bY citations/);
+  assert.match(packet, /A party\/officer-name idea is classified as a new skill, not a List of Dates modification/);
+  assert.doesNotMatch(packet, /Proposal type: Improve existing skill/);
+  assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
+});
+
+test("skill idea implementation brief classifies limitation flags as a list-of-dates modification", () => {
+  const packet = formatSkillIdeaImplementationBrief({
+    id: "idea_lod_limitation",
+    text: "modify skill: make List of Dates also flag limitation issues",
+    status: "ready_for_review",
+    designBrief: {
+      intendedUser: "Litigation associate",
+      problem: "Make List of Dates also flag limitation issues.",
+      expectedInputs: "Existing Create List of Dates inputs and current source-backed chronology.",
+      expectedOutputArtifact: "10_Library/List of Dates.md",
+      targetLane: "10_Library",
+      paidPosture: "paid",
+      riskLevel: "high",
+      notes: [
+        "Target skill: /create_listofdates.",
+        "What should change: add limitation flags.",
+        "What must stay unchanged: preserve raw citations and readable source labels.",
+      ].join("\n"),
+    },
+  }, registryFixture());
+
+  assert.match(packet, /- Proposal type: Improve existing skill/);
+  assert.match(packet, /- Target existing skill: \/create_listofdates/);
+  assert.match(packet, /### What Should Change/);
+  assert.match(packet, /Add limitation-aware review signals/);
+  assert.match(packet, /### What Must Stay Unchanged/);
+  assert.match(packet, /Raw FILE-NNNN pX\.bY citations remain canonical/);
+  assert.match(packet, /### Regression Tests Required/);
+  assert.match(packet, /A fixture with no limitation issue does not invent one/);
+  assert.match(packet, /## Acceptance Tests/);
+  assert.match(packet, /Implementation decision is explicit/);
+  assert.match(packet, /## Non-Goals/);
+  assert.match(packet, /Do not replace the existing target skill output silently/);
+  assert.match(packet, /separate review artifact/i);
 });
 
 test("skill idea review packet includes governance fields without source text or secrets", () => {
