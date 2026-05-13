@@ -371,6 +371,33 @@ test("command box starts limitation interview for i-want-a-skill phrasing", asyn
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
 });
 
+test("command box starts weakness review interview with client-risk questions", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "create a skill to find weaknesses and opponent arguments from the client perspective",
+  });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit skill ideas");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /weakness review skill/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What type of weaknesses should it focus on/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /procedural\/legal risks/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
 test("command box renders router fallback inside the rail without replacing the central pane", async () => {
   const interactionLogs = [];
   const form = fakeForm();

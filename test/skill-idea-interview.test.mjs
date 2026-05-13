@@ -66,6 +66,32 @@ test("skill idea interview plans evidence-gap review with gap-specific questions
   assert.match(interview.questions[2].label, /critical vs optional gaps/i);
 });
 
+test("skill idea interview plans weakness review with client-risk questions", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "create a skill to find weaknesses and opponent arguments from the client perspective",
+    idea: "find weaknesses and opponent arguments from the client perspective",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.targetSkill, "");
+  assert.match(interview.understood, /weakness review skill/i);
+  assert.match(interview.understood, /adverse facts, evidence gaps, contradictions/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Weakness Review.md");
+  assert.equal(interview.designBrief.targetLane, "20_Workshop");
+  assert.equal(interview.designBrief.riskLevel, "high");
+  assert.match(interview.designBrief.problem, /opponent arguments/i);
+  assert.match(interview.designBrief.notes, /candid internal lawyer review/i);
+  assert.match(interview.defaultAssumptions.join("\n"), /every factual weakness must cite source labels plus raw FILE-NNNN pX\.bY citations/i);
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["weaknessFocus", "weaknessStructure", "weaknessAudience"],
+  );
+  assert.match(interview.questions[0].label, /type of weaknesses/i);
+  assert.match(interview.questions[0].examples.join(" "), /procedural\/legal risks/);
+  assert.match(interview.questions[1].examples.join(" "), /issue-wise weakness table/);
+  assert.match(interview.questions[2].examples.join(" "), /internal lawyer only/);
+});
+
 test("skill idea interview detects adjacent list-of-dates improvement", () => {
   const interview = buildSkillIdeaInterview({
     text: "can we make a skill for list of dates to flag limitation issues",

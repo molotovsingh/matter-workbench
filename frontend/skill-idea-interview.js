@@ -135,6 +135,45 @@ const DOMAIN_INTERVIEW_TEMPLATES = [
       },
     ],
   },
+  {
+    id: "weakness_review",
+    patterns: [/\bweakness(?:es)?\b/i, /weak\s+facts?/i, /\brisk(?:s)?\b/i, /adverse\s+facts?/i, /bad\s+facts?/i, /opponent(?:'s)?\s+arguments?/i, /client\s+perspective/i],
+    understood: "You want a weakness review skill that helps a lawyer identify adverse facts, evidence gaps, contradictions, procedural or legal risks, and opponent-facing arguments from the client's perspective.",
+    designBrief: {
+      intendedUser: "Lawyer reviewing client-side case risk",
+      problem: "Identify weaknesses, risks, adverse facts, evidentiary gaps, contradictions, credibility concerns, and likely opponent arguments from the client's perspective.",
+      expectedInputs: "Whole matter context, extracted records, Source Index, List of Dates, pleadings, notices, correspondence, orders, receipts, and other source-backed records.",
+      expectedOutputArtifact: "20_Workshop/Weakness Review.md",
+      targetLane: "20_Workshop",
+      paidPosture: "unknown",
+      riskLevel: "high",
+      notes: "Not runnable yet. Default evidence rule: every factual weakness must cite source labels plus raw FILE-NNNN pX.bY citations. Unsupported strategic concerns must be marked as lawyer-review assumptions. Default tone: candid internal lawyer review from the client's perspective.",
+    },
+    defaultAssumptions: [
+      "Default evidence rule: every factual weakness must cite source labels plus raw FILE-NNNN pX.bY citations.",
+      "Default tone: candid internal lawyer review from the client's perspective.",
+    ],
+    questions: [
+      {
+        id: "weaknessFocus",
+        label: "What type of weaknesses should it focus on?",
+        help: "Choose the risk lens before the skill exists.",
+        examples: ["facts", "evidence gaps", "contradictions", "procedural/legal risks", "opponent arguments", "all"],
+      },
+      {
+        id: "weaknessStructure",
+        label: "How should the output be structured?",
+        help: "Pick the review format a lawyer would use first.",
+        examples: ["ranked risk list", "issue-wise weakness table", "strategy memo", "follow-up checklist"],
+      },
+      {
+        id: "weaknessAudience",
+        label: "Who is the audience?",
+        help: "This controls how candid or client-safe the future output should be.",
+        examples: ["internal lawyer only", "client-safe summary", "court-prep note"],
+      },
+    ],
+  },
 ];
 
 const SIMPLE_OUTPUT_PATTERNS = [
