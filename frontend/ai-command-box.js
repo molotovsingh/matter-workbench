@@ -1470,6 +1470,7 @@ export function parseSkillIdeaInput(input) {
     /^make (?:a )?skil{1,2} (?:for|to|that) (.+)$/,
     /^new skil{1,2} (.+)$/,
     /^i need a skil{1,2} that (.+)$/,
+    /^i want a (?:new )?skil{1,2} (?:for|to|that) (.+)$/,
     /^can we make a skil{1,2} for (.+)$/,
   ];
   for (const pattern of patterns) {
