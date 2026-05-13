@@ -26,6 +26,7 @@ const elements = {
   workspaceTree: document.getElementById("workspaceTree"),
   refreshExplorerButton: document.getElementById("refreshExplorer"),
   addFilesButton: document.getElementById("addFilesButton"),
+  toggleTechnicalFilesButton: document.getElementById("toggleTechnicalFiles"),
   breadcrumbs: document.getElementById("breadcrumbs"),
   aiCommandForm: document.getElementById("aiCommandForm"),
   aiCommandInput: document.getElementById("aiCommandInput"),
@@ -84,6 +85,7 @@ const workspaceView = createWorkspaceView(ctx);
 ctx.openFilePreview = workspaceView.openFilePreview;
 ctx.openWorkspaceLane = workspaceView.openWorkspaceLane;
 ctx.renderWorkspaceTree = workspaceView.renderWorkspaceTree;
+ctx.toggleTechnicalFiles = workspaceView.toggleTechnicalFiles;
 
 const matterScreens = createMatterScreens(ctx);
 ctx.goToExplorer = matterScreens.goToExplorer;

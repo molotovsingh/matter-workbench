@@ -30,7 +30,7 @@ export function renderTreeNode(node, depth = 0, options = {}) {
 
   const children = node.children || [];
   const childItems = depth === 0
-    ? renderMatterWorkspaceChildren(children)
+    ? renderMatterWorkspaceChildren(children, options)
     : renderDirectoryChildren(children, depth, options);
   const displayChildren = partitionChildrenForDisplay(children, options);
   const childCount = displayChildren.visibleCount ? `<span class="tree-meta">${displayChildren.visibleCount}</span>` : "";
@@ -55,26 +55,29 @@ export function renderTreeNode(node, depth = 0, options = {}) {
   `;
 }
 
-function renderMatterWorkspaceChildren(children = []) {
+function renderMatterWorkspaceChildren(children = [], options = {}) {
   const byPath = new Map(children.map((child) => [child.path, child]));
   const groupedPaths = new Set(MATTER_WORKSPACE_GROUPS.flatMap((group) => group.lanes || []));
   const groupedItems = MATTER_WORKSPACE_GROUPS
-    .map((group) => renderWorkspaceGroup(group, byPath))
+    .map((group) => renderWorkspaceGroup(group, byPath, options))
     .filter(Boolean)
     .join("");
   const remaining = children.filter((child) => !groupedPaths.has(child.path));
-  const { primary, technical } = partitionChildrenForDisplay(remaining);
+  const { primary, technical } = partitionChildrenForDisplay(remaining, options);
   const remainingItems = [
-    ...primary.map((child) => renderTreeNode(child, 1)),
-    renderTechnicalGroup(technical, 0),
+    ...primary.map((child) => renderTreeNode(child, 1, options)),
+    renderTechnicalGroup(technical, 0, options),
   ].filter(Boolean).join("");
   return `${groupedItems}${remainingItems}`;
 }
 
-function renderWorkspaceGroup(group, byPath) {
+function renderWorkspaceGroup(group, byPath, options = {}) {
   const lanes = (group.lanes || []).map((lanePath) => byPath.get(lanePath)).filter(Boolean);
   if (!lanes.length) return "";
-  const childCount = lanes.reduce((total, lane) => total + (Array.isArray(lane.children) ? lane.children.length : 0), 0);
+  const childCount = lanes.reduce((total, lane) => {
+    if (!Array.isArray(lane.children)) return total;
+    return total + partitionChildrenForDisplay(lane.children, options).visibleCount;
+  }, 0);
   return `
     <li class="tree-node tree-directory tree-lane-group">
       <details open data-workspace-group="${escapeHtml(group.id || "")}">
@@ -82,40 +85,41 @@ function renderWorkspaceGroup(group, byPath) {
           <span class="tree-name">${escapeHtml(group.label || "Workspace Group")}<span class="tree-purpose">${escapeHtml(group.purpose || "")}</span></span>
           ${childCount ? `<span class="tree-meta">${childCount}</span>` : ""}
         </summary>
-        <ul>${lanes.map((lane) => renderTreeNode(lane, 1)).join("")}</ul>
+        <ul>${lanes.map((lane) => renderTreeNode(lane, 1, options)).join("")}</ul>
       </details>
     </li>
   `;
 }
 
 function renderDirectoryChildren(children = [], depth = 0, options = {}) {
-  if (options.showTechnical) {
+  if (options.inTechnicalGroup) {
     return children.map((child) => renderTreeNode(child, depth + 1, options)).join("");
   }
   const { primary, technical } = partitionChildrenForDisplay(children, options);
   return [
-    ...primary.map((child) => renderTreeNode(child, depth + 1)),
-    renderTechnicalGroup(technical, depth),
+    ...primary.map((child) => renderTreeNode(child, depth + 1, options)),
+    renderTechnicalGroup(technical, depth, options),
   ].filter(Boolean).join("");
 }
 
-function renderTechnicalGroup(children = [], depth = 0) {
-  if (!children.length) return "";
+function renderTechnicalGroup(children = [], depth = 0, options = {}) {
+  if (!children.length || !options.showTechnical) return "";
   return `
     <li class="tree-node tree-directory tree-technical-group">
-      <details>
+      <details open>
         <summary>
           <span class="tree-name">Technical files<span class="tree-purpose">Logs, registers, extraction records, and machine-readable sidecars.</span></span>
           <span class="tree-meta">${children.length}</span>
         </summary>
-        <ul>${children.map((child) => renderTreeNode(child, depth + 1, { showTechnical: true })).join("")}</ul>
+        <p class="tree-technical-warning">Technical files are used by the app. Do not edit them unless you know what you are doing.</p>
+        <ul>${children.map((child) => renderTreeNode(child, depth + 1, { ...options, inTechnicalGroup: true })).join("")}</ul>
       </details>
     </li>
   `;
 }
 
 function partitionChildrenForDisplay(children = [], options = {}) {
-  if (options.showTechnical) {
+  if (options.inTechnicalGroup) {
     return { primary: children, technical: [], visibleCount: children.length };
   }
   const markdownBasenames = new Set(children
@@ -130,7 +134,7 @@ function partitionChildrenForDisplay(children = [], options = {}) {
   return {
     primary,
     technical,
-    visibleCount: primary.length + (technical.length ? 1 : 0),
+    visibleCount: primary.length + (options.showTechnical && technical.length ? 1 : 0),
   };
 }
 
@@ -175,14 +179,35 @@ function baseNameWithoutExtension(name = "") {
 }
 
 export function createWorkspaceView(ctx) {
-  const { breadcrumbs, editorContent, statusBarRight, workspaceTree } = ctx.elements;
+  const {
+    breadcrumbs,
+    editorContent,
+    statusBarRight,
+    toggleTechnicalFilesButton,
+    workspaceTree,
+  } = ctx.elements;
+  let showTechnicalFiles = false;
+
+  function updateTechnicalFilesToggle() {
+    if (!toggleTechnicalFilesButton) return;
+    toggleTechnicalFilesButton.textContent = showTechnicalFiles ? "Hide technical files" : "Show technical files";
+    toggleTechnicalFilesButton.setAttribute("aria-pressed", showTechnicalFiles ? "true" : "false");
+    toggleTechnicalFilesButton.classList.toggle("active", showTechnicalFiles);
+  }
 
   function renderWorkspaceTree(activeMatter = ctx.getActiveMatter()) {
+    updateTechnicalFilesToggle();
     if (activeMatter.tree) {
-      workspaceTree.innerHTML = renderTreeNode(activeMatter.tree);
+      workspaceTree.innerHTML = renderTreeNode(activeMatter.tree, 0, { showTechnical: showTechnicalFiles });
       return;
     }
     workspaceTree.innerHTML = '<li class="tree-node">Loading workspace...</li>';
+  }
+
+  function toggleTechnicalFiles() {
+    showTechnicalFiles = !showTechnicalFiles;
+    renderWorkspaceTree();
+    return showTechnicalFiles;
   }
 
   async function openFilePreview(filePath, previewable, previewKind) {
@@ -307,7 +332,7 @@ export function createWorkspaceView(ctx) {
     return { ok: true, empty: !(laneNode.children || []).length };
   }
 
-  return { openFilePreview, openWorkspaceLane, renderWorkspaceTree };
+  return { openFilePreview, openWorkspaceLane, renderWorkspaceTree, toggleTechnicalFiles };
 }
 
 export function findTreeNodeByPath(node, relativePath) {

@@ -105,8 +105,8 @@ test("workspace lane lookup and preview render empty and populated lanes", () =>
   assert.match(draftsHtml, /This lane is empty/);
 });
 
-test("workspace tree groups technical files behind lawyer-facing artifact labels", () => {
-  const html = renderTreeNode({
+test("workspace tree hides technical files by default and exposes them when requested", () => {
+  const tree = {
     name: "Demo Matter",
     kind: "directory",
     path: "",
@@ -191,15 +191,28 @@ test("workspace tree groups technical files behind lawyer-facing artifact labels
         previewKind: "text",
       },
     ],
-  });
+  };
+  const html = renderTreeNode(tree);
 
   assert.match(html, /Source Index <span class="tree-canonical-name">Source Index\.json/);
   assert.match(html, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
-  assert.match(html, /Technical files[\s\S]*File Register\.csv/);
-  assert.match(html, /Technical files[\s\S]*_extracted/);
-  assert.match(html, /Technical files[\s\S]*List of Dates\.json/);
-  assert.match(html, /Technical files[\s\S]*List of Dates\.csv/);
-  assert.match(html, /Technical files[\s\S]*matter\.json/);
+  assert.doesNotMatch(html, /Technical files/);
+  assert.doesNotMatch(html, /File Register\.csv/);
+  assert.doesNotMatch(html, /_extracted/);
+  assert.doesNotMatch(html, /List of Dates\.json/);
+  assert.doesNotMatch(html, /List of Dates\.csv/);
+  assert.doesNotMatch(html, /matter\.json/);
+
+  const technicalHtml = renderTreeNode(tree, 0, { showTechnical: true });
+
+  assert.match(technicalHtml, /Source Index <span class="tree-canonical-name">Source Index\.json/);
+  assert.match(technicalHtml, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
+  assert.match(technicalHtml, /Technical files[\s\S]*Technical files are used by the app/);
+  assert.match(technicalHtml, /Technical files[\s\S]*File Register\.csv/);
+  assert.match(technicalHtml, /Technical files[\s\S]*_extracted/);
+  assert.match(technicalHtml, /Technical files[\s\S]*List of Dates\.json/);
+  assert.match(technicalHtml, /Technical files[\s\S]*List of Dates\.csv/);
+  assert.match(technicalHtml, /Technical files[\s\S]*matter\.json/);
 });
 
 test("workspace preview renders List of Dates markdown actions", () => {

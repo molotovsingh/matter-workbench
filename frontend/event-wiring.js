@@ -15,6 +15,7 @@ export function wireAppEvents(ctx, skills) {
   };
 
   elements.refreshExplorerButton.addEventListener("click", () => ctx.refreshWorkspace());
+  elements.toggleTechnicalFilesButton?.addEventListener("click", () => ctx.toggleTechnicalFiles?.());
 
   elements.workspaceTree.addEventListener("click", (event) => {
     const fileButton = event.target.closest("[data-file-path]");

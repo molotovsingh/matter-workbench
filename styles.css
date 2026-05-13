@@ -530,7 +530,9 @@ strong {
 
 .tree-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  justify-content: flex-end;
 }
 
 .file-pdf-frame {
@@ -804,6 +806,12 @@ strong {
   color: var(--hover-text);
 }
 
+.tree-refresh.active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 .tree-root {
   font-size: 13px;
   line-height: 1.35;
@@ -851,6 +859,13 @@ strong {
 
 .tree-technical-group {
   opacity: 0.82;
+}
+
+.tree-technical-warning {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 6px 0 6px 2px;
 }
 
 .tree-meta {
