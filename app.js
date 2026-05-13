@@ -19,6 +19,8 @@ import { escapeHtml, matterFromWorkspace } from "./frontend/dom-utils.js";
 const elements = {
   terminalOutput: document.getElementById("terminalOutput"),
   editorContent: document.getElementById("editorContent"),
+  titleText: document.getElementById("titleText"),
+  bottomMeta: document.getElementById("bottomMeta"),
   statusBarRight: document.getElementById("statusBarRight"),
   workspaceTree: document.getElementById("workspaceTree"),
   refreshExplorerButton: document.getElementById("refreshExplorer"),
@@ -133,6 +135,12 @@ function mergeActiveMatterState(patch) {
 function setActiveMatter(nextMatter, options = {}) {
   activeMatter = activeMatterStore.merge(nextMatter);
   if (elements.addFilesButton) elements.addFilesButton.hidden = !activeMatter.folderName;
+  if (elements.titleText) {
+    elements.titleText.textContent = activeMatter.folderName || "No matter selected";
+  }
+  if (elements.bottomMeta) {
+    elements.bottomMeta.textContent = activeMatter.folderName || "No matter selected";
+  }
   elements.breadcrumbs.textContent = activeMatter.folderName
     ? `${activeMatter.folderName} > overview`
     : "workbench";

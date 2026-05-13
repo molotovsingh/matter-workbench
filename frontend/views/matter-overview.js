@@ -34,11 +34,11 @@ export function createMatterOverview(ctx, skills) {
       </section>
 
       <div class="form-actions">
-        <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Run /matter-init</button>
-        <button type="button" class="run-skill-button secondary" id="runExtractButton">Run /extract</button>
-        <button type="button" class="run-skill-button secondary" id="runDescribeSourcesButton">Run /describe_sources</button>
-        <button type="button" class="run-skill-button secondary" id="runListOfDatesButton">Run /create_listofdates</button>
-        <button type="button" class="run-skill-button secondary" id="runDoctorButton">Run /doctor</button>
+        <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Set up matter <span>/matter-init</span></button>
+        <button type="button" class="run-skill-button secondary" id="runExtractButton">Extract documents <span>/extract</span></button>
+        <button type="button" class="run-skill-button secondary" id="runDescribeSourcesButton">Label sources <span>/describe_sources</span></button>
+        <button type="button" class="run-skill-button secondary" id="runListOfDatesButton">Create list of dates <span>/create_listofdates</span></button>
+        <button type="button" class="run-skill-button secondary" id="runDoctorButton">Check matter <span>/doctor</span></button>
       </div>
     `;
 

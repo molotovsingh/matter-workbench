@@ -9,6 +9,8 @@ import {
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
 import { formatSkillIdeaReviewPacket } from "./views/skills-page.js";
 
+const DEFAULT_COMMAND_PLACEHOLDER = "find payment, open library, create list of dates";
+
 const SLASH_COMMANDS = new Set([
   "/matter-init",
   "/extract",
@@ -22,7 +24,7 @@ const SLASH_COMMANDS = new Set([
 const SLASH_COMMAND_SUGGESTIONS = [
   {
     command: "/matter-init",
-    description: "Initialize the matter folders and file register.",
+    description: "Set up the matter folders and file register.",
   },
   {
     command: "/extract",
@@ -30,7 +32,7 @@ const SLASH_COMMAND_SUGGESTIONS = [
   },
   {
     command: "/describe_sources",
-    description: "Generate lawyer-readable source labels. Paid reruns ask first.",
+    description: "Label sources with lawyer-readable names. Paid AI actions ask first.",
   },
   {
     command: "/context_preview",
@@ -42,11 +44,11 @@ const SLASH_COMMAND_SUGGESTIONS = [
   },
   {
     command: "/create_listofdates",
-    description: "Generate the lawyer-facing chronology. Paid reruns ask first.",
+    description: "Create the lawyer-facing list of dates. Paid AI actions ask first.",
   },
   {
     command: "/doctor",
-    description: "Check and repair known matter workspace issues.",
+    description: "Check known matter workspace issues.",
   },
 ];
 
@@ -57,6 +59,7 @@ const COMMAND_ALIASES = new Map([
   ["context", "/context_preview"],
   ["show context", "/context_preview"],
   ["list of dates", "/create_listofdates"],
+  ["create list of dates", "/create_listofdates"],
   ["chronology", "/create_listofdates"],
   ["doctor", "/doctor"],
 ]);
@@ -916,7 +919,7 @@ export function createAiCommandBox(ctx, options = {}) {
     currentSkillIdeaInterview = null;
     clearSkillIdeaSession();
     aiCommandInput.value = "";
-    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.textContent = "Go";
     await showSkillsPage("open skills");
   }
@@ -986,7 +989,7 @@ export function createAiCommandBox(ctx, options = {}) {
   function cancelSkillIdeaInterview() {
     currentSkillIdeaInterview = null;
     aiCommandInput.value = "";
-    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.disabled = false;
     aiCommandSubmit.textContent = "Go";
     clearSkillIdeaSession();
@@ -1155,7 +1158,7 @@ export function createAiCommandBox(ctx, options = {}) {
   function cancelNewSkillMode() {
     pendingSkillIdeaMode = null;
     aiCommandInput.value = "";
-    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.disabled = false;
     aiCommandSubmit.textContent = "Go";
     if (aiCommandSession) {
@@ -1530,7 +1533,10 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   function setCopyReportEnabled(enabled) {
-    if (aiCommandCopyReport) aiCommandCopyReport.disabled = !enabled;
+    if (aiCommandCopyReport) {
+      aiCommandCopyReport.disabled = !enabled;
+      aiCommandCopyReport.hidden = !enabled;
+    }
   }
 
   function setReportStatus(message, isError = false) {

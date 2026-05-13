@@ -42,14 +42,14 @@ export function wireAppEvents(ctx, skills) {
 
   elements.slashSkillButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      elements.slashSkillButtons.forEach((other) => other.classList.toggle("active", other === button));
       if (!ctx.getActiveMatter().folderName) {
         ctx.setStatus({
-          bar: "No Matter",
+          bar: "No matter selected",
           terminal: "[skills] no matter loaded; pick one from the sidebar",
         });
         return;
       }
+      elements.slashSkillButtons.forEach((other) => other.classList.toggle("active", other === button));
       const skill = button.dataset.skill;
       const runSkill = skillDispatch[skill];
       if (!runSkill) {
