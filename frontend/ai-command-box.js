@@ -13,6 +13,7 @@ const DEFAULT_COMMAND_PLACEHOLDER = "find payment, open library, create list of 
 
 const SLASH_COMMANDS = new Set([
   "/matter-init",
+  "/prepare_matter",
   "/extract",
   "/describe_sources",
   "/context_preview",
@@ -21,10 +22,19 @@ const SLASH_COMMANDS = new Set([
   "/doctor",
 ]);
 
+const PROVIDER_BACKED_COMMANDS = new Set([
+  "/describe_sources",
+  "/create_listofdates",
+]);
+
 const SLASH_COMMAND_SUGGESTIONS = [
   {
     command: "/matter-init",
     description: "Set up the matter folders and file register.",
+  },
+  {
+    command: "/prepare_matter",
+    description: "Show a guarded preparation plan and skip stages that are already current.",
   },
   {
     command: "/extract",
@@ -53,6 +63,10 @@ const SLASH_COMMAND_SUGGESTIONS = [
 ];
 
 const COMMAND_ALIASES = new Map([
+  ["prepare matter", "/prepare_matter"],
+  ["prepare this matter", "/prepare_matter"],
+  ["matter prep", "/prepare_matter"],
+  ["setup matter", "/prepare_matter"],
   ["extract", "/extract"],
   ["describe sources", "/describe_sources"],
   ["source labels", "/describe_sources"],
@@ -248,7 +262,7 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       recordCommandInteraction({
         renderedState: `command/${parsedCommand.type}`,
-        providerRunInvoked: parsedCommand.type === "skill",
+        providerRunInvoked: parsedCommand.type === "skill" && PROVIDER_BACKED_COMMANDS.has(parsedCommand.command),
       });
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";

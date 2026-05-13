@@ -8,6 +8,7 @@ import { createThemeController } from "./frontend/theme.js";
 import { wireAppEvents } from "./frontend/event-wiring.js";
 import { createMatterOverview } from "./frontend/views/matter-overview.js";
 import { createMatterInitSkill } from "./frontend/skills/matter-init.js";
+import { createPrepareMatterSkill } from "./frontend/skills/prepare-matter.js";
 import { createExtractSkill } from "./frontend/skills/extract.js";
 import { createDescribeSourcesSkill } from "./frontend/skills/describe-sources.js";
 import { createContextPreviewSkill } from "./frontend/skills/context-preview.js";
@@ -94,6 +95,7 @@ ctx.renderSkills = matterScreens.renderSkills;
 ctx.setActivityActive = matterScreens.setActivityActive;
 
 const matterInitSkill = createMatterInitSkill(ctx);
+const prepareMatterSkill = createPrepareMatterSkill(ctx);
 const extractSkill = createExtractSkill(ctx);
 const describeSourcesSkill = createDescribeSourcesSkill(ctx);
 const contextPreviewSkill = createContextPreviewSkill(ctx);
@@ -102,6 +104,7 @@ const listOfDatesSkill = createListOfDatesSkill(ctx);
 const doctorSkill = createDoctorSkill(ctx);
 const skillDispatch = {
   "/matter-init": matterInitSkill.runMatterInit,
+  "/prepare_matter": prepareMatterSkill.runPrepareMatter,
   "/extract": extractSkill.runExtract,
   "/describe_sources": describeSourcesSkill.runDescribeSources,
   "/context_preview": contextPreviewSkill.runContextPreview,
@@ -111,6 +114,7 @@ const skillDispatch = {
 };
 const skills = {
   runCreateListOfDates: listOfDatesSkill.runCreateListOfDates,
+  runPrepareMatter: prepareMatterSkill.runPrepareMatter,
   runContextPreview: contextPreviewSkill.runContextPreview,
   runContextSearch: contextSearchSkill.runContextSearch,
   runDescribeSources: describeSourcesSkill.runDescribeSources,

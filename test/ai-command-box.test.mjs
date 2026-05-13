@@ -9,6 +9,11 @@ import {
 } from "../frontend/ai-command-box.js";
 
 test("command parser maps exact slash commands and static aliases", () => {
+  assert.deepEqual(parseDeterministicCommand("/prepare_matter"), { type: "skill", command: "/prepare_matter" });
+  assert.deepEqual(parseDeterministicCommand("prepare matter"), { type: "skill", command: "/prepare_matter" });
+  assert.deepEqual(parseDeterministicCommand("prepare this matter"), { type: "skill", command: "/prepare_matter" });
+  assert.deepEqual(parseDeterministicCommand("matter prep"), { type: "skill", command: "/prepare_matter" });
+  assert.deepEqual(parseDeterministicCommand("setup matter"), { type: "skill", command: "/prepare_matter" });
   assert.deepEqual(parseDeterministicCommand("/extract"), { type: "skill", command: "/extract" });
   assert.deepEqual(parseDeterministicCommand("extract"), { type: "skill", command: "/extract" });
   assert.deepEqual(parseDeterministicCommand("describe sources"), { type: "skill", command: "/describe_sources" });
@@ -103,7 +108,11 @@ test("skill idea parser detects explicit proposal phrases only", () => {
 test("slash command suggestions are explicit and description-backed", () => {
   assert.deepEqual(
     listSlashCommandSuggestions("/").map((suggestion) => suggestion.command),
-    ["/matter-init", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/doctor"],
+    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/doctor"],
+  );
+  assert.deepEqual(
+    listSlashCommandSuggestions("/prep").map((suggestion) => suggestion.command),
+    ["/prepare_matter"],
   );
   assert.deepEqual(
     listSlashCommandSuggestions("/de").map((suggestion) => suggestion.command),
@@ -874,6 +883,7 @@ test("command box keyboard suggestion selection fills and runs the command", asy
 
   box.wire();
   await ctx.elements.aiCommandInput.fire("input");
+  await ctx.elements.aiCommandInput.keydown("ArrowDown");
   await ctx.elements.aiCommandInput.keydown("ArrowDown");
   await ctx.elements.aiCommandInput.keydown("Enter");
 
