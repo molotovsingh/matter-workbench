@@ -20,11 +20,16 @@ test("skill idea interview plans limitation review with legally apt questions", 
   assert.equal(interview.designBrief.targetLane, "20_Workshop");
   assert.equal(interview.designBrief.riskLevel, "high");
   assert.match(interview.defaultAssumptions.join("\n"), /every limitation date and conclusion must cite source labels plus raw FILE-NNNN pX\.bY citations/i);
+  assert.match(interview.defaultAssumptions.join("\n"), /assess both sides from the client's perspective/i);
+  assert.match(interview.defaultAssumptions.join("\n"), /do not assume the general Limitation Act always governs/i);
+  assert.match(interview.designBrief.notes, /special statutory limitation period applies/i);
   assert.deepEqual(
     interview.questions.map((question) => question.id),
     ["limitationPosition", "decisionShape", "legalSetting"],
   );
-  assert.match(interview.questions[0].label, /Whose limitation position/i);
+  assert.match(interview.questions[0].label, /Whose limitation position should the skill assess/i);
+  assert.match(interview.questions[0].help, /If unclear/i);
+  assert.match(interview.questions[0].examples.join("\n"), /both sides from client perspective/i);
   assert.doesNotMatch(interview.questions[0].label, /citation/i);
 });
 
@@ -188,4 +193,24 @@ test("skill idea interview payload stores answers in design brief notes", () => 
   assert.match(payload.designBrief.notes, /Default evidence rule:/);
   assert.match(payload.designBrief.notes, /Issue-wise matrix/);
   assert.match(payload.designBrief.notes, /Separate admissions, disputes, and unsupported assertions/);
+});
+
+test("limitation interview payload keeps default posture and special-statute rules", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "i want a skill that determines the limitation of the matter",
+    idea: "determines the limitation of the matter",
+  });
+  const payload = buildSkillIdeaPayloadFromInterview({
+    interview,
+    answers: {
+      limitationPosition: "yes",
+      decisionShape: "decide whether each issue is within limitation",
+      legalSetting: "limitation depends on the applicable statute; some special statutes override the Limitation Act",
+    },
+  });
+
+  assert.match(payload.designBrief.notes, /Default posture: if the limitation position is unclear, assess both sides from the client's perspective/);
+  assert.match(payload.designBrief.notes, /Special-statute rule: do not assume the general Limitation Act always governs/);
+  assert.match(payload.designBrief.notes, /Whose limitation position should the skill assess\?: yes/);
+  assert.match(payload.designBrief.notes, /special statutes override the Limitation Act/);
 });

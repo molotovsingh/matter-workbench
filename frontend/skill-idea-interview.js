@@ -37,17 +37,19 @@ const DOMAIN_INTERVIEW_TEMPLATES = [
       targetLane: "20_Workshop",
       paidPosture: "unknown",
       riskLevel: "high",
-      notes: "Not runnable yet. Default evidence rule: every limitation date and conclusion must cite source labels plus raw FILE-NNNN pX.bY citations.",
+      notes: "Not runnable yet. Default evidence rule: every limitation date and conclusion must cite source labels plus raw FILE-NNNN pX.bY citations. Default posture: if the limitation position is unclear, assess both sides from the client's perspective. Special-statute rule: do not assume the general Limitation Act always governs; first identify or ask whether a forum-specific or special statutory limitation period applies.",
     },
     defaultAssumptions: [
       "Default evidence rule: every limitation date and conclusion must cite source labels plus raw FILE-NNNN pX.bY citations.",
+      "Default posture: if the limitation position is unclear, assess both sides from the client's perspective.",
+      "Special-statute rule: do not assume the general Limitation Act always governs; first identify or ask whether a forum-specific or special statutory limitation period applies.",
     ],
     questions: [
       {
         id: "limitationPosition",
-        label: "Whose limitation position should it assess?",
-        help: "Choose the legal posture before the skill exists.",
-        examples: ["client's claim", "opponent's claim", "both sides", "ask each run"],
+        label: "Whose limitation position should the skill assess?",
+        help: "Choose one posture. If unclear, the future skill should assess both sides from the client's perspective.",
+        examples: ["client's claim", "opponent's claim", "both sides from client perspective", "ask each run"],
       },
       {
         id: "decisionShape",

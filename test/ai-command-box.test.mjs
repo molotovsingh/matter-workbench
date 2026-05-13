@@ -365,7 +365,9 @@ test("command box starts limitation interview for i-want-a-skill phrasing", asyn
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /limitation review skill/i);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Whose limitation position should it assess/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Whose limitation position should the skill assess/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /both sides from client perspective/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Special-statute rule/i);
   assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
