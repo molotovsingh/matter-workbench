@@ -195,7 +195,7 @@ This table shows why model routing should be central. The app already has determ
 
 ## Skill Model Policy
 
-The saved-skill governance flow should not inherit the strongest model just because it is about skills. Different stages have different risk and cost profiles.
+The saved-skill governance flow should be quality-first where the model is shaping future legal work product. Cost still matters for bulk/mechanical work, but high-order judgment tasks should default to the strongest proven planner. The current bakeoff evidence points to `gpt-5.4` for those stages: it beat `gpt-4.1` on skill-interview quality, while `gpt-5.5` was terser and less useful for this strict 1-3 question planning surface.
 
 Current deterministic stages:
 
@@ -211,7 +211,45 @@ Current AI-assisted stage:
 | Stage | Model Posture | Reason |
 | --- | --- | --- |
 | Skill router / overlap check | Cheap, fast router tier is acceptable | The router classifies or checks overlap. It should not receive full matter documents by default. |
-| Skill design interview planner | Strong model only if explicitly enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, List of Dates content, logs, `.env`, API keys, or chat history. |
+| Skill design interview planner | Quality-first default: `gpt-5.4` when model planning is enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, List of Dates content, logs, `.env`, API keys, or chat history. |
+
+## Quality-First GPT-5.4 Task Map
+
+Use `gpt-5.4` for work where one weak model answer can bend the product in the wrong direction: legal framing, future skill design, strategic review, and externally visible drafts. Do not spend it on deterministic state checks, routing glue, or bulk extraction.
+
+| Task / Surface | Recommended Model Posture | Why |
+| --- | --- | --- |
+| Skill design interview planner | `gpt-5.4` via OpenAI direct once model-backed planning is enabled | It decides what questions get asked before a future skill is designed. Bad questions create bad briefs. |
+| Skill design review | `gpt-5.4` | It should catch overlap, ambiguity, risk, missing acceptance criteria, and bad default assumptions before implementation. |
+| Skill authoring / prompt-schema drafting | `gpt-5.4` minimum, with human review and fail-closed activation | This shapes future runnable behavior. Quality beats cost here. |
+| Configurable skill validation for legal/high-risk skills | `gpt-5.4` | It should judge whether generated output obeys citation, evidence, tone, and artifact contracts before a skill can be trusted. |
+| Matter Q&A / legal synthesis, when added | `gpt-5.4` for answer synthesis | The model will be reasoning over bounded evidence and giving lawyer-facing answers. It must cite source labels and raw citations. |
+| Weakness Review, Limitation Review, Evidence Gap Review, Opponent Argument Map, Settlement Risk Matrix | `gpt-5.4` | These are strategic legal-review tasks where nuance matters more than token cost. |
+| Senior Counsel Briefing, Court Synopsis, Legal Notice, Affidavit, Client Update Email | `gpt-5.4` | These are draft or dispatch-adjacent tasks. They need careful tone, legal boundaries, and human review. |
+| `/create_listofdates` lawyer-facing final chronology | Quality-first candidate: `gpt-5.4`; keep observable provider/model metadata | Chronology is core legal work product. If the goal is maximum quality over cost, this belongs in the premium tier, subject to real-matter smoke and raw citation checks. |
+| `/describe_sources` source labels | Strong structured model, but not automatically `gpt-5.4` | This is high-volume descriptor work. Keep strict JSON and fail-closed behavior; escalate only if label quality or malformed JSON failures justify it. |
+| Skill router / overlap check | Cheap/fast structured model | It should classify, not decide legal strategy. If uncertain, ask for approval instead of spending premium model budget. |
+| Command rail parsing, status, lane navigation, context preview/search, readiness checks | No model | These are deterministic product controls. |
+| Intake, extraction, OCR normalization, artifact status, rerun advice | No model or task-specific OCR provider | These are pipeline mechanics, not legal reasoning. |
+
+The operational split is therefore:
+
+```text
+Premium legal/design judgment: gpt-5.4
+Bulk structured labeling: strong structured model with strict schema, escalate only on evidence
+Routing and app controls: cheap or deterministic
+```
+
+`gpt-5.4` did not work through OpenRouter for the skill interview planner under the strict `json_schema + require_parameters=true` contract. Use the OpenAI-direct planner policy for this task:
+
+```text
+SKILL_INTERVIEW_PLANNER_PROVIDER=openai-direct
+OPENAI_SKILL_INTERVIEW_PLANNER_MODEL=gpt-5.4
+OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS=2600
+OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS=90000
+```
+
+The OpenRouter planner policy remains available for models that can honor the strict schema contract.
 
 Skill work needs separate task names before any selector or runtime provider choice becomes visible:
 

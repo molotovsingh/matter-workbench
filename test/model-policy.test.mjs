@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AI_PROVIDERS,
   AI_TASKS,
+  DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
@@ -42,16 +43,35 @@ test("skill router policy matches current OpenAI-direct defaults", () => {
   });
 });
 
-test("skill design interview policy is OpenRouter-ready with deterministic fallback", () => {
+test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deterministic fallback", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
     tier: "skill_design_interview",
-    provider: AI_PROVIDERS.OPENROUTER,
-    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
-    model: "",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
     maxOutputTokens: DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
+    fallback: "deterministic_fallback",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, {
+    env: {
+      SKILL_INTERVIEW_PLANNER_PROVIDER: "openai-direct",
+      OPENAI_SKILL_INTERVIEW_PLANNER_MODEL: "gpt-5.4",
+      OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS: "2600",
+      OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS: "90000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    tier: "skill_design_interview",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: "gpt-5.4",
+    maxOutputTokens: 2600,
+    timeoutMs: 90000,
     fallback: "deterministic_fallback",
   });
 

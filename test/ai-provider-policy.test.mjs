@@ -71,6 +71,25 @@ test("provider metadata mirrors request-ready config without endpoint or keys", 
   });
 });
 
+test("provider config carries direct OpenAI timeout for skill design interview", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, {
+    env: {
+      SKILL_INTERVIEW_PLANNER_PROVIDER: "openai-direct",
+      OPENAI_SKILL_INTERVIEW_PLANNER_MODEL: "gpt-5.4",
+      OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS: "2600",
+      OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS: "90000",
+    },
+  });
+
+  assert.deepEqual(resolveProviderConfig(policy), {
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: "gpt-5.4",
+    maxOutputTokens: 2600,
+    timeoutMs: 90000,
+  });
+});
+
 test("provider config resolves OpenRouter source description policy", () => {
   const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
     env: {
