@@ -2,6 +2,7 @@ import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 import {
+  formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
   renderSkillsPageHtml,
 } from "./views/skills-page.js";
@@ -199,6 +200,40 @@ export function createMatterScreens(ctx) {
             card: `<strong>Review packet copy failed</strong><br />${escapeHtml(error.message)}`,
             bar: "Skill Idea Copy Failed",
             terminal: `[skill-ideas] copy failed: ${error.message}`,
+          });
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
+    editorContent.querySelectorAll?.("[data-skill-idea-copy-implementation-brief]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const id = button.dataset.skillIdeaId;
+        const idea = ideaById.get(id);
+        const status = editorContent.querySelector(`[data-skill-idea-copy-status="${cssEscape(id || "")}"]`);
+        if (!idea) {
+          setArtifactActionStatus(status, "Idea not found.", true);
+          return;
+        }
+        button.disabled = true;
+        setArtifactActionStatus(status, "Copying implementation brief...");
+        try {
+          await writeClipboardText(formatSkillIdeaImplementationBrief(idea, registry));
+          setArtifactActionStatus(status, "Implementation brief copied.");
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Implementation brief copied</strong><br />Governance-only. No skill, prompt, provider call, or matter artifact was created.",
+            bar: "Implementation Brief Copied",
+            terminal: `[skill-ideas] copied implementation brief for ${id}`,
+          });
+        } catch (error) {
+          setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Implementation brief copy failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Implementation Brief Failed",
+            terminal: `[skill-ideas] implementation brief copy failed: ${error.message}`,
           });
         } finally {
           button.disabled = false;
