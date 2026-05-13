@@ -73,6 +73,15 @@ const LANE_COMMANDS = new Map([
 
 const STATUS_ALIASES = new Set(["show status", "status"]);
 const SKILLS_ALIASES = new Set(["open skills", "show skills", "skills"]);
+const NEW_SKILL_MODE_ALIASES = new Set([
+  "new skill",
+  "create skill",
+  "create a skill",
+  "make skill",
+  "make a skill",
+  "design skill",
+  "design a skill",
+]);
 
 export function createAiCommandBox(ctx, options = {}) {
   const {
@@ -97,11 +106,13 @@ export function createAiCommandBox(ctx, options = {}) {
   const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
   const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
   const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
+  const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
   let latestReport = null;
   let activeSuggestionIndex = -1;
   let currentSkillIdeaInterview = null;
+  let pendingSkillIdeaMode = null;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -130,8 +141,18 @@ export function createAiCommandBox(ctx, options = {}) {
       await handleSkillIdeaInterviewInput(userRequest);
       return;
     }
+    if (pendingSkillIdeaMode) {
+      await handlePendingSkillIdeaModeInput(userRequest);
+      return;
+    }
     if (!userRequest) {
       renderCommandError("Enter a slash command or future skill idea.");
+      return;
+    }
+
+    const newSkillMode = parseNewSkillModeCommand(userRequest);
+    if (newSkillMode) {
+      openNewSkillMode(userRequest);
       return;
     }
 
@@ -396,13 +417,23 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  async function showSkillIdeaInterview(skillIdea, userRequest) {
+  async function showSkillIdeaInterview(skillIdea, userRequest, { useModelPlanner = false } = {}) {
     let interview = null;
     let plannerFallbackMessage = "";
     try {
-      interview = await planSkillIdeaInterviewFn(skillIdea, userRequest, {
+      const plannerOptions = {
         activeMatter: ctx.getActiveMatter?.() || null,
-      });
+      };
+      if (useModelPlanner) {
+        plannerOptions.plannerProvider = async ({ skillIdea: plannerSkillIdea, userRequest: plannerUserRequest, designBrief }) => (
+          planSkillIdeaInterviewProvider({
+            skillIdea: plannerSkillIdea,
+            userRequest: plannerUserRequest,
+            designBrief,
+          })
+        );
+      }
+      interview = await planSkillIdeaInterviewFn(skillIdea, userRequest, plannerOptions);
     } catch (error) {
       plannerFallbackMessage = error.message || "planner unavailable";
       interview = buildSkillIdeaInterview(skillIdea, userRequest);
@@ -413,29 +444,39 @@ export function createAiCommandBox(ctx, options = {}) {
       questionIndex: 0,
       ready: false,
     };
+    const plannerInfo = describeInterviewPlanner(interview);
     startReport({
       typedInput: userRequest,
       matchedCommand: "skill_idea/interview",
       status: "interview",
+      plannerSource: plannerInfo.source,
+      plannerModel: plannerInfo.model,
+      plannerFallbackReason: plannerInfo.fallbackReason,
     });
     recordCommandInteraction({
       renderedState: "skill_idea/interview",
       status: "opened_interview",
-      providerRunInvoked: false,
+      providerRunInvoked: Boolean(interview?.planner?.used),
+      plannerSource: plannerInfo.source,
+      plannerModel: plannerInfo.model,
+      plannerFallbackReason: plannerInfo.fallbackReason,
     });
     aiCommandInput.value = "";
     aiCommandInput.placeholder = "Answer the current question";
     aiCommandSubmit.textContent = "Answer";
+    const plannerTerminal = plannerInfo.source === "model"
+      ? `[skill-ideas] model-planned interview opened: ${userRequest}`
+      : plannerInfo.source === "deterministic fallback"
+        ? [
+          `[skill-ideas] planner fallback: ${plannerInfo.fallbackReason || plannerFallbackMessage || "deterministic fallback"}`,
+          `[skill-ideas] interview opened: ${userRequest}`,
+        ]
+        : `[skill-ideas] interview opened: ${userRequest}`;
     ctx.setStatus({
       mood: "idle",
       card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
       bar: "Skill Idea Interview",
-      terminal: plannerFallbackMessage
-        ? [
-          `[skill-ideas] planner fallback: ${plannerFallbackMessage}`,
-          `[skill-ideas] interview opened: ${userRequest}`,
-        ]
-        : `[skill-ideas] interview opened: ${userRequest}`,
+      terminal: plannerTerminal,
     });
     renderSkillIdeaSession();
   }
@@ -668,10 +709,20 @@ export function createAiCommandBox(ctx, options = {}) {
         <div class="skill-idea-understood">
           <strong>What I understood</strong>
           <p>${escapeHtml(interview.understood)}</p>
+          ${renderInterviewPlannerInfo(interview)}
           ${renderDefaultAssumptions(interview)}
           ${interview.targetSkill ? `<p class="muted">Likely related skill: <code>${escapeHtml(interview.targetSkill)}</code></p>` : ""}
         </div>
     `;
+  }
+
+  function renderInterviewPlannerInfo(interview) {
+    const plannerInfo = describeInterviewPlanner(interview);
+    const plannerLabel = plannerInfo.model || plannerInfo.source;
+    const reason = plannerInfo.fallbackReason
+      ? `<br /><span>Fallback reason: ${escapeHtml(plannerInfo.fallbackReason)}</span>`
+      : "";
+    return `<p class="muted">Planner: ${escapeHtml(plannerLabel)}${reason}</p>`;
   }
 
   function renderDefaultAssumptions(interview) {
@@ -1015,6 +1066,121 @@ export function createAiCommandBox(ctx, options = {}) {
     });
   }
 
+  async function handlePendingSkillIdeaModeInput(userRequest) {
+    const normalized = normalizeCommandInput(userRequest);
+    if (normalized === "cancel") {
+      cancelNewSkillMode();
+      return;
+    }
+    if (!userRequest) {
+      renderNewSkillMode("Describe the skill you want, or choose Cancel.");
+      return;
+    }
+    if (parseDeterministicCommand(userRequest)) {
+      renderNewSkillMode("Describe the skill you want, or type Cancel before running another command.");
+      return;
+    }
+
+    const text = String(userRequest || "").trim();
+    pendingSkillIdeaMode = null;
+    await showSkillIdeaInterview({
+      type: "skill_idea",
+      mode: "new_skill",
+      text,
+      idea: text,
+    }, text, { useModelPlanner: true });
+  }
+
+  function openNewSkillMode(userRequest) {
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    pendingSkillIdeaMode = {
+      mode: "awaiting_skill_idea",
+      startedAt: now().toISOString(),
+      activeMatterName: activeMatter?.metadata?.matterName || activeMatter?.folderName || "",
+      activeMatterFolder: activeMatter?.folderName || "",
+    };
+    startReport({
+      typedInput: userRequest,
+      matchedCommand: "skill_idea/new",
+      status: "awaiting_skill_idea",
+    });
+    recordCommandInteraction({
+      renderedState: "skill_idea/new",
+      status: "awaiting_skill_idea",
+      providerRunInvoked: false,
+    });
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "Describe the skill you want...";
+    aiCommandSubmit.textContent = "Go";
+    renderNewSkillMode();
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>New skill idea</strong><br />Describe the skill you want in your own words. Nothing will run.",
+      bar: "New Skill Idea",
+      terminal: "[skill-ideas] awaiting freeform idea",
+    });
+  }
+
+  function renderNewSkillMode(errorMessage = "") {
+    if (!aiCommandSession || !pendingSkillIdeaMode) return;
+    const matterName = pendingSkillIdeaMode.activeMatterName || "No active matter";
+    const matterFolder = pendingSkillIdeaMode.activeMatterFolder || "Planning mode";
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>New skill idea</h3>
+        <p>Describe the skill you want in your own words. You do not need to use special phrasing.</p>
+        <p class="muted">This will only create a non-runnable idea for review. It will not generate code, prompts, or run a provider-backed skill.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Matter</dt><dd>${escapeHtml(matterName)}</dd></div>
+          <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder)}</dd></div>
+        </dl>
+        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-new-skill-mode-action="cancel">Cancel</button>
+        </div>
+      </section>
+    `;
+    wireNewSkillModeActions();
+  }
+
+  function wireNewSkillModeActions() {
+    aiCommandSession?.querySelectorAll?.("[data-new-skill-mode-action]")?.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.newSkillModeAction === "cancel") cancelNewSkillMode();
+      });
+    });
+  }
+
+  function cancelNewSkillMode() {
+    pendingSkillIdeaMode = null;
+    aiCommandInput.value = "";
+    aiCommandInput.placeholder = "/extract, find payment, open skills, chronology, or status";
+    aiCommandSubmit.disabled = false;
+    aiCommandSubmit.textContent = "Go";
+    if (aiCommandSession) {
+      aiCommandSession.hidden = false;
+      aiCommandSession.innerHTML = `
+        <section class="command-interview" aria-live="polite">
+          <h3>New skill idea cancelled</h3>
+          <p class="muted">No idea was saved. Nothing ran.</p>
+        </section>
+      `;
+    }
+    updateReport({ status: "cancelled" });
+    recordCommandInteraction({
+      renderedState: "skill_idea/new",
+      status: "cancelled",
+      providerRunInvoked: false,
+    });
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>New skill idea cancelled</strong><br />No idea was saved and nothing ran.",
+      bar: "New Skill Cancelled",
+      terminal: "[skill-ideas] new skill mode cancelled",
+    });
+  }
+
   function renderCommandRailDecision({ userRequest, overrideJustification, decision }) {
     if (!aiCommandSession) {
       renderCommandDecision({ userRequest, overrideJustification, decision });
@@ -1133,7 +1299,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function renderSlashSuggestions() {
     if (!aiCommandSuggestions || !aiCommandInput) return;
-    if (currentSkillIdeaInterview) {
+    if (currentSkillIdeaInterview || pendingSkillIdeaMode) {
       hideSlashSuggestions();
       return;
     }
@@ -1166,7 +1332,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function handleSuggestionKeydown(event) {
     if (!aiCommandInput || !aiCommandSuggestions) return;
-    if (currentSkillIdeaInterview) return;
+    if (currentSkillIdeaInterview || pendingSkillIdeaMode) return;
     const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
     if (!suggestions.length) return;
 
@@ -1215,7 +1381,14 @@ export function createAiCommandBox(ctx, options = {}) {
     if (aiCommandInput) aiCommandInput.value = "";
   }
 
-  function startReport({ typedInput, matchedCommand, status }) {
+  function startReport({
+    typedInput,
+    matchedCommand,
+    status,
+    plannerSource = "",
+    plannerModel = "",
+    plannerFallbackReason = "",
+  }) {
     const activeMatter = ctx.getActiveMatter?.() || {};
     latestReport = {
       timestamp: now().toISOString(),
@@ -1231,6 +1404,9 @@ export function createAiCommandBox(ctx, options = {}) {
       statusBar: getStatusBarText(),
       terminalLines: getLatestTerminalLines(),
       error: "",
+      plannerSource,
+      plannerModel,
+      plannerFallbackReason,
     };
     setReportStatus("Report tracking current command.");
     setCopyReportEnabled(true);
@@ -1261,6 +1437,9 @@ export function createAiCommandBox(ctx, options = {}) {
           : null
       ),
       provider_run_invoked: Boolean(patch.providerRunInvoked),
+      planner_source: report.plannerSource || patch.plannerSource || "",
+      planner_model: report.plannerModel || patch.plannerModel || "",
+      planner_fallback_reason: report.plannerFallbackReason || patch.plannerFallbackReason || "",
       errors: report.error ? [report.error] : [],
       status_bar: report.statusBar || getStatusBarText(),
       terminal_lines: report.terminalLines || getLatestTerminalLines(),
@@ -1394,6 +1573,13 @@ export function parseDeterministicCommand(input) {
   return null;
 }
 
+export function parseNewSkillModeCommand(input) {
+  const normalized = normalizeCommandInput(input);
+  if (!normalized) return null;
+  if (!NEW_SKILL_MODE_ALIASES.has(normalized)) return null;
+  return { type: "new_skill_mode", input: normalized };
+}
+
 function parseSearchCommand(normalized) {
   if (normalized === "search" || normalized === "find" || normalized === "/context_search") {
     return { type: "search", command: "/context_search", query: "" };
@@ -1430,6 +1616,40 @@ function normalizeTerminalLines(terminal) {
   return values.map((line) => String(line)).filter(Boolean);
 }
 
+function describeInterviewPlanner(interview) {
+  const planner = interview?.planner || null;
+  if (planner?.used) {
+    return {
+      source: "model",
+      model: [planner.provider, planner.model].filter(Boolean).join(" / "),
+      fallbackReason: "",
+    };
+  }
+  if (planner) {
+    return {
+      source: "deterministic fallback",
+      model: "",
+      fallbackReason: String(planner.reason || "").trim(),
+    };
+  }
+  return {
+    source: "deterministic",
+    model: "",
+    fallbackReason: "",
+  };
+}
+
+async function planSkillIdeaInterviewViaApi(body = {}) {
+  const response = await postJson("/api/skill-ideas/plan-interview", body);
+  if (!response?.plan) {
+    return response?.planner ? { __plannerMeta: response.planner } : null;
+  }
+  return {
+    ...response.plan,
+    __plannerMeta: response.planner || null,
+  };
+}
+
 function formatCommandReport(report) {
   const lines = [
     "# Command Report",
@@ -1444,6 +1664,8 @@ function formatCommandReport(report) {
 
   if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
   if (report.skillIdeaId) lines.push(`- Saved skill idea: ${report.skillIdeaId}`);
+  if (report.plannerSource) lines.push(`- Planner: ${report.plannerModel || report.plannerSource}`);
+  if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
   if (report.error) lines.push(`- Error: ${report.error}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {

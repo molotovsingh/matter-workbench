@@ -25,6 +25,9 @@ test("command interaction log appends whitelisted JSONL records", async () => {
     status: "opened_interview",
     skill_idea_id: "idea_123",
     provider_run_invoked: false,
+    planner_source: "model",
+    planner_model: "openrouter / openai/gpt-4.1",
+    planner_fallback_reason: "",
     matter: {
       matterName: "Demo Matter",
       folderName: "Dummy 01",
@@ -59,6 +62,9 @@ test("command interaction log appends whitelisted JSONL records", async () => {
   assert.equal(record.status, "opened_interview");
   assert.equal(record.skill_idea_id, "idea_123");
   assert.equal(record.provider_run_invoked, false);
+  assert.equal(record.planner_source, "model");
+  assert.equal(record.planner_model, "openrouter / openai/gpt-4.1");
+  assert.equal(record.planner_fallback_reason, "");
   assert.equal(record.router_decision.decision, "new_skill_candidate");
   assert.deepEqual(record.terminal_lines, ["[skill-ideas] interview opened"]);
   assert.doesNotMatch(contents, /sk-should-not-be-logged|secret packet text|full source document text/);

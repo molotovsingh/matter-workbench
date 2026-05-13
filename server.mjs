@@ -8,6 +8,7 @@ import { createMatterContextService } from "./services/matter-context-service.mj
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
+import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
@@ -50,6 +51,13 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     registryPath: options.skillRegistryPath,
   });
+  const skillInterviewPlannerService = createSkillInterviewPlannerService({
+    registryService: skillRegistryService,
+    matterStore,
+    plannerProvider: options.skillInterviewPlannerProvider || null,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+  });
   const skillRouterService = createSkillRouterService({
     registryService: skillRegistryService,
     aiProvider: options.skillRouterProvider || null,
@@ -65,6 +73,7 @@ export async function createWorkbenchServer(options = {}) {
     matterContextService,
     matterStatusService,
     skillIdeasService,
+    skillInterviewPlannerService,
     skillRegistryService,
     skillRouterService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,

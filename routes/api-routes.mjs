@@ -16,6 +16,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     matterStore,
     matterStatusService,
     skillIdeasService,
+    skillInterviewPlannerService,
     skillRegistryService,
     skillRouterService,
     uploadService,
@@ -103,6 +104,16 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "GET" && requestUrl.pathname === "/api/skill-ideas") {
     sendJson(response, 200, await skillIdeasService.listIdeas());
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/skill-ideas/plan-interview") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await skillInterviewPlannerService.planInterview({
+      skillIdea: body.skillIdea || {},
+      userRequest: body.userRequest,
+      designBrief: body.designBrief || {},
+    }));
     return true;
   }
 

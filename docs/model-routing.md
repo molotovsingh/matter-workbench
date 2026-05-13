@@ -240,16 +240,17 @@ Bulk structured labeling: strong structured model with strict schema, escalate o
 Routing and app controls: cheap or deterministic
 ```
 
-`gpt-5.4` did not work through OpenRouter for the skill interview planner under the strict `json_schema + require_parameters=true` contract. Use the OpenAI-direct planner policy for this task:
+Current implementation note: `gpt-5.4` did not work through OpenRouter for the skill interview planner under the strict `json_schema + require_parameters=true` contract. Use the OpenAI-direct planner path for this task:
 
 ```text
+SKILL_INTERVIEW_PLANNER_ENABLED=1
 SKILL_INTERVIEW_PLANNER_PROVIDER=openai-direct
 OPENAI_SKILL_INTERVIEW_PLANNER_MODEL=gpt-5.4
 OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS=2600
 OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS=90000
 ```
 
-The OpenRouter planner policy remains available for models that can honor the strict schema contract.
+The OpenRouter planner path remains available for models that can honor the strict schema contract.
 
 Skill work needs separate task names before any selector or runtime provider choice becomes visible:
 
