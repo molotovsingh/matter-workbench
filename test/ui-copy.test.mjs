@@ -6,6 +6,8 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
   assert.match(html, /Matter Actions/);
+  assert.match(html, /matter-actions-section/);
+  assert.match(html, /8 actions/);
   assert.match(html, /Set up matter/);
   assert.match(html, /Extract documents/);
   assert.match(html, /Label sources/);
