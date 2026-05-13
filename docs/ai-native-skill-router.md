@@ -44,19 +44,22 @@ the skill lifecycle.
 A future `/new_skill` flow should use this order:
 
 ```text
-draft skill brief
+adaptive skill interview
+  -> test matter selection
+  -> sample output
+  -> feedback and sample revision
+  -> approved sample
   -> router overlap check
-  -> save idea in proposal inbox
-  -> create draft configurable skill later
-  -> test draft later
-  -> save golden later
-  -> validate later
-  -> activate later
+  -> create draft configurable skill
+  -> validate against approved sample
+  -> activate slash command
 ```
 
 The router may recommend `new_skill`, `adjacent_skill`, or
-`modify_existing_skill`, but saving an idea must not create a live slash command.
-Draft configurable skills must stay blocked until validation passes.
+`modify_existing_skill`, but it is only the overlap gate. It must not tell the
+user a slash command is usable. A future skill may say `Use /<skill_name>` only
+after the configurable skill is created, validated, activated, and visible in
+the Command rail.
 
 ## Relationship To Skill Modification
 
