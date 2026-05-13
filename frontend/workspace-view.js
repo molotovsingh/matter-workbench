@@ -5,11 +5,13 @@ import {
   workspaceLaneLabel,
 } from "../shared/workspace-lanes.mjs";
 
-export function renderTreeNode(node, depth = 0) {
+export function renderTreeNode(node, depth = 0, options = {}) {
   if (node.kind === "file") {
     const previewable = node.previewable ? "true" : "false";
     const previewKind = node.previewKind || "";
-    const meta = node.size === undefined ? "" : `<span class="tree-meta">${formatBytes(node.size)}</span>`;
+    const displayName = displayFileName(node);
+    const canonicalName = displayName !== node.name ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
+    const meta = shouldShowFileSize(node) ? `<span class="tree-meta">${formatBytes(node.size)}</span>` : "";
     return `
       <li class="tree-node tree-file">
         <button
@@ -19,7 +21,7 @@ export function renderTreeNode(node, depth = 0) {
           data-previewable="${previewable}"
           data-preview-kind="${escapeHtml(previewKind)}"
         >
-          <span class="tree-name">${escapeHtml(node.name)}</span>
+          <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
           ${meta}
         </button>
       </li>
@@ -29,8 +31,9 @@ export function renderTreeNode(node, depth = 0) {
   const children = node.children || [];
   const childItems = depth === 0
     ? renderMatterWorkspaceChildren(children)
-    : children.map((child) => renderTreeNode(child, depth + 1)).join("");
-  const childCount = children.length ? `<span class="tree-meta">${children.length}</span>` : "";
+    : renderDirectoryChildren(children, depth, options);
+  const displayChildren = partitionChildrenForDisplay(children, options);
+  const childCount = displayChildren.visibleCount ? `<span class="tree-meta">${displayChildren.visibleCount}</span>` : "";
   const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
   const displayName = workspaceLaneLabel(node.path, node.name);
@@ -59,10 +62,12 @@ function renderMatterWorkspaceChildren(children = []) {
     .map((group) => renderWorkspaceGroup(group, byPath))
     .filter(Boolean)
     .join("");
-  const remainingItems = children
-    .filter((child) => !groupedPaths.has(child.path))
-    .map((child) => renderTreeNode(child, 1))
-    .join("");
+  const remaining = children.filter((child) => !groupedPaths.has(child.path));
+  const { primary, technical } = partitionChildrenForDisplay(remaining);
+  const remainingItems = [
+    ...primary.map((child) => renderTreeNode(child, 1)),
+    renderTechnicalGroup(technical, 0),
+  ].filter(Boolean).join("");
   return `${groupedItems}${remainingItems}`;
 }
 
@@ -81,6 +86,92 @@ function renderWorkspaceGroup(group, byPath) {
       </details>
     </li>
   `;
+}
+
+function renderDirectoryChildren(children = [], depth = 0, options = {}) {
+  if (options.showTechnical) {
+    return children.map((child) => renderTreeNode(child, depth + 1, options)).join("");
+  }
+  const { primary, technical } = partitionChildrenForDisplay(children, options);
+  return [
+    ...primary.map((child) => renderTreeNode(child, depth + 1)),
+    renderTechnicalGroup(technical, depth),
+  ].filter(Boolean).join("");
+}
+
+function renderTechnicalGroup(children = [], depth = 0) {
+  if (!children.length) return "";
+  return `
+    <li class="tree-node tree-directory tree-technical-group">
+      <details>
+        <summary>
+          <span class="tree-name">Technical files<span class="tree-purpose">Logs, registers, extraction records, and machine-readable sidecars.</span></span>
+          <span class="tree-meta">${children.length}</span>
+        </summary>
+        <ul>${children.map((child) => renderTreeNode(child, depth + 1, { showTechnical: true })).join("")}</ul>
+      </details>
+    </li>
+  `;
+}
+
+function partitionChildrenForDisplay(children = [], options = {}) {
+  if (options.showTechnical) {
+    return { primary: children, technical: [], visibleCount: children.length };
+  }
+  const markdownBasenames = new Set(children
+    .filter((child) => child.kind === "file" && extensionOf(child.name) === ".md")
+    .map((child) => baseNameWithoutExtension(child.name)));
+  const primary = [];
+  const technical = [];
+  for (const child of children) {
+    if (isTechnicalTreeEntry(child, markdownBasenames)) technical.push(child);
+    else primary.push(child);
+  }
+  return {
+    primary,
+    technical,
+    visibleCount: primary.length + (technical.length ? 1 : 0),
+  };
+}
+
+function isTechnicalTreeEntry(node, markdownBasenames = new Set()) {
+  const name = String(node?.name || "");
+  if (!name) return false;
+  if (node.kind !== "file") {
+    return name === "_extracted" || name === "By Type";
+  }
+  if (/^(Extraction Log|File Register|Intake Log)\.csv$/i.test(name)) return true;
+  if (/^matter\.json$/i.test(name)) return true;
+  const ext = extensionOf(name);
+  const basename = baseNameWithoutExtension(name);
+  if ((ext === ".json" || ext === ".csv") && markdownBasenames.has(basename)) return true;
+  return false;
+}
+
+function displayFileName(node = {}) {
+  const name = String(node.name || "");
+  if (/^Source Index\.json$/i.test(name)) return "Source Index";
+  const ext = extensionOf(name);
+  if ([".md", ".json", ".csv"].includes(ext)) return baseNameWithoutExtension(name);
+  return name;
+}
+
+function shouldShowFileSize(node = {}) {
+  if (node.size === undefined) return false;
+  const ext = extensionOf(node.name);
+  return ![".md", ".json", ".csv", ".txt", ".log"].includes(ext);
+}
+
+function extensionOf(name = "") {
+  const normalized = String(name || "");
+  const index = normalized.lastIndexOf(".");
+  return index <= 0 ? "" : normalized.slice(index).toLowerCase();
+}
+
+function baseNameWithoutExtension(name = "") {
+  const normalized = String(name || "");
+  const index = normalized.lastIndexOf(".");
+  return index <= 0 ? normalized : normalized.slice(0, index);
 }
 
 export function createWorkspaceView(ctx) {

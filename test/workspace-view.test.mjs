@@ -105,6 +105,103 @@ test("workspace lane lookup and preview render empty and populated lanes", () =>
   assert.match(draftsHtml, /This lane is empty/);
 });
 
+test("workspace tree groups technical files behind lawyer-facing artifact labels", () => {
+  const html = renderTreeNode({
+    name: "Demo Matter",
+    kind: "directory",
+    path: "",
+    children: [
+      {
+        name: "00_Inbox",
+        kind: "directory",
+        path: "00_Inbox",
+        children: [{
+          name: "Intake 01 - Initial",
+          kind: "directory",
+          path: "00_Inbox/Intake 01 - Initial",
+          children: [
+            {
+              name: "Originals",
+              kind: "directory",
+              path: "00_Inbox/Intake 01 - Initial/Originals",
+              children: [],
+            },
+            {
+              name: "_extracted",
+              kind: "directory",
+              path: "00_Inbox/Intake 01 - Initial/_extracted",
+              children: [],
+            },
+            {
+              name: "File Register.csv",
+              kind: "file",
+              path: "00_Inbox/Intake 01 - Initial/File Register.csv",
+              size: 1200,
+              previewable: true,
+              previewKind: "text",
+            },
+          ],
+        }],
+      },
+      {
+        name: "10_Library",
+        kind: "directory",
+        path: "10_Library",
+        children: [
+          {
+            name: "Source Index.json",
+            kind: "file",
+            path: "10_Library/Source Index.json",
+            size: 900,
+            previewable: true,
+            previewKind: "text",
+          },
+          {
+            name: "List of Dates.md",
+            kind: "file",
+            path: "10_Library/List of Dates.md",
+            size: 1200,
+            previewable: true,
+            previewKind: "text",
+          },
+          {
+            name: "List of Dates.json",
+            kind: "file",
+            path: "10_Library/List of Dates.json",
+            size: 2000,
+            previewable: true,
+            previewKind: "text",
+          },
+          {
+            name: "List of Dates.csv",
+            kind: "file",
+            path: "10_Library/List of Dates.csv",
+            size: 1500,
+            previewable: true,
+            previewKind: "text",
+          },
+        ],
+      },
+      {
+        name: "matter.json",
+        kind: "file",
+        path: "matter.json",
+        size: 500,
+        previewable: true,
+        previewKind: "text",
+      },
+    ],
+  });
+
+  assert.match(html, /Source Index <span class="tree-canonical-name">Source Index\.json/);
+  assert.match(html, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
+  assert.match(html, /Technical files[\s\S]*File Register\.csv/);
+  assert.match(html, /Technical files[\s\S]*_extracted/);
+  assert.match(html, /Technical files[\s\S]*List of Dates\.json/);
+  assert.match(html, /Technical files[\s\S]*List of Dates\.csv/);
+  assert.match(html, /Technical files[\s\S]*matter\.json/);
+});
+
 test("workspace preview renders List of Dates markdown actions", () => {
   const html = renderListOfDatesPreviewActions("10_Library/List of Dates.md", escapeHtml);
 

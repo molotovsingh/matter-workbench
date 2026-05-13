@@ -849,6 +849,10 @@ strong {
   margin-top: 10px;
 }
 
+.tree-technical-group {
+  opacity: 0.82;
+}
+
 .tree-meta {
   color: var(--muted);
   font-size: 11px;
