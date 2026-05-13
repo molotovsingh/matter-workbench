@@ -19,8 +19,9 @@ export const AI_PROVIDERS = Object.freeze({
 });
 
 export const DEFAULT_ROUTER_MAX_OUTPUT_TOKENS = Math.min(1200, DEFAULT_OPENAI_MAX_OUTPUT_TOKENS);
-export const DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS = 1800;
-export const DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS = 45_000;
+export const DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL = "gpt-5.4";
+export const DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS = 2600;
+export const DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS = 90_000;
 export const DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS = 90_000;
 export const DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS = 3000;
 export const DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS = 90_000;
@@ -41,15 +42,17 @@ const TASK_POLICIES = Object.freeze({
   [AI_TASKS.SKILL_DESIGN_INTERVIEW]: Object.freeze({
     task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
     tier: "skill_design_interview",
-    provider: AI_PROVIDERS.OPENROUTER,
-    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
     fallback: "deterministic_fallback",
     providerEnvKey: "SKILL_INTERVIEW_PLANNER_PROVIDER",
-    modelEnvKey: "OPENAI_MODEL",
-    maxOutputTokensEnvKey: "OPENAI_MAX_OUTPUT_TOKENS",
+    modelEnvKey: "OPENAI_SKILL_INTERVIEW_PLANNER_MODEL",
+    maxOutputTokensEnvKey: "OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS",
+    timeoutMsEnvKey: "OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS",
+    defaultModel: DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
     openRouterModelEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL",
     openRouterMaxOutputTokensEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS",
-    timeoutMsEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS",
+    openRouterTimeoutMsEnvKey: "OPENROUTER_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS",
     defaultMaxOutputTokens: DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
     defaultTimeoutMs: DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
   }),
@@ -133,7 +136,7 @@ function modelForProvider(base, env, provider) {
   if (provider === AI_PROVIDERS.OPENROUTER) {
     return env[base.openRouterModelEnvKey || base.modelEnvKey] || "";
   }
-  return env[base.modelEnvKey] || DEFAULT_OPENAI_MODEL;
+  return env[base.modelEnvKey] || base.defaultModel || DEFAULT_OPENAI_MODEL;
 }
 
 function maxOutputTokensForProvider(base, env, provider) {

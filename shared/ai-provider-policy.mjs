@@ -23,12 +23,15 @@ export function resolveProviderConfig(policy, overrides = {}) {
     return providerConfig;
   }
 
-  return {
+  const providerConfig = {
     provider: policy.provider,
     endpoint: overrides.endpoint || policy.endpoint || DEFAULT_RESPONSES_ENDPOINT,
     model: overrides.model || policy.model,
     maxOutputTokens: parsePositiveInteger(overrides.maxOutputTokens) || policy.maxOutputTokens,
   };
+  const timeoutMs = parsePositiveInteger(overrides.timeoutMs) || policy.timeoutMs;
+  if (timeoutMs) providerConfig.timeoutMs = timeoutMs;
+  return providerConfig;
 }
 
 export function modelPolicyMetadata(policy, providerConfig = resolveProviderConfig(policy)) {
