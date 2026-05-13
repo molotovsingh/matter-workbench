@@ -280,6 +280,39 @@ strong {
   padding: 4px 8px;
 }
 
+.matter-search {
+  margin: 8px 0 10px;
+}
+
+.matter-search label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.matter-search input {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  padding: 7px 9px;
+}
+
+.matter-search input:focus {
+  outline: 1px solid var(--accent-border);
+  outline-offset: 0;
+}
+
+.matter-search-meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+  min-height: 14px;
+}
+
 .matters-list {
   list-style: none;
   margin: 0;

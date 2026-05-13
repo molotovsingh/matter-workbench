@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Matter Workbench</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=workspace-files-2" />
+    <link rel="stylesheet" href="styles.css?v=matter-search-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -26,6 +26,17 @@
           <div class="tree-heading-row">
             <div class="tree-heading">Matters</div>
             <button id="newMatterButton" class="sidebar-action primary" type="button">+ New Matter</button>
+          </div>
+          <div class="matter-search">
+            <label for="mattersSearchInput">Search matters</label>
+            <input
+              id="mattersSearchInput"
+              type="search"
+              placeholder="Search matters"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div id="mattersSearchMeta" class="matter-search-meta"></div>
           </div>
           <ul id="mattersList" class="matters-list"></ul>
         </section>
@@ -169,6 +180,6 @@
       </main>
     </div>
 
-    <script type="module" src="app.js?v=workspace-files-2"></script>
+    <script type="module" src="app.js?v=matter-search-1"></script>
   </body>
  </html>

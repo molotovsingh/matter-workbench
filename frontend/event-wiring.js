@@ -36,6 +36,10 @@ export function wireAppEvents(ctx, skills) {
     ctx.switchToMatter(name);
   });
 
+  elements.mattersSearchInput?.addEventListener("input", (event) => {
+    ctx.setMatterSearchQuery?.(event.target.value);
+  });
+
   elements.newMatterButton.addEventListener("click", () => renderNewMatterForm(ctx));
   elements.addFilesButton.addEventListener("click", () => renderAddFilesForm(ctx));
   elements.activitySettings.addEventListener("click", ctx.renderSettings);

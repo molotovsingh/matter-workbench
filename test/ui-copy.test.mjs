@@ -7,6 +7,8 @@ test("app shell uses lawyer-facing first impression labels", async () => {
 
   assert.match(html, /Matter Actions/);
   assert.match(html, /matter-actions-section/);
+  assert.match(html, /Search matters/);
+  assert.match(html, /id="mattersSearchInput"/);
   assert.match(html, /8 actions/);
   assert.match(html, /Set up matter/);
   assert.match(html, /Extract documents/);

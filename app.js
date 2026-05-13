@@ -38,6 +38,8 @@ const elements = {
   themeToggleButton: document.getElementById("themeToggleButton"),
   mattersPicker: document.getElementById("mattersPicker"),
   mattersList: document.getElementById("mattersList"),
+  mattersSearchInput: document.getElementById("mattersSearchInput"),
+  mattersSearchMeta: document.getElementById("mattersSearchMeta"),
   newMatterButton: document.getElementById("newMatterButton"),
   activityExplorer: document.getElementById("activityExplorer"),
   activitySkills: document.getElementById("activitySkills"),
@@ -95,6 +97,7 @@ ctx.renderMattersList = matterScreens.renderMattersList;
 ctx.renderSettings = matterScreens.renderSettings;
 ctx.renderSkills = matterScreens.renderSkills;
 ctx.setActivityActive = matterScreens.setActivityActive;
+ctx.setMatterSearchQuery = matterScreens.setMatterSearchQuery;
 
 const matterInitSkill = createMatterInitSkill(ctx);
 const prepareMatterSkill = createPrepareMatterSkill(ctx);
