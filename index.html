@@ -30,41 +30,46 @@
           <ul id="mattersList" class="matters-list"></ul>
         </section>
 
-        <div class="slash-section">
-          <div class="tree-heading">Matter Actions</div>
-          <button class="slash-skill" type="button" data-skill="/matter-init">
-            <span class="slash-label">Set up matter</span>
-            <span class="slash-command">/matter-init</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/prepare_matter">
-            <span class="slash-label">Prepare matter</span>
-            <span class="slash-command">/prepare_matter</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/extract">
-            <span class="slash-label">Extract documents</span>
-            <span class="slash-command">/extract</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/describe_sources">
-            <span class="slash-label">Label sources</span>
-            <span class="slash-command">/describe_sources</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/context_preview">
-            <span class="slash-label">Preview matter context</span>
-            <span class="slash-command">/context_preview</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/context_search">
-            <span class="slash-label">Find in matter</span>
-            <span class="slash-command">/context_search</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/create_listofdates">
-            <span class="slash-label">Create list of dates</span>
-            <span class="slash-command">/create_listofdates</span>
-          </button>
-          <button class="slash-skill" type="button" data-skill="/doctor">
-            <span class="slash-label">Check matter</span>
-            <span class="slash-command">/doctor</span>
-          </button>
-        </div>
+        <details class="slash-section matter-actions-section">
+          <summary class="matter-actions-summary">
+            <span class="tree-heading">Matter Actions</span>
+            <span class="matter-actions-count">8 actions</span>
+          </summary>
+          <div class="matter-actions-list">
+            <button class="slash-skill" type="button" data-skill="/matter-init">
+              <span class="slash-label">Set up matter</span>
+              <span class="slash-command">/matter-init</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/prepare_matter">
+              <span class="slash-label">Prepare matter</span>
+              <span class="slash-command">/prepare_matter</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/extract">
+              <span class="slash-label">Extract documents</span>
+              <span class="slash-command">/extract</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/describe_sources">
+              <span class="slash-label">Label sources</span>
+              <span class="slash-command">/describe_sources</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/context_preview">
+              <span class="slash-label">Preview matter context</span>
+              <span class="slash-command">/context_preview</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/context_search">
+              <span class="slash-label">Find in matter</span>
+              <span class="slash-command">/context_search</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/create_listofdates">
+              <span class="slash-label">Create list of dates</span>
+              <span class="slash-command">/create_listofdates</span>
+            </button>
+            <button class="slash-skill" type="button" data-skill="/doctor">
+              <span class="slash-label">Check matter</span>
+              <span class="slash-command">/doctor</span>
+            </button>
+          </div>
+        </details>
 
         <div class="tree-section">
           <div class="tree-heading-row">
