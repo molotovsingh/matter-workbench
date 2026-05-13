@@ -91,7 +91,12 @@ test("server API smoke test keeps public routes stable", async () => {
 
   const app = await createWorkbenchServer({
     appDir,
-    env: { MATTERS_HOME: mattersHome },
+    env: {
+      MATTERS_HOME: mattersHome,
+      SKILL_INTERVIEW_PLANNER_ENABLED: "1",
+      SKILL_INTERVIEW_PLANNER_PROVIDER: "openrouter",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL: "openai/gpt-4.1",
+    },
     host: "127.0.0.1",
     port: 0,
     commandInteractionLogPath,
@@ -132,6 +137,30 @@ test("server API smoke test keeps public routes stable", async () => {
     }),
     sourceDescriptorProvider: async ({ sources }) => ({
       sources: sources.map((source) => sourceDescriptorFor(source)),
+    }),
+    skillInterviewPlannerProvider: async ({ userRequest, activeMatter, skillRegistry }) => ({
+      mode: "new_skill",
+      target_skill: "",
+      understood_summary: `Plan interview for ${userRequest}.`,
+      inferred_design_brief: {
+        intendedUser: "Lawyer",
+        problem: "Draft careful client communication.",
+        expectedInputs: "List of Dates and lawyer instructions.",
+        expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+        targetLane: "30_Drafts",
+        paidPosture: "paid",
+        riskLevel: "high",
+        notes: `Matter: ${activeMatter?.matterName || "none"}. Registry skills: ${skillRegistry.length}.`,
+      },
+      default_assumptions: ["Client-facing email should not show raw FILE citations by default."],
+      questions: [{
+        id: "emailGoal",
+        label: "What should the email accomplish?",
+        help: "Choose the client communication goal.",
+        examples: ["reassure client", "explain next steps", "request documents"],
+      }],
+      open_questions: [],
+      risk_flags: ["External-facing draft requires lawyer review."],
     }),
   });
 
@@ -185,6 +214,19 @@ test("server API smoke test keeps public routes stable", async () => {
     const initialIdeas = await getJson(baseUrl, "/api/skill-ideas");
     assert.equal(initialIdeas.schema_version, "skill-ideas/v1");
     assert.deepEqual(initialIdeas.ideas, []);
+    const plannedInterview = await postJson(baseUrl, "/api/skill-ideas/plan-interview", {
+      userRequest: "draft a warm client update email",
+      skillIdea: {
+        type: "skill_idea",
+        mode: "new_skill",
+        text: "draft a warm client update email",
+        idea: "draft a warm client update email",
+      },
+    });
+    assert.equal(plannedInterview.schema_version, "skill-interview-plan/v1");
+    assert.equal(plannedInterview.planner.used, true);
+    assert.equal(plannedInterview.plan.inferred_design_brief.expectedOutputArtifact, "30_Drafts/Client Update Email.md");
+    assert.equal(plannedInterview.plan.questions[0].id, "emailGoal");
     const savedIdea = await postJson(baseUrl, "/api/skill-ideas", {
       text: "create a skill to summarize pleadings",
       designBrief: {

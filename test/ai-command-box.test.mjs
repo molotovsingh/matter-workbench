@@ -4,6 +4,7 @@ import {
   createAiCommandBox,
   listSlashCommandSuggestions,
   parseDeterministicCommand,
+  parseNewSkillModeCommand,
   parseSkillIdeaInput,
 } from "../frontend/ai-command-box.js";
 
@@ -41,6 +42,25 @@ test("command parser does not fuzzy-match unsupported text", () => {
   assert.equal(parseDeterministicCommand("please extract this"), null);
   assert.equal(parseDeterministicCommand("/describe-sources"), null);
   assert.equal(parseDeterministicCommand("create a list of dates skill"), null);
+});
+
+test("new skill mode parser recognizes exact mode openers", () => {
+  for (const input of [
+    "new skill",
+    "create skill",
+    "create a skill",
+    "make skill",
+    "make a skill",
+    "design skill",
+    "design a skill",
+  ]) {
+    assert.deepEqual(parseNewSkillModeCommand(input), {
+      type: "new_skill_mode",
+      input,
+    });
+  }
+  assert.equal(parseNewSkillModeCommand("new skill for limitation"), null);
+  assert.equal(parseNewSkillModeCommand("create a skill to check limitation"), null);
 });
 
 test("skill idea parser detects explicit proposal phrases only", () => {
@@ -266,6 +286,7 @@ test("command box opens deterministic skill idea interview session without runni
   assert.deepEqual(calls, []);
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Planner: deterministic/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Temporary browser-memory session/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
@@ -275,8 +296,10 @@ test("command box opens deterministic skill idea interview session without runni
   assert.equal(interactionLogs[0].rendered_state, "skill_idea/interview");
   assert.equal(interactionLogs[0].status, "opened_interview");
   assert.equal(interactionLogs[0].provider_run_invoked, false);
+  assert.equal(interactionLogs[0].planner_source, "deterministic");
   await box.copyLatestReport();
   assert.match(copied, /- Matched command: `skill_idea\/interview`/);
+  assert.match(copied, /- Planner: deterministic/);
 });
 
 test("command interaction logging failure does not block command behavior", async () => {
@@ -297,6 +320,222 @@ test("command interaction logging failure does not block command behavior", asyn
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
+test("command box enters explicit new skill mode without router check", async () => {
+  const interactionLogs = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "new skill" });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    logCommandInteraction: async (body) => interactionLogs.push(body),
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called when entering new skill mode");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "Describe the skill you want...");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /New skill idea/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Describe the skill you want in your own words/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /It will not generate code, prompts, or run a provider-backed skill/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.equal(ctx.statusCalls.at(-1).bar, "New Skill Idea");
+  assert.equal(interactionLogs.length, 1);
+  assert.equal(interactionLogs[0].matched_command, "skill_idea/new");
+  assert.equal(interactionLogs[0].status, "awaiting_skill_idea");
+  assert.equal(interactionLogs[0].provider_run_invoked, false);
+});
+
+test("command box treats freeform text as a skill idea after new skill mode", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "new skill" });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called during new skill mode");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  ctx.elements.aiCommandInput.value = "it should read the list of dates and draft a warm client email saying we have reviewed the matter and further work is happening";
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
+test("command box uses model-planned interview only after explicit new skill mode", async () => {
+  const plannerCalls = [];
+  let copied = "";
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "new skill" });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called during new skill mode");
+    },
+    writeClipboardText: async (text) => {
+      copied = text;
+    },
+    planSkillIdeaInterviewProvider: async (body) => {
+      plannerCalls.push(body);
+      return {
+        mode: "new_skill",
+        target_skill: "Draft Warm Client Update Email from List of Dates",
+        understood_summary: "You want a client update email skill that drafts careful, reassuring client communication from reviewed matter artifacts.",
+        inferred_design_brief: {
+          intendedUser: "Lawyer preparing client communication",
+          problem: "Draft a careful client update email after matter review without giving final legal advice too early.",
+          expectedInputs: "List of Dates, matter metadata, and lawyer instructions.",
+          expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+          targetLane: "30_Drafts",
+          paidPosture: "paid",
+          riskLevel: "high",
+          notes: "Client-facing email. Keep raw FILE citations internal unless lawyer asks.",
+        },
+        default_assumptions: ["Source-backed reasoning remains internal; do not show raw FILE citations in the client email."],
+        questions: [
+          {
+            id: "emailGoal",
+            label: "What should the email accomplish?",
+            help: "Choose the communication goal before this becomes a skill.",
+            examples: ["reassure client", "explain next steps", "request documents"],
+          },
+          {
+            id: "tone",
+            label: "What tone should it use?",
+            help: "Client-facing tone controls how cautious the draft should be.",
+            examples: ["warm", "formal", "concise", "reassuring"],
+          },
+        ],
+        open_questions: [],
+        risk_flags: ["External-facing draft requires lawyer review."],
+        __plannerMeta: {
+          provider: "openrouter",
+          model: "openai/gpt-4.1",
+          used: true,
+        },
+      };
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  ctx.elements.aiCommandInput.value = "it should read the list of dates and draft a warm client email saying we have reviewed the matter and further work is happening";
+  await form.submit();
+
+  assert.equal(plannerCalls.length, 1);
+  assert.equal(plannerCalls[0].skillIdea.mode, "new_skill");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /client update email skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Planner: openrouter \/ openai\/gpt-4\.1/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What should the email accomplish/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 2/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /What source or citation discipline should it follow/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Likely related skill/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.match(String(ctx.statusCalls.at(-1).terminal), /model-planned interview opened/);
+  await box.copyLatestReport();
+  assert.match(copied, /- Planner: openrouter \/ openai\/gpt-4\.1/);
+});
+
+test("command box reports deterministic fallback when model planner is unavailable", async () => {
+  let copied = "";
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "new skill" });
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called during new skill mode");
+    },
+    writeClipboardText: async (text) => {
+      copied = text;
+    },
+    planSkillIdeaInterviewProvider: async () => ({
+      __plannerMeta: {
+        enabled: false,
+        used: false,
+        fallback: "deterministic_fallback",
+        reason: "OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL is not configured",
+      },
+    }),
+  });
+
+  box.wire();
+  await form.submit();
+  ctx.elements.aiCommandInput.value = "it should read the list of dates and draft a warm client email";
+  await form.submit();
+
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Planner: deterministic fallback/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Fallback reason: OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL is not configured/);
+  assert.match(String(ctx.statusCalls.at(-1).terminal), /planner fallback: OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL is not configured/);
+  await box.copyLatestReport();
+  assert.match(copied, /- Planner: deterministic fallback/);
+  assert.match(copied, /- Planner fallback reason: OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL is not configured/);
+});
+
+test("command box cancels explicit new skill mode without saving", async () => {
+  const savedIdeas = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "new skill" });
+  const box = createAiCommandBox(ctx, {
+    saveSkillIdea: async (body) => {
+      savedIdeas.push(body);
+      return { idea: body };
+    },
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called during new skill mode");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  ctx.elements.aiCommandInput.value = "cancel";
+  await form.submit();
+
+  assert.deepEqual(savedIdeas, []);
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "/extract, find payment, open skills, chronology, or status");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /New skill idea cancelled/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "New Skill Cancelled");
+});
+
+test("command box new skill mode works without an active matter", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "new skill",
+    activeMatter: null,
+  });
+  ctx.elements.editorContent.innerHTML = "<h1>Landing</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called during no-matter new skill mode");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /No active matter/);
+  ctx.elements.aiCommandInput.value = "make a limitation checker";
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /limitation review skill/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1 of/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Landing</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
 });
 
