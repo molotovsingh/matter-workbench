@@ -5,6 +5,7 @@ export function wireAppEvents(ctx, skills) {
   const { elements } = ctx;
   const skillDispatch = {
     "/matter-init": skills.runMatterInit,
+    "/prepare_matter": skills.runPrepareMatter,
     "/extract": skills.runExtract,
     "/describe_sources": skills.runDescribeSources,
     "/context_preview": skills.runContextPreview,
@@ -43,6 +44,12 @@ export function wireAppEvents(ctx, skills) {
   elements.slashSkillButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (!ctx.getActiveMatter().folderName) {
+        const skill = button.dataset.skill;
+        if (skill === "/prepare_matter") {
+          elements.slashSkillButtons.forEach((other) => other.classList.toggle("active", other === button));
+          skills.runPrepareMatter(skill);
+          return;
+        }
         ctx.setStatus({
           bar: "No matter selected",
           terminal: "[skills] no matter loaded; pick one from the sidebar",

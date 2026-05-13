@@ -7,6 +7,7 @@ import { createSkillRegistryService } from "../services/skill-registry-service.m
 
 const EXPECTED_SLASHES = [
   "/matter-init",
+  "/prepare_matter",
   "/extract",
   "/describe_sources",
   "/context_preview",
@@ -29,10 +30,16 @@ test("skill registry reads all built-in skill stubs", async () => {
     "built-in-skill/v1",
     "built-in-skill/v1",
     "built-in-skill/v1",
+    "built-in-skill/v1",
   ]);
 
+  const prepareMatter = registry.skills.find((skill) => skill.slash === "/prepare_matter");
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
   const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
+  assert.equal(prepareMatter.category, "Prepare");
+  assert.equal(prepareMatter.paid_provider_call, true);
+  assert.equal(prepareMatter.rerun_guarded, true);
+  assert.equal(prepareMatter.source_backed, "optional");
   assert.equal(sourceLabels.paid_provider_call, true);
   assert.equal(sourceLabels.rerun_guarded, true);
   assert.equal(sourceLabels.default_lane, "10_Library");

@@ -34,6 +34,7 @@ export function createMatterOverview(ctx, skills) {
       </section>
 
       <div class="form-actions">
+        <button type="button" class="run-skill-button" id="runPrepareMatterButton">Prepare matter <span>/prepare_matter</span></button>
         <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Set up matter <span>/matter-init</span></button>
         <button type="button" class="run-skill-button secondary" id="runExtractButton">Extract documents <span>/extract</span></button>
         <button type="button" class="run-skill-button secondary" id="runDescribeSourcesButton">Label sources <span>/describe_sources</span></button>
@@ -42,6 +43,10 @@ export function createMatterOverview(ctx, skills) {
       </div>
     `;
 
+    const runPrepareMatterButton = document.getElementById("runPrepareMatterButton");
+    if (runPrepareMatterButton) {
+      runPrepareMatterButton.addEventListener("click", () => skills.runPrepareMatter("/prepare_matter"));
+    }
     const runInitButton = document.getElementById("runMatterInitButton");
     if (runInitButton) {
       runInitButton.addEventListener("click", () => skills.runMatterInit("/matter-init"));

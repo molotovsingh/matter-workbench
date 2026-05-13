@@ -15,6 +15,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     matterContextService,
     matterStore,
     matterStatusService,
+    prepareMatterService,
     skillIdeasService,
     skillInterviewPlannerService,
     skillRegistryService,
@@ -266,6 +267,11 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "GET" && requestUrl.pathname === "/api/matter-status") {
     sendJson(response, 200, await matterStatusService.readMatterStatus());
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/prepare-matter") {
+    sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan());
     return true;
   }
 

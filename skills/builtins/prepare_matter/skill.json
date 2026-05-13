@@ -1,0 +1,34 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "prepare_matter",
+  "slash": "/prepare_matter",
+  "title": "Prepare Matter",
+  "category": "Prepare",
+  "purpose": "Show a disk-derived preparation plan and optionally run setup, extraction, and source labeling through existing guarded paths.",
+  "mode": "deterministic",
+  "matter_required": false,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "optional",
+  "legal_setting_scope": "general",
+  "markdown_first": false,
+  "inputs": [
+    "matter.json",
+    "00_Inbox/*/File Register.csv",
+    "00_Inbox/*/_extracted/*.json",
+    "10_Library/Source Index.json"
+  ],
+  "outputs": [
+    "preparation report",
+    "guarded stage plan"
+  ],
+  "upstream": [],
+  "downstream": [
+    "/matter-init",
+    "/extract",
+    "/describe_sources"
+  ],
+  "default_lane": "",
+  "runner_key": "/prepare_matter",
+  "version": 1
+}

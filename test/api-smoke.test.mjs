@@ -192,6 +192,14 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/describe_sources", "present"],
       ["/create_listofdates", "present"],
     ]);
+    const prepareMatter = await getJson(baseUrl, "/api/prepare-matter");
+    assert.equal(prepareMatter.schema_version, "prepare-matter-plan/v1");
+    assert.deepEqual(prepareMatter.stages.map((stage) => [stage.slash, stage.action]), [
+      ["/matter-init", "skip_current"],
+      ["/extract", "skip_current"],
+      ["/describe_sources", "skip_current"],
+    ]);
+    assert.equal(prepareMatter.nextStep.state, "complete");
     const sourceRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/describe_sources")}`);
     assert.equal(sourceRerunAdvice.shouldConfirm, true);
     assert.equal(sourceRerunAdvice.artifactPath, "10_Library/Source Index.json");
@@ -205,6 +213,7 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(skills.builtins, undefined);
     assert.ok(skills.skills.some((skill) => skill.slash === "/context_preview"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/context_search"));
+    assert.ok(skills.skills.some((skill) => skill.slash === "/prepare_matter"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
     assert.equal(

@@ -2,6 +2,7 @@
   "schema_version": "skill-registry/v1",
   "categories": [
     "Ingest",
+    "Prepare",
     "Extract",
     "Organize",
     "Analyze",
@@ -17,6 +18,7 @@
   },
   "builtins": [
     "matter-init",
+    "prepare_matter",
     "extract",
     "describe_sources",
     "context_preview",
