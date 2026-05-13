@@ -401,25 +401,32 @@ export function createMatterScreens(ctx) {
     setActivityActive("explorer");
     ctx.clearActiveMatter();
     if (addFilesButton) addFilesButton.hidden = true;
+    if (ctx.elements.titleText) ctx.elements.titleText.textContent = "No matter selected";
+    if (ctx.elements.bottomMeta) ctx.elements.bottomMeta.textContent = "No matter selected";
     workspaceTree.innerHTML = '<li class="tree-node">Pick a matter from the sidebar.</li>';
-    breadcrumbs.textContent = "workbench > pick a matter";
+    breadcrumbs.textContent = "No matter selected";
     const mattersState = ctx.getMattersState();
     const hasMatters = mattersState.matters.length > 0;
     editorContent.innerHTML = `
-      <h1>Welcome</h1>
+      <h1>No matter selected</h1>
       <p>
         ${hasMatters
-          ? `You have <strong>${mattersState.matters.length}</strong> matter${mattersState.matters.length === 1 ? "" : "s"} available. Pick one from the sidebar to open it, or click <code>+ New Matter</code> to add a new one.`
+          ? `You have <strong>${mattersState.matters.length}</strong> matter${mattersState.matters.length === 1 ? "" : "s"} available. Pick a matter from the sidebar to begin.`
           : "No matters yet. Click <code>+ New Matter</code> in the sidebar to create your first."}
       </p>
-      <p>Matters home: <code>${escapeHtml(mattersState.mattersHome || "")}</code></p>
+      ${mattersState.mattersHome ? `
+        <details class="local-folder-details">
+          <summary>Show local folder</summary>
+          <p><code>${escapeHtml(mattersState.mattersHome)}</code></p>
+        </details>
+      ` : ""}
     `;
     ctx.setStatus({
       mood: "idle",
       card: hasMatters
-        ? "<strong>Ready</strong><br />Pick a matter or create a new one."
+        ? "<strong>Pick a matter</strong><br />Choose a matter from the sidebar to begin."
         : "<strong>Ready</strong><br />Create your first matter to begin.",
-      bar: "No Matter",
+      bar: "Pick a matter to begin",
       terminal: [
         "[landing] no active matter",
         `[landing] ${mattersState.matters.length} matter(s) available`,

@@ -708,10 +708,22 @@ strong {
   padding: 8px 10px;
   text-align: left;
   cursor: pointer;
+  display: grid;
+  gap: 2px;
 }
 
 .slash-skill.active {
   background: var(--accent-soft);
+}
+
+.slash-label {
+  font-weight: 600;
+}
+
+.slash-command {
+  color: var(--muted);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--font-size-xs);
 }
 
 .tree-root,
@@ -1060,6 +1072,10 @@ summary {
 .command-panel-actions button:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.command-panel-actions button[hidden] {
+  display: none;
 }
 
 .command-panel-report-status {
@@ -1733,6 +1749,16 @@ summary {
   background: var(--input-bg);
   color: var(--text);
   border: 1px solid var(--input-border);
+  font-weight: 500;
+}
+
+.run-skill-button span {
+  display: block;
+  margin-top: 2px;
+  color: inherit;
+  opacity: 0.72;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 

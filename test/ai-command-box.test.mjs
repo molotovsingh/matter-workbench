@@ -22,6 +22,7 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("search payment receipts"), { type: "search", command: "/context_search", query: "payment receipts" });
   assert.deepEqual(parseDeterministicCommand("find legal notice"), { type: "search", command: "/context_search", query: "legal notice" });
   assert.deepEqual(parseDeterministicCommand("list of dates"), { type: "skill", command: "/create_listofdates" });
+  assert.deepEqual(parseDeterministicCommand("create list of dates"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("doctor"), { type: "skill", command: "/doctor" });
   assert.deepEqual(parseDeterministicCommand("open inbox"), { type: "lane", input: "open inbox", lanePath: "00_Inbox" });
@@ -109,7 +110,7 @@ test("slash command suggestions are explicit and description-backed", () => {
     ["/describe_sources"],
   );
   assert.equal(listSlashCommandSuggestions("chronology").length, 0);
-  assert.match(listSlashCommandSuggestions("/create")[0].description, /chronology/i);
+  assert.match(listSlashCommandSuggestions("/create")[0].description, /list of dates/i);
   assert.match(listSlashCommandSuggestions("/context")[0].description, /evidence packet/i);
   assert.match(listSlashCommandSuggestions("/context_s")[0].description, /locally/i);
 });
@@ -506,7 +507,7 @@ test("command box cancels explicit new skill mode without saving", async () => {
 
   assert.deepEqual(savedIdeas, []);
   assert.equal(ctx.elements.aiCommandInput.value, "");
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "/extract, find payment, open skills, chronology, or status");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /New skill idea cancelled/);
   assert.equal(ctx.statusCalls.at(-1).bar, "New Skill Cancelled");
 });
