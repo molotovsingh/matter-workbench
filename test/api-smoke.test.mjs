@@ -375,10 +375,15 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(skillFactoryHealth.schema_version, "skill-factory-health/v1");
     assert.equal(skillFactoryHealth.state, "ok");
     assert.equal(skillFactoryHealth.summary.activeSkills, 1);
+    const emptyCustomRuns = await getJson(baseUrl, "/api/configurable-skills/runs");
+    assert.equal(emptyCustomRuns.schema_version, "configurable-skill-runs/v1");
+    assert.deepEqual(emptyCustomRuns.runs, []);
     const customRun = await postJson(baseUrl, "/api/configurable-skills/run", {
       slash: "/party_officer_map",
     });
     assert.equal(customRun.state, "written");
+    assert.equal(customRun.runRecord.status, "succeeded");
+    assert.equal(customRun.runRecord.matterFolder, "Smoke Matter");
     assert.equal(customRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
     assert.match(customRun.markdown, /FILE-0001 p1\.b1/);
     const customMarkdown = await readFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.md"), "utf8");
@@ -388,11 +393,25 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     assert.equal(customRerun.state, "requires_overwrite");
     assert.equal(customRerun.artifactPath, "20_Workshop/Party and Officer Map.md");
+    const cancelledCustomRun = await postJson(baseUrl, "/api/configurable-skills/runs/cancelled", {
+      slash: "/party_officer_map",
+      artifactPath: customRerun.artifactPath,
+    });
+    assert.equal(cancelledCustomRun.state, "cancelled");
+    assert.equal(cancelledCustomRun.runRecord.status, "cancelled");
     const customOverwrite = await postJson(baseUrl, "/api/configurable-skills/run", {
       slash: "/party_officer_map",
       overwrite: true,
     });
     assert.equal(customOverwrite.state, "written");
+    assert.equal(customOverwrite.runRecord.overwrite, "approved");
+    const customRuns = await getJson(baseUrl, "/api/configurable-skills/runs?slash=/party_officer_map");
+    assert.equal(customRuns.runs.length, 3);
+    assert.deepEqual(
+      [...customRuns.runs.map((run) => run.status)].sort(),
+      ["cancelled", "succeeded", "succeeded"],
+    );
+    assert.doesNotMatch(JSON.stringify(customRuns), /Smoke event on 20 April 2026|OPENAI_API_KEY|\.env/);
     const contextPreview = await getJson(baseUrl, "/api/matter-context");
     assert.equal(contextPreview.schema_version, "matter-context-preview/v1");
     assert.equal(contextPreview.counts.sources, 1);

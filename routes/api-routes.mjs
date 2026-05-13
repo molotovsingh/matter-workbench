@@ -11,6 +11,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
   const {
     aiSettingsService,
     commandInteractionLogService,
+    configurableSkillRunsService,
     configService,
     configurableSkillsService,
     matterContextService,
@@ -219,11 +220,30 @@ export async function handleApiRequest({ request, requestUrl, response, services
     return true;
   }
 
+  if (request.method === "GET" && requestUrl.pathname === "/api/configurable-skills/runs") {
+    sendJson(response, 200, await configurableSkillRunsService.listRuns({
+      slash: requestUrl.searchParams.get("slash") || "",
+      skillId: requestUrl.searchParams.get("skillId") || "",
+      matterFolder: requestUrl.searchParams.get("matterFolder") || "",
+      limit: requestUrl.searchParams.get("limit") || undefined,
+    }));
+    return true;
+  }
+
   if (request.method === "POST" && requestUrl.pathname === "/api/configurable-skills/run") {
     const body = await readRequestJson(request);
     sendJson(response, 200, await configurableSkillsService.runSkill({
       slash: body.slash,
       overwrite: Boolean(body.overwrite),
+    }));
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/configurable-skills/runs/cancelled") {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await configurableSkillsService.recordCancelledRun({
+      slash: body.slash,
+      artifactPath: body.artifactPath,
     }));
     return true;
   }

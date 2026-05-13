@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
 import {
+  activityPageSummary,
+  renderActivityPageHtml,
+} from "../frontend/views/activity-page.js";
+import {
+  formatConfigurableSkillRunReport,
   formatSkillFactoryHealthReport,
   formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
@@ -275,7 +280,112 @@ test("skills page renders active custom skills as active", () => {
   assert.match(html, /\/party_officer_map/);
   assert.match(html, /Party and Officer Map/);
   assert.match(html, /Active/);
+  assert.match(html, /20_Workshop\/Party and Officer Map\.md/);
+  assert.doesNotMatch(html, /Recent runs/);
+  assert.doesNotMatch(html, /Copy Latest Run Report/);
   assert.doesNotMatch(html, /Party and Officer Map[\s\S]{0,200}Incomplete/);
+});
+
+test("activity page renders custom skill run receipts separately from skills governance", () => {
+  const runs = {
+    schema_version: "configurable-skill-runs/v1",
+    runs: [
+      {
+        id: "run_party_1",
+        skillId: "skill_party",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        matterName: "Ayesha Vs Japan Airlines",
+        matterFolder: "Ayesha Vs Japan Airlines",
+        status: "succeeded",
+        startedAt: "2026-05-14T10:00:00.000Z",
+        finishedAt: "2026-05-14T10:01:00.000Z",
+        outputPaths: {
+          markdown: "20_Workshop/Party and Officer Map.md",
+          json: "20_Workshop/Party and Officer Map.json",
+        },
+        aiRun: {
+          provider: "openai-direct",
+          model: "gpt-5.4",
+        },
+        overwrite: "approved",
+      },
+      {
+        id: "run_party_2",
+        skillId: "skill_party",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        matterName: "Mehta vs Skyline",
+        matterFolder: "Mehta vs Skyline",
+        status: "cancelled",
+        startedAt: "2026-05-14T10:03:00.000Z",
+        finishedAt: "2026-05-14T10:03:10.000Z",
+        outputPaths: {
+          markdown: "20_Workshop/Party and Officer Map.md",
+          json: "20_Workshop/Party and Officer Map.json",
+        },
+        overwrite: "cancelled",
+      },
+    ],
+  };
+  const summary = activityPageSummary(runs);
+  const html = renderActivityPageHtml({
+    configurableSkillRuns: runs,
+    activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
+  }, escapeHtml);
+
+  assert.equal(summary.total, 2);
+  assert.equal(summary.succeeded, 1);
+  assert.equal(summary.cancelled, 1);
+  assert.match(html, /Activity/);
+  assert.match(html, /Custom Skill Runs/);
+  assert.match(html, /Party and Officer Map/);
+  assert.match(html, /Ayesha Vs Japan Airlines/);
+  assert.match(html, /Mehta vs Skyline/);
+  assert.match(html, /Case Analysis \/ Party and Officer Map\.md/);
+  assert.match(html, /Updated existing file/);
+  assert.match(html, /Cancelled - kept existing file/);
+  assert.match(html, /Copy report/);
+  assert.match(html, /data-configurable-run-copy="run_party_1"/);
+  assert.match(html, /Details/);
+  assert.match(html, /openai-direct \/ gpt-5\.4/);
+  assert.doesNotMatch(html, /API_KEY|\.env|raw source text|# should not appear/i);
+});
+
+test("custom skill run report is copyable and excludes work product", () => {
+  const report = formatConfigurableSkillRunReport({
+    id: "run_party_1",
+    slash: "/party_officer_map",
+    title: "Party and Officer Map",
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    status: "succeeded",
+    startedAt: "2026-05-14T10:00:00.000Z",
+    finishedAt: "2026-05-14T10:01:00.000Z",
+    outputPaths: {
+      markdown: "20_Workshop/Party and Officer Map.md",
+      json: "20_Workshop/Party and Officer Map.json",
+    },
+    aiRun: {
+      provider: "openai-direct",
+      model: "gpt-5.4",
+      task: "configurable_skill_run",
+    },
+    overwrite: "approved",
+    warnings: ["bounded context omitted 10 blocks"],
+    sampleMarkdown: "# should not appear",
+    rawSourceText: "should not appear",
+  });
+
+  assert.match(report, /^# Custom Skill Run Report/);
+  assert.match(report, /- Status: succeeded/);
+  assert.match(report, /- Slash command: \/party_officer_map/);
+  assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
+  assert.match(report, /- Overwrite: approved/);
+  assert.match(report, /20_Workshop\/Party and Officer Map\.md/);
+  assert.match(report, /bounded context omitted 10 blocks/);
+  assert.match(report, /does not include raw source text, full extraction records/i);
+  assert.doesNotMatch(report, /should not appear|API_KEY|\.env/i);
 });
 
 test("skill idea implementation brief classifies client-update email as a new skill", () => {

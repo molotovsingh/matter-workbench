@@ -1229,6 +1229,26 @@ test("command box creates a runnable skill only after current sample approval", 
           provider: "openai-direct",
           model: "gpt-5.4",
         },
+        runId: "run_party_1",
+        runRecord: {
+          id: "run_party_1",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          status: "succeeded",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          startedAt: "2026-05-13T10:03:00.000Z",
+          finishedAt: "2026-05-13T10:04:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+          overwrite: "not_needed",
+        },
       };
     },
   });
@@ -1263,11 +1283,15 @@ test("command box creates a runnable skill only after current sample approval", 
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
+  assert.match(ctx.elements.editorContent.innerHTML, /run_party_1/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run complete/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
 });
 
 test("command box runs active configurable slash commands and handles overwrite confirmation", async () => {
   const runCalls = [];
+  const cancelCalls = [];
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "/party_officer_map" });
   const box = createAiCommandBox(ctx, {
@@ -1309,6 +1333,53 @@ test("command box runs active configurable slash commands and handles overwrite 
           provider: "openai-direct",
           model: "gpt-5.4",
         },
+        runId: "run_party_overwrite",
+        runRecord: {
+          id: "run_party_overwrite",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          status: "succeeded",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          startedAt: "2026-05-13T10:03:00.000Z",
+          finishedAt: "2026-05-13T10:04:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+          overwrite: "approved",
+        },
+      };
+    },
+    cancelConfigurableSkillRun: async (body) => {
+      cancelCalls.push(body);
+      return {
+        schema_version: "configurable-skill-run/v1",
+        state: "cancelled",
+        artifactPath: body.artifactPath,
+        skill: {
+          slash: body.slash,
+          title: "Party and Officer Map",
+        },
+        runId: "run_party_cancelled",
+        runRecord: {
+          id: "run_party_cancelled",
+          slash: body.slash,
+          title: "Party and Officer Map",
+          status: "cancelled",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          outputPaths: {
+            markdown: body.artifactPath,
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {},
+          overwrite: "cancelled",
+        },
       };
     },
   });
@@ -1320,11 +1391,25 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Artifact already exists/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Overwrite Confirmation");
 
+  await box.handleCommand({ userRequest: "keep current" });
+
+  assert.deepEqual(cancelCalls, [{
+    slash: "/party_officer_map",
+    artifactPath: "20_Workshop/Party and Officer Map.md",
+  }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run cancelled/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Run Cancelled");
+
+  ctx.elements.aiCommandInput.value = "/party_officer_map";
+  await form.submit();
   await box.handleCommand({ userRequest: "overwrite artifact" });
 
   assert.deepEqual(runCalls.at(-1), { slash: "/party_officer_map", overwrite: true });
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Party and Officer Map\.md/);
+  assert.match(ctx.elements.editorContent.innerHTML, /run_party_overwrite/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
 });
 

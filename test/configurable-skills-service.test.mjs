@@ -4,6 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  createConfigurableSkillRunsService,
+} from "../services/configurable-skill-runs-service.mjs";
+import {
   createConfigurableSkillsService,
   createOpenAiAuthoringProvider,
 } from "../services/configurable-skills-service.mjs";
@@ -101,12 +104,14 @@ test("configurable skill validation blocks bad draft run output", async () => {
 });
 
 test("active configurable skill runs write only configured markdown and JSON artifacts", async () => {
-  const { service, matterRoot } = await makeServiceHarness();
+  const { service, matterRoot, runLedger } = await makeServiceHarness();
   await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
 
   const firstRun = await service.runSkill({ slash: "/party_officer_map" });
 
   assert.equal(firstRun.state, "written");
+  assert.equal(firstRun.runRecord.status, "succeeded");
+  assert.equal(firstRun.runRecord.overwrite, "not_needed");
   assert.equal(firstRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
   assert.equal(firstRun.outputPaths.json, "20_Workshop/Party and Officer Map.json");
   assert.match(firstRun.markdown, /FILE-0001 p1\.b1/);
@@ -120,9 +125,45 @@ test("active configurable skill runs write only configured markdown and JSON art
   assert.equal(blocked.state, "requires_overwrite");
   const overwritten = await service.runSkill({ slash: "/party_officer_map", overwrite: true });
   assert.equal(overwritten.state, "written");
+  assert.equal(overwritten.runRecord.overwrite, "approved");
+  const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
+  assert.deepEqual(runs.runs.map((run) => run.status), ["succeeded", "succeeded"]);
+  assert.deepEqual(runs.runs.map((run) => run.overwrite), ["approved", "not_needed"]);
 });
 
-async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash = "/party_officer_map" } = {}) {
+test("active configurable skill run failures update the ledger without writing success metadata", async () => {
+  const { service, runLedger } = await makeServiceHarness({ failRuntimeAfterValidation: true });
+  await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  await assert.rejects(
+    () => service.runSkill({ slash: "/party_officer_map" }),
+    /runtime failed/,
+  );
+
+  const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
+  assert.equal(runs.runs.length, 1);
+  assert.equal(runs.runs[0].status, "failed");
+  assert.match(runs.runs[0].errorMessage, /runtime failed/);
+  assert.equal(runs.runs[0].outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
+});
+
+test("configurable skill service records overwrite cancellations", async () => {
+  const { service, runLedger } = await makeServiceHarness();
+  await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  const cancelled = await service.recordCancelledRun({
+    slash: "/party_officer_map",
+    artifactPath: "20_Workshop/Party and Officer Map.md",
+  });
+
+  assert.equal(cancelled.state, "cancelled");
+  assert.equal(cancelled.runRecord.status, "cancelled");
+  assert.equal(cancelled.runRecord.overwrite, "cancelled");
+  const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
+  assert.equal(runs.runs[0].status, "cancelled");
+});
+
+async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "configurable-skills-test-"));
   const appDir = path.join(tmp, "app");
   const matterRoot = path.join(tmp, "matter");
@@ -145,6 +186,15 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash =
     ["idea_party_1", makeSample("sample_party_1", sampleMarkdown)],
     ["idea_party_2", makeSample("sample_party_2", sampleMarkdown)],
   ]);
+  const runLedger = createConfigurableSkillRunsService({
+    appDir,
+    idFactory: (() => {
+      let index = 0;
+      return () => `run_${index += 1}`;
+    })(),
+    now: () => new Date("2026-05-13T08:45:00.000Z"),
+  });
+  let runProviderCalls = 0;
   const service = createConfigurableSkillsService({
     appDir,
     matterStore: {
@@ -164,6 +214,7 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash =
         return sample;
       },
     },
+    configurableSkillRunsService: runLedger,
     env: {},
     idFactory: (() => {
       let index = 0;
@@ -182,15 +233,19 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash =
       prompt: "Build a source-backed party and officer map for the active matter. Identify formal party names, officers, aliases, and relationships. Every factual statement must cite readable source labels and raw FILE-NNNN pX.bY citations. Mark missing or uncertain evidence clearly.",
       citation_policy: "Every factual statement must cite readable source labels and raw FILE-NNNN pX.bY citations.",
     }),
-    runProvider: async () => runMarkdown || [
-      "# Party and Officer Map",
-      "",
-      "| Name | Role | Evidence |",
-      "| --- | --- | --- |",
-      "| Ayesha | Client | Matter context (FILE-0001 p1.b1) |",
-    ].join("\n"),
+    runProvider: async () => {
+      runProviderCalls += 1;
+      if (failRuntimeAfterValidation && runProviderCalls > 1) throw new Error("runtime failed");
+      return runMarkdown || [
+        "# Party and Officer Map",
+        "",
+        "| Name | Role | Evidence |",
+        "| --- | --- | --- |",
+        "| Ayesha | Client | Matter context (FILE-0001 p1.b1) |",
+      ].join("\n");
+    },
   });
-  return { service, matterRoot };
+  return { service, matterRoot, runLedger };
 }
 
 function makeIdea(id) {

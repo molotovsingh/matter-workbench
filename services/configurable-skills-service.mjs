@@ -74,6 +74,7 @@ export function createConfigurableSkillsService({
   matterStore,
   skillIdeasService,
   skillSamplesService,
+  configurableSkillRunsService,
   authoringProvider,
   runProvider,
   env = process.env,
@@ -88,6 +89,7 @@ export function createConfigurableSkillsService({
 
   const root = path.resolve(appDir || process.cwd());
   const storePath = skillsPath || path.join(root, "configurable-skills.json");
+  const runLedger = configurableSkillRunsService || createNoopRunLedger();
 
   async function listSkills() {
     const store = await readStore();
@@ -233,40 +235,111 @@ export function createConfigurableSkillsService({
       env,
       fetchImpl,
     });
-    const packet = await buildMatterContextPacket(matterRoot, CONTEXT_LIMITS);
-    const markdown = boundedOutputMarkdown(await provider({
-      skill,
-      matterContext: summarizeMatterContext(packet),
-      providerConfig,
-    }));
-    await mkdir(path.dirname(markdownPath), { recursive: true });
     const timestamp = now().toISOString();
-    const metadata = {
-      schema_version: "configurable-skill-run/v1",
-      skill: publicSkill(skill),
-      matter: packet.matter || {},
-      outputPath: outputArtifact,
-      generatedAt: timestamp,
-      aiRun: {
-        provider: providerConfig.provider,
-        model: providerConfig.model,
-        task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
-      },
-      warnings: Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [],
+    const aiRun = {
+      provider: providerConfig.provider,
+      model: providerConfig.model,
+      task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
     };
-    await writeFile(markdownPath, `${markdown}\n`);
-    await writeFile(jsonPath, `${JSON.stringify({
-      ...metadata,
-      markdown,
-    }, null, 2)}\n`);
-    return {
-      ...metadata,
-      state: "written",
-      markdown,
+    let runRecord = await runLedger.createRun({
+      skillId: skill.id,
+      slash: skill.slash,
+      title: skill.title,
+      matterName: path.basename(matterRoot),
+      matterFolder: path.basename(matterRoot),
+      matterRoot,
       outputPaths: {
         markdown: outputArtifact,
         json: outputJson,
       },
+      aiRun,
+      overwrite: overwrite ? "approved" : "not_needed",
+      startedAt: timestamp,
+    });
+    try {
+      const packet = await buildMatterContextPacket(matterRoot, CONTEXT_LIMITS);
+      const matterSummary = matterSummaryForRun(packet.matter, matterRoot);
+      const warnings = Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [];
+      const markdown = boundedOutputMarkdown(await provider({
+        skill,
+        matterContext: summarizeMatterContext(packet),
+        providerConfig,
+      }));
+      await mkdir(path.dirname(markdownPath), { recursive: true });
+      const metadata = {
+        schema_version: "configurable-skill-run/v1",
+        skill: publicSkill(skill),
+        matter: packet.matter || {},
+        outputPath: outputArtifact,
+        generatedAt: now().toISOString(),
+        aiRun,
+        warnings,
+      };
+      await writeFile(markdownPath, `${markdown}\n`);
+      await writeFile(jsonPath, `${JSON.stringify({
+        ...metadata,
+        runId: runRecord.id,
+        markdown,
+      }, null, 2)}\n`);
+      runRecord = await runLedger.updateRun(runRecord.id, {
+        status: "succeeded",
+        ...matterSummary,
+        warnings,
+        outputPaths: {
+          markdown: outputArtifact,
+          json: outputJson,
+        },
+      });
+      return {
+        ...metadata,
+        state: "written",
+        markdown,
+        outputPaths: {
+          markdown: outputArtifact,
+          json: outputJson,
+        },
+        runId: runRecord.id,
+        runRecord,
+      };
+    } catch (error) {
+      await runLedger.updateRun(runRecord.id, {
+        status: "failed",
+        errorMessage: error.message,
+      }).catch(() => {});
+      throw error;
+    }
+  }
+
+  async function recordCancelledRun({ slash, artifactPath = "" } = {}) {
+    const normalizedSlash = normalizeSlash(slash);
+    const store = await readStore();
+    const skill = store.skills.find((candidate) => candidate.slash === normalizedSlash && candidate.status === "active");
+    if (!skill) throw makeHttpError(`No active configurable skill for ${normalizedSlash}`, 404);
+    const matterRoot = matterStore.ensureMatterRoot();
+    const outputArtifact = normalizeText(artifactPath) || normalizeArtifactPath(skill.outputArtifact, skill.targetLane);
+    const outputJson = outputArtifact.endsWith(".md")
+      ? outputArtifact.replace(/\.md$/i, ".json")
+      : "";
+    const record = await runLedger.recordCancelledRun({
+      skillId: skill.id,
+      slash: skill.slash,
+      title: skill.title,
+      ...matterSummaryForRun(null, matterRoot),
+      matterRoot,
+      outputPaths: {
+        markdown: outputArtifact,
+        json: outputJson,
+      },
+      aiRun: {},
+      overwrite: "cancelled",
+    });
+    return {
+      schema_version: "configurable-skill-run/v1",
+      state: "cancelled",
+      skill: publicSkill(skill),
+      artifactPath: outputArtifact,
+      runId: record.id,
+      runRecord: record,
     };
   }
 
@@ -300,6 +373,7 @@ export function createConfigurableSkillsService({
     activeSkillCards,
     createSkillFromApprovedSample,
     listSkills,
+    recordCancelledRun,
     runSkill,
     storePath,
   };
@@ -328,6 +402,43 @@ export function skillToRegistryCard(skill = {}) {
     version: normalized.version,
     configurable: true,
     status: normalized.status,
+  };
+}
+
+function createNoopRunLedger() {
+  return {
+    createRun: async (entry = {}) => ({
+      id: "",
+      ...entry,
+      status: entry.status || "running",
+    }),
+    updateRun: async (id, patch = {}) => ({
+      id,
+      ...patch,
+    }),
+    recordCancelledRun: async (entry = {}) => ({
+      id: "",
+      ...entry,
+      status: "cancelled",
+    }),
+  };
+}
+
+function matterSummaryForRun(matter = null, matterRoot = "") {
+  const source = matter && typeof matter === "object" ? matter : {};
+  const folder = path.basename(matterRoot || "");
+  return {
+    matterName: normalizeText(
+      source.matterName
+      || source.matter_name
+      || source.name
+      || folder,
+    ),
+    matterFolder: normalizeText(
+      source.folderName
+      || source.folder_name
+      || folder,
+    ),
   };
 }
 

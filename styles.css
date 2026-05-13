@@ -1659,6 +1659,15 @@ summary {
   color: var(--muted);
 }
 
+.pipeline-state.failed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.pipeline-state.pending {
+  color: var(--muted);
+}
+
 .pipeline-artifacts,
 .pipeline-ai-run {
   display: flex;
@@ -1718,6 +1727,50 @@ summary {
 
 .skills-page {
   max-width: 1120px;
+}
+
+.activity-page {
+  max-width: 980px;
+}
+
+.activity-summary {
+  margin-bottom: 24px;
+}
+
+.activity-list {
+  display: grid;
+  gap: 12px;
+}
+
+.activity-card {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 14px;
+}
+
+.activity-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.activity-card h3 {
+  margin: 4px 0 0;
+  font-size: 16px;
+}
+
+.activity-run-details {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.activity-run-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .skills-summary {
@@ -1925,6 +1978,20 @@ summary {
 .skill-card-meta code {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.skill-run-row {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) minmax(160px, 1.2fr);
+  gap: 6px;
+  width: 100%;
+  align-items: center;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.skill-run-row .secondary {
+  justify-self: start;
 }
 
 .skills-future-card {

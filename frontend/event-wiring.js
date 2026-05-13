@@ -44,6 +44,7 @@ export function wireAppEvents(ctx, skills) {
   elements.addFilesButton.addEventListener("click", () => renderAddFilesForm(ctx));
   elements.activitySettings.addEventListener("click", ctx.renderSettings);
   elements.activitySkills?.addEventListener("click", ctx.renderSkills);
+  elements.activityActivity?.addEventListener("click", ctx.renderActivity);
   elements.activityExplorer.addEventListener("click", ctx.goToExplorer);
 
   elements.slashSkillButtons.forEach((button) => {
