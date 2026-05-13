@@ -18,8 +18,11 @@ export function createMatterScreens(ctx) {
     editorContent,
     mattersList,
     mattersPicker,
+    mattersSearchInput,
+    mattersSearchMeta,
     workspaceTree,
   } = ctx.elements;
+  let matterSearchQuery = "";
 
   function setActivityActive(which) {
     activityExplorer.classList.toggle("active", which === "explorer");
@@ -32,17 +35,58 @@ export function createMatterScreens(ctx) {
     if (!mattersState.enabled) {
       mattersPicker.hidden = true;
       mattersList.innerHTML = "";
+      if (mattersSearchInput) mattersSearchInput.value = "";
+      if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
     }
     mattersPicker.hidden = false;
+    syncMatterSearchInput();
     if (!mattersState.matters.length) {
       mattersList.innerHTML = '<li class="matters-empty">No matters yet. Click + New Matter to add your first.</li>';
+      if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
     }
-    mattersList.innerHTML = mattersState.matters.map((matter) => {
+    const filteredMatters = filterMatters(mattersState.matters, matterSearchQuery);
+    if (mattersSearchMeta) {
+      mattersSearchMeta.textContent = matterSearchQuery
+        ? `${filteredMatters.length} of ${mattersState.matters.length} matters`
+        : `${mattersState.matters.length} matters`;
+    }
+    if (!filteredMatters.length) {
+      mattersList.innerHTML = `<li class="matters-empty">No matters match "${escapeHtml(matterSearchQuery)}".</li>`;
+      return;
+    }
+    mattersList.innerHTML = filteredMatters.map((matter) => {
       const activeClass = matter.name === mattersState.active ? " active" : "";
       return `<li><button type="button" class="matters-entry${activeClass}" data-matter-name="${escapeHtml(matter.name)}">${escapeHtml(matter.name)}</button></li>`;
     }).join("");
+  }
+
+  function setMatterSearchQuery(value = "") {
+    matterSearchQuery = String(value || "").trim();
+    renderMattersList();
+  }
+
+  function syncMatterSearchInput() {
+    if (!mattersSearchInput || document.activeElement === mattersSearchInput) return;
+    mattersSearchInput.value = matterSearchQuery;
+  }
+
+  function filterMatters(matters = [], query = "") {
+    const normalizedQuery = normalizeMatterSearchText(query);
+    if (!normalizedQuery) return matters;
+    return matters.filter((matter) => normalizeMatterSearchText([
+      matter.name,
+      matter.folderName,
+      matter.inputLabel,
+      matter.clientName,
+      matter.oppositeParty,
+      matter.matterName,
+    ].filter(Boolean).join(" ")).includes(normalizedQuery));
+  }
+
+  function normalizeMatterSearchText(value = "") {
+    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
   async function renderSettings() {
@@ -496,6 +540,7 @@ export function createMatterScreens(ctx) {
     renderSkills,
     renderSettings,
     setActivityActive,
+    setMatterSearchQuery,
   };
 
   function renderAiSettingsForm(settings, loadError) {

@@ -15,6 +15,7 @@ export function wireAppEvents(ctx, skills) {
   };
 
   elements.refreshExplorerButton.addEventListener("click", () => ctx.refreshWorkspace());
+  elements.toggleTechnicalFilesButton?.addEventListener("click", () => ctx.toggleTechnicalFiles?.());
 
   elements.workspaceTree.addEventListener("click", (event) => {
     const fileButton = event.target.closest("[data-file-path]");
@@ -33,6 +34,10 @@ export function wireAppEvents(ctx, skills) {
     const mattersState = ctx.getMattersState();
     if (!name || name === mattersState.active) return;
     ctx.switchToMatter(name);
+  });
+
+  elements.mattersSearchInput?.addEventListener("input", (event) => {
+    ctx.setMatterSearchQuery?.(event.target.value);
   });
 
   elements.newMatterButton.addEventListener("click", () => renderNewMatterForm(ctx));

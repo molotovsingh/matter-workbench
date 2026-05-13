@@ -26,6 +26,7 @@ const elements = {
   workspaceTree: document.getElementById("workspaceTree"),
   refreshExplorerButton: document.getElementById("refreshExplorer"),
   addFilesButton: document.getElementById("addFilesButton"),
+  toggleTechnicalFilesButton: document.getElementById("toggleTechnicalFiles"),
   breadcrumbs: document.getElementById("breadcrumbs"),
   aiCommandForm: document.getElementById("aiCommandForm"),
   aiCommandInput: document.getElementById("aiCommandInput"),
@@ -37,6 +38,8 @@ const elements = {
   themeToggleButton: document.getElementById("themeToggleButton"),
   mattersPicker: document.getElementById("mattersPicker"),
   mattersList: document.getElementById("mattersList"),
+  mattersSearchInput: document.getElementById("mattersSearchInput"),
+  mattersSearchMeta: document.getElementById("mattersSearchMeta"),
   newMatterButton: document.getElementById("newMatterButton"),
   activityExplorer: document.getElementById("activityExplorer"),
   activitySkills: document.getElementById("activitySkills"),
@@ -84,6 +87,7 @@ const workspaceView = createWorkspaceView(ctx);
 ctx.openFilePreview = workspaceView.openFilePreview;
 ctx.openWorkspaceLane = workspaceView.openWorkspaceLane;
 ctx.renderWorkspaceTree = workspaceView.renderWorkspaceTree;
+ctx.toggleTechnicalFiles = workspaceView.toggleTechnicalFiles;
 
 const matterScreens = createMatterScreens(ctx);
 ctx.goToExplorer = matterScreens.goToExplorer;
@@ -93,6 +97,7 @@ ctx.renderMattersList = matterScreens.renderMattersList;
 ctx.renderSettings = matterScreens.renderSettings;
 ctx.renderSkills = matterScreens.renderSkills;
 ctx.setActivityActive = matterScreens.setActivityActive;
+ctx.setMatterSearchQuery = matterScreens.setMatterSearchQuery;
 
 const matterInitSkill = createMatterInitSkill(ctx);
 const prepareMatterSkill = createPrepareMatterSkill(ctx);
