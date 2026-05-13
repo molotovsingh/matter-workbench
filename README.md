@@ -17,7 +17,7 @@ For the current tester-facing workflow, Command rail commands, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
 
-For the proposed read-only matter-preparation workflow, see
+For the proposed guarded matter-preparation workflow, see
 [docs/prepare-matter-contract.md](docs/prepare-matter-contract.md). This is a
 design contract only; `/prepare_matter` is not a runnable command yet.
 

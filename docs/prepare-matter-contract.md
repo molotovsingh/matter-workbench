@@ -2,7 +2,7 @@
 
 Date: 2026-05-13
 
-Status: design contract only. This document defines the intended `/prepare_matter` workflow before implementation. It does not add a runnable command, route, prompt, provider call, file write, or orchestration layer.
+Status: design contract only. This document defines the intended `/prepare_matter` workflow before implementation. It does not add a runnable command, route, prompt, provider call, file write, or orchestration layer in the current app.
 
 ## Decision
 
@@ -12,13 +12,15 @@ The next foundation workflow should be:
 /prepare_matter
 ```
 
-Its job is to make the beginning of a matter understandable before the user runs the heavier pipeline.
+Its job is to make the beginning of a matter understandable and to offer a guarded way to move through the preparation pipeline.
 
-This is not a new analysis skill. It is a guided preparation and readiness workflow that helps the operator answer:
+This is not a new analysis skill. It is a guided preparation workflow that helps the operator answer:
 
 ```text
-Is this matter ready for intake, extraction, source labels, and List of Dates?
+What is ready, what is missing, and what should run next?
 ```
+
+Future `/prepare_matter` may orchestrate existing stages, but only through the existing stage runners and guardrails. It must not become a hidden replacement for the pipeline.
 
 ## Why This Comes Before More Runtime Skills
 
@@ -34,7 +36,7 @@ It also has a Command rail, read-only Skills tab, workspace lanes, context previ
 
 ## Goal
 
-Provide a deterministic matter-preparation checklist and next-action guide.
+Provide a deterministic matter-preparation plan and a guarded composite workflow.
 
 The workflow should help the user:
 
@@ -43,13 +45,20 @@ The workflow should help the user:
 - see whether source files are staged for intake;
 - understand whether `/matter-init` has run;
 - understand whether `/extract`, `/describe_sources`, and `/create_listofdates` are missing, stale, or current;
-- identify the safest next command;
+- identify the safest next stage;
+- skip stages that are already current;
+- run eligible stages in order when the user explicitly chooses to proceed;
+- ask before paid source labeling;
+- stop on failure without writing misleading downstream artifacts;
+- resume from the first incomplete or stale stage after the problem is fixed;
+- preserve each stage's separate artifacts and status;
 - avoid accidental paid reruns or duplicate setup work.
 
 Good output sounds like:
 
 ```text
-Matter selected. Metadata is complete. Intake has run. Extraction is missing. Next safe step: run /extract.
+Matter selected. Metadata is complete. Intake is current. Extraction is missing.
+Next safe step: run Extract documents.
 ```
 
 Bad output sounds like:
@@ -62,15 +71,15 @@ I analyzed the case and prepared your strategy.
 
 Do not include any of these in the first runtime slice:
 
-- provider calls;
+- hidden provider calls;
 - legal Q&A;
-- source description generation;
+- source description generation without explicit user confirmation;
 - List of Dates generation;
 - client email drafting;
 - skill generation;
 - prompt generation;
 - matter merits analysis;
-- automatic extraction;
+- hidden automatic extraction;
 - automatic paid reruns;
 - moving or deleting source files;
 - editing built-in skill stubs;
@@ -89,15 +98,17 @@ This is a future built-in workflow candidate, not active yet.
   "category": "Prepare",
   "mode": "deterministic",
   "matter_required": false,
-  "paid_provider_call": false,
-  "rerun_guarded": false,
-  "source_backed": "none",
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "optional",
   "default_lane": "",
   "runner_key": "/prepare_matter"
 }
 ```
 
 Do not add this to the live built-in registry until the runtime and UI behavior are implemented.
+
+The `paid_provider_call` flag is `true` because this workflow may offer to run `/describe_sources`. The first screen must still be free and read-only; the paid step needs a clear confirmation before it runs.
 
 ## Relationship To Existing Commands
 
@@ -107,13 +118,15 @@ The split should be:
 
 | Command | Responsibility |
 | --- | --- |
-| `/prepare_matter` | Read-only preparation checklist and safest-next-step guidance. |
+| `/prepare_matter` | Guarded preparation plan and optional orchestration through existing stage runners. |
 | `/matter-init` | Deterministic intake: preserve originals, classify working copies, write registers, and update `matter.json`. |
 | `/extract` | Build extraction records from registered working copies. |
 | `/describe_sources` | Create readable source labels in `10_Library/Source Index.json`. |
 | `/create_listofdates` | Create lawyer-facing chronology artifacts. |
 
-The preparation workflow may recommend `/matter-init`, but it should not silently run it.
+The preparation workflow may recommend or run `/matter-init`, `/extract`, and `/describe_sources`, but only when the user explicitly starts the guarded plan. It must call the same underlying runners those skills already use. It should not create a parallel intake, extraction, or source-labeling implementation.
+
+`/create_listofdates` is outside the V0 orchestration path. The report may recommend it after source labels are ready, but the chronology skill keeps its own dedicated run surface and paid rerun guard.
 
 ## Inputs
 
@@ -150,7 +163,7 @@ The runtime must not read:
 
 ## Output Contract
 
-V0 should render a read-only preparation report in the app. It should not write a durable artifact by default.
+V0 should render a preparation report in the app before any action runs. It should not write a durable preparation artifact by default.
 
 Suggested display sections:
 
@@ -163,6 +176,7 @@ Extraction
 Source Labels
 List of Dates
 Workspace Lanes
+Preparation Plan
 Next Safe Step
 Warnings
 ```
@@ -179,6 +193,10 @@ Suggested copy/report shape:
 - Extraction: current / missing / stale
 - Source labels: current / missing / stale
 - List of Dates: current / missing / stale
+- Plan:
+  - Set up matter: skip / run / blocked
+  - Extract documents: skip / run / blocked
+  - Label sources: skip / confirm paid run / blocked
 - Next safe step: ...
 
 ## Warnings
@@ -187,6 +205,16 @@ Suggested copy/report shape:
 ```
 
 If a durable artifact is later useful, it should be a separate reviewed decision. The first runtime should not write `Prepare Matter.md` just because the report exists on screen.
+
+Each child stage must continue writing only its own existing artifacts:
+
+| Stage | Existing output owner |
+| --- | --- |
+| `/matter-init` | `matter.json`, `00_Inbox/.../File Register.csv`, `Intake Log.csv`, organized intake folders. |
+| `/extract` | `_extracted` records and `Extraction Log.csv`. |
+| `/describe_sources` | `10_Library/Source Index.json`. |
+
+`/prepare_matter` should never blend these into one new status file. The status panel remains derived from disk facts.
 
 ## Status Rules
 
@@ -204,9 +232,98 @@ Recommended statuses:
 | `present` | Artifact exists, but freshness is not known. |
 | `current` | Artifact exists and known upstream inputs have not changed. |
 | `stale` | Newer upstream inputs exist. |
+| `skipped_current` | Stage was skipped because current artifacts already exist. |
+| `ready_to_run` | Stage can run after user confirmation. |
+| `blocked` | Stage cannot run until an earlier requirement is fixed. |
+| `failed` | The latest attempted stage returned an error. |
+| `resumable` | The workflow can continue from the first missing or stale stage after failure. |
 | `needs_review` | The workflow found ambiguity that requires user judgment. |
 
 Missing artifacts should not be described as failed. They are simply not run.
+
+## Orchestration Rules
+
+The V0 guarded plan should use this stage order:
+
+```text
+1. Set up matter      -> /matter-init
+2. Extract documents  -> /extract
+3. Label sources      -> /describe_sources
+```
+
+Rules:
+
+- Always compute the plan from disk before running anything.
+- Show the plan before starting.
+- Skip stages whose artifacts are current.
+- Do not rerun current stages by default.
+- Do not run a downstream stage if the required upstream stage is missing, stale, or failed.
+- Run one stage at a time and update the report after each stage.
+- Use the same API path and frontend guardrails as the existing individual skill.
+- Keep stage logs and artifact paths separate in the UI.
+- If the user cancels a confirmation, stop the plan without treating cancellation as failure.
+- If a stage fails, stop immediately and show the failed stage, error summary, preserved artifacts, and resume point.
+
+The user-facing actions should be explicit:
+
+```text
+Review plan
+Run preparation
+Run next stage
+Keep current
+Cancel
+```
+
+Do not use copy like:
+
+```text
+Auto-fix matter
+Run everything silently
+Complete preparation
+```
+
+## Paid Source Labeling
+
+`/describe_sources` is the only paid/provider-backed stage in the V0 preparation path.
+
+Before it runs, the UI must show a confirmation that names:
+
+- the stage: `Label sources`;
+- the output artifact: `10_Library/Source Index.json`;
+- provider/model if known from settings;
+- whether the existing Source Index is missing, stale, or current;
+- that this may make an AI provider call.
+
+Default behavior:
+
+- if Source Index is current, skip it;
+- if Source Index is missing, ask before running;
+- if Source Index is stale, ask before rerunning;
+- if the user declines, stop the plan and leave existing artifacts untouched.
+
+This confirmation should reuse the same rerun-advice facts and safety posture already used by `/describe_sources`.
+
+## Failure And Resume
+
+`/prepare_matter` should be resumable without a new durable workflow database.
+
+Resume logic should be derived from the same disk facts:
+
+- if `/matter-init` completed but `/extract` did not, resume at `/extract`;
+- if `/extract` completed but `/describe_sources` failed or is missing, resume at `/describe_sources`;
+- if `/describe_sources` failed closed, do not create or overwrite a partial `Source Index.json`;
+- if an upstream artifact changes after failure, recompute the plan and mark downstream stages stale or blocked as appropriate.
+
+The report should include:
+
+```text
+Last attempted stage: ...
+Result: failed / cancelled / completed
+Resume from: ...
+Artifacts preserved: ...
+```
+
+The runtime should not pretend a failed preparation run is a failed matter. It is a failed stage attempt.
 
 ## Readiness Checklist
 
@@ -225,13 +342,15 @@ V0 should answer these questions:
 - Does at least one `File Register.csv` exist?
 - Are extraction records present for registered supported files?
 - Is `Source Index.json` present?
-- Is `List of Dates.md` or `.json` present?
+- Is `List of Dates.md` or `.json` present for downstream readiness?
 - Are source labels/List of Dates stale relative to upstream extraction records?
-- What is the safest next command?
+- What is the safest next stage?
+- Which preparation stages will be skipped because they are current?
+- Which preparation stage requires paid confirmation?
 
 ## Next-Step Guidance
 
-The workflow should recommend one next action, not a long menu.
+The workflow should recommend one next action and show the larger plan separately.
 
 Examples:
 
@@ -265,12 +384,13 @@ All core artifacts are present. Review Analysis Library or run context search.
 
 ## User Confirmations
 
-V0 is read-only, so it should not need destructive confirmations.
+The first screen is read-only. Confirmations are needed only after the user chooses to run a stage or the guarded plan.
 
-If a later version offers to run another command, it must preserve the existing safeguards:
+The runtime must preserve the existing safeguards:
 
-- `/matter-init` should show what files will be preserved and registered;
-- `/describe_sources` should keep paid rerun confirmation when current;
+- `/matter-init` should show what files will be preserved and registered before it writes intake artifacts;
+- `/extract` should show that it will read registered working copies and write extraction records;
+- `/describe_sources` should keep paid confirmation when missing or stale and paid rerun confirmation when current;
 - `/create_listofdates` should keep paid rerun confirmation when current;
 - no paid action should run merely because `/prepare_matter` was opened;
 - no source file should be moved or deleted from preparation alone.
@@ -289,10 +409,10 @@ setup matter
 
 Expected behavior:
 
-- render the preparation report in the central pane or Command rail with an explicit open action;
-- no provider call;
-- no matter artifact write;
-- no paid rerun;
+- render the preparation report in the central pane or Command rail with explicit run controls;
+- no provider call merely from opening the report;
+- no matter artifact write merely from opening the report;
+- no paid rerun merely from opening the report;
 - no skill idea creation;
 - no router/check fallback for exact aliases.
 
@@ -302,14 +422,14 @@ After implementation, the Skills tab may show `/prepare_matter` as:
 
 ```text
 Mode: deterministic
-Provider: none
+Provider: conditional
 Matter: optional
 Runner: /prepare_matter
-Output: read-only preparation report
+Output: preparation report and guarded stage plan
 Default lane: none
 ```
 
-It should be clear that this is a guide, not an analysis artifact.
+It should be clear that this is a preparation workflow, not an analysis artifact.
 
 ## Acceptance Tests
 
@@ -321,10 +441,16 @@ The first runtime PR should include tests proving:
 - a matter with intake but no extraction recommends `/extract`;
 - a matter with extraction but no Source Index recommends `/describe_sources`;
 - a matter with Source Index but no List of Dates recommends `/create_listofdates`;
+- current `/matter-init`, `/extract`, and `/describe_sources` stages are skipped instead of rerun;
+- `/describe_sources` asks before paid source labeling when missing or stale;
+- cancellation before `/describe_sources` stops the plan without marking the matter failed;
+- failure in `/extract` stops before `/describe_sources`;
+- rerunning after a failed `/extract` resumes from `/extract` after disk facts are recomputed;
 - current artifacts recommend review, library navigation, or context search instead of rerun;
 - missing artifacts are not described as failures;
-- the workflow does not call OpenAI, OpenRouter, Mistral, or any provider;
-- the workflow does not write matter artifacts;
+- opening the preparation report does not call OpenAI, OpenRouter, Mistral, or any provider;
+- opening the preparation report does not write matter artifacts;
+- stage execution writes only the child stage's normal artifacts;
 - Command rail aliases route deterministically and do not call `/api/skills/check-intent`;
 - paid rerun guardrails for `/describe_sources` and `/create_listofdates` remain unchanged.
 
@@ -350,7 +476,17 @@ Expected:
 
 - reports metadata completeness;
 - recommends `/matter-init`;
-- does not run it.
+- does not run it merely from opening the report.
+
+```text
+Matter with intake current and extraction missing
+```
+
+Expected:
+
+- skips setup;
+- offers to run extraction;
+- does not run source labels before extraction succeeds.
 
 ```text
 Beta matter with extraction/source/List of Dates artifacts
@@ -363,6 +499,16 @@ Expected:
 - no paid call;
 - no artifact writes.
 
+```text
+Matter with extraction current and Source Index missing
+```
+
+Expected:
+
+- shows `Label sources` as the next stage;
+- asks before the paid provider-backed step;
+- if cancelled, no Source Index is written.
+
 ## Boundary
 
 `/prepare_matter` should make the beginning of the workflow easier. It should not become hidden orchestration.
@@ -370,5 +516,5 @@ Expected:
 The principle is:
 
 ```text
-Show readiness first. Run actions only when the user explicitly chooses them through the existing guarded paths.
+Show the plan first. Run actions only when the user explicitly chooses them through the existing guarded paths.
 ```
