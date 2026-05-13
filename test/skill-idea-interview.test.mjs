@@ -28,6 +28,20 @@ test("skill idea interview plans limitation review with legally apt questions", 
   assert.doesNotMatch(interview.questions[0].label, /citation/i);
 });
 
+test("skill idea interview treats detailed limitation specifications as ready without generic questions", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "You are a Limitation Law Expert. For any given case, fact situation, or cause of action, strictly check the limitation period under the Limitation Act, 1963. Steps: Identify the exact Article(s) applicable. State the prescribed limitation period. Calculate when limitation starts from cause of action, knowledge, or accrual. Check if the suit, appeal, or application is within time or barred. Mention extensions, exclusions, or savings under Sections 5, 6, 12-15, 18-20 if applicable. Give a clear final answer: Within time or Barred by limitation with brief reasoning.",
+    idea: "strictly check limitation period, articles, starting point, extensions, exclusions, and final within time or barred answer",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.match(interview.understood, /ready to save or test with a sample/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Limitation Review.md");
+  assert.equal(interview.questions.length, 0);
+  assert.match(interview.defaultAssumptions.join("\n"), /detailed skill specification/i);
+  assert.match(interview.designBrief.notes, /Detailed user specification supplied/i);
+});
+
 test("skill idea interview plans pleading summary with pleading-specific questions", () => {
   const interview = buildSkillIdeaInterview({
     text: "make a new skill that summarises the best case pleadings for the lawyer",
@@ -152,6 +166,168 @@ test("skill interview planner falls back deterministically when provider fails",
     interview.questions.map((question) => question.id),
     ["limitationPosition", "decisionShape", "legalSetting"],
   );
+});
+
+test("skill interview planner preserves six-question model plans", async () => {
+  const questions = Array.from({ length: 6 }, (_, index) => ({
+    id: `q${index + 1}`,
+    label: `Question ${index + 1}?`,
+    help: `Help ${index + 1}.`,
+    examples: [`example ${index + 1}`],
+  }));
+  const interview = await planSkillIdeaInterview({
+    text: "design a complex client update and document request skill",
+    idea: "design a complex client update and document request skill",
+    mode: "new_skill",
+    forceNewSkill: true,
+  }, "", {
+    plannerProvider: async () => ({
+      mode: "new_skill",
+      target_skill: "",
+      understood_summary: "You want a complex client communication skill.",
+      inferred_design_brief: {
+        intendedUser: "Lawyer",
+        problem: "Draft client updates and request documents.",
+        expectedInputs: "Matter context and lawyer instructions.",
+        expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+        targetLane: "30_Drafts",
+        paidPosture: "paid",
+        riskLevel: "high",
+        notes: "Client-facing draft; lawyer review required.",
+      },
+      default_assumptions: ["No raw FILE citations in client-facing drafts unless requested."],
+      questions,
+      open_questions: [],
+      risk_flags: ["External-facing draft requires lawyer review."],
+    }),
+  });
+
+  assert.equal(interview.questions.length, 6);
+  assert.deepEqual(interview.questions.map((question) => question.id), ["q1", "q2", "q3", "q4", "q5", "q6"]);
+});
+
+test("skill interview planner keeps detailed limitation plans beyond three questions", async () => {
+  const questions = [
+    "Whose position should it assess?",
+    "Which claim or defence should it review?",
+    "Which forum or statute should it assume?",
+    "Should special statute limitation be checked before the Limitation Act?",
+    "Should acknowledgment, part payment, or continuing cause be flagged?",
+    "How should favourable, adverse, and uncertain points be shown?",
+  ].map((label, index) => ({
+    id: `limitationQ${index + 1}`,
+    label,
+    help: "Limitation review needs this design choice.",
+    examples: ["ask each run"],
+  }));
+  const interview = await planSkillIdeaInterview({
+    text: "create a limitation review skill for client and opponent claims, special statutes, acknowledgment, and uncertainty",
+    idea: "review limitation for client and opponent claims with special statutes and uncertainty",
+    mode: "new_skill",
+    forceNewSkill: true,
+  }, "", {
+    plannerProvider: async () => ({
+      mode: "new_skill",
+      target_skill: "",
+      understood_summary: "You want a limitation review skill that handles both sides, special statutes, and uncertainty.",
+      inferred_design_brief: {
+        intendedUser: "Lawyer",
+        problem: "Review limitation for client and opponent positions.",
+        expectedInputs: "Matter dates, pleadings, notices, acknowledgments, filings, forum, and statute.",
+        expectedOutputArtifact: "20_Workshop/Limitation Review.md",
+        targetLane: "20_Workshop",
+        paidPosture: "paid",
+        riskLevel: "high",
+        notes: "High-risk limitation review with source-backed dates.",
+      },
+      default_assumptions: ["Every limitation conclusion must cite source labels and raw citations."],
+      questions,
+      open_questions: [],
+      risk_flags: ["High legal-risk review."],
+    }),
+  });
+
+  assert.equal(interview.questions.length, 6);
+  assert.deepEqual(interview.questions.map((question) => question.id), [
+    "limitationQ1",
+    "limitationQ2",
+    "limitationQ3",
+    "limitationQ4",
+    "limitationQ5",
+    "limitationQ6",
+  ]);
+  assert.match(interview.questions[3].label, /special statute/i);
+  assert.match(interview.questions[5].label, /favourable, adverse, and uncertain/i);
+});
+
+test("skill interview planner accepts model plans that are ready without follow-up questions", async () => {
+  const interview = await planSkillIdeaInterview({
+    text: "write a fully specified limitation review skill",
+    idea: "write a fully specified limitation review skill",
+    mode: "new_skill",
+    forceNewSkill: true,
+  }, "", {
+    plannerProvider: async () => ({
+      mode: "new_skill",
+      target_skill: "",
+      understood_summary: "You supplied enough detail for a limitation review skill to move to sample review.",
+      inferred_design_brief: {
+        intendedUser: "Lawyer",
+        problem: "Assess limitation with article, start date, savings, exclusions, and final cautious conclusion.",
+        expectedInputs: "Matter context, dates, pleadings, filings, acknowledgments, forum, and applicable statute.",
+        expectedOutputArtifact: "20_Workshop/Limitation Review.md",
+        targetLane: "20_Workshop",
+        paidPosture: "paid",
+        riskLevel: "high",
+        notes: "Ready for sample review; lawyer must verify limitation conclusions.",
+      },
+      default_assumptions: ["Every conclusion must cite source labels and raw citations."],
+      questions: [],
+      open_questions: [],
+      risk_flags: ["High legal-risk review."],
+    }),
+  });
+
+  assert.equal(interview.questions.length, 0);
+  assert.match(interview.understood, /move to sample review/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Limitation Review.md");
+});
+
+test("skill interview planner drops provider questions for detailed step-by-step specifications", async () => {
+  const interview = await planSkillIdeaInterview({
+    text: "You are a Limitation Law Expert. For any given case, fact situation, or cause of action, strictly check the limitation period under the Limitation Act, 1963. Steps: Identify the exact Article(s) applicable. State the prescribed limitation period. Calculate when limitation starts from cause of action, knowledge, or accrual. Check if the suit, appeal, or application is within time or barred. Mention extensions, exclusions, or savings under Sections 5, 6, 12-15, 18-20 if applicable. Give a clear final answer: Within time or Barred by limitation with brief reasoning.",
+    idea: "strictly check limitation period, articles, starting point, extensions, exclusions, and final within time or barred answer",
+    mode: "new_skill",
+    forceNewSkill: true,
+  }, "", {
+    plannerProvider: async () => ({
+      mode: "new_skill",
+      target_skill: "",
+      understood_summary: "You supplied a detailed limitation review workflow.",
+      inferred_design_brief: {
+        intendedUser: "Lawyer",
+        problem: "Assess limitation under the applicable statute and give a cautious source-backed conclusion.",
+        expectedInputs: "Matter context, dates, cause of action, forum, statute, pleadings, filings, acknowledgments, and exclusions.",
+        expectedOutputArtifact: "20_Workshop/Limitation Review.md",
+        targetLane: "20_Workshop",
+        paidPosture: "paid",
+        riskLevel: "high",
+        notes: "Detailed limitation workflow supplied.",
+      },
+      default_assumptions: ["Use the supplied step-by-step limitation workflow."],
+      questions: [{
+        id: "genericCitation",
+        label: "What source or citation discipline should it follow?",
+        help: "Generic question that should be skipped for a detailed spec.",
+        examples: ["cite everything"],
+      }],
+      open_questions: [],
+      risk_flags: ["High legal-risk review."],
+    }),
+  });
+
+  assert.equal(interview.questions.length, 0);
+  assert.match(interview.understood, /detailed limitation review workflow/i);
 });
 
 test("skill interview planner normalizes limitation plans back to workshop review", async () => {

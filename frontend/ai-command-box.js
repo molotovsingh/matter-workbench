@@ -123,6 +123,11 @@ export function createAiCommandBox(ctx, options = {}) {
   const saveSkillIdea = options.saveSkillIdea || ((body) => postJson("/api/skill-ideas", body));
   const updateSkillIdeaDesignBrief = options.updateSkillIdeaDesignBrief || ((id, designBrief) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/design-brief`, { designBrief }));
   const updateSkillIdeaStatus = options.updateSkillIdeaStatus || ((id, status) => postJson(`/api/skill-ideas/${encodeURIComponent(id)}/status`, { status }));
+  const generateSkillIdeaSampleOutput = options.generateSkillIdeaSampleOutput || ((body) => postJson("/api/skill-ideas/sample-output", body));
+  const listSkillIdeaSamples = options.listSkillIdeaSamples || ((ideaId) => getJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/samples`));
+  const approveSkillIdeaSample = options.approveSkillIdeaSample || ((ideaId, sampleId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/samples/${encodeURIComponent(sampleId)}/approve`, {}));
+  const createSkillFromIdea = options.createSkillFromIdea || ((ideaId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/create-skill`, {}));
+  const runConfigurableSkill = options.runConfigurableSkill || ((body) => postJson("/api/configurable-skills/run", body));
   const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
@@ -130,6 +135,10 @@ export function createAiCommandBox(ctx, options = {}) {
   let activeSuggestionIndex = -1;
   let currentSkillIdeaInterview = null;
   let pendingSkillIdeaMode = null;
+  let pendingConfigurableRun = null;
+  let configurableSlashSuggestions = [];
+  let configurableSlashSuggestionsLoaded = false;
+  let configurableSlashSuggestionsLoading = false;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -167,6 +176,11 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
 
+    if (pendingConfigurableRun) {
+      const handledPendingRun = await handlePendingConfigurableRunInput(userRequest);
+      if (handledPendingRun) return;
+    }
+
     const newSkillMode = parseNewSkillModeCommand(userRequest);
     if (newSkillMode) {
       openNewSkillMode(userRequest);
@@ -176,6 +190,12 @@ export function createAiCommandBox(ctx, options = {}) {
     const parsedCommand = parseDeterministicCommand(userRequest);
     if (parsedCommand) {
       await runDeterministicCommand(parsedCommand, userRequest);
+      return;
+    }
+
+    const configurableSkill = await findConfigurableSkillCommand(userRequest);
+    if (configurableSkill) {
+      await runConfigurableSkillCommand(configurableSkill, userRequest);
       return;
     }
 
@@ -314,6 +334,198 @@ export function createAiCommandBox(ctx, options = {}) {
       command: parsedCommand.command,
       query: parsedCommand.query,
       typedInput: userRequest,
+    });
+  }
+
+  async function findConfigurableSkillCommand(userRequest) {
+    const normalized = normalizeCommandInput(userRequest);
+    if (!normalized.startsWith("/")) return null;
+    const registry = await loadSkillRegistry().catch(() => null);
+    const skills = Array.isArray(registry?.skills) ? registry.skills : [];
+    return skills.find((skill) => (
+      skill?.configurable
+      && skill.status === "active"
+      && normalizeCommandInput(skill.slash) === normalized
+    )) || null;
+  }
+
+  async function runConfigurableSkillCommand(skill, userRequest, { overwrite = false } = {}) {
+    const slash = skill?.slash || pendingConfigurableRun?.slash || "";
+    if (!slash) {
+      renderCommandError("No configurable skill selected.");
+      return;
+    }
+    if (!overwrite) {
+      startReport({
+        typedInput: userRequest,
+        matchedCommand: slash,
+        status: "pending",
+      });
+    }
+    pendingConfigurableRun = null;
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Running...";
+    ctx.setStatus({
+      mood: "thinking",
+      card: `<strong>Running skill</strong><br /><code>${escapeHtml(slash)}</code> is using the selected matter context.`,
+      bar: "Running Skill",
+      terminal: `[configurable-skill] running ${slash}`,
+    });
+    try {
+      const result = await runConfigurableSkill({ slash, overwrite });
+      if (result.state === "requires_overwrite") {
+        pendingConfigurableRun = {
+          slash,
+          title: skill?.title || result.skill?.title || slash,
+          artifactPath: result.artifactPath || "",
+        };
+        renderConfigurableSkillOverwritePrompt(result);
+        updateReport({
+          status: "warned",
+          artifacts: result.artifactPath ? [result.artifactPath] : [],
+        });
+        recordCommandInteraction({
+          renderedState: "configurable_skill/overwrite",
+          status: "warned",
+          providerRunInvoked: false,
+        });
+        ctx.setStatus({
+          mood: "idle",
+          card: `<strong>Overwrite confirmation</strong><br /><code>${escapeHtml(result.artifactPath || "artifact")}</code> already exists.`,
+          bar: "Overwrite Confirmation",
+          terminal: `[configurable-skill] overwrite required for ${slash}`,
+        });
+        return;
+      }
+      renderConfigurableSkillRunResult(result);
+      updateReport({
+        status: "ran",
+        providerModel: [result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / "),
+        artifacts: [result.outputPaths?.markdown, result.outputPaths?.json].filter(Boolean),
+      });
+      recordCommandInteraction({
+        renderedState: "configurable_skill/run",
+        status: "ran",
+        providerRunInvoked: true,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill complete</strong><br />Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "configured artifact")}</code>.`,
+        bar: "Skill Complete",
+        terminal: `[configurable-skill] wrote ${result.outputPaths?.markdown || result.outputPath || slash}`,
+      });
+    } catch (error) {
+      renderCommandRailError(error.message);
+      updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "configurable_skill/run",
+        status: "failed",
+        providerRunInvoked: overwrite,
+        error: error.message,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Failed",
+        terminal: `[configurable-skill] failed: ${error.message}`,
+      });
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  async function handlePendingConfigurableRunInput(userRequest) {
+    const normalized = normalizeCommandInput(userRequest);
+    if (normalized === "cancel" || normalized === "keep current") {
+      pendingConfigurableRun = null;
+      renderCommandRailError("Kept the existing artifact. Nothing was overwritten.");
+      updateReport({ status: "cancelled" });
+      recordCommandInteraction({
+        renderedState: "configurable_skill/overwrite",
+        status: "cancelled",
+        providerRunInvoked: false,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Kept current artifact</strong><br />Nothing was overwritten.",
+        bar: "Run Cancelled",
+        terminal: "[configurable-skill] overwrite cancelled",
+      });
+      return true;
+    }
+    if (normalized === "overwrite" || normalized === "overwrite artifact" || normalized === "run again") {
+      const pending = pendingConfigurableRun;
+      await runConfigurableSkillCommand(pending, userRequest, { overwrite: true });
+      return true;
+    }
+    return false;
+  }
+
+  function renderConfigurableSkillOverwritePrompt(result = {}) {
+    if (!aiCommandSession) return;
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Artifact already exists</h3>
+        <p class="muted">This skill writes a matter artifact. Choose whether to keep the current file or overwrite it.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(result.skill?.slash || pendingConfigurableRun?.slash || "")}</code></dd></div>
+          <div><dt>Artifact</dt><dd><code>${escapeHtml(result.artifactPath || "")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" data-configurable-skill-action="overwrite">Overwrite artifact</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep current</button>
+        </div>
+      </section>
+    `;
+    wireConfigurableSkillActions();
+  }
+
+  function renderConfigurableSkillRunResult(result = {}) {
+    const skill = result.skill || {};
+    breadcrumbs.textContent = skill.slash || "custom skill";
+    editorContent.innerHTML = `
+      <h1>${escapeHtml(skill.title || "Custom Skill Result")}</h1>
+      <p class="muted">Generated by <code>${escapeHtml(skill.slash || "")}</code>. Review before relying on it.</p>
+      <section class="skill-router-result">
+        <dl class="skill-card-meta">
+          <div><dt>Provider</dt><dd>${escapeHtml([result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider")}</dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "")}</code></dd></div>
+          <div><dt>Metadata</dt><dd><code>${escapeHtml(result.outputPaths?.json || "")}</code></dd></div>
+        </dl>
+        <pre class="skill-sample-markdown">${escapeHtml(result.markdown || "")}</pre>
+      </section>
+    `;
+    if (aiCommandSession) {
+      aiCommandSession.hidden = false;
+      aiCommandSession.innerHTML = `
+        <section class="command-interview" aria-live="polite">
+          <h3>Skill complete</h3>
+          <p>Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "")}</code>.</p>
+          <p class="muted">The result is also shown in the main pane for review.</p>
+        </section>
+      `;
+    }
+  }
+
+  function wireConfigurableSkillActions() {
+    aiCommandSession?.querySelectorAll?.("[data-configurable-skill-action]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.configurableSkillAction;
+        if (action === "overwrite") {
+          const pending = pendingConfigurableRun;
+          await runConfigurableSkillCommand(pending, "overwrite artifact", { overwrite: true });
+          return;
+        }
+        if (action === "cancel") {
+          await handlePendingConfigurableRunInput("keep current");
+        }
+      });
     });
   }
 
@@ -459,7 +671,7 @@ export function createAiCommandBox(ctx, options = {}) {
       interview,
       answers: {},
       questionIndex: 0,
-      ready: false,
+      ready: !Array.isArray(interview?.questions) || interview.questions.length === 0,
     };
     const plannerInfo = describeInterviewPlanner(interview);
     startReport({
@@ -479,8 +691,10 @@ export function createAiCommandBox(ctx, options = {}) {
       plannerFallbackReason: plannerInfo.fallbackReason,
     });
     aiCommandInput.value = "";
-    aiCommandInput.placeholder = "Answer the current question";
-    aiCommandSubmit.textContent = "Answer";
+    aiCommandInput.placeholder = currentSkillIdeaInterview.ready
+      ? "Generate sample, Edit answers, or Cancel"
+      : "Answer the current question";
+    aiCommandSubmit.textContent = currentSkillIdeaInterview.ready ? "Go" : "Answer";
     const plannerTerminal = plannerInfo.source === "model"
       ? `[skill-ideas] model-planned interview opened: ${userRequest}`
       : plannerInfo.source === "deterministic fallback"
@@ -489,12 +703,19 @@ export function createAiCommandBox(ctx, options = {}) {
           `[skill-ideas] interview opened: ${userRequest}`,
         ]
         : `[skill-ideas] interview opened: ${userRequest}`;
-    ctx.setStatus({
-      mood: "idle",
-      card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
-      bar: "Skill Idea Interview",
-      terminal: plannerTerminal,
-    });
+    ctx.setStatus(currentSkillIdeaInterview.ready
+      ? {
+          mood: "idle",
+          card: "<strong>Ready for sample</strong><br />The initial request is detailed enough to test with a sample output.",
+          bar: "Ready for Sample",
+          terminal: Array.isArray(plannerTerminal) ? [...plannerTerminal, "[skill-ideas] detailed idea ready for sample"] : [plannerTerminal, "[skill-ideas] detailed idea ready for sample"],
+        }
+      : {
+          mood: "idle",
+          card: "<strong>Skill idea interview</strong><br />Answer one question at a time in the Command rail. Nothing will run.",
+          bar: "Skill Idea Interview",
+          terminal: plannerTerminal,
+        });
     renderSkillIdeaSession();
   }
 
@@ -512,17 +733,37 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
     if (session.ready) {
-      if (normalized === "save idea") {
-        clearCommandInput();
-        await saveSkillIdeaInterviewSession();
-        return;
-      }
-      if (normalized === "save updates") {
+      if (normalized === "save idea" || normalized === "save updates") {
         clearCommandInput();
         await saveSkillIdeaInterviewSession();
         return;
       }
       if (session.savedIdea) {
+        if (normalized === "generate sample" || normalized === "use this matter for sample" || normalized === "regenerate sample") {
+          clearCommandInput();
+          await generateSavedSkillIdeaSample({ feedback: normalized === "regenerate sample" ? "Regenerate the sample with the current design brief." : "" });
+          return;
+        }
+        if (normalized === "copy sample") {
+          clearCommandInput();
+          await copySavedSkillIdeaSample();
+          return;
+        }
+        if (/^copy sample v\d+$/i.test(normalized)) {
+          clearCommandInput();
+          await copySavedSkillIdeaSampleByVersion(Number(normalized.match(/\d+$/)?.[0] || 0));
+          return;
+        }
+        if (normalized === "looks right" || normalized === "approve sample" || normalized === "sample approved") {
+          clearCommandInput();
+          await approveSavedSkillIdeaSample();
+          return;
+        }
+        if (normalized === "create skill") {
+          clearCommandInput();
+          await createConfigurableSkillFromApprovedSample();
+          return;
+        }
         if (normalized === "copy review packet") {
           clearCommandInput();
           await copySavedSkillIdeaReviewPacket();
@@ -543,8 +784,17 @@ export function createAiCommandBox(ctx, options = {}) {
           startAnotherSkillIdea();
           return;
         }
+        if (session.sampleReview?.activeSample && !session.sampleReview.approved) {
+          clearCommandInput();
+          await generateSavedSkillIdeaSample({ feedback: userRequest.trim() });
+          return;
+        }
       }
       if (normalized === "edit answers" || normalized === "edit") {
+        if (!Array.isArray(session.interview.questions) || session.interview.questions.length === 0) {
+          renderSkillIdeaSession("No follow-up questions were asked. Edit the skill idea by starting again, or generate a sample from a matter.");
+          return;
+        }
         session.editingSavedIdea = Boolean(session.savedIdea);
         session.ready = false;
         session.questionIndex = 0;
@@ -553,9 +803,19 @@ export function createAiCommandBox(ctx, options = {}) {
         renderSkillIdeaSession();
         return;
       }
+      if (normalized === "generate sample" || normalized === "generate sample from this matter" || normalized === "use this matter for sample") {
+        clearCommandInput();
+        await generateSavedSkillIdeaSample();
+        return;
+      }
+      if (normalized === "save idea") {
+        clearCommandInput();
+        await saveSkillIdeaInterviewSession();
+        return;
+      }
       renderSkillIdeaSession(session.savedIdea
-        ? "Use Copy Review Packet, Mark ready for review, Edit answers, Open in Skills, Start another idea, or Cancel."
-        : "Use Save idea, Edit answers, or Cancel.");
+        ? "Use Generate sample, Copy Review Packet, Mark ready for review, Edit answers, Open in Skills, Start another idea, or Cancel."
+        : "Use Generate sample, Edit answers, or Cancel.");
       return;
     }
 
@@ -576,30 +836,29 @@ export function createAiCommandBox(ctx, options = {}) {
     clearCommandInput();
     if (session.questionIndex >= session.interview.questions.length) {
       session.ready = true;
-      aiCommandInput.placeholder = "Type Save idea, Edit answers, or Cancel";
+      aiCommandInput.placeholder = "Generate sample, Edit answers, or Cancel";
       aiCommandSubmit.textContent = "Go";
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Ready to save</strong><br />Review the interview summary, then save or cancel.",
-        bar: "Skill Idea Ready",
-        terminal: "[skill-ideas] interview ready to save",
+        card: "<strong>Ready for sample</strong><br />Generate a sample output from a test matter before approving this skill idea.",
+        bar: "Ready for Sample",
+        terminal: "[skill-ideas] interview ready for sample",
       });
     } else {
       aiCommandInput.placeholder = "Answer the current question";
       aiCommandSubmit.textContent = "Answer";
       const nextIndex = session.questionIndex + 1;
-      const total = session.interview.questions.length;
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Skill idea interview</strong><br />Question ${nextIndex} of ${total}.`,
-        bar: `Question ${nextIndex} of ${total}`,
-        terminal: `[skill-ideas] question ${nextIndex} of ${total}`,
+        card: `<strong>Skill idea interview</strong><br />Question ${nextIndex}.`,
+        bar: `Question ${nextIndex}`,
+        terminal: `[skill-ideas] question ${nextIndex}`,
       });
     }
     renderSkillIdeaSession();
   }
 
-  async function saveSkillIdeaInterviewSession() {
+  async function saveSkillIdeaInterviewSession({ silent = false } = {}) {
     const session = currentSkillIdeaInterview;
     if (!session) return;
     const { interview, answers } = session;
@@ -618,6 +877,7 @@ export function createAiCommandBox(ctx, options = {}) {
     });
     try {
       const existingIdea = session.savedIdea;
+      const editedExistingIdea = Boolean(existingIdea?.id && session.editingSavedIdea);
       const payload = existingIdea?.id
         ? await updateSkillIdeaDesignBrief(existingIdea.id, payloadBody.designBrief)
         : await saveSkillIdea(payloadBody);
@@ -625,6 +885,12 @@ export function createAiCommandBox(ctx, options = {}) {
       session.savedIdea = idea;
       session.editingSavedIdea = false;
       session.ready = true;
+      const sampleReview = ensureSampleReview(session);
+      if (editedExistingIdea && sampleReview.activeSample) {
+        markSampleReviewStale(session, "Design brief changed after this sample was generated. Regenerate the sample before approving it.");
+        sampleReview.createdSkill = null;
+        session.createdSkill = null;
+      }
       updateReport({
         status: existingIdea?.id ? "updated" : "saved",
         skillIdeaId: idea.id || "",
@@ -635,16 +901,19 @@ export function createAiCommandBox(ctx, options = {}) {
         skillIdeaId: idea.id || "",
         providerRunInvoked: false,
       });
-      ctx.setStatus({
-        mood: "idle",
-        card: `<strong>${existingIdea?.id ? "Skill idea updated" : "Saved as skill idea"}</strong><br />Continue here: copy a review packet, mark ready, edit answers, or open Skills.`,
-        bar: existingIdea?.id ? "Skill Idea Updated" : "Skill Idea Saved",
-        terminal: `[skill-ideas] ${existingIdea?.id ? "updated" : "saved"} ${idea.id || "proposal"}`,
-      });
+      if (!silent) {
+        ctx.setStatus({
+          mood: "idle",
+          card: `<strong>${existingIdea?.id ? "Skill idea updated" : "Saved as skill idea"}</strong><br />Continue here: generate a sample output, copy a review packet, mark ready, edit answers, or open Skills.`,
+          bar: existingIdea?.id ? "Skill Idea Updated" : "Skill Idea Saved",
+          terminal: `[skill-ideas] ${existingIdea?.id ? "updated" : "saved"} ${idea.id || "proposal"}`,
+        });
+      }
       aiCommandInput.value = "";
-      aiCommandInput.placeholder = "Copy Review Packet, Mark ready, Edit answers, Open in Skills, or Start another idea";
+      aiCommandInput.placeholder = "Generate sample, Copy Review Packet, Mark ready, or Edit answers";
       aiCommandSubmit.textContent = "Go";
-      renderSkillIdeaSession();
+      if (!silent) renderSkillIdeaSession();
+      return idea;
     } catch (error) {
       renderCommandError(error.message);
       updateReport({ status: "failed", error: error.message });
@@ -668,28 +937,32 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
+    return null;
   }
 
   function renderSkillIdeaSession(errorMessage = "") {
     if (!aiCommandSession || !currentSkillIdeaInterview) return;
-    const { interview, answers, questionIndex, ready, savedIdea, editingSavedIdea } = currentSkillIdeaInterview;
+    const { interview, answers, questionIndex, ready, savedIdea, editingSavedIdea, sampleReview, createdSkill } = currentSkillIdeaInterview;
     aiCommandSession.hidden = false;
     if (ready && savedIdea && !editingSavedIdea) {
-      aiCommandSession.innerHTML = renderSavedSkillIdeaSession({ idea: savedIdea, interview, answers, errorMessage });
+      aiCommandSession.innerHTML = renderSavedSkillIdeaSession({ idea: savedIdea, interview, answers, sampleReview, createdSkill, errorMessage });
       wireSkillIdeaSessionActions();
       return;
     }
     if (ready) {
-      const isUpdate = Boolean(savedIdea);
+      const activeMatter = ctx.getActiveMatter?.() || {};
+      const hasMatter = Boolean(activeMatter?.folderName);
+      const primaryLabel = hasMatter ? "Generate sample from this matter" : "Pick matter to test this skill";
       aiCommandSession.innerHTML = `
         <section class="command-interview" aria-live="polite">
-          <h3>${isUpdate ? "Ready to save updates" : "Ready to save this skill idea"}</h3>
-          <p class="muted">Not runnable yet. ${isUpdate ? "Saving updates the design brief only." : "Saving creates a design brief only."}</p>
+          <h3>Ready to generate a sample output</h3>
+          <p class="muted">Not runnable yet. The next step is to test this idea against a matter. ${hasMatter ? "The idea will be saved before sample generation." : "Pick a matter to test this skill."}</p>
           ${renderSkillIdeaUnderstood(interview)}
+          ${Array.isArray(interview.questions) && interview.questions.length === 0 ? '<p class="muted">No follow-up questions were needed because the initial request already contains a detailed skill specification.</p>' : ""}
           ${renderAnsweredQuestions(interview, answers)}
           ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
           <div class="command-interview-actions">
-            <button type="button" data-skill-interview-action="save">${isUpdate ? "Save updates" : "Save idea"}</button>
+            <button type="button" data-skill-interview-action="generate-sample"${hasMatter ? "" : " disabled"}>${escapeHtml(primaryLabel)}</button>
             <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
             <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
           </div>
@@ -698,7 +971,6 @@ export function createAiCommandBox(ctx, options = {}) {
       wireSkillIdeaSessionActions();
       return;
     }
-    const total = interview.questions.length;
     const question = interview.questions[questionIndex] || {};
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
@@ -706,7 +978,7 @@ export function createAiCommandBox(ctx, options = {}) {
         <p class="muted">Temporary browser-memory session. Refreshing may lose it.</p>
         ${renderSkillIdeaUnderstood(interview)}
         <div class="command-interview-question">
-          <strong>Question ${questionIndex + 1} of ${total}</strong>
+          <strong>Question ${questionIndex + 1}</strong>
           <p>${escapeHtml(question.label || "")}</p>
           ${question.help ? `<p>${escapeHtml(question.help)}</p>` : ""}
           ${renderQuestionExamples(question)}
@@ -777,7 +1049,7 @@ export function createAiCommandBox(ctx, options = {}) {
     `;
   }
 
-  function renderSavedSkillIdeaSession({ idea, interview, answers, errorMessage = "" }) {
+  function renderSavedSkillIdeaSession({ idea, interview, answers, sampleReview = {}, createdSkill = null, errorMessage = "" }) {
     const brief = idea.designBrief || {};
     const readiness = idea.readiness || {};
     const status = String(idea.status || "incomplete");
@@ -793,7 +1065,7 @@ export function createAiCommandBox(ctx, options = {}) {
     return `
       <section class="command-interview" aria-live="polite">
         <h3>Saved skill idea</h3>
-        <p class="muted">Not runnable yet. No prompt, code, provider call, activation, or matter artifact has been generated.</p>
+        <p class="muted">Not runnable yet. No prompt, code, slash command, activation, or matter artifact has been generated.</p>
         ${renderSkillIdeaUnderstood(interview)}
         <dl class="skill-card-meta">
           <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
@@ -814,8 +1086,10 @@ export function createAiCommandBox(ctx, options = {}) {
         </details>
         ${renderAnsweredQuestions(interview, answers)}
         ${renderSavedSkillIdeaChecklist(readiness)}
+        ${renderSavedSkillIdeaSampleReview({ idea, sampleReview, createdSkill })}
         ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
         <div class="command-interview-actions">
+          ${renderSampleReviewButtons(sampleReview, createdSkill)}
           <button type="button" data-skill-interview-action="copy-packet">Copy Review Packet</button>
           <button type="button" class="secondary" data-skill-interview-action="mark-ready"${checklistReady && status !== "ready_for_review" ? "" : " disabled"}>Mark ready for review</button>
           <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
@@ -823,6 +1097,73 @@ export function createAiCommandBox(ctx, options = {}) {
           <button type="button" class="secondary" data-skill-interview-action="start-another">Start another idea</button>
         </div>
       </section>
+    `;
+  }
+
+  function renderSavedSkillIdeaSampleReview({ idea, sampleReview = {}, createdSkill = null }) {
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    const activeSample = sampleReview.activeSample || null;
+    const sampleMatter = getSampleMatter(activeSample);
+    const matterName = activeSample
+      ? sampleMatter.matterName || sampleMatter.folderName || ""
+      : activeMatter?.metadata?.matterName || activeMatter?.folderName || "";
+    const matterFolder = activeSample
+      ? sampleMatter.folderName || ""
+      : activeMatter?.folderName || "";
+    const sampleVersion = activeSample ? getSampleVersion(activeSample, Array.isArray(sampleReview.samples) ? sampleReview.samples.length : 1) : 0;
+    const approved = Boolean(sampleReview.approved);
+    const stale = Boolean(sampleReview.stale);
+    const readySkill = createdSkill || sampleReview.createdSkill || null;
+    const sampleStatus = stale
+      ? sampleReview.staleReason || "Design brief changed after this sample was generated. Regenerate the sample before approving it."
+      : readySkill?.slash
+        ? `Skill Ready. Use ${readySkill.slash}.`
+      : approved
+      ? "Sample approved. You can create the runnable skill from this approved sample."
+      : activeSample
+        ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks right.`
+        : matterFolder
+          ? "Generate an AI sample output from the selected test matter."
+          : "Pick a matter to generate a sample output.";
+    return `
+      <div class="skill-idea-sample-review">
+        <h4>Sample output review</h4>
+        <p class="muted">${escapeHtml(sampleStatus)}</p>
+        ${readySkill?.slash ? `<p><strong>Skill Ready</strong>: type <code>${escapeHtml(readySkill.slash)}</code> to run it.</p>` : ""}
+        <dl class="skill-card-meta">
+          <div><dt>Test matter</dt><dd>${escapeHtml(matterName || "No matter selected")}</dd></div>
+          <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder || "Pick a matter first")}</dd></div>
+          <div><dt>Sample</dt><dd>${activeSample ? escapeHtml(`v${sampleVersion || 1}`) : "Not generated"}</dd></div>
+        </dl>
+        ${getSampleAiRun(activeSample).provider || getSampleAiRun(activeSample).model ? `
+          <p class="muted">Sample provider: ${escapeHtml(formatSampleProvider(activeSample))}</p>
+        ` : ""}
+        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you approve the sample and choose Create skill.</p>
+        ${renderSampleLedger(sampleReview)}
+      </div>
+    `;
+  }
+
+  function renderSampleReviewButtons(sampleReview = {}, createdSkill = null) {
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    const hasMatter = Boolean(activeMatter?.folderName);
+    const activeSample = sampleReview.activeSample || null;
+    const approved = Boolean(sampleReview.approved);
+    const stale = Boolean(sampleReview.stale) || isSampleStale(activeSample);
+    const readySkill = createdSkill || sampleReview.createdSkill || null;
+    const generateLabel = activeSample ? "Regenerate sample" : "Generate sample from this matter";
+    const generateAction = activeSample ? "regenerate-sample" : "generate-sample";
+    if (readySkill?.slash) {
+      return `
+        <button type="button" data-skill-interview-action="run-created-skill">Run now</button>
+        <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
+      `;
+    }
+    return `
+      <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved ? "" : " disabled"}>${escapeHtml(generateLabel)}</button>
+      <button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !approved && !stale ? "" : " disabled"}>Looks right</button>
+      <button type="button" data-skill-interview-action="create-skill"${activeSample && approved && !stale ? "" : " disabled"}>Create skill</button>
+      <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
     `;
   }
 
@@ -845,6 +1186,653 @@ export function createAiCommandBox(ctx, options = {}) {
         </ul>
       </div>
     `;
+  }
+
+  async function generateSavedSkillIdeaSample({ feedback = "" } = {}) {
+    const session = currentSkillIdeaInterview;
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    if (!activeMatter?.folderName) {
+      renderSkillIdeaSession("Pick a test matter before generating sample output.");
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>No test matter selected</strong><br />Pick a matter, then generate a sample output.",
+        bar: "No Test Matter",
+        terminal: "[skill-ideas] sample requested without active matter",
+      });
+      return;
+    }
+    let idea = session?.savedIdea;
+    if (!idea) {
+      idea = await saveSkillIdeaInterviewSession({ silent: true });
+      if (!idea) return;
+    }
+
+    const sampleReview = ensureSampleReview(session);
+    const previousSample = getSampleMarkdown(sampleReview.activeSample);
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Generating...";
+    ctx.setStatus({
+      mood: "thinking",
+      card: "<strong>Generating sample output</strong><br />Using the selected matter context. This will not create a runnable skill.",
+      bar: "Generating Sample",
+      terminal: `[skill-ideas] generating sample output for ${idea.id || "proposal"}`,
+    });
+    try {
+      const sample = normalizeUiSample(await generateSkillIdeaSampleOutput({
+        idea,
+        feedback,
+        previousSample,
+      }));
+      if (!sample.version || sample.version === 1 && sampleReview.samples.length > 0) {
+        sample.version = sampleReview.samples.length + 1;
+      }
+      sampleReview.samples.push(sample);
+      sampleReview.activeSample = sample;
+      sampleReview.approved = false;
+      sampleReview.stale = false;
+      sampleReview.staleReason = "";
+      session.sampleReview = sampleReview;
+      await refreshSkillIdeaSampleLedger({ selectSampleId: getSampleId(sample) });
+      updateReport({
+        status: feedback ? "sample_feedback" : "sample_generated",
+        skillIdeaId: idea.id || "",
+        providerModel: formatSampleProvider(sample),
+        sampleId: getSampleId(sample),
+      });
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: feedback ? "sample_feedback" : "sample_generated",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: true,
+      });
+      renderSkillSampleOutput(sampleReview.activeSample || sample, {
+        version: getSampleVersion(sampleReview.activeSample || sample, sampleReview.samples.length),
+        approved: false,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks right.",
+        bar: "Sample Output Ready",
+        terminal: `[skill-ideas] sample v${sampleReview.samples.length} generated`,
+      });
+      aiCommandInput.value = "";
+      aiCommandInput.placeholder = "Type feedback, Looks right, Copy Sample, or Regenerate sample";
+      renderSkillIdeaSession();
+    } catch (error) {
+      updateReport({ status: "failed", error: error.message, skillIdeaId: idea.id || "" });
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: true,
+        error: error.message,
+      });
+      renderSkillIdeaSession(`Sample generation failed: ${error.message}`);
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Sample generation failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Sample Failed",
+        terminal: `[skill-ideas] sample failed: ${error.message}`,
+      });
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  async function approveSavedSkillIdeaSample() {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    if (!idea) return;
+    const sampleReview = ensureSampleReview(session);
+    if (!sampleReview.activeSample) {
+      renderSkillIdeaSession("Generate a sample output before approving it.");
+      return;
+    }
+    const sampleId = getSampleId(sampleReview.activeSample);
+    if (!sampleId) {
+      renderSkillIdeaSession("The current sample is not persisted. Regenerate the sample before approving it.");
+      return;
+    }
+    if (sampleReview.stale) {
+      renderSkillIdeaSession("Regenerate the sample after the design brief changes before approving it.");
+      return;
+    }
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Approving...";
+    try {
+      const payload = await approveSkillIdeaSample(idea.id, sampleId);
+      const approvedSample = payload.sample || {};
+      sampleReview.activeSample = normalizeUiSample({
+        ...sampleReview.activeSample,
+        approved: true,
+        approved_at: approvedSample.approvedAt || approvedSample.approved_at || "",
+        state: "approved_current",
+      });
+      sampleReview.approved = true;
+      sampleReview.stale = false;
+      sampleReview.staleReason = "";
+      session.sampleReview = sampleReview;
+      await refreshSkillIdeaSampleLedger({ selectSampleId: sampleId });
+      updateReport({
+        status: "sample_approved",
+        skillIdeaId: idea.id || "",
+        sampleId,
+      });
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: "sample_approved",
+        skillIdeaId: idea.id || "",
+        sampleId,
+        providerRunInvoked: false,
+      });
+      renderSkillSampleOutput(sampleReview.activeSample, {
+        version: getSampleVersion(sampleReview.activeSample, sampleReview.samples.length),
+        approved: true,
+      });
+      renderSkillIdeaSession();
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Sample approved</strong><br />You can now create the runnable skill from this approved sample.",
+        bar: "Sample Approved",
+        terminal: "[skill-ideas] sample approved",
+      });
+    } catch (error) {
+      renderSkillIdeaSession(`Sample approval failed: ${error.message}`);
+      updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        sampleId,
+        providerRunInvoked: false,
+        error: error.message,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Sample approval failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Sample Approval Failed",
+        terminal: `[skill-ideas] sample approval failed: ${error.message}`,
+      });
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  async function createConfigurableSkillFromApprovedSample() {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    const sampleReview = ensureSampleReview(session);
+    if (!idea?.id) {
+      renderSkillIdeaSession("Save the idea and approve a sample before creating the skill.");
+      return;
+    }
+    if (!sampleReview.approved || sampleReview.stale) {
+      renderSkillIdeaSession("Approve a current sample before creating the skill.");
+      return;
+    }
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Creating...";
+    ctx.setStatus({
+      mood: "thinking",
+      card: "<strong>Creating skill...</strong><br />Testing against the approved sample, then activating only if validation passes.",
+      bar: "Creating Skill",
+      terminal: [
+        "[skill-builder] creating skill",
+        "[skill-builder] testing against approved sample",
+        "[skill-builder] activating if validation passes",
+      ],
+    });
+    try {
+      const payload = await createSkillFromIdea(idea.id);
+      const skill = payload.skill || {};
+      session.createdSkill = skill;
+      sampleReview.createdSkill = skill;
+      session.sampleReview = sampleReview;
+      updateReport({
+        status: "skill_created",
+        skillIdeaId: idea.id || "",
+        matchedCommand: skill.slash || latestReport?.matchedCommand || "skill_idea/interview",
+        providerModel: [skill.modelPolicy?.provider, skill.modelPolicy?.model].filter(Boolean).join(" / "),
+        artifacts: [skill.outputArtifact].filter(Boolean),
+      });
+      recordCommandInteraction({
+        renderedState: "skill_builder/created",
+        status: "skill_created",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: true,
+      });
+      renderSkillReady(skill);
+      renderSkillIdeaSession();
+      void refreshConfigurableSlashSuggestions({ force: true });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill Ready</strong><br />You can use <code>${escapeHtml(skill.slash || "")}</code>.`,
+        bar: "Skill Ready",
+        terminal: `[skill-builder] activated ${skill.slash || "custom skill"}`,
+      });
+    } catch (error) {
+      renderSkillIdeaSession(`Skill creation failed: ${error.message}`);
+      updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "skill_builder/create",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: true,
+        error: error.message,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Skill creation failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Creation Failed",
+        terminal: `[skill-builder] failed: ${error.message}`,
+      });
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  function renderSkillReady(skill = {}) {
+    breadcrumbs.textContent = "skill ready";
+    editorContent.innerHTML = `
+      <h1>Skill Ready</h1>
+      <section class="skill-router-result">
+        <h2>${escapeHtml(skill.title || "Custom Skill")}</h2>
+        <p>You can use this skill by typing <code>${escapeHtml(skill.slash || "")}</code>.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Status</dt><dd>${escapeHtml(skill.status || "active")}</dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(skill.outputArtifact || "")}</code></dd></div>
+          <div><dt>Lane</dt><dd><code>${escapeHtml(skill.targetLane || "")}</code></dd></div>
+          <div><dt>Version</dt><dd>${escapeHtml(String(skill.version || 1))}</dd></div>
+        </dl>
+        <p class="muted">Running the skill writes only its configured matter artifact after explicit command execution.</p>
+      </section>
+    `;
+  }
+
+  async function copySavedSkillIdeaSample() {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    const sample = session?.sampleReview?.activeSample;
+    if (!idea || !sample) return;
+    await copySkillIdeaSample(sample, {
+      version: getSampleVersion(sample, session.sampleReview.samples.length),
+      approved: session.sampleReview.approved,
+    });
+  }
+
+  async function copySavedSkillIdeaSampleByVersion(version) {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    const sampleReview = ensureSampleReview(session || {});
+    const sample = findSampleByVersion(sampleReview, version);
+    if (!idea || !sample) {
+      renderSkillIdeaSession(`Sample v${Number(version || 0) || "?"} is not available in the ledger.`);
+      return;
+    }
+    await copySkillIdeaSample(sample, {
+      version: getSampleVersion(sample, version),
+      approved: getSampleState(sample) === "approved_current",
+    });
+  }
+
+  async function copySkillIdeaSample(sample, { version, approved } = {}) {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    if (!idea || !sample) return;
+    try {
+      await writeClipboardText(formatSkillSampleCopy(sample, {
+        version,
+        approved,
+      }));
+      updateReport({
+        status: "copied_sample",
+        skillIdeaId: idea.id || "",
+        sampleId: getSampleId(sample),
+      });
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: "copied_sample",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: "<strong>Sample copied</strong><br />This is a review sample only; no skill was created.",
+        bar: "Sample Copied",
+        terminal: `[skill-ideas] copied sample ${getSampleId(sample)}`,
+      });
+      renderSkillIdeaSession();
+    } catch (error) {
+      renderSkillIdeaSession(`Sample copy failed: ${error.message}`);
+      recordCommandInteraction({
+        renderedState: "skill_idea/sample_output",
+        status: "failed",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+        error: error.message,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Sample copy failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Sample Copy Failed",
+        terminal: `[skill-ideas] sample copy failed: ${error.message}`,
+      });
+    }
+  }
+
+  function renderSkillSampleOutput(sample, { version, approved } = {}) {
+    const sampleReview = currentSkillIdeaInterview?.sampleReview || {};
+    const sampleState = getSampleState(sample);
+    const sampleApproved = approved || sampleState === "approved_current";
+    const sampleStale = sampleState === "stale" || sampleState === "approved_stale";
+    const statusText = sampleState === "approved_stale"
+      ? "Approved earlier, now stale. Regenerate before creating a skill."
+      : sampleApproved
+        ? "Sample approved. Ready to create skill."
+        : sampleStale
+          ? "Stale after design brief changes. Regenerate before approval."
+          : "Awaiting review";
+    breadcrumbs.textContent = "sample output";
+    editorContent.innerHTML = `
+      <h1>Sample Output</h1>
+      <p class="muted">Review sample only. This did not create a runnable skill, prompt, code, slash command, or matter artifact.</p>
+      <section class="skill-router-result">
+        <h2>Sample v${Number(version || getSampleVersion(sample, 1))}${sampleApproved ? " - approved" : ""}</h2>
+        <dl class="skill-card-meta">
+          <div><dt>Provider</dt><dd>${escapeHtml(formatSampleProvider(sample))}</dd></div>
+          <div><dt>Matter</dt><dd>${escapeHtml(getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter")}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
+        </dl>
+        <pre class="skill-sample-markdown">${escapeHtml(getSampleMarkdown(sample))}</pre>
+        ${renderSampleLedger(sampleReview, { central: true })}
+      </section>
+    `;
+  }
+
+  function formatSkillSampleCopy(sample, { version, approved } = {}) {
+    const state = getSampleState(sample);
+    const statusText = state === "approved_stale"
+      ? "Approved earlier, now stale. Regenerate before creating a skill."
+      : approved
+        ? "Sample approved. Ready to create skill."
+        : state === "stale"
+          ? "Stale after design brief changes. Regenerate before approval."
+          : "Awaiting review";
+    const lines = [
+      "# Skill Sample Output",
+      "",
+      `- Sample: v${Number(version || getSampleVersion(sample, 1))}`,
+      `- Status: ${statusText}`,
+      `- Ledger state: ${formatSampleStateLabel(state)}`,
+      `- Matter: ${getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter"}`,
+      `- Provider/model: ${formatSampleProvider(sample)}`,
+      `- Feedback: ${getSampleFeedback(sample) || "None"}`,
+      "",
+      approved && state !== "approved_stale"
+        ? "This sample is approved, but it is not a runnable skill until Create skill succeeds."
+        : "This is not a runnable skill. No prompt, code, slash command, provider runtime, or activation has been generated.",
+      "",
+      "## Sample",
+      "",
+      getSampleMarkdown(sample),
+    ];
+    return lines.join("\n");
+  }
+
+  function renderSampleLedger(sampleReview = {}, { central = false } = {}) {
+    const samples = getLedgerSamples(sampleReview);
+    if (!samples.length) return "";
+    const activeId = getSampleId(sampleReview.activeSample);
+    const ordered = [...samples].sort((a, b) => getSampleVersion(b, 0) - getSampleVersion(a, 0));
+    return `
+      <section class="skill-sample-ledger" aria-label="Sample ledger">
+        <div class="skill-sample-ledger-header">
+          <strong>Sample Ledger</strong>
+          <span class="muted">${escapeHtml(String(samples.length))} version${samples.length === 1 ? "" : "s"}</span>
+        </div>
+        <ul>
+          ${ordered.map((sample) => {
+            const sampleId = getSampleId(sample);
+            const version = getSampleVersion(sample, 1);
+            const state = getSampleState(sample);
+            const matter = getSampleMatter(sample);
+            const createdAt = getSampleCreatedAt(sample);
+            const feedback = getSampleFeedback(sample);
+            const isActive = activeId && sampleId === activeId;
+            return `
+              <li class="skill-sample-ledger-item ${isActive ? "active" : ""}">
+                <div class="skill-sample-ledger-title">
+                  <strong>Sample v${escapeHtml(String(version))}${isActive ? " · active" : ""}</strong>
+                  <span class="sample-state ${escapeHtml(state)}">${escapeHtml(formatSampleStateLabel(state))}</span>
+                </div>
+                <dl class="skill-card-meta compact">
+                  <div><dt>Matter</dt><dd>${escapeHtml(matter.matterName || matter.folderName || "Unknown")}</dd></div>
+                  <div><dt>Provider</dt><dd>${escapeHtml(formatSampleProvider(sample))}</dd></div>
+                  <div><dt>Created</dt><dd>${escapeHtml(createdAt || "Unknown")}</dd></div>
+                  <div><dt>Feedback</dt><dd>${escapeHtml(feedback || "None")}</dd></div>
+                </dl>
+                ${central ? "" : `
+                  <div class="command-interview-actions compact">
+                    <button type="button" class="secondary" data-skill-interview-action="copy-ledger-sample" data-sample-id="${escapeHtml(sampleId)}">Copy Sample</button>
+                  </div>
+                `}
+              </li>
+            `;
+          }).join("")}
+        </ul>
+        ${ordered.some((sample) => getSampleState(sample) === "approved_stale")
+          ? '<p class="muted">An approved stale sample is kept for review history, but it cannot create a skill. Regenerate and approve a current sample.</p>'
+          : ""}
+      </section>
+    `;
+  }
+
+  function getLedgerSamples(sampleReview = {}) {
+    const byId = new Map();
+    const samples = Array.isArray(sampleReview.samples) ? sampleReview.samples.map(normalizeUiSample) : [];
+    const ledger = Array.isArray(sampleReview.ledger) ? sampleReview.ledger.map(normalizeUiSample) : [];
+    for (const sample of samples) {
+      byId.set(getSampleId(sample) || `version:${getSampleVersion(sample, byId.size + 1)}`, sample);
+    }
+    for (const sample of ledger) {
+      byId.set(getSampleId(sample) || `version:${getSampleVersion(sample, byId.size + 1)}`, sample);
+    }
+    return [...byId.values()].sort((a, b) => getSampleVersion(a, 0) - getSampleVersion(b, 0));
+  }
+
+  async function refreshSkillIdeaSampleLedger({ selectSampleId = "" } = {}) {
+    const session = currentSkillIdeaInterview;
+    const idea = session?.savedIdea;
+    if (!idea?.id) return ensureSampleReview(session || {});
+    const sampleReview = ensureSampleReview(session);
+    const preferredId = selectSampleId || getSampleId(sampleReview.activeSample);
+    try {
+      const payload = await listSkillIdeaSamples(idea.id);
+      const ledger = Array.isArray(payload.samples) ? payload.samples.map(normalizeUiSample) : [];
+      sampleReview.ledger = ledger;
+      sampleReview.samples = ledger;
+      if (ledger.length) {
+        const selected = ledger.find((sample) => getSampleId(sample) === preferredId) || ledger.at(-1);
+        applyActiveSampleState(sampleReview, selected);
+      }
+      session.sampleReview = sampleReview;
+    } catch {
+      const ledger = getLedgerSamples(sampleReview);
+      sampleReview.ledger = ledger;
+      if (sampleReview.activeSample) {
+        applyActiveSampleState(sampleReview, sampleReview.activeSample);
+      }
+      session.sampleReview = sampleReview;
+    }
+    return sampleReview;
+  }
+
+  function applyActiveSampleState(sampleReview, sample) {
+    const active = normalizeUiSample(sample);
+    sampleReview.activeSample = active;
+    const state = getSampleState(active);
+    sampleReview.approved = state === "approved_current";
+    sampleReview.stale = state === "stale" || state === "approved_stale";
+    sampleReview.staleReason = state === "approved_stale"
+      ? "This sample was approved earlier, but the design brief changed. Regenerate and approve a current sample before creating a skill."
+      : state === "stale"
+        ? "Design brief changed after this sample was generated. Regenerate the sample before approving it."
+        : "";
+    return sampleReview;
+  }
+
+  function normalizeUiSample(sample = {}) {
+    const stored = sample.storedSample || sample.sample || {};
+    const merged = { ...sample, ...stored };
+    const aiRun = normalizeSampleAiRun(merged.aiRun || merged.ai_run || sample.ai_run || stored.aiRun);
+    const matter = getSampleMatter(merged);
+    const markdown = merged.sample_markdown || merged.sampleMarkdown || sample.sample_markdown || stored.sampleMarkdown || "";
+    const id = String(merged.sample_id || merged.sampleId || merged.id || "").trim();
+    return {
+      ...merged,
+      id,
+      sample_id: id,
+      version: Number.isInteger(merged.version) && merged.version > 0 ? merged.version : Number(merged.version || 0) || 1,
+      generated_at: String(merged.generated_at || merged.createdAt || merged.created_at || "").trim(),
+      createdAt: String(merged.createdAt || merged.generated_at || merged.created_at || "").trim(),
+      approved: Boolean(merged.approved),
+      approved_at: String(merged.approved_at || merged.approvedAt || "").trim(),
+      approvedAt: String(merged.approvedAt || merged.approved_at || "").trim(),
+      state: String(merged.state || "").trim(),
+      current: typeof merged.current === "boolean" ? merged.current : undefined,
+      matter: {
+        matter_name: matter.matterName,
+        folder_name: matter.folderName,
+      },
+      sample_markdown: markdown,
+      sampleMarkdown: markdown,
+      feedback: String(merged.feedback || ""),
+      ai_run: aiRun,
+      aiRun,
+    };
+  }
+
+  function getSampleId(sample = {}) {
+    return String(sample?.sample_id || sample?.sampleId || sample?.id || "").trim();
+  }
+
+  function getSampleVersion(sample = {}, fallback = 1) {
+    const version = Number(sample?.version || 0);
+    return Number.isFinite(version) && version > 0 ? version : Number(fallback || 1);
+  }
+
+  function getSampleMarkdown(sample = {}) {
+    return String(sample?.sample_markdown || sample?.sampleMarkdown || "").trim();
+  }
+
+  function getSampleMatter(sample = {}) {
+    const matter = sample?.matter || {};
+    return {
+      matterName: String(matter.matter_name || matter.matterName || "").trim(),
+      folderName: String(matter.folder_name || matter.folderName || "").trim(),
+    };
+  }
+
+  function getSampleAiRun(sample = {}) {
+    return normalizeSampleAiRun(sample?.ai_run || sample?.aiRun || {});
+  }
+
+  function normalizeSampleAiRun(aiRun = {}) {
+    return {
+      provider: String(aiRun.provider || "").trim(),
+      model: String(aiRun.model || "").trim(),
+      task: String(aiRun.task || "").trim(),
+    };
+  }
+
+  function formatSampleProvider(sample = {}) {
+    const aiRun = getSampleAiRun(sample);
+    return [aiRun.provider, aiRun.model].filter(Boolean).join(" / ") || "configured provider";
+  }
+
+  function getSampleFeedback(sample = {}) {
+    return String(sample?.feedback || "").trim();
+  }
+
+  function getSampleCreatedAt(sample = {}) {
+    return String(sample?.createdAt || sample?.created_at || sample?.generated_at || "").trim();
+  }
+
+  function getSampleState(sample = {}) {
+    const state = String(sample?.state || "").trim();
+    if (["current", "stale", "approved_current", "approved_stale"].includes(state)) return state;
+    if (sample?.approved && sample?.current === false) return "approved_stale";
+    if (sample?.approved) return "approved_current";
+    if (sample?.current === false) return "stale";
+    return "current";
+  }
+
+  function isSampleStale(sample = {}) {
+    const state = getSampleState(sample);
+    return state === "stale" || state === "approved_stale";
+  }
+
+  function formatSampleStateLabel(state) {
+    if (state === "approved_current") return "Approved current";
+    if (state === "approved_stale") return "Approved stale";
+    if (state === "stale") return "Stale";
+    return "Current";
+  }
+
+  function findSampleByVersion(sampleReview = {}, version) {
+    const targetVersion = Number(version || 0);
+    return getLedgerSamples(sampleReview).find((sample) => getSampleVersion(sample, 0) === targetVersion) || null;
+  }
+
+  function ensureSampleReview(session) {
+    if (!session.sampleReview) {
+      session.sampleReview = {
+        samples: [],
+        ledger: [],
+        activeSample: null,
+        approved: false,
+        stale: false,
+        staleReason: "",
+      };
+    }
+    if (!Array.isArray(session.sampleReview.samples)) session.sampleReview.samples = [];
+    if (!Array.isArray(session.sampleReview.ledger)) session.sampleReview.ledger = session.sampleReview.samples;
+    if (typeof session.sampleReview.stale !== "boolean") session.sampleReview.stale = false;
+    if (typeof session.sampleReview.staleReason !== "string") session.sampleReview.staleReason = "";
+    return session.sampleReview;
+  }
+
+  function markSampleReviewStale(session, reason) {
+    const sampleReview = ensureSampleReview(session);
+    if (!sampleReview.activeSample) return sampleReview;
+    sampleReview.approved = false;
+    sampleReview.stale = true;
+    sampleReview.staleReason = reason || "Design brief changed after this sample was generated. Regenerate the sample before approving it.";
+    sampleReview.activeSample = {
+      ...sampleReview.activeSample,
+      state: sampleReview.activeSample.approved ? "approved_stale" : "stale",
+      current: false,
+    };
+    sampleReview.ledger = getLedgerSamples(sampleReview).map((sample) => getSampleId(sample) === getSampleId(sampleReview.activeSample)
+      ? sampleReview.activeSample
+      : sample);
+    session.sampleReview = sampleReview;
+    return sampleReview;
   }
 
   async function copySavedSkillIdeaReviewPacket() {
@@ -907,7 +1895,7 @@ export function createAiCommandBox(ctx, options = {}) {
       ctx.setStatus({
         mood: "idle",
         card: "<strong>Marked ready for review</strong><br />Still not runnable. No provider call or matter artifact was created.",
-        bar: "Skill Idea Ready",
+        bar: "Ready for Review",
         terminal: `[skill-ideas] marked ready ${session.savedIdea.id || idea.id}`,
       });
       renderSkillIdeaSession();
@@ -979,6 +1967,43 @@ export function createAiCommandBox(ctx, options = {}) {
         }
         if (action === "copy-packet") {
           await copySavedSkillIdeaReviewPacket();
+          return;
+        }
+        if (action === "generate-sample") {
+          await generateSavedSkillIdeaSample();
+          return;
+        }
+        if (action === "regenerate-sample") {
+          await generateSavedSkillIdeaSample({ feedback: "Regenerate the sample with the current design brief." });
+          return;
+        }
+        if (action === "approve-sample") {
+          await approveSavedSkillIdeaSample();
+          return;
+        }
+        if (action === "create-skill") {
+          await createConfigurableSkillFromApprovedSample();
+          return;
+        }
+        if (action === "run-created-skill") {
+          const slash = currentSkillIdeaInterview?.createdSkill?.slash || currentSkillIdeaInterview?.sampleReview?.createdSkill?.slash || "";
+          if (slash) await runConfigurableSkillCommand({ slash, title: currentSkillIdeaInterview?.createdSkill?.title || slash }, slash);
+          return;
+        }
+        if (action === "copy-sample") {
+          await copySavedSkillIdeaSample();
+          return;
+        }
+        if (action === "copy-ledger-sample") {
+          const sampleId = button.dataset.sampleId || "";
+          const sampleReview = currentSkillIdeaInterview?.sampleReview || {};
+          const sample = getLedgerSamples(sampleReview).find((candidate) => getSampleId(candidate) === sampleId);
+          if (sample) {
+            await copySkillIdeaSample(sample, {
+              version: getSampleVersion(sample, 1),
+              approved: getSampleState(sample) === "approved_current",
+            });
+          }
           return;
         }
         if (action === "mark-ready") {
@@ -1320,7 +2345,10 @@ export function createAiCommandBox(ctx, options = {}) {
       hideSlashSuggestions();
       return;
     }
-    const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
+    if (String(aiCommandInput.value || "").trim().startsWith("/") && !configurableSlashSuggestionsLoaded && !configurableSlashSuggestionsLoading) {
+      void refreshConfigurableSlashSuggestions().then(() => renderSlashSuggestions());
+    }
+    const suggestions = listSlashCommandSuggestions(aiCommandInput.value, configurableSlashSuggestions);
     if (!suggestions.length) {
       hideSlashSuggestions();
       return;
@@ -1350,7 +2378,7 @@ export function createAiCommandBox(ctx, options = {}) {
   async function handleSuggestionKeydown(event) {
     if (!aiCommandInput || !aiCommandSuggestions) return;
     if (currentSkillIdeaInterview || pendingSkillIdeaMode) return;
-    const suggestions = listSlashCommandSuggestions(aiCommandInput.value);
+    const suggestions = listSlashCommandSuggestions(aiCommandInput.value, configurableSlashSuggestions);
     if (!suggestions.length) return;
 
     if (event.key === "ArrowDown") {
@@ -1387,6 +2415,28 @@ export function createAiCommandBox(ctx, options = {}) {
     await handleCommand({ userRequest: command });
   }
 
+  async function refreshConfigurableSlashSuggestions({ force = false } = {}) {
+    if (configurableSlashSuggestionsLoading) return;
+    if (configurableSlashSuggestionsLoaded && !force) return;
+    configurableSlashSuggestionsLoading = true;
+    try {
+      const registry = await loadSkillRegistry();
+      const skills = Array.isArray(registry?.skills) ? registry.skills : [];
+      configurableSlashSuggestions = skills
+        .filter((skill) => skill?.configurable && skill.status === "active" && skill.slash)
+        .map((skill) => ({
+          command: skill.slash,
+          description: skill.purpose || skill.title || "Run custom skill.",
+        }));
+      configurableSlashSuggestionsLoaded = true;
+    } catch {
+      configurableSlashSuggestions = [];
+      configurableSlashSuggestionsLoaded = true;
+    } finally {
+      configurableSlashSuggestionsLoading = false;
+    }
+  }
+
   function hideSlashSuggestions() {
     activeSuggestionIndex = -1;
     if (!aiCommandSuggestions) return;
@@ -1416,6 +2466,7 @@ export function createAiCommandBox(ctx, options = {}) {
       status,
       routerDecision: "",
       routerMatchedSkill: "",
+      sampleId: "",
       providerModel: "",
       artifacts: [],
       statusBar: getStatusBarText(),
@@ -1445,6 +2496,7 @@ export function createAiCommandBox(ctx, options = {}) {
       rendered_state: report.renderedState || patch.renderedState || "",
       status: report.status,
       skill_idea_id: report.skillIdeaId || "",
+      sample_id: report.sampleId || "",
       router_decision: patch.routerDecision || (
         report.routerDecision
           ? {
@@ -1616,11 +2668,14 @@ function parseSearchCommand(normalized) {
   return null;
 }
 
-export function listSlashCommandSuggestions(input) {
+export function listSlashCommandSuggestions(input, extraSuggestions = []) {
   const raw = String(input || "");
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed.startsWith("/")) return [];
-  return SLASH_COMMAND_SUGGESTIONS.filter((suggestion) => suggestion.command.startsWith(trimmed));
+  const combined = [...SLASH_COMMAND_SUGGESTIONS, ...extraSuggestions]
+    .filter((suggestion) => suggestion?.command)
+    .filter((suggestion, index, list) => list.findIndex((candidate) => candidate.command === suggestion.command) === index);
+  return combined.filter((suggestion) => suggestion.command.startsWith(trimmed));
 }
 
 function normalizeCommandInput(input) {
@@ -1684,6 +2739,7 @@ function formatCommandReport(report) {
 
   if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
   if (report.skillIdeaId) lines.push(`- Saved skill idea: ${report.skillIdeaId}`);
+  if (report.sampleId) lines.push(`- Sample output: ${report.sampleId}`);
   if (report.plannerSource) lines.push(`- Planner: ${report.plannerModel || report.plannerSource}`);
   if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);

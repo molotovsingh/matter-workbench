@@ -233,8 +233,9 @@ engineering boundaries.
 - Skill Idea
 - Not runnable yet
 - What I understood
-- Question 1 of 3
-- Save idea
+- Question 1
+- Ready for sample
+- Generate sample from this matter
 - Copy Review Packet
 - Ready for review
 - Open in Skills
@@ -415,4 +416,3 @@ Start by centralizing display labels for the things users already see:
 - Command rail result states.
 
 Keep the machine contract stable. Make the surface speak lawyer.
-

@@ -3,11 +3,20 @@ import test from "node:test";
 import {
   AI_PROVIDERS,
   AI_TASKS,
+  DEFAULT_CONFIGURABLE_SKILL_RUN_MAX_OUTPUT_TOKENS,
+  DEFAULT_CONFIGURABLE_SKILL_RUN_MODEL,
+  DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS,
+  DEFAULT_SKILL_AUTHORING_MAX_OUTPUT_TOKENS,
+  DEFAULT_SKILL_AUTHORING_MODEL,
+  DEFAULT_SKILL_AUTHORING_TIMEOUT_MS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
+  DEFAULT_SKILL_SAMPLE_OUTPUT_MODEL,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
+  DEFAULT_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS,
+  DEFAULT_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS,
   DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
@@ -25,6 +34,9 @@ test("model policy lists current AI task names", () => {
   assert.deepEqual(listModelPolicyTasks(), [
     AI_TASKS.SKILL_ROUTER,
     AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    AI_TASKS.SKILL_SAMPLE_OUTPUT,
+    AI_TASKS.SKILL_AUTHORING,
+    AI_TASKS.CONFIGURABLE_SKILL_RUN,
     AI_TASKS.SOURCE_BACKED_ANALYSIS,
     AI_TASKS.SOURCE_DESCRIPTION,
   ]);
@@ -92,6 +104,65 @@ test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deter
     maxOutputTokens: 2200,
     timeoutMs: 30000,
     fallback: "deterministic_fallback",
+  });
+});
+
+test("skill sample output policy defaults to OpenAI direct gpt-5.4 and fails closed", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
+    tier: "skill_sample_output",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: DEFAULT_SKILL_SAMPLE_OUTPUT_MODEL,
+    maxOutputTokens: DEFAULT_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, {
+    env: {
+      SKILL_SAMPLE_OUTPUT_PROVIDER: "openai-direct",
+      OPENAI_SKILL_SAMPLE_OUTPUT_MODEL: "gpt-5.4",
+      OPENAI_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS: "5000",
+      OPENAI_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS: "100000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
+    tier: "skill_sample_output",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: "gpt-5.4",
+    maxOutputTokens: 5000,
+    timeoutMs: 100000,
+    fallback: "fail_closed",
+  });
+});
+
+test("skill authoring and configurable run policies default to OpenAI direct gpt-5.4", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_AUTHORING, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_AUTHORING,
+    tier: "skill_authoring",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: DEFAULT_SKILL_AUTHORING_MODEL,
+    maxOutputTokens: DEFAULT_SKILL_AUTHORING_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SKILL_AUTHORING_TIMEOUT_MS,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.CONFIGURABLE_SKILL_RUN, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
+    tier: "configurable_skill_run",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: DEFAULT_CONFIGURABLE_SKILL_RUN_MODEL,
+    maxOutputTokens: DEFAULT_CONFIGURABLE_SKILL_RUN_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS,
+    fallback: "fail_closed",
   });
 });
 

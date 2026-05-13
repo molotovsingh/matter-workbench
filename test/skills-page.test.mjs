@@ -174,9 +174,10 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Dismiss/);
   assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
+  assert.match(html, /Custom Skills/);
   assert.match(html, /Paid AI Skills/);
   assert.match(html, /Deterministic Skills/);
-  assert.match(html, /Coming Later: Configurable Skills/);
+  assert.match(html, /Coming Later: Skill Builder Expansion/);
   assert.match(html, /\/extract/);
   assert.match(html, /\/create_listofdates/);
   assert.match(html, /Paid\/provider-backed/);
@@ -185,6 +186,46 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
   assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
+});
+
+test("skills page renders active custom skills as active", () => {
+  const html = renderSkillsPageHtml({
+    registry: {
+      schema_version: "skill-registry/v1",
+      skills: [
+        ...registryFixture().skills,
+        {
+          schema_version: "configurable-skill/v1",
+          id: "skill_party",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          purpose: "Map formal party names, officers, aliases, and relationships.",
+          mode: "AI",
+          matter_required: true,
+          paid_provider_call: true,
+          rerun_guarded: true,
+          default_lane: "20_Workshop",
+          runner_key: "/party_officer_map",
+          inputs: ["matter-context-packet/v1"],
+          outputs: ["20_Workshop/Party and Officer Map.md"],
+          upstream: ["idea_party", "sample_party"],
+          configurable: true,
+          status: "active",
+        },
+      ],
+    },
+    matterStatus: null,
+    skillIdeas: {
+      schema_version: "skill-ideas/v1",
+      ideas: [],
+    },
+  }, escapeHtml);
+
+  assert.match(html, /Custom Skills/);
+  assert.match(html, /\/party_officer_map/);
+  assert.match(html, /Party and Officer Map/);
+  assert.match(html, /Active/);
+  assert.doesNotMatch(html, /Party and Officer Map[\s\S]{0,200}Incomplete/);
 });
 
 test("skill idea implementation brief classifies client-update email as a new skill", () => {

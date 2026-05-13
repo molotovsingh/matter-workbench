@@ -1170,6 +1170,94 @@ summary {
   color: var(--on-accent);
 }
 
+.skill-idea-sample-review {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.skill-idea-sample-review h4 {
+  margin: 0 0 6px;
+  font-size: var(--font-size-ui);
+}
+
+.skill-sample-ledger {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.skill-sample-ledger-header,
+.skill-sample-ledger-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skill-sample-ledger ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-sample-ledger-item {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  padding: 8px;
+}
+
+.skill-sample-ledger-item + .skill-sample-ledger-item {
+  margin-top: 8px;
+}
+
+.skill-sample-ledger-item.active {
+  border-color: var(--accent);
+}
+
+.sample-state {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+}
+
+.sample-state.approved_current {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.sample-state.approved_stale,
+.sample-state.stale {
+  border-color: var(--warning-border);
+  color: var(--warning-text);
+}
+
+.skill-card-meta.compact {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.command-interview-actions.compact {
+  margin-top: 8px;
+}
+
+.skill-sample-markdown {
+  max-width: 100%;
+  max-height: 58vh;
+  margin: 14px 0 0;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
 .ai-command-form input {
   width: 100%;
   min-width: 0;

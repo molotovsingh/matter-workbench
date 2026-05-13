@@ -4,12 +4,15 @@ export function skillsPageSummary(registry = {}, matterStatus = null) {
   const skills = Array.isArray(registry.skills) ? registry.skills : [];
   const stages = Array.isArray(matterStatus?.stages) ? matterStatus.stages : [];
   const statusBySlash = new Map(stages.map((stage) => [stage.slash, stage]));
-  const builtins = skills.map((skill) => ({
+  const withStatus = skills.map((skill) => ({
     ...skill,
-    status: statusBySlash.get(skill.slash) || null,
+    artifactStatus: statusBySlash.get(skill.slash) || null,
   }));
+  const builtins = withStatus.filter((skill) => !skill.configurable);
+  const custom = withStatus.filter((skill) => skill.configurable);
   return {
     builtins,
+    custom,
     deterministic: builtins.filter((skill) => String(skill.mode || "").toLowerCase() !== "ai"),
     paidAi: builtins.filter((skill) => skill.paid_provider_call || String(skill.mode || "").toLowerCase() === "ai"),
     matterName: matterStatus?.matterName || "",
@@ -111,6 +114,11 @@ export function renderSkillsPageHtml({
       ${renderSkillsStats(summary, escapeHtml)}
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
       <section>
+        <h2>Custom Skills</h2>
+        <p class="muted">Approved and activated skills created from reviewed samples. Draft or disabled custom skills are not runnable.</p>
+        ${renderSkillCards(summary.custom, escapeHtml)}
+      </section>
+      <section>
         <h2>Built-in Skills</h2>
         <p class="muted">These are code-backed capabilities. They are not editable from the app.</p>
         ${renderSkillCards(summary.builtins, escapeHtml)}
@@ -126,13 +134,13 @@ export function renderSkillsPageHtml({
         ${renderSkillCards(summary.deterministic, escapeHtml)}
       </section>
       <section class="skills-future-card">
-        <h2>Coming Later: Configurable Skills</h2>
+        <h2>Coming Later: Skill Builder Expansion</h2>
         <p>
-          User-created and editable skills are future work. This page does not create, modify, approve, or run draft skills.
+          The app can show activated custom skills here. Broader editing, rollback, and automated skill-generation workflows remain staged work.
         </p>
         <ul>
-          <li>No new skill creation.</li>
-          <li>No draft revisions, golden checks, or runnable draft skills.</li>
+          <li>No direct editing of active skill definitions from this page.</li>
+          <li>No runnable draft skills.</li>
           <li>No chat, Q&amp;A, provider call, or matter artifact write.</li>
         </ul>
       </section>
@@ -419,6 +427,10 @@ function renderSkillsStats(summary, escape) {
         <dd>${summary.builtins.length}</dd>
       </div>
       <div>
+        <dt>Custom</dt>
+        <dd>${summary.custom.length}</dd>
+      </div>
+      <div>
         <dt>Paid AI</dt>
         <dd>${summary.paidAi.length}</dd>
       </div>
@@ -444,15 +456,17 @@ function renderSkillCards(skills, escape) {
 }
 
 function renderSkillCard(skill, escape) {
-  const status = skill.status;
-  const state = status
+  const status = skill.artifactStatus;
+  const state = skill.configurable
+    ? customSkillStatusLabel(skill.status)
+    : status
     ? status.present
       ? "Present"
       : "Not run"
     : skill.matter_required
       ? "No artifact status"
       : "Workspace-level";
-  const stateClass = status?.present ? "present" : "not-run";
+  const stateClass = skill.configurable ? customSkillStatusClass(skill.status) : status?.present ? "present" : "not-run";
   const outputs = Array.isArray(skill.outputs) && skill.outputs.length
     ? skill.outputs
     : ["No durable output declared"];
@@ -497,6 +511,18 @@ function renderSkillCard(skill, escape) {
       ${renderAiRun(status?.aiRun, escape)}
     </article>
   `;
+}
+
+function customSkillStatusLabel(status) {
+  if (status === "active") return "Active";
+  if (status === "disabled") return "Disabled";
+  return "Draft";
+}
+
+function customSkillStatusClass(status) {
+  if (status === "active") return "present";
+  if (status === "disabled") return "not-run";
+  return "pending";
 }
 
 function renderAiRun(aiRun, escape) {
