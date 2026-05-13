@@ -11,6 +11,11 @@ For future changes to an existing configurable skill, use
 modification are related, but they must not collapse into one casual chat
 operation.
 
+The first proposed runtime candidate is documented separately in
+[Client Update Email Skill Contract](client-update-email-skill-contract.md).
+That contract is intentionally design-only until the runtime, rerun guard,
+model policy, and review boundaries are implemented.
+
 ## Why This Exists
 
 The current repo now has:
