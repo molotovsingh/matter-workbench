@@ -14,19 +14,21 @@ const FALLBACK_CATEGORIES = [
 ];
 
 const BUILTIN_SKILL_SCHEMA_VERSION = "built-in-skill/v1";
+const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 const LANE_SET = new Set(MATTER_WORKSPACE_LANES.map((lane) => lane.path));
 
-export function createSkillRegistryService({ appDir, registryPath, builtinsDir } = {}) {
+export function createSkillRegistryService({ appDir, registryPath, builtinsDir, configurableSkillsService = null } = {}) {
   const resolvedPath = registryPath || path.join(path.resolve(appDir || process.cwd()), "skills", "registry.json");
   const resolvedBuiltinsDir = builtinsDir || path.join(path.dirname(resolvedPath), "builtins");
   let cache = null;
 
   async function readRegistry({ refresh = false } = {}) {
-    if (cache && !refresh) return cache;
+    if (cache && !refresh && !configurableSkillsService) return cache;
     const parsed = JSON.parse(await readFile(resolvedPath, "utf8"));
     cache = await normalizeRegistry(parsed, {
       registryPath: resolvedPath,
       builtinsDir: resolvedBuiltinsDir,
+      configurableSkillsService,
     });
     return cache;
   }
@@ -43,7 +45,7 @@ export function createSkillRegistryService({ appDir, registryPath, builtinsDir }
   };
 }
 
-async function normalizeRegistry(registry, { registryPath, builtinsDir }) {
+async function normalizeRegistry(registry, { registryPath, builtinsDir, configurableSkillsService }) {
   if (registry?.schema_version !== "skill-registry/v1") {
     throw new Error(`Invalid skill registry schema at ${registryPath}`);
   }
@@ -54,13 +56,16 @@ async function normalizeRegistry(registry, { registryPath, builtinsDir }) {
   );
   const usesBuiltins = Array.isArray(registry.builtins) && registry.builtins.length > 0;
   const rawSkills = await loadSkillCards(registry, { registryPath, builtinsDir });
+  const configurableCards = configurableSkillsService
+    ? await configurableSkillsService.activeSkillCards()
+    : [];
   if (!Array.isArray(rawSkills)) {
     throw new Error(`Skill registry must contain a skills array at ${registryPath}`);
   }
 
   const seenIds = new Set();
   const seenSlashes = new Set();
-  const skills = rawSkills.map((skill) => {
+  const skills = [...rawSkills, ...configurableCards].map((skill) => {
     const normalized = usesBuiltins
       ? normalizeBuiltinSkillCard(skill, { registryPath, categorySet })
       : normalizeLegacySkillCard(skill, { registryPath, categorySet });
@@ -117,8 +122,8 @@ function normalizeBuiltinSkillCard(skill, { registryPath, categorySet }) {
   if (!categorySet.has(skill.category)) {
     throw new Error(`Invalid category for ${skill.slash}: ${skill.category}`);
   }
-  if (skill.schema_version !== BUILTIN_SKILL_SCHEMA_VERSION) {
-    throw new Error(`Invalid built-in skill schema for ${skill.slash}: ${skill.schema_version}`);
+  if (![BUILTIN_SKILL_SCHEMA_VERSION, CONFIGURABLE_SKILL_SCHEMA_VERSION].includes(skill.schema_version)) {
+    throw new Error(`Invalid skill schema for ${skill.slash}: ${skill.schema_version}`);
   }
   if (skill.runner_key !== skill.slash) {
     throw new Error(`runner_key must match slash for ${skill.slash}`);

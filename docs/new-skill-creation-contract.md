@@ -211,7 +211,7 @@ The useful sequence is:
 /new_skill idea
   -> inferred editable skill summary
   -> Check idea
-  -> Save idea
+  -> Generate sample output
   -> Create draft skill
   -> Test draft
   -> Save or paste golden

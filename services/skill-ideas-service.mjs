@@ -53,6 +53,15 @@ export function createSkillIdeasService({
     };
   }
 
+  async function getIdea(id) {
+    const normalizedId = String(id || "").trim();
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    const store = await readStore();
+    const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
+    if (!idea) throw makeHttpError("Skill idea not found", 404);
+    return normalizeStoredIdea(idea);
+  }
+
   async function createIdea({ text, matter = null, designBrief = {} } = {}) {
     const normalizedText = normalizeIdeaText(text);
     const timestamp = now().toISOString();
@@ -151,6 +160,7 @@ export function createSkillIdeasService({
 
   return {
     createIdea,
+    getIdea,
     listIdeas,
     updateIdeaDesignBrief,
     updateIdeaStatus,

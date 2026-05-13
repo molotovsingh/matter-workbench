@@ -7,5 +7,7 @@ node_modules/
 output/
 config.json
 skill-ideas.json
+skill-samples.json
+configurable-skills.json
 .doctor-backups/
 .claude/

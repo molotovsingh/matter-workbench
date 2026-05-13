@@ -212,6 +212,7 @@ Current AI-assisted stage:
 | --- | --- | --- |
 | Skill router / overlap check | Cheap, fast router tier is acceptable | The router classifies or checks overlap. It should not receive full matter documents by default. |
 | Skill design interview planner | Quality-first default: `gpt-5.4` when model planning is enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, List of Dates content, logs, `.env`, API keys, or chat history. |
+| Skill sample output | Quality-first default: `gpt-5.4` | It generates a review sample from the bounded matter context after the user chooses a test matter. It must not create a runnable skill, prompt, slash command, or matter artifact. |
 
 ## Quality-First GPT-5.4 Task Map
 
@@ -220,6 +221,7 @@ Use `gpt-5.4` for work where one weak model answer can bend the product in the w
 | Task / Surface | Recommended Model Posture | Why |
 | --- | --- | --- |
 | Skill design interview planner | `gpt-5.4` via OpenAI direct once model-backed planning is enabled | It decides what questions get asked before a future skill is designed. Bad questions create bad briefs. |
+| Skill sample output review loop | `gpt-5.4` via OpenAI direct | The sample is what the lawyer judges before any future build step. Poor samples create false confidence, so this is a quality-first stage. |
 | Skill design review | `gpt-5.4` | It should catch overlap, ambiguity, risk, missing acceptance criteria, and bad default assumptions before implementation. |
 | Skill authoring / prompt-schema drafting | `gpt-5.4` minimum, with human review and fail-closed activation | This shapes future runnable behavior. Quality beats cost here. |
 | Configurable skill validation for legal/high-risk skills | `gpt-5.4` | It should judge whether generated output obeys citation, evidence, tone, and artifact contracts before a skill can be trusted. |

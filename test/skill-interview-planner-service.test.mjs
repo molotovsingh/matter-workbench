@@ -4,6 +4,7 @@ import {
   createOpenAiSkillInterviewPlannerProvider,
   createOpenRouterSkillInterviewPlannerProvider,
   createSkillInterviewPlannerService,
+  SKILL_INTERVIEW_PLAN_SCHEMA,
 } from "../services/skill-interview-planner-service.mjs";
 
 function fakeRegistryService() {
@@ -117,6 +118,9 @@ test("skill interview planner sends only idea, matter metadata, and skill summar
   assert.equal(result.planner.used, true);
   assert.equal(result.plan.inferred_design_brief.expectedOutputArtifact, "30_Drafts/Client Update Email.md");
   assert.equal(received.userRequest, "it should read list of dates and draft a warm client email");
+  assert.equal(received.schema.properties.questions.minItems, 0);
+  assert.equal(received.schema.properties.questions.maxItems, 10);
+  assert.ok(received.schema === SKILL_INTERVIEW_PLAN_SCHEMA);
   assert.deepEqual(received.activeMatter, {
     matterName: "Demo Matter",
     matterType: "Civil recovery",
@@ -204,6 +208,9 @@ test("OpenRouter skill interview planner sends strict no-fallback JSON-schema re
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
   assert.match(requests[0].body.messages[0].content, /must not generate runnable skill code/i);
+  assert.match(requests[0].body.messages[0].content, /up to about ten questions/i);
+  assert.match(requests[0].body.messages[0].content, /detailed step-by-step skill specification, return zero questions/i);
+  assert.doesNotMatch(requests[0].body.messages[0].content, /at most three/i);
   assert.doesNotMatch(JSON.stringify(requests[0].body), /extraction records body|Source Index body|List of Dates body/);
 });
 
@@ -278,6 +285,9 @@ test("OpenAI direct skill interview planner sends strict Responses JSON-schema r
   assert.equal(requests[0].body.text.format.strict, true);
   assert.equal(requests[0].body.text.format.name, "skill_interview_plan");
   assert.match(requests[0].body.input[0].content, /must not generate runnable skill code/i);
+  assert.match(requests[0].body.input[0].content, /up to about ten questions/i);
+  assert.match(requests[0].body.input[0].content, /detailed step-by-step skill specification, return zero questions/i);
+  assert.doesNotMatch(requests[0].body.input[0].content, /at most three/i);
   assert.doesNotMatch(JSON.stringify(requests[0].body), /extraction records body|Source Index body|List of Dates body/);
 });
 

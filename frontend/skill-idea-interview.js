@@ -23,6 +23,7 @@ const ADJACENT_SKILL_PATTERNS = [
 ];
 
 const DEFAULT_SOURCE_CITATION_RULE = "Every material point must cite source labels and raw FILE-NNNN pX.bY citations.";
+const MAX_PLANNER_QUESTIONS = 10;
 const VALID_TARGET_LANES = new Set(["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
 const VALID_PAID_POSTURES = new Set(["free", "paid", "unknown"]);
 const VALID_RISK_LEVELS = new Set(["low", "medium", "high"]);
@@ -329,19 +330,35 @@ function buildAdjacentInterview({ originalText, ideaText, adjacent }) {
 }
 
 function buildDomainInterview({ originalText, ideaText, template }) {
+  const sourceText = `${originalText} ${ideaText}`;
+  const hasDetailedSpec = isDetailedSkillSpecification(sourceText);
+  const questions = hasDetailedSpec
+    ? []
+    : template.questions.map(normalizeQuestion);
+  const defaultAssumptions = [...template.defaultAssumptions];
+  const designBrief = { ...template.designBrief };
+  if (hasDetailedSpec) {
+    defaultAssumptions.push("The initial request already contains a detailed skill specification; no generic follow-up questions are needed before saving or sample review.");
+    designBrief.notes = [
+      designBrief.notes,
+      "Detailed user specification supplied in the original idea. Treat it as the controlling design direction unless the lawyer later edits it.",
+    ].filter(Boolean).join("\n");
+  }
   return {
     mode: "new_skill",
     originalText,
     ideaText,
     targetSkill: "",
-    understood: template.understood,
-    designBrief: { ...template.designBrief },
-    defaultAssumptions: [...template.defaultAssumptions],
+    understood: hasDetailedSpec
+      ? `${template.understood} The first message already gives a detailed proposed workflow, so this is ready to save or test with a sample instead of asking generic setup questions.`
+      : template.understood,
+    designBrief,
+    defaultAssumptions,
     openQuestions: [],
     riskFlags: template.designBrief.riskLevel === "high"
       ? ["High legal-risk review. Human lawyer review required before relying on output."]
       : [],
-    questions: template.questions.map(normalizeQuestion),
+    questions,
   };
 }
 
@@ -403,6 +420,28 @@ function detectDomainTemplate(text) {
   return DOMAIN_INTERVIEW_TEMPLATES.find((template) => (
     template.patterns.some((pattern) => pattern.test(text))
   )) || null;
+}
+
+function isDetailedSkillSpecification(text) {
+  const normalized = String(text || "").trim();
+  if (normalized.length < 220) return false;
+  const signals = [
+    /\bsteps?\s*:/i,
+    /\bidentify\b/i,
+    /\bstate\b/i,
+    /\bcalculate\b/i,
+    /\bcheck\b/i,
+    /\bmention\b/i,
+    /\bgive a clear final answer\b/i,
+    /\bwithin time\b/i,
+    /\bbarred by limitation\b/i,
+    /\barticle\(s\)?\b/i,
+    /\bsections?\s+\d/i,
+    /\bprescribed limitation period\b/i,
+    /\bcause of action\b/i,
+    /\baccrual\b/i,
+  ];
+  return signals.filter((pattern) => pattern.test(normalized)).length >= 4;
 }
 
 function inferSimpleOutput(text) {
@@ -485,12 +524,20 @@ function normalizePlannerInterview(planned, skillIdea, userRequest) {
   const plannerMeta = planned?.__plannerMeta || null;
   const fallback = buildSkillIdeaInterview(skillIdea, userRequest);
   if (!planned || typeof planned !== "object") return { ...fallback, planner: plannerMeta };
-  const questions = Array.isArray(planned.questions)
-    ? planned.questions.map(normalizeQuestion).filter((question) => question.id && question.label).slice(0, 3)
+  let questions = Array.isArray(planned.questions)
+    ? planned.questions.map(normalizeQuestion).filter((question) => question.id && question.label).slice(0, MAX_PLANNER_QUESTIONS)
     : [];
-  if (!questions.length) return { ...fallback, planner: plannerMeta };
+  const hasPlannerContent = Boolean(
+    String(planned.understood_summary || planned.understood || "").trim()
+    || planned.inferred_design_brief
+    || planned.designBrief
+  );
+  if (!questions.length && !hasPlannerContent) return { ...fallback, planner: plannerMeta };
   const mode = normalizeMode(planned.mode) || fallback.mode;
   const contextText = `${fallback.originalText} ${fallback.ideaText}`;
+  if (mode === "new_skill" && isDetailedSkillSpecification(contextText)) {
+    questions = [];
+  }
   const designBrief = normalizePlannerDesignBrief(
     planned.inferred_design_brief || planned.designBrief,
     fallback.designBrief,

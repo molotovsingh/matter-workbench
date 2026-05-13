@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createCommandInteractionLogService } from "./services/command-interaction-log-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
+import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
@@ -12,6 +13,8 @@ import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
+import { createSkillSamplesService } from "./services/skill-samples-service.mjs";
+import { createSkillSampleOutputService } from "./services/skill-sample-output-service.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
 import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
@@ -49,9 +52,26 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     ideasPath: options.skillIdeasPath,
   });
+  const skillSamplesService = createSkillSamplesService({
+    appDir,
+    samplesPath: options.skillSamplesPath,
+  });
+  const configurableSkillsService = createConfigurableSkillsService({
+    appDir,
+    skillsPath: options.configurableSkillsPath,
+    matterStore,
+    skillIdeasService,
+    skillSamplesService,
+    authoringProvider: options.configurableSkillAuthoringProvider || null,
+    runProvider: options.configurableSkillRunProvider || null,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+    endpoint: options.configurableSkillEndpoint,
+  });
   const skillRegistryService = createSkillRegistryService({
     appDir,
     registryPath: options.skillRegistryPath,
+    configurableSkillsService,
   });
   const skillInterviewPlannerService = createSkillInterviewPlannerService({
     registryService: skillRegistryService,
@@ -65,11 +85,19 @@ export async function createWorkbenchServer(options = {}) {
     aiProvider: options.skillRouterProvider || null,
     env,
   });
+  const skillSampleOutputService = createSkillSampleOutputService({
+    matterStore,
+    sampleProvider: options.skillSampleOutputProvider || null,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+    endpoint: options.skillSampleOutputEndpoint,
+  });
   const services = {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
     commandInteractionLogService,
     configService,
+    configurableSkillsService,
     env,
     matterStore,
     matterContextService,
@@ -79,6 +107,8 @@ export async function createWorkbenchServer(options = {}) {
     skillInterviewPlannerService,
     skillRegistryService,
     skillRouterService,
+    skillSamplesService,
+    skillSampleOutputService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,
     uploadService,
     workspaceService,

@@ -90,6 +90,25 @@ test("provider config carries direct OpenAI timeout for skill design interview",
   });
 });
 
+test("provider config carries direct OpenAI timeout for skill sample output", () => {
+  const policy = resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, {
+    env: {
+      SKILL_SAMPLE_OUTPUT_PROVIDER: "openai-direct",
+      OPENAI_SKILL_SAMPLE_OUTPUT_MODEL: "gpt-5.4",
+      OPENAI_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS: "5000",
+      OPENAI_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS: "100000",
+    },
+  });
+
+  assert.deepEqual(resolveProviderConfig(policy), {
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: "gpt-5.4",
+    maxOutputTokens: 5000,
+    timeoutMs: 100000,
+  });
+});
+
 test("provider config resolves OpenRouter source description policy", () => {
   const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
     env: {

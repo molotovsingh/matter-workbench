@@ -162,6 +162,38 @@ test("server API smoke test keeps public routes stable", async () => {
       open_questions: [],
       risk_flags: ["External-facing draft requires lawyer review."],
     }),
+    skillSampleOutputProvider: async ({ idea, matterContext }) => [
+      String(idea?.text || "").toLowerCase().includes("party")
+        ? "# Party and Officer Map"
+        : "# Client Update Email",
+      "",
+      `Draft for ${matterContext.matter.matter_name}.`,
+      "",
+      String(idea?.text || "").toLowerCase().includes("party")
+        ? "Smoke Client appears as a party through the matter metadata and FILE-0001 p1.b1."
+        : `Idea: ${idea.text}.`,
+    ].join("\n"),
+    configurableSkillAuthoringProvider: async () => ({
+      title: "Party and Officer Map",
+      slash: "/party_officer_map",
+      description: "Identify formal party names, officers, aliases, and relationships from source-backed matter context.",
+      target_lane: "20_Workshop",
+      output_artifact: "20_Workshop/Party and Officer Map.md",
+      matter_required: true,
+      paid_provider_call: true,
+      source_backed: "required",
+      prompt: "Build a source-backed party and officer map for the active matter. Identify each formal party name, officer or representative, alias, relationship, and uncertainty. Every factual row must cite readable source labels and raw FILE-NNNN pX.bY citations. Mark missing or uncertain items clearly.",
+      citation_policy: "Every factual party/officer assertion must cite source labels and raw FILE-NNNN pX.bY citations.",
+    }),
+    configurableSkillRunProvider: async ({ matterContext }) => [
+      "# Party and Officer Map",
+      "",
+      `Matter: ${matterContext.matter.matter_name}.`,
+      "",
+      "| Name | Role | Evidence |",
+      "| --- | --- | --- |",
+      "| Smoke | Client | Matter metadata and source context (FILE-0001 p1.b1) |",
+    ].join("\n"),
   });
 
   await new Promise((resolve) => app.server.listen(0, app.host, resolve));
@@ -270,6 +302,89 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     assert.equal(markedIdea.idea.status, "ready_for_review");
     assert.equal(markedIdea.idea.designBrief.expectedOutputArtifact, "20_Workshop/Issue-wise Notes.md");
+    const sampleResponse = await fetch(`${baseUrl}/api/skill-ideas/sample-output`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        idea: {
+          id: savedIdea.idea.id,
+          text: "draft a warm client update email",
+          designBrief: {
+            expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+          },
+        },
+      }),
+    });
+    const sampleOutput = await sampleResponse.json();
+    assert.notEqual(sampleResponse.status, 405);
+    assert.equal(sampleResponse.ok, true, sampleOutput.error);
+    assert.equal(sampleOutput.schema_version, "skill-sample-output/v1");
+    assert.equal(sampleOutput.ai_run.task, "skill_sample_output");
+    assert.equal(sampleOutput.ai_run.model, "gpt-5.4");
+    assert.match(sampleOutput.sample_markdown, /^# Client Update Email/);
+    assert.ok(sampleOutput.warnings.includes("Sample output only. Creating a skill still requires approval and validation."));
+    assert.ok(sampleOutput.sample_id);
+
+    const partyIdea = await postJson(baseUrl, "/api/skill-ideas", {
+      text: "new skill: discover formal party names, officers, aliases, and relationships",
+      designBrief: {
+        intendedUser: "Litigation team",
+        problem: "Map formal party names and officers.",
+        expectedInputs: "Matter context, source labels, pleadings, notices, correspondence, and extracted records.",
+        expectedOutputArtifact: "20_Workshop/Party and Officer Map.md",
+        targetLane: "20_Workshop",
+        paidPosture: "paid",
+        riskLevel: "medium",
+        notes: "Every factual party/officer assertion must cite source labels and raw citations.",
+      },
+    });
+    const partySample = await postJson(baseUrl, "/api/skill-ideas/sample-output", {
+      idea: partyIdea.idea,
+    });
+    assert.match(partySample.sample_markdown, /^# Party and Officer Map/);
+    const partySamples = await getJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(partyIdea.idea.id)}/samples`);
+    assert.equal(partySamples.schema_version, "skill-samples/v1");
+    assert.deepEqual(partySamples.samples.map((sample) => [sample.id, sample.version, sample.state]), [
+      [partySample.sample_id, 1, "current"],
+    ]);
+    assert.equal(partySamples.samples[0].aiRun.model, "gpt-5.4");
+    const missingSamplesResponse = await fetch(`${baseUrl}/api/skill-ideas/${encodeURIComponent("missing_idea")}/samples`);
+    const missingSamples = await missingSamplesResponse.json();
+    assert.equal(missingSamplesResponse.status, 404);
+    assert.match(missingSamples.error, /Skill idea not found/);
+    const approvedPartySample = await postJson(
+      baseUrl,
+      `/api/skill-ideas/${encodeURIComponent(partyIdea.idea.id)}/samples/${encodeURIComponent(partySample.sample_id)}/approve`,
+    );
+    assert.equal(approvedPartySample.sample.approved, true);
+    const partySamplesAfterApproval = await getJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(partyIdea.idea.id)}/samples`);
+    assert.equal(partySamplesAfterApproval.samples[0].state, "approved_current");
+    const createdCustomSkill = await postJson(baseUrl, `/api/skill-ideas/${encodeURIComponent(partyIdea.idea.id)}/create-skill`);
+    assert.equal(createdCustomSkill.skill.status, "active");
+    assert.equal(createdCustomSkill.skill.slash, "/party_officer_map");
+    assert.equal(createdCustomSkill.skill.outputArtifact, "20_Workshop/Party and Officer Map.md");
+    const skillsAfterCustom = await getJson(baseUrl, "/api/skills");
+    const customCard = skillsAfterCustom.skills.find((skill) => skill.slash === "/party_officer_map");
+    assert.equal(customCard.configurable, true);
+    assert.equal(customCard.status, "active");
+    const customRun = await postJson(baseUrl, "/api/configurable-skills/run", {
+      slash: "/party_officer_map",
+    });
+    assert.equal(customRun.state, "written");
+    assert.equal(customRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
+    assert.match(customRun.markdown, /FILE-0001 p1\.b1/);
+    const customMarkdown = await readFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.md"), "utf8");
+    assert.match(customMarkdown, /^# Party and Officer Map/);
+    const customRerun = await postJson(baseUrl, "/api/configurable-skills/run", {
+      slash: "/party_officer_map",
+    });
+    assert.equal(customRerun.state, "requires_overwrite");
+    assert.equal(customRerun.artifactPath, "20_Workshop/Party and Officer Map.md");
+    const customOverwrite = await postJson(baseUrl, "/api/configurable-skills/run", {
+      slash: "/party_officer_map",
+      overwrite: true,
+    });
+    assert.equal(customOverwrite.state, "written");
     const contextPreview = await getJson(baseUrl, "/api/matter-context");
     assert.equal(contextPreview.schema_version, "matter-context-preview/v1");
     assert.equal(contextPreview.counts.sources, 1);

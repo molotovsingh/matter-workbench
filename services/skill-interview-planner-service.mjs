@@ -64,8 +64,8 @@ export const SKILL_INTERVIEW_PLAN_SCHEMA = {
     },
     questions: {
       type: "array",
-      minItems: 1,
-      maxItems: 3,
+      minItems: 0,
+      maxItems: 10,
       items: {
         type: "object",
         additionalProperties: false,
@@ -98,7 +98,12 @@ export const SKILL_INTERVIEW_PLAN_SCHEMA = {
 const SKILL_INTERVIEW_SYSTEM_PROMPT = [
   "You plan short design interviews for future Legal Workbench skills.",
   "Return only strict JSON matching the supplied schema.",
-  "Your job is to understand the exact skill idea and ask at most three lawyer-readable follow-up questions.",
+  "Your job is to understand the exact skill idea and ask the lawyer-readable follow-up questions actually needed.",
+  "Ask only the questions that are genuinely useful.",
+  "You may ask up to about ten questions when the skill idea needs more design work.",
+  "If the user's request is already detailed, ask fewer questions.",
+  "If the user already supplied a detailed step-by-step skill specification, return zero questions and move it toward sample review.",
+  "If more than ten questions would be useful, put the remaining topics in open_questions instead of asking them now.",
   "You may infer safe defaults, target lane, output artifact, risk flags, and design brief fields.",
   "You must not generate runnable skill code, prompts, schemas, provider runtime config, legal conclusions, or final legal advice.",
   "Use only these target lanes: 10_Library, 20_Workshop, 30_Drafts, 40_Dispatch.",
@@ -402,7 +407,9 @@ function plannerUserPayload({ userRequest, skillIdea, activeMatter, skillRegistr
     skill_registry: skillRegistry,
     current_design_brief: designBrief,
     strict_rules: [
-      "maximum 3 questions",
+      "ask up to about 10 useful questions; fewer if enough context is already supplied",
+      "if the user already supplied a detailed step-by-step skill specification, return zero questions",
+      "if more than 10 questions are needed, put remaining topics in open_questions",
       "lawyer-readable labels",
       "specific to the requested skill",
       "do not ask already-inferred low-risk defaults",

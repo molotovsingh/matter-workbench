@@ -73,6 +73,42 @@ test("skill registry response shape remains API-compatible", async () => {
   assert.ok(registry.skills.every((skill) => Array.isArray(skill.outputs)));
 });
 
+test("skill registry merges active configurable skill cards without mutating built-ins", async () => {
+  const registry = await createSkillRegistryService({
+    appDir: process.cwd(),
+    configurableSkillsService: {
+      activeSkillCards: async () => [{
+        schema_version: "configurable-skill/v1",
+        id: "skill_party_officer_map",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        category: "Analyze",
+        mode: "AI",
+        purpose: "Map formal party names and officers.",
+        matter_required: true,
+        paid_provider_call: true,
+        rerun_guarded: true,
+        source_backed: "required",
+        inputs: ["matter-context-packet/v1"],
+        outputs: ["20_Workshop/Party and Officer Map.md"],
+        upstream: ["idea_party", "sample_party"],
+        downstream: [],
+        default_lane: "20_Workshop",
+        runner_key: "/party_officer_map",
+        version: 1,
+        configurable: true,
+        status: "active",
+      }],
+    },
+  }).readRegistry();
+
+  assert.equal(registry.skills.length, EXPECTED_SLASHES.length + 1);
+  const custom = registry.skills.find((skill) => skill.slash === "/party_officer_map");
+  assert.equal(custom.configurable, true);
+  assert.equal(custom.status, "active");
+  assert.deepEqual(registry.skills.filter((skill) => !skill.configurable).map((skill) => skill.slash), EXPECTED_SLASHES);
+});
+
 test("skill registry validation fails clearly for invalid built-in stubs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-skill-registry-"));
   const registryPath = path.join(root, "skills", "registry.json");
