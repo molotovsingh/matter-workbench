@@ -2,6 +2,7 @@ import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 import {
+  formatSkillFactoryHealthReport,
   formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
   renderSkillsPageHtml,
@@ -138,6 +139,8 @@ export function createMatterScreens(ctx) {
     let statusError = "";
     let skillIdeas = null;
     let skillIdeasError = "";
+    let skillFactoryHealth = null;
+    let skillFactoryHealthError = "";
     try {
       registry = await getJson("/api/skills");
     } catch (error) {
@@ -147,6 +150,11 @@ export function createMatterScreens(ctx) {
       skillIdeas = await getJson("/api/skill-ideas");
     } catch (error) {
       skillIdeasError = error.message;
+    }
+    try {
+      skillFactoryHealth = await getJson("/api/skill-factory-health");
+    } catch (error) {
+      skillFactoryHealthError = error.message;
     }
     if (ctx.getActiveMatter().folderName) {
       try {
@@ -162,11 +170,48 @@ export function createMatterScreens(ctx) {
       statusError,
       skillIdeas,
       skillIdeasError,
+      skillFactoryHealth,
+      skillFactoryHealthError,
       activeMatter: ctx.getActiveMatter(),
     }, escapeHtml);
+    wireSkillFactoryHealthActions({ skillFactoryHealth });
     wireSkillIdeaActions({
       ideas: skillIdeas?.ideas || [],
       registry,
+    });
+  }
+
+  function wireSkillFactoryHealthActions({ skillFactoryHealth = null } = {}) {
+    const button = editorContent.querySelector?.("[data-skill-factory-copy-health]");
+    if (!button) return;
+    button.addEventListener("click", async () => {
+      const status = editorContent.querySelector("[data-skill-factory-copy-health-status]");
+      if (!skillFactoryHealth) {
+        setArtifactActionStatus(status, "Health report unavailable.", true);
+        return;
+      }
+      button.disabled = true;
+      setArtifactActionStatus(status, "Copying health report...");
+      try {
+        await writeClipboardText(formatSkillFactoryHealthReport(skillFactoryHealth));
+        setArtifactActionStatus(status, "Health report copied.");
+        ctx.setStatus({
+          mood: "idle",
+          card: "<strong>Health report copied</strong><br />Read-only. No provider call, skill run, repair, or matter artifact write occurred.",
+          bar: "Skill Factory Health Copied",
+          terminal: "[skills] copied skill factory health report",
+        });
+      } catch (error) {
+        setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+        ctx.setStatus({
+          mood: "idle",
+          card: `<strong>Health report copy failed</strong><br />${escapeHtml(error.message)}`,
+          bar: "Skill Factory Health Failed",
+          terminal: `[skills] health report copy failed: ${error.message}`,
+        });
+      } finally {
+        button.disabled = false;
+      }
     });
   }
 

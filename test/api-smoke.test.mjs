@@ -255,6 +255,10 @@ test("server API smoke test keeps public routes stable", async () => {
     const initialIdeas = await getJson(baseUrl, "/api/skill-ideas");
     assert.equal(initialIdeas.schema_version, "skill-ideas/v1");
     assert.deepEqual(initialIdeas.ideas, []);
+    const initialSkillFactoryHealth = await getJson(baseUrl, "/api/skill-factory-health");
+    assert.equal(initialSkillFactoryHealth.schema_version, "skill-factory-health/v1");
+    assert.equal(initialSkillFactoryHealth.state, "ok");
+    assert.equal(initialSkillFactoryHealth.summary.ideas, 0);
     const plannedInterview = await postJson(baseUrl, "/api/skill-ideas/plan-interview", {
       userRequest: "draft a warm client update email",
       skillIdea: {
@@ -367,6 +371,10 @@ test("server API smoke test keeps public routes stable", async () => {
     const customCard = skillsAfterCustom.skills.find((skill) => skill.slash === "/party_officer_map");
     assert.equal(customCard.configurable, true);
     assert.equal(customCard.status, "active");
+    const skillFactoryHealth = await getJson(baseUrl, "/api/skill-factory-health");
+    assert.equal(skillFactoryHealth.schema_version, "skill-factory-health/v1");
+    assert.equal(skillFactoryHealth.state, "ok");
+    assert.equal(skillFactoryHealth.summary.activeSkills, 1);
     const customRun = await postJson(baseUrl, "/api/configurable-skills/run", {
       slash: "/party_officer_map",
     });

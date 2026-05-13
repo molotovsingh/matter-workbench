@@ -1133,9 +1133,19 @@ test("command box generates, revises, approves, and copies a non-runnable skill 
 test("command box creates a runnable skill only after current sample approval", async () => {
   const sampleCalls = [];
   const createSkillCalls = [];
+  const runCalls = [];
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "create a skill to map parties and officers" });
   const box = createAiCommandBox(ctx, {
+    loadSkillRegistry: async () => ({
+      skills: [{
+        configurable: true,
+        status: "active",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        purpose: "Map formal party names and officers.",
+      }],
+    }),
     saveSkillIdea: async (body) => ({
       idea: {
         id: "idea_party_map",
@@ -1201,6 +1211,26 @@ test("command box creates a runnable skill only after current sample approval", 
         },
       };
     },
+    runConfigurableSkill: async (body) => {
+      runCalls.push(body);
+      return {
+        schema_version: "configurable-skill-run/v1",
+        state: "written",
+        skill: {
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+        },
+        markdown: "# Party and Officer Map\n\nA party row cites FILE-0001 p1.b1.",
+        outputPaths: {
+          markdown: "20_Workshop/Party and Officer Map.md",
+          json: "20_Workshop/Party and Officer Map.json",
+        },
+        aiRun: {
+          provider: "openai-direct",
+          model: "gpt-5.4",
+        },
+      };
+    },
   });
 
   box.wire();
@@ -1222,9 +1252,18 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.deepEqual(createSkillCalls, ["idea_party_map"]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks right|Create skill/);
   assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
   assert.match(ctx.elements.editorContent.innerHTML, /\/party_officer_map/);
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "Type /party_officer_map to run it, or another action");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Ready");
+
+  ctx.elements.aiCommandInput.value = "/party_officer_map";
+  await form.submit();
+
+  assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
+  assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
 });
 
 test("command box runs active configurable slash commands and handles overwrite confirmation", async () => {

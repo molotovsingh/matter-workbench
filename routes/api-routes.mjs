@@ -17,6 +17,7 @@ export async function handleApiRequest({ request, requestUrl, response, services
     matterStore,
     matterStatusService,
     prepareMatterService,
+    skillFactoryHealthService,
     skillIdeasService,
     skillInterviewPlannerService,
     skillRegistryService,
@@ -108,6 +109,11 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   if (request.method === "GET" && requestUrl.pathname === "/api/skill-ideas") {
     sendJson(response, 200, await skillIdeasService.listIdeas());
+    return true;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/skill-factory-health") {
+    sendJson(response, 200, await skillFactoryHealthService.checkHealth());
     return true;
   }
 

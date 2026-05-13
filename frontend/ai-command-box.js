@@ -139,6 +139,7 @@ export function createAiCommandBox(ctx, options = {}) {
   let configurableSlashSuggestions = [];
   let configurableSlashSuggestionsLoaded = false;
   let configurableSlashSuggestionsLoading = false;
+  let lastCreatedConfigurableSkill = null;
 
   function wire() {
     if (!aiCommandForm) return;
@@ -524,6 +525,26 @@ export function createAiCommandBox(ctx, options = {}) {
         }
         if (action === "cancel") {
           await handlePendingConfigurableRunInput("keep current");
+        }
+      });
+    });
+  }
+
+  function wireCreatedSkillActions() {
+    aiCommandSession?.querySelectorAll?.("[data-created-skill-action]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.createdSkillAction;
+        if (action === "run") {
+          const skill = lastCreatedConfigurableSkill;
+          if (skill?.slash) await runConfigurableSkillCommand(skill, skill.slash);
+          return;
+        }
+        if (action === "open-skills") {
+          await showSkillsPage("open skills");
+          return;
+        }
+        if (action === "start-another") {
+          startAnotherSkillIdea();
         }
       });
     });
@@ -1395,6 +1416,7 @@ export function createAiCommandBox(ctx, options = {}) {
     try {
       const payload = await createSkillFromIdea(idea.id);
       const skill = payload.skill || {};
+      lastCreatedConfigurableSkill = skill;
       session.createdSkill = skill;
       sampleReview.createdSkill = skill;
       session.sampleReview = sampleReview;
@@ -1411,9 +1433,14 @@ export function createAiCommandBox(ctx, options = {}) {
         skillIdeaId: idea.id || "",
         providerRunInvoked: true,
       });
+      currentSkillIdeaInterview = null;
       renderSkillReady(skill);
-      renderSkillIdeaSession();
+      renderCreatedSkillCommandRail(skill);
       void refreshConfigurableSlashSuggestions({ force: true });
+      aiCommandInput.value = "";
+      aiCommandInput.placeholder = skill.slash
+        ? `Type ${skill.slash} to run it, or another action`
+        : DEFAULT_COMMAND_PLACEHOLDER;
       ctx.setStatus({
         mood: "idle",
         card: `<strong>Skill Ready</strong><br />You can use <code>${escapeHtml(skill.slash || "")}</code>.`,
@@ -1462,6 +1489,28 @@ export function createAiCommandBox(ctx, options = {}) {
         <p class="muted">Running the skill writes only its configured matter artifact after explicit command execution.</p>
       </section>
     `;
+  }
+
+  function renderCreatedSkillCommandRail(skill = {}) {
+    if (!aiCommandSession) return;
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Skill Ready</h3>
+        <p>You can use <code>${escapeHtml(skill.slash || "")}</code> on any selected matter.</p>
+        <p class="muted">Switch matters first if you want to run it somewhere else.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd>${escapeHtml(skill.title || "Custom Skill")}</dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(skill.outputArtifact || "")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" data-created-skill-action="run">Run now</button>
+          <button type="button" class="secondary" data-created-skill-action="open-skills">Open Skills</button>
+          <button type="button" class="secondary" data-created-skill-action="start-another">Start another idea</button>
+        </div>
+      </section>
+    `;
+    wireCreatedSkillActions();
   }
 
   async function copySavedSkillIdeaSample() {

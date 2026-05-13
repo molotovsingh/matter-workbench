@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
 import {
+  formatSkillFactoryHealthReport,
   formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
   renderSkillsPageHtml,
@@ -146,9 +147,31 @@ test("skills page renders built-in skill governance metadata and matter artifact
         },
       ],
     },
+    skillFactoryHealth: {
+      schema_version: "skill-factory-health/v1",
+      checkedAt: "2026-05-13T18:00:00.000Z",
+      state: "ok",
+      summary: {
+        ideas: 2,
+        samples: 1,
+        configurableSkills: 0,
+        activeSkills: 0,
+        errors: 0,
+        warnings: 0,
+      },
+      checks: [
+        { id: "sample_links", label: "Samples point to existing ideas", state: "ok" },
+        { id: "output_lanes", label: "Configurable skill outputs stay inside allowed lanes", state: "ok" },
+      ],
+      issues: [],
+    },
     activeMatter: { folderName: "Mehta vs Skyline" },
   }, escapeHtml);
 
+  assert.match(html, /Skill Factory Health/);
+  assert.match(html, /No store integrity issues observed/);
+  assert.match(html, /Copy Health Report/);
+  assert.match(html, /data-skill-factory-copy-health/);
   assert.match(html, /Saved Ideas/);
   assert.match(html, /create a skill to summarize pleadings/);
   assert.match(html, /new skill bundle exhibits/);
@@ -186,6 +209,33 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
   assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
+});
+
+test("skills page health report is copyable and excludes secrets", () => {
+  const report = formatSkillFactoryHealthReport({
+    state: "warning",
+    checkedAt: "2026-05-13T18:00:00.000Z",
+    summary: {
+      ideas: 1,
+      samples: 2,
+      configurableSkills: 1,
+      activeSkills: 1,
+      errors: 0,
+      warnings: 1,
+    },
+    checks: [
+      { id: "stores_readable", label: "Skill factory stores are readable JSON", state: "ok" },
+    ],
+    issues: [
+      { severity: "warning", code: "active_skill_validation_status", message: "Active skill missing passed validation metadata." },
+    ],
+  });
+
+  assert.match(report, /^# Skill Factory Health Report/);
+  assert.match(report, /State: warning/);
+  assert.match(report, /Active skill missing passed validation metadata/);
+  assert.match(report, /read-only health report/i);
+  assert.doesNotMatch(report, /API_KEY|\.env|full extraction records|raw source text/i);
 });
 
 test("skills page renders active custom skills as active", () => {
