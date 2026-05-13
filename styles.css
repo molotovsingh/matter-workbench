@@ -815,7 +815,7 @@ strong {
 
 .tree-root summary {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
 }
@@ -831,6 +831,22 @@ strong {
   font-size: 11px;
   font-weight: 400;
   margin-left: 6px;
+}
+
+.tree-purpose {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+.tree-lane-group {
+  margin-top: 10px;
 }
 
 .tree-meta {

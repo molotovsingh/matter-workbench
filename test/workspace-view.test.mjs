@@ -15,6 +15,12 @@ test("workspace tree renders human-readable lane labels while preserving folder 
     path: "",
     children: [
       {
+        name: "00_Inbox",
+        kind: "directory",
+        path: "00_Inbox",
+        children: [],
+      },
+      {
         name: "10_Library",
         kind: "directory",
         path: "10_Library",
@@ -29,8 +35,14 @@ test("workspace tree renders human-readable lane labels while preserving folder 
     ],
   });
 
-  assert.match(html, /Analysis Library/);
-  assert.match(html, /Workshop/);
+  assert.match(html, /Case Record/);
+  assert.match(html, /Original Documents/);
+  assert.match(html, /Source Record/);
+  assert.match(html, /Case Analysis/);
+  assert.match(html, /Original files and the app&#39;s indexed source record/);
+  assert.match(html, /Extracted text, source labels, and citeable references/);
+  assert.match(html, /Chronologies, risks, issue notes, party maps, and strategy/);
+  assert.match(html, /tree-canonical-name">00_Inbox/);
   assert.match(html, /tree-canonical-name">10_Library/);
   assert.match(html, /tree-canonical-name">20_Workshop/);
   assert.match(html, /data-directory-path="10_Library"/);
@@ -71,13 +83,13 @@ test("workspace lane lookup and preview render empty and populated lanes", () =>
   const libraryHtml = renderWorkspaceLaneView(
     {
       path: "10_Library",
-      label: "Analysis Library",
-      purpose: "source-backed analysis",
+      label: "Source Record",
+      purpose: "extracted text, source labels, and citeable references",
     },
     library,
   );
-  assert.match(libraryHtml, /Analysis Library/);
-  assert.match(libraryHtml, /source-backed analysis/);
+  assert.match(libraryHtml, /Source Record/);
+  assert.match(libraryHtml, /extracted text, source labels, and citeable references/);
   assert.match(libraryHtml, /List of Dates\.md/);
   assert.match(libraryHtml, /1 files/);
 

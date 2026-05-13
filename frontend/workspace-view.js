@@ -1,5 +1,9 @@
 import { escapeHtml, formatBytes } from "./dom-utils.js";
-import { MATTER_WORKSPACE_LANES, workspaceLaneLabel } from "../shared/workspace-lanes.mjs";
+import {
+  MATTER_WORKSPACE_GROUPS,
+  MATTER_WORKSPACE_LANES,
+  workspaceLaneLabel,
+} from "../shared/workspace-lanes.mjs";
 
 export function renderTreeNode(node, depth = 0) {
   if (node.kind === "file") {
@@ -23,21 +27,57 @@ export function renderTreeNode(node, depth = 0) {
   }
 
   const children = node.children || [];
-  const childItems = children.map((child) => renderTreeNode(child, depth + 1)).join("");
+  const childItems = depth === 0
+    ? renderMatterWorkspaceChildren(children)
+    : children.map((child) => renderTreeNode(child, depth + 1)).join("");
   const childCount = children.length ? `<span class="tree-meta">${children.length}</span>` : "";
   const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
   const displayName = workspaceLaneLabel(node.path, node.name);
-  const canonicalName = displayName !== node.name ? `<span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
+  const canonicalName = displayName !== node.name ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
+  const folderSuffix = depth === 0 || canonicalName ? "" : "/";
+  const lane = MATTER_WORKSPACE_LANES.find((candidate) => candidate.path === node.path);
+  const purpose = lane?.purpose ? `<span class="tree-purpose">${escapeHtml(lane.purpose)}</span>` : "";
 
   return `
     <li class="tree-node tree-directory">
       <details${open} data-directory-path="${escapeHtml(node.path || "")}">
         <summary>
-          <span class="tree-name">${escapeHtml(displayName)}${depth === 0 ? "" : "/"}${canonicalName}</span>
+          <span class="tree-name">${escapeHtml(displayName)}${folderSuffix}${canonicalName}${purpose}</span>
           ${childCount}
         </summary>
         <ul>${childItems}${truncated}</ul>
+      </details>
+    </li>
+  `;
+}
+
+function renderMatterWorkspaceChildren(children = []) {
+  const byPath = new Map(children.map((child) => [child.path, child]));
+  const groupedPaths = new Set(MATTER_WORKSPACE_GROUPS.flatMap((group) => group.lanes || []));
+  const groupedItems = MATTER_WORKSPACE_GROUPS
+    .map((group) => renderWorkspaceGroup(group, byPath))
+    .filter(Boolean)
+    .join("");
+  const remainingItems = children
+    .filter((child) => !groupedPaths.has(child.path))
+    .map((child) => renderTreeNode(child, 1))
+    .join("");
+  return `${groupedItems}${remainingItems}`;
+}
+
+function renderWorkspaceGroup(group, byPath) {
+  const lanes = (group.lanes || []).map((lanePath) => byPath.get(lanePath)).filter(Boolean);
+  if (!lanes.length) return "";
+  const childCount = lanes.reduce((total, lane) => total + (Array.isArray(lane.children) ? lane.children.length : 0), 0);
+  return `
+    <li class="tree-node tree-directory tree-lane-group">
+      <details open data-workspace-group="${escapeHtml(group.id || "")}">
+        <summary>
+          <span class="tree-name">${escapeHtml(group.label || "Workspace Group")}<span class="tree-purpose">${escapeHtml(group.purpose || "")}</span></span>
+          ${childCount ? `<span class="tree-meta">${childCount}</span>` : ""}
+        </summary>
+        <ul>${lanes.map((lane) => renderTreeNode(lane, 1)).join("")}</ul>
       </details>
     </li>
   `;
