@@ -48,18 +48,24 @@ test("skill idea parser detects explicit proposal phrases only", () => {
     ["create a new skill for checking limitation", "checking limitation"],
     ["create a new skill to check limitation", "check limitation"],
     ["create a new skill that does one job - checks limitation", "does one job - checks limitation"],
+    ["create a new skill which reads the listofdates and makes an email to client", "reads the listofdates and makes an email to client"],
     ["create new skill that checks limitation", "checks limitation"],
     ["create a skill for filing bundles", "filing bundles"],
     ["create a skill to summarize pleadings", "summarize pleadings"],
     ["create a skill that checks limitation", "checks limitation"],
+    ["create a skill which emails the client", "emails the client"],
     ["make a new skill for checking limitation", "checking limitation"],
     ["make new skill that checks limitation", "checks limitation"],
+    ["make a new skill which updates the client", "updates the client"],
     ["make a new skill that summarises the best case pleadings for the lawyer", "summarises the best case pleadings for the lawyer"],
     ["make a skill for extracting prayer clauses", "extracting prayer clauses"],
     ["make a skill that extracts prayer clauses", "extracts prayer clauses"],
+    ["make a skill which drafts a client update", "drafts a client update"],
     ["new skill bundle exhibits", "bundle exhibits"],
     ["I need a skill that checks limitation", "checks limitation"],
+    ["I need a skill which emails the client", "emails the client"],
     ["I want a skill that determines the limitation of the matter", "determines the limitation of the matter"],
+    ["I want a skill which prepares a client email", "prepares a client email"],
     ["I want a new skill that determines limitation", "determines limitation"],
     ["I want a skill to determine limitation", "determine limitation"],
     ["I want a new skill to determine limitation", "determine limitation"],
@@ -395,6 +401,33 @@ test("command box starts weakness review interview with client-risk questions", 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /weakness review skill/i);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What type of weaknesses should it focus on/i);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /procedural\/legal risks/);
+  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
+  assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
+});
+
+test("command box starts client-update email interview instead of list-of-dates router match", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "create a new skill which reads the listofdates and makes an email to client",
+  });
+  ctx.elements.editorContent.innerHTML = "<h1>Existing matter overview</h1>";
+  const box = createAiCommandBox(ctx, {
+    checkSkillIntent: async () => {
+      throw new Error("router/check should not be called for explicit client-update skill ideas");
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.equal(ctx.elements.aiCommandInput.value, "");
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /client-update email skill/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What should the email accomplish/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /no raw FILE-NNNN citations/i);
   assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");

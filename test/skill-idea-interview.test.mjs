@@ -97,6 +97,30 @@ test("skill idea interview plans weakness review with client-risk questions", ()
   assert.match(interview.questions[2].examples.join(" "), /internal lawyer only/);
 });
 
+test("skill idea interview plans client-update email as downstream draft skill", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "create a new skill which reads the listofdates and makes an email to client",
+    idea: "reads the listofdates and makes an email to client",
+  });
+
+  assert.equal(interview.mode, "new_skill");
+  assert.equal(interview.targetSkill, "");
+  assert.match(interview.understood, /client-update email skill/i);
+  assert.equal(interview.designBrief.expectedOutputArtifact, "30_Drafts/Client Update Email.md");
+  assert.equal(interview.designBrief.targetLane, "30_Drafts");
+  assert.equal(interview.designBrief.riskLevel, "high");
+  assert.match(interview.designBrief.intendedUser, /Lawyer preparing client communication/i);
+  assert.match(interview.designBrief.expectedInputs, /10_Library\/List of Dates\.md/);
+  assert.match(interview.defaultAssumptions.join("\n"), /no raw FILE-NNNN citations should appear in the client-facing email/i);
+  assert.deepEqual(
+    interview.questions.map((question) => question.id),
+    ["emailPurpose", "emailTone", "emailContentBoundary"],
+  );
+  assert.match(interview.questions[0].examples.join(" "), /reassure client/);
+  assert.match(interview.questions[1].examples.join(" "), /cautious/);
+  assert.match(interview.questions[2].label, /status and next steps/i);
+});
+
 test("skill idea interview detects adjacent list-of-dates improvement", () => {
   const interview = buildSkillIdeaInterview({
     text: "can we make a skill for list of dates to flag limitation issues",

@@ -176,6 +176,45 @@ const DOMAIN_INTERVIEW_TEMPLATES = [
       },
     ],
   },
+  {
+    id: "client_update_email",
+    patterns: [/client\s+email/i, /email\b.*\bclient/i, /client\b.*\bemail/i, /client\s+update/i, /\bcomfort\b/i, /\bconfort\b/i, /reassur/i, /update\s+client/i, /client\s+communication/i],
+    understood: "You want a client-update email skill that helps a lawyer draft a careful client-facing update from reviewed matter artifacts without exposing internal citations or unsupported legal advice.",
+    designBrief: {
+      intendedUser: "Lawyer preparing client communication",
+      problem: "Draft a careful client-facing update that tells the client the matter has been reviewed and further work is underway, without overstating legal conclusions.",
+      expectedInputs: "10_Library/List of Dates.md, Source Index, matter metadata, and lawyer instructions about what can be shared with the client.",
+      expectedOutputArtifact: "30_Drafts/Client Update Email.md",
+      targetLane: "30_Drafts",
+      paidPosture: "unknown",
+      riskLevel: "high",
+      notes: "Not runnable yet. Default drafting rule: no raw FILE-NNNN citations should appear in the client-facing email unless a lawyer expressly asks. Source-backed reasoning should remain internal and the email should avoid unsupported legal advice.",
+    },
+    defaultAssumptions: [
+      "Default drafting rule: no raw FILE-NNNN citations should appear in the client-facing email unless a lawyer expressly asks.",
+      "Default evidence rule: use List of Dates and source labels internally to ground the update, but keep client-facing wording careful and non-committal.",
+    ],
+    questions: [
+      {
+        id: "emailPurpose",
+        label: "What should the email accomplish?",
+        help: "Choose the client-facing job before the skill exists.",
+        examples: ["reassure client", "request documents", "explain next steps", "summarize status"],
+      },
+      {
+        id: "emailTone",
+        label: "What tone should it use?",
+        help: "This controls how the future draft should sound to the client.",
+        examples: ["warm", "formal", "cautious", "urgent", "neutral"],
+      },
+      {
+        id: "emailContentBoundary",
+        label: "Should it include only status and next steps, or also legal assessment and risks?",
+        help: "This prevents a client update from becoming unsupported legal advice.",
+        examples: ["status and next steps only", "include careful legal assessment", "include risks for lawyer review first"],
+      },
+    ],
+  },
 ];
 
 const SIMPLE_OUTPUT_PATTERNS = [
@@ -391,10 +430,16 @@ function buildSimpleInterview({ originalText, ideaText }) {
 function detectAdjacentSkill(text) {
   const explicitSkillIdea = /\bskil{1,2}\b/i.test(text);
   return ADJACENT_SKILL_PATTERNS.find((candidate) => (
+    !(explicitSkillIdea && candidate.slash === "/create_listofdates" && looksLikeClientUpdateDraft(text))
+    &&
     !(explicitSkillIdea && candidate.slash === "/context_search" && !/context\s+search/i.test(text))
     &&
     candidate.patterns.some((pattern) => pattern.test(text))
   )) || null;
+}
+
+function looksLikeClientUpdateDraft(text) {
+  return /client\s+email|email\b.*\bclient|client\b.*\bemail|client\s+update|\bcomfort\b|\bconfort\b|reassur|update\s+client|client\s+communication/i.test(String(text || ""));
 }
 
 function detectDomainTemplate(text) {
