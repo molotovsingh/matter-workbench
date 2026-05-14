@@ -1292,7 +1292,8 @@ test("command box runs active configurable slash commands and handles overwrite 
   await form.submit();
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /already exists for this matter/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Output document already exists/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /skill version will not change/i);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
@@ -1303,8 +1304,10 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.deepEqual(openCalls, [["20_Workshop/Party and Officer Map.md", "true", "markdown"]]);
 
   await box.handleCommand({ userRequest: "run again" });
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Artifact already exists/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Overwrite Confirmation");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Output document already exists/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Replace output document/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Keep existing document/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Replace Output?");
 
   await box.handleCommand({ userRequest: "keep current" });
 
@@ -1313,6 +1316,7 @@ test("command box runs active configurable slash commands and handles overwrite 
     artifactPath: "20_Workshop/Party and Officer Map.md",
   }]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run cancelled/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /skill version was not changed/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Run Cancelled");
   assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
@@ -1320,12 +1324,13 @@ test("command box runs active configurable slash commands and handles overwrite 
   ctx.elements.aiCommandInput.value = "/party_officer_map";
   await form.submit();
   await box.handleCommand({ userRequest: "run again" });
-  await box.handleCommand({ userRequest: "overwrite artifact" });
+  await box.handleCommand({ userRequest: "replace output document" });
 
   assert.deepEqual(runCalls.at(-1), { slash: "/party_officer_map", overwrite: true });
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(ctx.elements.editorContent.innerHTML, /run_party_overwrite/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Replaced existing matter output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks good/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);

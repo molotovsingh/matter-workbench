@@ -34,7 +34,7 @@ export function renderConfigurableSkillRunOutput(result = {}) {
           <div><dt>Provider</dt><dd>${escapeHtml(formatConfigurableRunProvider(result))}</dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(getConfigurableRunArtifactPath(result))}</code></dd></div>
           <div><dt>Metadata</dt><dd><code>${escapeHtml(result.outputPaths?.json || "")}</code></dd></div>
-          <div><dt>Overwrite</dt><dd>${escapeHtml(overwrite)}</dd></div>
+          <div><dt>Output document</dt><dd>${escapeHtml(formatOutputDocumentState(overwrite))}</dd></div>
         </dl>
         <pre class="skill-sample-markdown">${escapeHtml(result.markdown || "")}</pre>
       </section>
@@ -51,9 +51,9 @@ export function renderConfigurableSkillRunRail(result = {}) {
           <dl class="skill-card-meta">
             <div><dt>Matter</dt><dd>${escapeHtml(runRecord.matterName || runRecord.matterFolder || "Unknown matter")}</dd></div>
             <div><dt>Provider</dt><dd>${escapeHtml(formatConfigurableRunProvider(result))}</dd></div>
-            <div><dt>Overwrite</dt><dd>${escapeHtml(overwrite)}</dd></div>
+            <div><dt>Output document</dt><dd>${escapeHtml(formatOutputDocumentState(overwrite))}</dd></div>
           </dl>
-          <p class="muted" data-configurable-run-acceptance>The result is also shown in the main pane for review.</p>
+          <p class="muted" data-configurable-run-acceptance>The result is also shown in the main pane for review. This run did not change the skill version.</p>
           <div class="command-interview-actions">
             <button type="button" data-configurable-skill-action="looks-good">Looks good</button>
             <button type="button" class="secondary" data-configurable-skill-action="improve">Improve this skill</button>
@@ -71,10 +71,10 @@ export function renderConfigurableSkillCancelledRail(result = {}) {
   return `
       <section class="command-interview" aria-live="polite">
         <h3>Run cancelled</h3>
-        <p>Kept the existing artifact. Nothing was overwritten.</p>
+        <p>Kept the existing output document. Nothing was replaced and the skill version was not changed.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd><code>${escapeHtml(skill.slash || runRecord.slash || "")}</code></dd></div>
-          <div><dt>Artifact</dt><dd><code>${escapeHtml(result.artifactPath || runRecord.outputPaths?.markdown || "")}</code></dd></div>
+          <div><dt>Output document</dt><dd><code>${escapeHtml(result.artifactPath || runRecord.outputPaths?.markdown || "")}</code></dd></div>
           <div><dt>Run</dt><dd>${escapeHtml(runRecord.id || "Not recorded")}</dd></div>
         </dl>
         <div class="command-interview-actions">
@@ -86,4 +86,11 @@ export function renderConfigurableSkillCancelledRail(result = {}) {
 
 function formatConfigurableRunProvider(result = {}) {
   return [result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider";
+}
+
+function formatOutputDocumentState(overwrite) {
+  if (overwrite === "approved") return "Replaced existing matter output";
+  if (overwrite === "cancelled") return "Kept existing matter output";
+  if (overwrite === "prompted") return "Replacement confirmation shown";
+  return "Created new matter output";
 }
