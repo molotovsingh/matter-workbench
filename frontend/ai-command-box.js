@@ -2,12 +2,12 @@ import { getJson, postJson } from "./api-client.js";
 import { writeClipboardText as defaultWriteClipboardText } from "./clipboard.js";
 import {
   isProviderBackedCommand,
-  listSlashCommandSuggestions,
   normalizeCommandInput,
   parseDeterministicCommand,
   parseNewSkillModeCommand,
   parseSkillIdeaInput,
 } from "./command-parsing.js";
+import { createCommandSuggestionController } from "./command-suggestions.js";
 import {
   buildCommandInteractionLogBody,
   deriveReportPatchFromStatus,
@@ -118,14 +118,19 @@ export function createAiCommandBox(ctx, options = {}) {
   const writeClipboardText = options.writeClipboardText || defaultWriteClipboardText;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
   let latestReport = null;
-  let activeSuggestionIndex = -1;
   let currentSkillIdeaInterview = null;
   let pendingSkillIdeaMode = null;
   let pendingConfigurableRun = null;
-  let configurableSlashSuggestions = [];
-  let configurableSlashSuggestionsLoaded = false;
-  let configurableSlashSuggestionsLoading = false;
   let lastCreatedConfigurableSkill = null;
+  const commandSuggestions = createCommandSuggestionController({
+    input: aiCommandInput,
+    suggestionsElement: aiCommandSuggestions,
+    loadSkillRegistry,
+    isSuppressed: () => Boolean(currentSkillIdeaInterview || pendingSkillIdeaMode),
+    runCommand: async (command) => {
+      await handleCommand({ userRequest: command });
+    },
+  });
 
   function wire() {
     if (!aiCommandForm) return;
@@ -135,13 +140,13 @@ export function createAiCommandBox(ctx, options = {}) {
       if (userRequest) clearCommandInput();
       await handleCommand({ userRequest });
     });
-    aiCommandInput?.addEventListener?.("input", () => renderSlashSuggestions());
-    aiCommandInput?.addEventListener?.("focus", () => renderSlashSuggestions());
+    aiCommandInput?.addEventListener?.("input", () => commandSuggestions.render());
+    aiCommandInput?.addEventListener?.("focus", () => commandSuggestions.render());
     aiCommandInput?.addEventListener?.("keydown", async (event) => {
-      await handleSuggestionKeydown(event);
+      await commandSuggestions.handleKeydown(event);
     });
     aiCommandInput?.addEventListener?.("blur", () => {
-      setTimeout(hideSlashSuggestions, 120);
+      setTimeout(commandSuggestions.hide, 120);
     });
     if (aiCommandCopyReport) {
       aiCommandCopyReport.addEventListener("click", copyLatestReport);
@@ -149,7 +154,7 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   async function handleCommand({ userRequest }) {
-    hideSlashSuggestions();
+    commandSuggestions.hide();
     if (currentSkillIdeaInterview) {
       await handleSkillIdeaInterviewInput(userRequest);
       return;
@@ -1680,7 +1685,7 @@ export function createAiCommandBox(ctx, options = {}) {
       currentSkillIdeaInterview = null;
       renderSkillReady(skill);
       renderCreatedSkillCommandRail(skill);
-      void refreshConfigurableSlashSuggestions({ force: true });
+      void commandSuggestions.refreshConfigurableSlashSuggestions({ force: true });
       aiCommandInput.value = "";
       aiCommandInput.placeholder = skill.slash
         ? `Type ${skill.slash} to run it, or another action`
@@ -2523,111 +2528,6 @@ export function createAiCommandBox(ctx, options = {}) {
     `;
   }
 
-  function renderSlashSuggestions() {
-    if (!aiCommandSuggestions || !aiCommandInput) return;
-    if (currentSkillIdeaInterview || pendingSkillIdeaMode) {
-      hideSlashSuggestions();
-      return;
-    }
-    if (String(aiCommandInput.value || "").trim().startsWith("/") && !configurableSlashSuggestionsLoaded && !configurableSlashSuggestionsLoading) {
-      void refreshConfigurableSlashSuggestions().then(() => renderSlashSuggestions());
-    }
-    const suggestions = listSlashCommandSuggestions(aiCommandInput.value, configurableSlashSuggestions);
-    if (!suggestions.length) {
-      hideSlashSuggestions();
-      return;
-    }
-    activeSuggestionIndex = Math.min(Math.max(activeSuggestionIndex, 0), suggestions.length - 1);
-    aiCommandSuggestions.hidden = false;
-    aiCommandSuggestions.innerHTML = suggestions.map((suggestion, index) => `
-      <button
-        type="button"
-        class="command-suggestion${index === activeSuggestionIndex ? " active" : ""}"
-        data-command-suggestion="${escapeHtml(suggestion.command)}"
-        role="option"
-        aria-selected="${index === activeSuggestionIndex ? "true" : "false"}"
-      >
-        <strong>${escapeHtml(suggestion.command)}</strong>
-        <span>${escapeHtml(suggestion.description)}</span>
-      </button>
-    `).join("");
-    aiCommandSuggestions.querySelectorAll("[data-command-suggestion]").forEach((button) => {
-      button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", async () => {
-        await runSuggestedCommand(button.dataset.commandSuggestion);
-      });
-    });
-  }
-
-  async function handleSuggestionKeydown(event) {
-    if (!aiCommandInput || !aiCommandSuggestions) return;
-    if (currentSkillIdeaInterview || pendingSkillIdeaMode) return;
-    const suggestions = listSlashCommandSuggestions(aiCommandInput.value, configurableSlashSuggestions);
-    if (!suggestions.length) return;
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      activeSuggestionIndex = activeSuggestionIndex < 0
-        ? 0
-        : (activeSuggestionIndex + 1) % suggestions.length;
-      renderSlashSuggestions();
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      activeSuggestionIndex = activeSuggestionIndex < 0
-        ? suggestions.length - 1
-        : (activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
-      renderSlashSuggestions();
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      hideSlashSuggestions();
-      return;
-    }
-    if (event.key === "Enter" && !aiCommandSuggestions.hidden && activeSuggestionIndex >= 0) {
-      event.preventDefault();
-      await runSuggestedCommand(suggestions[activeSuggestionIndex].command);
-    }
-  }
-
-  async function runSuggestedCommand(command) {
-    if (!command || !aiCommandInput) return;
-    aiCommandInput.value = command;
-    hideSlashSuggestions();
-    await handleCommand({ userRequest: command });
-  }
-
-  async function refreshConfigurableSlashSuggestions({ force = false } = {}) {
-    if (configurableSlashSuggestionsLoading) return;
-    if (configurableSlashSuggestionsLoaded && !force) return;
-    configurableSlashSuggestionsLoading = true;
-    try {
-      const registry = await loadSkillRegistry();
-      const skills = Array.isArray(registry?.skills) ? registry.skills : [];
-      configurableSlashSuggestions = skills
-        .filter((skill) => skill?.configurable && skill.status === "active" && skill.slash)
-        .map((skill) => ({
-          command: skill.slash,
-          description: skill.purpose || skill.title || "Run custom skill.",
-        }));
-      configurableSlashSuggestionsLoaded = true;
-    } catch {
-      configurableSlashSuggestions = [];
-      configurableSlashSuggestionsLoaded = true;
-    } finally {
-      configurableSlashSuggestionsLoading = false;
-    }
-  }
-
-  function hideSlashSuggestions() {
-    activeSuggestionIndex = -1;
-    if (!aiCommandSuggestions) return;
-    aiCommandSuggestions.hidden = true;
-    aiCommandSuggestions.innerHTML = "";
-  }
-
   function clearCommandInput() {
     if (aiCommandInput) aiCommandInput.value = "";
   }
@@ -2641,7 +2541,7 @@ export function createAiCommandBox(ctx, options = {}) {
     latestReport = null;
     setReportStatus("");
     setCopyReportEnabled(false);
-    hideSlashSuggestions();
+    commandSuggestions.hide();
     if (aiCommandSession) {
       aiCommandSession.hidden = true;
       aiCommandSession.innerHTML = "";
