@@ -7,12 +7,8 @@ import {
   parseNewSkillModeCommand,
   parseSkillIdeaInput,
 } from "./command-parsing.js";
+import { createCommandReportController } from "./command-report-controller.js";
 import { createCommandSuggestionController } from "./command-suggestions.js";
-import {
-  buildCommandInteractionLogBody,
-  deriveReportPatchFromStatus,
-  formatCommandReport,
-} from "./command-reporting.js";
 import {
   buildConfigurableSkillImprovementBrief,
   buildConfigurableSkillImprovementInterview,
@@ -117,11 +113,32 @@ export function createAiCommandBox(ctx, options = {}) {
   const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
   const writeClipboardText = options.writeClipboardText || defaultWriteClipboardText;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
-  let latestReport = null;
   let currentSkillIdeaInterview = null;
   let pendingSkillIdeaMode = null;
   let pendingConfigurableRun = null;
   let lastCreatedConfigurableSkill = null;
+  const commandReport = createCommandReportController({
+    ctx,
+    now,
+    loadMatterStatus,
+    logCommandInteraction,
+    writeClipboardText,
+    copyReportButton: aiCommandCopyReport,
+    reportStatusElement: aiCommandReportStatus,
+    statusBarRight,
+    terminalOutput,
+  });
+  const {
+    captureStatusDuringCommand,
+    copyLatestReport,
+    getLatestTerminalLines,
+    getStatusBarText,
+    recordCommandInteraction,
+    setCopyReportEnabled,
+    setReportStatus,
+    startReport,
+    updateReport,
+  } = commandReport;
   const commandSuggestions = createCommandSuggestionController({
     input: aiCommandInput,
     suggestionsElement: aiCommandSuggestions,
@@ -149,7 +166,7 @@ export function createAiCommandBox(ctx, options = {}) {
       setTimeout(commandSuggestions.hide, 120);
     });
     if (aiCommandCopyReport) {
-      aiCommandCopyReport.addEventListener("click", copyLatestReport);
+      aiCommandCopyReport.addEventListener("click", commandReport.copyLatestReport);
     }
   }
 
@@ -240,7 +257,7 @@ export function createAiCommandBox(ctx, options = {}) {
       }
       if (parsedCommand.type === "search") {
         await runContextSearch(parsedCommand, userRequest);
-        if (latestReport?.status === "pending" || latestReport?.status === "warned") {
+        if (commandReport.getReport()?.status === "pending" || commandReport.getReport()?.status === "warned") {
           updateReport({ status: "ran" });
         }
         return;
@@ -266,7 +283,7 @@ export function createAiCommandBox(ctx, options = {}) {
         terminal: `[ai-command] ${userRequest} -> ${parsedCommand.command}`,
       });
       await runSkill(parsedCommand.command);
-      if (latestReport?.status === "pending" || latestReport?.status === "warned") {
+      if (commandReport.getReport()?.status === "pending" || commandReport.getReport()?.status === "warned") {
         updateReport({ status: "ran" });
       }
     } catch (error) {
@@ -747,7 +764,7 @@ export function createAiCommandBox(ctx, options = {}) {
   function wireConfigurableRunReportActions() {
     aiCommandSession?.querySelectorAll?.("[data-configurable-run-action='copy-report']")?.forEach((button) => {
       button.addEventListener("click", async () => {
-        const runRecord = latestReport?.runRecord;
+        const runRecord = commandReport.getReport()?.runRecord;
         if (!runRecord) {
           await copyLatestReport();
           return;
@@ -815,7 +832,7 @@ export function createAiCommandBox(ctx, options = {}) {
     }
     updateReport({
       status: "accepted",
-      artifacts: artifactPath ? [artifactPath] : latestReport?.artifacts || [],
+      artifacts: artifactPath ? [artifactPath] : commandReport.getReport()?.artifacts || [],
     });
     recordCommandInteraction({
       renderedState: "configurable_skill/run_review",
@@ -1672,7 +1689,7 @@ export function createAiCommandBox(ctx, options = {}) {
       updateReport({
         status: "skill_created",
         skillIdeaId: idea.id || "",
-        matchedCommand: skill.slash || latestReport?.matchedCommand || "skill_idea/interview",
+        matchedCommand: skill.slash || commandReport.getReport()?.matchedCommand || "skill_idea/interview",
         providerModel: [skill.modelPolicy?.provider, skill.modelPolicy?.model].filter(Boolean).join(" / "),
         artifacts: [skill.outputArtifact].filter(Boolean),
       });
@@ -2538,164 +2555,12 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.disabled = false;
     aiCommandSubmit.textContent = "Go";
-    latestReport = null;
-    setReportStatus("");
-    setCopyReportEnabled(false);
+    commandReport.clear();
     commandSuggestions.hide();
     if (aiCommandSession) {
       aiCommandSession.hidden = true;
       aiCommandSession.innerHTML = "";
     }
-  }
-
-  function startReport({
-    typedInput,
-    matchedCommand,
-    status,
-    plannerSource = "",
-    plannerModel = "",
-    plannerFallbackReason = "",
-  }) {
-    const activeMatter = ctx.getActiveMatter?.() || {};
-    latestReport = {
-      timestamp: now().toISOString(),
-      matterName: activeMatter.metadata?.matterName || activeMatter.folderName || "No active matter",
-      matterFolder: activeMatter.folderName || "",
-      typedInput,
-      matchedCommand,
-      status,
-      routerDecision: "",
-      routerMatchedSkill: "",
-      sampleId: "",
-      runId: "",
-      runRecord: null,
-      overwrite: "",
-      providerModel: "",
-      artifacts: [],
-      statusBar: getStatusBarText(),
-      terminalLines: getLatestTerminalLines(),
-      error: "",
-      plannerSource,
-      plannerModel,
-      plannerFallbackReason,
-    };
-    setReportStatus("Report tracking current command.");
-    setCopyReportEnabled(true);
-  }
-
-  function updateReport(patch) {
-    if (!latestReport) return;
-    latestReport = { ...latestReport, ...patch };
-    setCopyReportEnabled(true);
-  }
-
-  function recordCommandInteraction(patch = {}) {
-    if (!latestReport) return;
-    const body = buildCommandInteractionLogBody(latestReport, patch, {
-      statusBar: getStatusBarText(),
-      terminalLines: getLatestTerminalLines(),
-    });
-    try {
-      Promise.resolve(logCommandInteraction(body)).catch(() => {});
-    } catch {
-      // Local beta diagnostics must never block Command rail behavior.
-    }
-  }
-
-  function captureStatusDuringCommand() {
-    const originalSetStatus = ctx.setStatus;
-    ctx.setStatus = (status = {}) => {
-      originalSetStatus(status);
-      captureStatusForReport(status);
-    };
-    return () => {
-      ctx.setStatus = originalSetStatus;
-    };
-  }
-
-  function captureStatusForReport(status = {}) {
-    if (!latestReport) return;
-    const patch = deriveReportPatchFromStatus(status, {
-      statusBar: getStatusBarText(),
-      terminalLines: getLatestTerminalLines(),
-    });
-    updateReport(patch);
-  }
-
-  async function copyLatestReport() {
-    if (!latestReport) {
-      setReportStatus("Run or check a command first.", true);
-      return;
-    }
-    setReportStatus("Copying report...");
-    if (aiCommandCopyReport) aiCommandCopyReport.disabled = true;
-    try {
-      const report = await enrichReport(latestReport);
-      await writeClipboardText(formatCommandReport(report));
-      latestReport = report;
-      setReportStatus("Report copied.");
-    } catch (error) {
-      setReportStatus(`Copy failed: ${error.message}`, true);
-    } finally {
-      setCopyReportEnabled(Boolean(latestReport));
-    }
-  }
-
-  async function enrichReport(report) {
-    if (!report?.matchedCommand || report.matchedCommand === "router/check" || report.matchedCommand === "status") {
-      return {
-        ...report,
-        statusBar: getStatusBarText(),
-        terminalLines: getLatestTerminalLines(),
-      };
-    }
-    try {
-      const status = await loadMatterStatus();
-      const stage = Array.isArray(status?.stages)
-        ? status.stages.find((candidate) => candidate.slash === report.matchedCommand)
-        : null;
-      if (!stage) return report;
-      const aiRun = stage.aiRun || {};
-      const provider = aiRun.returnedProvider || aiRun.provider || stage.rerunAdvice?.provider || "";
-      const model = aiRun.model || stage.rerunAdvice?.model || "";
-      return {
-        ...report,
-        providerModel: [provider, model].filter(Boolean).join(" / "),
-        artifacts: Array.isArray(stage.artifacts) ? stage.artifacts : [],
-        statusBar: getStatusBarText(),
-        terminalLines: getLatestTerminalLines(),
-      };
-    } catch {
-      return {
-        ...report,
-        statusBar: getStatusBarText(),
-        terminalLines: getLatestTerminalLines(),
-      };
-    }
-  }
-
-  function setCopyReportEnabled(enabled) {
-    if (aiCommandCopyReport) {
-      aiCommandCopyReport.disabled = !enabled;
-      aiCommandCopyReport.hidden = !enabled;
-    }
-  }
-
-  function setReportStatus(message, isError = false) {
-    if (!aiCommandReportStatus) return;
-    aiCommandReportStatus.textContent = message;
-    aiCommandReportStatus.classList?.toggle?.("form-error", Boolean(isError));
-  }
-
-  function getStatusBarText() {
-    return statusBarRight?.textContent?.trim?.() || "";
-  }
-
-  function getLatestTerminalLines() {
-    const existing = terminalOutput?.textContent
-      ? terminalOutput.textContent.split("\n").map((line) => line.trim()).filter(Boolean)
-      : [];
-    return existing.slice(-8);
   }
 
   return {
