@@ -39,3 +39,51 @@ export function formatCommandReport(report) {
   }
   return lines.join("\n");
 }
+
+export function buildCommandInteractionLogBody(report = {}, patch = {}, {
+  statusBar = "",
+  terminalLines = [],
+} = {}) {
+  const merged = { ...report, ...patch };
+  return {
+    timestamp: merged.timestamp || "",
+    typed_input: merged.typedInput || "",
+    matched_command: merged.matchedCommand || "",
+    rendered_state: merged.renderedState || patch.renderedState || "",
+    status: merged.status || "",
+    skill_idea_id: merged.skillIdeaId || "",
+    sample_id: merged.sampleId || "",
+    router_decision: patch.routerDecision || (
+      merged.routerDecision
+        ? {
+            decision: merged.routerDecision,
+            matched_skill: merged.routerMatchedSkill || "",
+          }
+        : null
+    ),
+    provider_run_invoked: Boolean(patch.providerRunInvoked),
+    planner_source: merged.plannerSource || patch.plannerSource || "",
+    planner_model: merged.plannerModel || patch.plannerModel || "",
+    planner_fallback_reason: merged.plannerFallbackReason || patch.plannerFallbackReason || "",
+    errors: merged.error ? [merged.error] : [],
+    status_bar: merged.statusBar || statusBar,
+    terminal_lines: Array.isArray(merged.terminalLines) ? merged.terminalLines : terminalLines,
+  };
+}
+
+export function deriveReportPatchFromStatus(status = {}, {
+  statusBar = "",
+  terminalLines = [],
+} = {}) {
+  const bar = String(status.bar || "");
+  const statusTerminalLines = normalizeTerminalLines(status.terminal);
+  const patch = {
+    statusBar: bar || statusBar,
+    terminalLines,
+  };
+  if (/rerun confirmation/i.test(bar)) patch.status = "warned";
+  if (/cancelled/i.test(bar) || statusTerminalLines.some((line) => /cancelled by user/i.test(line))) patch.status = "cancelled";
+  if (/failed|unavailable/i.test(bar) || statusTerminalLines.some((line) => /\bfailed\b/i.test(line))) patch.status = "failed";
+  if (/complete|matter status/i.test(bar)) patch.status = "ran";
+  return patch;
+}
