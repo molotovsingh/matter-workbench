@@ -532,8 +532,9 @@ test("activity page renders custom skill run receipts separately from skills gov
   assert.match(html, /Ayesha Vs Japan Airlines/);
   assert.match(html, /Mehta vs Skyline/);
   assert.match(html, /Case Analysis \/ Party and Officer Map\.md/);
-  assert.match(html, /Updated existing file/);
-  assert.match(html, /Cancelled - kept existing file/);
+  assert.match(html, /Replaced existing output document/);
+  assert.match(html, /Cancelled - kept existing output document/);
+  assert.doesNotMatch(html, />Overwrite</);
   assert.match(html, /Copy report/);
   assert.match(html, /data-configurable-run-copy="run_party_1"/);
   assert.match(html, /Details/);
@@ -570,7 +571,8 @@ test("custom skill run report is copyable and excludes work product", () => {
   assert.match(report, /- Status: succeeded/);
   assert.match(report, /- Slash command: \/party_officer_map/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
-  assert.match(report, /- Overwrite: approved/);
+  assert.match(report, /- Output document: Replaced existing matter output/);
+  assert.doesNotMatch(report, /- Overwrite:/);
   assert.match(report, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(report, /bounded context omitted 10 blocks/);
   assert.match(report, /does not include raw source text, full extraction records/i);

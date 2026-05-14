@@ -1,3 +1,5 @@
+import { formatConfigurableRunOutputDocumentState } from "../configurable-skill-run-labels.js";
+
 export function activityPageSummary(configurableSkillRuns = null) {
   const runs = Array.isArray(configurableSkillRuns?.runs) ? configurableSkillRuns.runs : [];
   return {
@@ -92,7 +94,7 @@ function renderRunReceipt(run = {}, activeMatter = {}, escape) {
           <div><dt>Run ID</dt><dd><code>${escape(run.id || "")}</code></dd></div>
           <div><dt>Matter folder</dt><dd>${escape(run.matterFolder || "Unknown")}</dd></div>
           <div><dt>AI details</dt><dd>${escape(providerModel)}</dd></div>
-          <div><dt>Overwrite</dt><dd>${escape(run.overwrite || "not_needed")}</dd></div>
+          <div><dt>Output document</dt><dd>${escape(formatConfigurableRunOutputDocumentState(run.overwrite))}</dd></div>
           <div><dt>Started</dt><dd>${escape(run.startedAt || "Not recorded")}</dd></div>
           <div><dt>Finished</dt><dd>${escape(run.finishedAt || "Not recorded")}</dd></div>
           <div><dt>Metadata</dt><dd>${jsonPath ? `<code>${escape(jsonPath)}</code>` : "No metadata path"}</dd></div>
@@ -104,11 +106,11 @@ function renderRunReceipt(run = {}, activeMatter = {}, escape) {
 }
 
 function runResultText(run = {}) {
-  if (run.status === "cancelled") return "Cancelled - kept existing file";
+  if (run.status === "cancelled") return "Cancelled - kept existing output document";
   if (run.status === "failed") return "Failed";
   if (run.status === "running") return "Running";
-  if (run.overwrite === "approved") return "Updated existing file";
-  return "Created file";
+  if (run.overwrite === "approved") return "Replaced existing output document";
+  return "Created output document";
 }
 
 function humanOutputPath(value = "") {
