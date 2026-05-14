@@ -8,6 +8,8 @@ export async function fetchProviderJsonWithTimeout({
   body,
   timeoutMs,
   extraHeaders = {},
+  isErrorPayload = defaultProviderErrorPredicate,
+  mapProviderError,
   timeoutMessage,
 }) {
   const controller = Number.isInteger(timeoutMs) && timeoutMs > 0 ? new AbortController() : null;
@@ -37,11 +39,16 @@ export async function fetchProviderJsonWithTimeout({
   } finally {
     if (timer) clearTimeout(timer);
   }
-  if (!response.ok || payload?.error) {
+  if (isErrorPayload({ response, payload })) {
+    if (mapProviderError) throw mapProviderError(response, payload);
     const message = payload?.error?.message || `Provider returned ${response?.status || "an error"}`;
     throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503);
   }
   return payload;
+}
+
+function defaultProviderErrorPredicate({ response, payload }) {
+  return !response.ok || Boolean(payload?.error);
 }
 
 export function parseOpenAiJsonOutput(payload, label) {
