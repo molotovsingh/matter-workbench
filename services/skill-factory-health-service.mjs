@@ -47,7 +47,11 @@ export function createSkillFactoryHealthService({
 
     const ideaById = new Map(ideas.filter((idea) => idea.id).map((idea) => [idea.id, idea]));
     const sampleById = new Map(samples.filter((sample) => sample.id).map((sample) => [sample.id, sample]));
+    const skillById = new Map(skills.filter((skill) => skill.id).map((skill) => [skill.id, skill]));
     const activeSlashCounts = countValues(skills.filter((skill) => skill.status === "active").map((skill) => skill.slash));
+    const activeFamilyCounts = countValues(skills
+      .filter((skill) => skill.status === "active")
+      .map((skill) => skill.familyId || skill.id));
     const approvedByIdea = new Map();
 
     for (const sample of samples) {
@@ -82,6 +86,12 @@ export function createSkillFactoryHealthService({
 
     for (const skill of skills) {
       validateSkill(skill, { ideaById, sampleById, issues });
+    }
+    validateSkillVersionLinks(skills, { skillById, issues });
+    for (const [familyId, count] of activeFamilyCounts.entries()) {
+      if (familyId && count > 1) {
+        addIssue(issues, "error", "duplicate_active_skill_family", `Custom skill family ${familyId} has ${count} active versions.`);
+      }
     }
 
     const errors = issues.filter((issue) => issue.severity === "error");
@@ -167,6 +177,17 @@ function validateSkill(skill, { ideaById, sampleById, issues }) {
   }
 }
 
+function validateSkillVersionLinks(skills, { skillById, issues }) {
+  for (const skill of skills) {
+    if (skill.previousSkillId && !skillById.has(skill.previousSkillId)) {
+      addIssue(issues, "error", "skill_missing_previous_version", `Skill ${skill.slash || skill.id} points to missing previous version ${skill.previousSkillId}.`);
+    }
+    if (skill.replacedBySkillId && !skillById.has(skill.replacedBySkillId)) {
+      addIssue(issues, "error", "skill_missing_replacement_version", `Skill ${skill.slash || skill.id} points to missing replacement version ${skill.replacedBySkillId}.`);
+    }
+  }
+}
+
 function buildChecks({ ideas, samples, skills, issues }) {
   const hasIssue = (codePrefix, severity = "error") => issues.some((issue) => issue.severity === severity && issue.code.startsWith(codePrefix));
   return [
@@ -176,6 +197,7 @@ function buildChecks({ ideas, samples, skills, issues }) {
     checkItem("skill_links", "Configurable skills point to existing ideas and samples", !hasIssue("skill_missing_idea") && !hasIssue("skill_missing_sample") && !hasIssue("skill_sample_idea_mismatch")),
     checkItem("slash_uniqueness", "Active custom skill slashes are unique and do not collide with built-ins", !hasIssue("duplicate_active_slash") && !hasIssue("builtin_slash_collision")),
     checkItem("skill_status", "Configurable skill statuses are valid", !hasIssue("skill_invalid_status")),
+    checkItem("skill_versions", "Custom skill version links are valid with one active version per family", !hasIssue("skill_missing_previous_version") && !hasIssue("skill_missing_replacement_version") && !hasIssue("duplicate_active_skill_family")),
     checkItem("output_lanes", "Configurable skill outputs stay inside allowed lanes", !hasIssue("skill_invalid_lane") && !hasIssue("skill_invalid_output")),
     {
       id: "counts",
@@ -227,6 +249,9 @@ function normalizeSkill(skill = {}) {
     id: String(skill.id || "").trim(),
     slash: String(skill.slash || "").trim(),
     status: String(skill.status || "").trim(),
+    familyId: String(skill.familyId || skill.id || "").trim(),
+    previousSkillId: String(skill.previousSkillId || "").trim(),
+    replacedBySkillId: String(skill.replacedBySkillId || "").trim(),
     sourceIdeaId: String(skill.sourceIdeaId || "").trim(),
     sourceSampleId: String(skill.sourceSampleId || "").trim(),
     targetLane: String(skill.targetLane || "").trim(),

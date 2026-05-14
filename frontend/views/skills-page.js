@@ -1,7 +1,10 @@
 import { formatSkillIdeaImplementationBriefMarkdown } from "../skill-idea-implementation-brief.js";
 
-export function skillsPageSummary(registry = {}, matterStatus = null) {
+export function skillsPageSummary(registry = {}, matterStatus = null, configurableSkills = null) {
   const skills = Array.isArray(registry.skills) ? registry.skills : [];
+  const configuredSkills = Array.isArray(configurableSkills?.skills)
+    ? configurableSkills.skills.map(configurableSkillToCard)
+    : [];
   const stages = Array.isArray(matterStatus?.stages) ? matterStatus.stages : [];
   const statusBySlash = new Map(stages.map((stage) => [stage.slash, stage]));
   const withStatus = skills.map((skill) => ({
@@ -9,7 +12,12 @@ export function skillsPageSummary(registry = {}, matterStatus = null) {
     artifactStatus: statusBySlash.get(skill.slash) || null,
   }));
   const builtins = withStatus.filter((skill) => !skill.configurable);
-  const custom = withStatus.filter((skill) => skill.configurable);
+  const registryCustom = withStatus.filter((skill) => skill.configurable);
+  const customSource = configuredSkills.length ? configuredSkills : registryCustom;
+  const custom = customSource.map((skill) => ({
+    ...skill,
+    artifactStatus: statusBySlash.get(skill.slash) || skill.artifactStatus || null,
+  })).sort(compareCustomSkills);
   return {
     builtins,
     custom,
@@ -153,15 +161,17 @@ export function formatConfigurableSkillRunReport(run = {}) {
 export function renderSkillsPageHtml({
   registry = {},
   matterStatus = null,
+  configurableSkills = null,
   skillIdeas = null,
   skillFactoryHealth = null,
   loadError = "",
   statusError = "",
   skillIdeasError = "",
   skillFactoryHealthError = "",
+  configurableSkillsError = "",
   activeMatter = {},
 } = {}, escapeHtml) {
-  const summary = skillsPageSummary(registry, matterStatus);
+  const summary = skillsPageSummary(registry, matterStatus, configurableSkills);
   const matterNote = activeMatter?.folderName
     ? `Status is derived from existing artifacts in <code>${escapeHtml(activeMatter.folderName)}</code>.`
     : "No matter is selected. Showing built-in contracts in planning mode; artifact status appears after you pick a matter.";
@@ -186,6 +196,7 @@ export function renderSkillsPageHtml({
       ${statusWarning}
       ${ideasWarning}
       ${skillFactoryHealthError ? `<p class="form-warning">Skill factory health unavailable: ${escapeHtml(skillFactoryHealthError)}</p>` : ""}
+      ${configurableSkillsError ? `<p class="form-warning">Custom skills unavailable: ${escapeHtml(configurableSkillsError)}</p>` : ""}
       ${renderSkillsStats(summary, escapeHtml)}
       ${renderSkillFactoryHealth(skillFactoryHealth, escapeHtml)}
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
@@ -599,12 +610,12 @@ function renderSkillCards(skills, escape, { improvementIdeas = [] } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
   return `
     <div class="skills-grid">
-      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas })).join("")}
+      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, allCustomSkills: skills })).join("")}
     </div>
   `;
 }
 
-function renderSkillCard(skill, escape, { improvementIdeas = [] } = {}) {
+function renderSkillCard(skill, escape, { improvementIdeas = [], allCustomSkills = [] } = {}) {
   const status = skill.artifactStatus;
   const state = skill.configurable
     ? customSkillStatusLabel(skill.status)
@@ -644,6 +655,9 @@ function renderSkillCard(skill, escape, { improvementIdeas = [] } = {}) {
         <div><dt>Lane</dt><dd>${skill.default_lane ? `<code>${escape(skill.default_lane)}</code>` : '<span class="muted">None</span>'}</dd></div>
         <div><dt>Runner</dt><dd><code>${escape(skill.runner_key || "")}</code></dd></div>
         <div><dt>Upstream</dt><dd>${escape(upstream)}</dd></div>
+        ${skill.configurable ? `<div><dt>Version</dt><dd>${escape(customSkillVersionLabel(skill))}</dd></div>` : ""}
+        ${skill.configurable && skill.previous_skill_id ? `<div><dt>Previous</dt><dd>${escape(customSkillLinkedVersionLabel(skill.previous_skill_id, allCustomSkills))}</dd></div>` : ""}
+        ${skill.configurable && skill.replaced_by_skill_id ? `<div><dt>Replaced by</dt><dd>${escape(customSkillLinkedVersionLabel(skill.replaced_by_skill_id, allCustomSkills))}</dd></div>` : ""}
       </dl>
       <div class="skill-output-list">
         <strong>Outputs</strong>
@@ -681,6 +695,59 @@ function renderCustomSkillImprovementIdeas(skill, ideas, escape) {
       ${linkedIdeas.map((idea) => renderCustomSkillImprovementIdea(skill, idea, escape)).join("")}
     </div>
   `;
+}
+
+function configurableSkillToCard(skill = {}) {
+  return {
+    schema_version: skill.schema_version || "configurable-skill/v1",
+    id: skill.id || "",
+    slash: skill.slash || "",
+    title: skill.title || skill.slash || "Custom Skill",
+    category: "Analyze",
+    mode: "AI",
+    purpose: skill.description || "",
+    matter_required: skill.matterRequired !== false,
+    paid_provider_call: skill.paidProviderCall !== false,
+    rerun_guarded: true,
+    source_backed: skill.sourceBacked || "required",
+    inputs: ["matter-context-packet/v1"],
+    outputs: skill.outputArtifact ? [skill.outputArtifact] : [],
+    upstream: [skill.sourceIdeaId, skill.sourceSampleId].filter(Boolean),
+    downstream: [],
+    default_lane: skill.targetLane || "",
+    runner_key: skill.slash || "",
+    version: Number.isInteger(skill.version) ? skill.version : 1,
+    family_id: skill.familyId || skill.id || "",
+    previous_skill_id: skill.previousSkillId || "",
+    replaced_by_skill_id: skill.replacedBySkillId || "",
+    superseded_at: skill.supersededAt || "",
+    configurable: true,
+    status: skill.status || "draft",
+  };
+}
+
+function compareCustomSkills(a, b) {
+  const statusRank = { active: 0, draft: 1, disabled: 2 };
+  const leftStatus = statusRank[a.status] ?? 9;
+  const rightStatus = statusRank[b.status] ?? 9;
+  if (leftStatus !== rightStatus) return leftStatus - rightStatus;
+  const leftSlash = String(a.slash || "");
+  const rightSlash = String(b.slash || "");
+  if (leftSlash !== rightSlash) return leftSlash.localeCompare(rightSlash);
+  return Number(b.version || 0) - Number(a.version || 0);
+}
+
+function customSkillVersionLabel(skill = {}) {
+  const version = Number(skill.version || 1);
+  return `v${Number.isFinite(version) && version > 0 ? version : 1}`;
+}
+
+function customSkillLinkedVersionLabel(skillId, allCustomSkills) {
+  const linked = Array.isArray(allCustomSkills)
+    ? allCustomSkills.find((skill) => skill.id === skillId)
+    : null;
+  if (!linked) return skillId || "Unknown";
+  return `${customSkillVersionLabel(linked)} (${linked.status || "unknown"})`;
 }
 
 function renderCustomSkillImprovementIdea(skill, idea, escape) {

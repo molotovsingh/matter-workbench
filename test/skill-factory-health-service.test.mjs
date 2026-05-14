@@ -48,6 +48,52 @@ test("skill factory health passes for linked current approved sample and active 
   assert.equal(health.checks.every((check) => check.state === "ok"), true);
 });
 
+test("skill factory health accepts one active version in a valid skill family", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-version-ok-"));
+  const designBrief = partyBrief();
+  const hash = hashDesignBrief(designBrief);
+  await writeStores(appDir, {
+    ideas: [
+      { id: "idea_party_v1", designBrief },
+      { id: "idea_party_v2", designBrief },
+    ],
+    samples: [
+      { id: "sample_party_v1", ideaId: "idea_party_v1", approved: true, designBriefHash: hash },
+      { id: "sample_party_v2", ideaId: "idea_party_v2", approved: true, designBriefHash: hash },
+    ],
+    skills: [{
+      id: "skill_party_v1",
+      slash: "/party_officer_map",
+      status: "disabled",
+      version: 1,
+      familyId: "skill_party_v1",
+      replacedBySkillId: "skill_party_v2",
+      sourceIdeaId: "idea_party_v1",
+      sourceSampleId: "sample_party_v1",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "passed" },
+    }, {
+      id: "skill_party_v2",
+      slash: "/party_officer_map",
+      status: "active",
+      version: 2,
+      familyId: "skill_party_v1",
+      previousSkillId: "skill_party_v1",
+      sourceIdeaId: "idea_party_v2",
+      sourceSampleId: "sample_party_v2",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "passed" },
+    }],
+  });
+
+  const health = await createSkillFactoryHealthService({ appDir }).checkHealth();
+
+  assert.equal(health.state, "ok");
+  assert.ok(health.checks.some((check) => check.id === "skill_versions" && check.state === "ok"));
+});
+
 test("skill factory health reports stale approved samples, missing links, duplicate slashes, and bad output lanes", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-bad-"));
   await writeStores(appDir, {
@@ -98,6 +144,56 @@ test("skill factory health reports stale approved samples, missing links, duplic
   assert.ok(codes.includes("skill_missing_sample"));
   assert.ok(codes.includes("skill_invalid_output"));
   assert.equal(health.summary.errors > 0, true);
+});
+
+test("skill factory health reports broken version links and duplicate active versions", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-version-bad-"));
+  const designBrief = partyBrief();
+  const hash = hashDesignBrief(designBrief);
+  await writeStores(appDir, {
+    ideas: [
+      { id: "idea_party_v1", designBrief },
+      { id: "idea_party_v2", designBrief },
+    ],
+    samples: [
+      { id: "sample_party_v1", ideaId: "idea_party_v1", approved: true, designBriefHash: hash },
+      { id: "sample_party_v2", ideaId: "idea_party_v2", approved: true, designBriefHash: hash },
+    ],
+    skills: [{
+      id: "skill_party_v1",
+      slash: "/party_officer_map_v1",
+      status: "active",
+      version: 1,
+      familyId: "skill_party_family",
+      replacedBySkillId: "missing_replacement",
+      sourceIdeaId: "idea_party_v1",
+      sourceSampleId: "sample_party_v1",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "passed" },
+    }, {
+      id: "skill_party_v2",
+      slash: "/party_officer_map_v2",
+      status: "active",
+      version: 2,
+      familyId: "skill_party_family",
+      previousSkillId: "missing_previous",
+      sourceIdeaId: "idea_party_v2",
+      sourceSampleId: "sample_party_v2",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "passed" },
+    }],
+  });
+
+  const health = await createSkillFactoryHealthService({ appDir }).checkHealth();
+  const codes = health.issues.map((issue) => issue.code);
+
+  assert.equal(health.state, "error");
+  assert.ok(codes.includes("skill_missing_previous_version"));
+  assert.ok(codes.includes("skill_missing_replacement_version"));
+  assert.ok(codes.includes("duplicate_active_skill_family"));
+  assert.ok(health.checks.some((check) => check.id === "skill_versions" && check.state === "error"));
 });
 
 test("skill factory health reports malformed stores without throwing", async () => {

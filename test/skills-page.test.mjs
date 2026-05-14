@@ -342,6 +342,72 @@ test("skills page renders active custom skills as active", () => {
   assert.doesNotMatch(html, /Party and Officer Map[\s\S]{0,200}Incomplete/);
 });
 
+test("skills page renders custom skill version lineage from configurable store", () => {
+  const configurableSkills = {
+    schema_version: "configurable-skills/v1",
+    skills: [
+      {
+        schema_version: "configurable-skill/v1",
+        id: "skill_party_v1",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        description: "Map formal party names and officers.",
+        status: "disabled",
+        version: 1,
+        familyId: "skill_party_v1",
+        replacedBySkillId: "skill_party_v2",
+        sourceIdeaId: "idea_party",
+        sourceSampleId: "sample_party_v1",
+        targetLane: "20_Workshop",
+        outputArtifact: "20_Workshop/Party and Officer Map.md",
+        matterRequired: true,
+        paidProviderCall: true,
+        sourceBacked: "required",
+      },
+      {
+        schema_version: "configurable-skill/v1",
+        id: "skill_party_v2",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        description: "Map formal party names, officers, aliases, and confidence.",
+        status: "active",
+        version: 2,
+        familyId: "skill_party_v1",
+        previousSkillId: "skill_party_v1",
+        sourceIdeaId: "idea_party_improve",
+        sourceSampleId: "sample_party_v2",
+        targetLane: "20_Workshop",
+        outputArtifact: "20_Workshop/Party and Officer Map.md",
+        matterRequired: true,
+        paidProviderCall: true,
+        sourceBacked: "required",
+      },
+    ],
+  };
+  const summary = skillsPageSummary(registryFixture(), null, configurableSkills);
+  const html = renderSkillsPageHtml({
+    registry: registryFixture(),
+    configurableSkills,
+  }, escapeHtml);
+  const customSection = html.slice(
+    html.indexOf("<h2>Custom Skills"),
+    html.indexOf("<h2>Built-in Skills"),
+  );
+
+  assert.equal(summary.custom.length, 2);
+  assert.deepEqual(summary.custom.map((skill) => [skill.id, skill.status, skill.version]), [
+    ["skill_party_v2", "active", 2],
+    ["skill_party_v1", "disabled", 1],
+  ]);
+  assert.match(customSection, /Active/);
+  assert.match(customSection, /Disabled/);
+  assert.match(customSection, /<dt>Version<\/dt><dd>v2<\/dd>/);
+  assert.match(customSection, /<dt>Version<\/dt><dd>v1<\/dd>/);
+  assert.match(customSection, /<dt>Previous<\/dt><dd>v1 \(disabled\)<\/dd>/);
+  assert.match(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
+  assert.doesNotMatch(customSection, /Create draft skill|Activate draft|Generate prompt/);
+});
+
 test("activity page renders custom skill run receipts separately from skills governance", () => {
   const runs = {
     schema_version: "configurable-skill-runs/v1",
