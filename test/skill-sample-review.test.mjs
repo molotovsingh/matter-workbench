@@ -1,0 +1,91 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  applyActiveSampleState,
+  findSampleByVersion,
+  formatSkillSampleCopy,
+  getLedgerSamples,
+  getSampleId,
+  getSampleState,
+  renderSampleLedger,
+} from "../frontend/skill-sample-review.js";
+
+const sampleV1 = {
+  sample_id: "sample_1",
+  version: 1,
+  state: "approved_stale",
+  approved: true,
+  current: false,
+  generated_at: "2026-05-14T10:00:00.000Z",
+  matter: {
+    matter_name: "Ayesha Vs Japan Airlines",
+    folder_name: "Ayesha Vs Japan Airlines",
+  },
+  ai_run: {
+    provider: "openai-direct",
+    model: "gpt-5.4",
+  },
+  feedback: "Make this more specific.",
+  sample_markdown: "## Old sample",
+};
+
+const sampleV2 = {
+  sample_id: "sample_2",
+  version: 2,
+  state: "approved_current",
+  approved: true,
+  current: true,
+  generated_at: "2026-05-14T11:00:00.000Z",
+  matter: {
+    matter_name: "Mehta vs Skyline",
+  },
+  ai_run: {
+    provider: "openai-direct",
+    model: "gpt-5.4",
+  },
+  sample_markdown: "## Current sample",
+};
+
+test("sample review helpers merge and sort ledger samples by version", () => {
+  const ledger = getLedgerSamples({
+    activeSample: sampleV2,
+    samples: [sampleV1],
+    ledger: [sampleV1, sampleV2],
+  });
+
+  assert.deepEqual(ledger.map(getSampleId), ["sample_1", "sample_2"]);
+  assert.equal(findSampleByVersion({ ledger }, 2)?.sample_id, "sample_2");
+});
+
+test("sample review helpers derive active approval and stale state", () => {
+  const review = {};
+  applyActiveSampleState(review, sampleV1);
+
+  assert.equal(review.approved, false);
+  assert.equal(review.stale, true);
+  assert.match(review.staleReason, /approved earlier/i);
+  assert.equal(getSampleState(review.activeSample), "approved_stale");
+});
+
+test("sample review rendering marks active and stale samples without source text expansion", () => {
+  const html = renderSampleLedger({
+    activeSample: sampleV2,
+    ledger: [sampleV1, sampleV2],
+  });
+
+  assert.match(html, /Sample Ledger/);
+  assert.match(html, /Sample v2 · active/);
+  assert.match(html, /Approved stale/);
+  assert.match(html, /Regenerate and approve a current sample/);
+  assert.doesNotMatch(html, /## Current sample/);
+});
+
+test("sample review copy distinguishes approved current from stale samples", () => {
+  const currentCopy = formatSkillSampleCopy(sampleV2, { approved: true });
+  assert.match(currentCopy, /Sample approved\. Ready to create skill/);
+  assert.match(currentCopy, /This sample is approved, but it is not a runnable skill until Create skill succeeds/);
+
+  const staleCopy = formatSkillSampleCopy(sampleV1, { approved: true });
+  assert.match(staleCopy, /Approved earlier, now stale/);
+  assert.match(staleCopy, /not a runnable skill/i);
+});
