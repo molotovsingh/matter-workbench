@@ -9,5 +9,6 @@ config.json
 skill-ideas.json
 skill-samples.json
 configurable-skills.json
+configurable-skill-runs.json
 .doctor-backups/
 .claude/

@@ -1,7 +1,9 @@
 import { getJson, postJson } from "./api-client.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
+import { renderActivityPageHtml } from "./views/activity-page.js";
 import {
+  formatConfigurableSkillRunReport,
   formatSkillFactoryHealthReport,
   formatSkillIdeaImplementationBrief,
   formatSkillIdeaReviewPacket,
@@ -11,6 +13,7 @@ import {
 export function createMatterScreens(ctx) {
   const {
     activityExplorer,
+    activityActivity,
     activitySettings,
     activitySkills,
     addFilesButton,
@@ -27,6 +30,7 @@ export function createMatterScreens(ctx) {
   function setActivityActive(which) {
     activityExplorer.classList.toggle("active", which === "explorer");
     activitySkills?.classList.toggle("active", which === "skills");
+    activityActivity?.classList.toggle("active", which === "activity");
     activitySettings.classList.toggle("active", which === "settings");
   }
 
@@ -222,6 +226,73 @@ export function createMatterScreens(ctx) {
     wireSkillIdeaActions({
       ideas: skillIdeas?.ideas || [],
       registry,
+    });
+  }
+
+  async function renderActivity() {
+    setActivityActive("activity");
+    breadcrumbs.textContent = "activity";
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Activity</strong><br />Viewing custom skill run receipts.",
+      bar: "Activity",
+      terminal: "[activity] viewing custom skill runs",
+    });
+    editorContent.innerHTML = `
+      <h1>Activity</h1>
+      <p class="muted">Loading recent custom skill runs...</p>
+    `;
+
+    let configurableSkillRuns = null;
+    let configurableSkillRunsError = "";
+    try {
+      configurableSkillRuns = await getJson("/api/configurable-skills/runs?limit=100");
+    } catch (error) {
+      configurableSkillRunsError = error.message;
+    }
+    editorContent.innerHTML = renderActivityPageHtml({
+      configurableSkillRuns,
+      configurableSkillRunsError,
+      activeMatter: ctx.getActiveMatter(),
+    }, escapeHtml);
+    wireConfigurableSkillRunActions({ configurableSkillRuns });
+  }
+
+  function wireConfigurableSkillRunActions({ configurableSkillRuns = null } = {}) {
+    const runsById = new Map((Array.isArray(configurableSkillRuns?.runs) ? configurableSkillRuns.runs : [])
+      .map((run) => [run.id, run]));
+    editorContent.querySelectorAll?.("[data-configurable-run-copy]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const runId = button.dataset.configurableRunCopy;
+        const run = runsById.get(runId);
+        if (!run) return;
+        button.disabled = true;
+        try {
+          await writeClipboardText(formatConfigurableSkillRunReport(run));
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Run report copied</strong><br />Metadata only. No provider call or matter artifact write occurred.",
+            bar: "Run Report Copied",
+            terminal: `[skills] copied run report for ${run.slash || run.id}`,
+          });
+        } catch (error) {
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Run report copy failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Run Report Failed",
+            terminal: `[skills] run report copy failed: ${error.message}`,
+          });
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+    editorContent.querySelectorAll?.("[data-activity-open-output]")?.forEach((button) => {
+      button.addEventListener("click", () => {
+        const filePath = button.dataset.activityOpenOutput || "";
+        if (!filePath || !ctx.openFilePreview) return;
+        ctx.openFilePreview(filePath, "true", "markdown");
+      });
     });
   }
 
@@ -537,6 +608,7 @@ export function createMatterScreens(ctx) {
     renderBlankLanding,
     renderFirstRun,
     renderMattersList,
+    renderActivity,
     renderSkills,
     renderSettings,
     setActivityActive,

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createCommandInteractionLogService } from "./services/command-interaction-log-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
+import { createConfigurableSkillRunsService } from "./services/configurable-skill-runs-service.mjs";
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
@@ -63,12 +64,17 @@ export async function createWorkbenchServer(options = {}) {
     samplesPath: options.skillSamplesPath,
     skillsPath: options.configurableSkillsPath,
   });
+  const configurableSkillRunsService = createConfigurableSkillRunsService({
+    appDir,
+    runsPath: options.configurableSkillRunsPath,
+  });
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
     matterStore,
     skillIdeasService,
     skillSamplesService,
+    configurableSkillRunsService,
     authoringProvider: options.configurableSkillAuthoringProvider || null,
     runProvider: options.configurableSkillRunProvider || null,
     env,
@@ -103,6 +109,7 @@ export async function createWorkbenchServer(options = {}) {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
     commandInteractionLogService,
+    configurableSkillRunsService,
     configService,
     configurableSkillsService,
     env,

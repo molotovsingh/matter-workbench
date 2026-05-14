@@ -1229,6 +1229,26 @@ test("command box creates a runnable skill only after current sample approval", 
           provider: "openai-direct",
           model: "gpt-5.4",
         },
+        runId: "run_party_1",
+        runRecord: {
+          id: "run_party_1",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          status: "succeeded",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          startedAt: "2026-05-13T10:03:00.000Z",
+          finishedAt: "2026-05-13T10:04:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+          overwrite: "not_needed",
+        },
       };
     },
   });
@@ -1263,13 +1283,22 @@ test("command box creates a runnable skill only after current sample approval", 
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
+  assert.match(ctx.elements.editorContent.innerHTML, /run_party_1/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run complete/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
 });
 
 test("command box runs active configurable slash commands and handles overwrite confirmation", async () => {
   const runCalls = [];
+  const cancelCalls = [];
+  const openCalls = [];
   const form = fakeForm();
-  const ctx = fakeCtx({ form, inputValue: "/party_officer_map" });
+  const ctx = fakeCtx({
+    form,
+    inputValue: "/party_officer_map",
+    openFilePreview: (...args) => openCalls.push(args),
+  });
   const box = createAiCommandBox(ctx, {
     loadSkillRegistry: async () => ({
       skills: [{
@@ -1309,6 +1338,53 @@ test("command box runs active configurable slash commands and handles overwrite 
           provider: "openai-direct",
           model: "gpt-5.4",
         },
+        runId: "run_party_overwrite",
+        runRecord: {
+          id: "run_party_overwrite",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          status: "succeeded",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          startedAt: "2026-05-13T10:03:00.000Z",
+          finishedAt: "2026-05-13T10:04:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+          overwrite: "approved",
+        },
+      };
+    },
+    cancelConfigurableSkillRun: async (body) => {
+      cancelCalls.push(body);
+      return {
+        schema_version: "configurable-skill-run/v1",
+        state: "cancelled",
+        artifactPath: body.artifactPath,
+        skill: {
+          slash: body.slash,
+          title: "Party and Officer Map",
+        },
+        runId: "run_party_cancelled",
+        runRecord: {
+          id: "run_party_cancelled",
+          slash: body.slash,
+          title: "Party and Officer Map",
+          status: "cancelled",
+          matterName: "Demo Matter",
+          matterFolder: "Demo Matter",
+          outputPaths: {
+            markdown: body.artifactPath,
+            json: "20_Workshop/Party and Officer Map.json",
+          },
+          aiRun: {},
+          overwrite: "cancelled",
+        },
       };
     },
   });
@@ -1317,15 +1393,153 @@ test("command box runs active configurable slash commands and handles overwrite 
   await form.submit();
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /already exists for this matter/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map modify/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Output Exists");
+
+  await box.handleCommand({ userRequest: "open output" });
+  assert.deepEqual(openCalls, [["20_Workshop/Party and Officer Map.md", "true", "markdown"]]);
+
+  await box.handleCommand({ userRequest: "run again" });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Artifact already exists/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Overwrite Confirmation");
 
+  await box.handleCommand({ userRequest: "keep current" });
+
+  assert.deepEqual(cancelCalls, [{
+    slash: "/party_officer_map",
+    artifactPath: "20_Workshop/Party and Officer Map.md",
+  }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run cancelled/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Run Cancelled");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+
+  ctx.elements.aiCommandInput.value = "/party_officer_map";
+  await form.submit();
+  await box.handleCommand({ userRequest: "run again" });
   await box.handleCommand({ userRequest: "overwrite artifact" });
 
   assert.deepEqual(runCalls.at(-1), { slash: "/party_officer_map", overwrite: true });
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Party and Officer Map\.md/);
+  assert.match(ctx.elements.editorContent.innerHTML, /run_party_overwrite/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+});
+
+test("command box saves configurable skill improvement ideas without changing the active skill", async () => {
+  const runCalls = [];
+  const savedIdeas = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "/party_officer_map" });
+  const box = createAiCommandBox(ctx, {
+    loadSkillRegistry: async () => ({
+      skills: [{
+        configurable: true,
+        status: "active",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        purpose: "Map formal party names and officers.",
+      }],
+    }),
+    runConfigurableSkill: async (body) => {
+      runCalls.push(body);
+      return {
+        schema_version: "configurable-skill-run/v1",
+        state: "requires_overwrite",
+        skill: {
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+        },
+        artifactPath: "20_Workshop/Party and Officer Map.md",
+      };
+    },
+    saveSkillIdea: async (body) => {
+      savedIdeas.push(body);
+      return {
+        idea: {
+          id: "idea_improve_party_map",
+          text: body.text,
+          designBrief: body.designBrief,
+          status: "incomplete",
+          createdAt: "2026-05-14T10:00:00.000Z",
+        },
+      };
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  await box.handleCommand({ userRequest: "improve this skill" });
+
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /What should this skill do better/);
+  assert.equal(ctx.elements.aiCommandSubmit.textContent, "Save idea");
+
+  await box.handleCommand({ userRequest: "include relationship confidence and unresolved aliases" });
+
+  assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
+  assert.equal(savedIdeas.length, 1);
+  assert.equal(savedIdeas[0].text, "Improve /party_officer_map: include relationship confidence and unresolved aliases");
+  assert.match(savedIdeas[0].designBrief.notes, /Proposal type: Improve existing skill/);
+  assert.match(savedIdeas[0].designBrief.notes, /Target skill: \/party_officer_map/);
+  assert.match(savedIdeas[0].designBrief.notes, /What should change: include relationship confidence and unresolved aliases/);
+  assert.equal(savedIdeas[0].designBrief.expectedOutputArtifact, "20_Workshop/Party and Officer Map.md");
+  assert.equal(savedIdeas[0].designBrief.targetLane, "20_Workshop");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improvement idea saved/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Improvement Saved");
+});
+
+test("command box supports slash-first configurable skill modification commands", async () => {
+  const savedIdeas = [];
+  const runCalls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({
+    form,
+    inputValue: "/party_officer_map modify include unresolved aliases and confidence",
+  });
+  const box = createAiCommandBox(ctx, {
+    loadSkillRegistry: async () => ({
+      skills: [{
+        configurable: true,
+        status: "active",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        outputs: ["20_Workshop/Party and Officer Map.md"],
+      }],
+    }),
+    runConfigurableSkill: async (body) => {
+      runCalls.push(body);
+      throw new Error("should not run while saving a modification idea");
+    },
+    saveSkillIdea: async (body) => {
+      savedIdeas.push(body);
+      return {
+        idea: {
+          id: "idea_slash_modify",
+          text: body.text,
+          designBrief: body.designBrief,
+          status: "incomplete",
+          createdAt: "2026-05-14T10:00:00.000Z",
+        },
+      };
+    },
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.deepEqual(runCalls, []);
+  assert.equal(savedIdeas.length, 1);
+  assert.equal(savedIdeas[0].text, "Improve /party_officer_map: include unresolved aliases and confidence");
+  assert.match(savedIdeas[0].designBrief.notes, /Target skill: \/party_officer_map/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improvement idea saved/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Improvement Saved");
 });
 
 test("command box invalidates approved sample after design brief edits", async () => {
@@ -1674,6 +1888,7 @@ function fakeCtx({
   inputValue,
   activeMatter = { folderName: "Demo Matter" },
   openWorkspaceLane,
+  openFilePreview,
 }) {
   const statusCalls = [];
   const terminalOutput = { textContent: "" };
@@ -1708,6 +1923,7 @@ function fakeCtx({
         terminal: "[skills] viewing registry",
       });
     },
+    openFilePreview,
     setStatus(status) {
       statusCalls.push(status);
       if (status.bar !== undefined) statusBarRight.textContent = status.bar;

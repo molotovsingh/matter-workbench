@@ -7,7 +7,10 @@ import {
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
 import { renderRouterDecision, wireRouterGateButtons } from "./skill-router-panel.js";
-import { formatSkillIdeaReviewPacket } from "./views/skills-page.js";
+import {
+  formatConfigurableSkillRunReport,
+  formatSkillIdeaReviewPacket,
+} from "./views/skills-page.js";
 
 const DEFAULT_COMMAND_PLACEHOLDER = "find payment, open library, create list of dates";
 
@@ -128,6 +131,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const approveSkillIdeaSample = options.approveSkillIdeaSample || ((ideaId, sampleId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/samples/${encodeURIComponent(sampleId)}/approve`, {}));
   const createSkillFromIdea = options.createSkillFromIdea || ((ideaId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/create-skill`, {}));
   const runConfigurableSkill = options.runConfigurableSkill || ((body) => postJson("/api/configurable-skills/run", body));
+  const cancelConfigurableSkillRun = options.cancelConfigurableSkillRun || ((body) => postJson("/api/configurable-skills/runs/cancelled", body));
   const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
   const writeClipboardText = options.writeClipboardText || writeClipboard;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
@@ -191,6 +195,12 @@ export function createAiCommandBox(ctx, options = {}) {
     const parsedCommand = parseDeterministicCommand(userRequest);
     if (parsedCommand) {
       await runDeterministicCommand(parsedCommand, userRequest);
+      return;
+    }
+
+    const configurableSkillRevision = await findConfigurableSkillRevisionCommand(userRequest);
+    if (configurableSkillRevision) {
+      await startConfigurableSkillImprovement(configurableSkillRevision.skill, configurableSkillRevision.revisionText);
       return;
     }
 
@@ -350,6 +360,45 @@ export function createAiCommandBox(ctx, options = {}) {
     )) || null;
   }
 
+  async function findConfigurableSkillRevisionCommand(userRequest) {
+    const text = String(userRequest || "").trim();
+    const commandFirstMatch = text.match(/^(\/[a-z0-9_-]+)\s+(improve|revise|change|modify)\b(?:\s+(.*))?$/i);
+    const actionFirstMatch = text.match(/\b(improve|revise|change|modify)\s+(\/[a-z0-9_-]+)\b(?:\s+(.*))?$/i);
+    const targetSlash = normalizeCommandInput(commandFirstMatch?.[1] || actionFirstMatch?.[2] || "");
+    if (!targetSlash) return null;
+    const revisionText = String(commandFirstMatch?.[3] || actionFirstMatch?.[3] || "")
+      .replace(/^(to|so|because|that)\s+/i, "")
+      .trim();
+    const registry = await loadSkillRegistry().catch(() => null);
+    const skills = Array.isArray(registry?.skills) ? registry.skills : [];
+    const skill = skills.find((candidate) => (
+      candidate?.configurable
+      && candidate.status === "active"
+      && normalizeCommandInput(candidate.slash) === targetSlash
+    ));
+    return skill ? { skill, revisionText } : null;
+  }
+
+  async function startConfigurableSkillImprovement(skill = {}, revisionText = "") {
+    startReport({
+      typedInput: revisionText ? `improve ${skill.slash} ${revisionText}` : `improve ${skill.slash || ""}`,
+      matchedCommand: "skill_revision/idea",
+      status: "pending",
+    });
+    pendingConfigurableRun = {
+      phase: "improve",
+      slash: skill.slash || "",
+      title: skill.title || skill.slash || "Custom Skill",
+      artifactPath: Array.isArray(skill.outputs) ? skill.outputs[0] || "" : skill.outputArtifact || "",
+      skill,
+    };
+    if (revisionText) {
+      await saveConfigurableSkillImprovement(revisionText);
+      return;
+    }
+    renderConfigurableSkillImprovementPrompt();
+  }
+
   async function runConfigurableSkillCommand(skill, userRequest, { overwrite = false } = {}) {
     const slash = skill?.slash || pendingConfigurableRun?.slash || "";
     if (!slash) {
@@ -376,11 +425,13 @@ export function createAiCommandBox(ctx, options = {}) {
       const result = await runConfigurableSkill({ slash, overwrite });
       if (result.state === "requires_overwrite") {
         pendingConfigurableRun = {
+          phase: "action_sheet",
           slash,
           title: skill?.title || result.skill?.title || slash,
           artifactPath: result.artifactPath || "",
+          skill: result.skill || skill || {},
         };
-        renderConfigurableSkillOverwritePrompt(result);
+        renderConfigurableSkillExistingOutputSheet(result);
         updateReport({
           status: "warned",
           artifacts: result.artifactPath ? [result.artifactPath] : [],
@@ -392,8 +443,8 @@ export function createAiCommandBox(ctx, options = {}) {
         });
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>Overwrite confirmation</strong><br /><code>${escapeHtml(result.artifactPath || "artifact")}</code> already exists.`,
-          bar: "Overwrite Confirmation",
+          card: `<strong>Output already exists</strong><br /><code>${escapeHtml(result.artifactPath || "artifact")}</code> already exists.`,
+          bar: "Output Exists",
           terminal: `[configurable-skill] overwrite required for ${slash}`,
         });
         return;
@@ -403,6 +454,9 @@ export function createAiCommandBox(ctx, options = {}) {
         status: "ran",
         providerModel: [result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / "),
         artifacts: [result.outputPaths?.markdown, result.outputPaths?.json].filter(Boolean),
+        runId: result.runId || result.runRecord?.id || "",
+        runRecord: result.runRecord || null,
+        overwrite: result.runRecord?.overwrite || (overwrite ? "approved" : "not_needed"),
       });
       recordCommandInteraction({
         renderedState: "configurable_skill/run",
@@ -442,10 +496,54 @@ export function createAiCommandBox(ctx, options = {}) {
 
   async function handlePendingConfigurableRunInput(userRequest) {
     const normalized = normalizeCommandInput(userRequest);
+    const pendingPhase = pendingConfigurableRun?.phase || "overwrite";
+    if (pendingPhase === "improve") {
+      if (normalized === "cancel") {
+        clearPendingConfigurableRun("Skill improvement cancelled", "No improvement idea was saved.");
+        return true;
+      }
+      await saveConfigurableSkillImprovement(userRequest);
+      return true;
+    }
+    if (normalized === "open output") {
+      openPendingConfigurableOutput();
+      return true;
+    }
+    if (normalized === "improve" || normalized === "improve this skill" || normalized === "revise" || normalized === "revise this skill") {
+      renderConfigurableSkillImprovementPrompt();
+      return true;
+    }
+    if (pendingPhase === "action_sheet" && (normalized === "run again" || normalized === "overwrite" || normalized === "overwrite artifact")) {
+      renderConfigurableSkillOverwritePrompt(pendingConfigurableRun);
+      return true;
+    }
+    if (pendingPhase === "action_sheet" && (normalized === "cancel" || normalized === "keep current")) {
+      clearPendingConfigurableRun("No action taken", "Kept the existing output. Nothing ran and nothing was overwritten.");
+      return true;
+    }
     if (normalized === "cancel" || normalized === "keep current") {
+      const pending = pendingConfigurableRun;
       pendingConfigurableRun = null;
-      renderCommandRailError("Kept the existing artifact. Nothing was overwritten.");
-      updateReport({ status: "cancelled" });
+      let cancelled = null;
+      try {
+        cancelled = await cancelConfigurableSkillRun({
+          slash: pending?.slash || "",
+          artifactPath: pending?.artifactPath || "",
+        });
+      } catch {
+        cancelled = null;
+      }
+      renderConfigurableSkillCancelledResult(cancelled || {
+        skill: pending?.skill || { slash: pending?.slash, title: pending?.title },
+        artifactPath: pending?.artifactPath || "",
+      });
+      updateReport({
+        status: "cancelled",
+        artifacts: pending?.artifactPath ? [pending.artifactPath] : [],
+        runId: cancelled?.runId || cancelled?.runRecord?.id || "",
+        runRecord: cancelled?.runRecord || null,
+        overwrite: "cancelled",
+      });
       recordCommandInteraction({
         renderedState: "configurable_skill/overwrite",
         status: "cancelled",
@@ -467,8 +565,36 @@ export function createAiCommandBox(ctx, options = {}) {
     return false;
   }
 
+  function renderConfigurableSkillExistingOutputSheet(result = {}) {
+    if (!aiCommandSession) return;
+    const skill = result.skill || pendingConfigurableRun?.skill || {};
+    const slash = skill.slash || pendingConfigurableRun?.slash || "";
+    const artifactPath = result.artifactPath || pendingConfigurableRun?.artifactPath || "";
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>${escapeHtml(skill.title || "This skill")} already exists for this matter</h3>
+        <p class="muted">The output is already in the matter folder. Choose what you want to do next.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-configurable-skill-action="open-output">Open output</button>
+          <button type="button" data-configurable-skill-action="run-again">Run again</button>
+          <button type="button" class="secondary" data-configurable-skill-action="improve">Improve this skill</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
+        </div>
+        <p class="muted">Tip: You can also type <code>${escapeHtml(slash)} modify</code> to improve this skill later.</p>
+      </section>
+    `;
+    aiCommandInput.placeholder = "Open output, Run again, Improve this skill, or Cancel";
+    wireConfigurableSkillActions();
+  }
+
   function renderConfigurableSkillOverwritePrompt(result = {}) {
     if (!aiCommandSession) return;
+    if (pendingConfigurableRun) pendingConfigurableRun.phase = "overwrite";
     aiCommandSession.hidden = false;
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
@@ -484,20 +610,217 @@ export function createAiCommandBox(ctx, options = {}) {
         </div>
       </section>
     `;
+    aiCommandInput.placeholder = "Overwrite artifact or Keep current";
     wireConfigurableSkillActions();
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Overwrite confirmation</strong><br /><code>${escapeHtml(result.artifactPath || pendingConfigurableRun?.artifactPath || "artifact")}</code> already exists.`,
+      bar: "Overwrite Confirmation",
+      terminal: `[configurable-skill] overwrite confirmation for ${pendingConfigurableRun?.slash || ""}`,
+    });
+  }
+
+  function renderConfigurableSkillImprovementPrompt() {
+    if (!aiCommandSession || !pendingConfigurableRun) return;
+    pendingConfigurableRun.phase = "improve";
+    const slash = pendingConfigurableRun.slash || pendingConfigurableRun.skill?.slash || "";
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Improve this skill</h3>
+        <p>What should this skill do better?</p>
+        <p class="muted">Describe the change in plain English. This saves a non-running revision idea; it does not modify the active skill yet.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+          <div><dt>Current output</dt><dd><code>${escapeHtml(pendingConfigurableRun.artifactPath || "")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
+        </div>
+      </section>
+    `;
+    aiCommandInput.placeholder = "Describe what should improve...";
+    aiCommandSubmit.textContent = "Save idea";
+    wireConfigurableSkillActions();
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Improve skill</strong><br />Describe what should change for <code>${escapeHtml(slash)}</code>.`,
+      bar: "Improve Skill",
+      terminal: `[configurable-skill] improvement prompt for ${slash}`,
+    });
+  }
+
+  function clearPendingConfigurableRun(title, message) {
+    pendingConfigurableRun = null;
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
+    aiCommandSubmit.textContent = "Go";
+    if (aiCommandSession) {
+      aiCommandSession.hidden = false;
+      aiCommandSession.innerHTML = `
+        <section class="command-interview" aria-live="polite">
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(message)}</p>
+        </section>
+      `;
+    }
+    updateReport({ status: "cancelled" });
+    recordCommandInteraction({
+      renderedState: "configurable_skill/action_sheet",
+      status: "cancelled",
+      providerRunInvoked: false,
+    });
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>${escapeHtml(title)}</strong><br />${escapeHtml(message)}`,
+      bar: title,
+      terminal: "[configurable-skill] no action taken",
+    });
+  }
+
+  function openPendingConfigurableOutput() {
+    const pending = pendingConfigurableRun;
+    const artifactPath = pending?.artifactPath || "";
+    if (!artifactPath || !ctx.openFilePreview) {
+      renderCommandRailError("Output preview is unavailable.");
+      return;
+    }
+    ctx.openFilePreview(artifactPath, "true", artifactPath.endsWith(".md") ? "markdown" : "");
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Opened output</strong><br /><code>${escapeHtml(artifactPath)}</code>.`,
+      bar: "Output Opened",
+      terminal: `[configurable-skill] opened ${artifactPath}`,
+    });
+  }
+
+  async function saveConfigurableSkillImprovement(userRequest) {
+    const pending = pendingConfigurableRun;
+    const changeText = String(userRequest || "").trim();
+    if (!changeText) {
+      renderConfigurableSkillImprovementPrompt();
+      renderCommandError("Describe what should improve.");
+      return;
+    }
+    const slash = pending?.slash || pending?.skill?.slash || "";
+    const title = pending?.title || pending?.skill?.title || slash || "Custom Skill";
+    const artifactPath = pending?.artifactPath || pending?.skill?.outputArtifact || "";
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Saving...";
+    try {
+      const payload = await saveSkillIdea({
+        text: `Improve ${slash}: ${changeText}`,
+        designBrief: buildConfigurableSkillImprovementBrief({
+          slash,
+          title,
+          artifactPath,
+          changeText,
+        }),
+      });
+      const idea = payload.idea || {};
+      pendingConfigurableRun = null;
+      aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
+      aiCommandSubmit.textContent = "Go";
+      updateReport({
+        status: "saved",
+        skillIdeaId: idea.id || "",
+        matchedCommand: "skill_revision/idea",
+      });
+      recordCommandInteraction({
+        renderedState: "configurable_skill/improvement_idea",
+        status: "saved_idea",
+        skillIdeaId: idea.id || "",
+        providerRunInvoked: false,
+      });
+      if (aiCommandSession) {
+        aiCommandSession.hidden = false;
+        aiCommandSession.innerHTML = `
+          <section class="command-interview" aria-live="polite">
+            <h3>Improvement idea saved</h3>
+            <p>This does not change the active skill yet. It is saved for review under Skills.</p>
+            <dl class="skill-card-meta">
+              <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+              <div><dt>Idea</dt><dd>${escapeHtml(changeText)}</dd></div>
+              <div><dt>Status</dt><dd>Not runnable yet</dd></div>
+            </dl>
+            <div class="command-interview-actions">
+              <button type="button" class="secondary" data-configurable-skill-action="open-skills">Open in Skills</button>
+            </div>
+          </section>
+        `;
+        wireConfigurableSkillActions();
+      }
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Improvement idea saved</strong><br />The active skill was not changed.`,
+        bar: "Improvement Saved",
+        terminal: `[configurable-skill] saved improvement idea for ${slash}`,
+      });
+    } catch (error) {
+      renderCommandRailError(error.message);
+      updateReport({ status: "failed", error: error.message });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Improvement not saved</strong><br />${escapeHtml(error.message)}`,
+        bar: "Improvement Failed",
+        terminal: `[configurable-skill] improvement failed: ${error.message}`,
+      });
+    } finally {
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  function buildConfigurableSkillImprovementBrief({
+    slash = "",
+    title = "",
+    artifactPath = "",
+    changeText = "",
+  } = {}) {
+    const activeMatter = ctx.getActiveMatter?.() || {};
+    const targetLane = inferLaneFromArtifactPath(artifactPath);
+    return {
+      intendedUser: "Lawyer improving an active custom skill",
+      problem: `Improve ${title || slash} based on real use: ${changeText}`,
+      expectedInputs: `Existing active skill ${slash}; selected matter context; current output ${artifactPath || "from the skill"}.`,
+      expectedOutputArtifact: artifactPath || "Use the existing skill output artifact unless the reviewer changes it.",
+      targetLane,
+      paidPosture: "paid",
+      riskLevel: "medium",
+      notes: [
+        "Proposal type: Improve existing skill",
+        `Target skill: ${slash}`,
+        `What should change: ${changeText}`,
+        "What must stay unchanged: Do not change the active skill until a revised sample is generated, approved, validated, and activated as a new version.",
+        "What must stay unchanged: Preserve source-backed factual discipline and the current output lane unless the reviewer explicitly changes it.",
+        activeMatter.folderName ? `Test matter: ${activeMatter.folderName}` : "Test matter: Not selected",
+      ].join("\n"),
+    };
+  }
+
+  function inferLaneFromArtifactPath(artifactPath = "") {
+    const lane = String(artifactPath || "").split("/")[0] || "";
+    if (["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"].includes(lane)) return lane;
+    return "20_Workshop";
   }
 
   function renderConfigurableSkillRunResult(result = {}) {
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
+    aiCommandSubmit.textContent = "Go";
     const skill = result.skill || {};
+    const runRecord = result.runRecord || {};
+    const overwrite = runRecord.overwrite || "not_needed";
     breadcrumbs.textContent = skill.slash || "custom skill";
     editorContent.innerHTML = `
       <h1>${escapeHtml(skill.title || "Custom Skill Result")}</h1>
       <p class="muted">Generated by <code>${escapeHtml(skill.slash || "")}</code>. Review before relying on it.</p>
       <section class="skill-router-result">
         <dl class="skill-card-meta">
+          <div><dt>Run</dt><dd>${escapeHtml(runRecord.id || result.runId || "Not recorded")}</dd></div>
+          <div><dt>Matter</dt><dd>${escapeHtml(runRecord.matterName || runRecord.matterFolder || result.matter?.matterName || result.matter?.matter_name || "Unknown matter")}</dd></div>
           <div><dt>Provider</dt><dd>${escapeHtml([result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider")}</dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "")}</code></dd></div>
           <div><dt>Metadata</dt><dd><code>${escapeHtml(result.outputPaths?.json || "")}</code></dd></div>
+          <div><dt>Overwrite</dt><dd>${escapeHtml(overwrite)}</dd></div>
         </dl>
         <pre class="skill-sample-markdown">${escapeHtml(result.markdown || "")}</pre>
       </section>
@@ -506,12 +829,66 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSession.hidden = false;
       aiCommandSession.innerHTML = `
         <section class="command-interview" aria-live="polite">
-          <h3>Skill complete</h3>
+          <h3>Run complete</h3>
           <p>Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "")}</code>.</p>
+          <dl class="skill-card-meta">
+            <div><dt>Matter</dt><dd>${escapeHtml(runRecord.matterName || runRecord.matterFolder || "Unknown matter")}</dd></div>
+            <div><dt>Provider</dt><dd>${escapeHtml([result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider")}</dd></div>
+            <div><dt>Overwrite</dt><dd>${escapeHtml(overwrite)}</dd></div>
+          </dl>
           <p class="muted">The result is also shown in the main pane for review.</p>
+          <div class="command-interview-actions">
+            <button type="button" data-configurable-run-action="copy-report">Copy Run Report</button>
+          </div>
         </section>
       `;
+      wireConfigurableRunReportActions();
     }
+  }
+
+  function renderConfigurableSkillCancelledResult(result = {}) {
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
+    aiCommandSubmit.textContent = "Go";
+    const skill = result.skill || result.runRecord || {};
+    const runRecord = result.runRecord || {};
+    if (!aiCommandSession) return;
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview" aria-live="polite">
+        <h3>Run cancelled</h3>
+        <p>Kept the existing artifact. Nothing was overwritten.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(skill.slash || runRecord.slash || "")}</code></dd></div>
+          <div><dt>Artifact</dt><dd><code>${escapeHtml(result.artifactPath || runRecord.outputPaths?.markdown || "")}</code></dd></div>
+          <div><dt>Run</dt><dd>${escapeHtml(runRecord.id || "Not recorded")}</dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" data-configurable-run-action="copy-report">Copy Run Report</button>
+        </div>
+      </section>
+    `;
+    wireConfigurableRunReportActions();
+  }
+
+  function wireConfigurableRunReportActions() {
+    aiCommandSession?.querySelectorAll?.("[data-configurable-run-action='copy-report']")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const runRecord = latestReport?.runRecord;
+        if (!runRecord) {
+          await copyLatestReport();
+          return;
+        }
+        button.disabled = true;
+        try {
+          await writeClipboardText(formatConfigurableSkillRunReport(runRecord));
+          setReportStatus("Run report copied.");
+        } catch (error) {
+          setReportStatus(`Copy failed: ${error.message}`, true);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
   }
 
   function wireConfigurableSkillActions() {
@@ -523,8 +900,24 @@ export function createAiCommandBox(ctx, options = {}) {
           await runConfigurableSkillCommand(pending, "overwrite artifact", { overwrite: true });
           return;
         }
+        if (action === "run-again") {
+          renderConfigurableSkillOverwritePrompt(pendingConfigurableRun || {});
+          return;
+        }
+        if (action === "open-output") {
+          openPendingConfigurableOutput();
+          return;
+        }
+        if (action === "improve") {
+          renderConfigurableSkillImprovementPrompt();
+          return;
+        }
+        if (action === "open-skills") {
+          await showSkillsPage("open skills");
+          return;
+        }
         if (action === "cancel") {
-          await handlePendingConfigurableRunInput("keep current");
+          await handlePendingConfigurableRunInput(pendingConfigurableRun?.phase === "overwrite" ? "keep current" : "cancel");
         }
       });
     });
@@ -2516,6 +2909,9 @@ export function createAiCommandBox(ctx, options = {}) {
       routerDecision: "",
       routerMatchedSkill: "",
       sampleId: "",
+      runId: "",
+      runRecord: null,
+      overwrite: "",
       providerModel: "",
       artifacts: [],
       statusBar: getStatusBarText(),
@@ -2792,6 +3188,8 @@ function formatCommandReport(report) {
   if (report.plannerSource) lines.push(`- Planner: ${report.plannerModel || report.plannerSource}`);
   if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
+  if (report.runId) lines.push(`- Run id: ${report.runId}`);
+  if (report.overwrite) lines.push(`- Overwrite: ${report.overwrite}`);
   if (report.error) lines.push(`- Error: ${report.error}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {
     lines.push("- Artifact paths touched/preserved:");
