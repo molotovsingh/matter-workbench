@@ -129,14 +129,14 @@ Keep foundation and collateral-proceeding dates if they explain ownership, autho
 
 Without that, some cleaner runs drop events that look like background but may matter to a lawyer.
 
-## Preserved Local Outputs
+## Committed Golden Outputs
 
-The two output files compared by the user are preserved locally under `.local/`. They are not committed because they are matter-derived chronology work product.
+The two output files compared by the user are committed as golden outputs because the user explicitly asked for these generated outputs to be preserved in the repo.
 
 Best legal-use accuracy output:
 
 ```text
-.local/listofdates-two-pass/atlas-matrix-gpt-41-to-gpt-54-mini-20260515/List of Dates.md
+evals/listofdates/golden/atlas-two-pass-2026-05-15/best-legal-use-gpt41-to-gpt54-mini.md
 sha256: c29a51cd353928fb86c574ceb70022495e6d5e67507a108b49e261811d924909
 size: 19,769 bytes
 ```
@@ -144,7 +144,7 @@ size: 19,769 bytes
 Cleanest concise draft output:
 
 ```text
-.local/listofdates-two-pass/atlas-matrix-gpt-54-mini-to-gpt-54-20260515/List of Dates.md
+evals/listofdates/golden/atlas-two-pass-2026-05-15/clean-concise-gpt54-mini-to-gpt54.md
 sha256: bdee69e23406d496eef757680061e424869a4149fd105cf2cafe8203d5365bb8
 size: 17,755 bytes
 ```
@@ -152,7 +152,7 @@ size: 17,755 bytes
 Side-by-side local comparison:
 
 ```text
-.local/listofdates-two-pass/atlas-top-two-output-comparison-20260515.md
+evals/listofdates/golden/atlas-two-pass-2026-05-15/top-two-comparison.md
 sha256: 5d17f9e72018ae447982b564c74dc33534ed5927ad5c03bc94fbb58bc93d8595
 size: 37,860 bytes
 ```
