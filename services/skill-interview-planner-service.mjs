@@ -1,6 +1,10 @@
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { extractResponsesOutputText } from "../shared/responses-client.mjs";
+import {
+  fetchProviderJsonWithTimeout,
+  parseOpenAiJsonOutput,
+  parseOpenRouterJsonMessage,
+} from "../shared/provider-http.mjs";
 
 export const SKILL_INTERVIEW_PLAN_SCHEMA_VERSION = "skill-interview-plan/v1";
 
@@ -265,40 +269,16 @@ export function createOpenAiSkillInterviewPlannerProvider({
       },
     };
 
-    const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
-    let response;
-    let payload;
-    try {
-      response = await fetchImpl(endpoint, {
-        method: "POST",
-        headers: {
-          "authorization": `Bearer ${apiKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-      payload = await response.json().catch((error) => {
-        if (signal?.aborted || error?.name === "AbortError") throw error;
-        return null;
-      });
-    } catch (error) {
-      if (signal?.aborted || error?.name === "AbortError") {
-        const timeoutError = new Error(`OpenAI skill interview planner request timed out after ${timeoutMs}ms`);
-        timeoutError.statusCode = 504;
-        throw timeoutError;
-      }
-      throw error;
-    } finally {
-      cancelTimeout();
-    }
-    if (!response.ok || payload?.error) {
-      const message = payload?.error?.message || `OpenAI returned ${response?.status || "an error"}`;
-      const error = new Error(message);
-      error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
-      throw error;
-    }
-    return parseOpenAiJsonContent(payload);
+    const payload = await fetchProviderJsonWithTimeout({
+      fetchImpl,
+      endpoint,
+      apiKey,
+      body,
+      timeoutMs,
+      timeoutMessage: `OpenAI skill interview planner request timed out after ${timeoutMs}ms`,
+      mapProviderError: mapOpenAiPlannerError,
+    });
+    return parseOpenAiJsonOutput(payload, "OpenAI skill interview planner");
   };
 }
 
@@ -359,42 +339,20 @@ export function createOpenRouterSkillInterviewPlannerProvider({
       },
     };
 
-    const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
-    let response;
-    let payload;
-    try {
-      response = await fetchImpl(endpoint, {
-        method: "POST",
-        headers: {
-          "authorization": `Bearer ${apiKey}`,
-          "content-type": "application/json",
-          "http-referer": "https://github.com/molotovsingh/matter-workbench",
-          "x-title": "Matter Workbench Skill Interview Planner",
-        },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-      payload = await response.json().catch((error) => {
-        if (signal?.aborted || error?.name === "AbortError") throw error;
-        return null;
-      });
-    } catch (error) {
-      if (signal?.aborted || error?.name === "AbortError") {
-        const timeoutError = new Error(`OpenRouter skill interview planner request timed out after ${timeoutMs}ms`);
-        timeoutError.statusCode = 504;
-        throw timeoutError;
-      }
-      throw error;
-    } finally {
-      cancelTimeout();
-    }
-    if (!response.ok || payload?.error) {
-      const message = payload?.error?.message || `OpenRouter returned ${response?.status || "an error"}`;
-      const error = new Error(message);
-      error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
-      throw error;
-    }
-    return parseOpenRouterJsonContent(payload);
+    const payload = await fetchProviderJsonWithTimeout({
+      fetchImpl,
+      endpoint,
+      apiKey,
+      body,
+      timeoutMs,
+      extraHeaders: {
+        "http-referer": "https://github.com/molotovsingh/matter-workbench",
+        "x-title": "Matter Workbench Skill Interview Planner",
+      },
+      timeoutMessage: `OpenRouter skill interview planner request timed out after ${timeoutMs}ms`,
+      mapProviderError: mapOpenRouterPlannerError,
+    });
+    return parseOpenRouterJsonMessage(payload, "OpenRouter skill interview planner");
   };
 }
 
@@ -434,54 +392,6 @@ function disabledPlan(reason) {
   };
 }
 
-function createRequestSignal(timeoutMs) {
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    return {
-      signal: null,
-      cancelTimeout: () => {},
-    };
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return {
-    signal: controller.signal,
-    cancelTimeout: () => clearTimeout(timer),
-  };
-}
-
-function parseOpenAiJsonContent(payload) {
-  const outputText = extractResponsesOutputText(payload);
-  if (!outputText) {
-    const error = new Error("OpenAI skill interview planner response did not include output text");
-    error.statusCode = 502;
-    throw error;
-  }
-  try {
-    return JSON.parse(outputText);
-  } catch (parseError) {
-    const error = new Error(`OpenAI skill interview planner response was not valid JSON: ${parseError.message}`);
-    error.statusCode = 502;
-    throw error;
-  }
-}
-
-function parseOpenRouterJsonContent(payload) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") {
-    try {
-      return JSON.parse(content);
-    } catch (parseError) {
-      const error = new Error(`OpenRouter skill interview planner response was not valid JSON: ${parseError.message}`);
-      error.statusCode = 502;
-      throw error;
-    }
-  }
-  if (content && typeof content === "object") return content;
-  const error = new Error("OpenRouter skill interview planner response did not include JSON message content");
-  error.statusCode = 502;
-  throw error;
-}
-
 async function readPlannerMatterSummary(matterStore) {
   const root = matterStore?.getMatterRoot?.();
   if (!root) return null;
@@ -498,6 +408,20 @@ async function readPlannerMatterSummary(matterStore) {
     client: metadata.clientName || metadata.client || "",
     oppositeParty: metadata.oppositeParty || "",
   });
+}
+
+function mapOpenAiPlannerError(response, payload) {
+  const message = payload?.error?.message || `OpenAI returned ${response?.status || "an error"}`;
+  const error = new Error(message);
+  error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
+  return error;
+}
+
+function mapOpenRouterPlannerError(response, payload) {
+  const message = payload?.error?.message || `OpenRouter returned ${response?.status || "an error"}`;
+  const error = new Error(message);
+  error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
+  return error;
 }
 
 function summarizeRegistry(registry) {
