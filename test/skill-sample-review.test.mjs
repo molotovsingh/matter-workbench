@@ -82,8 +82,8 @@ test("sample review rendering marks active and stale samples without source text
 
 test("sample review copy distinguishes approved current from stale samples", () => {
   const currentCopy = formatSkillSampleCopy(sampleV2, { approved: true });
-  assert.match(currentCopy, /Sample approved\. Ready to create skill/);
-  assert.match(currentCopy, /This sample is approved, but it is not a runnable skill until Create skill succeeds/);
+  assert.match(currentCopy, /Sample approved\. Creation and validation required before the skill is runnable/);
+  assert.match(currentCopy, /This sample is approved, but it is not a runnable skill until creation and validation succeed/);
 
   const staleCopy = formatSkillSampleCopy(sampleV1, { approved: true });
   assert.match(staleCopy, /Approved earlier, now stale/);
