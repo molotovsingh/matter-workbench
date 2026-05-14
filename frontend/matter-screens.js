@@ -192,6 +192,8 @@ export function createMatterScreens(ctx) {
     let skillFactoryHealthError = "";
     let configurableSkills = null;
     let configurableSkillsError = "";
+    let configurableSkillRuns = null;
+    let configurableSkillRunsError = "";
     try {
       registry = await getJson("/api/skills");
     } catch (error) {
@@ -212,6 +214,11 @@ export function createMatterScreens(ctx) {
     } catch (error) {
       configurableSkillsError = error.message;
     }
+    try {
+      configurableSkillRuns = await getJson("/api/configurable-skills/runs?limit=100");
+    } catch (error) {
+      configurableSkillRunsError = error.message;
+    }
     if (ctx.getActiveMatter().folderName) {
       try {
         matterStatus = await getJson("/api/matter-status");
@@ -230,6 +237,8 @@ export function createMatterScreens(ctx) {
       skillFactoryHealthError,
       configurableSkills,
       configurableSkillsError,
+      configurableSkillRuns,
+      configurableSkillRunsError,
       activeMatter: ctx.getActiveMatter(),
     }, escapeHtml);
     wireSkillFactoryHealthActions({ skillFactoryHealth });
