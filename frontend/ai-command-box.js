@@ -17,6 +17,11 @@ import {
   buildConfigurableSkillImprovementInterview,
 } from "./configurable-skill-improvement.js";
 import {
+  findActiveConfigurableSkillBySlash,
+  isConfigurableSkillOutputReplacementCommand,
+  parseConfigurableSkillRevisionCommand,
+} from "./configurable-skill-commands.js";
+import {
   buildConfigurableRunPending,
   getConfigurableRunArtifactPath,
   renderConfigurableSkillCancelledRail,
@@ -307,34 +312,18 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   async function findConfigurableSkillCommand(userRequest) {
-    const normalized = normalizeCommandInput(userRequest);
-    if (!normalized.startsWith("/")) return null;
     const registry = await loadSkillRegistry().catch(() => null);
     const skills = Array.isArray(registry?.skills) ? registry.skills : [];
-    return skills.find((skill) => (
-      skill?.configurable
-      && skill.status === "active"
-      && normalizeCommandInput(skill.slash) === normalized
-    )) || null;
+    return findActiveConfigurableSkillBySlash(skills, userRequest);
   }
 
   async function findConfigurableSkillRevisionCommand(userRequest) {
-    const text = String(userRequest || "").trim();
-    const commandFirstMatch = text.match(/^(\/[a-z0-9_-]+)\s+(improve|revise|change|modify)\b(?:\s+(.*))?$/i);
-    const actionFirstMatch = text.match(/\b(improve|revise|change|modify)\s+(\/[a-z0-9_-]+)\b(?:\s+(.*))?$/i);
-    const targetSlash = normalizeCommandInput(commandFirstMatch?.[1] || actionFirstMatch?.[2] || "");
-    if (!targetSlash) return null;
-    const revisionText = String(commandFirstMatch?.[3] || actionFirstMatch?.[3] || "")
-      .replace(/^(to|so|because|that)\s+/i, "")
-      .trim();
+    const parsed = parseConfigurableSkillRevisionCommand(userRequest);
+    if (!parsed) return null;
     const registry = await loadSkillRegistry().catch(() => null);
     const skills = Array.isArray(registry?.skills) ? registry.skills : [];
-    const skill = skills.find((candidate) => (
-      candidate?.configurable
-      && candidate.status === "active"
-      && normalizeCommandInput(candidate.slash) === targetSlash
-    ));
-    return skill ? { skill, revisionText } : null;
+    const skill = findActiveConfigurableSkillBySlash(skills, parsed.targetSlash);
+    return skill ? { skill, revisionText: parsed.revisionText } : null;
   }
 
   async function startConfigurableSkillImprovement(skill = {}, revisionText = "") {
@@ -475,7 +464,7 @@ export function createAiCommandBox(ctx, options = {}) {
       renderConfigurableSkillImprovementPrompt();
       return true;
     }
-    if (pendingPhase === "action_sheet" && isReplaceOutputCommand(normalized)) {
+    if (pendingPhase === "action_sheet" && isConfigurableSkillOutputReplacementCommand(normalized)) {
       renderConfigurableSkillOverwritePrompt(pendingConfigurableRun);
       return true;
     }
@@ -519,21 +508,12 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       return true;
     }
-    if (isReplaceOutputCommand(normalized)) {
+    if (isConfigurableSkillOutputReplacementCommand(normalized)) {
       const pending = pendingConfigurableRun;
       await runConfigurableSkillCommand(pending, userRequest, { overwrite: true });
       return true;
     }
     return false;
-  }
-
-  function isReplaceOutputCommand(normalized) {
-    return normalized === "run again"
-      || normalized === "overwrite"
-      || normalized === "overwrite artifact"
-      || normalized === "replace output"
-      || normalized === "replace output document"
-      || normalized === "replace document";
   }
 
   function renderConfigurableSkillExistingOutputSheet(result = {}) {
