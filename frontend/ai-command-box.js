@@ -11,6 +11,10 @@ import {
   formatCommandReport,
   normalizeTerminalLines,
 } from "./command-reporting.js";
+import {
+  buildConfigurableSkillImprovementBrief,
+  buildConfigurableSkillImprovementInterview,
+} from "./configurable-skill-improvement.js";
 import { escapeHtml } from "./dom-utils.js";
 import {
   buildSkillIdeaInterview,
@@ -644,6 +648,7 @@ export function createAiCommandBox(ctx, options = {}) {
           title,
           artifactPath,
           changeText,
+          activeMatter: ctx.getActiveMatter?.() || {},
         }),
       });
       const idea = payload.idea || {};
@@ -661,28 +666,33 @@ export function createAiCommandBox(ctx, options = {}) {
         skillIdeaId: idea.id || "",
         providerRunInvoked: false,
       });
-      if (aiCommandSession) {
-        aiCommandSession.hidden = false;
-        aiCommandSession.innerHTML = `
-          <section class="command-interview" aria-live="polite">
-            <h3>Improvement idea saved</h3>
-            <p>This does not change the active skill yet. It is saved for review under Skills.</p>
-            <dl class="skill-card-meta">
-              <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
-              <div><dt>Idea</dt><dd>${escapeHtml(changeText)}</dd></div>
-              <div><dt>Status</dt><dd>Not runnable yet</dd></div>
-            </dl>
-            <div class="command-interview-actions">
-              <button type="button" class="secondary" data-configurable-skill-action="open-skills">Open in Skills</button>
-            </div>
-          </section>
-        `;
-        wireConfigurableSkillActions();
-      }
+      currentSkillIdeaInterview = {
+        interview: buildConfigurableSkillImprovementInterview({
+          slash,
+          title,
+          artifactPath,
+          changeText,
+          activeMatter: ctx.getActiveMatter?.() || {},
+        }),
+        answers: {},
+        questionIndex: 0,
+        ready: true,
+        savedIdea: idea,
+        editingSavedIdea: false,
+        sampleReview: {
+          samples: [],
+          ledger: [],
+          activeSample: null,
+          approved: false,
+          stale: false,
+          staleReason: "",
+        },
+      };
+      renderSkillIdeaSession();
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Improvement idea saved</strong><br />The active skill was not changed.`,
-        bar: "Improvement Saved",
+        card: `<strong>Improvement idea saved</strong><br />Generate a revised sample before creating a new version. The active skill was not changed.`,
+        bar: "Ready for Revised Sample",
         terminal: `[configurable-skill] saved improvement idea for ${slash}`,
       });
     } catch (error) {
@@ -698,39 +708,6 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
-  }
-
-  function buildConfigurableSkillImprovementBrief({
-    slash = "",
-    title = "",
-    artifactPath = "",
-    changeText = "",
-  } = {}) {
-    const activeMatter = ctx.getActiveMatter?.() || {};
-    const targetLane = inferLaneFromArtifactPath(artifactPath);
-    return {
-      intendedUser: "Lawyer improving an active custom skill",
-      problem: `Improve ${title || slash} based on real use: ${changeText}`,
-      expectedInputs: `Existing active skill ${slash}; selected matter context; current output ${artifactPath || "from the skill"}.`,
-      expectedOutputArtifact: artifactPath || "Use the existing skill output artifact unless the reviewer changes it.",
-      targetLane,
-      paidPosture: "paid",
-      riskLevel: "medium",
-      notes: [
-        "Proposal type: Improve existing skill",
-        `Target skill: ${slash}`,
-        `What should change: ${changeText}`,
-        "What must stay unchanged: Do not change the active skill until a revised sample is generated, approved, validated, and activated as a new version.",
-        "What must stay unchanged: Preserve source-backed factual discipline and the current output lane unless the reviewer explicitly changes it.",
-        activeMatter.folderName ? `Test matter: ${activeMatter.folderName}` : "Test matter: Not selected",
-      ].join("\n"),
-    };
-  }
-
-  function inferLaneFromArtifactPath(artifactPath = "") {
-    const lane = String(artifactPath || "").split("/")[0] || "";
-    if (["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"].includes(lane)) return lane;
-    return "20_Workshop";
   }
 
   function renderConfigurableSkillRunResult(result = {}) {

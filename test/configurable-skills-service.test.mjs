@@ -39,6 +39,63 @@ test("configurable skills create active skills from approved samples and allocat
   assert.ok(cards.every((card) => card.configurable));
 });
 
+test("configurable skills create validated new versions without silently overwriting the active skill", async () => {
+  const { service } = await makeServiceHarness();
+
+  const first = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  const second = await service.createSkillFromApprovedSample({ ideaId: "idea_party_improve" });
+
+  assert.equal(first.skill.status, "active");
+  assert.equal(second.skill.status, "active");
+  assert.equal(second.skill.slash, "/party_officer_map");
+  assert.equal(second.skill.version, 2);
+  assert.equal(second.skill.previousSkillId, first.skill.id);
+  assert.equal(second.skill.familyId, first.skill.id);
+
+  const listed = await service.listSkills();
+  const versions = listed.skills.filter((skill) => skill.slash === "/party_officer_map");
+  assert.deepEqual(versions.map((skill) => [skill.version, skill.status]), [
+    [1, "disabled"],
+    [2, "active"],
+  ]);
+  assert.equal(versions[0].replacedBySkillId, second.skill.id);
+
+  const cards = await service.activeSkillCards();
+  assert.deepEqual(cards.filter((card) => card.slash === "/party_officer_map").map((card) => card.version), [2]);
+});
+
+test("configurable skill version validation failure keeps the previous version active", async () => {
+  const goodOutput = [
+    "# Party and Officer Map",
+    "",
+    "| Name | Role | Evidence |",
+    "| --- | --- | --- |",
+    "| Ayesha | Client | Matter context (FILE-0001 p1.b1) |",
+  ].join("\n");
+  const { service } = await makeServiceHarness({
+    runMarkdownSequence: [
+      goodOutput,
+      "# Party and Officer Map\n\nGeneric output without raw citations.",
+    ],
+  });
+
+  const first = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  await assert.rejects(
+    () => service.createSkillFromApprovedSample({ ideaId: "idea_party_improve" }),
+    /Validation run output must include raw FILE citations/,
+  );
+
+  const listed = await service.listSkills();
+  const versions = listed.skills.filter((skill) => skill.slash === "/party_officer_map");
+  assert.deepEqual(versions.map((skill) => [skill.version, skill.status]), [
+    [1, "active"],
+    [2, "draft"],
+  ]);
+  assert.equal(versions[0].id, first.skill.id);
+  const cards = await service.activeSkillCards();
+  assert.deepEqual(cards.filter((card) => card.slash === "/party_officer_map").map((card) => card.version), [1]);
+});
+
 test("configurable skills canonicalize authored slash commands to underscores", async () => {
   const { service } = await makeServiceHarness({
     authoredSlash: "/party-officer-map",
@@ -163,7 +220,7 @@ test("configurable skill service records overwrite cancellations", async () => {
   assert.equal(runs.runs[0].status, "cancelled");
 });
 
-async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
+async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequence = null, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "configurable-skills-test-"));
   const appDir = path.join(tmp, "app");
   const matterRoot = path.join(tmp, "matter");
@@ -181,10 +238,12 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash =
   const ideas = new Map([
     ["idea_party_1", makeIdea("idea_party_1")],
     ["idea_party_2", makeIdea("idea_party_2")],
+    ["idea_party_improve", makeImprovementIdea("idea_party_improve")],
   ]);
   const samples = new Map([
     ["idea_party_1", makeSample("sample_party_1", sampleMarkdown)],
     ["idea_party_2", makeSample("sample_party_2", sampleMarkdown)],
+    ["idea_party_improve", makeSample("sample_party_improve", sampleMarkdown)],
   ]);
   const runLedger = createConfigurableSkillRunsService({
     appDir,
@@ -236,6 +295,9 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, authoredSlash =
     runProvider: async () => {
       runProviderCalls += 1;
       if (failRuntimeAfterValidation && runProviderCalls > 1) throw new Error("runtime failed");
+      if (Array.isArray(runMarkdownSequence) && runMarkdownSequence.length) {
+        return runMarkdownSequence[Math.min(runProviderCalls - 1, runMarkdownSequence.length - 1)];
+      }
       return runMarkdown || [
         "# Party and Officer Map",
         "",
@@ -256,10 +318,32 @@ function makeIdea(id) {
   };
 }
 
-function makeSample(id, markdown = null) {
+function makeImprovementIdea(id) {
   return {
     id,
-    ideaId: id === "sample_party_1" ? "idea_party_1" : "idea_party_2",
+    text: "Improve /party_officer_map: include relationship confidence and unresolved aliases",
+    designBrief: {
+      ...PARTY_BRIEF,
+      problem: "Improve Party and Officer Map based on real use: include relationship confidence and unresolved aliases",
+      notes: [
+        "Proposal type: Improve existing skill",
+        "Target skill: /party_officer_map",
+        "What should change: include relationship confidence and unresolved aliases",
+        "What must stay unchanged: Do not change the active skill until a revised sample is generated, approved, validated, and activated as a new version.",
+      ].join("\n"),
+    },
+  };
+}
+
+function makeSample(id, markdown = null) {
+  const ideaId = id === "sample_party_1"
+    ? "idea_party_1"
+    : id === "sample_party_improve"
+      ? "idea_party_improve"
+      : "idea_party_2";
+  return {
+    id,
+    ideaId,
     approved: true,
     designBriefHash: "hash",
     matter: {
