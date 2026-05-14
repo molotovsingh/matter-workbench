@@ -128,3 +128,63 @@ Keep foundation and collateral-proceeding dates if they explain ownership, autho
 ```
 
 Without that, some cleaner runs drop events that look like background but may matter to a lawyer.
+
+## Preserved Local Outputs
+
+The two output files compared by the user are preserved locally under `.local/`. They are not committed because they are matter-derived chronology work product.
+
+Best legal-use accuracy output:
+
+```text
+.local/listofdates-two-pass/atlas-matrix-gpt-41-to-gpt-54-mini-20260515/List of Dates.md
+sha256: c29a51cd353928fb86c574ceb70022495e6d5e67507a108b49e261811d924909
+size: 19,769 bytes
+```
+
+Cleanest concise draft output:
+
+```text
+.local/listofdates-two-pass/atlas-matrix-gpt-54-mini-to-gpt-54-20260515/List of Dates.md
+sha256: bdee69e23406d496eef757680061e424869a4149fd105cf2cafe8203d5365bb8
+size: 17,755 bytes
+```
+
+Side-by-side local comparison:
+
+```text
+.local/listofdates-two-pass/atlas-top-two-output-comparison-20260515.md
+sha256: 5d17f9e72018ae447982b564c74dc33534ed5927ad5c03bc94fbb58bc93d8595
+size: 37,860 bytes
+```
+
+Regenerate the best legal-use output:
+
+```bash
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --matter-root "/Users/aksingh/matters-matter-workbench/Atlas Constuction vs Diptishree" \
+  --pass1-model gpt-4.1 \
+  --pass1-only \
+  --run-label atlas-pass1-gpt-41-regen
+
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-41-regen/candidates.json" \
+  --pass2-model gpt-5.4-mini \
+  --run-label atlas-gpt-41-to-gpt-54-mini-regen
+```
+
+Regenerate the cleanest concise output:
+
+```bash
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --matter-root "/Users/aksingh/matters-matter-workbench/Atlas Constuction vs Diptishree" \
+  --pass1-model gpt-5.4-mini \
+  --pass1-only \
+  --run-label atlas-pass1-gpt-54-mini-regen
+
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-54-mini-regen/candidates.json" \
+  --pass2-model gpt-5.4 \
+  --run-label atlas-gpt-54-mini-to-gpt-54-regen
+```
+
+If we later decide to commit golden outputs, create a separate redacted fixture or an explicit consented golden corpus. Do not silently commit live matter work product from `.local/`.
