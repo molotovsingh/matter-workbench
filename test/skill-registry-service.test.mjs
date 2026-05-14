@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -62,8 +62,20 @@ test("skill registry reads all built-in skill stubs", async () => {
 });
 
 test("skill registry response shape remains API-compatible", async () => {
+  const source = JSON.parse(await readFile(path.join(process.cwd(), "skills", "registry.json"), "utf8"));
   const registry = await createSkillRegistryService({ appDir: process.cwd() }).readRegistry();
 
+  assert.deepEqual(source.builtins, [
+    "matter-init",
+    "prepare_matter",
+    "extract",
+    "describe_sources",
+    "context_preview",
+    "context_search",
+    "create_listofdates",
+    "doctor",
+  ]);
+  assert.equal(source.skills, undefined);
   assert.ok(Array.isArray(registry.categories));
   assert.equal(typeof registry.principles, "object");
   assert.ok(Array.isArray(registry.skills));
@@ -119,7 +131,6 @@ test("skill registry validation fails clearly for invalid built-in stubs", async
     categories: ["Analyze"],
     principles: {},
     builtins: ["bad"],
-    skills: [],
   }, null, 2)}\n`);
   await writeFile(path.join(builtinsDir, "bad", "skill.json"), `${JSON.stringify({
     schema_version: "built-in-skill/v1",
