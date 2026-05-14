@@ -1,4 +1,5 @@
 import { getJson, postJson } from "./api-client.js";
+import { writeClipboardText as defaultWriteClipboardText } from "./clipboard.js";
 import {
   isProviderBackedCommand,
   listSlashCommandSuggestions,
@@ -67,7 +68,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const runConfigurableSkill = options.runConfigurableSkill || ((body) => postJson("/api/configurable-skills/run", body));
   const cancelConfigurableSkillRun = options.cancelConfigurableSkillRun || ((body) => postJson("/api/configurable-skills/runs/cancelled", body));
   const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
-  const writeClipboardText = options.writeClipboardText || writeClipboard;
+  const writeClipboardText = options.writeClipboardText || defaultWriteClipboardText;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
   let latestReport = null;
   let activeSuggestionIndex = -1;
@@ -3014,21 +3015,4 @@ async function planSkillIdeaInterviewViaApi(body = {}) {
     ...response.plan,
     __plannerMeta: response.planner || null,
   };
-}
-
-async function writeClipboard(text) {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  if (typeof document === "undefined") throw new Error("clipboard is unavailable");
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "-1000px";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
 }
