@@ -55,10 +55,10 @@ test("matter overview renders read-only pipeline status", () => {
   assert.match(html, /Present/);
   assert.match(html, /\/describe_sources/);
   assert.match(html, /Stale/);
-  assert.match(html, /Rerun recommended; no confirmation will be shown/);
+  assert.match(html, /Review the current work product, then regenerate deliberately/);
   assert.match(html, /10_Library\/List of Dates\.md/);
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
-  assert.match(html, /Clicking Run will show a confirmation/);
+  assert.match(html, /Run will ask before replacing it/);
   assert.match(html, /36 rows/);
 });

@@ -39,8 +39,9 @@ export function createDescribeSourcesSkill(ctx) {
       ctx,
       skill: "/describe_sources",
       escapeHtml,
-      title: `/describe_sources — ${activeMatter.folderName}`,
-      confirmLabel: "Run /describe_sources anyway",
+      title: `Review source labels before regenerating — ${activeMatter.folderName}`,
+      confirmLabel: "Regenerate source labels",
+      cancelLabel: "Keep current source labels",
     })) {
       ctx.setStatus({
         mood: "idle",
