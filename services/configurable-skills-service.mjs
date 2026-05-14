@@ -113,6 +113,13 @@ export function createConfigurableSkillsService({
       designBrief: idea.designBrief,
     });
     const store = await readStore();
+    const targetSlash = extractTargetSkillSlash(idea);
+    const targetSkill = targetSlash
+      ? store.skills.find((candidate) => candidate.slash === targetSlash && candidate.status === "active")
+      : null;
+    if (targetSlash && !targetSkill) {
+      throw makeHttpError(`No active configurable skill found for ${targetSlash}`, 409);
+    }
     const authoringPolicy = resolveModelPolicy(AI_TASKS.SKILL_AUTHORING, { env });
     const authoringProviderConfig = resolveProviderConfig(authoringPolicy, { endpoint });
     if (!authoringProviderConfig.model) throw makeHttpError("Skill authoring model is not configured.", 409);
@@ -133,27 +140,36 @@ export function createConfigurableSkillsService({
       idea,
       sample,
       existingSlashes: store.skills.map((skill) => skill.slash),
+      targetSkill,
       providerConfig: authoringProviderConfig,
       schema: AUTHORING_SCHEMA,
     }), idea);
-    authored.slash = uniqueSlash(authored.slash || slashFromTitle(authored.title), [
-      ...store.skills.map((skill) => skill.slash),
-      "/matter-init",
-      "/prepare_matter",
-      "/extract",
-      "/describe_sources",
-      "/context_preview",
-      "/context_search",
-      "/create_listofdates",
-      "/doctor",
-    ]);
+    authored.slash = targetSkill
+      ? targetSkill.slash
+      : uniqueSlash(authored.slash || slashFromTitle(authored.title), [
+        ...store.skills.map((skill) => skill.slash),
+        "/matter-init",
+        "/prepare_matter",
+        "/extract",
+        "/describe_sources",
+        "/context_preview",
+        "/context_search",
+        "/create_listofdates",
+        "/doctor",
+      ]);
 
     const timestamp = now().toISOString();
+    const skillId = idFactory();
+    const version = targetSkill ? targetSkill.version + 1 : 1;
     const draft = normalizeStoredSkill({
-      id: idFactory(),
+      id: skillId,
       schema_version: CONFIGURABLE_SKILL_SCHEMA_VERSION,
       status: "draft",
-      version: 1,
+      version,
+      familyId: targetSkill?.familyId || targetSkill?.id || skillId,
+      previousSkillId: targetSkill?.id || "",
+      replacedBySkillId: "",
+      supersededAt: "",
       title: authored.title,
       slash: authored.slash,
       description: authored.description,
@@ -200,6 +216,18 @@ export function createConfigurableSkillsService({
     draft.status = "active";
     draft.activatedAt = timestamp;
     draft.updatedAt = timestamp;
+    if (targetSkill) {
+      const previousIndex = store.skills.findIndex((skill) => skill.id === targetSkill.id);
+      if (previousIndex !== -1) {
+        store.skills[previousIndex] = normalizeStoredSkill({
+          ...store.skills[previousIndex],
+          status: "disabled",
+          replacedBySkillId: draft.id,
+          supersededAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
+    }
     store.skills.push(draft);
     await writeStore(store);
     return {
@@ -400,6 +428,8 @@ export function skillToRegistryCard(skill = {}) {
     default_lane: normalized.targetLane,
     runner_key: normalized.slash,
     version: normalized.version,
+    family_id: normalized.familyId,
+    previous_skill_id: normalized.previousSkillId,
     configurable: true,
     status: normalized.status,
   };
@@ -485,7 +515,7 @@ function createDefaultRunProvider({ providerConfig, env, fetchImpl }) {
 }
 
 export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openAiAuthoringProvider({ idea, sample, existingSlashes, schema } = {}) {
+  return async function openAiAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill authoring", 409);
     const payload = await fetchJsonWithTimeout({
       fetchImpl,
@@ -498,7 +528,7 @@ export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fe
         max_output_tokens: maxOutputTokens,
         input: [
           { role: "system", content: AUTHORING_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes })) },
+          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes, targetSkill })) },
         ],
         text: {
           format: {
@@ -515,7 +545,7 @@ export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fe
 }
 
 export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openRouterAuthoringProvider({ idea, sample, existingSlashes, schema } = {}) {
+  return async function openRouterAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill authoring", 409);
     const payload = await fetchJsonWithTimeout({
       fetchImpl,
@@ -531,7 +561,7 @@ export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl 
         model,
         messages: [
           { role: "system", content: AUTHORING_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes })) },
+          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes, targetSkill })) },
         ],
         temperature: 0,
         max_tokens: maxOutputTokens,
@@ -704,14 +734,19 @@ function normalizeAuthoredDefinition(definition = {}, idea = {}) {
 }
 
 function normalizeStoredSkill(skill = {}) {
+  const id = normalizeText(skill.id);
   return {
     schema_version: CONFIGURABLE_SKILL_SCHEMA_VERSION,
-    id: normalizeText(skill.id),
+    id,
     slash: normalizeSlash(skill.slash),
     title: normalizeText(skill.title),
     description: normalizeText(skill.description),
     status: ["draft", "active", "disabled"].includes(skill.status) ? skill.status : "draft",
     version: Number.isInteger(skill.version) && skill.version > 0 ? skill.version : 1,
+    familyId: normalizeText(skill.familyId || id),
+    previousSkillId: normalizeText(skill.previousSkillId),
+    replacedBySkillId: normalizeText(skill.replacedBySkillId),
+    supersededAt: normalizeText(skill.supersededAt),
     sourceIdeaId: normalizeText(skill.sourceIdeaId),
     sourceSampleId: normalizeText(skill.sourceSampleId),
     approvedSampleHash: normalizeText(skill.approvedSampleHash),
@@ -748,19 +783,24 @@ function publicSkill(skill) {
     title: normalized.title,
     status: normalized.status,
     version: normalized.version,
+    familyId: normalized.familyId,
+    previousSkillId: normalized.previousSkillId,
     outputArtifact: normalized.outputArtifact,
     targetLane: normalized.targetLane,
   };
 }
 
-function authoringPayload({ idea, sample, existingSlashes }) {
+function authoringPayload({ idea, sample, existingSlashes, targetSkill = null }) {
   return {
-    task: "Create a configurable skill definition from an approved sample.",
+    task: targetSkill
+      ? "Create a new version of an existing configurable skill from an approved revised sample."
+      : "Create a configurable skill definition from an approved sample.",
     strict_boundaries: [
       "Do not generate code.",
       "Do not create routes.",
       "Do not claim activation.",
       "Return only the skill definition JSON.",
+      "For an existing-skill revision, keep the slash command stable unless the caller explicitly supplied a different activation plan.",
     ],
     idea: {
       id: idea.id,
@@ -772,8 +812,22 @@ function authoringPayload({ idea, sample, existingSlashes }) {
       matter: sample.matter,
       markdown: sample.sampleMarkdown,
     },
+    existing_skill: targetSkill ? publicSkill(targetSkill) : null,
     existing_slashes: existingSlashes,
   };
+}
+
+function extractTargetSkillSlash(idea = {}) {
+  const text = [
+    idea?.designBrief?.notes,
+    idea?.designBrief?.problem,
+    idea?.text,
+  ].map((value) => String(value || "")).join("\n");
+  const direct = text.match(/Target skill:\s*(\/[a-z0-9_-]+)/i);
+  if (direct) return normalizeSlash(direct[1]);
+  const improve = text.match(/\bImprove\s+(\/[a-z0-9_-]+)/i);
+  if (improve) return normalizeSlash(improve[1]);
+  return "";
 }
 
 function runPayload({ skill, matterContext }) {

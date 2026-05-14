@@ -1306,6 +1306,8 @@ test("command box runs active configurable slash commands and handles overwrite 
 test("command box saves configurable skill improvement ideas without changing the active skill", async () => {
   const runCalls = [];
   const savedIdeas = [];
+  const sampleCalls = [];
+  const createSkillCalls = [];
   const form = fakeForm();
   const ctx = fakeCtx({ form, inputValue: "/party_officer_map" });
   const box = createAiCommandBox(ctx, {
@@ -1339,6 +1341,55 @@ test("command box saves configurable skill improvement ideas without changing th
           designBrief: body.designBrief,
           status: "incomplete",
           createdAt: "2026-05-14T10:00:00.000Z",
+          readiness: completeReadiness(),
+        },
+      };
+    },
+    generateSkillIdeaSampleOutput: async (body) => {
+      sampleCalls.push(body);
+      return {
+        schema_version: "skill-sample-output/v1",
+        sample_id: "sample_improve_party_map",
+        generated_at: "2026-05-14T10:01:00.000Z",
+        matter: {
+          matter_name: "Demo Matter",
+          folder_name: "Demo Matter",
+        },
+        idea: body.idea,
+        feedback: "",
+        sample_markdown: "# Party and Officer Map\n\nImproved unresolved aliases cite FILE-0001 p1.b1.",
+        ai_run: {
+          provider: "openai-direct",
+          model: "gpt-5.4",
+          task: "skill_sample_output",
+        },
+        warnings: [],
+      };
+    },
+    approveSkillIdeaSample: async (ideaId, sampleId) => ({
+      sample: {
+        id: sampleId,
+        ideaId,
+        approved: true,
+        approvedAt: "2026-05-14T10:02:00.000Z",
+      },
+    }),
+    createSkillFromIdea: async (ideaId) => {
+      createSkillCalls.push(ideaId);
+      return {
+        skill: {
+          id: "skill_party_v2",
+          title: "Party and Officer Map",
+          slash: "/party_officer_map",
+          status: "active",
+          version: 2,
+          previousSkillId: "skill_party_v1",
+          targetLane: "20_Workshop",
+          outputArtifact: "20_Workshop/Party and Officer Map.md",
+          modelPolicy: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
         },
       };
     },
@@ -1361,9 +1412,18 @@ test("command box saves configurable skill improvement ideas without changing th
   assert.match(savedIdeas[0].designBrief.notes, /What should change: include relationship confidence and unresolved aliases/);
   assert.equal(savedIdeas[0].designBrief.expectedOutputArtifact, "20_Workshop/Party and Officer Map.md");
   assert.equal(savedIdeas[0].designBrief.targetLane, "20_Workshop");
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improvement idea saved/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Improvement Saved");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Generate sample from this matter/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Target skill: \/party_officer_map/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Ready for Revised Sample");
+
+  await box.handleCommand({ userRequest: "generate sample" });
+  await box.handleCommand({ userRequest: "looks right" });
+  await box.handleCommand({ userRequest: "create skill" });
+
+  assert.equal(sampleCalls.length, 1);
+  assert.deepEqual(createSkillCalls, ["idea_improve_party_map"]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Version<\/dt><dd>2/);
 });
 
 test("command box supports slash-first configurable skill modification commands", async () => {
@@ -1409,8 +1469,8 @@ test("command box supports slash-first configurable skill modification commands"
   assert.equal(savedIdeas.length, 1);
   assert.equal(savedIdeas[0].text, "Improve /party_officer_map: include unresolved aliases and confidence");
   assert.match(savedIdeas[0].designBrief.notes, /Target skill: \/party_officer_map/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improvement idea saved/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Improvement Saved");
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Generate sample/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Ready for Revised Sample");
 });
 
 test("command box invalidates approved sample after design brief edits", async () => {
