@@ -101,8 +101,7 @@ export function createConfigurableSkillsService({
 
   async function activeSkillCards() {
     const { skills } = await listSkills();
-    return skills
-      .filter((skill) => skill.status === "active")
+    return primaryActiveSkills(skills)
       .map(skillToRegistryCard);
   }
 
@@ -433,6 +432,47 @@ export function skillToRegistryCard(skill = {}) {
     configurable: true,
     status: normalized.status,
   };
+}
+
+function primaryActiveSkills(skills = []) {
+  const grouped = new Map();
+  for (const skill of skills.map(normalizeStoredSkill).filter((candidate) => candidate.status === "active")) {
+    const key = customSkillGroupingKey(skill);
+    const current = grouped.get(key);
+    if (!current || comparePrimarySkill(skill, current) < 0) {
+      grouped.set(key, skill);
+    }
+  }
+  return [...grouped.values()].sort(comparePrimarySkill);
+}
+
+function customSkillGroupingKey(skill = {}) {
+  const normalized = normalizeStoredSkill(skill);
+  const hasExplicitLineage = Boolean(
+    normalized.previousSkillId
+    || normalized.replacedBySkillId
+    || (normalized.familyId && normalized.familyId !== normalized.id),
+  );
+  if (hasExplicitLineage) return `family:${normalized.familyId || normalized.id}`;
+  return [
+    "signature",
+    normalizeComparableText(normalized.title),
+    normalizeComparableText(normalized.outputArtifact),
+    normalizeComparableText(normalized.targetLane),
+  ].join(":");
+}
+
+function comparePrimarySkill(left = {}, right = {}) {
+  const leftVersion = Number(left.version || 0);
+  const rightVersion = Number(right.version || 0);
+  if (leftVersion !== rightVersion) return rightVersion - leftVersion;
+  const leftTime = left.activatedAt || left.updatedAt || left.createdAt || "";
+  const rightTime = right.activatedAt || right.updatedAt || right.createdAt || "";
+  if (leftTime !== rightTime) return String(rightTime).localeCompare(String(leftTime));
+  const leftId = left.id || "";
+  const rightId = right.id || "";
+  if (leftId !== rightId) return String(rightId).localeCompare(String(leftId));
+  return String(left.slash || "").localeCompare(String(right.slash || ""));
 }
 
 function createNoopRunLedger() {
@@ -1006,4 +1046,8 @@ function boundedOutputMarkdown(value) {
 
 function normalizeText(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function normalizeComparableText(value) {
+  return normalizeText(value).toLowerCase();
 }

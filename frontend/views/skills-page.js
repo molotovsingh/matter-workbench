@@ -15,13 +15,15 @@ export function skillsPageSummary(registry = {}, matterStatus = null, configurab
   const builtins = withStatus.filter((skill) => !skill.configurable);
   const registryCustom = withStatus.filter((skill) => skill.configurable);
   const customSource = configuredSkills.length ? configuredSkills : registryCustom;
-  const custom = customSource.map((skill) => ({
+  const allCustom = markPrimaryCustomSkills(customSource.map((skill) => ({
     ...skill,
     artifactStatus: statusBySlash.get(skill.slash) || skill.artifactStatus || null,
-  })).sort(compareCustomSkills);
+  }))).sort(compareCustomSkills);
+  const custom = allCustom.filter((skill) => skill.primary !== false);
   return {
     builtins,
     custom,
+    allCustom,
     deterministic: builtins.filter((skill) => String(skill.mode || "").toLowerCase() !== "ai"),
     paidAi: builtins.filter((skill) => skill.paid_provider_call || String(skill.mode || "").toLowerCase() === "ai"),
     matterName: matterStatus?.matterName || "",
@@ -210,6 +212,7 @@ export function renderSkillsPageHtml({
         ${renderSkillCards(summary.custom, escapeHtml, {
           improvementIdeas: skillIdeas?.ideas || [],
           configurableSkillRuns: configurableSkillRuns?.runs || [],
+          allCustomSkills: summary.allCustom || summary.custom,
         })}
       </section>
       <section>
@@ -611,11 +614,12 @@ function renderSkillsStats(summary, escape) {
   `;
 }
 
-function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [] } = {}) {
+function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = null } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
+  const customSkillContext = Array.isArray(allCustomSkills) ? allCustomSkills : skills;
   return `
     <div class="skills-grid">
-      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, configurableSkillRuns, allCustomSkills: skills })).join("")}
+      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, configurableSkillRuns, allCustomSkills: customSkillContext })).join("")}
     </div>
   `;
 }
@@ -623,7 +627,7 @@ function renderSkillCards(skills, escape, { improvementIdeas = [], configurableS
 function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = [] } = {}) {
   const status = skill.artifactStatus;
   const state = skill.configurable
-    ? customSkillStatusLabel(skill.status)
+    ? customSkillDisplayStatusLabel(skill)
     : status
     ? status.present
       ? "Present"
@@ -631,7 +635,7 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
     : skill.matter_required
       ? "No artifact status"
       : "Workspace-level";
-  const stateClass = skill.configurable ? customSkillStatusClass(skill.status) : status?.present ? "present" : "not-run";
+  const stateClass = skill.configurable ? customSkillDisplayStatusClass(skill) : status?.present ? "present" : "not-run";
   const outputs = Array.isArray(skill.outputs) && skill.outputs.length
     ? skill.outputs
     : ["No durable output declared"];
@@ -693,7 +697,7 @@ function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, es
     <details class="skill-output-list custom-skill-version-history" ${skill.status === "active" ? "open" : ""}>
       <summary>
         <strong>Version history</strong>
-        <span class="pipeline-state ${escape(customSkillStatusClass(activeVersion.status))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillStatusLabel(activeVersion.status).toLowerCase()}`)}</span>
+        <span class="pipeline-state ${escape(customSkillDisplayStatusClass(activeVersion))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillDisplayStatusLabel(activeVersion).toLowerCase()}`)}</span>
       </summary>
       <p class="muted">
         Latest runnable version: <code>${escape(activeVersion.slash || skill.slash || "")}</code>.
@@ -715,13 +719,13 @@ function renderCustomSkillVersionItem(skill, ideas, runs, escape) {
   const latestRun = latestRunForSkill(skill, runs);
   const reason = customSkillVersionReason(skill, idea);
   return `
-    <li class="custom-skill-version-item ${escape(customSkillStatusClass(skill.status))}">
+    <li class="custom-skill-version-item ${escape(customSkillDisplayStatusClass(skill))}">
       <div class="skill-card-header">
         <div>
-          <strong>${escape(customSkillVersionLabel(skill))} - ${escape(customSkillStatusLabel(skill.status))}</strong>
+          <strong>${escape(customSkillVersionLabel(skill))} - ${escape(customSkillDisplayStatusLabel(skill))}</strong>
           <p>${escape(reason)}</p>
         </div>
-        <span class="pipeline-state ${escape(customSkillStatusClass(skill.status))}">${escape(customSkillStatusLabel(skill.status))}</span>
+        <span class="pipeline-state ${escape(customSkillDisplayStatusClass(skill))}">${escape(customSkillDisplayStatusLabel(skill))}</span>
       </div>
       <dl class="skill-card-meta compact">
         <div><dt>Sample</dt><dd>${skill.source_sample_id ? `<code>${escape(skill.source_sample_id)}</code>` : '<span class="muted">Unknown</span>'}</dd></div>
@@ -794,10 +798,64 @@ function compareCustomSkills(a, b) {
   const leftStatus = statusRank[a.status] ?? 9;
   const rightStatus = statusRank[b.status] ?? 9;
   if (leftStatus !== rightStatus) return leftStatus - rightStatus;
+  if (a.primary !== b.primary) return a.primary === false ? 1 : -1;
   const leftSlash = String(a.slash || "");
   const rightSlash = String(b.slash || "");
   if (leftSlash !== rightSlash) return leftSlash.localeCompare(rightSlash);
   return Number(b.version || 0) - Number(a.version || 0);
+}
+
+function markPrimaryCustomSkills(skills = []) {
+  const byKey = new Map();
+  const normalized = skills.map((skill) => ({ ...skill, primary: true }));
+  for (const skill of normalized) {
+    if (skill.status !== "active") continue;
+    const key = customSkillGroupingKey(skill);
+    const current = byKey.get(key);
+    if (!current || comparePrimaryCustomSkill(skill, current) < 0) {
+      byKey.set(key, skill);
+    }
+  }
+  const primaryIds = new Set([...byKey.values()].map((skill) => skill.id || skill.slash));
+  return normalized.map((skill) => ({
+    ...skill,
+    primary: skill.status === "active" ? primaryIds.has(skill.id || skill.slash) : false,
+  }));
+}
+
+function customSkillGroupingKey(skill = {}) {
+  const familyId = skill.family_id || skill.familyId || "";
+  const hasExplicitLineage = Boolean(
+    skill.previous_skill_id
+    || skill.previousSkillId
+    || skill.replaced_by_skill_id
+    || skill.replacedBySkillId
+    || (familyId && familyId !== skill.id),
+  );
+  if (hasExplicitLineage) return `family:${familyId || skill.id || skill.slash || ""}`;
+  return [
+    "signature",
+    normalizeComparableText(skill.title),
+    normalizeComparableText((Array.isArray(skill.outputs) ? skill.outputs[0] : skill.outputArtifact) || ""),
+    normalizeComparableText(skill.default_lane || skill.targetLane || ""),
+  ].join(":");
+}
+
+function comparePrimaryCustomSkill(left = {}, right = {}) {
+  const leftVersion = Number(left.version || 0);
+  const rightVersion = Number(right.version || 0);
+  if (leftVersion !== rightVersion) return rightVersion - leftVersion;
+  const leftTime = left.activated_at || left.activatedAt || left.updated_at || left.updatedAt || left.created_at || left.createdAt || "";
+  const rightTime = right.activated_at || right.activatedAt || right.updated_at || right.updatedAt || right.created_at || right.createdAt || "";
+  if (leftTime !== rightTime) return String(rightTime).localeCompare(String(leftTime));
+  const leftId = left.id || "";
+  const rightId = right.id || "";
+  if (leftId !== rightId) return String(rightId).localeCompare(String(leftId));
+  return String(left.slash || "").localeCompare(String(right.slash || ""));
+}
+
+function normalizeComparableText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function customSkillVersionLabel(skill = {}) {
@@ -814,11 +872,11 @@ function customSkillLinkedVersionLabel(skillId, allCustomSkills) {
 }
 
 function customSkillFamilyVersions(skill, allCustomSkills) {
-  const familyId = skill.family_id || skill.familyId || skill.id;
+  const familyId = customSkillGroupingKey(skill);
   const ids = new Set([familyId, skill.id, skill.previous_skill_id, skill.replaced_by_skill_id].filter(Boolean));
   const versions = Array.isArray(allCustomSkills)
     ? allCustomSkills.filter((candidate) => {
-      const candidateFamily = candidate.family_id || candidate.familyId || candidate.id;
+      const candidateFamily = customSkillGroupingKey(candidate);
       return candidateFamily === familyId || ids.has(candidate.id) || ids.has(candidate.previous_skill_id) || ids.has(candidate.replaced_by_skill_id);
     })
     : [skill];
@@ -933,10 +991,20 @@ function customSkillStatusLabel(status) {
   return "Draft";
 }
 
+function customSkillDisplayStatusLabel(skill = {}) {
+  if (skill.status === "active" && skill.primary === false) return "Superseded";
+  return customSkillStatusLabel(skill.status);
+}
+
 function customSkillStatusClass(status) {
   if (status === "active") return "present";
   if (status === "disabled") return "not-run";
   return "pending";
+}
+
+function customSkillDisplayStatusClass(skill = {}) {
+  if (skill.status === "active" && skill.primary === false) return "pending";
+  return customSkillStatusClass(skill.status);
 }
 
 function renderAiRun(aiRun, escape) {

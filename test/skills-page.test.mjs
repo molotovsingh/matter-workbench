@@ -342,6 +342,63 @@ test("skills page renders active custom skills as active", () => {
   assert.doesNotMatch(html, /Party and Officer Map[\s\S]{0,200}Incomplete/);
 });
 
+test("skills page promotes latest duplicate custom skill and keeps older copy in history", () => {
+  const configurableSkills = {
+    schema_version: "configurable-skills/v1",
+    skills: [
+      {
+        schema_version: "configurable-skill/v1",
+        id: "skill_party_1",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        description: "Map formal party names and officers.",
+        status: "active",
+        version: 1,
+        createdAt: "2026-05-14T09:00:00.000Z",
+        activatedAt: "2026-05-14T09:00:00.000Z",
+        targetLane: "20_Workshop",
+        outputArtifact: "20_Workshop/Party and Officer Map.md",
+        matterRequired: true,
+        paidProviderCall: true,
+        sourceBacked: "required",
+      },
+      {
+        schema_version: "configurable-skill/v1",
+        id: "skill_party_2",
+        slash: "/party_officer_map_2",
+        title: "Party and Officer Map",
+        description: "Map formal party names, officers, aliases, and confidence.",
+        status: "active",
+        version: 1,
+        createdAt: "2026-05-14T10:00:00.000Z",
+        activatedAt: "2026-05-14T10:00:00.000Z",
+        targetLane: "20_Workshop",
+        outputArtifact: "20_Workshop/Party and Officer Map.md",
+        matterRequired: true,
+        paidProviderCall: true,
+        sourceBacked: "required",
+      },
+    ],
+  };
+  const summary = skillsPageSummary(registryFixture(), null, configurableSkills);
+  const html = renderSkillsPageHtml({
+    registry: registryFixture(),
+    configurableSkills,
+  }, escapeHtml);
+  const customSection = html.slice(
+    html.indexOf("<h2>Custom Skills"),
+    html.indexOf("<h2>Built-in Skills"),
+  );
+
+  assert.equal(summary.custom.length, 1);
+  assert.equal(summary.allCustom.length, 2);
+  assert.equal(summary.custom[0].slash, "/party_officer_map_2");
+  assert.match(customSection, /<div class="skill-slash"><code>\/party_officer_map_2<\/code><\/div>/);
+  assert.doesNotMatch(customSection, /<div class="skill-slash"><code>\/party_officer_map<\/code><\/div>/);
+  assert.match(customSection, /<strong>v1 - Superseded<\/strong>/);
+  assert.match(customSection, /Latest runnable version: <code>\/party_officer_map_2<\/code>/);
+});
+
 test("skills page renders custom skill version lineage from configurable store", () => {
   const configurableSkills = {
     schema_version: "configurable-skills/v1",
@@ -452,22 +509,22 @@ test("skills page renders custom skill version lineage from configurable store",
     html.indexOf("<h2>Built-in Skills"),
   );
 
-  assert.equal(summary.custom.length, 2);
+  assert.equal(summary.custom.length, 1);
+  assert.equal(summary.allCustom.length, 2);
   assert.deepEqual(summary.custom.map((skill) => [skill.id, skill.status, skill.version]), [
     ["skill_party_v2", "active", 2],
-    ["skill_party_v1", "disabled", 1],
   ]);
   assert.match(customSection, /Active/);
   assert.match(customSection, /Disabled/);
   assert.match(customSection, /<dt>Version<\/dt><dd>v2<\/dd>/);
-  assert.match(customSection, /<dt>Version<\/dt><dd>v1<\/dd>/);
+  assert.match(customSection, /<strong>v1 - Disabled<\/strong>/);
   assert.match(customSection, /<dt>Previous<\/dt><dd>v1 \(disabled\)<\/dd>/);
-  assert.match(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
+  assert.doesNotMatch(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
   assert.match(customSection, /Version history/);
   assert.match(customSection, /Latest runnable version: <code>\/party_officer_map<\/code>/);
   assert.match(customSection, /\/party_officer_map modify/);
   assert.match(customSection, /include relationship confidence and unresolved aliases/);
-  assert.match(customSection, /Map formal party names and officers/);
+  assert.match(customSection, /discover formal party names, officers, aliases, and relationships/);
   assert.match(customSection, /<dt>Latest run<\/dt><dd>Mehta vs Skyline - Succeeded<\/dd>/);
   assert.match(customSection, /<dt>Review matter<\/dt><dd>Mehta vs Skyline<\/dd>/);
   assert.match(customSection, /<dt>Last run<\/dt><dd>Ayesha Vs Japan Airlines - Succeeded<\/dd>/);

@@ -34,8 +34,11 @@ test("configurable skills create active skills from approved samples and allocat
   assert.equal(second.skill.status, "active");
   assert.equal(second.skill.slash, "/party_officer_map_2");
 
+  const listed = await service.listSkills();
+  assert.deepEqual(listed.skills.map((skill) => skill.slash), ["/party_officer_map", "/party_officer_map_2"]);
+
   const cards = await service.activeSkillCards();
-  assert.deepEqual(cards.map((card) => card.slash), ["/party_officer_map", "/party_officer_map_2"]);
+  assert.deepEqual(cards.map((card) => card.slash), ["/party_officer_map_2"]);
   assert.ok(cards.every((card) => card.configurable));
 });
 
