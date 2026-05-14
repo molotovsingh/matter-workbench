@@ -145,6 +145,17 @@ node evals/listofdates/two-pass-model-smoke.mjs \
 
 Models with `/` in the model id default to OpenRouter. Explicit `--pass1-provider` and `--pass2-provider` can be used when needed.
 
+Opus editor variant:
+
+```bash
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-41-20260515/candidates.json" \
+  --pass2-provider openrouter \
+  --pass2-model anthropic/claude-opus-4.6 \
+  --pass2-max-output-tokens 24000 \
+  --run-label atlas-gpt-41-to-claude-opus-46
+```
+
 ## Review Gates
 
 When comparing runs, do not judge only by row count. Check:
