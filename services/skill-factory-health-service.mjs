@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { BUILTIN_SKILL_COMMAND_SET } from "../shared/builtin-skill-commands.mjs";
 import { hashDesignBrief } from "./skill-samples-service.mjs";
 
 export const SKILL_FACTORY_HEALTH_SCHEMA_VERSION = "skill-factory-health/v1";
@@ -9,16 +10,6 @@ const SKILL_SAMPLES_SCHEMA_VERSION = "skill-samples/v1";
 const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
 const VALID_SKILL_STATUSES = new Set(["draft", "active", "disabled"]);
 const VALID_LANES = new Set(["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
-const BUILTIN_SLASHES = new Set([
-  "/matter-init",
-  "/prepare_matter",
-  "/extract",
-  "/describe_sources",
-  "/context_preview",
-  "/context_search",
-  "/create_listofdates",
-  "/doctor",
-]);
 
 export function createSkillFactoryHealthService({
   appDir,
@@ -81,7 +72,7 @@ export function createSkillFactoryHealthService({
     for (const [slash, count] of activeSlashCounts.entries()) {
       if (!slash) continue;
       if (count > 1) addIssue(issues, "error", "duplicate_active_slash", `Active slash ${slash} appears ${count} times.`);
-      if (BUILTIN_SLASHES.has(slash)) addIssue(issues, "error", "builtin_slash_collision", `Custom skill ${slash} collides with a built-in skill.`);
+      if (BUILTIN_SKILL_COMMAND_SET.has(slash)) addIssue(issues, "error", "builtin_slash_collision", `Custom skill ${slash} collides with a built-in skill.`);
     }
 
     for (const skill of skills) {

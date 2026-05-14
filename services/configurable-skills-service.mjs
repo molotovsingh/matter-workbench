@@ -3,6 +3,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { extractResponsesOutputText } from "../shared/responses-client.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
@@ -147,14 +148,7 @@ export function createConfigurableSkillsService({
       ? targetSkill.slash
       : uniqueSlash(authored.slash || slashFromTitle(authored.title), [
         ...store.skills.map((skill) => skill.slash),
-        "/matter-init",
-        "/prepare_matter",
-        "/extract",
-        "/describe_sources",
-        "/context_preview",
-        "/context_search",
-        "/create_listofdates",
-        "/doctor",
+        ...BUILTIN_SKILL_COMMANDS,
       ]);
 
     const timestamp = now().toISOString();
