@@ -1,4 +1,5 @@
 import { formatSkillIdeaImplementationBriefMarkdown } from "../skill-idea-implementation-brief.js";
+import { formatConfigurableRunOutputDocumentState } from "../configurable-skill-run-labels.js";
 
 export function skillsPageSummary(registry = {}, matterStatus = null, configurableSkills = null) {
   const skills = Array.isArray(registry.skills) ? registry.skills : [];
@@ -134,7 +135,7 @@ export function formatConfigurableSkillRunReport(run = {}) {
     `- Started: ${packetValue(run.startedAt)}`,
     `- Finished: ${packetValue(run.finishedAt)}`,
     `- Provider/model: ${packetValue([aiRun.provider, aiRun.model].filter(Boolean).join(" / "))}`,
-    `- Overwrite: ${packetValue(run.overwrite)}`,
+    `- Output document: ${packetValue(formatConfigurableRunOutputDocumentState(run.overwrite))}`,
     "",
     "## Output Paths",
     "",

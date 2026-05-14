@@ -1,4 +1,5 @@
 import { escapeHtml } from "./dom-utils.js";
+import { formatConfigurableRunOutputDocumentState } from "./configurable-skill-run-labels.js";
 
 export function getConfigurableRunArtifactPath(result = {}) {
   const runRecord = result.runRecord || {};
@@ -34,7 +35,7 @@ export function renderConfigurableSkillRunOutput(result = {}) {
           <div><dt>Provider</dt><dd>${escapeHtml(formatConfigurableRunProvider(result))}</dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(getConfigurableRunArtifactPath(result))}</code></dd></div>
           <div><dt>Metadata</dt><dd><code>${escapeHtml(result.outputPaths?.json || "")}</code></dd></div>
-          <div><dt>Output document</dt><dd>${escapeHtml(formatOutputDocumentState(overwrite))}</dd></div>
+          <div><dt>Output document</dt><dd>${escapeHtml(formatConfigurableRunOutputDocumentState(overwrite))}</dd></div>
         </dl>
         <pre class="skill-sample-markdown">${escapeHtml(result.markdown || "")}</pre>
       </section>
@@ -51,7 +52,7 @@ export function renderConfigurableSkillRunRail(result = {}) {
           <dl class="skill-card-meta">
             <div><dt>Matter</dt><dd>${escapeHtml(runRecord.matterName || runRecord.matterFolder || "Unknown matter")}</dd></div>
             <div><dt>Provider</dt><dd>${escapeHtml(formatConfigurableRunProvider(result))}</dd></div>
-            <div><dt>Output document</dt><dd>${escapeHtml(formatOutputDocumentState(overwrite))}</dd></div>
+            <div><dt>Output document</dt><dd>${escapeHtml(formatConfigurableRunOutputDocumentState(overwrite))}</dd></div>
           </dl>
           <p class="muted" data-configurable-run-acceptance>The result is also shown in the main pane for review. This run did not change the skill version.</p>
           <div class="command-interview-actions">
@@ -86,11 +87,4 @@ export function renderConfigurableSkillCancelledRail(result = {}) {
 
 function formatConfigurableRunProvider(result = {}) {
   return [result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider";
-}
-
-function formatOutputDocumentState(overwrite) {
-  if (overwrite === "approved") return "Replaced existing matter output";
-  if (overwrite === "cancelled") return "Kept existing matter output";
-  if (overwrite === "prompted") return "Replacement confirmation shown";
-  return "Created new matter output";
 }

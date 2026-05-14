@@ -1,3 +1,5 @@
+import { formatConfigurableRunOutputDocumentState } from "./configurable-skill-run-labels.js";
+
 export function normalizeTerminalLines(terminal) {
   if (terminal === undefined || terminal === null) return [];
   const values = Array.isArray(terminal) ? terminal : [terminal];
@@ -23,7 +25,7 @@ export function formatCommandReport(report) {
   if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
   if (report.runId) lines.push(`- Run id: ${report.runId}`);
-  if (report.overwrite) lines.push(`- Overwrite: ${report.overwrite}`);
+  if (report.overwrite) lines.push(`- Output document: ${formatConfigurableRunOutputDocumentState(report.overwrite)}`);
   if (report.error) lines.push(`- Error: ${report.error}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {
     lines.push("- Artifact paths touched/preserved:");

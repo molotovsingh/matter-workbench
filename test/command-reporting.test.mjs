@@ -36,6 +36,8 @@ test("formatCommandReport renders copyable command metadata", () => {
   assert.match(report, /- Matched command: `\/party_officer_map`/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
   assert.match(report, /- Run id: run_123/);
+  assert.match(report, /- Output document: Replaced existing matter output/);
+  assert.doesNotMatch(report, /- Overwrite:/);
   assert.match(report, /`20_Workshop\/Party and Officer Map\.md`/);
   assert.match(report, /## Latest Terminal Lines/);
 });
