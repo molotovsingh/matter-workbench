@@ -174,6 +174,9 @@ test("skills page renders built-in skill governance metadata and matter artifact
   }, escapeHtml);
 
   assert.match(html, /Skill Factory Health/);
+  assert.match(html, /Read-only check of saved ideas, samples, and stored skill records/);
+  assert.match(html, /Stored custom skill records/);
+  assert.match(html, /Stored active versions/);
   assert.match(html, /No store integrity issues observed/);
   assert.match(html, /Copy Health Report/);
   assert.match(html, /data-skill-factory-copy-health/);
@@ -203,6 +206,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
   assert.match(html, /Custom Skills/);
+  assert.match(html, /Only the latest approved version is shown as runnable/);
   assert.match(html, /Paid AI Skills/);
   assert.match(html, /Deterministic Skills/);
   assert.match(html, /Coming Later: Skill Builder Expansion/);
@@ -238,6 +242,9 @@ test("skills page health report is copyable and excludes secrets", () => {
 
   assert.match(report, /^# Skill Factory Health Report/);
   assert.match(report, /State: warning/);
+  assert.match(report, /Stored custom skill records: 1/);
+  assert.match(report, /Stored active versions: 1/);
+  assert.doesNotMatch(report, /Active skills:/);
   assert.match(report, /Active skill missing passed validation metadata/);
   assert.match(report, /read-only health report/i);
   assert.doesNotMatch(report, /API_KEY|\.env|full extraction records|raw source text/i);
@@ -628,7 +635,7 @@ test("custom skill run report is copyable and excludes work product", () => {
   assert.match(report, /- Status: succeeded/);
   assert.match(report, /- Slash command: \/party_officer_map/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
-  assert.match(report, /- Output document: Replaced existing matter output/);
+  assert.match(report, /- Output document: Replaced existing output document/);
   assert.doesNotMatch(report, /- Overwrite:/);
   assert.match(report, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(report, /bounded context omitted 10 blocks/);

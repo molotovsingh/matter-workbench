@@ -1293,7 +1293,7 @@ test("command box runs active configurable slash commands and handles overwrite 
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Output document already exists/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /skill version will not change/i);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /This does not replace or edit the skill version/i);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
@@ -1306,7 +1306,8 @@ test("command box runs active configurable slash commands and handles overwrite 
   await box.handleCommand({ userRequest: "run again" });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Output document already exists/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Replace output document/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Keep existing document/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Keep existing output document/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /This does not replace or edit the skill version/i);
   assert.equal(ctx.statusCalls.at(-1).bar, "Replace Output?");
 
   await box.handleCommand({ userRequest: "keep current" });
@@ -1330,7 +1331,7 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(ctx.elements.editorContent.innerHTML, /run_party_overwrite/);
-  assert.match(ctx.elements.editorContent.innerHTML, /Replaced existing matter output/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Replaced existing output document/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks good/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
