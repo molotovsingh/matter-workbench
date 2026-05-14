@@ -145,6 +145,7 @@ const PASS1_SYSTEM = [
   "Use only supplied text. Do not infer missing facts, parties, dates, or legal conclusions.",
   "Be verbose in the candidate ledger: include a source_excerpt long enough for the editor pass to audit the date, fact, and uncertainty without returning to the raw document.",
   "Explain legal_materiality in practical lawyer terms, including whether the event helps the client, hurts the client, is neutral procedure, or is only an authority/precedent date.",
+  "Keep foundation and collateral-proceeding dates if they explain ownership, authority, limitation, parallel litigation, appeal delay, or enforceability.",
   "Use same_fact_hint to help the editor merge candidates later, for example agreement execution, delivery deadline, expert inspection, forum order, appeal order, revision filing.",
   "If a date is partial, OCR-corrupted, internally inconsistent, or suspicious, keep the candidate, set needs_review true, and explain date_uncertainty or ocr_suspicion.",
   "Classify pure cited precedent/case-law dates as authority_or_precedent, not as matter_fact.",
@@ -178,9 +179,6 @@ if (options.help) {
 await run();
 
 async function run() {
-  const matterRoot = options.matterRoot ? path.resolve(options.matterRoot) : "";
-  if (!matterRoot) throw new Error("--matter-root is required");
-
   const outDir = options.outDir
     ? path.resolve(options.outDir)
     : path.join(REPO_ROOT, ".local", "listofdates-two-pass", options.runLabel || defaultRunLabel(options));
@@ -190,6 +188,14 @@ async function run() {
   const env = { ...process.env };
   await loadLocalEnv({ appDir: REPO_ROOT, targetEnv: env, override: true });
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required for the two-pass list-of-dates smoke");
+
+  if (options.candidatesFile) {
+    await runPass2FromCandidates({ outDir, env });
+    return;
+  }
+
+  const matterRoot = options.matterRoot ? path.resolve(options.matterRoot) : "";
+  if (!matterRoot) throw new Error("--matter-root is required unless --candidates-file is supplied");
 
   const matter = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
   const sourceIndex = await readSourceIndex(matterRoot);
@@ -255,13 +261,53 @@ async function run() {
       sourceTextChars: options.sourceTextChars,
       includeAllBlocks: options.includeAllBlocks,
       chunkCharLimit: options.chunkCharLimit,
+      chunkCount: chunks.length,
     },
     source_block_count: sourceBlocks.length,
     candidates,
     runs: pass1Runs,
   };
   await writeJson(path.join(outDir, "candidates.json"), candidatesDocument);
+  if (options.pass1Only) {
+    console.log(`[two-pass] pass1-only candidates ${candidates.length}`);
+    console.log(`[two-pass] candidates ${path.join(outDir, "candidates.json")}`);
+    return;
+  }
 
+  await runPass2({
+    outDir,
+    env,
+    matter: matterSummary(matter),
+    candidatesDocument,
+    sourceBlockCount: sourceBlocks.length,
+    chunkCount: chunks.length,
+    renderMatter: matter,
+  });
+}
+
+async function runPass2FromCandidates({ outDir, env }) {
+  const candidatesDocument = JSON.parse(await readFile(path.resolve(options.candidatesFile), "utf8"));
+  const matter = candidatesDocument.matter || {};
+  const sourceBlockCount = candidatesDocument.source_block_count || 0;
+  const chunkCount = candidatesDocument.pass1?.chunkCount
+    || Math.max(0, ...((candidatesDocument.candidates || []).map((candidate) => Number(candidate.chunkIndex) || 0)));
+  console.log(`[two-pass] candidates ${options.candidatesFile}`);
+  console.log(`[two-pass] pass1 ${candidatesDocument.pass1?.model || "unknown"}; pass2 ${options.pass2Model}`);
+  console.log(`[two-pass] candidates ${(candidatesDocument.candidates || []).length}, chunks ${chunkCount}`);
+  console.log(`[two-pass] output ${outDir}`);
+  await runPass2({
+    outDir,
+    env,
+    matter,
+    candidatesDocument,
+    sourceBlockCount,
+    chunkCount,
+    renderMatter: matter,
+  });
+}
+
+async function runPass2({ outDir, env, matter, candidatesDocument, sourceBlockCount, chunkCount, renderMatter }) {
+  const candidates = Array.isArray(candidatesDocument.candidates) ? candidatesDocument.candidates : [];
   const pass2 = await requestJson({
     apiKey: env.OPENAI_API_KEY,
     model: options.pass2Model,
@@ -285,7 +331,7 @@ async function run() {
   const polishedDocument = {
     schema_version: "polished-list-of-dates/v1-smoke",
     generated_at: new Date().toISOString(),
-    matter: matterSummary(matter),
+    matter,
     pass2: {
       model: options.pass2Model,
       maxOutputTokens: options.pass2MaxOutputTokens,
@@ -296,14 +342,18 @@ async function run() {
   await writeJson(path.join(outDir, "polished.json"), polishedDocument);
   await writeFile(
     path.join(outDir, "List of Dates.md"),
-    renderMarkdown({ matter, modelLabel: `${options.pass1Model} -> ${options.pass2Model}`, polished: polishedDocument }),
+    renderMarkdown({
+      matter: renderMatter,
+      modelLabel: `${candidatesDocument.pass1?.model || options.pass1Model} -> ${options.pass2Model}`,
+      polished: polishedDocument,
+    }),
   );
 
   const report = buildReport({
     matter,
     outDir,
-    sourceBlocks,
-    chunks,
+    sourceBlockCount,
+    chunkCount,
     candidatesDocument,
     polishedDocument,
   });
@@ -381,39 +431,62 @@ function chunkBlocks(sourceBlocks, limit) {
 }
 
 async function requestJson({ apiKey, model, system, user, schemaName, schema, maxOutputTokens }) {
-  const payload = await fetchResponses({
-    apiKey,
-    body: {
-      model,
-      max_output_tokens: maxOutputTokens,
-      input: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(user) },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          strict: true,
-          schema,
+  const maxAttempts = 3;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const payload = await fetchResponses({
+        apiKey,
+        body: {
+          model,
+          max_output_tokens: maxOutputTokens,
+          input: [
+            { role: "system", content: system },
+            { role: "user", content: JSON.stringify(user) },
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: schemaName,
+              strict: true,
+              schema,
+            },
+          },
         },
-      },
-    },
-  });
-  const outputText = extractResponsesOutputText(payload);
-  if (!outputText) throw new Error(`No output text returned for ${schemaName}`);
-  return {
-    json: JSON.parse(outputText),
-    meta: {
-      requestedModel: model,
-      returnedModel: payload.model || "",
-      status: payload.status || "",
-      usage: payload.usage || null,
-    },
-  };
+      });
+      const outputText = extractResponsesOutputText(payload);
+      if (!outputText) throw new Error(`No output text returned for ${schemaName}`);
+      return {
+        json: JSON.parse(outputText),
+        meta: {
+          requestedModel: model,
+          returnedModel: payload.model || "",
+          status: payload.status || "",
+          usage: payload.usage || null,
+          attempts: attempt,
+        },
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableProviderError(error) || attempt === maxAttempts) break;
+      const delayMs = 1500 * attempt;
+      console.warn(`[two-pass] retrying ${schemaName} after provider error (${attempt}/${maxAttempts}): ${error.message}`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
 }
 
-function buildReport({ matter, outDir, sourceBlocks, chunks, candidatesDocument, polishedDocument }) {
+function isRetryableProviderError(error) {
+  const status = Number(error?.statusCode || error?.status || 0);
+  return status >= 500 || /fetch failed|network|ECONNRESET|ETIMEDOUT|timeout/i.test(error?.message || "");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildReport({ matter, outDir, sourceBlockCount, chunkCount, candidatesDocument, polishedDocument }) {
   const entries = Array.isArray(polishedDocument.entries) ? polishedDocument.entries : [];
   const candidates = Array.isArray(candidatesDocument.candidates) ? candidatesDocument.candidates : [];
   return {
@@ -424,8 +497,8 @@ function buildReport({ matter, outDir, sourceBlocks, chunks, candidatesDocument,
     pass2Model: polishedDocument.pass2.model,
     pass1ReturnedModels: unique((candidatesDocument.runs || []).map((run) => run.returnedModel).filter(Boolean)),
     pass2ReturnedModel: polishedDocument.ai_run?.returnedModel || "",
-    sourceBlocks: sourceBlocks.length,
-    chunks: chunks.length,
+    sourceBlocks: sourceBlockCount,
+    chunks: chunkCount,
     candidates: candidates.length,
     candidateTypeCounts: countBy(candidates, "candidate_type"),
     candidateNeedsReview: candidates.filter((candidate) => candidate.needs_review).length,
@@ -508,6 +581,7 @@ async function writeJson(filePath, value) {
 function parseArgs(argv) {
   const options = {
     matterRoot: "",
+    candidatesFile: "",
     outDir: "",
     runLabel: "",
     pass1Model: process.env.LISTOFDATES_PASS1_MODEL || "gpt-5.4-mini",
@@ -517,6 +591,7 @@ function parseArgs(argv) {
     chunkCharLimit: Number(process.env.LISTOFDATES_TWO_PASS_CHUNK_CHAR_LIMIT || 18000),
     sourceTextChars: Number(process.env.LISTOFDATES_TWO_PASS_SOURCE_TEXT_CHARS || 2400),
     includeAllBlocks: false,
+    pass1Only: false,
     help: false,
   };
 
@@ -526,6 +601,8 @@ function parseArgs(argv) {
       options.help = true;
     } else if (arg === "--matter-root") {
       options.matterRoot = argv[++index] || "";
+    } else if (arg === "--candidates-file") {
+      options.candidatesFile = argv[++index] || "";
     } else if (arg === "--out-dir") {
       options.outDir = argv[++index] || "";
     } else if (arg === "--run-label") {
@@ -544,6 +621,8 @@ function parseArgs(argv) {
       options.sourceTextChars = Number(argv[++index]);
     } else if (arg === "--include-all-blocks") {
       options.includeAllBlocks = true;
+    } else if (arg === "--pass1-only") {
+      options.pass1Only = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -567,10 +646,13 @@ function defaultRunLabel(options) {
 function printHelp() {
   console.log(`Usage:
   node evals/listofdates/two-pass-model-smoke.mjs --matter-root <matter-folder> [options]
+  node evals/listofdates/two-pass-model-smoke.mjs --candidates-file <candidates.json> [options]
 
 Options:
   --pass1-model <model>              Candidate extraction model. Default: gpt-5.4-mini
   --pass2-model <model>              Chronology editor model. Default: gpt-5.4
+  --pass1-only                       Write candidates.json and skip editor pass
+  --candidates-file <path>           Reuse an existing first-pass candidates.json
   --run-label <label>                Output folder name under .local/listofdates-two-pass/
   --out-dir <path>                   Explicit output folder
   --pass1-max-output-tokens <n>      Default: 9000

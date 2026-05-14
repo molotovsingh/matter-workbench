@@ -20,6 +20,21 @@ node evals/listofdates/two-pass-model-smoke.mjs \
   --run-label atlas-mini-to-54
 ```
 
+For matrix tests, reuse the first-pass candidate ledger instead of rerunning it for every editor model:
+
+```bash
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --matter-root "/path/to/matter" \
+  --pass1-model gpt-5.4-mini \
+  --pass1-only \
+  --run-label atlas-pass1-mini
+
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --candidates-file ".local/listofdates-two-pass/atlas-pass1-mini/candidates.json" \
+  --pass2-model gpt-5.4 \
+  --run-label atlas-mini-to-54
+```
+
 Outputs are written under:
 
 ```text
@@ -42,6 +57,8 @@ report.json
 `polished.json` and `List of Dates.md` are the second-pass lawyer-facing outputs.
 
 `report.json` captures comparison metrics such as candidate count, polished row count, duplicate date clusters, needs-review rows, technical label leaks, precedent-like rows, returned model, and token usage.
+
+The harness retries transient provider 5xx/network failures. A one-off provider error should not invalidate a multi-chunk legal bakeoff.
 
 ## Why Two Passes
 
