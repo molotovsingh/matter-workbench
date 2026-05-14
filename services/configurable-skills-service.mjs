@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   buildConfigurableSkillMatterContextPacket,
@@ -24,13 +24,17 @@ import {
   createDefaultAuthoringProvider,
   createDefaultRunProvider,
 } from "./configurable-skill-providers.mjs";
+import {
+  CONFIGURABLE_SKILLS_SCHEMA_VERSION,
+  createConfigurableSkillStore,
+} from "./configurable-skill-store.mjs";
 import { validateDraftSkill } from "./configurable-skill-validation.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 
-export const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
+export { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
 export { CONFIGURABLE_SKILL_SCHEMA_VERSION, skillToRegistryCard } from "./configurable-skill-definition.mjs";
 export {
   createOpenAiAuthoringProvider,
@@ -58,8 +62,11 @@ export function createConfigurableSkillsService({
   if (!skillIdeasService) throw new Error("skillIdeasService is required");
   if (!skillSamplesService) throw new Error("skillSamplesService is required");
 
-  const root = path.resolve(appDir || process.cwd());
-  const storePath = skillsPath || path.join(root, "configurable-skills.json");
+  const {
+    readStore,
+    writeStore,
+    storePath,
+  } = createConfigurableSkillStore({ appDir, skillsPath });
   const runLedger = configurableSkillRunsService || createNoopRunLedger();
 
   async function listSkills() {
@@ -332,32 +339,6 @@ export function createConfigurableSkillsService({
       runId: record.id,
       runRecord: record,
     };
-  }
-
-  async function readStore() {
-    try {
-      const parsed = JSON.parse(await readFile(storePath, "utf8"));
-      if (parsed?.schema_version !== CONFIGURABLE_SKILLS_SCHEMA_VERSION || !Array.isArray(parsed.skills)) {
-        throw makeHttpError(`Invalid configurable skills store at ${storePath}`, 500);
-      }
-      return {
-        schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-        skills: parsed.skills.map(normalizeStoredSkill),
-      };
-    } catch (error) {
-      if (error?.code === "ENOENT") {
-        return { schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION, skills: [] };
-      }
-      throw error;
-    }
-  }
-
-  async function writeStore(store) {
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await writeFile(storePath, `${JSON.stringify({
-      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-      skills: store.skills.map(normalizeStoredSkill),
-    }, null, 2)}\n`);
   }
 
   return {
