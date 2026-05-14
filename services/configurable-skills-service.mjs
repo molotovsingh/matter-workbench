@@ -5,7 +5,13 @@ import { buildMatterContextPacket } from "./matter-context-service.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { extractResponsesOutputText } from "../shared/responses-client.mjs";
+import {
+  extractOpenAiOutputText,
+  extractOpenRouterMessageText,
+  fetchProviderJsonWithTimeout,
+  parseOpenAiJsonOutput,
+  parseOpenRouterJsonMessage,
+} from "../shared/provider-http.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 
 export const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
@@ -551,7 +557,7 @@ function createDefaultRunProvider({ providerConfig, env, fetchImpl }) {
 export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openAiAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill authoring", 409);
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -574,14 +580,14 @@ export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fe
         },
       },
     });
-    return parseOpenAiJson(payload, "OpenAI skill authoring");
+    return parseOpenAiJsonOutput(payload, "OpenAI skill authoring");
   };
 }
 
 export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openRouterAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill authoring", 409);
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -610,14 +616,14 @@ export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl 
         },
       },
     });
-    return parseOpenRouterJson(payload, "OpenRouter skill authoring");
+    return parseOpenRouterJsonMessage(payload, "OpenRouter skill authoring");
   };
 }
 
 export function createOpenAiRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openAiRunProvider({ skill, matterContext } = {}) {
     if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for configurable skill runs", 409);
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -632,14 +638,14 @@ export function createOpenAiRunProvider({ apiKey, endpoint, fetchImpl = fetch, m
         ],
       },
     });
-    return extractResponsesOutputText(payload);
+    return extractOpenAiOutputText(payload, "OpenAI configurable skill run");
   };
 }
 
 export function createOpenRouterRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openRouterRunProvider({ skill, matterContext } = {}) {
     if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for configurable skill runs", 409);
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -660,9 +666,7 @@ export function createOpenRouterRunProvider({ apiKey, endpoint, fetchImpl = fetc
         provider: { require_parameters: true, allow_fallbacks: false },
       },
     });
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content === "string" && content.trim()) return content;
-    throw makeHttpError("OpenRouter configurable skill run response did not include message content", 502);
+    return extractOpenRouterMessageText(payload, "OpenRouter configurable skill run");
   };
 }
 
@@ -908,64 +912,6 @@ function summarizeMatterContext(packet) {
     library_artifacts: (Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : []).slice(0, 4),
     warnings: Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : [],
   };
-}
-
-async function fetchJsonWithTimeout({ fetchImpl, endpoint, apiKey, body, timeoutMs, extraHeaders = {}, timeoutMessage }) {
-  const controller = Number.isInteger(timeoutMs) && timeoutMs > 0 ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  let response;
-  let payload;
-  try {
-    response = await fetchImpl(endpoint, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        ...extraHeaders,
-      },
-      body: JSON.stringify(body),
-      ...(controller ? { signal: controller.signal } : {}),
-    });
-    payload = await response.json().catch((error) => {
-      if (controller?.signal.aborted || error?.name === "AbortError") throw error;
-      return null;
-    });
-  } catch (error) {
-    if (controller?.signal.aborted || error?.name === "AbortError") {
-      throw makeHttpError(timeoutMessage || `Provider request timed out after ${timeoutMs}ms`, 504);
-    }
-    throw error;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-  if (!response.ok || payload?.error) {
-    const message = payload?.error?.message || `Provider returned ${response?.status || "an error"}`;
-    throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503);
-  }
-  return payload;
-}
-
-function parseOpenAiJson(payload, label) {
-  const outputText = extractResponsesOutputText(payload);
-  if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502);
-  try {
-    return JSON.parse(outputText);
-  } catch (error) {
-    throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502);
-  }
-}
-
-function parseOpenRouterJson(payload, label) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") {
-    try {
-      return JSON.parse(content);
-    } catch (error) {
-      throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502);
-    }
-  }
-  if (content && typeof content === "object") return content;
-  throw makeHttpError(`${label} response did not include JSON message content`, 502);
 }
 
 async function exists(filePath) {
