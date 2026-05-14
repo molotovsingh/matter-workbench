@@ -1,6 +1,6 @@
 export function formatConfigurableRunOutputDocumentState(overwrite) {
-  if (overwrite === "approved") return "Replaced existing matter output";
-  if (overwrite === "cancelled") return "Kept existing matter output";
+  if (overwrite === "approved") return "Replaced existing output document";
+  if (overwrite === "cancelled") return "Kept existing output document";
   if (overwrite === "prompted") return "Replacement confirmation shown";
-  return "Created new matter output";
+  return "Created new output document";
 }

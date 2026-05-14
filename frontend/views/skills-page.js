@@ -100,8 +100,8 @@ export function formatSkillFactoryHealthReport(health = {}) {
     `- Checked at: ${health.checkedAt || "Not available"}`,
     `- Ideas: ${summary.ideas ?? 0}`,
     `- Samples: ${summary.samples ?? 0}`,
-    `- Configurable skills: ${summary.configurableSkills ?? 0}`,
-    `- Active skills: ${summary.activeSkills ?? 0}`,
+    `- Stored custom skill records: ${summary.configurableSkills ?? 0}`,
+    `- Stored active versions: ${summary.activeSkills ?? 0}`,
     `- Errors: ${summary.errors ?? 0}`,
     `- Warnings: ${summary.warnings ?? 0}`,
     "",
@@ -208,7 +208,7 @@ export function renderSkillsPageHtml({
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
       <section>
         <h2>Custom Skills</h2>
-        <p class="muted">Approved and activated skills created from reviewed samples. Draft or disabled custom skills are not runnable.</p>
+        <p class="muted">Approved and activated skills created from reviewed samples. Only the latest approved version is shown as runnable. Earlier versions are kept in history.</p>
         ${renderSkillCards(summary.custom, escapeHtml, {
           improvementIdeas: skillIdeas?.ideas || [],
           configurableSkillRuns: configurableSkillRuns?.runs || [],
@@ -263,15 +263,15 @@ function renderSkillFactoryHealth(health, escape) {
       <div class="skill-card-header">
         <div>
           <h2>Skill Factory Health</h2>
-          <p class="muted">Read-only check of saved ideas, samples, and active custom skills.</p>
+          <p class="muted">Read-only check of saved ideas, samples, and stored skill records.</p>
         </div>
         <span class="pipeline-state ${escape(healthStateClass(state))}">${escape(healthStateLabel(state))}</span>
       </div>
       <dl class="skill-contract skills-summary">
         <div><dt>Ideas</dt><dd>${escape(String(summary.ideas ?? 0))}</dd></div>
         <div><dt>Samples</dt><dd>${escape(String(summary.samples ?? 0))}</dd></div>
-        <div><dt>Custom skills</dt><dd>${escape(String(summary.configurableSkills ?? 0))}</dd></div>
-        <div><dt>Active</dt><dd>${escape(String(summary.activeSkills ?? 0))}</dd></div>
+        <div><dt>Stored custom skill records</dt><dd>${escape(String(summary.configurableSkills ?? 0))}</dd></div>
+        <div><dt>Stored active versions</dt><dd>${escape(String(summary.activeSkills ?? 0))}</dd></div>
         <div><dt>Issues</dt><dd>${escape(`${summary.errors ?? 0} errors / ${summary.warnings ?? 0} warnings`)}</dd></div>
       </dl>
       <div class="skill-idea-readiness">

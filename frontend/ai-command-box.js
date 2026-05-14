@@ -391,7 +391,7 @@ export function createAiCommandBox(ctx, options = {}) {
         });
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>Output document already exists</strong><br /><code>${escapeHtml(result.artifactPath || "output document")}</code> already exists. The skill version will not change.`,
+          card: `<strong>Output document already exists</strong><br /><code>${escapeHtml(result.artifactPath || "output document")}</code> already exists. This does not replace or edit the skill version.`,
           bar: "Output Exists",
           terminal: `[configurable-skill] output replacement required for ${slash}`,
         });
@@ -526,7 +526,7 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
         <h3>Output document already exists</h3>
-        <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. The skill version will not change.</p>
+        <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. This does not replace or edit the skill version.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
@@ -551,22 +551,22 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
         <h3>Output document already exists</h3>
-        <p class="muted">Do you want to replace this matter's output document? The skill version will not change.</p>
+        <p class="muted">Do you want to replace this matter's output document? This does not replace or edit the skill version.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd><code>${escapeHtml(result.skill?.slash || pendingConfigurableRun?.slash || "")}</code></dd></div>
           <div><dt>Output document</dt><dd><code>${escapeHtml(result.artifactPath || "")}</code></dd></div>
         </dl>
         <div class="command-interview-actions">
           <button type="button" data-configurable-skill-action="overwrite">Replace output document</button>
-          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep existing document</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep existing output document</button>
         </div>
       </section>
     `;
-    aiCommandInput.placeholder = "Replace output document or Keep existing document";
+    aiCommandInput.placeholder = "Replace output document or Keep existing output document";
     wireConfigurableSkillActions();
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Output document exists</strong><br /><code>${escapeHtml(result.artifactPath || pendingConfigurableRun?.artifactPath || "output document")}</code> already exists. The skill version will not change.`,
+      card: `<strong>Output document exists</strong><br /><code>${escapeHtml(result.artifactPath || pendingConfigurableRun?.artifactPath || "output document")}</code> already exists. This does not replace or edit the skill version.`,
       bar: "Replace Output?",
       terminal: `[configurable-skill] output replacement confirmation for ${pendingConfigurableRun?.slash || ""}`,
     });
