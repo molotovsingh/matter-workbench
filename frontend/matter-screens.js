@@ -1,4 +1,5 @@
 import { getJson, postJson } from "./api-client.js";
+import { writeClipboardText } from "./clipboard.js";
 import { escapeHtml } from "./dom-utils.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 import { renderActivityPageHtml } from "./views/activity-page.js";
@@ -486,29 +487,6 @@ export function createMatterScreens(ctx) {
     if (!element) return;
     element.textContent = message;
     element.classList.toggle("form-error", Boolean(isError));
-  }
-
-  async function writeClipboardText(text) {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(text);
-        return;
-      } catch {
-        // Fall back to the hidden textarea path below.
-      }
-    }
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.top = "-1000px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      if (!document.execCommand("copy")) throw new Error("clipboard copy was rejected");
-    } finally {
-      textarea.remove();
-    }
   }
 
   function cssEscape(value) {

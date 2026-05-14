@@ -1,3 +1,4 @@
+import { writeClipboardText } from "./clipboard.js";
 import { escapeHtml, formatBytes } from "./dom-utils.js";
 import {
   MATTER_WORKSPACE_GROUPS,
@@ -438,27 +439,6 @@ function wireListOfDatesPreviewActions(markdown) {
       copyButton.disabled = false;
     }
   });
-}
-
-async function writeClipboardText(text) {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall back for embedded browser contexts that expose Clipboard API but deny write permission.
-    }
-  }
-
-  const scratch = document.createElement("textarea");
-  scratch.value = text;
-  scratch.setAttribute("readonly", "");
-  scratch.style.position = "fixed";
-  scratch.style.top = "-9999px";
-  document.body.appendChild(scratch);
-  scratch.select();
-  document.execCommand("copy");
-  scratch.remove();
 }
 
 function setArtifactActionStatus(status, message, isError = false) {
