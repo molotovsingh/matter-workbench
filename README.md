@@ -185,8 +185,11 @@ MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 - `app.js` - frontend composition, state bootstrapping, and built-in skill dispatch
 - `frontend/` - command rail UI, screens, workspace views, and skill-specific frontend runners
 - `server.mjs` - local server bootstrap and service wiring
-- `routes/api-routes.mjs` - HTTP API routes for skills, matters, status, context, rerun advice, and settings
+- `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
+- `routes/matter-workflow-routes.mjs` - matter setup, extraction, source labeling, chronology, status, context, and rerun advice routes
+- `routes/skill-factory-routes.mjs` - skills registry, skill ideas, sample output, configurable skill creation/runs, and factory health routes
 - `services/` - matter store, workspace, upload, status, preparation, skill governance, and logging services
+- `services/configurable-skill-*.mjs` - custom skill definition, store, provider, context, validation, and run-ledger helpers
 - `matter-init-engine.mjs` - deterministic copy-only intake engine
 - `extract-engine.mjs` - deterministic extraction engine with optional OCR provider integration
 - `source-descriptors-engine.mjs` - source descriptor engine for `10_Library/Source Index.json`
