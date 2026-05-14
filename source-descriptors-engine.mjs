@@ -5,9 +5,9 @@ import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import {
-  createRequestSignal,
   parseOpenRouterJsonContent,
 } from "./shared/openrouter-response.mjs";
+import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -299,40 +299,19 @@ export function createOpenRouterSourceDescriptorProvider({
     if (providerSort) body.provider.sort = providerSort;
     if (maxPrice) body.provider.max_price = maxPrice;
 
-    const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
-    let response;
-    let payload;
-    try {
-      response = await fetchImpl(endpoint, {
-        method: "POST",
-        headers: {
-          "authorization": `Bearer ${apiKey}`,
-          "content-type": "application/json",
-          "http-referer": "https://github.com/molotovsingh/matter-workbench",
-          "x-title": "Matter Workbench Source Descriptors",
-        },
-        body: JSON.stringify(body),
-        ...(signal ? { signal } : {}),
-      });
-      payload = await response.json().catch((error) => {
-        if (signal?.aborted || error?.name === "AbortError") throw error;
-        return null;
-      });
-    } catch (error) {
-      if (signal?.aborted || error?.name === "AbortError") {
-        const timeoutError = new Error(`OpenRouter source description request timed out after ${timeoutMs}ms`);
-        timeoutError.statusCode = 504;
-        throw timeoutError;
-      }
-      throw error;
-    } finally {
-      cancelTimeout();
-    }
-    if (!response.ok) {
-      const error = new Error(payload?.error?.message || `OpenRouter returned ${response.status}`);
-      error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-      throw error;
-    }
+    const payload = await fetchProviderJsonWithTimeout({
+      fetchImpl,
+      endpoint,
+      apiKey,
+      timeoutMs,
+      extraHeaders: {
+        "http-referer": "https://github.com/molotovsingh/matter-workbench",
+        "x-title": "Matter Workbench Source Descriptors",
+      },
+      timeoutMessage: `OpenRouter source description request timed out after ${timeoutMs}ms`,
+      isErrorPayload: ({ response }) => !response.ok,
+      body,
+    });
 
     return parseOpenRouterJsonContent(payload);
   };
