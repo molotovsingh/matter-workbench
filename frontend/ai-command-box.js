@@ -395,15 +395,15 @@ export function createAiCommandBox(ctx, options = {}) {
           artifacts: result.artifactPath ? [result.artifactPath] : [],
         });
         recordCommandInteraction({
-          renderedState: "configurable_skill/overwrite",
+          renderedState: "configurable_skill/output_replace",
           status: "warned",
           providerRunInvoked: false,
         });
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>Output already exists</strong><br /><code>${escapeHtml(result.artifactPath || "artifact")}</code> already exists.`,
+          card: `<strong>Output document already exists</strong><br /><code>${escapeHtml(result.artifactPath || "output document")}</code> already exists. The skill version will not change.`,
           bar: "Output Exists",
-          terminal: `[configurable-skill] overwrite required for ${slash}`,
+          terminal: `[configurable-skill] output replacement required for ${slash}`,
         });
         return;
       }
@@ -475,15 +475,15 @@ export function createAiCommandBox(ctx, options = {}) {
       renderConfigurableSkillImprovementPrompt();
       return true;
     }
-    if (pendingPhase === "action_sheet" && (normalized === "run again" || normalized === "overwrite" || normalized === "overwrite artifact")) {
+    if (pendingPhase === "action_sheet" && isReplaceOutputCommand(normalized)) {
       renderConfigurableSkillOverwritePrompt(pendingConfigurableRun);
       return true;
     }
-    if (pendingPhase === "action_sheet" && (normalized === "cancel" || normalized === "keep current")) {
-      clearPendingConfigurableRun("No action taken", "Kept the existing output. Nothing ran and nothing was overwritten.");
+    if (pendingPhase === "action_sheet" && (normalized === "cancel" || normalized === "keep current" || normalized === "keep existing document" || normalized === "keep existing output")) {
+      clearPendingConfigurableRun("No action taken", "Kept the existing output document. Nothing ran and the skill was not changed.");
       return true;
     }
-    if (normalized === "cancel" || normalized === "keep current") {
+    if (normalized === "cancel" || normalized === "keep current" || normalized === "keep existing document" || normalized === "keep existing output") {
       const pending = pendingConfigurableRun;
       pendingConfigurableRun = null;
       let cancelled = null;
@@ -507,24 +507,33 @@ export function createAiCommandBox(ctx, options = {}) {
         overwrite: "cancelled",
       });
       recordCommandInteraction({
-        renderedState: "configurable_skill/overwrite",
+        renderedState: "configurable_skill/output_replace",
         status: "cancelled",
         providerRunInvoked: false,
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Kept current artifact</strong><br />Nothing was overwritten.",
+        card: "<strong>Kept existing output document</strong><br />Nothing ran and the skill was not changed.",
         bar: "Run Cancelled",
-        terminal: "[configurable-skill] overwrite cancelled",
+        terminal: "[configurable-skill] output replacement cancelled",
       });
       return true;
     }
-    if (normalized === "overwrite" || normalized === "overwrite artifact" || normalized === "run again") {
+    if (isReplaceOutputCommand(normalized)) {
       const pending = pendingConfigurableRun;
       await runConfigurableSkillCommand(pending, userRequest, { overwrite: true });
       return true;
     }
     return false;
+  }
+
+  function isReplaceOutputCommand(normalized) {
+    return normalized === "run again"
+      || normalized === "overwrite"
+      || normalized === "overwrite artifact"
+      || normalized === "replace output"
+      || normalized === "replace output document"
+      || normalized === "replace document";
   }
 
   function renderConfigurableSkillExistingOutputSheet(result = {}) {
@@ -535,8 +544,8 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSession.hidden = false;
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
-        <h3>${escapeHtml(skill.title || "This skill")} already exists for this matter</h3>
-        <p class="muted">The output is already in the matter folder. Choose what you want to do next.</p>
+        <h3>Output document already exists</h3>
+        <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. The skill version will not change.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
@@ -560,25 +569,25 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSession.hidden = false;
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
-        <h3>Artifact already exists</h3>
-        <p class="muted">This skill writes a matter artifact. Choose whether to keep the current file or overwrite it.</p>
+        <h3>Output document already exists</h3>
+        <p class="muted">Do you want to replace this matter's output document? The skill version will not change.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd><code>${escapeHtml(result.skill?.slash || pendingConfigurableRun?.slash || "")}</code></dd></div>
-          <div><dt>Artifact</dt><dd><code>${escapeHtml(result.artifactPath || "")}</code></dd></div>
+          <div><dt>Output document</dt><dd><code>${escapeHtml(result.artifactPath || "")}</code></dd></div>
         </dl>
         <div class="command-interview-actions">
-          <button type="button" data-configurable-skill-action="overwrite">Overwrite artifact</button>
-          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep current</button>
+          <button type="button" data-configurable-skill-action="overwrite">Replace output document</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep existing document</button>
         </div>
       </section>
     `;
-    aiCommandInput.placeholder = "Overwrite artifact or Keep current";
+    aiCommandInput.placeholder = "Replace output document or Keep existing document";
     wireConfigurableSkillActions();
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Overwrite confirmation</strong><br /><code>${escapeHtml(result.artifactPath || pendingConfigurableRun?.artifactPath || "artifact")}</code> already exists.`,
-      bar: "Overwrite Confirmation",
-      terminal: `[configurable-skill] overwrite confirmation for ${pendingConfigurableRun?.slash || ""}`,
+      card: `<strong>Output document exists</strong><br /><code>${escapeHtml(result.artifactPath || pendingConfigurableRun?.artifactPath || "output document")}</code> already exists. The skill version will not change.`,
+      bar: "Replace Output?",
+      terminal: `[configurable-skill] output replacement confirmation for ${pendingConfigurableRun?.slash || ""}`,
     });
   }
 
@@ -790,7 +799,7 @@ export function createAiCommandBox(ctx, options = {}) {
         const action = button.dataset.configurableSkillAction;
         if (action === "overwrite") {
           const pending = pendingConfigurableRun;
-          await runConfigurableSkillCommand(pending, "overwrite artifact", { overwrite: true });
+          await runConfigurableSkillCommand(pending, "replace output document", { overwrite: true });
           return;
         }
         if (action === "run-again") {
