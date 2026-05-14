@@ -66,6 +66,47 @@ export function renderConfigurableSkillRunRail(result = {}) {
       `;
 }
 
+export function renderConfigurableSkillExistingOutputSheetHtml(result = {}, pendingRun = {}) {
+  const skill = result.skill || pendingRun.skill || {};
+  const slash = skill.slash || pendingRun.slash || "";
+  const artifactPath = result.artifactPath || pendingRun.artifactPath || "";
+  return `
+      <section class="command-interview" aria-live="polite">
+        <h3>Output document already exists</h3>
+        <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. This does not replace or edit the skill version.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-configurable-skill-action="open-output">Open output</button>
+          <button type="button" data-configurable-skill-action="run-again">Run again</button>
+          <button type="button" class="secondary" data-configurable-skill-action="improve">Improve this skill</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
+        </div>
+        <p class="muted">Tip: You can also type <code>${escapeHtml(slash)} modify</code> to improve this skill later.</p>
+      </section>
+    `;
+}
+
+export function renderConfigurableSkillOverwritePromptHtml(result = {}, pendingRun = {}) {
+  const slash = result.skill?.slash || pendingRun.slash || "";
+  return `
+      <section class="command-interview" aria-live="polite">
+        <h3>Output document already exists</h3>
+        <p class="muted">Do you want to replace this matter's output document? This does not replace or edit the skill version.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+          <div><dt>Output document</dt><dd><code>${escapeHtml(result.artifactPath || pendingRun.artifactPath || "")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" data-configurable-skill-action="overwrite">Replace output document</button>
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep existing output document</button>
+        </div>
+      </section>
+    `;
+}
+
 export function renderConfigurableSkillCancelledRail(result = {}) {
   const skill = result.skill || result.runRecord || {};
   const runRecord = result.runRecord || {};
