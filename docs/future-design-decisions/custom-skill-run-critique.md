@@ -1,7 +1,7 @@
 # Future Design Decision: Custom Skill Run Critique
 
 Date: 2026-05-14
-Status: Parked for staged implementation
+Status: Current V0 accepted; separate critique action parked
 
 ## Why This Exists
 
@@ -30,7 +30,12 @@ Run again
 Open output
 ```
 
-Later, a more explicit critique action may be added:
+Current product decision: this path is enough for V0. If the output is weak,
+the user should use `Improve this skill`, which feeds the existing governed
+sample/version path.
+
+Later, if user testing shows that `Improve this skill` is too vague, a more
+explicit critique action may be added:
 
 ```text
 Something is wrong
@@ -120,7 +125,7 @@ Behavior:
   replacement guardrails.
 - `Open output` opens the generated matter artifact.
 
-## Later Critique Flow
+## Parked Later Critique Flow
 
 A later `Something is wrong` path can ask:
 
