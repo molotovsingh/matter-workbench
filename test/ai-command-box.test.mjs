@@ -1156,8 +1156,18 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /run_party_1/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run complete/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks good/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
+
+  await box.handleCommand({ userRequest: "looks good" });
+
+  assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Marked as good for this run/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Run Accepted");
 });
 
 test("command box runs active configurable slash commands and handles overwrite confirmation", async () => {
@@ -1298,6 +1308,10 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
   assert.match(ctx.elements.editorContent.innerHTML, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(ctx.elements.editorContent.innerHTML, /run_party_overwrite/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks good/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
   assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");

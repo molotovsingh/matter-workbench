@@ -460,6 +460,10 @@ export function createAiCommandBox(ctx, options = {}) {
       openPendingConfigurableOutput();
       return true;
     }
+    if (normalized === "looks good" || normalized === "good" || normalized === "run looks good") {
+      markConfigurableSkillRunAccepted();
+      return true;
+    }
     if (normalized === "improve" || normalized === "improve this skill" || normalized === "revise" || normalized === "revise this skill") {
       renderConfigurableSkillImprovementPrompt();
       return true;
@@ -728,11 +732,22 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   function renderConfigurableSkillRunResult(result = {}) {
+    currentSkillIdeaInterview = null;
     aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.textContent = "Go";
     const skill = result.skill || {};
     const runRecord = result.runRecord || {};
     const overwrite = runRecord.overwrite || "not_needed";
+    const artifactPath = result.outputPaths?.markdown || result.outputPath || runRecord.outputPaths?.markdown || "";
+    pendingConfigurableRun = {
+      phase: "action_sheet",
+      slash: skill.slash || runRecord.slash || "",
+      title: skill.title || runRecord.title || skill.slash || runRecord.slash || "Custom Skill",
+      artifactPath,
+      skill,
+      runRecord,
+      result,
+    };
     breadcrumbs.textContent = skill.slash || "custom skill";
     editorContent.innerHTML = `
       <h1>${escapeHtml(skill.title || "Custom Skill Result")}</h1>
@@ -754,18 +769,23 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSession.innerHTML = `
         <section class="command-interview" aria-live="polite">
           <h3>Run complete</h3>
-          <p>Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "")}</code>.</p>
+          <p>Wrote <code>${escapeHtml(artifactPath)}</code>.</p>
           <dl class="skill-card-meta">
             <div><dt>Matter</dt><dd>${escapeHtml(runRecord.matterName || runRecord.matterFolder || "Unknown matter")}</dd></div>
             <div><dt>Provider</dt><dd>${escapeHtml([result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / ") || "configured provider")}</dd></div>
             <div><dt>Overwrite</dt><dd>${escapeHtml(overwrite)}</dd></div>
           </dl>
-          <p class="muted">The result is also shown in the main pane for review.</p>
+          <p class="muted" data-configurable-run-acceptance>The result is also shown in the main pane for review.</p>
           <div class="command-interview-actions">
+            <button type="button" data-configurable-skill-action="looks-good">Looks good</button>
+            <button type="button" class="secondary" data-configurable-skill-action="improve">Improve this skill</button>
+            <button type="button" class="secondary" data-configurable-skill-action="run-again">Run again</button>
+            <button type="button" class="secondary" data-configurable-skill-action="open-output">Open output</button>
             <button type="button" data-configurable-run-action="copy-report">Copy Run Report</button>
           </div>
         </section>
       `;
+      wireConfigurableSkillActions();
       wireConfigurableRunReportActions();
     }
   }
@@ -828,6 +848,10 @@ export function createAiCommandBox(ctx, options = {}) {
           renderConfigurableSkillOverwritePrompt(pendingConfigurableRun || {});
           return;
         }
+        if (action === "looks-good") {
+          markConfigurableSkillRunAccepted();
+          return;
+        }
         if (action === "open-output") {
           openPendingConfigurableOutput();
           return;
@@ -844,6 +868,35 @@ export function createAiCommandBox(ctx, options = {}) {
           await handlePendingConfigurableRunInput(pendingConfigurableRun?.phase === "overwrite" ? "keep current" : "cancel");
         }
       });
+    });
+  }
+
+  function markConfigurableSkillRunAccepted() {
+    const slash = pendingConfigurableRun?.slash || pendingConfigurableRun?.skill?.slash || "";
+    const artifactPath = pendingConfigurableRun?.artifactPath || "";
+    const acceptance = aiCommandSession?.querySelector?.("[data-configurable-run-acceptance]");
+    if (acceptance) {
+      acceptance.textContent = "Marked as good for this run. The active skill was not changed.";
+    } else if (aiCommandSession?.innerHTML) {
+      aiCommandSession.innerHTML = aiCommandSession.innerHTML.replace(
+        "The result is also shown in the main pane for review.",
+        "Marked as good for this run. The active skill was not changed.",
+      );
+    }
+    updateReport({
+      status: "accepted",
+      artifacts: artifactPath ? [artifactPath] : latestReport?.artifacts || [],
+    });
+    recordCommandInteraction({
+      renderedState: "configurable_skill/run_review",
+      status: "accepted",
+      providerRunInvoked: false,
+    });
+    ctx.setStatus({
+      mood: "idle",
+      card: `<strong>Run accepted</strong><br />Marked <code>${escapeHtml(slash || "this skill")}</code> output as good for this run.`,
+      bar: "Run Accepted",
+      terminal: `[configurable-skill] run accepted ${slash}`.trim(),
     });
   }
 
