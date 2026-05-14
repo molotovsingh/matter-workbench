@@ -9,8 +9,9 @@ import {
   parseSkillIdeaInput,
 } from "./command-parsing.js";
 import {
+  buildCommandInteractionLogBody,
+  deriveReportPatchFromStatus,
   formatCommandReport,
-  normalizeTerminalLines,
 } from "./command-reporting.js";
 import {
   buildConfigurableSkillImprovementBrief,
@@ -2655,31 +2656,10 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function recordCommandInteraction(patch = {}) {
     if (!latestReport) return;
-    const report = { ...latestReport, ...patch };
-    const body = {
-      timestamp: report.timestamp,
-      typed_input: report.typedInput,
-      matched_command: report.matchedCommand,
-      rendered_state: report.renderedState || patch.renderedState || "",
-      status: report.status,
-      skill_idea_id: report.skillIdeaId || "",
-      sample_id: report.sampleId || "",
-      router_decision: patch.routerDecision || (
-        report.routerDecision
-          ? {
-              decision: report.routerDecision,
-              matched_skill: report.routerMatchedSkill,
-            }
-          : null
-      ),
-      provider_run_invoked: Boolean(patch.providerRunInvoked),
-      planner_source: report.plannerSource || patch.plannerSource || "",
-      planner_model: report.plannerModel || patch.plannerModel || "",
-      planner_fallback_reason: report.plannerFallbackReason || patch.plannerFallbackReason || "",
-      errors: report.error ? [report.error] : [],
-      status_bar: report.statusBar || getStatusBarText(),
-      terminal_lines: report.terminalLines || getLatestTerminalLines(),
-    };
+    const body = buildCommandInteractionLogBody(latestReport, patch, {
+      statusBar: getStatusBarText(),
+      terminalLines: getLatestTerminalLines(),
+    });
     try {
       Promise.resolve(logCommandInteraction(body)).catch(() => {});
     } catch {
@@ -2700,16 +2680,10 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function captureStatusForReport(status = {}) {
     if (!latestReport) return;
-    const bar = String(status.bar || "");
-    const terminalLines = normalizeTerminalLines(status.terminal);
-    const patch = {
-      statusBar: bar || getStatusBarText(),
+    const patch = deriveReportPatchFromStatus(status, {
+      statusBar: getStatusBarText(),
       terminalLines: getLatestTerminalLines(),
-    };
-    if (/rerun confirmation/i.test(bar)) patch.status = "warned";
-    if (/cancelled/i.test(bar) || terminalLines.some((line) => /cancelled by user/i.test(line))) patch.status = "cancelled";
-    if (/failed|unavailable/i.test(bar) || terminalLines.some((line) => /\bfailed\b/i.test(line))) patch.status = "failed";
-    if (/complete|matter status/i.test(bar)) patch.status = "ran";
+    });
     updateReport(patch);
   }
 
