@@ -1,53 +1,8 @@
-const SLASH_COMMANDS = new Set([
-  "/matter-init",
-  "/prepare_matter",
-  "/extract",
-  "/describe_sources",
-  "/context_preview",
-  "/context_search",
-  "/create_listofdates",
-  "/doctor",
-]);
-
-const PROVIDER_BACKED_COMMANDS = new Set([
-  "/describe_sources",
-  "/create_listofdates",
-]);
-
-const SLASH_COMMAND_SUGGESTIONS = [
-  {
-    command: "/matter-init",
-    description: "Set up the matter folders and file register.",
-  },
-  {
-    command: "/prepare_matter",
-    description: "Show a guarded preparation plan and skip stages that are already current.",
-  },
-  {
-    command: "/extract",
-    description: "Extract text and OCR-ready records from registered files.",
-  },
-  {
-    command: "/describe_sources",
-    description: "Label sources with lawyer-readable names. Paid AI actions ask first.",
-  },
-  {
-    command: "/context_preview",
-    description: "Preview the bounded evidence packet for future Q&A/search. No provider call.",
-  },
-  {
-    command: "/context_search",
-    description: "Search the bounded matter context locally. No provider call.",
-  },
-  {
-    command: "/create_listofdates",
-    description: "Create the lawyer-facing list of dates. Paid AI actions ask first.",
-  },
-  {
-    command: "/doctor",
-    description: "Check known matter workspace issues.",
-  },
-];
+import {
+  BUILTIN_SKILL_COMMAND_SET,
+  BUILTIN_SKILL_SUGGESTIONS,
+  PROVIDER_BACKED_BUILTIN_SKILL_COMMAND_SET,
+} from "../shared/builtin-skill-commands.mjs";
 
 const COMMAND_ALIASES = new Map([
   ["prepare matter", "/prepare_matter"],
@@ -96,7 +51,7 @@ export function parseDeterministicCommand(input) {
   if (SKILLS_ALIASES.has(normalized)) return { type: "skills", input: normalized };
   const lanePath = LANE_COMMANDS.get(normalized);
   if (lanePath) return { type: "lane", input: normalized, lanePath };
-  if (SLASH_COMMANDS.has(normalized)) return { type: "skill", command: normalized };
+  if (BUILTIN_SKILL_COMMAND_SET.has(normalized)) return { type: "skill", command: normalized };
   const aliasCommand = COMMAND_ALIASES.get(normalized);
   if (aliasCommand) return { type: "skill", command: aliasCommand };
   return null;
@@ -113,7 +68,7 @@ export function listSlashCommandSuggestions(input, extraSuggestions = []) {
   const raw = String(input || "");
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed.startsWith("/")) return [];
-  const combined = [...SLASH_COMMAND_SUGGESTIONS, ...extraSuggestions]
+  const combined = [...BUILTIN_SKILL_SUGGESTIONS, ...extraSuggestions]
     .filter((suggestion) => suggestion?.command)
     .filter((suggestion, index, list) => list.findIndex((candidate) => candidate.command === suggestion.command) === index);
   return combined.filter((suggestion) => suggestion.command.startsWith(trimmed));
@@ -154,7 +109,7 @@ export function normalizeCommandInput(input) {
 }
 
 export function isProviderBackedCommand(command) {
-  return PROVIDER_BACKED_COMMANDS.has(command);
+  return PROVIDER_BACKED_BUILTIN_SKILL_COMMAND_SET.has(command);
 }
 
 function parseSearchCommand(normalized) {
