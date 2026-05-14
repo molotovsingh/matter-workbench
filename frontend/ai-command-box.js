@@ -13,6 +13,7 @@ import {
   buildConfigurableSkillImprovementBrief,
   buildConfigurableSkillImprovementInterview,
 } from "./configurable-skill-improvement.js";
+import { createNewSkillModeController } from "./new-skill-mode-controller.js";
 import {
   findActiveConfigurableSkillBySlash,
   isConfigurableSkillOutputReplacementCommand,
@@ -114,7 +115,6 @@ export function createAiCommandBox(ctx, options = {}) {
   const writeClipboardText = options.writeClipboardText || defaultWriteClipboardText;
   const planSkillIdeaInterviewFn = options.planSkillIdeaInterview || planSkillIdeaInterview;
   let currentSkillIdeaInterview = null;
-  let pendingSkillIdeaMode = null;
   let pendingConfigurableRun = null;
   let lastCreatedConfigurableSkill = null;
   const commandReport = createCommandReportController({
@@ -139,11 +139,23 @@ export function createAiCommandBox(ctx, options = {}) {
     startReport,
     updateReport,
   } = commandReport;
+  const newSkillModeController = createNewSkillModeController({
+    aiCommandInput,
+    aiCommandSession,
+    aiCommandSubmit,
+    ctx,
+    defaultPlaceholder: DEFAULT_COMMAND_PLACEHOLDER,
+    now,
+    recordCommandInteraction,
+    startReport,
+    updateReport,
+    showSkillIdeaInterview,
+  });
   const commandSuggestions = createCommandSuggestionController({
     input: aiCommandInput,
     suggestionsElement: aiCommandSuggestions,
     loadSkillRegistry,
-    isSuppressed: () => Boolean(currentSkillIdeaInterview || pendingSkillIdeaMode),
+    isSuppressed: () => Boolean(currentSkillIdeaInterview || newSkillModeController.isActive()),
     runCommand: async (command) => {
       await handleCommand({ userRequest: command });
     },
@@ -176,8 +188,8 @@ export function createAiCommandBox(ctx, options = {}) {
       await handleSkillIdeaInterviewInput(userRequest);
       return;
     }
-    if (pendingSkillIdeaMode) {
-      await handlePendingSkillIdeaModeInput(userRequest);
+    if (newSkillModeController.isActive()) {
+      await newSkillModeController.handleInput(userRequest);
       return;
     }
     if (!userRequest) {
@@ -192,7 +204,7 @@ export function createAiCommandBox(ctx, options = {}) {
 
     const newSkillMode = parseNewSkillModeCommand(userRequest);
     if (newSkillMode) {
-      openNewSkillMode(userRequest);
+      newSkillModeController.open(userRequest);
       return;
     }
 
@@ -2314,121 +2326,6 @@ export function createAiCommandBox(ctx, options = {}) {
     });
   }
 
-  async function handlePendingSkillIdeaModeInput(userRequest) {
-    const normalized = normalizeCommandInput(userRequest);
-    if (normalized === "cancel") {
-      cancelNewSkillMode();
-      return;
-    }
-    if (!userRequest) {
-      renderNewSkillMode("Describe the skill you want, or choose Cancel.");
-      return;
-    }
-    if (parseDeterministicCommand(userRequest)) {
-      renderNewSkillMode("Describe the skill you want, or type Cancel before running another command.");
-      return;
-    }
-
-    const text = String(userRequest || "").trim();
-    pendingSkillIdeaMode = null;
-    await showSkillIdeaInterview({
-      type: "skill_idea",
-      mode: "new_skill",
-      text,
-      idea: text,
-    }, text, { useModelPlanner: true });
-  }
-
-  function openNewSkillMode(userRequest) {
-    const activeMatter = ctx.getActiveMatter?.() || {};
-    pendingSkillIdeaMode = {
-      mode: "awaiting_skill_idea",
-      startedAt: now().toISOString(),
-      activeMatterName: activeMatter?.metadata?.matterName || activeMatter?.folderName || "",
-      activeMatterFolder: activeMatter?.folderName || "",
-    };
-    startReport({
-      typedInput: userRequest,
-      matchedCommand: "skill_idea/new",
-      status: "awaiting_skill_idea",
-    });
-    recordCommandInteraction({
-      renderedState: "skill_idea/new",
-      status: "awaiting_skill_idea",
-      providerRunInvoked: false,
-    });
-    aiCommandInput.value = "";
-    aiCommandInput.placeholder = "Describe the skill you want...";
-    aiCommandSubmit.textContent = "Go";
-    renderNewSkillMode();
-    ctx.setStatus({
-      mood: "idle",
-      card: "<strong>New skill idea</strong><br />Describe the skill you want in your own words. Nothing will run.",
-      bar: "New Skill Idea",
-      terminal: "[skill-ideas] awaiting freeform idea",
-    });
-  }
-
-  function renderNewSkillMode(errorMessage = "") {
-    if (!aiCommandSession || !pendingSkillIdeaMode) return;
-    const matterName = pendingSkillIdeaMode.activeMatterName || "No active matter";
-    const matterFolder = pendingSkillIdeaMode.activeMatterFolder || "Planning mode";
-    aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = `
-      <section class="command-interview" aria-live="polite">
-        <h3>New skill idea</h3>
-        <p>Describe the skill you want in your own words. You do not need to use special phrasing.</p>
-        <p class="muted">This will only create a non-runnable idea for review. It will not generate code, prompts, or run a provider-backed skill.</p>
-        <dl class="skill-card-meta">
-          <div><dt>Matter</dt><dd>${escapeHtml(matterName)}</dd></div>
-          <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder)}</dd></div>
-        </dl>
-        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
-        <div class="command-interview-actions">
-          <button type="button" class="secondary" data-new-skill-mode-action="cancel">Cancel</button>
-        </div>
-      </section>
-    `;
-    wireNewSkillModeActions();
-  }
-
-  function wireNewSkillModeActions() {
-    aiCommandSession?.querySelectorAll?.("[data-new-skill-mode-action]")?.forEach((button) => {
-      button.addEventListener("click", () => {
-        if (button.dataset.newSkillModeAction === "cancel") cancelNewSkillMode();
-      });
-    });
-  }
-
-  function cancelNewSkillMode() {
-    pendingSkillIdeaMode = null;
-    aiCommandInput.value = "";
-    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
-    aiCommandSubmit.disabled = false;
-    aiCommandSubmit.textContent = "Go";
-    if (aiCommandSession) {
-      aiCommandSession.hidden = false;
-      aiCommandSession.innerHTML = `
-        <section class="command-interview" aria-live="polite">
-          <h3>New skill idea cancelled</h3>
-          <p class="muted">No idea was saved. Nothing ran.</p>
-        </section>
-      `;
-    }
-    updateReport({ status: "cancelled" });
-    recordCommandInteraction({
-      renderedState: "skill_idea/new",
-      status: "cancelled",
-      providerRunInvoked: false,
-    });
-    ctx.setStatus({
-      mood: "idle",
-      card: "<strong>New skill idea cancelled</strong><br />No idea was saved and nothing ran.",
-      bar: "New Skill Cancelled",
-      terminal: "[skill-ideas] new skill mode cancelled",
-    });
-  }
-
   function renderCommandRailDecision({ userRequest, overrideJustification, decision }) {
     if (!aiCommandSession) {
       renderCommandDecision({ userRequest, overrideJustification, decision });
@@ -2550,7 +2447,7 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   function resetForMatterChange() {
-    if (currentSkillIdeaInterview || pendingSkillIdeaMode) return;
+    if (currentSkillIdeaInterview || newSkillModeController.isActive()) return;
     pendingConfigurableRun = null;
     aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.disabled = false;
