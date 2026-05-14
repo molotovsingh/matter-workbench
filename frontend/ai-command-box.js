@@ -38,6 +38,7 @@ import {
 } from "./skill-idea-interview.js";
 import {
   applyActiveSampleState,
+  ensureSampleReview,
   findSampleByVersion,
   formatSampleProvider,
   formatSkillSampleCopy,
@@ -49,6 +50,7 @@ import {
   getSampleState,
   getSampleVersion,
   isSampleStale,
+  markSampleReviewStale,
   normalizeUiSample,
   renderSampleLedger,
 } from "./skill-sample-review.js";
@@ -1961,42 +1963,6 @@ export function createAiCommandBox(ctx, options = {}) {
       }
       session.sampleReview = sampleReview;
     }
-    return sampleReview;
-  }
-
-  function ensureSampleReview(session) {
-    if (!session.sampleReview) {
-      session.sampleReview = {
-        samples: [],
-        ledger: [],
-        activeSample: null,
-        approved: false,
-        stale: false,
-        staleReason: "",
-      };
-    }
-    if (!Array.isArray(session.sampleReview.samples)) session.sampleReview.samples = [];
-    if (!Array.isArray(session.sampleReview.ledger)) session.sampleReview.ledger = session.sampleReview.samples;
-    if (typeof session.sampleReview.stale !== "boolean") session.sampleReview.stale = false;
-    if (typeof session.sampleReview.staleReason !== "string") session.sampleReview.staleReason = "";
-    return session.sampleReview;
-  }
-
-  function markSampleReviewStale(session, reason) {
-    const sampleReview = ensureSampleReview(session);
-    if (!sampleReview.activeSample) return sampleReview;
-    sampleReview.approved = false;
-    sampleReview.stale = true;
-    sampleReview.staleReason = reason || "Design brief changed after this sample was generated. Regenerate the sample before approving it.";
-    sampleReview.activeSample = {
-      ...sampleReview.activeSample,
-      state: sampleReview.activeSample.approved ? "approved_stale" : "stale",
-      current: false,
-    };
-    sampleReview.ledger = getLedgerSamples(sampleReview).map((sample) => getSampleId(sample) === getSampleId(sampleReview.activeSample)
-      ? sampleReview.activeSample
-      : sample);
-    session.sampleReview = sampleReview;
     return sampleReview;
   }
 

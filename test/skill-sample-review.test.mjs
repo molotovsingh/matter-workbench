@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyActiveSampleState,
+  ensureSampleReview,
   findSampleByVersion,
   formatSkillSampleCopy,
   getLedgerSamples,
   getSampleId,
   getSampleState,
+  markSampleReviewStale,
   renderSampleLedger,
 } from "../frontend/skill-sample-review.js";
 
@@ -65,6 +67,23 @@ test("sample review helpers derive active approval and stale state", () => {
   assert.equal(review.stale, true);
   assert.match(review.staleReason, /approved earlier/i);
   assert.equal(getSampleState(review.activeSample), "approved_stale");
+});
+
+test("sample review state helpers initialize and stale active samples", () => {
+  const session = {};
+  const review = ensureSampleReview(session);
+  review.samples.push(sampleV2);
+  review.ledger.push(sampleV2);
+  review.activeSample = sampleV2;
+  review.approved = true;
+
+  markSampleReviewStale(session, "Design changed.");
+
+  assert.equal(session.sampleReview.approved, false);
+  assert.equal(session.sampleReview.stale, true);
+  assert.equal(session.sampleReview.staleReason, "Design changed.");
+  assert.equal(getSampleState(session.sampleReview.activeSample), "approved_stale");
+  assert.equal(getSampleState(session.sampleReview.ledger[0]), "approved_stale");
 });
 
 test("sample review rendering marks active and stale samples without source text expansion", () => {
