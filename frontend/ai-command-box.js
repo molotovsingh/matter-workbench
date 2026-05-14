@@ -2613,6 +2613,22 @@ export function createAiCommandBox(ctx, options = {}) {
     if (aiCommandInput) aiCommandInput.value = "";
   }
 
+  function resetForMatterChange() {
+    if (currentSkillIdeaInterview || pendingSkillIdeaMode) return;
+    pendingConfigurableRun = null;
+    aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
+    aiCommandSubmit.disabled = false;
+    aiCommandSubmit.textContent = "Go";
+    latestReport = null;
+    setReportStatus("");
+    setCopyReportEnabled(false);
+    hideSlashSuggestions();
+    if (aiCommandSession) {
+      aiCommandSession.hidden = true;
+      aiCommandSession.innerHTML = "";
+    }
+  }
+
   function startReport({
     typedInput,
     matchedCommand,
@@ -2767,6 +2783,7 @@ export function createAiCommandBox(ctx, options = {}) {
     checkIntent,
     handleCommand,
     copyLatestReport,
+    resetForMatterChange,
     wire,
   };
 }

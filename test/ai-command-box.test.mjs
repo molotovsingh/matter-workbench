@@ -1340,6 +1340,74 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
 });
 
+test("command box clears stale custom skill run cards on matter switch", async () => {
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "/party_officer_map" });
+  const box = createAiCommandBox(ctx, {
+    loadSkillRegistry: async () => ({
+      skills: [{
+        configurable: true,
+        status: "active",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        purpose: "Map formal party names and officers.",
+      }],
+    }),
+    runConfigurableSkill: async () => ({
+      schema_version: "configurable-skill-run/v1",
+      state: "written",
+      skill: {
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+      },
+      markdown: "# Party and Officer Map\n\nDemo content.",
+      outputPaths: {
+        markdown: "20_Workshop/Party and Officer Map.md",
+        json: "20_Workshop/Party and Officer Map.json",
+      },
+      aiRun: {
+        provider: "openai-direct",
+        model: "gpt-5.4",
+      },
+      runId: "run_party_switch",
+      runRecord: {
+        id: "run_party_switch",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        status: "succeeded",
+        matterName: "Demo Matter",
+        matterFolder: "Demo Matter",
+        outputPaths: {
+          markdown: "20_Workshop/Party and Officer Map.md",
+          json: "20_Workshop/Party and Officer Map.json",
+        },
+        aiRun: {
+          provider: "openai-direct",
+          model: "gpt-5.4",
+        },
+        overwrite: "not_needed",
+      },
+    }),
+  });
+
+  box.wire();
+  await form.submit();
+
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Run complete/);
+  assert.equal(ctx.elements.aiCommandSession.hidden, false);
+  assert.equal(ctx.elements.aiCommandCopyReport.hidden, false);
+
+  box.resetForMatterChange();
+
+  assert.equal(ctx.elements.aiCommandSession.hidden, true);
+  assert.equal(ctx.elements.aiCommandSession.innerHTML, "");
+  assert.equal(ctx.elements.aiCommandCopyReport.hidden, true);
+  assert.equal(ctx.elements.aiCommandReportStatus.textContent, "");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+  assert.equal(ctx.elements.aiCommandSubmit.textContent, "Go");
+  assert.equal(ctx.elements.aiCommandSubmit.disabled, false);
+});
+
 test("command box saves configurable skill improvement ideas without changing the active skill", async () => {
   const runCalls = [];
   const savedIdeas = [];
@@ -1979,6 +2047,7 @@ function fakeButton() {
   let clickHandler = null;
   return {
     disabled: false,
+    hidden: false,
     textContent: "",
     addEventListener(event, handler) {
       if (event === "click") clickHandler = handler;

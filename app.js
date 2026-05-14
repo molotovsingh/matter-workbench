@@ -224,6 +224,7 @@ async function switchToMatter(name) {
     mattersState = mattersStore.merge({ active: name });
     ctx.renderMattersList();
     setActiveMatter(matterFromWorkspace(payload));
+    aiCommandBox.resetForMatterChange?.();
   } catch (error) {
     setStatus({
       mood: "idle",
