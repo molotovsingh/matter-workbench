@@ -192,7 +192,9 @@ export function renderSkillsPageHtml({
       <section>
         <h2>Custom Skills</h2>
         <p class="muted">Approved and activated skills created from reviewed samples. Draft or disabled custom skills are not runnable.</p>
-        ${renderSkillCards(summary.custom, escapeHtml)}
+        ${renderSkillCards(summary.custom, escapeHtml, {
+          improvementIdeas: skillIdeas?.ideas || [],
+        })}
       </section>
       <section>
         <h2>Built-in Skills</h2>
@@ -305,7 +307,7 @@ function renderSavedIdeaCard(idea, escape) {
   const readiness = normalizeReadinessForView(idea.readiness, brief);
   const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
   return `
-    <article class="skill-card skill-idea-card">
+    <article class="skill-card skill-idea-card" id="skill-idea-${escape(idea.id || "")}">
       <div class="skill-card-header">
         <div>
           <div class="skill-slash"><code>proposal</code></div>
@@ -593,16 +595,16 @@ function renderSkillsStats(summary, escape) {
   `;
 }
 
-function renderSkillCards(skills, escape) {
+function renderSkillCards(skills, escape, { improvementIdeas = [] } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
   return `
     <div class="skills-grid">
-      ${skills.map((skill) => renderSkillCard(skill, escape)).join("")}
+      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas })).join("")}
     </div>
   `;
 }
 
-function renderSkillCard(skill, escape) {
+function renderSkillCard(skill, escape, { improvementIdeas = [] } = {}) {
   const status = skill.artifactStatus;
   const state = skill.configurable
     ? customSkillStatusLabel(skill.status)
@@ -655,9 +657,85 @@ function renderSkillCard(skill, escape) {
           ${artifacts.length > 5 ? `<span class="muted">+${artifacts.length - 5} more</span>` : ""}
         </div>
       ` : ""}
+      ${skill.configurable && skill.status === "active" ? renderCustomSkillImprovementIdeas(skill, improvementIdeas, escape) : ""}
       ${renderAiRun(status?.aiRun, escape)}
     </article>
   `;
+}
+
+function renderCustomSkillImprovementIdeas(skill, ideas, escape) {
+  const linkedIdeas = findLinkedImprovementIdeas(skill, ideas)
+    .filter((idea) => normalizeIdeaStatusForView(idea.status) !== "dismissed")
+    .slice(0, 3);
+  if (!linkedIdeas.length) {
+    return `
+      <div class="skill-output-list">
+        <strong>Suggested improvements</strong>
+        <span class="muted">None saved yet. Run the skill, then type <code>${escape(skill.slash || "")} modify</code> to suggest a revision.</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="skill-output-list skill-improvement-list">
+      <strong>Suggested improvements</strong>
+      ${linkedIdeas.map((idea) => renderCustomSkillImprovementIdea(skill, idea, escape)).join("")}
+    </div>
+  `;
+}
+
+function renderCustomSkillImprovementIdea(skill, idea, escape) {
+  const status = normalizeIdeaStatusForView(idea.status);
+  const matter = idea.matter || {};
+  const matterLabel = matter.matterName || matter.folderName || "No matter attached";
+  const changeText = improvementIdeaChangeText(skill, idea);
+  return `
+    <div class="skill-improvement-item">
+      <div class="skill-card-header">
+        <div>
+          <span class="muted">Suggested improvement</span>
+          <p>${escape(changeText || idea.text || "")}</p>
+        </div>
+        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+      </div>
+      <dl class="skill-card-meta">
+        <div><dt>Matter</dt><dd>${escape(matterLabel)}</dd></div>
+        <div><dt>Created</dt><dd>${escape(idea.createdAt || "")}</dd></div>
+      </dl>
+      <div class="form-actions">
+        <a class="button secondary" href="#skill-idea-${escape(idea.id || "")}">Open idea</a>
+        <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy review packet</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+      </div>
+    </div>
+  `;
+}
+
+function findLinkedImprovementIdeas(skill, ideas) {
+  const slash = String(skill?.slash || "").trim();
+  if (!slash || !Array.isArray(ideas)) return [];
+  return ideas
+    .filter((idea) => improvementIdeaTargetsSkill(idea, slash))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function improvementIdeaTargetsSkill(idea, slash) {
+  const text = String(idea?.text || "");
+  const notes = String(idea?.designBrief?.notes || "");
+  const target = extractTargetSkill(notes) || extractTargetSkill(text);
+  if (target && target === slash) return true;
+  const escapedSlash = slash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^\\s*Improve\\s+${escapedSlash}\\s*:`, "i").test(text);
+}
+
+function improvementIdeaChangeText(skill, idea) {
+  const slash = String(skill?.slash || "").trim();
+  const text = String(idea?.text || "").trim();
+  if (slash && text.toLowerCase().startsWith(`improve ${slash.toLowerCase()}:`)) {
+    return text.slice(`Improve ${slash}:`.length).trim();
+  }
+  const notes = String(idea?.designBrief?.notes || "");
+  const match = notes.match(/\bWhat should change:\s*([^\n]+)/i);
+  return match?.[1]?.trim() || text;
 }
 
 function customSkillStatusLabel(status) {

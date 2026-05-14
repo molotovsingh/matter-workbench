@@ -272,15 +272,71 @@ test("skills page renders active custom skills as active", () => {
     matterStatus: null,
     skillIdeas: {
       schema_version: "skill-ideas/v1",
-      ideas: [],
+      ideas: [
+        {
+          id: "idea_improve_party",
+          text: "Improve /party_officer_map: include relationship confidence and unresolved aliases",
+          createdAt: "2026-05-14T10:00:00.000Z",
+          updatedAt: "2026-05-14T10:00:00.000Z",
+          status: "incomplete",
+          matter: {
+            matterName: "Ayesha Vs Japan Airlines",
+            folderName: "Ayesha Vs Japan Airlines",
+          },
+          designBrief: {
+            intendedUser: "Lawyer improving an active custom skill",
+            problem: "Improve Party and Officer Map based on real use.",
+            expectedInputs: "Existing active skill /party_officer_map.",
+            expectedOutputArtifact: "20_Workshop/Party and Officer Map.md",
+            targetLane: "20_Workshop",
+            paidPosture: "paid",
+            riskLevel: "medium",
+            notes: [
+              "Proposal type: Improve existing skill",
+              "Target skill: /party_officer_map",
+              "What should change: include relationship confidence and unresolved aliases",
+              "What must stay unchanged: Do not change the active skill yet.",
+            ].join("\n"),
+          },
+          readiness: {
+            state: "ready_for_review",
+            ready: true,
+            passedCount: 8,
+            totalCount: 8,
+            items: [],
+          },
+        },
+        {
+          id: "idea_other",
+          text: "Improve /statute_section_reading_guide: add deeper rules",
+          createdAt: "2026-05-14T09:00:00.000Z",
+          updatedAt: "2026-05-14T09:00:00.000Z",
+          status: "incomplete",
+          matter: {},
+          designBrief: {
+            notes: "Target skill: /statute_section_reading_guide",
+          },
+        },
+      ],
     },
   }, escapeHtml);
+  const customSection = html.slice(
+    html.indexOf("<h2>Custom Skills"),
+    html.indexOf("<h2>Built-in Skills"),
+  );
 
   assert.match(html, /Custom Skills/);
   assert.match(html, /\/party_officer_map/);
   assert.match(html, /Party and Officer Map/);
   assert.match(html, /Active/);
   assert.match(html, /20_Workshop\/Party and Officer Map\.md/);
+  assert.match(customSection, /Suggested improvements/);
+  assert.match(customSection, /include relationship confidence and unresolved aliases/);
+  assert.match(customSection, /Ayesha Vs Japan Airlines/);
+  assert.match(customSection, /href="#skill-idea-idea_improve_party"/);
+  assert.match(customSection, /data-skill-idea-copy-packet data-skill-idea-id="idea_improve_party"/);
+  assert.match(customSection, /data-skill-idea-status="dismissed"/);
+  assert.doesNotMatch(customSection, /add deeper rules/);
   assert.doesNotMatch(html, /Recent runs/);
   assert.doesNotMatch(html, /Copy Latest Run Report/);
   assert.doesNotMatch(html, /Party and Officer Map[\s\S]{0,200}Incomplete/);
