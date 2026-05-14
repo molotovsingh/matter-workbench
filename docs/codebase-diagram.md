@@ -19,14 +19,20 @@ flowchart LR
   Browser -->|"HTTP JSON/file requests"| Server
 
   subgraph Routes["Route/API layer"]
-    ApiRoutes["routes/api-routes.mjs"]
+    ApiRoutes["routes/api-routes.mjs<br/>top-level API dispatcher"]
+    MatterWorkflowRoutes["routes/matter-workflow-routes.mjs<br/>matter engines, status, context"]
+    SkillFactoryRoutes["routes/skill-factory-routes.mjs<br/>skills, ideas, samples, custom runs"]
     HttpUtils["routes/http-utils.mjs<br/>JSON parsing and 413 guard"]
     StaticRoutes["routes/static-routes.mjs"]
   end
 
   Server --> ApiRoutes
   Server --> StaticRoutes
+  ApiRoutes --> MatterWorkflowRoutes
+  ApiRoutes --> SkillFactoryRoutes
   ApiRoutes --> HttpUtils
+  MatterWorkflowRoutes --> HttpUtils
+  SkillFactoryRoutes --> HttpUtils
 
   subgraph Services["Services"]
     ConfigService["services/config-service.mjs<br/>matters home"]
@@ -36,6 +42,10 @@ flowchart LR
     AiSettingsService["services/ai-settings-service.mjs<br/>settings visibility"]
     SkillRegistryService["services/skill-registry-service.mjs"]
     SkillRouterService["services/skill-router-service.mjs"]
+    SkillIdeasService["services/skill-ideas-service.mjs"]
+    SkillSamplesService["services/skill-samples-service.mjs"]
+    ConfigurableSkillsService["services/configurable-skills-service.mjs<br/>custom skill lifecycle and run orchestration"]
+    ConfigurableSkillHelpers["services/configurable-skill-*.mjs<br/>definition, store, providers, context, validation"]
     DoctorService["services/doctor-service.mjs"]
   end
 
@@ -44,9 +54,13 @@ flowchart LR
   ApiRoutes --> WorkspaceService
   ApiRoutes --> UploadService
   ApiRoutes --> AiSettingsService
-  ApiRoutes --> SkillRegistryService
-  ApiRoutes --> SkillRouterService
-  ApiRoutes --> DoctorService
+  SkillFactoryRoutes --> SkillRegistryService
+  SkillFactoryRoutes --> SkillRouterService
+  SkillFactoryRoutes --> SkillIdeasService
+  SkillFactoryRoutes --> SkillSamplesService
+  SkillFactoryRoutes --> ConfigurableSkillsService
+  ConfigurableSkillsService --> ConfigurableSkillHelpers
+  MatterWorkflowRoutes --> DoctorService
 
   subgraph Engines["Workflow engines"]
     MatterInit["matter-init-engine.mjs<br/>/matter-init"]
@@ -55,10 +69,10 @@ flowchart LR
     ListOfDates["create-listofdates-engine.mjs<br/>/create_listofdates"]
   end
 
-  ApiRoutes --> MatterInit
-  ApiRoutes --> Extract
-  ApiRoutes --> SourceDescriptors
-  ApiRoutes --> ListOfDates
+  MatterWorkflowRoutes --> MatterInit
+  MatterWorkflowRoutes --> Extract
+  MatterWorkflowRoutes --> SourceDescriptors
+  MatterWorkflowRoutes --> ListOfDates
   Cli --> MatterInit
   Cli --> Extract
   Cli --> SourceDescriptors
@@ -156,6 +170,18 @@ flowchart LR
   LodCsv --> Library
   LodMd --> Library
 
+  subgraph AppStores["App-level local stores"]
+    SkillIdeasJson["skill-ideas.json<br/>saved skill requests"]
+    SkillSamplesJson["skill-samples.json<br/>sample versions and approvals"]
+    ConfigurableSkillsJson["configurable-skills.json<br/>custom skill definitions"]
+    SkillRunsJson["configurable-skill-runs.json<br/>custom skill run ledger"]
+  end
+
+  SkillIdeasService --> SkillIdeasJson
+  SkillSamplesService --> SkillSamplesJson
+  ConfigurableSkillHelpers --> ConfigurableSkillsJson
+  ConfigurableSkillsService --> SkillRunsJson
+
   subgraph Verification["Verification and supervision"]
     Tests["test/*.mjs<br/>node --test"]
     Evals["evals/*<br/>smoke + golden checks"]
@@ -226,7 +252,7 @@ flowchart LR
 
 At this repo state, `source-descriptors-engine.mjs` is both:
 
-- a runtime endpoint path via `POST /api/describe-sources` in `routes/api-routes.mjs`; and
+- a runtime endpoint path via `POST /api/describe-sources` through `routes/matter-workflow-routes.mjs`; and
 - a direct CLI engine path for scripted local runs.
 
 ## Current Beta Posture

@@ -326,11 +326,18 @@ It:
 - dispatches API routes;
 - tracks active matter state.
 
-Important route file:
+Important route files:
 
 ```text
 routes/api-routes.mjs
+routes/matter-workflow-routes.mjs
+routes/skill-factory-routes.mjs
 ```
+
+Think of `routes/api-routes.mjs` as the reception desk. It still handles settings, config, matters, workspace, and files directly, but it now hands the two bigger families to smaller route files:
+
+- `routes/matter-workflow-routes.mjs` for the matter pipeline: setup, extraction, source labels, list of dates, doctor, status, prepare matter, context preview/search, and rerun advice.
+- `routes/skill-factory-routes.mjs` for the skill factory: built-in/custom skills, skill ideas, interview planning, sample output, sample approval, create skill, custom skill runs, run history, and factory health.
 
 Key endpoints include:
 
@@ -376,6 +383,15 @@ Key endpoints include:
 - `GET /api/file-raw`.
 
 The server is intentionally local-first. This is a confidentiality-friendly architecture: matters live on disk, not in a cloud database.
+
+The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
+
+- `skill-ideas.json` stores requests and design briefs.
+- `skill-samples.json` stores sample versions, feedback, and approvals.
+- `configurable-skills.json` stores the generated configurable skill definitions.
+- `configurable-skill-runs.json` stores run receipts, not the full work product.
+
+The core lifecycle service is still `services/configurable-skills-service.mjs`, but the details are now split into helper modules: definition normalization, JSON store access, provider calls, matter-context summarization, and validation. That split matters because skill creation is powerful; good engineers keep the pieces visible instead of letting one file become a fog bank.
 
 ## The Frontend
 
