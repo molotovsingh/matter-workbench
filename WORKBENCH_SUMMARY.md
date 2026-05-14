@@ -1,146 +1,80 @@
 # Legal Workbench Summary
 
-## Where We Are Now (Phase 1)
+## Current Snapshot (May 2026)
 
-### What We Built
+Matter Workbench is a local-first legal workflow system for turning messy matter folders into source-backed legal working artifacts.
 
-A minimal VS Code-like shell prototype with:
+It is no longer just a shell prototype. The core pipeline is implemented and tested:
 
-- **Activity bar** (left): App identity + explorer access
-- **Sidebar**: Matter entry controls + workspace tree
-- **Main editor**: Typed slash-skill strip + results view
-- **Inspector**: Matter metadata + skill contract + status
-- **Bottom panel**: Output log + status bar
-
-### What We Simplified
-
-**Removed:**
-- Rounded cards, shadows, gradients
-- Decorative hero sections
-- Complex title bar chrome
-- Artifact grids and spec cards
-- Extra visual "eye candy"
-
-**Kept:**
-- Flat, neutral color palette
-- Sharp edges (no border-radius)
-- Essential layout only
-- Clear typography hierarchy
-
-### Sidebar Entry Points
-
-Placed at the **top of the sidebar**:
-
-- **`Open Folder`** — `New matter` (yellow italic hint)
-  - Pick a folder from disk, start fresh
-
-- **`Switch Matter`** — `Existing matter` (yellow italic hint)
-  - Restores the known Naveen Vs Mohit sample matter
-
-### Slash Skill Entry
-
-Commands go in the **top command strip**, directly under the title bar.
-The sidebar lists available slash skills; the command strip is where the
-lawyer/operator types the chosen skill and runs it against the open matter.
-
-### Matter Metadata
-
-Before `/matter-init` runs, the inspector prompts for required matter identity:
-
-- Client name
-- Matter name
-- Opposite party
-- Matter type
-- Jurisdiction
-
-The brief description is optional. These fields are part of the future
-`matter.json` contract and are not inferred silently.
-
-### Why This Design
-
-| Decision | Reason |
-|----------|--------|
-| VS Code metaphor | Lawyers recognize the environment immediately |
-| Minimalism | Legal work requires focus; decoration is noise |
-| Clear entry points | Folder intake is fundamental, needs prominence |
-| Guidance text | Distinguishes "new" vs "existing" without confusion |
-| Flat aesthetic | Professional, utilitarian, stays out of the way |
-
-### Current Limitations
-
-This is now a **local-first prototype**:
-- `Open Folder` uses browser folder access for local testing
-- Matter metadata validation is active in the UI
-- `/matter-init` calls a local Node endpoint when served with `server.mjs`
-- The deterministic engine hashes files, preserves originals, arranges copies by extension, and writes review logs
-- Source files are copied only; they are not moved or modified
-- No cloud persistence
-
-The UI shows the intake result and the files on disk are ready for lawyer review.
-
----
-
-## Where We Are Going
-
-### Full Vision: 5-Stage Pipeline
-
-```
-Raw Client Files
-      ↓
-   00_Inbox        ← organize by format (emails, screenshots, PDFs)
-      ↓
-   10_Library      ← chronological backbone (dates + sources)
-      ↓
-   20_Workshop     ← analysis: lists of dates, facts, claims
-      ↓
-   30_Drafting     ← petitions, notices, replies, court documents
-      ↓
-   40_Outbox       ← client-facing documents awaiting approval
+```text
+/matter-init -> /extract -> /describe_sources -> /create_listofdates
 ```
 
-### Slash-Skill Driven, Not Chat-Driven
+## What Is Running Today
 
-Every stage has **specific invokable slash skills** designed with subject matter experts:
+- Matter home configuration and in-app matter switching.
+- Multi-intake uploads (`00_Inbox/Intake NN - ...`) with deterministic file registration.
+- Deterministic extraction record generation (`extraction-record/v1`) for supported file types.
+- Optional OCR path for scanned PDFs with explicit provider gating.
+- Source descriptor generation to `10_Library/Source Index.json`.
+- Lawyer-facing List of Dates generation to JSON/CSV/Markdown with source-backed citations.
+- Rerun guardrails for paid/provider-backed skills.
+- Local context preview and local context search over bounded matter context.
+- Governance layer for configurable skills (idea -> interview -> sample -> approval -> runnable skill).
 
-| Slash skill | Purpose |
-|---------|---------|
-| `/matter-init` | Intake and organize (Phase 1) |
-| `/create_listofdates` | Build chronological backbone |
-| `/extract_claims` | Identify legal claims from facts |
-| `/draft_petition` | Generate court documents |
-| `/prepare_outbox` | Stage documents for client review |
+## Runtime Surface
 
-**Why slash skills:** deterministic, repeatable, auditable. Lawyer steers explicitly rather than hoping AI chat guesses correctly.
+### Built-in slash skills
 
-### Core Design Principles
+- `/matter-init`
+- `/prepare_matter`
+- `/extract`
+- `/describe_sources`
+- `/context_preview`
+- `/context_search`
+- `/create_listofdates`
+- `/doctor`
 
-| Principle | Meaning |
-|-----------|---------|
-| **Deterministic where possible** | Slash skills produce predictable outputs; cheap LLM or rule-based |
-| **Human-in-the-loop always** | Lawyer reviews, approves, steers every stage |
-| **Source-backed facts** | Every extracted fact links to original source document |
-| **Preserve raw intake** | Original client files untouched; all work on copies |
-| **Local-first** | Privacy and confidentiality; no cloud dependency |
+### Command rail behavior
 
-### Roadmap
+The right-side command rail supports:
 
-**Phase 1** (current): VS Code-like shell + mocked `/matter-init`
+- exact slash commands;
+- deterministic aliases (`prepare matter`, `open library`, `status`);
+- rerun confirmations when current paid artifacts already exist;
+- configurable custom skill runs with overwrite confirmation;
+- copyable run/check reports for operational traceability.
 
-**Next phases:**
-- Real folder picker and matter persistence
-- Actual `/matter-init` (organize by format)
-- Chronological sorting in Library
-- List-of-dates generation with source citations
-- Workshop slash skills for claim extraction
-- Drafting layer with document generation
-- Outbox with approval workflow
+## Persistent Artifact Model
 
-### Ultimate Destination
+A matter folder is treated as durable legal workflow state, not transient UI state:
 
-A **workflowed legal operating system** where:
-- Lawyer opens messy client folder
-- Runs slash skills to transform it into structured, reviewable, source-backed legal work
-- Every stage is explicit, auditable, under lawyer control
-- The tool stays out of the way until invoked
+- `matter.json`
+- `00_Inbox/Intake NN - .../File Register.csv`
+- `00_Inbox/Intake NN - .../Extraction Log.csv`
+- `00_Inbox/Intake NN - .../_extracted/FILE-NNNN.json`
+- `10_Library/Source Index.json`
+- `10_Library/List of Dates.json`
+- `10_Library/List of Dates.csv`
+- `10_Library/List of Dates.md`
 
-**Not an AI assistant. A legal workbench.**
+## What Changed vs Old Summary
+
+- This is not a mocked Phase 1 UI anymore.
+- `/matter-init` is real and deterministic, not a placeholder.
+- Source labeling and chronology generation are implemented.
+- Command rail and skill governance are productionized enough for supervised beta workflows.
+
+## Current Boundaries
+
+- Lawyer-facing artifacts remain review-required.
+- Provider output is fail-closed where possible.
+- No claim of court-ready output without lawyer review.
+- Local-first posture remains primary for confidentiality and workflow control.
+
+## Where To Look Next
+
+- Architecture map: `docs/codebase-diagram.md`
+- Beta operations workflow: `docs/beta-testing-list-of-dates.md`
+- Model/provider routing controls: `docs/model-routing.md`
+- Refactor sequencing: `docs/refactor-staging-plan.md`

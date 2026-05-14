@@ -57,6 +57,7 @@ flowchart LR
 
   ApiRoutes --> MatterInit
   ApiRoutes --> Extract
+  ApiRoutes --> SourceDescriptors
   ApiRoutes --> ListOfDates
   Cli --> MatterInit
   Cli --> Extract
@@ -223,7 +224,10 @@ flowchart LR
 - OpenRouter routing remains explicit. Automatic fallback is not enabled for lawyer-facing artifacts.
 - Provider output is treated as untrusted until it passes local validation.
 
-At this repo state, `source-descriptors-engine.mjs` is shown as an operational engine path rather than a `routes/api-routes.mjs` endpoint.
+At this repo state, `source-descriptors-engine.mjs` is both:
+
+- a runtime endpoint path via `POST /api/describe-sources` in `routes/api-routes.mjs`; and
+- a direct CLI engine path for scripted local runs.
 
 ## Current Beta Posture
 

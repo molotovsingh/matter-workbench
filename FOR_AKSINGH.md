@@ -336,11 +336,29 @@ Key endpoints include:
 
 - `POST /api/matter-init`;
 - `POST /api/extract`;
+- `POST /api/describe-sources`;
 - `POST /api/create-listofdates`;
 - `GET/POST /api/ai-settings`;
+- `POST /api/ai-settings/test`;
 - `GET /api/skills`;
 - `POST /api/skills/check-intent`;
+- `GET /api/skill-factory-health`;
+- `GET /api/skill-ideas`;
+- `POST /api/skill-ideas`;
+- `POST /api/skill-ideas/plan-interview`;
+- `POST /api/skill-ideas/sample-output`;
+- `GET /api/skill-ideas/:ideaId/samples`;
+- `POST /api/skill-ideas/:ideaId/design-brief`;
+- `POST /api/skill-ideas/:ideaId/samples/:sampleId/approve`;
+- `POST /api/skill-ideas/:ideaId/create-skill`;
+- `POST /api/skill-ideas/:ideaId/status`;
+- `GET /api/configurable-skills`;
+- `GET /api/configurable-skills/runs`;
+- `POST /api/configurable-skills/run`;
+- `POST /api/configurable-skills/runs/cancelled`;
+- `POST /api/command-interactions`;
 - `GET /api/config`;
+- `POST /api/config`;
 - `GET /api/matters`;
 - `POST /api/switch-matter`;
 - `POST /api/matters/new`;
@@ -349,6 +367,11 @@ Key endpoints include:
 - `POST /api/doctor/fix`;
 - `POST /api/matters/check-overlap`;
 - `GET /api/workspace`;
+- `GET /api/matter-status`;
+- `GET /api/prepare-matter`;
+- `GET /api/matter-context`;
+- `GET /api/matter-context/search`;
+- `GET /api/rerun-advice`;
 - `GET /api/file`;
 - `GET /api/file-raw`.
 
