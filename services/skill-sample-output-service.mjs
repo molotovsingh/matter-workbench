@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { extractResponsesOutputText } from "../shared/responses-client.mjs";
+import {
+  extractOpenAiOutputText,
+  extractOpenRouterMessageText,
+  fetchProviderJsonWithTimeout,
+} from "../shared/provider-http.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const SKILL_SAMPLE_OUTPUT_SCHEMA_VERSION = "skill-sample-output/v1";
@@ -114,7 +118,7 @@ export function createOpenAiSkillSampleOutputProvider({
         { role: "user", content: JSON.stringify(sampleUserPayload({ idea, feedback, previousSample, matterContext })) },
       ],
     };
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -122,9 +126,7 @@ export function createOpenAiSkillSampleOutputProvider({
       timeoutMs,
       timeoutMessage: `OpenAI skill sample output request timed out after ${timeoutMs}ms`,
     });
-    const outputText = extractResponsesOutputText(payload);
-    if (!outputText) throw makeHttpError("OpenAI skill sample output response did not include output text", 502);
-    return outputText;
+    return extractOpenAiOutputText(payload, "OpenAI skill sample output");
   };
 }
 
@@ -158,7 +160,7 @@ export function createOpenRouterSkillSampleOutputProvider({
         allow_fallbacks: allowFallbacks,
       },
     };
-    const payload = await fetchJsonWithTimeout({
+    const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
       apiKey,
@@ -170,9 +172,7 @@ export function createOpenRouterSkillSampleOutputProvider({
       },
       timeoutMessage: `OpenRouter skill sample output request timed out after ${timeoutMs}ms`,
     });
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content === "string" && content.trim()) return content;
-    throw makeHttpError("OpenRouter skill sample output response did not include message content", 502);
+    return extractOpenRouterMessageText(payload, "OpenRouter skill sample output");
   };
 }
 
@@ -277,63 +277,6 @@ function normalizeIdeaForSample(idea = {}) {
   };
   if (!normalized.text) throw makeHttpError("Skill idea text is required for sample output.", 400);
   return normalized;
-}
-
-async function fetchJsonWithTimeout({
-  fetchImpl,
-  endpoint,
-  apiKey,
-  body,
-  timeoutMs,
-  extraHeaders = {},
-  timeoutMessage,
-}) {
-  const { signal, cancelTimeout } = createRequestSignal(timeoutMs);
-  let response;
-  let payload;
-  try {
-    response = await fetchImpl(endpoint, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        ...extraHeaders,
-      },
-      body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
-    });
-    payload = await response.json().catch((error) => {
-      if (signal?.aborted || error?.name === "AbortError") throw error;
-      return null;
-    });
-  } catch (error) {
-    if (signal?.aborted || error?.name === "AbortError") {
-      throw makeHttpError(timeoutMessage || `Provider request timed out after ${timeoutMs}ms`, 504);
-    }
-    throw error;
-  } finally {
-    cancelTimeout();
-  }
-  if (!response.ok || payload?.error) {
-    const message = payload?.error?.message || `Provider returned ${response?.status || "an error"}`;
-    throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503);
-  }
-  return payload;
-}
-
-function createRequestSignal(timeoutMs) {
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    return {
-      signal: null,
-      cancelTimeout: () => {},
-    };
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return {
-    signal: controller.signal,
-    cancelTimeout: () => clearTimeout(timer),
-  };
 }
 
 function normalizeSampleMarkdown(value) {
