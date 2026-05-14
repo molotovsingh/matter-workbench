@@ -937,6 +937,7 @@ test("command box generates, revises, copies a sample, and creates a skill when 
         },
       };
     },
+    checkSkillIntent: noSkillOverlapDecision,
     createSkillFromIdea: async (ideaId) => {
       createSkillCalls.push(ideaId);
       return {
@@ -1017,8 +1018,10 @@ test("command box generates, revises, copies a sample, and creates a skill when 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/client_update_email/);
   assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
-  assert.equal(interactionLogs.at(-2).status, "sample_approved");
-  assert.equal(interactionLogs.at(-2).provider_run_invoked, false);
+  assert.equal(interactionLogs.at(-3).status, "sample_approved");
+  assert.equal(interactionLogs.at(-3).provider_run_invoked, false);
+  assert.equal(interactionLogs.at(-2).status, "overlap_checked");
+  assert.equal(interactionLogs.at(-2).provider_run_invoked, true);
   assert.equal(interactionLogs.at(-1).status, "skill_created");
   assert.equal(interactionLogs.at(-1).provider_run_invoked, true);
 });
@@ -1086,6 +1089,7 @@ test("command box creates a runnable skill only after current sample approval", 
         approvedAt: "2026-05-13T10:02:00.000Z",
       },
     }),
+    checkSkillIntent: noSkillOverlapDecision,
     createSkillFromIdea: async (ideaId) => {
       createSkillCalls.push(ideaId);
       return {
@@ -1186,6 +1190,125 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Marked as good for this run/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Run Accepted");
+});
+
+test("command box blocks duplicate-like skill creation until distinct justification passes overlap check", async () => {
+  const sampleCalls = [];
+  const createSkillCalls = [];
+  const routerCalls = [];
+  const form = fakeForm();
+  const ctx = fakeCtx({ form, inputValue: "create a skill to build a case chronology from extracted records" });
+  const box = createAiCommandBox(ctx, {
+    saveSkillIdea: async (body) => ({
+      idea: {
+        id: "idea_chronology_duplicate",
+        text: body.text,
+        createdAt: "2026-05-14T10:00:00.000Z",
+        status: "incomplete",
+        designBrief: {
+          ...body.designBrief,
+          expectedOutputArtifact: "10_Library/List of Dates.md",
+          targetLane: "10_Library",
+        },
+        readiness: completeReadiness(),
+        matter: {
+          matterName: "Demo Matter",
+          folderName: "Demo Matter",
+        },
+      },
+    }),
+    generateSkillIdeaSampleOutput: async (body) => {
+      sampleCalls.push(body);
+      return {
+        schema_version: "skill-sample-output/v1",
+        sample_id: "sample_chrono_1",
+        generated_at: "2026-05-14T10:01:00.000Z",
+        matter: {
+          matter_name: "Demo Matter",
+          folder_name: "Demo Matter",
+        },
+        idea: body.idea,
+        feedback: "",
+        sample_markdown: "# Chronology\n\nA dated row cites FILE-0001 p1.b1.",
+        ai_run: {
+          provider: "openai-direct",
+          model: "gpt-5.4",
+          task: "skill_sample_output",
+        },
+        warnings: [],
+      };
+    },
+    approveSkillIdeaSample: async (ideaId, sampleId) => ({
+      sample: {
+        id: sampleId,
+        ideaId,
+        approved: true,
+        approvedAt: "2026-05-14T10:02:00.000Z",
+      },
+    }),
+    checkSkillIntent: async (body) => {
+      routerCalls.push(body);
+      if (!body.overrideJustification) {
+        return {
+          decision: "needs_user_approval",
+          recommended_action: "modify_existing_skill",
+          matched_skill: "/create_listofdates",
+          confidence: 0.97,
+          reason: "This chronology request overlaps with the existing list-of-dates skill.",
+          suggested_next_action: "Improve /create_listofdates instead of creating another chronology skill.",
+          user_gate_required: true,
+          mece_violation: true,
+        };
+      }
+      return noSkillOverlapDecision();
+    },
+    createSkillFromIdea: async (ideaId, body = {}) => {
+      createSkillCalls.push({ ideaId, body });
+      return {
+        skill: {
+          id: "skill_distinct_chrono",
+          title: "Distinct Chronology Review",
+          slash: "/distinct_chronology_review",
+          status: "active",
+          version: 1,
+          targetLane: "20_Workshop",
+          outputArtifact: "20_Workshop/Distinct Chronology Review.md",
+          modelPolicy: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+        },
+      };
+    },
+  });
+
+  box.wire();
+  await form.submit();
+  await box.handleCommand({ userRequest: "Chronology from extraction records." });
+  await box.handleCommand({ userRequest: "Timeline table." });
+  await box.handleCommand({ userRequest: "Use source citations." });
+  await box.handleCommand({ userRequest: "generate sample" });
+  await box.handleCommand({ userRequest: "looks right" });
+
+  assert.equal(sampleCalls.length, 1);
+  assert.deepEqual(createSkillCalls, []);
+  assert.equal(routerCalls.length, 1);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Existing skill may already cover this/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.equal(ctx.statusCalls.at(-1).bar, "Review Existing Skill");
+
+  await box.handleCommand({ userRequest: "justify new skill: this produces a workshop issue review, not the library chronology artifact" });
+
+  assert.equal(routerCalls.length, 2);
+  assert.equal(routerCalls[1].overrideJustification, "this produces a workshop issue review, not the library chronology artifact");
+  assert.deepEqual(createSkillCalls, [{
+    ideaId: "idea_chronology_duplicate",
+    body: {
+      overlapOverrideJustification: "this produces a workshop issue review, not the library chronology artifact",
+    },
+  }]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/distinct_chronology_review/);
 });
 
 test("command box runs active configurable slash commands and handles overwrite confirmation", async () => {
@@ -1957,6 +2080,19 @@ function fakeCtx({
           : lines.join("\n");
       }
     },
+  };
+}
+
+async function noSkillOverlapDecision() {
+  return {
+    decision: "adjacent_skill",
+    recommended_action: "adjacent_skill",
+    matched_skill: "",
+    confidence: 0.61,
+    reason: "No existing skill directly covers this request.",
+    suggested_next_action: "Continue with skill creation.",
+    user_gate_required: false,
+    mece_violation: false,
   };
 }
 

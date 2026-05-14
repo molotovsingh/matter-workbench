@@ -5,6 +5,7 @@ import { runMatterInit } from "../matter-init-engine.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
+import { makeHttpError } from "../shared/safe-paths.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 
 export async function handleApiRequest({ request, requestUrl, response, services }) {
@@ -190,8 +191,16 @@ export async function handleApiRequest({ request, requestUrl, response, services
 
   const skillIdeaCreateSkillMatch = requestUrl.pathname.match(/^\/api\/skill-ideas\/([^/]+)\/create-skill$/);
   if (request.method === "POST" && skillIdeaCreateSkillMatch) {
+    const body = await readRequestJson(request);
+    const ideaId = decodeURIComponent(skillIdeaCreateSkillMatch[1]);
+    const idea = await skillIdeasService.getIdea(ideaId);
+    await assertSkillCreationOverlapCleared({
+      idea,
+      skillRouterService,
+      overrideJustification: body.overlapOverrideJustification,
+    });
     sendJson(response, 200, await configurableSkillsService.createSkillFromApprovedSample({
-      ideaId: decodeURIComponent(skillIdeaCreateSkillMatch[1]),
+      ideaId,
     }));
     return true;
   }
@@ -417,4 +426,48 @@ async function readActiveMatterSummary(matterStore) {
     folderName,
     matterName: metadata.matterName || folderName,
   };
+}
+
+async function assertSkillCreationOverlapCleared({ idea, skillRouterService, overrideJustification = "" } = {}) {
+  if (isModifyExistingSkillIdea(idea)) return;
+  const userRequest = buildSkillCreationOverlapRequest(idea);
+  if (!userRequest) return;
+  const decision = await skillRouterService.checkIntent({
+    userRequest,
+    overrideJustification,
+  });
+  if (!isBlockingSkillOverlapDecision(decision)) return;
+  const matched = decision.matched_skill ? ` ${decision.matched_skill}` : "";
+  throw makeHttpError(
+    `Existing skill may already cover this request${matched ? `:${matched}` : ""}. Justify why this is a distinct new skill before creating it.`,
+    409,
+  );
+}
+
+function isModifyExistingSkillIdea(idea = {}) {
+  const notes = String(idea?.designBrief?.notes || "");
+  const text = String(idea?.text || "");
+  return /proposal type:\s*improve existing skill/i.test(notes)
+    || /^improve\s+\/[a-z0-9_-]+:/i.test(text);
+}
+
+function buildSkillCreationOverlapRequest(idea = {}) {
+  const brief = idea?.designBrief || {};
+  return [
+    idea.text || "",
+    brief.problem ? `Problem: ${brief.problem}` : "",
+    brief.expectedInputs ? `Inputs: ${brief.expectedInputs}` : "",
+    brief.expectedOutputArtifact ? `Output: ${brief.expectedOutputArtifact}` : "",
+    brief.targetLane ? `Lane: ${brief.targetLane}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function isBlockingSkillOverlapDecision(decision = {}) {
+  return Boolean(
+    decision.user_gate_required
+    || decision.mece_violation
+    || decision.decision === "needs_user_approval"
+    || decision.recommended_action === "modify_existing_skill"
+    || (decision.matched_skill && decision.recommended_action === "run_existing_skill"),
+  );
 }

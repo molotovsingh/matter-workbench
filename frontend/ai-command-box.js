@@ -102,7 +102,7 @@ export function createAiCommandBox(ctx, options = {}) {
   const generateSkillIdeaSampleOutput = options.generateSkillIdeaSampleOutput || ((body) => postJson("/api/skill-ideas/sample-output", body));
   const listSkillIdeaSamples = options.listSkillIdeaSamples || ((ideaId) => getJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/samples`));
   const approveSkillIdeaSample = options.approveSkillIdeaSample || ((ideaId, sampleId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/samples/${encodeURIComponent(sampleId)}/approve`, {}));
-  const createSkillFromIdea = options.createSkillFromIdea || ((ideaId) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/create-skill`, {}));
+  const createSkillFromIdea = options.createSkillFromIdea || ((ideaId, body = {}) => postJson(`/api/skill-ideas/${encodeURIComponent(ideaId)}/create-skill`, body));
   const runConfigurableSkill = options.runConfigurableSkill || ((body) => postJson("/api/configurable-skills/run", body));
   const cancelConfigurableSkillRun = options.cancelConfigurableSkillRun || ((body) => postJson("/api/configurable-skills/runs/cancelled", body));
   const planSkillIdeaInterviewProvider = options.planSkillIdeaInterviewProvider || planSkillIdeaInterviewViaApi;
@@ -1072,6 +1072,14 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
     if (session.ready) {
+      const justification = parseSkillCreationOverlapJustification(userRequest);
+      if (justification) {
+        clearCommandInput();
+        session.skillCreationOverlapOverride = justification;
+        session.skillCreationOverlapCleared = null;
+        await createConfigurableSkillFromApprovedSample();
+        return;
+      }
       if (normalized === "save idea" || normalized === "save updates") {
         clearCommandInput();
         await saveSkillIdeaInterviewSession();
@@ -1657,6 +1665,8 @@ export function createAiCommandBox(ctx, options = {}) {
       renderSkillIdeaSession("Approve a current sample before creating the skill.");
       return;
     }
+    const overlapCleared = await ensureSkillCreationOverlapCleared({ session, idea });
+    if (!overlapCleared) return;
     aiCommandSubmit.disabled = true;
     aiCommandSubmit.textContent = "Creating...";
     ctx.setStatus({
@@ -1670,7 +1680,8 @@ export function createAiCommandBox(ctx, options = {}) {
       ],
     });
     try {
-      const payload = await createSkillFromIdea(idea.id);
+      const overlapOverrideJustification = session.skillCreationOverlapOverride || "";
+      const payload = await createSkillFromIdea(idea.id, { overlapOverrideJustification });
       const skill = payload.skill || {};
       lastCreatedConfigurableSkill = skill;
       session.createdSkill = skill;
@@ -1727,6 +1738,201 @@ export function createAiCommandBox(ctx, options = {}) {
       aiCommandSubmit.disabled = false;
       aiCommandSubmit.textContent = "Go";
     }
+  }
+
+  async function ensureSkillCreationOverlapCleared({ session, idea }) {
+    if (isSkillImprovementIdeaSession(session, idea)) return true;
+    const userRequest = buildSkillCreationOverlapRequest(session, idea);
+    const overrideJustification = session.skillCreationOverlapOverride || "";
+    const cleared = session.skillCreationOverlapCleared || {};
+    if (
+      cleared.ideaId === idea?.id
+      && cleared.userRequest === userRequest
+      && cleared.overrideJustification === overrideJustification
+    ) {
+      return true;
+    }
+
+    aiCommandSubmit.disabled = true;
+    aiCommandSubmit.textContent = "Checking...";
+    ctx.setStatus({
+      mood: "thinking",
+      card: "<strong>Checking existing skills...</strong><br />Making sure this does not duplicate an existing skill before activation.",
+      bar: "Checking Skills",
+      terminal: "[skill-builder] checking overlap before skill creation",
+    });
+    try {
+      const decision = await checkSkillIntent({ userRequest, overrideJustification });
+      updateReport({
+        status: "overlap_checked",
+        routerDecision: decision.decision || "",
+        routerMatchedSkill: decision.matched_skill || "",
+      });
+      recordCommandInteraction({
+        renderedState: "skill_builder/overlap_check",
+        status: "overlap_checked",
+        skillIdeaId: idea?.id || "",
+        routerDecision: decision,
+        providerRunInvoked: true,
+      });
+      if (isBlockingSkillOverlapDecision(decision)) {
+        session.skillCreationOverlapGate = {
+          decision,
+          userRequest,
+          overrideJustification,
+        };
+        renderSkillCreationOverlapGate({ decision, userRequest, overrideJustification });
+        ctx.setStatus({
+          mood: "idle",
+          card: `<strong>Existing skill may already cover this</strong><br />Review <code>${escapeHtml(decision.matched_skill || "the matched skill")}</code> before creating another skill.`,
+          bar: "Review Existing Skill",
+          terminal: `[skill-builder] overlap gate ${decision.matched_skill || ""}`.trim(),
+        });
+        return false;
+      }
+      session.skillCreationOverlapCleared = {
+        ideaId: idea?.id || "",
+        userRequest,
+        overrideJustification,
+        decision,
+      };
+      return true;
+    } catch (error) {
+      renderSkillIdeaSession(`Existing-skill check failed: ${error.message}`);
+      updateReport({ status: "failed", error: error.message });
+      recordCommandInteraction({
+        renderedState: "skill_builder/overlap_check",
+        status: "failed",
+        skillIdeaId: idea?.id || "",
+        providerRunInvoked: true,
+        error: error.message,
+      });
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Existing-skill check failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Check Failed",
+        terminal: `[skill-builder] overlap check failed: ${error.message}`,
+      });
+      return false;
+    } finally {
+      updateReport({
+        statusBar: getStatusBarText(),
+        terminalLines: getLatestTerminalLines(),
+      });
+      aiCommandSubmit.disabled = false;
+      aiCommandSubmit.textContent = "Go";
+    }
+  }
+
+  function renderSkillCreationOverlapGate({ decision = {}, userRequest = "", overrideJustification = "", errorMessage = "" } = {}) {
+    if (!aiCommandSession) return;
+    const matchedSkill = decision.matched_skill || "none";
+    const confidence = Number.isFinite(decision.confidence)
+      ? `${Math.round(decision.confidence * 100)}%`
+      : "n/a";
+    aiCommandSession.hidden = false;
+    aiCommandSession.innerHTML = `
+      <section class="command-interview command-router-result" aria-live="polite">
+        <h3>Existing skill may already cover this</h3>
+        <p class="muted">Skill creation is paused. This does not modify your approved sample or the active skill list.</p>
+        <p><code>${escapeHtml(userRequest)}</code></p>
+        <dl class="skill-card-meta">
+          <div><dt>Matched skill</dt><dd><code>${escapeHtml(matchedSkill)}</code></dd></div>
+          <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>
+          <div><dt>Confidence</dt><dd>${escapeHtml(confidence)}</dd></div>
+          <div><dt>Reason</dt><dd>${escapeHtml(decision.reason || "")}</dd></div>
+          <div><dt>Next action</dt><dd>${escapeHtml(decision.suggested_next_action || "Use the existing skill, improve it, or justify why this is a distinct new skill.")}</dd></div>
+        </dl>
+        <form class="ai-command-override-form" data-skill-overlap-form>
+          <label>
+            <span>Why is this a separate new skill?</span>
+            <textarea data-skill-overlap-justification spellcheck="true" placeholder="Explain the distinct purpose, inputs, output artifact, workflow stage, legal setting, or audience.">${escapeHtml(overrideJustification || "")}</textarea>
+          </label>
+          <div class="command-interview-actions">
+            <button type="submit">Re-check and create skill</button>
+            <button type="button" class="secondary" data-skill-overlap-action="cancel">Cancel</button>
+          </div>
+          <div class="form-error" data-skill-overlap-error${errorMessage ? "" : " hidden"}>${escapeHtml(errorMessage)}</div>
+        </form>
+      </section>
+    `;
+    wireSkillCreationOverlapGateActions({ decision, userRequest });
+  }
+
+  function wireSkillCreationOverlapGateActions({ decision = {}, userRequest = "" } = {}) {
+    const form = aiCommandSession?.querySelector?.("[data-skill-overlap-form]");
+    const input = aiCommandSession?.querySelector?.("[data-skill-overlap-justification]");
+    const errorBox = aiCommandSession?.querySelector?.("[data-skill-overlap-error]");
+    form?.addEventListener?.("submit", async (event) => {
+      event.preventDefault();
+      const justification = input?.value?.trim?.() || "";
+      if (!justification) {
+        if (errorBox) {
+          errorBox.textContent = "Explain why this is a separate new skill before continuing.";
+          errorBox.hidden = false;
+        }
+        return;
+      }
+      if (currentSkillIdeaInterview) {
+        currentSkillIdeaInterview.skillCreationOverlapOverride = justification;
+        currentSkillIdeaInterview.skillCreationOverlapCleared = null;
+      }
+      await createConfigurableSkillFromApprovedSample();
+    });
+    aiCommandSession?.querySelectorAll?.("[data-skill-overlap-action]")?.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button.dataset.skillOverlapAction === "cancel") {
+          renderSkillIdeaSession(
+            decision.matched_skill
+              ? `Skill creation paused. Use ${decision.matched_skill} or justify why this should be a separate new skill.`
+              : "Skill creation paused. Use the existing skill or justify why this should be a separate new skill.",
+          );
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Skill creation paused</strong><br />No skill was created.",
+            bar: "Skill Creation Paused",
+            terminal: `[skill-builder] creation paused after overlap check ${userRequest}`.trim(),
+          });
+        }
+      });
+    });
+  }
+
+  function isSkillImprovementIdeaSession(session, idea) {
+    const mode = String(session?.interview?.mode || "").trim();
+    const notes = String(idea?.designBrief?.notes || session?.interview?.designBrief?.notes || "");
+    const text = String(idea?.text || session?.interview?.originalText || "");
+    return mode === "modify_existing_skill"
+      || /proposal type:\s*improve existing skill/i.test(notes)
+      || /^improve\s+\/[a-z0-9_-]+:/i.test(text);
+  }
+
+  function buildSkillCreationOverlapRequest(session, idea) {
+    const brief = idea?.designBrief || session?.interview?.designBrief || {};
+    const parts = [
+      idea?.text || session?.interview?.originalText || "",
+      brief.problem ? `Problem: ${brief.problem}` : "",
+      brief.expectedInputs ? `Inputs: ${brief.expectedInputs}` : "",
+      brief.expectedOutputArtifact ? `Output: ${brief.expectedOutputArtifact}` : "",
+      brief.targetLane ? `Lane: ${brief.targetLane}` : "",
+    ].filter(Boolean);
+    return parts.join("\n");
+  }
+
+  function isBlockingSkillOverlapDecision(decision = {}) {
+    return Boolean(
+      decision.user_gate_required
+      || decision.mece_violation
+      || decision.decision === "needs_user_approval"
+      || decision.recommended_action === "modify_existing_skill"
+      || (decision.matched_skill && decision.recommended_action === "run_existing_skill"),
+    );
+  }
+
+  function parseSkillCreationOverlapJustification(input) {
+    const text = String(input || "").trim();
+    const match = text.match(/^(?:justify\s+new\s+skill|distinct\s+because|separate\s+because)\s*[:,-]?\s+(.+)$/i);
+    return match?.[1]?.trim() || "";
   }
 
   function renderSkillReady(skill = {}) {

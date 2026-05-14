@@ -116,25 +116,47 @@ test("server API smoke test keeps public routes stable", async () => {
         }),
       }],
     }),
-    skillRouterProvider: async () => ({
-      decision: "modify_existing_skill",
-      recommended_action: "modify_existing_skill",
-      matched_skill: "/create_listofdates",
-      confidence: 0.92,
-      reason: "The request overlaps with /create_listofdates.",
-      user_gate_required: false,
-      suggested_next_action: "Ask for approval to modify /create_listofdates.",
-      mece_violation: true,
-      legal_setting: {
-        jurisdiction: "",
-        forum: "",
-        case_type: "",
-        procedure_stage: "",
-        side: "",
-        relief_type: "",
-      },
-      override_requires: ["distinct output contract"],
-    }),
+    skillRouterProvider: async ({ userRequest }) => (
+      /party names|officers|aliases|relationships/i.test(userRequest)
+        ? {
+            decision: "adjacent_skill",
+            recommended_action: "adjacent_skill",
+            matched_skill: "",
+            confidence: 0.83,
+            reason: "No existing skill directly maps formal party names and officers.",
+            user_gate_required: false,
+            suggested_next_action: "Continue with new skill creation.",
+            mece_violation: false,
+            legal_setting: {
+              jurisdiction: "",
+              forum: "",
+              case_type: "",
+              procedure_stage: "",
+              side: "",
+              relief_type: "",
+            },
+            override_requires: [],
+          }
+        : {
+            decision: "modify_existing_skill",
+            recommended_action: "modify_existing_skill",
+            matched_skill: "/create_listofdates",
+            confidence: 0.92,
+            reason: "The request overlaps with /create_listofdates.",
+            user_gate_required: false,
+            suggested_next_action: "Ask for approval to modify /create_listofdates.",
+            mece_violation: true,
+            legal_setting: {
+              jurisdiction: "",
+              forum: "",
+              case_type: "",
+              procedure_stage: "",
+              side: "",
+              relief_type: "",
+            },
+            override_requires: ["distinct output contract"],
+          }
+    ),
     sourceDescriptorProvider: async ({ sources }) => ({
       sources: sources.map((source) => sourceDescriptorFor(source)),
     }),
@@ -429,6 +451,34 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     assert.equal(skillIntent.decision, "needs_user_approval");
     assert.equal(skillIntent.matched_skill, "/create_listofdates");
+    const duplicateChronologyIdea = await postJson(baseUrl, "/api/skill-ideas", {
+      text: "new skill: create another chronology from extraction records",
+      designBrief: {
+        intendedUser: "Litigation team",
+        problem: "Create a cited case chronology from extraction records.",
+        expectedInputs: "Extraction records and Source Index.",
+        expectedOutputArtifact: "10_Library/List of Dates.md",
+        targetLane: "10_Library",
+        paidPosture: "paid",
+        riskLevel: "medium",
+        notes: "This intentionally overlaps the built-in list of dates skill.",
+      },
+    });
+    const duplicateChronologySample = await postJson(baseUrl, "/api/skill-ideas/sample-output", {
+      idea: duplicateChronologyIdea.idea,
+    });
+    await postJson(
+      baseUrl,
+      `/api/skill-ideas/${encodeURIComponent(duplicateChronologyIdea.idea.id)}/samples/${encodeURIComponent(duplicateChronologySample.sample_id)}/approve`,
+    );
+    const duplicateCreateResponse = await fetch(`${baseUrl}/api/skill-ideas/${encodeURIComponent(duplicateChronologyIdea.idea.id)}/create-skill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const duplicateCreatePayload = await duplicateCreateResponse.json();
+    assert.equal(duplicateCreateResponse.status, 409);
+    assert.match(duplicateCreatePayload.error, /Existing skill may already cover this request: \/create_listofdates/);
     const commandInteraction = await postJson(baseUrl, "/api/command-interactions", {
       typed_input: "Create a new list of dates skill",
       matched_command: "router/check",
