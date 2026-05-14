@@ -80,8 +80,10 @@ durable quality ledger can come later if the signal proves useful.
 
 ### "Run Again" Reuses The Active Version
 
-`Run again` should rerun the current active skill version with normal overwrite
-guardrails. It should not create a draft version or change the skill.
+`Run again` should rerun the current active skill version with normal output
+replacement guardrails. The prompt should make clear that it only replaces this
+matter's output document; it should not create a draft version or change the
+skill.
 
 ### "Improve This Skill" Starts The Existing Version Flow
 
@@ -95,8 +97,8 @@ The user should be able to see:
 - which matter was used;
 - which skill slash command ran;
 - provider/model;
-- output artifact path;
-- whether overwrite was approved or cancelled;
+- output document path;
+- whether an existing output document was replaced or kept;
 - latest run status.
 
 This belongs near the run result and in the Skills supervision surface.
@@ -114,8 +116,8 @@ Behavior:
 
 - `Looks good` updates the Command rail status/report only.
 - `Improve this skill` reuses the current non-mutating improvement flow.
-- `Run again` reuses the existing configurable-skill run path and overwrite
-  guardrails.
+- `Run again` reuses the existing configurable-skill run path and output
+  replacement guardrails.
 - `Open output` opens the generated matter artifact.
 
 ## Later Critique Flow
