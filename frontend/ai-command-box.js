@@ -46,7 +46,7 @@ import {
 import {
   buildSkillCreationOverlapRequest,
   isBlockingSkillOverlapDecision,
-  isSkillImprovementIdeaSession,
+  isSkillImprovementIdea,
   parseSkillCreationOverlapJustification,
   renderSkillCreationOverlapGateHtml,
 } from "./skill-creation-overlap.js";
@@ -1748,8 +1748,8 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   async function ensureSkillCreationOverlapCleared({ session, idea }) {
-    if (isSkillImprovementIdeaSession(session, idea)) return true;
-    const userRequest = buildSkillCreationOverlapRequest(session, idea);
+    if (isSkillImprovementIdea({ session, idea })) return true;
+    const userRequest = buildSkillCreationOverlapRequest({ session, idea });
     const overrideJustification = session.skillCreationOverlapOverride || "";
     const cleared = session.skillCreationOverlapCleared || {};
     if (
