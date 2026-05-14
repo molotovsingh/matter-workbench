@@ -3,11 +3,26 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLocalEnv } from "../../shared/local-env.mjs";
+import { fetchProviderJsonWithTimeout, parseOpenRouterJsonMessage } from "../../shared/provider-http.mjs";
 import { extractResponsesOutputText, fetchResponses } from "../../shared/responses-client.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const DEFAULT_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_STRICT_SCHEMA_UNSUPPORTED_KEYS = new Set([
+  "exclusiveMaximum",
+  "exclusiveMinimum",
+  "format",
+  "maxItems",
+  "maxLength",
+  "maximum",
+  "minItems",
+  "minLength",
+  "minimum",
+  "multipleOf",
+  "pattern",
+]);
 
 const CANDIDATE_TYPES = [
   "matter_fact",
@@ -187,7 +202,7 @@ async function run() {
 
   const env = { ...process.env };
   await loadLocalEnv({ appDir: REPO_ROOT, targetEnv: env, override: true });
-  if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required for the two-pass list-of-dates smoke");
+  requireProviderKeys(env, options);
 
   if (options.candidatesFile) {
     await runPass2FromCandidates({ outDir, env });
@@ -215,7 +230,7 @@ async function run() {
   const pass1Runs = [];
 
   console.log(`[two-pass] matter ${matter.matter_name || matterRoot}`);
-  console.log(`[two-pass] pass1 ${options.pass1Model}; pass2 ${options.pass2Model}`);
+  console.log(`[two-pass] pass1 ${formatProviderModel(resolveProvider(options.pass1Provider, options.pass1Model), options.pass1Model)}; pass2 ${formatProviderModel(resolveProvider(options.pass2Provider, options.pass2Model), options.pass2Model)}`);
   console.log(`[two-pass] source blocks ${sourceBlocks.length}, chunks ${chunks.length}`);
   console.log(`[two-pass] output ${outDir}`);
 
@@ -256,6 +271,7 @@ async function run() {
     generated_at: new Date().toISOString(),
     matter: matterSummary(matter),
     pass1: {
+      provider: resolveProvider(options.pass1Provider, options.pass1Model),
       model: options.pass1Model,
       maxOutputTokens: options.pass1MaxOutputTokens,
       sourceTextChars: options.sourceTextChars,
@@ -292,7 +308,7 @@ async function runPass2FromCandidates({ outDir, env }) {
   const chunkCount = candidatesDocument.pass1?.chunkCount
     || Math.max(0, ...((candidatesDocument.candidates || []).map((candidate) => Number(candidate.chunkIndex) || 0)));
   console.log(`[two-pass] candidates ${options.candidatesFile}`);
-  console.log(`[two-pass] pass1 ${candidatesDocument.pass1?.model || "unknown"}; pass2 ${options.pass2Model}`);
+  console.log(`[two-pass] pass1 ${formatProviderModel(candidatesDocument.pass1?.provider, candidatesDocument.pass1?.model || "unknown")}; pass2 ${formatProviderModel(resolveProvider(options.pass2Provider, options.pass2Model), options.pass2Model)}`);
   console.log(`[two-pass] candidates ${(candidatesDocument.candidates || []).length}, chunks ${chunkCount}`);
   console.log(`[two-pass] output ${outDir}`);
   await runPass2({
@@ -333,6 +349,7 @@ async function runPass2({ outDir, env, matter, candidatesDocument, sourceBlockCo
     generated_at: new Date().toISOString(),
     matter,
     pass2: {
+      provider: resolveProvider(options.pass2Provider, options.pass2Model),
       model: options.pass2Model,
       maxOutputTokens: options.pass2MaxOutputTokens,
     },
@@ -344,7 +361,7 @@ async function runPass2({ outDir, env, matter, candidatesDocument, sourceBlockCo
     path.join(outDir, "List of Dates.md"),
     renderMarkdown({
       matter: renderMatter,
-      modelLabel: `${candidatesDocument.pass1?.model || options.pass1Model} -> ${options.pass2Model}`,
+      modelLabel: `${formatProviderModel(candidatesDocument.pass1?.provider, candidatesDocument.pass1?.model || options.pass1Model)} -> ${formatProviderModel(resolveProvider(options.pass2Provider, options.pass2Model), options.pass2Model)}`,
       polished: polishedDocument,
     }),
   );
@@ -431,6 +448,25 @@ function chunkBlocks(sourceBlocks, limit) {
 }
 
 async function requestJson({ apiKey, model, system, user, schemaName, schema, maxOutputTokens }) {
+  const provider = schemaName === "chronology_candidate_ledger"
+    ? resolveProvider(options.pass1Provider, model)
+    : resolveProvider(options.pass2Provider, model);
+  if (provider === "openrouter") {
+    return requestOpenRouterJson({
+      apiKey: options.openRouterApiKey,
+      endpoint: options.openRouterEndpoint,
+      model,
+      system,
+      user,
+      schemaName,
+      schema,
+      maxOutputTokens,
+    });
+  }
+  return requestOpenAiJson({ apiKey, model, system, user, schemaName, schema, maxOutputTokens });
+}
+
+async function requestOpenAiJson({ apiKey, model, system, user, schemaName, schema, maxOutputTokens }) {
   const maxAttempts = 3;
   let lastError = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -463,6 +499,7 @@ async function requestJson({ apiKey, model, system, user, schemaName, schema, ma
           returnedModel: payload.model || "",
           status: payload.status || "",
           usage: payload.usage || null,
+          provider: "openai-direct",
           attempts: attempt,
         },
       };
@@ -477,6 +514,76 @@ async function requestJson({ apiKey, model, system, user, schemaName, schema, ma
   throw lastError;
 }
 
+async function requestOpenRouterJson({ apiKey, endpoint, model, system, user, schemaName, schema, maxOutputTokens }) {
+  const maxAttempts = 3;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const payload = await fetchProviderJsonWithTimeout({
+        fetchImpl: fetch,
+        endpoint,
+        apiKey,
+        timeoutMs: options.openRouterTimeoutMs,
+        extraHeaders: {
+          "http-referer": "https://github.com/molotovsingh/matter-workbench",
+          "x-title": "Matter Workbench List of Dates Two-Pass Smoke",
+        },
+        timeoutMessage: `OpenRouter ${schemaName} request timed out after ${options.openRouterTimeoutMs}ms`,
+        body: {
+          model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: JSON.stringify(user) },
+          ],
+          max_tokens: maxOutputTokens,
+          provider: {
+            require_parameters: true,
+            allow_fallbacks: false,
+          },
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: schemaName,
+              strict: true,
+              schema: stripUnsupportedJsonSchemaKeywords(schema),
+            },
+          },
+        },
+      });
+      return {
+        json: parseOpenRouterJsonMessage(payload, `OpenRouter ${schemaName}`),
+        meta: {
+          requestedModel: model,
+          returnedModel: payload.model || "",
+          status: "",
+          usage: payload.usage || null,
+          provider: "openrouter",
+          returnedProvider: payload.provider || payload.provider_name || payload.choices?.[0]?.provider || "",
+          attempts: attempt,
+        },
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableProviderError(error) || attempt === maxAttempts) break;
+      const delayMs = 1500 * attempt;
+      console.warn(`[two-pass] retrying OpenRouter ${schemaName} after provider error (${attempt}/${maxAttempts}): ${error.message}`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
+function stripUnsupportedJsonSchemaKeywords(value) {
+  if (Array.isArray(value)) return value.map(stripUnsupportedJsonSchemaKeywords);
+  if (!value || typeof value !== "object") return value;
+  const copy = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (OPENROUTER_STRICT_SCHEMA_UNSUPPORTED_KEYS.has(key)) continue;
+    copy[key] = stripUnsupportedJsonSchemaKeywords(child);
+  }
+  return copy;
+}
+
 function isRetryableProviderError(error) {
   const status = Number(error?.statusCode || error?.status || 0);
   return status >= 500 || /fetch failed|network|ECONNRESET|ETIMEDOUT|timeout/i.test(error?.message || "");
@@ -486,6 +593,39 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function requireProviderKeys(env, currentOptions) {
+  const providers = new Set();
+  if (!currentOptions.candidatesFile) {
+    providers.add(resolveProvider(currentOptions.pass1Provider, currentOptions.pass1Model));
+  }
+  if (!currentOptions.pass1Only) {
+    providers.add(resolveProvider(currentOptions.pass2Provider, currentOptions.pass2Model));
+  }
+  if (providers.has("openai") && !env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is required for OpenAI-direct two-pass list-of-dates smoke calls");
+  }
+  if (providers.has("openrouter") && !env.OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY is required for OpenRouter two-pass list-of-dates smoke calls");
+  }
+  currentOptions.openAiApiKey = env.OPENAI_API_KEY || "";
+  currentOptions.openRouterApiKey = env.OPENROUTER_API_KEY || "";
+}
+
+function resolveProvider(provider, model) {
+  const value = String(provider || "auto").trim().toLowerCase();
+  if (value === "openai" || value === "openai-direct") return "openai";
+  if (value === "openrouter") return "openrouter";
+  if (value && value !== "auto") throw new Error(`Unsupported provider: ${provider}`);
+  return String(model || "").includes("/") ? "openrouter" : "openai";
+}
+
+function formatProviderModel(provider, model) {
+  const normalized = provider === "openrouter"
+    ? "openrouter"
+    : provider === "openai" ? "openai-direct" : provider || "";
+  return normalized ? `${normalized} / ${model}` : model;
+}
+
 function buildReport({ matter, outDir, sourceBlockCount, chunkCount, candidatesDocument, polishedDocument }) {
   const entries = Array.isArray(polishedDocument.entries) ? polishedDocument.entries : [];
   const candidates = Array.isArray(candidatesDocument.candidates) ? candidatesDocument.candidates : [];
@@ -493,7 +633,9 @@ function buildReport({ matter, outDir, sourceBlockCount, chunkCount, candidatesD
     schema_version: "listofdates-two-pass-smoke-report/v1",
     matter: matterSummary(matter),
     outputDir: outDir,
+    pass1Provider: candidatesDocument.pass1.provider || resolveProvider(options.pass1Provider, candidatesDocument.pass1.model),
     pass1Model: candidatesDocument.pass1.model,
+    pass2Provider: polishedDocument.pass2.provider || resolveProvider(options.pass2Provider, polishedDocument.pass2.model),
     pass2Model: polishedDocument.pass2.model,
     pass1ReturnedModels: unique((candidatesDocument.runs || []).map((run) => run.returnedModel).filter(Boolean)),
     pass2ReturnedModel: polishedDocument.ai_run?.returnedModel || "",
@@ -586,8 +728,12 @@ function parseArgs(argv) {
     runLabel: "",
     pass1Model: process.env.LISTOFDATES_PASS1_MODEL || "gpt-5.4-mini",
     pass2Model: process.env.LISTOFDATES_PASS2_MODEL || "gpt-5.4",
+    pass1Provider: process.env.LISTOFDATES_PASS1_PROVIDER || "auto",
+    pass2Provider: process.env.LISTOFDATES_PASS2_PROVIDER || "auto",
     pass1MaxOutputTokens: Number(process.env.LISTOFDATES_PASS1_MAX_OUTPUT_TOKENS || 9000),
     pass2MaxOutputTokens: Number(process.env.LISTOFDATES_PASS2_MAX_OUTPUT_TOKENS || 12000),
+    openRouterEndpoint: process.env.OPENROUTER_ENDPOINT || DEFAULT_OPENROUTER_ENDPOINT,
+    openRouterTimeoutMs: Number(process.env.LISTOFDATES_OPENROUTER_TIMEOUT_MS || 180000),
     chunkCharLimit: Number(process.env.LISTOFDATES_TWO_PASS_CHUNK_CHAR_LIMIT || 18000),
     sourceTextChars: Number(process.env.LISTOFDATES_TWO_PASS_SOURCE_TEXT_CHARS || 2400),
     includeAllBlocks: false,
@@ -611,6 +757,10 @@ function parseArgs(argv) {
       options.pass1Model = argv[++index] || "";
     } else if (arg === "--pass2-model") {
       options.pass2Model = argv[++index] || "";
+    } else if (arg === "--pass1-provider") {
+      options.pass1Provider = argv[++index] || "";
+    } else if (arg === "--pass2-provider") {
+      options.pass2Provider = argv[++index] || "";
     } else if (arg === "--pass1-max-output-tokens") {
       options.pass1MaxOutputTokens = Number(argv[++index]);
     } else if (arg === "--pass2-max-output-tokens") {
@@ -631,7 +781,7 @@ function parseArgs(argv) {
   if (!options.help) {
     if (!options.pass1Model) throw new Error("--pass1-model is required");
     if (!options.pass2Model) throw new Error("--pass2-model is required");
-    for (const key of ["pass1MaxOutputTokens", "pass2MaxOutputTokens", "chunkCharLimit", "sourceTextChars"]) {
+    for (const key of ["pass1MaxOutputTokens", "pass2MaxOutputTokens", "chunkCharLimit", "sourceTextChars", "openRouterTimeoutMs"]) {
       if (!Number.isFinite(options[key]) || options[key] <= 0) throw new Error(`${key} must be a positive number`);
     }
   }
@@ -651,6 +801,8 @@ function printHelp() {
 Options:
   --pass1-model <model>              Candidate extraction model. Default: gpt-5.4-mini
   --pass2-model <model>              Chronology editor model. Default: gpt-5.4
+  --pass1-provider <provider>        auto, openai, or openrouter. Default: auto
+  --pass2-provider <provider>        auto, openai, or openrouter. Default: auto
   --pass1-only                       Write candidates.json and skip editor pass
   --candidates-file <path>           Reuse an existing first-pass candidates.json
   --run-label <label>                Output folder name under .local/listofdates-two-pass/

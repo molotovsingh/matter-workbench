@@ -132,6 +132,19 @@ node evals/listofdates/two-pass-model-smoke.mjs \
   --pass2-model gpt-4.1
 ```
 
+Cross-provider editor test using OpenRouter:
+
+```bash
+node evals/listofdates/two-pass-model-smoke.mjs \
+  --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-41-20260515/candidates.json" \
+  --pass2-provider openrouter \
+  --pass2-model anthropic/claude-sonnet-4.6 \
+  --pass2-max-output-tokens 24000 \
+  --run-label atlas-gpt-41-to-claude-sonnet-46
+```
+
+Models with `/` in the model id default to OpenRouter. Explicit `--pass1-provider` and `--pass2-provider` can be used when needed.
+
 ## Review Gates
 
 When comparing runs, do not judge only by row count. Check:
