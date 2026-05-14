@@ -37,6 +37,13 @@ import {
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
 import {
+  describeInterviewPlanner,
+  renderAnsweredQuestions,
+  renderQuestionExamples,
+  renderSavedSkillIdeaChecklist,
+  renderSkillIdeaUnderstood,
+} from "./skill-idea-session-rendering.js";
+import {
   applyActiveSampleState,
   ensureSampleReview,
   findSampleByVersion,
@@ -1338,62 +1345,6 @@ export function createAiCommandBox(ctx, options = {}) {
     wireSkillIdeaSessionActions();
   }
 
-  function renderSkillIdeaUnderstood(interview) {
-    return `
-        <div class="skill-idea-understood">
-          <strong>What I understood</strong>
-          <p>${escapeHtml(interview.understood)}</p>
-          ${renderInterviewPlannerInfo(interview)}
-          ${renderDefaultAssumptions(interview)}
-          ${interview.targetSkill ? `<p class="muted">Likely related skill: <code>${escapeHtml(interview.targetSkill)}</code></p>` : ""}
-        </div>
-    `;
-  }
-
-  function renderInterviewPlannerInfo(interview) {
-    const plannerInfo = describeInterviewPlanner(interview);
-    const plannerLabel = plannerInfo.model || plannerInfo.source;
-    const reason = plannerInfo.fallbackReason
-      ? `<br /><span>Fallback reason: ${escapeHtml(plannerInfo.fallbackReason)}</span>`
-      : "";
-    return `<p class="muted">Planner: ${escapeHtml(plannerLabel)}${reason}</p>`;
-  }
-
-  function renderDefaultAssumptions(interview) {
-    const assumptions = Array.isArray(interview.defaultAssumptions) ? interview.defaultAssumptions : [];
-    if (!assumptions.length) return "";
-    return `
-      <ul class="command-interview-answers">
-        ${assumptions.map((assumption) => `<li><span>Default</span><strong>${escapeHtml(assumption)}</strong></li>`).join("")}
-      </ul>
-    `;
-  }
-
-  function renderQuestionExamples(question) {
-    const examples = Array.isArray(question.examples) ? question.examples.filter(Boolean) : [];
-    if (examples.length) {
-      return `<p class="muted">Examples: ${escapeHtml(examples.join(", "))}.</p>`;
-    }
-    return question.placeholder ? `<p class="muted">${escapeHtml(question.placeholder)}</p>` : "";
-  }
-
-  function renderAnsweredQuestions(interview, answers) {
-    const answered = interview.questions
-      .filter((question) => answers[question.id])
-      .map((question) => `
-        <li>
-          <span>${escapeHtml(question.label)}</span>
-          <strong>${escapeHtml(answers[question.id])}</strong>
-        </li>
-      `).join("");
-    if (!answered) return "";
-    return `
-      <ul class="command-interview-answers">
-        ${answered}
-      </ul>
-    `;
-  }
-
   function renderSavedSkillIdeaSession({ idea, interview, answers, sampleReview = {}, createdSkill = null, errorMessage = "" }) {
     const brief = idea.designBrief || {};
     const readiness = idea.readiness || {};
@@ -1510,27 +1461,6 @@ export function createAiCommandBox(ctx, options = {}) {
         ? '<button type="button" data-skill-interview-action="create-skill">Try creating skill again</button>'
         : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale ? "" : " disabled"}>Looks right - create skill</button>`}
       <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
-    `;
-  }
-
-  function renderSavedSkillIdeaChecklist(readiness = {}) {
-    const items = Array.isArray(readiness.items) ? readiness.items : [];
-    if (!items.length) return "";
-    return `
-      <div class="skill-idea-readiness">
-        <div class="skill-idea-readiness-header">
-          <strong>Readiness checklist</strong>
-          <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Complete" : "Incomplete"}</span>
-        </div>
-        <ul>
-          ${items.map((item) => `
-            <li class="${item.passed ? "passed" : "missing"}">
-              <span>${item.passed ? "OK" : "Missing"}</span>
-              ${escapeHtml(item.label || item.key || "Readiness item")}
-            </li>
-          `).join("")}
-        </ul>
-      </div>
     `;
   }
 
@@ -2751,29 +2681,6 @@ export function createAiCommandBox(ctx, options = {}) {
     copyLatestReport,
     resetForMatterChange,
     wire,
-  };
-}
-
-function describeInterviewPlanner(interview) {
-  const planner = interview?.planner || null;
-  if (planner?.used) {
-    return {
-      source: "model",
-      model: [planner.provider, planner.model].filter(Boolean).join(" / "),
-      fallbackReason: "",
-    };
-  }
-  if (planner) {
-    return {
-      source: "deterministic fallback",
-      model: "",
-      fallbackReason: String(planner.reason || "").trim(),
-    };
-  }
-  return {
-    source: "deterministic",
-    model: "",
-    fallbackReason: "",
   };
 }
 
