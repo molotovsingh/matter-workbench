@@ -142,7 +142,7 @@ structured intake tree.
 ## Run locally
 
 ```bash
-cd /Users/aks/matter_workbench
+cd /path/to/matter-workbench
 npm start
 ```
 
@@ -172,13 +172,24 @@ The same engine can also be invoked directly from the terminal without the UI:
 ```bash
 MATTER_ROOT=/absolute/path/to/matter npm run matter-init:dry-run
 MATTER_ROOT=/absolute/path/to/matter npm run matter-init
+MATTER_ROOT=/absolute/path/to/matter npm run extract:dry-run
+MATTER_ROOT=/absolute/path/to/matter npm run extract
+MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates:dry-run
+MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 ```
 
 ## Files
 
-- `index.html` - prototype shell
-- `styles.css` - visual design
-- `app.js` - single-command interaction demo
-- `server.mjs` - local server, explorer APIs, and `/api/matter-init` endpoint
+- `index.html` - app shell markup
+- `styles.css` - app visual system and layout
+- `app.js` - frontend composition, state bootstrapping, and built-in skill dispatch
+- `frontend/` - command rail UI, screens, workspace views, and skill-specific frontend runners
+- `server.mjs` - local server bootstrap and service wiring
+- `routes/api-routes.mjs` - HTTP API routes for skills, matters, status, context, rerun advice, and settings
+- `services/` - matter store, workspace, upload, status, preparation, skill governance, and logging services
 - `matter-init-engine.mjs` - deterministic copy-only intake engine
+- `extract-engine.mjs` - deterministic extraction engine with optional OCR provider integration
+- `source-descriptors-engine.mjs` - source descriptor engine for `10_Library/Source Index.json`
+- `create-listofdates-engine.mjs` - AI-backed chronology engine for List of Dates artifacts
+- `test/` - regression and contract tests run via `npm test`
 - `package.json` - local run scripts
