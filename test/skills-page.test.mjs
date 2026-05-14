@@ -388,6 +388,64 @@ test("skills page renders custom skill version lineage from configurable store",
   const html = renderSkillsPageHtml({
     registry: registryFixture(),
     configurableSkills,
+    configurableSkillRuns: {
+      schema_version: "configurable-skill-runs/v1",
+      runs: [
+        {
+          id: "run_party_v1",
+          skillId: "skill_party_v1",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          matterName: "Ayesha Vs Japan Airlines",
+          matterFolder: "Ayesha Vs Japan Airlines",
+          status: "succeeded",
+          startedAt: "2026-05-14T09:00:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+          },
+        },
+        {
+          id: "run_party_v2",
+          skillId: "skill_party_v2",
+          slash: "/party_officer_map",
+          title: "Party and Officer Map",
+          matterName: "Mehta vs Skyline",
+          matterFolder: "Mehta vs Skyline",
+          status: "succeeded",
+          startedAt: "2026-05-14T11:00:00.000Z",
+          outputPaths: {
+            markdown: "20_Workshop/Party and Officer Map.md",
+          },
+        },
+      ],
+    },
+    skillIdeas: {
+      schema_version: "skill-ideas/v1",
+      ideas: [
+        {
+          id: "idea_party",
+          text: "new skill: discover formal party names, officers, aliases, and relationships",
+          matter: {
+            matterName: "Ayesha Vs Japan Airlines",
+            folderName: "Ayesha Vs Japan Airlines",
+          },
+          designBrief: {
+            problem: "Map formal party names and officers.",
+          },
+        },
+        {
+          id: "idea_party_improve",
+          text: "Improve /party_officer_map: include relationship confidence and unresolved aliases",
+          matter: {
+            matterName: "Mehta vs Skyline",
+            folderName: "Mehta vs Skyline",
+          },
+          designBrief: {
+            notes: "Target skill: /party_officer_map\nWhat should change: include relationship confidence and unresolved aliases",
+          },
+        },
+      ],
+    },
   }, escapeHtml);
   const customSection = html.slice(
     html.indexOf("<h2>Custom Skills"),
@@ -405,6 +463,15 @@ test("skills page renders custom skill version lineage from configurable store",
   assert.match(customSection, /<dt>Version<\/dt><dd>v1<\/dd>/);
   assert.match(customSection, /<dt>Previous<\/dt><dd>v1 \(disabled\)<\/dd>/);
   assert.match(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
+  assert.match(customSection, /Version history/);
+  assert.match(customSection, /Latest runnable version: <code>\/party_officer_map<\/code>/);
+  assert.match(customSection, /\/party_officer_map modify/);
+  assert.match(customSection, /include relationship confidence and unresolved aliases/);
+  assert.match(customSection, /Map formal party names and officers/);
+  assert.match(customSection, /<dt>Latest run<\/dt><dd>Mehta vs Skyline - Succeeded<\/dd>/);
+  assert.match(customSection, /<dt>Review matter<\/dt><dd>Mehta vs Skyline<\/dd>/);
+  assert.match(customSection, /<dt>Last run<\/dt><dd>Ayesha Vs Japan Airlines - Succeeded<\/dd>/);
+  assert.match(customSection, /<dt>Validation<\/dt><dd>Unknown<\/dd>/);
   assert.doesNotMatch(customSection, /Create draft skill|Activate draft|Generate prompt/);
 });
 

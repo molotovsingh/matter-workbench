@@ -162,6 +162,7 @@ export function renderSkillsPageHtml({
   registry = {},
   matterStatus = null,
   configurableSkills = null,
+  configurableSkillRuns = null,
   skillIdeas = null,
   skillFactoryHealth = null,
   loadError = "",
@@ -169,6 +170,7 @@ export function renderSkillsPageHtml({
   skillIdeasError = "",
   skillFactoryHealthError = "",
   configurableSkillsError = "",
+  configurableSkillRunsError = "",
   activeMatter = {},
 } = {}, escapeHtml) {
   const summary = skillsPageSummary(registry, matterStatus, configurableSkills);
@@ -197,6 +199,7 @@ export function renderSkillsPageHtml({
       ${ideasWarning}
       ${skillFactoryHealthError ? `<p class="form-warning">Skill factory health unavailable: ${escapeHtml(skillFactoryHealthError)}</p>` : ""}
       ${configurableSkillsError ? `<p class="form-warning">Custom skills unavailable: ${escapeHtml(configurableSkillsError)}</p>` : ""}
+      ${configurableSkillRunsError ? `<p class="form-warning">Custom skill run history unavailable: ${escapeHtml(configurableSkillRunsError)}</p>` : ""}
       ${renderSkillsStats(summary, escapeHtml)}
       ${renderSkillFactoryHealth(skillFactoryHealth, escapeHtml)}
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
@@ -205,6 +208,7 @@ export function renderSkillsPageHtml({
         <p class="muted">Approved and activated skills created from reviewed samples. Draft or disabled custom skills are not runnable.</p>
         ${renderSkillCards(summary.custom, escapeHtml, {
           improvementIdeas: skillIdeas?.ideas || [],
+          configurableSkillRuns: configurableSkillRuns?.runs || [],
         })}
       </section>
       <section>
@@ -606,16 +610,16 @@ function renderSkillsStats(summary, escape) {
   `;
 }
 
-function renderSkillCards(skills, escape, { improvementIdeas = [] } = {}) {
+function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [] } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
   return `
     <div class="skills-grid">
-      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, allCustomSkills: skills })).join("")}
+      ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, configurableSkillRuns, allCustomSkills: skills })).join("")}
     </div>
   `;
 }
 
-function renderSkillCard(skill, escape, { improvementIdeas = [], allCustomSkills = [] } = {}) {
+function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = [] } = {}) {
   const status = skill.artifactStatus;
   const state = skill.configurable
     ? customSkillStatusLabel(skill.status)
@@ -671,9 +675,61 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], allCustomSkills
           ${artifacts.length > 5 ? `<span class="muted">+${artifacts.length - 5} more</span>` : ""}
         </div>
       ` : ""}
+      ${skill.configurable ? renderCustomSkillVersionHistory(skill, allCustomSkills, improvementIdeas, configurableSkillRuns, escape) : ""}
       ${skill.configurable && skill.status === "active" ? renderCustomSkillImprovementIdeas(skill, improvementIdeas, escape) : ""}
       ${renderAiRun(status?.aiRun, escape)}
     </article>
+  `;
+}
+
+function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, escape) {
+  const versions = customSkillFamilyVersions(skill, allCustomSkills);
+  if (!versions.length) return "";
+  const activeVersion = versions.find((candidate) => candidate.status === "active") || versions[0];
+  const familyRuns = customSkillRunsForFamily(skill, versions, runs);
+  const latestRun = familyRuns[0] || null;
+  return `
+    <details class="skill-output-list custom-skill-version-history" ${skill.status === "active" ? "open" : ""}>
+      <summary>
+        <strong>Version history</strong>
+        <span class="pipeline-state ${escape(customSkillStatusClass(activeVersion.status))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillStatusLabel(activeVersion.status).toLowerCase()}`)}</span>
+      </summary>
+      <p class="muted">
+        Latest runnable version: <code>${escape(activeVersion.slash || skill.slash || "")}</code>.
+        Improve it by typing <code>${escape(`${activeVersion.slash || skill.slash || ""} modify`)}</code> in Quick Actions.
+      </p>
+      <dl class="skill-card-meta compact">
+        <div><dt>Latest run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>
+        <div><dt>Latest output</dt><dd>${latestRun?.outputPaths?.markdown ? `<code>${escape(latestRun.outputPaths.markdown)}</code>` : '<span class="muted">None yet</span>'}</dd></div>
+      </dl>
+      <ol class="custom-skill-version-list">
+        ${versions.map((version) => renderCustomSkillVersionItem(version, ideas, runs, escape)).join("")}
+      </ol>
+    </details>
+  `;
+}
+
+function renderCustomSkillVersionItem(skill, ideas, runs, escape) {
+  const idea = findIdeaById(ideas, skill.source_idea_id || skill.sourceIdeaId);
+  const latestRun = latestRunForSkill(skill, runs);
+  const reason = customSkillVersionReason(skill, idea);
+  return `
+    <li class="custom-skill-version-item ${escape(customSkillStatusClass(skill.status))}">
+      <div class="skill-card-header">
+        <div>
+          <strong>${escape(customSkillVersionLabel(skill))} - ${escape(customSkillStatusLabel(skill.status))}</strong>
+          <p>${escape(reason)}</p>
+        </div>
+        <span class="pipeline-state ${escape(customSkillStatusClass(skill.status))}">${escape(customSkillStatusLabel(skill.status))}</span>
+      </div>
+      <dl class="skill-card-meta compact">
+        <div><dt>Sample</dt><dd>${skill.source_sample_id ? `<code>${escape(skill.source_sample_id)}</code>` : '<span class="muted">Unknown</span>'}</dd></div>
+        <div><dt>Review matter</dt><dd>${escape(ideaMatterLabel(idea))}</dd></div>
+        <div><dt>Activated</dt><dd>${escape(skill.activated_at || skill.activatedAt || "Not activated")}</dd></div>
+        <div><dt>Validation</dt><dd>${escape(skill.validation?.status || "Unknown")}</dd></div>
+        <div><dt>Last run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>
+      </dl>
+    </li>
   `;
 }
 
@@ -721,6 +777,12 @@ function configurableSkillToCard(skill = {}) {
     previous_skill_id: skill.previousSkillId || "",
     replaced_by_skill_id: skill.replacedBySkillId || "",
     superseded_at: skill.supersededAt || "",
+    source_idea_id: skill.sourceIdeaId || "",
+    source_sample_id: skill.sourceSampleId || "",
+    validation: skill.validation || null,
+    created_at: skill.createdAt || "",
+    updated_at: skill.updatedAt || "",
+    activated_at: skill.activatedAt || "",
     configurable: true,
     status: skill.status || "draft",
   };
@@ -748,6 +810,65 @@ function customSkillLinkedVersionLabel(skillId, allCustomSkills) {
     : null;
   if (!linked) return skillId || "Unknown";
   return `${customSkillVersionLabel(linked)} (${linked.status || "unknown"})`;
+}
+
+function customSkillFamilyVersions(skill, allCustomSkills) {
+  const familyId = skill.family_id || skill.familyId || skill.id;
+  const ids = new Set([familyId, skill.id, skill.previous_skill_id, skill.replaced_by_skill_id].filter(Boolean));
+  const versions = Array.isArray(allCustomSkills)
+    ? allCustomSkills.filter((candidate) => {
+      const candidateFamily = candidate.family_id || candidate.familyId || candidate.id;
+      return candidateFamily === familyId || ids.has(candidate.id) || ids.has(candidate.previous_skill_id) || ids.has(candidate.replaced_by_skill_id);
+    })
+    : [skill];
+  return versions
+    .filter(Boolean)
+    .sort((a, b) => Number(b.version || 0) - Number(a.version || 0));
+}
+
+function customSkillRunsForFamily(skill, versions, runs) {
+  const versionIds = new Set(versions.map((version) => version.id).filter(Boolean));
+  const slashes = new Set(versions.map((version) => version.slash).filter(Boolean));
+  return (Array.isArray(runs) ? runs : [])
+    .filter((run) => versionIds.has(run.skillId) || slashes.has(run.slash) || run.slash === skill.slash)
+    .sort((a, b) => String(b.startedAt || b.finishedAt || "").localeCompare(String(a.startedAt || a.finishedAt || "")));
+}
+
+function latestRunForSkill(skill, runs) {
+  return (Array.isArray(runs) ? runs : [])
+    .filter((run) => run.skillId === skill.id || (skill.status === "active" && run.slash === skill.slash))
+    .sort((a, b) => String(b.startedAt || b.finishedAt || "").localeCompare(String(a.startedAt || a.finishedAt || "")))[0] || null;
+}
+
+function customSkillVersionReason(skill, idea) {
+  if (idea) {
+    const changeText = improvementIdeaChangeText(skill, idea);
+    if (changeText) return changeText;
+    if (idea.text) return idea.text;
+    if (idea.designBrief?.problem) return idea.designBrief.problem;
+  }
+  if (skill.previous_skill_id || skill.previousSkillId) {
+    return "Created from an approved revised sample for this skill.";
+  }
+  return "Created from the first approved sample for this skill.";
+}
+
+function findIdeaById(ideas, ideaId) {
+  if (!ideaId || !Array.isArray(ideas)) return null;
+  return ideas.find((idea) => idea.id === ideaId) || null;
+}
+
+function ideaMatterLabel(idea) {
+  const matter = idea?.matter || {};
+  return matter.matterName || matter.folderName || "Not recorded";
+}
+
+function runStatusLabel(status) {
+  if (status === "succeeded") return "Succeeded";
+  if (status === "failed") return "Failed";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "running") return "Running";
+  return status || "Unknown";
 }
 
 function renderCustomSkillImprovementIdea(skill, idea, escape) {
