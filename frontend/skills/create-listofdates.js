@@ -61,8 +61,9 @@ export function createListOfDatesSkill(ctx) {
       ctx,
       skill: "/create_listofdates",
       escapeHtml,
-      title: `/create_listofdates — ${activeMatter.folderName}`,
-      confirmLabel: "Run /create_listofdates anyway",
+      title: `Review List of Dates before regenerating — ${activeMatter.folderName}`,
+      confirmLabel: "Regenerate List of Dates",
+      cancelLabel: "Keep current List of Dates",
     })) {
       ctx.setStatus({
         mood: "idle",

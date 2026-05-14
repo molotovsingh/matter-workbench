@@ -4,9 +4,9 @@ export async function confirmCurrentArtifactRerun({
   ctx,
   skill,
   escapeHtml = defaultEscapeHtml,
-  title = "Confirm rerun",
-  confirmLabel = "Run anyway",
-  cancelLabel = "Cancel",
+  title = "Review before regenerating",
+  confirmLabel = "Regenerate anyway",
+  cancelLabel = "Keep current",
 }) {
   let advice = null;
   try {
@@ -24,8 +24,8 @@ export async function confirmCurrentArtifactRerun({
     : `${escapeHtml(advice.skill || skill)} already has a current artifact.`;
   ctx.setStatus({
     mood: "idle",
-    card: `<strong>Confirm rerun</strong><br />${statusMessage}`,
-    bar: "Rerun Confirmation",
+    card: `<strong>Review before regenerating</strong><br />${statusMessage}`,
+    bar: "Review Current Artifact",
     terminal: `${terminalPrefix(skill)} rerun confirmation shown`,
   });
   editorContent.innerHTML = renderRerunConfirmationHtml(advice, escapeHtml, {
@@ -49,11 +49,11 @@ export async function confirmCurrentArtifactRerun({
 
 export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHtml, options = {}) {
   const {
-    title = "Confirm rerun",
-    confirmLabel = "Run anyway",
-    cancelLabel = "Cancel",
+    title = "Review before regenerating",
+    confirmLabel = "Regenerate anyway",
+    cancelLabel = "Keep current",
   } = options;
-  const heading = advice.state === "unknown" ? "Rerun confirmation needed" : "Existing artifact is current";
+  const heading = advice.state === "unknown" ? "Could not verify current output" : "Review current output before regenerating";
   const skill = advice.skill || "This skill";
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
   const details = [
@@ -74,7 +74,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
           <li><strong>${escapeHtml(label)}:</strong> ${code ? `<code>${escapeHtml(value)}</code>` : escapeHtml(value)}</li>
         `).join("")}
       </ul>
-      <p>This can start a paid AI provider call. Cancel leaves the existing artifact unchanged.</p>
+      <p>Regenerating can start a paid AI provider call and may replace the output document. Keeping current leaves the existing artifact unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="rerunConfirmCancel">${escapeHtml(cancelLabel)}</button>
         <button type="button" class="secondary" id="rerunConfirmRun">${escapeHtml(confirmLabel)}</button>
@@ -85,14 +85,14 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
 
 export function fallbackRerunMessage(advice) {
   const lines = [
-    `${advice.skill || "This skill"} already has a current artifact.`,
+    `${advice.skill || "This skill"} already has a current work product.`,
   ];
   if (advice.artifactPath) lines.push(`Artifact: ${advice.artifactPath}`);
   if (advice.lastRunAt) lines.push(`Last run: ${advice.lastRunAt}`);
   if (advice.model || advice.provider) {
     lines.push(`Provider/model: ${[advice.provider, advice.model].filter(Boolean).join(" / ")}`);
   }
-  lines.push("Run it again anyway?");
+  lines.push("Regenerate it anyway?");
   return lines.join("\n");
 }
 
@@ -103,9 +103,9 @@ function rerunAdviceUnavailable(skill, error) {
     shouldConfirm: true,
     artifactPath: "",
     message: [
-      `Could not confirm whether ${skill} has a current artifact.`,
+      `Could not confirm whether ${skill} has a current work product.`,
       `The rerun check failed${error?.message ? `: ${error.message}` : "."}`,
-      "Run it anyway?",
+      "Keep current unless you deliberately want to regenerate.",
     ].join("\n"),
   };
 }

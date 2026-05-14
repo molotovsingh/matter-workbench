@@ -167,21 +167,21 @@ function renderStageRerunHint(stage, escape) {
 
 function rerunHintText(advice) {
   if (advice.shouldConfirm) {
-    return "Clicking Run will show a confirmation before starting a paid provider call.";
+    return "Current work product exists. Run will ask before replacing it or starting a paid provider call.";
   }
   if (advice.state === "stale") {
-    return `${advice.reason || "Newer upstream inputs were found."} Rerun recommended; no confirmation will be shown.`;
+    return `${advice.reason || "Newer source material exists."} Review the current work product, then regenerate deliberately to include newer inputs.`;
   }
   if (advice.state === "missing") {
-    return "No current artifact exists, so the next run will not ask for overwrite confirmation.";
+    return "No output document exists yet; the next run will create one.";
   }
   if (advice.state === "failed") {
-    return "The existing artifact could not be read, so rerun is allowed without confirmation.";
+    return "The existing output metadata could not be read. Review the current file before regenerating.";
   }
   if (advice.state === "missing_upstream") {
-    return "Upstream inputs are missing, so rerun is allowed without overwrite confirmation.";
+    return "Required source material is missing. Complete the earlier step before creating this work product.";
   }
-  return advice.reason || "Rerun confirmation is not required.";
+  return advice.reason || "Review the current work product before regenerating.";
 }
 
 function rerunHintMeta(stage, advice) {

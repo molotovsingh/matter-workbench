@@ -17,14 +17,17 @@ test("rerun confirmation renders current artifact details without native confirm
     model: "openai/gpt-4.1",
     message: "Existing artifact is current.\nRun it again anyway?",
   }, escapeHtml, {
-    title: "/create_listofdates — Mehta vs Skyline",
-    confirmLabel: "Run /create_listofdates anyway",
+    title: "Review List of Dates before regenerating — Mehta vs Skyline",
+    confirmLabel: "Regenerate List of Dates",
+    cancelLabel: "Keep current List of Dates",
   });
 
-  assert.match(html, /Confirm rerun|Existing artifact is current/);
+  assert.match(html, /Review List of Dates before regenerating|Review current output before regenerating/);
   assert.match(html, /10_Library\/List of Dates\.md/);
   assert.match(html, /OpenAI \/ openai\/gpt-4\.1/);
-  assert.match(html, /Run \/create_listofdates anyway/);
+  assert.match(html, /Regenerate List of Dates/);
+  assert.match(html, /Keep current List of Dates/);
+  assert.match(html, /may replace the output document/);
   assert.match(html, /id="rerunConfirmCancel"/);
   assert.match(html, /id="rerunConfirmRun"/);
   assert.doesNotMatch(html, /window\.confirm/);
@@ -79,8 +82,8 @@ test("rerun confirmation is fail-safe when advice API is unavailable", async () 
     });
 
     await new Promise((resolve) => setImmediate(resolve));
-    assert.match(editorContent.innerHTML, /Could not confirm whether \/describe_sources/);
-    assert.equal(statusCalls.at(-1).bar, "Rerun Confirmation");
+    assert.match(editorContent.innerHTML, /Could not confirm whether \/describe_sources has a current work product/);
+    assert.equal(statusCalls.at(-1).bar, "Review Current Artifact");
     buttons.rerunConfirmCancel.click();
     assert.equal(await promise, false);
   } finally {
