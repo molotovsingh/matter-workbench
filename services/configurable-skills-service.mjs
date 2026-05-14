@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { buildMatterContextPacket } from "./matter-context-service.mjs";
+import {
+  buildConfigurableSkillMatterContextPacket,
+  summarizeMatterContext,
+} from "./configurable-skill-context.mjs";
 import {
   boundedOutputMarkdown,
   CONFIGURABLE_SKILL_SCHEMA_VERSION,
@@ -21,6 +24,7 @@ import {
   createDefaultAuthoringProvider,
   createDefaultRunProvider,
 } from "./configurable-skill-providers.mjs";
+import { validateDraftSkill } from "./configurable-skill-validation.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
@@ -35,12 +39,6 @@ export {
   createOpenRouterRunProvider,
 } from "./configurable-skill-providers.mjs";
 
-const CONTEXT_LIMITS = Object.freeze({
-  maxSources: 40,
-  maxBlocks: 70,
-  maxCharsPerBlock: 900,
-  maxLibraryArtifacts: 4,
-});
 export function createConfigurableSkillsService({
   appDir,
   skillsPath,
@@ -250,7 +248,7 @@ export function createConfigurableSkillsService({
       startedAt: timestamp,
     });
     try {
-      const packet = await buildMatterContextPacket(matterRoot, CONTEXT_LIMITS);
+      const packet = await buildConfigurableSkillMatterContextPacket(matterRoot);
       const matterSummary = matterSummaryForRun(packet.matter, matterRoot);
       const warnings = Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [];
       const markdown = boundedOutputMarkdown(await provider({
@@ -409,91 +407,6 @@ function matterSummaryForRun(matter = null, matterRoot = "") {
   };
 }
 
-async function validateDraftSkill({
-  draft,
-  sample,
-  matterStore,
-  runProvider,
-  providerConfig,
-}) {
-  const messages = [];
-  if (!draft.slash.startsWith("/")) messages.push("Slash command must start with /.");
-  if (!draft.outputArtifact.endsWith(".md")) messages.push("Output artifact must be Markdown.");
-  if (!draft.outputArtifact.startsWith(`${draft.targetLane}/`)) messages.push("Output artifact must live inside target lane.");
-  if (!draft.promptConfig.prompt || draft.promptConfig.prompt.length < 80) messages.push("Prompt is too short.");
-  if (/Skill Ready|Use \//i.test(sample.sampleMarkdown)) messages.push("Approved sample contains activation language.");
-  if (!sample.sampleMarkdown.startsWith("#")) messages.push("Approved sample must be Markdown with a heading.");
-  if (draft.sourceBacked === "required" && !/FILE-\d{4}\s+p\d+\.b\d+/i.test(sample.sampleMarkdown)) {
-    messages.push("Approved source-backed sample must include raw FILE citations.");
-  }
-  if (!messages.length) {
-    try {
-      const matterRoot = resolveSampleMatterRoot({ sample, matterStore });
-      const packet = await buildMatterContextPacket(matterRoot, CONTEXT_LIMITS);
-      const validationMarkdown = boundedOutputMarkdown(await runProvider({
-        skill: draft,
-        matterContext: summarizeMatterContext(packet),
-        providerConfig,
-      }));
-      messages.push(...validateDraftRunOutput({
-        markdown: validationMarkdown,
-        draft,
-        sample,
-        packet,
-      }));
-    } catch (error) {
-      messages.push(`Draft skill validation run failed: ${error.message}`);
-    }
-  }
-  return {
-    status: messages.length ? "failed" : "passed",
-    messages,
-    validatedAt: new Date().toISOString(),
-  };
-}
-
-function resolveSampleMatterRoot({ sample, matterStore }) {
-  const folderName = normalizeText(sample?.matter?.folderName || sample?.matter?.folder_name);
-  if (folderName && typeof matterStore?.matterPathForName === "function") {
-    return matterStore.matterPathForName(folderName).matterPath;
-  }
-  return matterStore.ensureMatterRoot();
-}
-
-function validateDraftRunOutput({ markdown, draft, sample, packet }) {
-  const messages = [];
-  if (!markdown.startsWith("#")) messages.push("Validation run output must be Markdown with a heading.");
-  if (/Skill Ready|Use \//i.test(markdown)) messages.push("Validation run output must not contain activation language.");
-  if (draft.sourceBacked === "required" && !/FILE-\d{4}\s+p\d+\.b\d+/i.test(markdown)) {
-    messages.push("Validation run output must include raw FILE citations.");
-  }
-  if (!mentionsMatterSpecificTerm(markdown, sample, packet)) {
-    messages.push("Validation run output must include matter-specific content.");
-  }
-  return messages;
-}
-
-function mentionsMatterSpecificTerm(markdown, sample, packet) {
-  const haystack = markdown.toLowerCase();
-  const matter = packet?.matter || {};
-  const terms = [
-    sample?.matter?.matterName,
-    sample?.matter?.matter_name,
-    sample?.matter?.folderName,
-    sample?.matter?.folder_name,
-    matter.matterName,
-    matter.matter_name,
-    matter.clientName,
-    matter.client_name,
-    matter.oppositeParty,
-    matter.opposite_party,
-  ]
-    .flatMap((value) => normalizeText(value).split(/\s+vs\s+|\s+v\s+|\s+/i))
-    .map((value) => value.replace(/[^a-z0-9]/gi, "").toLowerCase())
-    .filter((value) => value.length >= 4);
-  return terms.some((term) => haystack.includes(term));
-}
-
 function extractTargetSkillSlash(idea = {}) {
   const text = [
     idea?.designBrief?.notes,
@@ -505,36 +418,6 @@ function extractTargetSkillSlash(idea = {}) {
   const improve = text.match(/\bImprove\s+(\/[a-z0-9_-]+)/i);
   if (improve) return normalizeSlash(improve[1]);
   return "";
-}
-
-function summarizeMatterContext(packet) {
-  const blocks = Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : [];
-  const sources = Array.isArray(packet?.sources) ? packet.sources : [];
-  return {
-    schema_version: packet?.schema_version || "",
-    matter: packet?.matter || {},
-    counts: {
-      sources: sources.length,
-      evidence_blocks_included: blocks.length,
-      evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
-      library_artifacts: Array.isArray(packet?.library_artifacts) ? packet.library_artifacts.length : 0,
-    },
-    sources: sources.slice(0, 30).map((source) => ({
-      file_id: source.file_id || "",
-      source_label: source.source_label || "",
-      source_short_label: source.source_short_label || "",
-      document_type: source.document_type || "",
-      sample_citations: Array.isArray(source.sample_citations) ? source.sample_citations.slice(0, 3) : [],
-    })),
-    evidence_blocks: blocks.slice(0, CONTEXT_LIMITS.maxBlocks).map((block) => ({
-      citation: block.citation || "",
-      source_label: block.source_label || "",
-      source_short_label: block.source_short_label || "",
-      text: normalizeText(block.text).slice(0, CONTEXT_LIMITS.maxCharsPerBlock),
-    })),
-    library_artifacts: (Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : []).slice(0, 4),
-    warnings: Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : [],
-  };
 }
 
 async function exists(filePath) {
