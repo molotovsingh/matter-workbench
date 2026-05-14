@@ -26,6 +26,8 @@ import {
   buildConfigurableRunPending,
   getConfigurableRunArtifactPath,
   renderConfigurableSkillCancelledRail,
+  renderConfigurableSkillExistingOutputSheetHtml,
+  renderConfigurableSkillOverwritePromptHtml,
   renderConfigurableSkillRunOutput,
   renderConfigurableSkillRunRail,
 } from "./configurable-skill-run-ui.js";
@@ -535,27 +537,8 @@ export function createAiCommandBox(ctx, options = {}) {
 
   function renderConfigurableSkillExistingOutputSheet(result = {}) {
     if (!aiCommandSession) return;
-    const skill = result.skill || pendingConfigurableRun?.skill || {};
-    const slash = skill.slash || pendingConfigurableRun?.slash || "";
-    const artifactPath = result.artifactPath || pendingConfigurableRun?.artifactPath || "";
     aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = `
-      <section class="command-interview" aria-live="polite">
-        <h3>Output document already exists</h3>
-        <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. This does not replace or edit the skill version.</p>
-        <dl class="skill-card-meta">
-          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
-          <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
-        </dl>
-        <div class="command-interview-actions">
-          <button type="button" class="secondary" data-configurable-skill-action="open-output">Open output</button>
-          <button type="button" data-configurable-skill-action="run-again">Run again</button>
-          <button type="button" class="secondary" data-configurable-skill-action="improve">Improve this skill</button>
-          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
-        </div>
-        <p class="muted">Tip: You can also type <code>${escapeHtml(slash)} modify</code> to improve this skill later.</p>
-      </section>
-    `;
+    aiCommandSession.innerHTML = renderConfigurableSkillExistingOutputSheetHtml(result, pendingConfigurableRun || {});
     aiCommandInput.placeholder = "Open output, Run again, Improve this skill, or Cancel";
     wireConfigurableSkillActions();
   }
@@ -564,20 +547,7 @@ export function createAiCommandBox(ctx, options = {}) {
     if (!aiCommandSession) return;
     if (pendingConfigurableRun) pendingConfigurableRun.phase = "overwrite";
     aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = `
-      <section class="command-interview" aria-live="polite">
-        <h3>Output document already exists</h3>
-        <p class="muted">Do you want to replace this matter's output document? This does not replace or edit the skill version.</p>
-        <dl class="skill-card-meta">
-          <div><dt>Skill</dt><dd><code>${escapeHtml(result.skill?.slash || pendingConfigurableRun?.slash || "")}</code></dd></div>
-          <div><dt>Output document</dt><dd><code>${escapeHtml(result.artifactPath || "")}</code></dd></div>
-        </dl>
-        <div class="command-interview-actions">
-          <button type="button" data-configurable-skill-action="overwrite">Replace output document</button>
-          <button type="button" class="secondary" data-configurable-skill-action="cancel">Keep existing output document</button>
-        </div>
-      </section>
-    `;
+    aiCommandSession.innerHTML = renderConfigurableSkillOverwritePromptHtml(result, pendingConfigurableRun || {});
     aiCommandInput.placeholder = "Replace output document or Keep existing output document";
     wireConfigurableSkillActions();
     ctx.setStatus({
