@@ -6,6 +6,7 @@ import { createMatterScreens } from "./frontend/matter-screens.js";
 import { createAiCommandBox } from "./frontend/ai-command-box.js";
 import { createThemeController } from "./frontend/theme.js";
 import { wireAppEvents } from "./frontend/event-wiring.js";
+import { createBuiltinSkillDispatch } from "./frontend/skill-dispatch.js";
 import { createMatterOverview } from "./frontend/views/matter-overview.js";
 import { createMatterInitSkill } from "./frontend/skills/matter-init.js";
 import { createPrepareMatterSkill } from "./frontend/skills/prepare-matter.js";
@@ -109,16 +110,6 @@ const contextPreviewSkill = createContextPreviewSkill(ctx);
 const contextSearchSkill = createContextSearchSkill(ctx);
 const listOfDatesSkill = createListOfDatesSkill(ctx);
 const doctorSkill = createDoctorSkill(ctx);
-const skillDispatch = {
-  "/matter-init": matterInitSkill.runMatterInit,
-  "/prepare_matter": prepareMatterSkill.runPrepareMatter,
-  "/extract": extractSkill.runExtract,
-  "/describe_sources": describeSourcesSkill.runDescribeSources,
-  "/context_preview": contextPreviewSkill.runContextPreview,
-  "/context_search": contextSearchSkill.runContextSearch,
-  "/create_listofdates": listOfDatesSkill.runCreateListOfDates,
-  "/doctor": doctorSkill.runDoctor,
-};
 const skills = {
   runCreateListOfDates: listOfDatesSkill.runCreateListOfDates,
   runPrepareMatter: prepareMatterSkill.runPrepareMatter,
@@ -129,6 +120,7 @@ const skills = {
   runExtract: extractSkill.runExtract,
   runMatterInit: matterInitSkill.runMatterInit,
 };
+const skillDispatch = createBuiltinSkillDispatch(skills);
 const matterOverview = createMatterOverview(ctx, skills);
 ctx.renderSkillOverview = matterOverview.renderSkillOverview;
 const aiCommandBox = createAiCommandBox(ctx, { skillDispatch });

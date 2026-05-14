@@ -1,18 +1,10 @@
 import { renderAddFilesForm } from "./views/add-files.js";
 import { renderNewMatterForm } from "./views/new-matter.js";
+import { createBuiltinSkillDispatch } from "./skill-dispatch.js";
 
 export function wireAppEvents(ctx, skills) {
   const { elements } = ctx;
-  const skillDispatch = {
-    "/matter-init": skills.runMatterInit,
-    "/prepare_matter": skills.runPrepareMatter,
-    "/extract": skills.runExtract,
-    "/describe_sources": skills.runDescribeSources,
-    "/context_preview": skills.runContextPreview,
-    "/context_search": skills.runContextSearch,
-    "/create_listofdates": skills.runCreateListOfDates,
-    "/doctor": skills.runDoctor,
-  };
+  const skillDispatch = createBuiltinSkillDispatch(skills);
 
   elements.refreshExplorerButton.addEventListener("click", () => ctx.refreshWorkspace());
   elements.toggleTechnicalFilesButton?.addEventListener("click", () => ctx.toggleTechnicalFiles?.());
