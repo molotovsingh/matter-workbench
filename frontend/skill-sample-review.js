@@ -5,7 +5,7 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
   const statusText = state === "approved_stale"
     ? "Approved earlier, now stale. Regenerate before creating a skill."
     : approved
-      ? "Sample approved. Ready to create skill."
+      ? "Sample approved. Creation and validation required before the skill is runnable."
       : state === "stale"
         ? "Stale after design brief changes. Regenerate before approval."
         : "Awaiting review";
@@ -20,7 +20,7 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     `- Feedback: ${getSampleFeedback(sample) || "None"}`,
     "",
     approved && state !== "approved_stale"
-      ? "This sample is approved, but it is not a runnable skill until Create skill succeeds."
+      ? "This sample is approved, but it is not a runnable skill until creation and validation succeed."
       : "This is not a runnable skill. No prompt, code, slash command, provider runtime, or activation has been generated.",
     "",
     "## Sample",

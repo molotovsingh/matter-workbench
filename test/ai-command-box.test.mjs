@@ -845,10 +845,11 @@ test("command box skill idea interview session saves answers into a design brief
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Saved skill idea/);
 });
 
-test("command box generates, revises, approves, and copies a non-runnable skill sample", async () => {
+test("command box generates, revises, copies a sample, and creates a skill when it looks right", async () => {
   const sampleCalls = [];
   const savedIdeas = [];
   const interactionLogs = [];
+  const createSkillCalls = [];
   let approvedSampleId = "";
   let copied = "";
   const form = fakeForm();
@@ -936,6 +937,24 @@ test("command box generates, revises, approves, and copies a non-runnable skill 
         },
       };
     },
+    createSkillFromIdea: async (ideaId) => {
+      createSkillCalls.push(ideaId);
+      return {
+        skill: {
+          id: "skill_client_update",
+          title: "Client Update Email",
+          slash: "/client_update_email",
+          status: "active",
+          version: 1,
+          targetLane: "30_Drafts",
+          outputArtifact: "30_Drafts/Client Update Email.md",
+          modelPolicy: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+        },
+      };
+    },
     writeClipboardText: async (text) => {
       copied = text;
     },
@@ -980,25 +999,28 @@ test("command box generates, revises, approves, and copies a non-runnable skill 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample v1/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Feedback<\/dt><dd>Make it more cautious\./);
 
-  await box.handleCommand({ userRequest: "looks right" });
-
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample approved\. You can create the runnable skill/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Approved current/);
-  assert.match(ctx.elements.editorContent.innerHTML, /Sample approved\. Ready to create skill/);
-  assert.equal(interactionLogs.at(-1).status, "sample_approved");
-  assert.equal(interactionLogs.at(-1).provider_run_invoked, false);
-
   await box.handleCommand({ userRequest: "copy sample" });
 
   assert.match(copied, /^# Skill Sample Output/);
-  assert.match(copied, /Sample approved\. Ready to create skill/);
-  assert.match(copied, /not a runnable skill until Create skill succeeds/);
+  assert.match(copied, /Awaiting review/);
+  assert.match(copied, /This is not a runnable skill/);
   assert.doesNotMatch(copied, /API_KEY|\.env|full extraction records/i);
 
   await box.handleCommand({ userRequest: "copy sample v1" });
   assert.match(copied, /- Sample: v1/);
   assert.match(copied, /Ledger state: Current/);
   assert.doesNotMatch(copied, /API_KEY|\.env|full extraction records/i);
+
+  await box.handleCommand({ userRequest: "looks right" });
+
+  assert.deepEqual(createSkillCalls, ["idea_sample_1"]);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/client_update_email/);
+  assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
+  assert.equal(interactionLogs.at(-2).status, "sample_approved");
+  assert.equal(interactionLogs.at(-2).provider_run_invoked, false);
+  assert.equal(interactionLogs.at(-1).status, "skill_created");
+  assert.equal(interactionLogs.at(-1).provider_run_invoked, true);
 });
 
 test("command box creates a runnable skill only after current sample approval", async () => {
@@ -1132,18 +1154,14 @@ test("command box creates a runnable skill only after current sample approval", 
   await box.handleCommand({ userRequest: "generate sample" });
 
   assert.equal(createSkillCalls.length, 0);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /data-skill-interview-action="create-skill" disabled/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /data-skill-interview-action="create-skill"/);
 
   await box.handleCommand({ userRequest: "looks right" });
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Create skill/);
-  assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Skill Ready/);
-
-  await box.handleCommand({ userRequest: "create skill" });
 
   assert.deepEqual(createSkillCalls, ["idea_party_map"]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map/);
-  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks right|Create skill/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks right|Try creating skill/);
   assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
   assert.match(ctx.elements.editorContent.innerHTML, /\/party_officer_map/);
   assert.equal(ctx.elements.aiCommandInput.placeholder, "Type /party_officer_map to run it, or another action");
@@ -1432,7 +1450,6 @@ test("command box saves configurable skill improvement ideas without changing th
 
   await box.handleCommand({ userRequest: "generate sample" });
   await box.handleCommand({ userRequest: "looks right" });
-  await box.handleCommand({ userRequest: "create skill" });
 
   assert.equal(sampleCalls.length, 1);
   assert.deepEqual(createSkillCalls, ["idea_improve_party_map"]);
@@ -1487,7 +1504,7 @@ test("command box supports slash-first configurable skill modification commands"
   assert.equal(ctx.statusCalls.at(-1).bar, "Ready for Revised Sample");
 });
 
-test("command box invalidates approved sample after design brief edits", async () => {
+test("command box invalidates generated sample after design brief edits", async () => {
   const sampleCalls = [];
   const savedIdeas = [];
   const designBriefUpdates = [];
@@ -1549,14 +1566,7 @@ test("command box invalidates approved sample after design brief edits", async (
         warnings: [],
       };
     },
-    approveSkillIdeaSample: async (ideaId, sampleId) => ({
-      sample: {
-        id: sampleId,
-        ideaId,
-        approved: true,
-        approvedAt: "2026-05-13T10:02:00.000Z",
-      },
-    }),
+    writeClipboardText: async () => {},
   });
 
   box.wire();
@@ -1565,9 +1575,6 @@ test("command box invalidates approved sample after design brief edits", async (
   await box.handleCommand({ userRequest: "Warm, formal, and cautious." });
   await box.handleCommand({ userRequest: "Status and next steps only." });
   await box.handleCommand({ userRequest: "generate sample" });
-  await box.handleCommand({ userRequest: "looks right" });
-
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample approved\. You can create the runnable skill/);
 
   await box.handleCommand({ userRequest: "edit answers" });
   await box.handleCommand({ userRequest: "Reassure client, mention next steps, and request missing documents." });
@@ -1577,22 +1584,19 @@ test("command box invalidates approved sample after design brief edits", async (
 
   assert.equal(designBriefUpdates.length, 1);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Design brief changed after this sample was generated/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Approved stale/);
-  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample approved\. You can create the runnable skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Stale/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /data-skill-interview-action="approve-sample" disabled/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /data-skill-interview-action="create-skill" disabled/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /data-skill-interview-action="create-skill"/);
 
   await box.handleCommand({ userRequest: "looks right" });
 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Regenerate the sample after the design brief changes before approving it/);
-  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample approved\. You can create the runnable skill/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
 
   await box.handleCommand({ userRequest: "regenerate sample" });
   assert.equal(sampleCalls.length, 2);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample v2 ready for review/);
-
-  await box.handleCommand({ userRequest: "looks right" });
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample approved\. You can create the runnable skill/);
 });
 
 test("command box keeps sample review attributed to generated matter after matter switch", async () => {
@@ -1658,7 +1662,7 @@ test("command box keeps sample review attributed to generated matter after matte
 
   activeMatter.folderName = "Matter B Folder";
   activeMatter.metadata.matterName = "Matter B Legal";
-  await box.handleCommand({ userRequest: "looks right" });
+  await box.handleCommand({ userRequest: "copy sample" });
 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Matter A Legal/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Matter A Folder/);

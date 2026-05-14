@@ -1096,7 +1096,7 @@ export function createAiCommandBox(ctx, options = {}) {
         }
         if (normalized === "looks right" || normalized === "approve sample" || normalized === "sample approved") {
           clearCommandInput();
-          await approveSavedSkillIdeaSample();
+          await approveSavedSkillIdeaSampleAndCreateSkill();
           return;
         }
         if (normalized === "create skill") {
@@ -1122,6 +1122,19 @@ export function createAiCommandBox(ctx, options = {}) {
         if (normalized === "start another idea") {
           clearCommandInput();
           startAnotherSkillIdea();
+          return;
+        }
+        if (normalized === "edit answers" || normalized === "edit") {
+          if (!Array.isArray(session.interview.questions) || session.interview.questions.length === 0) {
+            renderSkillIdeaSession("No follow-up questions were asked. Edit the skill idea by starting again, or generate a sample from a matter.");
+            return;
+          }
+          session.editingSavedIdea = true;
+          session.ready = false;
+          session.questionIndex = 0;
+          aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
+          aiCommandSubmit.textContent = "Answer";
+          renderSkillIdeaSession();
           return;
         }
         if (session.sampleReview?.activeSample && !session.sampleReview.approved) {
@@ -1459,9 +1472,9 @@ export function createAiCommandBox(ctx, options = {}) {
       : readySkill?.slash
         ? `Skill Ready. Use ${readySkill.slash}.`
       : approved
-      ? "Sample approved. You can create the runnable skill from this approved sample."
+      ? "Sample approved. Skill creation can be retried from this approved sample."
       : activeSample
-        ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks right.`
+        ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks right to create the skill.`
         : matterFolder
           ? "Generate an AI sample output from the selected test matter."
           : "Pick a matter to generate a sample output.";
@@ -1478,7 +1491,7 @@ export function createAiCommandBox(ctx, options = {}) {
         ${getSampleAiRun(activeSample).provider || getSampleAiRun(activeSample).model ? `
           <p class="muted">Sample provider: ${escapeHtml(formatSampleProvider(activeSample))}</p>
         ` : ""}
-        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you approve the sample and choose Create skill.</p>
+        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you choose Looks right and creation/validation succeeds.</p>
         ${renderSampleLedger(sampleReview)}
       </div>
     `;
@@ -1501,8 +1514,9 @@ export function createAiCommandBox(ctx, options = {}) {
     }
     return `
       <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved ? "" : " disabled"}>${escapeHtml(generateLabel)}</button>
-      <button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !approved && !stale ? "" : " disabled"}>Looks right</button>
-      <button type="button" data-skill-interview-action="create-skill"${activeSample && approved && !stale ? "" : " disabled"}>Create skill</button>
+      ${approved && !stale
+        ? '<button type="button" data-skill-interview-action="create-skill">Try creating skill again</button>'
+        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale ? "" : " disabled"}>Looks right - create skill</button>`}
       <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
     `;
   }
@@ -1591,7 +1605,7 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks right.",
+        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks right to create the skill.",
         bar: "Sample Output Ready",
         terminal: `[skill-ideas] sample v${sampleReview.samples.length} generated`,
       });
@@ -1624,7 +1638,7 @@ export function createAiCommandBox(ctx, options = {}) {
     }
   }
 
-  async function approveSavedSkillIdeaSample() {
+  async function approveSavedSkillIdeaSampleAndCreateSkill() {
     const session = currentSkillIdeaInterview;
     const idea = session?.savedIdea;
     if (!idea) return;
@@ -1677,10 +1691,11 @@ export function createAiCommandBox(ctx, options = {}) {
       renderSkillIdeaSession();
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Sample approved</strong><br />You can now create the runnable skill from this approved sample.",
+        card: "<strong>Sample approved</strong><br />Creating and validating the runnable skill.",
         bar: "Sample Approved",
         terminal: "[skill-ideas] sample approved",
       });
+      await createConfigurableSkillFromApprovedSample();
     } catch (error) {
       renderSkillIdeaSession(`Sample approval failed: ${error.message}`);
       updateReport({ status: "failed", error: error.message });
@@ -1911,7 +1926,7 @@ export function createAiCommandBox(ctx, options = {}) {
     const statusText = sampleState === "approved_stale"
       ? "Approved earlier, now stale. Regenerate before creating a skill."
       : sampleApproved
-        ? "Sample approved. Ready to create skill."
+        ? "Sample approved. Creation and validation required before the skill is runnable."
         : sampleStale
           ? "Stale after design brief changes. Regenerate before approval."
           : "Awaiting review";
@@ -2138,7 +2153,7 @@ export function createAiCommandBox(ctx, options = {}) {
           return;
         }
         if (action === "approve-sample") {
-          await approveSavedSkillIdeaSample();
+          await approveSavedSkillIdeaSampleAndCreateSkill();
           return;
         }
         if (action === "create-skill") {
