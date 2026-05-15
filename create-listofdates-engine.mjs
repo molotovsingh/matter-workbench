@@ -20,10 +20,13 @@ import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "create-listofdates-v1-ai";
+const TWO_PASS_ENGINE_VERSION = "create-listofdates-v2-two-pass";
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 const BLOCK_CHAR_LIMIT = 2800;
 const CHUNK_CHAR_LIMIT = 18000;
 const LAWYER_FACING_PERSPECTIVE = "client_favourable";
+const TWO_PASS_ENV_FLAG = "CREATE_LISTOFDATES_TWO_PASS_ENABLED";
+const CANDIDATE_LEDGER_FILE = "List of Dates Candidates.json";
 const EVENT_TYPES = [
   "agreement",
   "payment",
@@ -60,6 +63,32 @@ const LIST_OF_DATES_SYSTEM_PROMPT = [
   "Do not say fraud, bad faith, breach, breach proved, liability admitted, or equivalent unless the cited source says it.",
   "Keep readable source labels separate from raw citations; raw FILE-NNNN pX.bY citations remain canonical.",
   "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text.",
+  "Return one compact JSON object only, matching the requested schema.",
+].join(" ");
+const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = [
+  "You are a careful Indian legal chronology assistant doing first-pass evidence triage.",
+  "Create a deliberately verbose candidate ledger for a later chronology editor.",
+  "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
+  "Harvest exact calendar-date candidates when the source gives day, month, and year.",
+  "Preserve repeated versions of the same fact if they appear in pleadings, orders, replies, affidavits, appeals, revisions, correspondence, or payment records.",
+  "Keep foundation and collateral-proceeding dates if they explain ownership, authority, limitation, parallel litigation, appeal delay, or enforceability.",
+  "Do not decide the final chronology, merge duplicates, or drop uncertain but potentially material candidates.",
+  "Every candidate must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
+  "Use readable source labels when supplied, but raw FILE-NNNN pX.bY citations remain canonical.",
+  "Mark OCR suspicion and date uncertainty instead of hiding it.",
+  "Return one compact JSON object only, matching the requested schema.",
+].join(" ");
+const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = [
+  "You are a careful Indian legal chronology editor.",
+  "Convert a verbose candidate ledger into a lawyer-facing, client-perspective List of Dates.",
+  "Use only the supplied candidate ledger and matter metadata.",
+  "Merge duplicate or near-duplicate candidates into one final row while preserving useful supporting citations through the canonical citation field.",
+  "Drop pure precedent, statute, or case-law dates unless they are part of this matter's own procedural history.",
+  "Keep ownership, authority, limitation, collateral-proceeding, appeal-delay, and enforceability dates when they materially explain the matter.",
+  "Use readable source labels for reasoning, but every final row must cite one raw FILE-NNNN pX.bY citation from the candidate ledger.",
+  "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
+  "Write legal_relevance as one source-supported sentence explaining why the event matters to the declared client's case.",
+  "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
   "Return one compact JSON object only, matching the requested schema.",
 ].join(" ");
 const HIGH_RISK_CONCLUSION_TERMS = [
@@ -176,6 +205,93 @@ const OUTPUT_SCHEMA = {
   },
 };
 
+const CANDIDATE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["candidates"],
+  properties: {
+    candidates: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "date_iso",
+          "date_text",
+          "event_candidate",
+          "legal_materiality",
+          "citation",
+          "source_excerpt",
+          "candidate_type",
+          "party_posture",
+          "same_fact_hint",
+          "date_uncertainty",
+          "ocr_suspicion",
+          "needs_review",
+          "confidence",
+        ],
+        properties: {
+          date_iso: {
+            type: "string",
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+          },
+          date_text: {
+            type: "string",
+          },
+          event_candidate: {
+            type: "string",
+          },
+          legal_materiality: {
+            type: "string",
+          },
+          citation: {
+            type: "string",
+            pattern: "^FILE-\\d{4,} p\\d+\\.b\\d+$",
+          },
+          source_excerpt: {
+            type: "string",
+          },
+          candidate_type: {
+            type: "string",
+            enum: [
+              "agreement",
+              "payment",
+              "notice",
+              "pleading",
+              "order",
+              "filing",
+              "inspection",
+              "correspondence",
+              "other",
+            ],
+          },
+          party_posture: {
+            type: "string",
+            enum: ["helps_client", "hurts_client", "neutral", "unclear"],
+          },
+          same_fact_hint: {
+            type: "string",
+          },
+          date_uncertainty: {
+            type: "string",
+          },
+          ocr_suspicion: {
+            type: "string",
+          },
+          needs_review: {
+            type: "boolean",
+          },
+          confidence: {
+            type: "number",
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+      },
+    },
+  },
+};
+
 export async function runCreateListOfDates(options = {}) {
   const matterRoot = options.matterRoot
     ? path.resolve(options.matterRoot)
@@ -184,20 +300,6 @@ export async function runCreateListOfDates(options = {}) {
 
   const dryRun = Boolean(options.dryRun);
   const env = options.env || process.env;
-  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
-  const providerConfig = resolveProviderConfig(modelPolicy, {
-    endpoint: options.endpoint,
-    model: options.model,
-    maxOutputTokens: options.maxOutputTokens,
-    timeoutMs: options.timeoutMs,
-  });
-  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
-  const provider = options.aiProvider || createListOfDatesProvider({
-    providerConfig,
-    apiKey: options.apiKey,
-    env,
-    fetchImpl: options.fetchImpl || fetch,
-  });
 
   const matterJson = await readMatterJson(matterRoot);
   const intakes = getIntakes(matterJson);
@@ -210,7 +312,8 @@ export async function runCreateListOfDates(options = {}) {
   const blocks = buildSourceBlocks(records, fileIndex);
   if (!blocks.length) throw new Error("Extraction records contain no text blocks to analyze.");
   const sourceIndex = await readSourceIndex(matterRoot, blocks);
-  const chronologyBlocks = filterChronologyCandidateBlocks(blocks, sourceIndex);
+  const labeledBlocks = withSourceLabels(blocks, sourceIndex);
+  const chronologyBlocks = filterChronologyCandidateBlocks(labeledBlocks, sourceIndex);
   if (!chronologyBlocks.length) {
     throw new Error("Extraction records contain no chronology-eligible text blocks to analyze.");
   }
@@ -225,6 +328,37 @@ export async function runCreateListOfDates(options = {}) {
   if (filteredBlockCount) {
     outputLines.push(`[listofdates] filtered ${filteredBlockCount} meta/index source block(s) before AI input`);
   }
+
+  if (isTwoPassListOfDatesEnabled({ env, options })) {
+    return runCreateListOfDatesTwoPass({
+      options,
+      env,
+      matterRoot,
+      dryRun,
+      matterJson,
+      records,
+      sourceIndex,
+      chronologyBlocks,
+      chunks,
+      filteredBlockCount,
+      outputLines,
+    });
+  }
+
+  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+  const providerConfig = resolveProviderConfig(modelPolicy, {
+    endpoint: options.endpoint,
+    model: options.model,
+    maxOutputTokens: options.maxOutputTokens,
+    timeoutMs: options.timeoutMs,
+  });
+  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
+  const provider = options.aiProvider || createListOfDatesProvider({
+    providerConfig,
+    apiKey: options.apiKey,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+  });
 
   const rawEntries = [];
   const responseAiRuns = [];
@@ -308,7 +442,217 @@ export async function runCreateListOfDates(options = {}) {
   };
 }
 
-function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl }) {
+async function runCreateListOfDatesTwoPass({
+  options,
+  env,
+  matterRoot,
+  dryRun,
+  matterJson,
+  records,
+  sourceIndex,
+  chronologyBlocks,
+  chunks,
+  filteredBlockCount,
+  outputLines,
+}) {
+  const pass1 = createConfiguredListOfDatesProvider({
+    task: AI_TASKS.CREATE_LISTOFDATES_PASS1,
+    options,
+    env,
+    prompt: {
+      systemPrompt: LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT,
+      payloadBuilder: listOfDatesCandidatePromptPayload,
+      schemaName: "list_of_dates_candidate_chunk",
+      schemaDescription: "Verbose source-backed chronology candidate ledger.",
+    },
+    injectedProvider: options.pass1Provider,
+  });
+  const pass2 = createConfiguredListOfDatesProvider({
+    task: AI_TASKS.CREATE_LISTOFDATES_PASS2,
+    options,
+    env,
+    prompt: {
+      systemPrompt: LIST_OF_DATES_EDITOR_SYSTEM_PROMPT,
+      payloadBuilder: listOfDatesEditorPromptPayload,
+      schemaName: "list_of_dates_editor",
+      schemaDescription: "Final lawyer-facing List of Dates entries edited from a candidate ledger.",
+    },
+    injectedProvider: options.pass2Provider,
+  });
+  outputLines.push("[listofdates] two-pass mode enabled");
+
+  const rawCandidates = [];
+  const pass1ResponseAiRuns = [];
+  for (const [index, chunk] of chunks.entries()) {
+    const response = await pass1.provider({
+      matter: matterSummary(matterJson),
+      chunk,
+      chunkIndex: index + 1,
+      chunkCount: chunks.length,
+      schema: CANDIDATE_SCHEMA,
+    });
+    if (!response || !Array.isArray(response.candidates)) {
+      const error = new Error(`AI provider returned an invalid candidate-ledger payload for chunk ${index + 1}`);
+      error.statusCode = 502;
+      throw error;
+    }
+    rawCandidates.push(...response.candidates);
+    if (response.ai_run) pass1ResponseAiRuns.push(response.ai_run);
+    outputLines.push(`[listofdates] pass 1 chunk ${index + 1}/${chunks.length}: ${response.candidates.length} candidate(s)`);
+  }
+
+  const pass1AiRun = mergeAiRunMetadata(pass1.baseAiRun, pass1ResponseAiRuns);
+  const candidates = validateAndHydrateCandidates(rawCandidates, chronologyBlocks, sourceIndex);
+  const outputDir = path.join(matterRoot, "10_Library");
+  const outputPaths = {
+    directory: toPosix(path.relative(matterRoot, outputDir)),
+    candidates: toPosix(path.relative(matterRoot, path.join(outputDir, CANDIDATE_LEDGER_FILE))),
+    json: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.json"))),
+    csv: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.csv"))),
+    markdown: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.md"))),
+  };
+  let candidateLedger = createCandidateLedger({
+    matterJson,
+    candidates,
+    records,
+    chronologyBlocks,
+    filteredBlockCount,
+    pass1AiRun,
+    status: "pass1_complete",
+  });
+
+  if (!dryRun) {
+    await mkdir(outputDir, { recursive: true });
+    await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
+  }
+
+  try {
+    const pass2Response = await pass2.provider({
+      matter: matterSummary(matterJson),
+      candidates,
+      schema: OUTPUT_SCHEMA,
+    });
+    if (!pass2Response || !Array.isArray(pass2Response.entries)) {
+      const error = new Error("AI provider returned an invalid two-pass list-of-dates editor payload");
+      error.statusCode = 502;
+      throw error;
+    }
+
+    const pass2AiRun = mergeAiRunMetadata(pass2.baseAiRun, pass2Response.ai_run ? [pass2Response.ai_run] : []);
+    const candidateCitations = new Set(candidates.map((candidate) => candidate.citation));
+    const editorEntries = pass2Response.entries.filter((entry) => candidateCitations.has(entry?.citation));
+    const validEntries = validateAndHydrateEntries(editorEntries, chronologyBlocks, sourceIndex);
+    const acceptedEntries = validEntries.sort(compareEntries);
+    const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
+    const aiRun = twoPassAiRunMetadata(pass1AiRun, pass2AiRun);
+    candidateLedger = {
+      ...candidateLedger,
+      status: "succeeded",
+      finished_at: new Date().toISOString(),
+      pass2_ai_run: pass2AiRun,
+      final_entry_count: entries.length,
+    };
+
+    if (!dryRun) {
+      const listJson = {
+        schema_version: "list-of-dates/v1",
+        engine_version: TWO_PASS_ENGINE_VERSION,
+        generation_mode: "two_pass",
+        candidate_ledger_path: outputPaths.candidates,
+        generated_at: new Date().toISOString(),
+        matter: matterSummary(matterJson),
+        ai_run: aiRun,
+        pass1_ai_run: pass1AiRun,
+        pass2_ai_run: pass2AiRun,
+        source_record_count: records.length,
+        validation: {
+          candidate_count: candidates.length,
+          accepted_entries: acceptedEntries.length,
+          final_entries: entries.length,
+          clustered_entries: acceptedEntries.length - entries.length,
+        },
+        entries,
+      };
+      await writeJsonFile(path.join(outputDir, "List of Dates.json"), listJson);
+      await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
+      await writeFile(path.join(outputDir, "List of Dates.md"), renderMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
+      await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
+    }
+
+    outputLines.push(`[listofdates] pass 1 accepted ${candidates.length} candidate(s) into ${outputPaths.candidates}`);
+    outputLines.push(`[listofdates] pass 2 accepted ${acceptedEntries.length} cited date event(s)`);
+    if (acceptedEntries.length !== entries.length) {
+      outputLines.push(`[listofdates] rendered ${entries.length} chronology row(s) after cluster classification`);
+    }
+    outputLines.push(`[listofdates] provider ${aiRun.provider}: ${aiRun.model}`);
+    outputLines.push(dryRun
+      ? "[listofdates] dry run only. Re-run with apply to write list of dates."
+      : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
+
+    return {
+      dryRun,
+      matterRoot,
+      engineVersion: TWO_PASS_ENGINE_VERSION,
+      generationMode: "two_pass",
+      counts: {
+        recordsRead: records.length,
+        blocksSent: chronologyBlocks.length,
+        blocksFiltered: filteredBlockCount,
+        aiRequests: chunks.length + 1,
+        candidateEntries: rawCandidates.length,
+        acceptedCandidates: candidates.length,
+        acceptedEntries: acceptedEntries.length,
+        clusteredEntries: acceptedEntries.length - entries.length,
+        entries: entries.length,
+        rejectedCandidates: rawCandidates.length - candidates.length,
+        rejectedEntries: pass2Response.entries.length - acceptedEntries.length,
+      },
+      outputPaths,
+      candidateLedger,
+      pass1AiRun,
+      pass2AiRun,
+      aiRun,
+      entries,
+      outputLines,
+    };
+  } catch (error) {
+    if (!dryRun && candidateLedger?.candidates?.length) {
+      await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), {
+        ...candidateLedger,
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message: error.message,
+      });
+    }
+    throw error;
+  }
+}
+
+function isTwoPassListOfDatesEnabled({ env, options }) {
+  if (typeof options.twoPass === "boolean") return options.twoPass;
+  return ["1", "true", "yes", "on"].includes(String(env[TWO_PASS_ENV_FLAG] || "").trim().toLowerCase());
+}
+
+function createConfiguredListOfDatesProvider({ task, options, env, prompt, injectedProvider }) {
+  const modelPolicy = resolveModelPolicy(task, { env });
+  const providerConfig = resolveProviderConfig(modelPolicy, {
+    endpoint: options.endpoint,
+    model: options.model,
+    maxOutputTokens: options.maxOutputTokens,
+    timeoutMs: options.timeoutMs,
+  });
+  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
+  const provider = injectedProvider || createListOfDatesProvider({
+    providerConfig,
+    apiKey: options.apiKey,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+    prompt,
+  });
+  return { provider, baseAiRun };
+}
+
+function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl, prompt = {} }) {
   if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
     return createOpenRouterProvider({
       apiKey: apiKey || env.OPENROUTER_API_KEY,
@@ -322,6 +666,7 @@ function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl }) {
       providerSort: providerConfig.providerSort,
       maxPrice: providerConfig.maxPrice,
       timeoutMs: providerConfig.timeoutMs,
+      ...prompt,
     });
   }
   return createOpenAiProvider({
@@ -329,6 +674,7 @@ function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl }) {
     model: providerConfig.model,
     endpoint: providerConfig.endpoint,
     maxOutputTokens: providerConfig.maxOutputTokens,
+    ...prompt,
   });
 }
 
@@ -337,8 +683,12 @@ export function createOpenAiProvider({
   model = DEFAULT_OPENAI_MODEL,
   endpoint = DEFAULT_RESPONSES_ENDPOINT,
   maxOutputTokens = DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+  systemPrompt = LIST_OF_DATES_SYSTEM_PROMPT,
+  payloadBuilder = listOfDatesPromptPayload,
+  schemaName = "list_of_dates_chunk",
+  schemaDescription = "Cited legal chronology entries extracted from source blocks.",
 } = {}) {
-  return async function openAiListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, schema }) {
+  return async function openAiListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
     return requestResponsesJson({
       apiKey,
       endpoint,
@@ -349,18 +699,18 @@ export function createOpenAiProvider({
         input: [
           {
             role: "system",
-            content: LIST_OF_DATES_SYSTEM_PROMPT,
+            content: systemPrompt,
           },
           {
             role: "user",
-            content: JSON.stringify(listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount })),
+            content: JSON.stringify(payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates })),
           },
         ],
         text: {
           format: {
             type: "json_schema",
-            name: "list_of_dates_chunk",
-            description: "Cited legal chronology entries extracted from source blocks.",
+            name: schemaName,
+            description: schemaDescription,
             strict: true,
             schema,
           },
@@ -382,8 +732,11 @@ export function createOpenRouterProvider({
   requireParameters = true,
   allowFallbacks = false,
   timeoutMs,
+  systemPrompt = LIST_OF_DATES_SYSTEM_PROMPT,
+  payloadBuilder = listOfDatesPromptPayload,
+  schemaName = "list_of_dates_chunk",
 } = {}) {
-  return async function openRouterListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, schema }) {
+  return async function openRouterListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
     if (!apiKey) {
       const error = new Error("OPENROUTER_API_KEY is required for /create_listofdates");
       error.statusCode = 409;
@@ -401,11 +754,11 @@ export function createOpenRouterProvider({
       messages: [
         {
           role: "system",
-          content: LIST_OF_DATES_SYSTEM_PROMPT,
+          content: systemPrompt,
         },
         {
           role: "user",
-          content: JSON.stringify(listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount })),
+          content: JSON.stringify(payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates })),
         },
       ],
       max_tokens: maxOutputTokens,
@@ -416,7 +769,7 @@ export function createOpenRouterProvider({
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "list_of_dates_chunk",
+          name: schemaName,
           strict: true,
           schema: requestSchema,
         },
@@ -557,10 +910,75 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
     allowed_event_types: EVENT_TYPES,
     source_blocks: chunk.map((block) => ({
       citation: block.citation,
-      source: block.original_name || block.source_path,
+      source: block.source_label || block.original_name || block.source_path,
+      short_source: block.source_short_label || block.original_name || "",
       confidence: block.confidence,
       needs_review: block.needs_review,
       text: block.text,
+    })),
+  };
+}
+
+function listOfDatesCandidatePromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
+  return {
+    task: "Create a verbose candidate ledger for a later List of Dates editor pass.",
+    matter,
+    chunk_index: chunkIndex,
+    chunk_count: chunkCount,
+    instructions: [
+      "Harvest exact calendar dates only when the source gives day, month, and year.",
+      "Keep repeated versions of the same legal fact; do not merge them in pass 1.",
+      "Keep foundation, authority, limitation, collateral-proceeding, appeal-delay, and enforceability dates if they may help a lawyer understand the matter.",
+      "Drop obvious metadata dates such as file export, transcript recording, or index creation unless the block itself makes them legally material.",
+      "Use one supplied FILE-NNNN pX.bY citation per candidate.",
+      "Write legal_materiality as a short reason why a lawyer might care about this date.",
+      "Use source_excerpt to preserve the decisive words from the source block.",
+      "Use same_fact_hint to point out likely duplicates or related candidates, but do not remove them.",
+      "Use ocr_suspicion and date_uncertainty when the source text is unclear.",
+    ],
+    source_blocks: chunk.map((block) => ({
+      citation: block.citation,
+      source: block.source_label || block.original_name || block.source_path,
+      short_source: block.source_short_label || block.original_name || "",
+      confidence: block.confidence,
+      needs_review: block.needs_review,
+      text: block.text,
+    })),
+  };
+}
+
+function listOfDatesEditorPromptPayload({ matter, candidates }) {
+  return {
+    task: "Edit a verbose candidate ledger into the final lawyer-facing List of Dates.",
+    matter,
+    instructions: [
+      "Use only these candidates.",
+      "Merge duplicate and near-duplicate candidates into one final row.",
+      "Preserve material collateral dates when they explain ownership, authority, limitation, parallel litigation, appeal delay, or enforceability.",
+      "Drop pure precedent or statute dates unless they describe this matter's own procedural history.",
+      "Use the final event and legal_relevance fields to write a client-perspective chronology supported by the cited candidate.",
+      `Write perspective exactly as ${LAWYER_FACING_PERSPECTIVE}.`,
+      "Use one raw FILE-NNNN pX.bY citation from the candidate ledger for each final row.",
+      "Do not repeat raw citations inside event or legal_relevance text.",
+      "Use needs_review=true when OCR noise, uncertainty, or candidate conflict remains.",
+    ],
+    allowed_event_types: EVENT_TYPES,
+    candidates: candidates.map((candidate) => ({
+      candidate_id: candidate.candidate_id,
+      date_iso: candidate.date_iso,
+      date_text: candidate.date_text,
+      event_candidate: candidate.event_candidate,
+      legal_materiality: candidate.legal_materiality,
+      citation: candidate.citation,
+      source_label: candidate.source_label || candidate.original_name || candidate.source_path,
+      source_excerpt: candidate.source_excerpt,
+      candidate_type: candidate.candidate_type,
+      party_posture: candidate.party_posture,
+      same_fact_hint: candidate.same_fact_hint,
+      date_uncertainty: candidate.date_uncertainty,
+      ocr_suspicion: candidate.ocr_suspicion,
+      needs_review: candidate.needs_review,
+      confidence: candidate.confidence,
     })),
   };
 }
@@ -583,6 +1001,46 @@ function mergeAiRunMetadata(baseAiRun, responseAiRuns) {
   }
   if (Object.keys(usage).length) merged.usage = usage;
   return merged;
+}
+
+function twoPassAiRunMetadata(pass1AiRun, pass2AiRun) {
+  return {
+    policyVersion: pass2AiRun.policyVersion || pass1AiRun.policyVersion,
+    task: "create_listofdates_two_pass",
+    tier: "source_backed_analysis",
+    provider: "two-pass",
+    model: `${pass1AiRun.model} -> ${pass2AiRun.model}`,
+    fallback: "fail_closed",
+    pass1: pass1AiRun,
+    pass2: pass2AiRun,
+  };
+}
+
+function createCandidateLedger({
+  matterJson,
+  candidates,
+  records,
+  chronologyBlocks,
+  filteredBlockCount,
+  pass1AiRun,
+  status,
+}) {
+  return {
+    schema_version: "list-of-dates-candidates/v1",
+    engine_version: TWO_PASS_ENGINE_VERSION,
+    status,
+    generated_at: new Date().toISOString(),
+    matter: matterSummary(matterJson),
+    source_record_count: records.length,
+    source_block_count: chronologyBlocks.length,
+    filtered_block_count: filteredBlockCount,
+    ai_run: pass1AiRun,
+    candidates,
+  };
+}
+
+async function writeJsonFile(filePath, value) {
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function addNumber(target, key, value) {
@@ -797,11 +1255,88 @@ function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) 
   return entries;
 }
 
+function validateAndHydrateCandidates(rawCandidates, blocks, sourceIndex = new Map()) {
+  const blockByCitation = new Map(blocks.map((block) => [block.citation, block]));
+  const candidates = [];
+  for (const raw of rawCandidates) {
+    const block = blockByCitation.get(raw?.citation);
+    if (!block) continue;
+    if (!isValidDateIso(raw.date_iso)) continue;
+    const eventCandidate = normalizeNarrativeText(raw.event_candidate, block.text).slice(0, 1000);
+    const legalMateriality = normalizeNarrativeText(raw.legal_materiality, block.text).slice(0, 1000);
+    const dateText = String(raw.date_text || "").replace(/\s+/g, " ").trim();
+    if (!eventCandidate || !legalMateriality || !dateText) continue;
+    const candidateType = normalizeCandidateType(raw.candidate_type);
+    const partyPosture = normalizePartyPosture(raw.party_posture);
+    candidates.push({
+      candidate_id: `cand_${String(candidates.length + 1).padStart(4, "0")}`,
+      date_iso: raw.date_iso,
+      date_text: dateText,
+      event_candidate: eventCandidate,
+      legal_materiality: legalMateriality,
+      citation: raw.citation,
+      source_excerpt: normalizeCandidateExcerpt(raw.source_excerpt, block.text),
+      candidate_type: candidateType,
+      party_posture: partyPosture,
+      same_fact_hint: normalizeCandidateNote(raw.same_fact_hint),
+      date_uncertainty: normalizeCandidateNote(raw.date_uncertainty),
+      ocr_suspicion: normalizeCandidateNote(raw.ocr_suspicion),
+      file_id: block.file_id,
+      source_file_id: block.file_id,
+      ...sourceLabelFields(sourceIndex.get(block.file_id)),
+      source_path: block.source_path,
+      original_name: block.original_name,
+      page: block.page,
+      block_id: block.block_id,
+      block_type: block.block_type,
+      needs_review: Boolean(raw.needs_review || block.needs_review),
+      confidence: normalizeConfidence(raw.confidence),
+    });
+  }
+  return candidates.sort(compareEntries);
+}
+
+function normalizeCandidateType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  return [
+    "agreement",
+    "payment",
+    "notice",
+    "pleading",
+    "order",
+    "filing",
+    "inspection",
+    "correspondence",
+    "other",
+  ].includes(type) ? type : "other";
+}
+
+function normalizePartyPosture(value) {
+  const posture = String(value || "").trim().toLowerCase();
+  return ["helps_client", "hurts_client", "neutral", "unclear"].includes(posture) ? posture : "unclear";
+}
+
+function normalizeCandidateExcerpt(value, sourceText) {
+  const excerpt = String(value || "").replace(/\s+/g, " ").trim();
+  return (excerpt || String(sourceText || "").replace(/\s+/g, " ").trim()).slice(0, 700);
+}
+
+function normalizeCandidateNote(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
 function sourceLabelFields(sourceMetadata = {}) {
   const fields = {};
   if (sourceMetadata.source_label) fields.source_label = sourceMetadata.source_label;
   if (sourceMetadata.source_short_label) fields.source_short_label = sourceMetadata.source_short_label;
   return fields;
+}
+
+function withSourceLabels(blocks, sourceIndex = new Map()) {
+  return blocks.map((block) => ({
+    ...block,
+    ...sourceLabelFields(sourceIndex.get(block.file_id)),
+  }));
 }
 
 function normalizeEventType(value) {
@@ -934,11 +1469,11 @@ function matterSummary(matterJson) {
   };
 }
 
-function renderMarkdown(matterJson, entries) {
+function renderMarkdown(matterJson, entries, engineVersion = ENGINE_VERSION) {
   const rows = entries.map((entry) => (
     `| ${escapeMarkdownCell(entry.date_iso)} | ${escapeMarkdownCell(entry.event)} | ${escapeMarkdownCell(entry.legal_relevance)} | ${escapeMarkdownCell(formatSourceForDisplay(entry))} |`
   ));
-  return `# List of Dates\n\nMatter: ${matterJson.matter_name || "Matter"}\n\nGenerated by ${ENGINE_VERSION}. Review before relying on this chronology.\n\n| Date | Event | Legal Relevance | Source |\n|---|---|---|---|\n${rows.join("\n")}\n`;
+  return `# List of Dates\n\nMatter: ${matterJson.matter_name || "Matter"}\n\nGenerated by ${engineVersion}. Review before relying on this chronology.\n\n| Date | Event | Legal Relevance | Source |\n|---|---|---|---|\n${rows.join("\n")}\n`;
 }
 
 function formatSourceForDisplay(entry) {

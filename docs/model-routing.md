@@ -263,6 +263,8 @@ AI_TASKS.SKILL_DESIGN_REVIEW
 AI_TASKS.SKILL_AUTHORING
 AI_TASKS.CONFIGURABLE_SKILL_RUN
 AI_TASKS.CONFIGURABLE_SKILL_VALIDATION
+AI_TASKS.CREATE_LISTOFDATES_PASS1
+AI_TASKS.CREATE_LISTOFDATES_PASS2
 ```
 
 Recommended future policy:
@@ -302,6 +304,22 @@ OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE=
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE=
 ```
+
+The gated two-pass `/create_listofdates` runtime uses separate pass policies so the harvester and editor can be tuned independently:
+
+```text
+CREATE_LISTOFDATES_TWO_PASS_ENABLED=0
+CREATE_LISTOFDATES_PASS1_PROVIDER=openai-direct
+OPENAI_CREATE_LISTOFDATES_PASS1_MODEL=gpt-4.1
+OPENAI_CREATE_LISTOFDATES_PASS1_MAX_OUTPUT_TOKENS=9000
+OPENAI_CREATE_LISTOFDATES_PASS1_TIMEOUT_MS=120000
+CREATE_LISTOFDATES_PASS2_PROVIDER=openai-direct
+OPENAI_CREATE_LISTOFDATES_PASS2_MODEL=gpt-5.4-mini
+OPENAI_CREATE_LISTOFDATES_PASS2_MAX_OUTPUT_TOKENS=9000
+OPENAI_CREATE_LISTOFDATES_PASS2_TIMEOUT_MS=120000
+```
+
+The one-pass runtime remains default while this gate is off.
 
 This is intentionally separate from source-description settings:
 
@@ -597,6 +615,7 @@ Completed:
 4. Wired `/create_listofdates` to keep OpenAI direct as default and opt into OpenRouter only with `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
 5. Added artifact metadata so generated outputs record policy version, task, tier, provider, model, token budget, fallback posture, and provider-returned usage when available.
 6. Added `.env.example` coverage for the implemented provider-selection env vars.
+7. Added gated two-pass `/create_listofdates` task policies for `create_listofdates_pass1` and `create_listofdates_pass2`.
 
 Still not done:
 
