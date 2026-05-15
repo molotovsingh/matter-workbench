@@ -33,6 +33,7 @@ flowchart LR
   subgraph Routes["Route/API layer"]
     ApiRoutes["routes/api-routes.mjs<br/>top-level API dispatcher"]
     MatterWorkflowRoutes["routes/matter-workflow-routes.mjs<br/>matter engines, status, context"]
+    AppShellRoutes["routes/app-shell-routes.mjs<br/>settings, matters, workspace, files"]
     SkillFactoryRoutes["routes/skill-factory-routes.mjs<br/>skills, ideas, samples, custom runs"]
     HttpUtils["routes/http-utils.mjs<br/>JSON parsing and 413 guard"]
     StaticRoutes["routes/static-routes.mjs"]
@@ -41,9 +42,11 @@ flowchart LR
   Server --> ApiRoutes
   Server --> StaticRoutes
   ApiRoutes --> MatterWorkflowRoutes
+  ApiRoutes --> AppShellRoutes
   ApiRoutes --> SkillFactoryRoutes
   ApiRoutes --> HttpUtils
   MatterWorkflowRoutes --> HttpUtils
+  AppShellRoutes --> HttpUtils
   SkillFactoryRoutes --> HttpUtils
 
   subgraph Services["Services"]
@@ -61,11 +64,11 @@ flowchart LR
     DoctorService["services/doctor-service.mjs"]
   end
 
-  ApiRoutes --> ConfigService
-  ApiRoutes --> MatterStore
-  ApiRoutes --> WorkspaceService
-  ApiRoutes --> UploadService
-  ApiRoutes --> AiSettingsService
+  AppShellRoutes --> ConfigService
+  AppShellRoutes --> MatterStore
+  AppShellRoutes --> WorkspaceService
+  AppShellRoutes --> UploadService
+  AppShellRoutes --> AiSettingsService
   SkillFactoryRoutes --> SkillRegistryService
   SkillFactoryRoutes --> SkillRouterService
   SkillFactoryRoutes --> SkillIdeasService
