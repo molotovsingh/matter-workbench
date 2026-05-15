@@ -91,7 +91,7 @@ export function createDeterministicCommandController({
         providerRunInvoked: parsedCommand.type === "skill" && isProviderBackedCommand(parsedCommand.command),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -146,10 +146,10 @@ export function createDeterministicCommandController({
   function showMatterStatus(userRequest) {
     const activeMatter = ctx.getActiveMatter();
     if (!activeMatter.folderName) {
-      renderCommandError("Pick a matter from the sidebar before showing status.");
+      renderCommandError("Pick a matter from Home before showing status.");
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before showing status.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before showing status.",
         bar: "No Matter",
         terminal: "[ai-command] status requested without active matter",
       });

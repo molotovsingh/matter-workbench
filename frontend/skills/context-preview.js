@@ -14,7 +14,7 @@ export function createContextPreviewSkill(ctx, options = {}) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before showing context.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before showing context.",
         bar: "No Matter",
         terminal: "[context] no active matter",
       });

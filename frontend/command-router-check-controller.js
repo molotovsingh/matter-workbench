@@ -80,7 +80,7 @@ export function createCommandRouterCheckController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 

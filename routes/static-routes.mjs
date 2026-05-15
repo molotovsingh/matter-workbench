@@ -36,6 +36,7 @@ export async function serveStatic({ appDir, request, response }) {
     response.writeHead(200, {
       "content-type": contentTypes.get(extension) || "application/octet-stream",
       "content-length": fileStat.size,
+      "cache-control": "no-store",
     });
     response.end(await readFile(filePath));
   } catch {

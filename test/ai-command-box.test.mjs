@@ -17,7 +17,7 @@ test("command box dispatches deterministic slash commands through injected skill
 
   assert.deepEqual(calls, ["/extract"]);
   assert.equal(ctx.elements.aiCommandSubmit.disabled, false);
-  assert.equal(ctx.elements.aiCommandSubmit.textContent, "Go");
+  assert.equal(ctx.elements.aiCommandSubmit.textContent, "→");
   assert.match(ctx.statusCalls[0].terminal, /\[ai-command\] \/extract -> \/extract/);
 });
 
@@ -287,7 +287,7 @@ test("command box skips generic questions when a detailed skill specification is
   await form.submit();
 
   assert.equal(ctx.elements.aiCommandInput.value, "");
-  assert.equal(ctx.elements.aiCommandSubmit.textContent, "Go");
+  assert.equal(ctx.elements.aiCommandSubmit.textContent, "→");
   assert.equal(ctx.elements.aiCommandInput.placeholder, "Generate sample, Edit answers, or Cancel");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Ready to generate a sample output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Generate sample from this matter/);
@@ -1529,7 +1529,7 @@ test("command box clears stale custom skill run cards on matter switch", async (
   assert.equal(ctx.elements.aiCommandCopyReport.hidden, true);
   assert.equal(ctx.elements.aiCommandReportStatus.textContent, "");
   assert.equal(ctx.elements.aiCommandInput.placeholder, "Ask about this matter, run a skill, or search documents");
-  assert.equal(ctx.elements.aiCommandSubmit.textContent, "Go");
+  assert.equal(ctx.elements.aiCommandSubmit.textContent, "→");
   assert.equal(ctx.elements.aiCommandSubmit.disabled, false);
 });
 
@@ -2048,7 +2048,7 @@ function fakeCtx({
     elements: {
       aiCommandForm: form,
       aiCommandInput,
-      aiCommandSubmit: { disabled: false, textContent: "Go" },
+      aiCommandSubmit: { disabled: false, textContent: "→" },
       aiCommandSuggestions: fakeSuggestions(),
       aiCommandSession: fakeSession(),
       aiCommandCopyReport: fakeButton(),

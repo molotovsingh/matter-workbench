@@ -37,10 +37,12 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/config") {
+    const activeMatterName = matterStore.activeMatterNameWithinHome();
     sendJson(response, 200, {
       mattersHome: configService.getMattersHome() || null,
       defaultMattersHome: configService.defaultMattersHome,
       hasActiveMatter: Boolean(matterStore.getMatterRoot()),
+      activeMatterName,
     });
     return true;
   }
@@ -60,6 +62,12 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       active: matterStore.activeMatterNameWithinHome(),
       matters: await matterStore.listMattersHomeChildren(),
     });
+    return true;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/active-matter/clear") {
+    matterStore.clearMatterRoot();
+    sendJson(response, 200, { active: null });
     return true;
   }
 

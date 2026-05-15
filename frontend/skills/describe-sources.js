@@ -28,7 +28,7 @@ export function createDescribeSourcesSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /describe_sources.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /describe_sources.",
         bar: "No Matter",
         terminal: "[source-index] no active matter",
       });

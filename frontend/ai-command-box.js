@@ -295,7 +295,7 @@ export function createAiCommandBox(ctx, options = {}) {
     configurableSkillRuns.clearPendingForMatterChange();
     aiCommandInput.placeholder = DEFAULT_COMMAND_PLACEHOLDER;
     aiCommandSubmit.disabled = false;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     commandReport.clear();
     commandSuggestions.hide();
     if (aiCommandSession) {

@@ -11,12 +11,14 @@ export function createMatterOverview(ctx, skills) {
     const fmt = (value, fallback) => escapeHtml(value && value.trim() ? value : fallback);
     const missing = validateMetadata(meta);
     const missingNote = missing.length
-      ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Edit <code>matter.json</code> on disk and refresh, or recreate the matter via <code>+ New Matter</code>.</p>`
+      ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Edit <code>matter.json</code> on disk and refresh, or recreate the matter via <code>Add new matter</code>.</p>`
       : "";
 
     editorContent.innerHTML = `
-      <h1>${fmt(meta.matterName, activeMatter.folderName || "Matter")}</h1>
-      <p>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders loaded from <code>${escapeHtml(activeMatter.inputLabel)}</code>.</p>
+      <section class="matter-overview-hero">
+        <h1>${fmt(meta.matterName, activeMatter.folderName || "Matter")}</h1>
+        <p>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders loaded from local workspace.</p>
+      </section>
 
       <dl class="matter-info-card">
         <dt>Client</dt><dd>${fmt(meta.clientName, "—")}</dd>
@@ -33,7 +35,7 @@ export function createMatterOverview(ctx, skills) {
         ${renderMatterPipelineStatusLoading()}
       </section>
 
-      <div class="form-actions">
+      <div class="form-actions matter-run-actions">
         <button type="button" class="run-skill-button" id="runPrepareMatterButton">Prepare matter <span>/prepare_matter</span></button>
         <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Set up matter <span>/matter-init</span></button>
         <button type="button" class="run-skill-button secondary" id="runExtractButton">Extract documents <span>/extract</span></button>

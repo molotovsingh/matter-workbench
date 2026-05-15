@@ -25,7 +25,7 @@ export function renderPrepareMatterHtml(plan, escapeHtml = defaultEscapeHtml) {
     <section class="matter-pipeline-card prepare-matter-card">
       <h2>Preparation steps</h2>
       <div class="pipeline-stage-list">
-        ${stages.length ? stages.map((stage) => renderPrepareStage(stage, escapeHtml)).join("") : "<p class=\"muted\">No active matter. Pick a matter from the sidebar to begin.</p>"}
+        ${stages.length ? stages.map((stage) => renderPrepareStage(stage, escapeHtml)).join("") : "<p class=\"muted\">No active matter. Pick a matter from Home to begin.</p>"}
       </div>
       ${renderListOfDatesRecommendation(plan?.downstream?.listOfDates, escapeHtml)}
     </section>

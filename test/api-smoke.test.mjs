@@ -502,6 +502,17 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.doesNotMatch(commandLog, /sk-should-not-be-logged|full copied packet/);
     const doctor = await postJson(baseUrl, "/api/doctor/scan");
     assert.deepEqual(doctor.issues, []);
+    const activeConfig = await getJson(baseUrl, "/api/config");
+    assert.equal(activeConfig.hasActiveMatter, true);
+    assert.equal(activeConfig.activeMatterName, "Smoke Matter");
+    const clearedActiveMatter = await postJson(baseUrl, "/api/active-matter/clear");
+    assert.deepEqual(clearedActiveMatter, { active: null });
+    const mattersAfterClear = await getJson(baseUrl, "/api/matters");
+    assert.equal(mattersAfterClear.active, null);
+    const workspaceAfterClear = await fetch(`${baseUrl}/api/workspace`);
+    const workspaceAfterClearPayload = await workspaceAfterClear.json();
+    assert.equal(workspaceAfterClear.status, 409);
+    assert.match(workspaceAfterClearPayload.error, /No matter is active/);
   } finally {
     await new Promise((resolve) => app.server.close(resolve));
   }

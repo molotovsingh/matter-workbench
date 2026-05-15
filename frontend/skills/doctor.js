@@ -9,7 +9,7 @@ export function createDoctorSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /doctor.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /doctor.",
         bar: "No Matter",
         terminal: "[doctor] no active matter",
       });

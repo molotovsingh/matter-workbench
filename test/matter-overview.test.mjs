@@ -51,14 +51,17 @@ test("matter overview renders read-only pipeline status", () => {
   }, escapeHtml);
 
   assert.match(html, /Matter readiness/);
+  assert.match(html, /pipeline-stage-list/);
   assert.match(html, /Based on files already saved for this matter/);
   assert.match(html, /Set up matter/);
   assert.match(html, /\/matter-init/);
   assert.match(html, /Done/);
+  assert.match(html, /pipeline-state present/);
   assert.doesNotMatch(html, />Present</);
   assert.match(html, /\/describe_sources/);
   assert.match(html, /Label sources/);
   assert.match(html, /Needs update/);
+  assert.match(html, /pipeline-rerun-hint stale/);
   assert.doesNotMatch(html, />Stale</);
   assert.match(html, /Review the existing output document, then regenerate deliberately/);
   assert.match(html, /10_Library\/List of Dates\.md/);

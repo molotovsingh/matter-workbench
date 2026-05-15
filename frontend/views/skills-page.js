@@ -49,82 +49,50 @@ export function renderSkillsPageHtml({
 
   return `
     <div class="skills-page">
-      <h1>Skills</h1>
-      <p>
-        Read-only supervision surface for built-in skills. This page describes what each skill can do, where outputs normally live, and whether a selected matter already has the expected artifacts.
-      </p>
-      <p class="muted">${matterNote}</p>
+      <section class="skills-hero">
+        <div>
+          <h1>Skills</h1>
+          <p>What skills can you use, and what ideas are still being developed?</p>
+        </div>
+        ${renderSkillsStats(summary, skillIdeas?.ideas || [], escapeHtml)}
+      </section>
       ${registryError}
       ${statusWarning}
       ${ideasWarning}
       ${skillFactoryHealthError ? `<p class="form-warning">Skill factory health unavailable: ${escapeHtml(skillFactoryHealthError)}</p>` : ""}
       ${configurableSkillsError ? `<p class="form-warning">Custom skills unavailable: ${escapeHtml(configurableSkillsError)}</p>` : ""}
       ${configurableSkillRunsError ? `<p class="form-warning">Custom skill run history unavailable: ${escapeHtml(configurableSkillRunsError)}</p>` : ""}
-      ${renderSkillsStats(summary, escapeHtml)}
-      ${renderSkillFactoryHealth(skillFactoryHealth, escapeHtml)}
-      ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
-      <section>
-        <h2>Custom Skills</h2>
-        <p class="muted">Approved and activated skills created from reviewed samples. The visible skill name includes its version. The slash command stays stable and runs the latest approved version; earlier versions are kept in history.</p>
+      <section class="skills-section">
+        <h2>Your Skills</h2>
+        <p class="muted">Skills you created and can run on any active matter. Only the latest approved version is shown as runnable; earlier versions are kept in history.</p>
         ${renderSkillCards(summary.custom, escapeHtml, {
+          variant: "active-custom",
           improvementIdeas: skillIdeas?.ideas || [],
           configurableSkillRuns: configurableSkillRuns?.runs || [],
           allCustomSkills: summary.allCustom || summary.custom,
         })}
       </section>
-      <section>
+      ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml, { compact: true })}
+      <section class="skills-section">
         <h2>Built-in Skills</h2>
-        <p class="muted">These are code-backed capabilities. They are not editable from the app.</p>
-        ${renderSkillCards(summary.builtins, escapeHtml)}
+        <p class="muted">Code-backed capabilities that ship with the app. They are not editable from this page.</p>
+        <p class="muted">${matterNote}</p>
+        ${renderSkillCards(summary.builtins, escapeHtml, { variant: "builtin-list" })}
       </section>
-      <section>
-        <h2>Paid AI Skills</h2>
-        <p class="muted">These may call configured providers. Existing rerun guardrails remain owned by the skill runtime.</p>
-        ${renderSkillCards(summary.paidAi, escapeHtml)}
-      </section>
-      <section>
-        <h2>Deterministic Skills</h2>
-        <p class="muted">These run locally without provider calls.</p>
-        ${renderSkillCards(summary.deterministic, escapeHtml)}
-      </section>
-      <section class="skills-future-card">
-        <h2>Coming Later: Skill Builder Expansion</h2>
-        <p>
-          The app can show activated custom skills here. Broader editing, rollback, and automated skill-generation workflows remain staged work.
-        </p>
-        <ul>
-          <li>No direct editing of active skill definitions from this page.</li>
-          <li>No runnable draft skills.</li>
-          <li>No chat, Q&amp;A, provider call, or matter artifact write.</li>
-        </ul>
-      </section>
+      ${renderSkillFactoryHealth(skillFactoryHealth, escapeHtml, { collapsed: true })}
     </div>
   `;
 }
 
-function renderSkillsStats(summary, escape) {
+function renderSkillsStats(summary, ideas, escape) {
+  const normalizedIdeas = Array.isArray(ideas) ? ideas : [];
+  const activeIdeas = normalizedIdeas.filter((idea) => idea?.status !== "dismissed");
   return `
-    <dl class="skill-contract skills-summary">
-      <div>
-        <dt>Built-ins</dt>
-        <dd>${summary.builtins.length}</dd>
-      </div>
-      <div>
-        <dt>Custom</dt>
-        <dd>${summary.custom.length}</dd>
-      </div>
-      <div>
-        <dt>Paid AI</dt>
-        <dd>${summary.paidAi.length}</dd>
-      </div>
-      <div>
-        <dt>Deterministic</dt>
-        <dd>${summary.deterministic.length}</dd>
-      </div>
-      <div>
-        <dt>Matter status</dt>
-        <dd>${summary.hasMatterStatus ? escape(summary.matterName || "Loaded") : "Planning mode"}</dd>
-      </div>
-    </dl>
+    <div class="skills-page-counts" aria-label="Skills summary">
+      <span>${summary.custom.length} active</span>
+      <span>${activeIdeas.length} ideas</span>
+      <span>${summary.builtins.length} built-in</span>
+      <span>${summary.hasMatterStatus ? escape(summary.matterName || "Matter selected") : "Planning mode"}</span>
+    </div>
   `;
 }

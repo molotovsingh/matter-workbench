@@ -179,7 +179,7 @@ export function createConfigurableSkillRunController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -302,7 +302,7 @@ export function createConfigurableSkillRunController({
   function clearPendingConfigurableRun(title, message) {
     pendingConfigurableRun = null;
     aiCommandInput.placeholder = defaultPlaceholder;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     if (aiCommandSession) {
       aiCommandSession.hidden = false;
       aiCommandSession.innerHTML = `
@@ -369,7 +369,7 @@ export function createConfigurableSkillRunController({
       const idea = payload.idea || {};
       pendingConfigurableRun = null;
       aiCommandInput.placeholder = defaultPlaceholder;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
       updateReport({
         status: "saved",
         skillIdeaId: idea.id || "",
@@ -421,14 +421,14 @@ export function createConfigurableSkillRunController({
       });
     } finally {
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
   function renderConfigurableSkillRunResult(result = {}) {
     setCurrentSkillIdeaInterview(null);
     aiCommandInput.placeholder = defaultPlaceholder;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     const skill = result.skill || {};
     pendingConfigurableRun = buildConfigurableRunPending(result);
     breadcrumbs.textContent = skill.slash || "custom skill";
@@ -443,7 +443,7 @@ export function createConfigurableSkillRunController({
 
   function renderConfigurableSkillCancelledResult(result = {}) {
     aiCommandInput.placeholder = defaultPlaceholder;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     if (!aiCommandSession) return;
     aiCommandSession.hidden = false;
     aiCommandSession.innerHTML = renderConfigurableSkillCancelledRail(result);
@@ -556,7 +556,7 @@ export function createConfigurableSkillRunController({
             aiCommandInput.placeholder = "create a skill to...";
           }
           aiCommandSubmit.disabled = false;
-          aiCommandSubmit.textContent = "Go";
+          aiCommandSubmit.textContent = "→";
           if (aiCommandSession) {
             aiCommandSession.hidden = true;
             aiCommandSession.innerHTML = "";

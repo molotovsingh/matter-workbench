@@ -19,7 +19,7 @@ export function createContextSearchSkill(ctx, options = {}) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before searching context.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before searching context.",
         bar: "No Matter",
         terminal: "[context-search] no active matter",
       });

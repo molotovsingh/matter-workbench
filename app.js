@@ -18,10 +18,17 @@ import { createListOfDatesSkill } from "./frontend/skills/create-listofdates.js"
 import { createDoctorSkill } from "./frontend/skills/doctor.js";
 import { escapeHtml, matterFromWorkspace } from "./frontend/dom-utils.js";
 import { switchMatterFlow } from "./frontend/matter-switch-flow.js";
+import { setShellMatterMode } from "./frontend/shell-presentation.js";
+
+if (globalThis.history && "scrollRestoration" in globalThis.history) {
+  globalThis.history.scrollRestoration = "manual";
+}
 
 const elements = {
+  appShell: document.querySelector(".app-shell"),
   terminalOutput: document.getElementById("terminalOutput"),
   editorContent: document.getElementById("editorContent"),
+  sidebarTitle: document.querySelector(".sidebar-title"),
   titleText: document.getElementById("titleText"),
   bottomMeta: document.getElementById("bottomMeta"),
   statusBarRight: document.getElementById("statusBarRight"),
@@ -33,6 +40,9 @@ const elements = {
   aiCommandForm: document.getElementById("aiCommandForm"),
   aiCommandInput: document.getElementById("aiCommandInput"),
   aiCommandSubmit: document.getElementById("aiCommandSubmit"),
+  aiCommandActivityStrip: document.getElementById("aiCommandActivityStrip"),
+  aiCommandCopyText: document.getElementById("aiCommandCopyText"),
+  aiCommandExamples: document.getElementById("aiCommandExamples"),
   aiCommandSuggestions: document.getElementById("aiCommandSuggestions"),
   aiCommandSession: document.getElementById("aiCommandSession"),
   aiCommandCopyReport: document.getElementById("aiCommandCopyReport"),
@@ -43,6 +53,8 @@ const elements = {
   mattersSearchInput: document.getElementById("mattersSearchInput"),
   mattersSearchMeta: document.getElementById("mattersSearchMeta"),
   newMatterButton: document.getElementById("newMatterButton"),
+  matterActionsSection: document.getElementById("matterActionsSection"),
+  matterFilesSection: document.getElementById("matterFilesSection"),
   activityExplorer: document.getElementById("activityExplorer"),
   activitySkills: document.getElementById("activitySkills"),
   activityActivity: document.getElementById("activityActivity"),
@@ -52,7 +64,13 @@ const elements = {
 
 createThemeController({ button: elements.themeToggleButton }).wire();
 
-const initialMattersState = { enabled: false, mattersHome: null, active: null, matters: [] };
+const initialMattersState = {
+  enabled: false,
+  mattersHome: null,
+  active: null,
+  matters: [],
+  resumeMatterName: "",
+};
 const mattersStore = createMutableState(initialMattersState);
 let mattersState = mattersStore.get();
 
@@ -94,6 +112,7 @@ ctx.toggleTechnicalFiles = workspaceView.toggleTechnicalFiles;
 
 const matterScreens = createMatterScreens(ctx);
 ctx.goToExplorer = matterScreens.goToExplorer;
+ctx.goHome = matterScreens.goToExplorer;
 ctx.renderBlankLanding = matterScreens.renderBlankLanding;
 ctx.renderFirstRun = matterScreens.renderFirstRun;
 ctx.renderMattersList = matterScreens.renderMattersList;
@@ -125,10 +144,16 @@ const skillDispatch = createBuiltinSkillDispatch(skills);
 const matterOverview = createMatterOverview(ctx, skills);
 ctx.renderSkillOverview = matterOverview.renderSkillOverview;
 const aiCommandBox = createAiCommandBox(ctx, { skillDispatch });
+ctx.runCommand = aiCommandBox.handleCommand;
 
 function clearActiveMatter() {
   activeMatter = activeMatterStore.set(createInitialActiveMatter());
   return activeMatter;
+}
+
+function setResumeMatterName(name = "") {
+  mattersState = mattersStore.merge({ resumeMatterName: name });
+  return mattersState;
 }
 
 function mergeActiveMatterState(patch) {
@@ -139,6 +164,7 @@ function mergeActiveMatterState(patch) {
 function setActiveMatter(nextMatter, options = {}) {
   activeMatter = activeMatterStore.merge(nextMatter);
   if (elements.addFilesButton) elements.addFilesButton.hidden = !activeMatter.folderName;
+  setShellMatterMode(elements, Boolean(activeMatter.folderName));
   if (elements.titleText) {
     elements.titleText.textContent = activeMatter.folderName
       ? `Active matter: ${activeMatter.folderName}`
@@ -243,6 +269,7 @@ Object.assign(ctx, {
   mergeActiveMatterState,
   refreshWorkspace,
   setActiveMatter,
+  setResumeMatterName,
   switchToMatter,
 });
 
@@ -263,14 +290,13 @@ async function bootstrap() {
     ctx.renderFirstRun(config.defaultMattersHome);
     return;
   }
-  await loadMattersList();
+  const resumeMatterName = config.activeMatterName || "";
   if (config.hasActiveMatter) {
-    await refreshWorkspace({ silent: true });
-    return;
+    await postJson("/api/active-matter/clear");
   }
-  if (mattersState.matters.length === 1) {
-    await switchToMatter(mattersState.matters[0].name);
-    return;
+  await loadMattersList();
+  if (resumeMatterName && mattersState.matters.some((matter) => matter.name === resumeMatterName)) {
+    mattersState = mattersStore.merge({ resumeMatterName });
   }
   ctx.renderBlankLanding();
 }

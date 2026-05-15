@@ -180,7 +180,9 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /No store integrity issues observed/);
   assert.match(html, /Copy Health Report/);
   assert.match(html, /data-skill-factory-copy-health/);
-  assert.match(html, /Saved Ideas/);
+  assert.match(html, /What skills can you use, and what ideas are still being developed/);
+  assert.match(html, /Your Skills/);
+  assert.match(html, /Ideas/);
   assert.match(html, /create a skill to summarize pleadings/);
   assert.match(html, /new skill bundle exhibits/);
   assert.match(html, /Design brief/);
@@ -205,19 +207,10 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Dismiss/);
   assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
-  assert.match(html, /Custom Skills/);
-  assert.match(html, /The visible skill name includes its version/);
-  assert.match(html, /The slash command stays stable and runs the latest approved version/);
-  assert.match(html, /Paid AI Skills/);
-  assert.match(html, /Deterministic Skills/);
-  assert.match(html, /Coming Later: Skill Builder Expansion/);
+  assert.match(html, /Code-backed capabilities that ship with the app/);
+  assert.match(html, /Only the latest approved version is shown as runnable/);
   assert.match(html, /\/extract/);
   assert.match(html, /\/create_listofdates/);
-  assert.match(html, /Paid\/provider-backed/);
-  assert.match(html, /Deterministic\/local/);
-  assert.match(html, /10_Library\/List of Dates\.md/);
-  assert.match(html, /Friendli/);
-  assert.match(html, /openai\/gpt-4\.1/);
   assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
 });
 
@@ -329,21 +322,21 @@ test("skills page renders active custom skills as active", () => {
     },
   }, escapeHtml);
   const customSection = html.slice(
-    html.indexOf("<h2>Custom Skills"),
-    html.indexOf("<h2>Built-in Skills"),
+    html.indexOf("<h2>Your Skills"),
+    html.indexOf("<h2>Ideas"),
   );
 
-  assert.match(html, /Custom Skills/);
+  assert.match(html, /Your Skills/);
   assert.match(html, /\/party_officer_map/);
   assert.match(html, /Party and Officer Map/);
   assert.match(html, /Active/);
   assert.match(html, /20_Workshop\/Party and Officer Map\.md/);
-  assert.match(customSection, /Suggested improvements/);
-  assert.match(customSection, /include relationship confidence and unresolved aliases/);
-  assert.match(customSection, /Ayesha Vs Japan Airlines/);
-  assert.match(customSection, /href="#skill-idea-idea_improve_party"/);
-  assert.match(customSection, /data-skill-idea-copy-packet data-skill-idea-id="idea_improve_party"/);
-  assert.match(customSection, /data-skill-idea-status="dismissed"/);
+  assert.match(customSection, /data-skill-card-command="\/party_officer_map"/);
+  assert.match(customSection, /data-skill-card-command="\/party_officer_map modify"/);
+  assert.match(html, /include relationship confidence and unresolved aliases/);
+  assert.match(html, /Ayesha Vs Japan Airlines/);
+  assert.match(html, /data-skill-idea-copy-packet data-skill-idea-id="idea_improve_party"/);
+  assert.match(html, /data-skill-idea-status="dismissed"/);
   assert.doesNotMatch(customSection, /add deeper rules/);
   assert.doesNotMatch(html, /Recent runs/);
   assert.doesNotMatch(html, /Copy Latest Run Report/);
@@ -394,16 +387,16 @@ test("skills page promotes latest duplicate custom skill and keeps older copy in
     configurableSkills,
   }, escapeHtml);
   const customSection = html.slice(
-    html.indexOf("<h2>Custom Skills"),
-    html.indexOf("<h2>Built-in Skills"),
+    html.indexOf("<h2>Your Skills"),
+    html.indexOf("<h2>Ideas"),
   );
 
   assert.equal(summary.custom.length, 1);
   assert.equal(summary.allCustom.length, 2);
   assert.equal(summary.custom[0].slash, "/party_officer_map_2");
-  assert.match(customSection, /<div class="skill-slash"><code>\/party_officer_map_2<\/code><\/div>/);
-  assert.match(customSection, /<h3>Party and Officer Map v1<\/h3>/);
-  assert.doesNotMatch(customSection, /<div class="skill-slash"><code>\/party_officer_map<\/code><\/div>/);
+  assert.match(customSection, /data-skill-card-command="\/party_officer_map_2"/);
+  assert.match(customSection, /<h3>Party and Officer Map<\/h3>/);
+  assert.doesNotMatch(customSection, /data-skill-card-command="\/party_officer_map"/);
   assert.match(customSection, /<strong>v1 - Superseded<\/strong>/);
   assert.match(customSection, /Latest runnable version: Party and Officer Map v1\. Type <code>\/party_officer_map_2<\/code> to run it/);
 });
@@ -514,8 +507,8 @@ test("skills page renders custom skill version lineage from configurable store",
     },
   }, escapeHtml);
   const customSection = html.slice(
-    html.indexOf("<h2>Custom Skills"),
-    html.indexOf("<h2>Built-in Skills"),
+    html.indexOf("<h2>Your Skills"),
+    html.indexOf("<h2>Ideas"),
   );
 
   assert.equal(summary.custom.length, 1);
@@ -525,11 +518,9 @@ test("skills page renders custom skill version lineage from configurable store",
   ]);
   assert.match(customSection, /Active/);
   assert.match(customSection, /Disabled/);
-  assert.match(customSection, /<dt>Version<\/dt><dd>v2<\/dd>/);
-  assert.match(customSection, /<h3>Party and Officer Map v2<\/h3>/);
+  assert.match(customSection, /<span>v2<\/span>/);
+  assert.match(customSection, /<h3>Party and Officer Map<\/h3>/);
   assert.match(customSection, /<strong>v1 - Disabled<\/strong>/);
-  assert.match(customSection, /<dt>Previous<\/dt><dd>v1 \(disabled\)<\/dd>/);
-  assert.doesNotMatch(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
   assert.match(customSection, /Version history/);
   assert.match(customSection, /Latest runnable version: Party and Officer Map v2\. Type <code>\/party_officer_map<\/code> to run it/);
   assert.match(customSection, /\/party_officer_map modify/);
@@ -588,13 +579,23 @@ test("activity page renders custom skill run receipts separately from skills gov
   const html = renderActivityPageHtml({
     configurableSkillRuns: runs,
     activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
+    activityLogText: [
+      "19:24:00 [landing] 13 matter(s) available",
+      "19:24:01 [activity] viewing custom skill runs",
+    ].join("\n"),
   }, escapeHtml);
 
   assert.equal(summary.total, 2);
   assert.equal(summary.succeeded, 1);
   assert.equal(summary.cancelled, 1);
   assert.match(html, /Activity/);
-  assert.match(html, /Custom Skill Runs/);
+  assert.match(html, /What ran, what it produced, and whether it worked/);
+  assert.match(html, /1 completed/);
+  assert.match(html, /1 cancelled/);
+  assert.match(html, /Work Completed/);
+  assert.match(html, /Work product stays in the matter folder\. This history stores receipts\./);
+  assert.match(html, /Cancelled Runs/);
+  assert.match(html, /<details class="activity-cancelled-runs">/);
   assert.match(html, /Party and Officer Map/);
   assert.match(html, /Ayesha Vs Japan Airlines/);
   assert.match(html, /Mehta vs Skyline/);
@@ -606,6 +607,9 @@ test("activity page renders custom skill run receipts separately from skills gov
   assert.match(html, /data-configurable-run-copy="run_party_1"/);
   assert.match(html, /Details/);
   assert.match(html, /openai-direct \/ gpt-5\.4/);
+  assert.match(html, /System Log/);
+  assert.match(html, /19:24:01 \[activity\] viewing custom skill runs/);
+  assert.doesNotMatch(html, />Total</);
   assert.doesNotMatch(html, /API_KEY|\.env|raw source text|# should not appear/i);
 });
 

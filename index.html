@@ -5,27 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Matter Workbench</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=matter-search-1" />
+    <link rel="stylesheet" href="styles.css?v=hide-shell-console-v1" />
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell home-mode">
       <aside class="activity-bar">
-        <div class="activity-logo">Workbench</div>
-        <button id="activityExplorer" class="activity-item active" type="button" title="Matters">Matters</button>
-        <button id="activitySkills" class="activity-item" type="button" title="Skills">Skills</button>
-        <button id="activityActivity" class="activity-item" type="button" title="Activity">Activity</button>
-        <button id="activitySettings" class="activity-item" type="button" title="Settings">Settings</button>
+        <div class="activity-logo">
+          <strong>Matter</strong>
+          <span>Workbench</span>
+        </div>
+        <button id="activityExplorer" class="activity-item active" type="button" title="Home">
+          <span class="activity-icon" aria-hidden="true">⌂</span>
+          <span class="activity-label">Home</span>
+        </button>
+        <button id="activitySkills" class="activity-item" type="button" title="Skills">
+          <span class="activity-icon" aria-hidden="true">✦</span>
+          <span class="activity-label">Skills</span>
+        </button>
+        <button id="activityActivity" class="activity-item" type="button" title="Activity">
+          <span class="activity-icon" aria-hidden="true">◔</span>
+          <span class="activity-label">Activity</span>
+        </button>
+        <button id="activitySettings" class="activity-item" type="button" title="Settings">
+          <span class="activity-icon" aria-hidden="true">⚙</span>
+          <span class="activity-label">Settings</span>
+        </button>
         <div class="activity-spacer"></div>
       </aside>
 
       <aside class="sidebar">
         <div class="sidebar-header">
-          <span class="sidebar-title">Matters</span>
+          <span class="sidebar-title">Home</span>
         </div>
 
         <section id="mattersPicker" class="matters-picker" hidden>
           <div class="tree-heading-row">
-            <div class="tree-heading">Matters</div>
             <button id="newMatterButton" class="sidebar-action primary" type="button">+ New Matter</button>
           </div>
           <div class="matter-search">
@@ -42,7 +56,7 @@
           <ul id="mattersList" class="matters-list"></ul>
         </section>
 
-        <details class="slash-section matter-actions-section">
+        <details id="matterActionsSection" class="slash-section matter-actions-section" hidden>
           <summary class="matter-actions-summary">
             <span class="tree-heading">Matter Actions</span>
             <span class="matter-actions-count">8 actions</span>
@@ -83,7 +97,7 @@
           </div>
         </details>
 
-        <div class="tree-section">
+        <div id="matterFilesSection" class="tree-section" hidden>
           <div class="tree-heading-row">
             <div class="tree-heading">Matter files</div>
             <div class="tree-actions">
@@ -137,13 +151,13 @@
                 <h2>What do you need?</h2>
               </div>
             </div>
-            <p class="command-panel-copy">
-              Ask about this matter, run a skill, or search documents.
+            <p id="aiCommandCopyText" class="command-panel-copy">
+              Ask a general question, create a skill, or pick a matter first.
             </p>
-            <div class="command-panel-examples" aria-label="Command examples">
-              <code>find payment receipts</code>
-              <code>prepare matter</code>
+            <div id="aiCommandExamples" class="command-panel-examples" aria-label="Command examples">
               <code>new skill</code>
+              <code>find a matter</code>
+              <code>prepare matter</code>
             </div>
             <form id="aiCommandForm" class="ai-command-form" autocomplete="off">
               <label class="command-panel-label" for="aiCommandInput">Ask or run</label>
@@ -151,13 +165,20 @@
                 <input
                   id="aiCommandInput"
                   type="text"
-                  placeholder="Ask about this matter, run a skill, or search documents"
+                  placeholder="Ask a general question, create a skill, or pick a matter first"
                   spellcheck="true"
                 />
-                <button id="aiCommandSubmit" type="submit">Go</button>
+                <button id="aiCommandSubmit" type="submit" aria-label="Run" title="Run">→</button>
               </div>
               <div id="aiCommandSuggestions" class="command-suggestions" role="listbox" hidden></div>
             </form>
+            <div
+              id="aiCommandActivityStrip"
+              class="command-activity-strip"
+              aria-label="Recent command activity"
+              aria-live="polite"
+              hidden
+            ></div>
             <div id="aiCommandSession" class="command-panel-session" hidden></div>
             <div class="command-panel-actions">
               <button id="aiCommandCopyReport" type="button" class="secondary" disabled hidden>Copy Report</button>
@@ -181,6 +202,6 @@
       </main>
     </div>
 
-    <script type="module" src="app.js?v=matter-search-1"></script>
+    <script type="module" src="app.js?v=hide-shell-console-v1"></script>
   </body>
  </html>

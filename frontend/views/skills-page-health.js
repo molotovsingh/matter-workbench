@@ -31,20 +31,23 @@ export function formatSkillFactoryHealthReport(health = {}) {
   return `${lines.join("\n")}\n`;
 }
 
-export function renderSkillFactoryHealth(health, escape) {
+export function renderSkillFactoryHealth(health, escape, { collapsed = false } = {}) {
   if (!health) {
-    return `
+    const unavailable = `
       <section class="skills-future-card">
         <h2>Skill Factory Health</h2>
         <p class="muted">Health check unavailable.</p>
       </section>
     `;
+    return collapsed
+      ? `<details class="skills-admin-details"><summary><span>Skill Factory Health</span><span class="pipeline-state not-run">Unknown</span></summary>${unavailable}</details>`
+      : unavailable;
   }
   const summary = health.summary || {};
   const state = health.state || "unknown";
   const issues = Array.isArray(health.issues) ? health.issues : [];
   const checks = Array.isArray(health.checks) ? health.checks : [];
-  return `
+  const body = `
     <section class="skills-future-card">
       <div class="skill-card-header">
         <div>
@@ -86,6 +89,16 @@ export function renderSkillFactoryHealth(health, escape) {
         <span class="artifact-action-status muted" data-skill-factory-copy-health-status></span>
       </div>
     </section>
+  `;
+  if (!collapsed) return body;
+  return `
+    <details class="skills-admin-details">
+      <summary>
+        <span>Skill Factory Health</span>
+        <span class="pipeline-state ${escape(healthStateClass(state))}">${escape(healthStateLabel(state))}</span>
+      </summary>
+      ${body}
+    </details>
   `;
 }
 

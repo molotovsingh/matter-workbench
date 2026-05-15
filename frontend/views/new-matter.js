@@ -5,41 +5,62 @@ import { collectFilesFromDataTransfer, collectFilesFromInput, hashFile } from ".
 export function renderNewMatterForm(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
   ctx.setActivityActive("explorer");
-  breadcrumbs.textContent = "workbench > new matter";
+  breadcrumbs.textContent = "Home > New Matter";
   ctx.setStatus({
     mood: "idle",
-    card: "<strong>New matter</strong><br />Fill the form, attach files or a folder, then click Create & Initialize.",
+    card: "<strong>New matter</strong><br />Fill in the basics, attach initial files or a folder, then click Create & Initialize.",
     bar: "New Matter",
     terminal: "[new-matter] form ready",
   });
   editorContent.innerHTML = `
-    <h1>New matter</h1>
-    <form class="new-matter-form" id="newMatterForm">
-      <label>
+    <section class="matter-intake-shell">
+      <div class="matter-overview-hero matter-intake-hero">
+        <div class="landing-kicker">New matter</div>
+        <h1>New Matter</h1>
+        <p>Fill in the basics and attach the first documents. More files can be added later.</p>
+      </div>
+      <form class="new-matter-form matter-intake-form" id="newMatterForm">
+      <label class="matter-intake-field matter-intake-name">
         <span>Matter name *</span>
         <input type="text" id="nmName" required spellcheck="false" autocomplete="off" />
       </label>
-      <label>
-        <span>Client name *</span>
-        <input type="text" id="nmClient" required />
-      </label>
-      <label>
-        <span>Opposite party *</span>
-        <input type="text" id="nmOpposite" required />
-      </label>
-      <label>
-        <span>Matter type *</span>
-        <input type="text" id="nmType" required />
-      </label>
-      <label>
-        <span>Jurisdiction *</span>
-        <input type="text" id="nmJurisdiction" required />
-      </label>
-      <label>
-        <span>Brief description</span>
-        <textarea id="nmBrief"></textarea>
-      </label>
-      <div class="drop-zone" id="nmDropZone">
+
+      <section class="matter-intake-section" aria-labelledby="matterIntakeParties">
+        <h2 id="matterIntakeParties">Parties</h2>
+        <div class="matter-intake-grid">
+          <label class="matter-intake-field">
+            <span>Client name *</span>
+            <input type="text" id="nmClient" required />
+          </label>
+          <label class="matter-intake-field">
+            <span>Opposite party *</span>
+            <input type="text" id="nmOpposite" required />
+          </label>
+        </div>
+      </section>
+
+      <section class="matter-intake-section" aria-labelledby="matterIntakeDetails">
+        <h2 id="matterIntakeDetails">Matter details</h2>
+        <div class="matter-intake-grid">
+          <label class="matter-intake-field">
+            <span>Matter type *</span>
+            <input type="text" id="nmType" required />
+          </label>
+          <label class="matter-intake-field">
+            <span>Jurisdiction *</span>
+            <input type="text" id="nmJurisdiction" required />
+          </label>
+        </div>
+        <label class="matter-intake-field">
+          <span>Brief description</span>
+          <textarea id="nmBrief"></textarea>
+          <small>Include the dispute, key dates, forum, and what outcome the client wants.</small>
+        </label>
+      </section>
+
+      <section class="matter-intake-section" aria-labelledby="matterIntakeFiles">
+        <h2 id="matterIntakeFiles">Initial files</h2>
+        <div class="drop-zone" id="nmDropZone">
         <div>Drag files or a folder here</div>
         <div class="drop-actions">
           <button type="button" id="nmPickFiles">Pick Files</button>
@@ -47,7 +68,9 @@ export function renderNewMatterForm(ctx) {
         </div>
         <input type="file" id="nmFilesInput" multiple hidden />
         <input type="file" id="nmFolderInput" webkitdirectory multiple hidden />
-      </div>
+        </div>
+        <p class="matter-intake-hint">These files will be classified and indexed when the matter is prepared.</p>
+      </section>
       <ul class="file-list" id="nmFileList" hidden></ul>
       <div id="nmOverlap" class="form-warning" hidden></div>
       <div class="form-actions">
@@ -55,7 +78,8 @@ export function renderNewMatterForm(ctx) {
         <button type="button" class="secondary" id="nmCancel">Cancel</button>
       </div>
       <div id="nmError" class="form-error" hidden></div>
-    </form>
+      </form>
+    </section>
   `;
 
   let pendingFiles = [];
@@ -148,7 +172,6 @@ export function renderNewMatterForm(ctx) {
 
   document.getElementById("nmCancel").addEventListener("click", () => {
     const activeMatter = ctx.getActiveMatter();
-    const mattersState = ctx.getMattersState();
     if (activeMatter.folderName) {
       ctx.renderSkillOverview();
       ctx.setStatus({
@@ -157,10 +180,6 @@ export function renderNewMatterForm(ctx) {
         bar: "Skill Ready",
         terminal: `[matter] returned to ${activeMatter.folderName}`,
       });
-      return;
-    }
-    if (mattersState.matters.length === 1) {
-      ctx.switchToMatter(mattersState.matters[0].name);
       return;
     }
     ctx.renderBlankLanding();
@@ -249,7 +268,7 @@ export function renderNewMatterForm(ctx) {
     } catch (error) {
       const isDuplicate = error.statusCode === 409 && /already exists/i.test(error.message);
       if (isDuplicate) {
-        errorBox.innerHTML = `<strong>A matter named <code>${escapeHtml(name)}</code> already exists.</strong> Open it from the Matters list in the sidebar, or change the name above to create a new one.`;
+        errorBox.innerHTML = `<strong>A matter named <code>${escapeHtml(name)}</code> already exists.</strong> Open it from Home search, or change the name above to create a new one.`;
       } else {
         errorBox.textContent = error.message;
       }
@@ -260,7 +279,7 @@ export function renderNewMatterForm(ctx) {
       ctx.setStatus({
         mood: "idle",
         card: isDuplicate
-          ? `<strong>Name in use</strong><br /><code>${escapeHtml(name)}</code> is already a matter. Pick it from the sidebar or rename above.`
+          ? `<strong>Name in use</strong><br /><code>${escapeHtml(name)}</code> is already a matter. Pick it from Home or rename above.`
           : `<strong>Create failed</strong><br />${escapeHtml(error.message)}`,
         bar: isDuplicate ? "Name In Use" : "Create Failed",
         terminal: `[new-matter] ${isDuplicate ? "name in use" : "failed"}: ${error.message}`,

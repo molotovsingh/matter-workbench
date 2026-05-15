@@ -10,13 +10,88 @@ import {
   statusLabel,
 } from "./skills-page-saved-ideas.js";
 
-export function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = null } = {}) {
+export function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = null, variant = "cards" } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
   const customSkillContext = Array.isArray(allCustomSkills) ? allCustomSkills : skills;
+  if (variant === "active-custom") {
+    return `
+      <div class="active-custom-skills-list">
+        ${skills.map((skill) => renderActiveCustomSkillCard(skill, escape, { improvementIdeas, configurableSkillRuns, allCustomSkills: customSkillContext })).join("")}
+      </div>
+    `;
+  }
+  if (variant === "builtin-list") {
+    return `
+      <div class="builtin-skills-list">
+        ${skills.map((skill) => renderBuiltinSkillRow(skill, escape)).join("")}
+      </div>
+    `;
+  }
   return `
     <div class="skills-grid">
       ${skills.map((skill) => renderSkillCard(skill, escape, { improvementIdeas, configurableSkillRuns, allCustomSkills: customSkillContext })).join("")}
     </div>
+  `;
+}
+
+function renderActiveCustomSkillCard(skill, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = [] } = {}) {
+  const outputs = Array.isArray(skill.outputs) && skill.outputs.length
+    ? skill.outputs
+    : ["No durable output declared"];
+  const output = outputs[0] || "";
+  const versions = customSkillFamilyVersions(skill, allCustomSkills);
+  const familyRuns = customSkillRunsForFamily(skill, versions, configurableSkillRuns);
+  const latestRun = familyRuns[0] || null;
+  const slash = skill.slash || "";
+  const improveCommand = `${slash} modify`;
+  return `
+    <article class="active-custom-skill-card">
+      <div class="active-custom-skill-header">
+        <div class="active-custom-skill-title">
+          <h3>${escape(customSkillBaseTitle(skill))}</h3>
+          <span>${escape(customSkillVersionLabel(skill))}</span>
+        </div>
+        <span class="pipeline-state ${escape(customSkillDisplayStatusClass(skill))}">${escape(customSkillDisplayStatusLabel(skill))}</span>
+      </div>
+      <p>${escape(skill.purpose || "No description provided.")}</p>
+      <div class="active-custom-skill-path">
+        <code>${escape(slash)}</code>
+        <span>→</span>
+        <span>${output ? `<code>${escape(output)}</code>` : '<span class="muted">No output declared</span>'}</span>
+      </div>
+      <div class="active-custom-skill-run">
+        ${latestRun
+          ? `Last run: ${escape(latestRun.matterName || latestRun.matterFolder || "Unknown matter")} - <strong>${escape(runStatusLabel(latestRun.status))}</strong>${latestRun.startedAt || latestRun.finishedAt ? ` <span>${escape(formatRunTime(latestRun.startedAt || latestRun.finishedAt))}</span>` : ""}`
+          : "No runs recorded"}
+      </div>
+      <div class="active-custom-skill-actions">
+        <button type="button" data-skill-card-command="${escape(slash)}">Run</button>
+        <button type="button" class="secondary" data-skill-card-command="${escape(improveCommand)}">Improve</button>
+      </div>
+      ${renderCustomSkillVersionHistory(skill, allCustomSkills, improvementIdeas, configurableSkillRuns, escape, { open: false })}
+    </article>
+  `;
+}
+
+function renderBuiltinSkillRow(skill, escape) {
+  const status = skill.artifactStatus;
+  const state = status
+    ? status.present
+      ? "Present"
+      : "Not run"
+    : skill.matter_required
+      ? "No artifact status"
+      : "Workspace-level";
+  const stateClass = status?.present ? "present" : "not-run";
+  return `
+    <article class="builtin-skill-row">
+      <code>${escape(skill.slash || "")}</code>
+      <div>
+        <h3>${escape(skill.title || skill.id || skill.slash || "Skill")}</h3>
+        <p>${escape(skill.purpose || "No description provided.")}</p>
+      </div>
+      <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
+    </article>
   `;
 }
 
@@ -83,14 +158,14 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
   `;
 }
 
-function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, escape) {
+function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, escape, { open = skill.status === "active" } = {}) {
   const versions = customSkillFamilyVersions(skill, allCustomSkills);
   if (!versions.length) return "";
   const activeVersion = versions.find((candidate) => candidate.status === "active") || versions[0];
   const familyRuns = customSkillRunsForFamily(skill, versions, runs);
   const latestRun = familyRuns[0] || null;
   return `
-    <details class="skill-output-list custom-skill-version-history" ${skill.status === "active" ? "open" : ""}>
+    <details class="skill-output-list custom-skill-version-history" ${open ? "open" : ""}>
       <summary>
         <strong>Version history</strong>
         <span class="pipeline-state ${escape(customSkillDisplayStatusClass(activeVersion))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillDisplayStatusLabel(activeVersion).toLowerCase()}`)}</span>
@@ -162,6 +237,11 @@ function customSkillDisplayName(skill = {}) {
   return formatConfigurableSkillDisplayName(skill);
 }
 
+function customSkillBaseTitle(skill = {}) {
+  const title = String(skill.title || skill.slash || "Custom Skill").trim() || "Custom Skill";
+  return title.replace(/\s+v\d+\s*$/i, "");
+}
+
 function customSkillLinkedVersionLabel(skillId, allCustomSkills) {
   const linked = Array.isArray(allCustomSkills)
     ? allCustomSkills.find((skill) => skill.id === skillId)
@@ -227,6 +307,12 @@ function runStatusLabel(status) {
   if (status === "cancelled") return "Cancelled";
   if (status === "running") return "Running";
   return status || "Unknown";
+}
+
+function formatRunTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "");
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function renderCustomSkillImprovementIdea(skill, idea, escape) {

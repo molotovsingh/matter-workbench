@@ -86,7 +86,7 @@ export function createMatterInitSkill(ctx) {
         <div class="run-failure-card">
           <strong>matter-init can't run yet</strong>
           Missing required metadata: ${escapeHtml(missingMetadata.join(", "))}.<br />
-          Edit <code>matter.json</code> on disk and click Refresh, or recreate this matter via <code>+ New Matter</code>.
+          Edit <code>matter.json</code> on disk and click Refresh, or recreate this matter via <code>Add new matter</code>.
         </div>
       `;
       return;

@@ -50,7 +50,7 @@ export function wireAppEvents(ctx, skills) {
         }
         ctx.setStatus({
           bar: "No matter selected",
-          terminal: "[skills] no matter loaded; pick one from the sidebar",
+          terminal: "[skills] no matter loaded; pick one from Home",
         });
         return;
       }

@@ -50,7 +50,7 @@ export function createListOfDatesSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /create_listofdates.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /create_listofdates.",
         bar: "No Matter",
         terminal: "[listofdates] no active matter",
       });

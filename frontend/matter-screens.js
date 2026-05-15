@@ -1,6 +1,8 @@
 import { getJson, postJson } from "./api-client.js";
 import { writeClipboardText } from "./clipboard.js";
 import { escapeHtml } from "./dom-utils.js";
+import { setShellMatterMode } from "./shell-presentation.js";
+import { renderNewMatterForm } from "./views/new-matter.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 import { renderActivityPageHtml } from "./views/activity-page.js";
 import {
@@ -37,21 +39,21 @@ export function createMatterScreens(ctx) {
 
   function renderMattersList() {
     const mattersState = ctx.getMattersState();
+    if (mattersPicker) mattersPicker.hidden = true;
     if (!mattersState.enabled) {
-      mattersPicker.hidden = true;
       mattersList.innerHTML = "";
       if (mattersSearchInput) mattersSearchInput.value = "";
       if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
     }
-    mattersPicker.hidden = false;
+    if (!mattersSearchInput && !mattersSearchMeta && !mattersList) return;
     syncMatterSearchInput();
     if (!mattersState.matters.length) {
-      mattersList.innerHTML = '<li class="matters-empty">No matters yet. Click + New Matter to add your first.</li>';
+      mattersList.innerHTML = '<li class="matters-empty">No matters yet. Click Add new matter to add your first.</li>';
       if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
     }
-    if (mattersState.active && !matterSearchQuery) {
+    if (!matterSearchQuery) {
       mattersList.innerHTML = "";
       if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
@@ -99,6 +101,22 @@ export function createMatterScreens(ctx) {
     return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
+  function timeAwareGreeting(date = new Date()) {
+    const hour = date.getHours();
+    if (hour < 12) return "Good morning.";
+    if (hour < 17) return "Good afternoon.";
+    return "Good evening.";
+  }
+
+  function latestActivityLines(text = "") {
+    return String(text || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(-4)
+      .reverse();
+  }
+
   async function renderSettings() {
     setActivityActive("settings");
     const mattersState = ctx.getMattersState();
@@ -124,24 +142,46 @@ export function createMatterScreens(ctx) {
     } catch (error) {
       skillRegistryError = error.message;
     }
+    const readyStatus = getSettingsReadyStatus({ aiSettings, aiSettingsError, skillRegistryError });
+    const skillCount = Array.isArray(skillRegistry?.skills) ? skillRegistry.skills.length : 0;
     editorContent.innerHTML = `
-      <h1>Settings</h1>
-      <h2>Matters home</h2>
-      <p>The folder where your matters live. Each subfolder under this path is one matter.</p>
-      <form class="new-matter-form" id="settingsForm">
-        <label>
-          <span>Path</span>
-          <input type="text" id="settingsMattersHome" value="${escapeHtml(currentHome)}" spellcheck="false" autocomplete="off" />
-        </label>
-        <p style="color:#9aa0a6;font-size:12px;">Changing this reloads the matters list. Existing matters at the old location are untouched on disk; they just stop appearing in the sidebar until you point back at that folder.</p>
-        <div class="form-actions">
-          <button type="submit" id="settingsSubmit">Save</button>
-          <button type="button" class="secondary" id="settingsCancel">Cancel</button>
+      <div class="settings-page">
+        <div class="settings-hero">
+          <div>
+            <h1>Settings</h1>
+            <p>Workspace path, AI provider configuration, and skill routing.</p>
+          </div>
+          <div class="settings-ready-status ${readyStatus.ready ? "ready" : "error"}">
+            <span class="settings-ready-dot" aria-hidden="true"></span>
+            <span>${escapeHtml(readyStatus.label)}</span>
+          </div>
         </div>
-        <div id="settingsError" class="form-error" hidden></div>
-      </form>
-      ${renderAiSettingsForm(aiSettings, aiSettingsError)}
-      ${renderSkillRouterPanel(skillRegistry, skillRegistryError)}
+
+        <section class="settings-section">
+          <h2>Matters Home</h2>
+          <p class="muted">The folder where your matters live. Each subfolder under this path is one matter.</p>
+          <form class="new-matter-form settings-card" id="settingsForm">
+            <label>
+              <span>Path</span>
+              <input type="text" id="settingsMattersHome" value="${escapeHtml(currentHome)}" spellcheck="false" autocomplete="off" />
+            </label>
+            <p class="form-note">Changing this reloads the matters list. Existing matters at the old location are untouched on disk; they just stop appearing on Home until you point back at that folder.</p>
+            <div class="form-actions">
+              <button type="submit" id="settingsSubmit">Save</button>
+              <button type="button" class="secondary" id="settingsCancel">Cancel</button>
+            </div>
+            <div id="settingsError" class="form-error" hidden></div>
+          </form>
+        </section>
+
+        ${renderAiSettingsForm(aiSettings, aiSettingsError)}
+        ${renderSettingsAdminDetails({
+          title: "Skill Router",
+          badge: skillRegistryError ? "Error" : `${skillCount} skills`,
+          tone: skillRegistryError ? "needs-setup" : "ready",
+          body: renderSkillRouterPanel(skillRegistry, skillRegistryError),
+        })}
+      </div>
     `;
     const form = document.getElementById("settingsForm");
     const input = document.getElementById("settingsMattersHome");
@@ -246,10 +286,22 @@ export function createMatterScreens(ctx) {
       configurableSkillRunsError,
       activeMatter: ctx.getActiveMatter(),
     }, escapeHtml);
+    wireSkillsPageCommandActions();
     wireSkillFactoryHealthActions({ skillFactoryHealth });
     wireSkillIdeaActions({
       ideas: skillIdeas?.ideas || [],
       registry,
+    });
+  }
+
+  function wireSkillsPageCommandActions() {
+    editorContent.querySelectorAll?.("[data-skill-card-command]")?.forEach((button) => {
+      button.addEventListener("click", () => {
+        const command = button.dataset.skillCardCommand || "";
+        if (!command) return;
+        if (ctx.elements.aiCommandInput) ctx.elements.aiCommandInput.value = command;
+        ctx.runCommand?.(command);
+      });
     });
   }
 
@@ -278,6 +330,7 @@ export function createMatterScreens(ctx) {
       configurableSkillRuns,
       configurableSkillRunsError,
       activeMatter: ctx.getActiveMatter(),
+      activityLogText: ctx.elements.terminalOutput?.textContent || "",
     }, escapeHtml);
     wireConfigurableSkillRunActions({ configurableSkillRuns });
   }
@@ -561,20 +614,108 @@ export function createMatterScreens(ctx) {
   function renderBlankLanding() {
     setActivityActive("explorer");
     ctx.clearActiveMatter();
-    if (addFilesButton) addFilesButton.hidden = true;
+    setShellMatterMode(ctx.elements, false);
     if (ctx.elements.titleText) ctx.elements.titleText.textContent = "No matter selected";
     if (ctx.elements.bottomMeta) ctx.elements.bottomMeta.textContent = "No matter selected";
-    workspaceTree.innerHTML = '<li class="tree-node">Pick a matter from the sidebar.</li>';
-    breadcrumbs.textContent = "No matter selected";
+    matterSearchQuery = "";
+    if (mattersSearchInput) mattersSearchInput.value = "";
+    if (mattersSearchMeta) mattersSearchMeta.textContent = "";
+    if (mattersList) mattersList.innerHTML = "";
+    workspaceTree.innerHTML = "";
+    breadcrumbs.textContent = "Home";
     const mattersState = ctx.getMattersState();
     const hasMatters = mattersState.matters.length > 0;
+    const resumeMatterName = mattersState.resumeMatterName || "";
+    const canResume = Boolean(
+      resumeMatterName && mattersState.matters.some((matter) => matter.name === resumeMatterName),
+    );
+    const availableMatters = mattersState.matters.slice(0, 3);
+    const recentActivityLines = latestActivityLines(ctx.elements.terminalOutput?.textContent || "");
+    const greeting = timeAwareGreeting();
     editorContent.innerHTML = `
-      <h1>No matter selected</h1>
-      <p>
-        ${hasMatters
-          ? `You have <strong>${mattersState.matters.length}</strong> matter${mattersState.matters.length === 1 ? "" : "s"} available. Pick a matter from the sidebar to begin.`
-          : "No matters yet. Click <code>+ New Matter</code> in the sidebar to create your first."}
-      </p>
+      <section class="landing-home">
+        <div class="landing-kicker">Home</div>
+        <h1>${escapeHtml(greeting)}</h1>
+        <p class="landing-lede">
+          ${hasMatters
+            ? "Choose a matter to begin, or use the assistant to prepare documents, search cases, or run an action."
+            : "Create your first matter to begin."}
+        </p>
+        ${canResume ? `
+          <button id="continueLastMatterButton" class="home-continue-card" type="button">
+            <span class="home-card-kicker">Continue where you left off</span>
+            <strong>${escapeHtml(resumeMatterName)}</strong>
+            <span>Open this matter</span>
+            <span class="home-continue-arrow" aria-hidden="true">→</span>
+          </button>
+        ` : ""}
+        <div class="home-dashboard-grid">
+          <section class="home-card">
+            <div class="home-card-header">
+              <h2>Available matters</h2>
+              <span>${mattersState.matters.length} total</span>
+            </div>
+            ${availableMatters.length ? `
+              <ul class="home-matter-list">
+                ${availableMatters.map((matter) => `
+                  <li>
+                    <button type="button" data-home-matter-name="${escapeHtml(matter.name)}">
+                      <span class="home-matter-dot" aria-hidden="true"></span>
+                      <strong>${escapeHtml(matter.name)}</strong>
+                    </button>
+                  </li>
+                `).join("")}
+              </ul>
+            ` : '<p class="muted">No matters yet.</p>'}
+            <button id="homeViewAllMattersButton" class="home-card-link" type="button">View all matters →</button>
+          </section>
+          <section class="home-card">
+            <div class="home-card-header">
+              <h2>Quick actions</h2>
+            </div>
+            <div class="home-quick-actions">
+              <button id="homeFindMatterAction" type="button">
+                <strong>Find a matter</strong>
+                <span>Search by client, party, or matter name</span>
+              </button>
+              <button id="homeAddMatterAction" type="button">
+                <strong>Add new matter</strong>
+                <span>Create a new case folder</span>
+              </button>
+              <button id="homeNewSkillAction" type="button">
+                <strong>New skill</strong>
+                <span>Design a reusable matter action</span>
+              </button>
+              <button id="homePrepareMatterAction" type="button">
+                <strong>Prepare matter</strong>
+                <span>Check setup and run missing preparation</span>
+              </button>
+            </div>
+          </section>
+        </div>
+        <section id="homeMatterSearchPanel" class="home-matter-search-panel" hidden>
+          <label for="homeMatterSearchInput">Search existing matters</label>
+          <input
+            id="homeMatterSearchInput"
+            type="search"
+            placeholder="Type a client, party, or matter name"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div id="homeMatterSearchMeta" class="matter-search-meta">${hasMatters ? `Type to search ${mattersState.matters.length} matter${mattersState.matters.length === 1 ? "" : "s"}.` : "No matters are available yet."}</div>
+          <ul id="homeMattersList" class="home-matters-list matters-list"></ul>
+        </section>
+        <section class="home-card home-activity-card">
+          <div class="home-card-header">
+            <h2>Recent activity</h2>
+          </div>
+          ${recentActivityLines.length ? `
+            <ul class="home-activity-list">
+              ${recentActivityLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+            </ul>
+          ` : '<p class="muted">No activity yet. Pick a matter to begin.</p>'}
+        </section>
+      </section>
       ${mattersState.mattersHome ? `
         <details class="local-folder-details">
           <summary>Show local folder</summary>
@@ -582,10 +723,84 @@ export function createMatterScreens(ctx) {
         </details>
       ` : ""}
     `;
+    editorContent.scrollTop = 0;
+    globalThis.requestAnimationFrame?.(() => {
+      editorContent.scrollTop = 0;
+    });
+    globalThis.setTimeout?.(() => {
+      editorContent.scrollTop = 0;
+    }, 0);
+    document.getElementById("continueLastMatterButton")?.addEventListener("click", () => {
+      ctx.switchToMatter?.(resumeMatterName);
+    });
+    document.getElementById("homeAddMatterButton")?.addEventListener("click", () => {
+      renderNewMatterForm(ctx);
+    });
+    document.getElementById("homeAddMatterAction")?.addEventListener("click", () => {
+      renderNewMatterForm(ctx);
+    });
+    const homeSearchButton = document.getElementById("homeSearchMatterButton");
+    const homeViewAllMattersButton = document.getElementById("homeViewAllMattersButton");
+    const homeFindMatterAction = document.getElementById("homeFindMatterAction");
+    const homeSearchPanel = document.getElementById("homeMatterSearchPanel");
+    const homeSearchInput = document.getElementById("homeMatterSearchInput");
+    const homeSearchMeta = document.getElementById("homeMatterSearchMeta");
+    const homeMattersList = document.getElementById("homeMattersList");
+    const revealHomeSearch = () => {
+      if (!homeSearchPanel || !homeSearchInput) return;
+      homeSearchPanel.hidden = false;
+      homeSearchInput.focus();
+      renderHomeMatterResults(homeSearchInput.value);
+    };
+    const runHomeCommand = (command) => {
+      if (ctx.elements.aiCommandInput) ctx.elements.aiCommandInput.value = command;
+      ctx.runCommand?.(command);
+    };
+    const renderHomeMatterResults = (query = "") => {
+      const trimmedQuery = String(query || "").trim();
+      if (!trimmedQuery) {
+        homeMattersList.innerHTML = "";
+        homeSearchMeta.textContent = hasMatters
+          ? `Type to search ${mattersState.matters.length} matter${mattersState.matters.length === 1 ? "" : "s"}.`
+          : "No matters are available yet.";
+        return;
+      }
+      const filteredMatters = filterMatters(mattersState.matters, trimmedQuery);
+      homeSearchMeta.textContent = `${filteredMatters.length} of ${mattersState.matters.length} matters`;
+      if (!filteredMatters.length) {
+        homeMattersList.innerHTML = `<li class="matters-empty">No matters match "${escapeHtml(trimmedQuery)}".</li>`;
+        return;
+      }
+      homeMattersList.innerHTML = filteredMatters.map((matter) => (
+        `<li><button type="button" class="matters-entry" data-home-matter-name="${escapeHtml(matter.name)}">${escapeHtml(matter.name)}</button></li>`
+      )).join("");
+    };
+    editorContent.querySelectorAll?.("[data-home-matter-name]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const name = button.dataset.homeMatterName || "";
+        if (name) ctx.switchToMatter?.(name);
+      });
+    });
+    homeSearchButton?.addEventListener("click", revealHomeSearch);
+    homeViewAllMattersButton?.addEventListener("click", revealHomeSearch);
+    homeFindMatterAction?.addEventListener("click", revealHomeSearch);
+    document.getElementById("homeNewSkillAction")?.addEventListener("click", () => runHomeCommand("new skill"));
+    document.getElementById("homePrepareMatterAction")?.addEventListener("click", () => runHomeCommand("prepare matter"));
+    homeSearchInput?.addEventListener("input", (event) => {
+      renderHomeMatterResults(event.target.value);
+    });
+    homeMattersList?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-home-matter-name]");
+      const name = button?.dataset?.homeMatterName || "";
+      if (!name) return;
+      if (homeSearchInput) homeSearchInput.value = "";
+      homeMattersList.innerHTML = "";
+      ctx.switchToMatter?.(name);
+    });
     ctx.setStatus({
       mood: "idle",
       card: hasMatters
-        ? "<strong>Pick a matter</strong><br />Choose a matter from the sidebar to begin."
+        ? "<strong>Pick a matter</strong><br />Search existing matters or add a new one from Home."
         : "<strong>Ready</strong><br />Create your first matter to begin.",
       bar: "Pick a matter to begin",
       terminal: [
@@ -595,13 +810,25 @@ export function createMatterScreens(ctx) {
     });
   }
 
-  function goToExplorer() {
+  async function goToExplorer() {
     setActivityActive("explorer");
-    if (ctx.getActiveMatter().folderName) {
-      ctx.renderSkillOverview();
-    } else {
-      renderBlankLanding();
+    const currentMatterName = ctx.getActiveMatter().folderName || "";
+    if (currentMatterName) {
+      ctx.setResumeMatterName?.(currentMatterName);
+      try {
+        const clearServerActiveMatter = ctx.clearActiveMatterOnServer || (() => postJson("/api/active-matter/clear"));
+        await clearServerActiveMatter();
+      } catch (error) {
+        ctx.setStatus({
+          mood: "idle",
+          card: `<strong>Home unavailable</strong><br />${escapeHtml(error.message)}`,
+          bar: "Home Failed",
+          terminal: `[home] clear active matter failed: ${error.message}`,
+        });
+        return;
+      }
     }
+    renderBlankLanding();
   }
 
   return {
@@ -616,51 +843,87 @@ export function createMatterScreens(ctx) {
     setMatterSearchQuery,
   };
 
+  function getSettingsReadyStatus({ aiSettings, aiSettingsError, skillRegistryError }) {
+    const tasks = Array.isArray(aiSettings?.aiTasks) ? aiSettings.aiTasks : [];
+    const tasksReady = tasks.every((task) => task.ready !== false);
+    const apiKeyReady = aiSettings?.apiKeyConfigured !== false;
+    const ready = !aiSettingsError && !skillRegistryError && apiKeyReady && tasksReady;
+    return {
+      ready,
+      label: ready ? "All systems ready" : "Configuration issues",
+    };
+  }
+
+  function renderSettingsAdminDetails({ title, badge, tone = "ready", body }) {
+    return `
+      <details class="settings-admin-details">
+        <summary>
+          <span class="settings-admin-caret" aria-hidden="true">▶</span>
+          <span class="settings-admin-title">${escapeHtml(title)}</span>
+          <span class="provider-status ${escapeHtml(tone)}">${escapeHtml(badge)}</span>
+        </summary>
+        <div class="settings-admin-body">
+          ${body}
+        </div>
+      </details>
+    `;
+  }
+
   function renderAiSettingsForm(settings, loadError) {
     if (loadError) {
       return `
-        <h2>AI settings</h2>
-        <p class="form-error">AI settings unavailable: ${escapeHtml(loadError)}</p>
+        <section class="settings-section">
+          <h2>AI Configuration</h2>
+          <p class="form-error">AI settings unavailable: ${escapeHtml(loadError)}</p>
+        </section>
       `;
     }
     const model = settings?.model || "gpt-5.4-mini";
     const maxOutputTokens = settings?.maxOutputTokens || 3000;
     const status = settings?.apiKeyConfigured ? "Configured" : "Missing";
     return `
-      <h2>AI settings</h2>
-      <p>Local OpenAI direct settings. Provider routing for AI tasks is shown below.</p>
-      <form class="new-matter-form" id="aiSettingsForm">
-        <dl class="matter-info-card">
+      <section class="settings-section">
+        <h2>AI Configuration</h2>
+        <p class="muted">Local OpenAI direct settings. Provider routing for AI tasks is shown below.</p>
+        <dl class="matter-info-card settings-current-card">
           <dt>Provider</dt><dd>${escapeHtml(settings?.provider || "OpenAI")}</dd>
           <dt>API key</dt><dd id="aiKeyStatus">${escapeHtml(status)}</dd>
           <dt>Settings file</dt><dd><code>${escapeHtml(settings?.envPath || ".env")}</code></dd>
         </dl>
-        <label>
-          <span>Replace API key</span>
-          <input type="password" id="aiApiKey" placeholder="Leave blank to keep current key" spellcheck="false" autocomplete="off" />
-        </label>
-        <label>
-          <span>Model</span>
-          <input type="text" id="aiModel" value="${escapeHtml(model)}" spellcheck="false" autocomplete="off" />
-        </label>
-        <label>
-          <span>Max output tokens</span>
-          <input type="text" id="aiMaxOutputTokens" value="${escapeHtml(maxOutputTokens)}" inputmode="numeric" autocomplete="off" />
-        </label>
-        <div class="form-actions">
-          <button type="submit" id="aiSettingsSubmit">Save AI settings</button>
-          <button type="button" class="secondary" id="aiSettingsTest">Test connection</button>
+        <form class="new-matter-form settings-card" id="aiSettingsForm">
+          <label>
+            <span>Replace API key</span>
+            <input type="password" id="aiApiKey" placeholder="Leave blank to keep current key" spellcheck="false" autocomplete="off" />
+          </label>
+          <label>
+            <span>Model</span>
+            <input type="text" id="aiModel" value="${escapeHtml(model)}" spellcheck="false" autocomplete="off" />
+          </label>
+          <label>
+            <span>Max output tokens</span>
+            <input type="text" id="aiMaxOutputTokens" value="${escapeHtml(maxOutputTokens)}" inputmode="numeric" autocomplete="off" />
+          </label>
+          <div class="form-actions">
+            <button type="submit" id="aiSettingsSubmit">Save AI settings</button>
+            <button type="button" class="secondary" id="aiSettingsTest">Test connection</button>
+          </div>
+          <div id="aiSettingsMessage" class="form-note"></div>
+          <div id="aiSettingsError" class="form-error" hidden></div>
+        </form>
+        <div id="aiProviderStatus">
+          ${renderAiProviderStatus(settings?.aiTasks)}
         </div>
-        <div id="aiSettingsMessage" class="form-note"></div>
-        <div id="aiSettingsError" class="form-error" hidden></div>
-      </form>
-      <div id="aiProviderStatus">
-        ${renderAiProviderStatus(settings?.aiTasks)}
-      </div>
+      </section>
     `;
   }
 
   function renderAiProviderStatus(tasks = []) {
+    const taskList = Array.isArray(tasks) ? tasks : [];
+    const readyCount = taskList.filter((task) => task.ready !== false).length;
+    const allReady = taskList.length ? readyCount === taskList.length : true;
+    const badge = taskList.length
+      ? (allReady ? "Ready" : "Needs setup")
+      : "No tasks";
     const rows = Array.isArray(tasks) && tasks.length
       ? tasks.map((task) => {
         const statusNote = task.ready || !task.note
@@ -679,23 +942,27 @@ export function createMatterScreens(ctx) {
         `;
       }).join("")
       : '<tr><td colspan="7">No AI task policies found.</td></tr>';
-    return `
-      <h2>AI provider routing</h2>
-      <table class="extract-table provider-status-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Provider</th>
-            <th>Model</th>
-            <th>Tokens</th>
-            <th>Timeout</th>
-            <th>Fallback</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    `;
+    return renderSettingsAdminDetails({
+      title: "AI Provider Routing",
+      badge,
+      tone: allReady ? "ready" : "needs-setup",
+      body: `
+        <table class="extract-table provider-status-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Provider</th>
+              <th>Model</th>
+              <th>Tokens</th>
+              <th>Timeout</th>
+              <th>Fallback</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `,
+    });
   }
 
   function providerLabel(provider) {

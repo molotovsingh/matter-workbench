@@ -52,8 +52,9 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   return `${lines.join("\n")}\n`;
 }
 
-export function renderSavedIdeas(ideas, escape) {
+export function renderSavedIdeas(ideas, escape, { compact = false } = {}) {
   const normalized = Array.isArray(ideas) ? ideas : [];
+  if (compact) return renderCompactSavedIdeas(normalized, escape);
   return `
     <section>
       <h2>Saved Ideas</h2>
@@ -63,6 +64,30 @@ export function renderSavedIdeas(ideas, escape) {
           ${normalized.map((idea) => renderSavedIdeaCard(idea, escape)).join("")}
         </div>
       ` : '<p class="muted">No saved skill ideas yet. Use the Command rail with text like <code>create a skill to summarize pleadings</code>.</p>'}
+    </section>
+  `;
+}
+
+function renderCompactSavedIdeas(ideas, escape) {
+  const activeIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) !== "dismissed");
+  const dismissedIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) === "dismissed");
+  return `
+    <section class="skills-section">
+      <h2>Ideas</h2>
+      <p class="muted">These are not runnable yet. Each idea needs a sample and review before it becomes a skill.</p>
+      ${ideas.length ? `
+        <div class="skill-ideas-list">
+          ${activeIdeas.length
+            ? activeIdeas.map((idea) => renderSavedIdeaRow(idea, escape)).join("")
+            : '<p class="muted skill-ideas-empty">No active skill ideas.</p>'}
+          ${dismissedIdeas.length ? `
+            <details class="skill-ideas-dismissed">
+              <summary>Show ${dismissedIdeas.length} dismissed idea${dismissedIdeas.length === 1 ? "" : "s"}</summary>
+              ${dismissedIdeas.map((idea) => renderSavedIdeaRow(idea, escape)).join("")}
+            </details>
+          ` : ""}
+        </div>
+      ` : '<p class="muted">No saved skill ideas yet. Use the Command rail with text like <code>new skill</code>.</p>'}
     </section>
   `;
 }
@@ -196,6 +221,109 @@ function renderSavedIdeaCard(idea, escape) {
   `;
 }
 
+function renderSavedIdeaRow(idea, escape) {
+  const status = normalizeIdeaStatusForView(idea.status);
+  const matter = idea.matter || {};
+  const matterLabel = matter.matterName || matter.folderName || "No matter attached";
+  const brief = normalizeDesignBriefForView(idea.designBrief);
+  const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
+  return `
+    <article class="skill-idea-row" id="skill-idea-${escape(idea.id || "")}">
+      <div class="skill-idea-row-main">
+        <div>
+          <p>${escape(idea.text || "")}</p>
+          <div class="skill-idea-row-meta">
+            <span>${escape(matterLabel)}</span>
+            <span>${escape(formatIdeaDate(idea.createdAt || idea.updatedAt || ""))}</span>
+          </div>
+        </div>
+        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+      </div>
+      <details class="skill-idea-row-details">
+        <summary>
+          Review details
+          <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Ready for review" : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`}</span>
+        </summary>
+        <p class="muted">This idea is not runnable. Reviewing it here does not create a slash command, call a provider, or write a matter artifact.</p>
+        <details class="skill-idea-brief">
+          <summary>Design brief <span class="muted">Not runnable yet</span></summary>
+          <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
+            <label>
+              <span>Intended user</span>
+              <input type="text" name="intendedUser" value="${escape(brief.intendedUser)}" autocomplete="off" />
+            </label>
+            <label>
+              <span>Problem / job to be done</span>
+              <textarea name="problem">${escape(brief.problem)}</textarea>
+            </label>
+            <label>
+              <span>Expected inputs</span>
+              <textarea name="expectedInputs">${escape(brief.expectedInputs)}</textarea>
+            </label>
+            <label>
+              <span>Expected output artifact</span>
+              <input type="text" name="expectedOutputArtifact" value="${escape(brief.expectedOutputArtifact)}" autocomplete="off" />
+            </label>
+            <div class="skill-idea-brief-grid">
+              ${renderSelectField({
+                name: "targetLane",
+                label: "Target lane",
+                value: brief.targetLane,
+                options: [
+                  ["", "Not chosen"],
+                  ["10_Library", "10_Library - Analysis Library"],
+                  ["20_Workshop", "20_Workshop - Strategy Workshop"],
+                  ["30_Drafts", "30_Drafts - Drafts"],
+                  ["40_Dispatch", "40_Dispatch - Dispatch"],
+                ],
+              }, escape)}
+              ${renderSelectField({
+                name: "paidPosture",
+                label: "Paid/free posture",
+                value: brief.paidPosture,
+                options: [
+                  ["", "Not chosen"],
+                  ["free", "Free/local"],
+                  ["paid", "Paid/provider-backed"],
+                  ["unknown", "Unknown"],
+                ],
+              }, escape)}
+              ${renderSelectField({
+                name: "riskLevel",
+                label: "Risk level",
+                value: brief.riskLevel,
+                options: [
+                  ["", "Not assessed"],
+                  ["low", "Low"],
+                  ["medium", "Medium"],
+                  ["high", "High"],
+                ],
+              }, escape)}
+            </div>
+            <label>
+              <span>Notes / acceptance criteria</span>
+              <textarea name="notes">${escape(brief.notes)}</textarea>
+            </label>
+            <div class="form-actions">
+              <button type="submit">Save design brief</button>
+            </div>
+          </form>
+        </details>
+        ${renderReadinessChecklist(readiness, escape)}
+        <div class="form-actions">
+          <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
+          <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
+          <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
+          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
+          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+          <span class="artifact-action-status muted" data-skill-idea-copy-status="${escape(idea.id || "")}"></span>
+        </div>
+      </details>
+    </article>
+  `;
+}
+
 function reviewPacketStatusText(status, readiness) {
   const label = statusLabel(status);
   if (status === "incomplete" && readiness.ready) {
@@ -302,6 +430,12 @@ function packetValue(value) {
 function packetBlock(value) {
   const normalized = String(value || "").trim();
   return normalized || "Not specified";
+}
+
+function formatIdeaDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value || "No date";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function renderReadinessChecklist(readiness, escape) {

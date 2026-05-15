@@ -64,7 +64,7 @@ export function createNewSkillModeController({
     });
     aiCommandInput.value = "";
     aiCommandInput.placeholder = "Describe the skill you want...";
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     render();
     ctx.setStatus({
       mood: "idle",
@@ -110,7 +110,7 @@ export function createNewSkillModeController({
     aiCommandInput.value = "";
     aiCommandInput.placeholder = defaultPlaceholder;
     aiCommandSubmit.disabled = false;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     if (aiCommandSession) {
       aiCommandSession.hidden = false;
       aiCommandSession.innerHTML = `

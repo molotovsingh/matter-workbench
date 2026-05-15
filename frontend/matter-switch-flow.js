@@ -11,7 +11,7 @@ export async function switchMatterFlow({
   const payload = await postSwitchMatter(name);
   mergeMattersState({ active: name });
   clearMatterSearch?.("");
-  setActiveMatter(matterFromWorkspace(payload));
   resetForMatterChange?.();
+  setActiveMatter(matterFromWorkspace(payload));
   return payload;
 }

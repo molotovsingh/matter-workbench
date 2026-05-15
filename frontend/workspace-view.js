@@ -13,14 +13,17 @@ export function renderTreeNode(node, depth = 0, options = {}) {
     const displayName = displayFileName(node);
     const canonicalName = displayName !== node.name ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
     const meta = shouldShowFileSize(node) ? `<span class="tree-meta">${formatBytes(node.size)}</span>` : "";
+    const activeClass = normalizedPath(node.path) === normalizedPath(options.activeFilePath) ? " active" : "";
+    const activeAria = activeClass ? ' aria-current="true"' : "";
     return `
       <li class="tree-node tree-file">
         <button
-          class="tree-file-button"
+          class="tree-file-button${activeClass}"
           type="button"
           data-file-path="${escapeHtml(node.path)}"
           data-previewable="${previewable}"
           data-preview-kind="${escapeHtml(previewKind)}"
+          ${activeAria}
         >
           <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
           ${meta}
@@ -188,6 +191,7 @@ export function createWorkspaceView(ctx) {
     workspaceTree,
   } = ctx.elements;
   let showTechnicalFiles = false;
+  let activeFilePath = "";
 
   function updateTechnicalFilesToggle() {
     if (!toggleTechnicalFilesButton) return;
@@ -199,7 +203,10 @@ export function createWorkspaceView(ctx) {
   function renderWorkspaceTree(activeMatter = ctx.getActiveMatter()) {
     updateTechnicalFilesToggle();
     if (activeMatter.tree) {
-      workspaceTree.innerHTML = renderTreeNode(activeMatter.tree, 0, { showTechnical: showTechnicalFiles });
+      workspaceTree.innerHTML = renderTreeNode(activeMatter.tree, 0, {
+        activeFilePath,
+        showTechnical: showTechnicalFiles,
+      });
       return;
     }
     workspaceTree.innerHTML = '<li class="tree-node">Loading workspace...</li>';
@@ -214,6 +221,8 @@ export function createWorkspaceView(ctx) {
   async function openFilePreview(filePath, previewable, previewKind) {
     const activeMatter = ctx.getActiveMatter();
     const fileName = filePath.split("/").pop() || filePath;
+    activeFilePath = filePath;
+    renderWorkspaceTree(activeMatter);
     breadcrumbs.textContent = `${activeMatter.folderName} > ${filePath}`;
 
     if (previewable !== "true") {
@@ -266,14 +275,14 @@ export function createWorkspaceView(ctx) {
         bar: "File Preview",
         terminal: `[explorer] opened ${result.path}`,
       });
-      const listOfDatesActions = renderListOfDatesPreviewActions(result.path, escapeHtml);
-      editorContent.innerHTML = `
-        <h1>${escapeHtml(result.name)}</h1>
-        <p><code>${escapeHtml(result.path)}</code></p>
-        ${listOfDatesActions}
-        <pre class="json-preview">${escapeHtml(result.content)}</pre>
-      `;
-      if (listOfDatesActions) wireListOfDatesPreviewActions(result.content);
+      editorContent.innerHTML = isListOfDatesMarkdownPath(result.path)
+        ? renderListOfDatesMarkdownPreview(result, escapeHtml)
+        : `
+          <h1>${escapeHtml(result.name)}</h1>
+          <p><code>${escapeHtml(result.path)}</code></p>
+          <pre class="json-preview">${escapeHtml(result.content)}</pre>
+        `;
+      if (isListOfDatesMarkdownPath(result.path)) wireListOfDatesPreviewActions(result.content);
     } catch (error) {
       ctx.setStatus({
         mood: "idle",
@@ -297,7 +306,7 @@ export function createWorkspaceView(ctx) {
       `;
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before opening a workspace lane.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before opening a workspace lane.",
         bar: "No Matter",
         terminal: `[workspace] lane requested without active matter: ${lanePath}`,
       });
@@ -306,6 +315,8 @@ export function createWorkspaceView(ctx) {
 
     const laneNode = findTreeNodeByPath(activeMatter.tree, lanePath);
     breadcrumbs.textContent = `${activeMatter.folderName} > ${lanePath}`;
+    activeFilePath = "";
+    renderWorkspaceTree(activeMatter);
 
     if (!laneNode) {
       editorContent.innerHTML = `
@@ -400,10 +411,10 @@ export function renderListOfDatesPreviewActions(filePath, escape) {
   const fileName = filePath.split("/").pop() || "List of Dates.md";
   const rawUrl = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
   return `
-    <div class="artifact-actions" data-listofdates-preview-actions>
+    <div class="artifact-actions document-actions" data-listofdates-preview-actions>
       <button
         type="button"
-        class="run-skill-button"
+        class="run-skill-button secondary"
         data-workspace-copy-markdown
       >
         Copy Markdown
@@ -412,14 +423,204 @@ export function renderListOfDatesPreviewActions(filePath, escape) {
         class="run-skill-button secondary"
         href="${escape(rawUrl)}"
         download="${escape(fileName)}"
-      >Download Markdown</a>
+      >Download</a>
       <span class="artifact-action-status muted" data-workspace-copy-status></span>
     </div>
   `;
 }
 
+export function renderListOfDatesMarkdownPreview(result, escape) {
+  const content = String(result?.content || "");
+  const parsed = parseListOfDatesMarkdown(content);
+  const filePath = result?.path || "10_Library/List of Dates.md";
+  const fileName = result?.name || filePath.split("/").pop() || "List of Dates.md";
+  const actions = renderListOfDatesPreviewActions(filePath, escape);
+
+  if (!parsed.entries.length) {
+    return `
+      <section class="document-preview">
+        ${renderDocumentHeader({ fileName, filePath, parsed, actions, escape })}
+        <pre class="json-preview">${escape(content)}</pre>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="document-preview listofdates-preview">
+      ${renderDocumentHeader({ fileName, filePath, parsed, actions, escape })}
+      <section class="chronology-table" aria-label="List of Dates chronology">
+        <div class="chronology-header">
+          <span>Date</span>
+          <span>Event</span>
+          <span>Relevance</span>
+          <span>Source</span>
+        </div>
+        ${parsed.entries.map((entry) => renderChronologyEntry(entry, escape)).join("")}
+      </section>
+      <div class="chronology-summary">
+        <span>${parsed.entries.length} ${parsed.entries.length === 1 ? "entry" : "entries"}</span>
+        <span>${parsed.sourceCount} ${parsed.sourceCount === 1 ? "source" : "sources"} cited</span>
+        <span>${escape(parsed.dateRange || "No date range")}</span>
+      </div>
+    </section>
+  `;
+}
+
+export function parseListOfDatesMarkdown(markdown = "") {
+  const text = String(markdown || "");
+  const lines = text.split(/\r?\n/);
+  const title = (lines.find((line) => /^#\s+/.test(line)) || "# List of Dates").replace(/^#\s+/, "").trim();
+  const matter = extractMetadataLine(lines, "Matter");
+  const generated = lines.find((line) => /^Generated by\s+/i.test(line))?.trim() || "";
+  const headerIndex = lines.findIndex((line) => /\|\s*Date\s*\|\s*Event\s*\|\s*Legal Relevance\s*\|\s*Source\s*\|/i.test(line));
+  if (headerIndex === -1) {
+    return { title, matter, generated, entries: [], sourceCount: 0, dateRange: "" };
+  }
+
+  const entries = [];
+  for (const line of lines.slice(headerIndex + 2)) {
+    if (!line.trim().startsWith("|")) break;
+    const cells = splitMarkdownTableRow(line);
+    if (cells.length < 4) continue;
+    entries.push({
+      date: normalizeMarkdownCell(cells[0]),
+      event: normalizeMarkdownCell(cells[1]),
+      relevance: normalizeMarkdownCell(cells[2]),
+      source: normalizeSourceCell(cells[3]),
+    });
+  }
+
+  const sourceCount = countUniqueSources(entries);
+  const dates = entries.map((entry) => entry.date).filter(Boolean);
+  const dateRange = dates.length ? `${dates[0]} to ${dates[dates.length - 1]}` : "";
+  return { title, matter, generated, entries, sourceCount, dateRange };
+}
+
+function renderDocumentHeader({ fileName, filePath, parsed, actions, escape }) {
+  const title = parsed.title || stripExtension(fileName);
+  const matterLine = parsed.matter ? `Matter: ${parsed.matter}` : "";
+  const generatedLine = parsed.generated ? parsed.generated : "";
+  const detailParts = [matterLine, generatedLine].filter(Boolean);
+  return `
+    <header class="document-preview-header">
+      <div>
+        <h1>${escape(title)}</h1>
+        <p class="document-path"><code>${escape(filePath)}</code></p>
+        ${detailParts.length ? `<p class="document-note">${detailParts.map(escape).join(" · ")}</p>` : ""}
+      </div>
+      ${actions}
+    </header>
+  `;
+}
+
+function renderChronologyEntry(entry, escape) {
+  const relevanceClass = relevanceTone(entry.relevance);
+  const important = relevanceClass === "attention" ? " important" : "";
+  return `
+    <article class="chronology-row${important}">
+      <time datetime="${escape(entry.date)}">${escape(entry.date)}</time>
+      <p>${escape(entry.event)}</p>
+      <span class="chronology-relevance ${relevanceClass}">${escape(entry.relevance)}</span>
+      <div class="chronology-source">${renderSourceFragments(entry.source, escape)}</div>
+    </article>
+  `;
+}
+
+function renderSourceFragments(source = "", escape) {
+  const fragments = splitSourceFragments(source);
+  if (!fragments.length) return '<span class="muted">No source</span>';
+  return fragments.map((fragment) => `<span>${escape(fragment)}</span>`).join("");
+}
+
+function relevanceTone(relevance = "") {
+  const normalized = String(relevance || "").toLowerCase();
+  if (/(key incident|financial damage|denied boarding|refused|compelled|damage|dispute)/.test(normalized)) return "attention";
+  if (/(official|confirmation|confirmed|consulate)/.test(normalized)) return "official";
+  if (/(payment|flight|record|invoice|ledger|immigration)/.test(normalized)) return "record";
+  return "neutral";
+}
+
+function extractMetadataLine(lines, label) {
+  const pattern = new RegExp(`^${label}:\\s*(.+)$`, "i");
+  const line = lines.find((candidate) => pattern.test(candidate));
+  return line ? line.match(pattern)[1].trim() : "";
+}
+
+function splitMarkdownTableRow(line = "") {
+  const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells = [];
+  let current = "";
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === "\\" && trimmed[index + 1] === "|") {
+      current += "|";
+      index += 1;
+      continue;
+    }
+    if (char === "|") {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeMarkdownCell(value = "") {
+  return String(value || "")
+    .replace(/\\\|/g, "|")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeSourceCell(value = "") {
+  return String(value || "")
+    .replace(/\\\|/g, "|")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .split(/\n+/)
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function countUniqueSources(entries = []) {
+  const sources = new Set();
+  for (const entry of entries) {
+    for (const source of splitSourceFragments(entry.source)) {
+      const fileIds = source.match(/FILE-\d+/gi) || [];
+      if (fileIds.length) {
+        fileIds.forEach((fileId) => sources.add(fileId.toUpperCase()));
+      } else {
+        sources.add(source);
+      }
+    }
+  }
+  return sources.size;
+}
+
+function splitSourceFragments(source = "") {
+  const normalized = String(source || "").replace(/<br\s*\/?>/gi, "\n");
+  const firstPass = normalized.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+  const fragments = firstPass.length ? firstPass : [normalized.trim()].filter(Boolean);
+  return fragments.flatMap((fragment) => {
+    if (/^S\d+(,\s*S\d+)*$/i.test(fragment)) return fragment.split(/\s*,\s*/);
+    return [fragment];
+  }).filter(Boolean);
+}
+
+function stripExtension(name = "") {
+  return String(name || "").replace(/\.[^.]+$/, "");
+}
+
 function isListOfDatesMarkdownPath(filePath) {
-  return String(filePath || "").replace(/\\/g, "/").toLowerCase() === "10_library/list of dates.md";
+  return normalizedPath(filePath) === "10_library/list of dates.md";
+}
+
+function normalizedPath(filePath = "") {
+  return String(filePath || "").replace(/\\/g, "/").toLowerCase();
 }
 
 function wireListOfDatesPreviewActions(markdown) {

@@ -23,7 +23,7 @@ export function createExtractSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from the sidebar before running /extract.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /extract.",
         bar: "No Matter",
         terminal: "[extract] no active matter",
       });

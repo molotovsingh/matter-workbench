@@ -118,7 +118,7 @@ export function createSkillIdeaSessionController({
     aiCommandInput.placeholder = currentSkillIdeaInterview.ready
       ? "Generate sample, Edit answers, or Cancel"
       : "Answer the current question";
-    aiCommandSubmit.textContent = currentSkillIdeaInterview.ready ? "Go" : "Answer";
+    aiCommandSubmit.textContent = currentSkillIdeaInterview.ready ? "→" : "Answer";
     const plannerTerminal = plannerInfo.source === "model"
       ? `[skill-ideas] model-planned interview opened: ${userRequest}`
       : plannerInfo.source === "deterministic fallback"
@@ -271,7 +271,7 @@ export function createSkillIdeaSessionController({
     if (session.questionIndex >= session.interview.questions.length) {
       session.ready = true;
       aiCommandInput.placeholder = "Generate sample, Edit answers, or Cancel";
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
       ctx.setStatus({
         mood: "idle",
         card: "<strong>Ready for sample</strong><br />Generate a sample output from a test matter before approving this skill idea.",
@@ -359,7 +359,7 @@ export function createSkillIdeaSessionController({
       }
       aiCommandInput.value = "";
       aiCommandInput.placeholder = "Generate sample, Copy Review Packet, Mark ready, or Edit answers";
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
       if (!silent) renderSkillIdeaSession();
       return idea;
     } catch (error) {
@@ -383,7 +383,7 @@ export function createSkillIdeaSessionController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
     return null;
   }
@@ -507,7 +507,7 @@ export function createSkillIdeaSessionController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -592,7 +592,7 @@ export function createSkillIdeaSessionController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -678,7 +678,7 @@ export function createSkillIdeaSessionController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -762,7 +762,7 @@ export function createSkillIdeaSessionController({
         terminalLines: getLatestTerminalLines(),
       });
       aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "Go";
+      aiCommandSubmit.textContent = "→";
     }
   }
 
@@ -1013,7 +1013,7 @@ export function createSkillIdeaSessionController({
     clearSkillIdeaSession();
     aiCommandInput.value = "";
     aiCommandInput.placeholder = defaultPlaceholder;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     await deterministicCommands.showSkillsPage("open skills");
   }
 
@@ -1022,7 +1022,7 @@ export function createSkillIdeaSessionController({
     aiCommandInput.value = "";
     aiCommandInput.placeholder = "create a skill to...";
     aiCommandSubmit.disabled = false;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     clearSkillIdeaSession();
     editorContent.innerHTML = `
       <h1>Command</h1>
@@ -1121,7 +1121,7 @@ export function createSkillIdeaSessionController({
     aiCommandInput.value = "";
     aiCommandInput.placeholder = defaultPlaceholder;
     aiCommandSubmit.disabled = false;
-    aiCommandSubmit.textContent = "Go";
+    aiCommandSubmit.textContent = "→";
     clearSkillIdeaSession();
     updateReport({ status: "cancelled" });
     recordCommandInteraction({

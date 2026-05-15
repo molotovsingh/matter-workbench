@@ -24,8 +24,8 @@ test("switch matter flow clears the matter search after successful selection", a
     ["post", "Mehta vs Skyline"],
     ["merge", { active: "Mehta vs Skyline" }],
     ["clear-search", ""],
-    ["active", { folderName: "Mehta vs Skyline" }],
     ["reset"],
+    ["active", { folderName: "Mehta vs Skyline" }],
   ]);
 });
 
