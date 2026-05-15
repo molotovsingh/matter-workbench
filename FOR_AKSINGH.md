@@ -402,13 +402,34 @@ Important files:
 - `index.html` - app shell;
 - `styles.css` - layout and visual system;
 - `frontend/event-wiring.js` - user actions and skill dispatch;
+- `frontend/ai-command-box.js` - small Command rail facade;
+- `frontend/skill-idea-session-controller.js` - new skill interview, sample review, approval, and create-skill flow;
+- `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, run reports, and skill improvement ideas;
 - `frontend/matter-screens.js` - settings and matter screens;
 - `frontend/workspace-view.js` - explorer and preview rendering;
+- `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
 - `frontend/api-client.js` - API helper;
 - `frontend/state.js` - shared state;
 - `frontend/status.js` - status output.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
+
+The important recent frontend lesson is that "one convenient file" becomes a risk once it starts owning different workflows. The Command rail originally carried parsing, routing, skill interviews, sample approval, custom skill running, output replacement, copy reports, and status updates together. It worked, but every new product change had to pass through the same crowded room.
+
+The healthier shape is now:
+
+```text
+ai-command-box.js
+  -> command facade and dispatch order
+  -> deterministic command controller
+  -> router-check controller
+  -> new-skill mode controller
+  -> skill-idea session controller
+  -> configurable-skill run controller
+  -> report controller
+```
+
+That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea session controller. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
 
 ## Shared Contracts
 

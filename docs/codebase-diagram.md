@@ -18,6 +18,18 @@ flowchart LR
 
   Browser -->|"HTTP JSON/file requests"| Server
 
+  subgraph FrontendControllers["Frontend controller split"]
+    CommandFacade["frontend/ai-command-box.js<br/>Command rail facade"]
+    SkillIdeaSession["frontend/skill-idea-session-controller.js<br/>interview, samples, approval"]
+    ConfigurableRunController["frontend/configurable-skill-run-controller.js<br/>custom skill runs and output replacement"]
+    SkillsPageViews["frontend/views/skills-page*.js<br/>Skills page sections"]
+  end
+
+  Browser --> CommandFacade
+  CommandFacade --> SkillIdeaSession
+  CommandFacade --> ConfigurableRunController
+  Browser --> SkillsPageViews
+
   subgraph Routes["Route/API layer"]
     ApiRoutes["routes/api-routes.mjs<br/>top-level API dispatcher"]
     MatterWorkflowRoutes["routes/matter-workflow-routes.mjs<br/>matter engines, status, context"]
