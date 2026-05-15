@@ -17,7 +17,10 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   assert.match(html, /Matter Assistant/);
   assert.match(html, /What do you need\?/);
   assert.match(html, /Show technical files/);
-  assert.match(html, /find payment receipts, prepare matter, open drafts/);
+  assert.match(html, /Ask about this matter, run a skill, or search documents/);
+  assert.match(html, /find payment receipts/);
+  assert.match(html, /prepare matter/);
+  assert.match(html, /new skill/);
   assert.match(html, /Paid AI actions ask before running/);
   assert.match(html, /New skill ideas are saved for review/);
   assert.match(html, /No matter selected/);

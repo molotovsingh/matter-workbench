@@ -1100,7 +1100,9 @@ summary {
   flex-wrap: wrap;
   gap: 6px;
   margin: 0;
+  opacity: 0.62;
   order: 2;
+  transition: opacity 120ms ease;
 }
 
 .command-panel-examples code {
@@ -1109,6 +1111,10 @@ summary {
   color: var(--code-text);
   padding: 4px 6px;
   font-size: var(--font-size-sm);
+}
+
+.command-panel:focus-within .command-panel-examples {
+  opacity: 1;
 }
 
 .ai-command-form {
