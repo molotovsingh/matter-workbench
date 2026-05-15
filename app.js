@@ -17,6 +17,7 @@ import { createContextSearchSkill } from "./frontend/skills/context-search.js";
 import { createListOfDatesSkill } from "./frontend/skills/create-listofdates.js";
 import { createDoctorSkill } from "./frontend/skills/doctor.js";
 import { escapeHtml, matterFromWorkspace } from "./frontend/dom-utils.js";
+import { switchMatterFlow } from "./frontend/matter-switch-flow.js";
 
 const elements = {
   terminalOutput: document.getElementById("terminalOutput"),
@@ -214,11 +215,17 @@ async function switchToMatter(name) {
     terminal: `[matters] switching to ${name}`,
   });
   try {
-    const payload = await postJson("/api/switch-matter", { name });
-    mattersState = mattersStore.merge({ active: name });
-    ctx.renderMattersList();
-    setActiveMatter(matterFromWorkspace(payload));
-    aiCommandBox.resetForMatterChange?.();
+    await switchMatterFlow({
+      name,
+      postSwitchMatter: (matterName) => postJson("/api/switch-matter", { name: matterName }),
+      mergeMattersState: (patch) => {
+        mattersState = mattersStore.merge(patch);
+      },
+      clearMatterSearch: ctx.setMatterSearchQuery,
+      setActiveMatter,
+      matterFromWorkspace,
+      resetForMatterChange: aiCommandBox.resetForMatterChange,
+    });
   } catch (error) {
     setStatus({
       mood: "idle",
