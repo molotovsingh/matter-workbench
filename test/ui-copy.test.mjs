@@ -7,6 +7,8 @@ test("app shell uses lawyer-facing first impression labels", async () => {
 
   assert.match(html, /Matter Actions/);
   assert.match(html, /Workbench/);
+  assert.match(html, /<span class="sidebar-title">Matters<\/span>/);
+  assert.match(html, /Matter files/);
   assert.match(html, /title="Matters">Matters/);
   assert.match(html, /title="Skills">Skills/);
   assert.match(html, /title="Activity">Activity/);
@@ -35,6 +37,7 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   assert.match(html, /id="aiCommandCopyReport"[^>]+hidden/);
 
   assert.doesNotMatch(html, /Slash Skills/);
+  assert.doesNotMatch(html, /Matter Explorer/);
   assert.doesNotMatch(html, /matter-init\.log/);
   assert.doesNotMatch(html, /legal-workbench \/ matter-init/);
   assert.doesNotMatch(html, /New skill ideas are saved for review/);
