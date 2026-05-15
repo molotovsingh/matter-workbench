@@ -38,6 +38,18 @@ For the current codebase diagram, lifecycle map, provider paths, persistent arti
 docs/codebase-diagram.md
 ```
 
+## Home Mode vs Matter Mode
+
+The shell now has two clear modes.
+
+**Home Mode** is the front desk. It is where you find an existing matter, add a new matter, continue the last matter, or start a reusable skill idea. The left navigation stays calm and global. The matter file tree is hidden because there is no active matter to inspect.
+
+**Matter Mode** is the working table. Once a matter is opened, the sidebar becomes a file/workspace panel for that one matter. It should not also behave like a matter switcher. If you want to change matters, go Home and search again.
+
+This split matters because lawyers should always know what context the app is acting on. When there is no matter selected, the app should not pretend that matter-specific files, actions, or outputs are available.
+
+The visual theme is token-based in `styles.css`: dark navigation, warm work surface, quiet borders, restrained cards, and small legal-workbench accents. That lets Home, Skills, Activity, Settings, and matter pages share a design language without rewriting each feature surface.
+
 ## The Current Beta State
 
 The project is now beta-ready for supervised use.
@@ -638,3 +650,103 @@ raw FILE-NNNN pX.bY citations remain canonical
 ```
 
 Everything else is help. The citation is the anchor.
+
+## Skills Page Product Rule
+
+The Skills page is now organized for a lawyer's first question, not a developer's audit question.
+
+The top of the page answers:
+
+```text
+What can I run?
+What is still being developed?
+```
+
+That is why the order is:
+
+1. **Your Skills** - active custom skills that can actually run.
+2. **Ideas** - saved skill requests that are still not runnable.
+3. **Built-in Skills** - code-backed app capabilities for reference.
+4. **Skill Factory Health** - a collapsed integrity check for developers and power users.
+
+The important lesson is that technical health is valuable, but it should not become the product's main face. Factory health still exists because it protects the skill system. It is simply no longer the first thing a lawyer has to read.
+
+## Activity Page Product Rule
+
+The Activity page should read like a receipt book, not a server log.
+
+The lawyer's questions are:
+
+```text
+Did the skill run?
+Which matter did it run on?
+Where is the output document?
+Did anything fail?
+Can I copy the run report?
+```
+
+That is why completed work now comes first, grouped by day. Cancelled runs are collapsed by default because they did not create work product. Provider/model, metadata paths, and run ids are still available in details, but they do not compete with the main answer.
+
+This is a useful pattern for the whole app: show legal work first, keep technical proof close by, and make debug information available without letting it become the screen's headline.
+
+## Settings Page Product Rule
+
+Settings is technical by nature, but the first user question is still simple:
+
+```text
+Is everything configured, and is it working?
+```
+
+That is why the Settings page now starts with a plain readiness signal. The editable things a normal user might actually touch stay visible: the matters home folder and the local AI configuration.
+
+The routing tables are still there, but they are collapsed by default. Provider routing and the Skill Router matter for debugging and power-user supervision, but they should not be the first screen a lawyer has to decode.
+
+This follows the same rule as Activity and Skills: put the user-facing answer first, keep the technical proof nearby, and avoid hiding the escape hatches from the people who need them.
+
+## File Preview Product Rule
+
+Generated legal artifacts should open like work product, not like source code.
+
+For a List of Dates, the lawyer's question is:
+
+```text
+What happened?
+When did it happen?
+Why does it matter?
+Which source can I check?
+```
+
+That is why the file preview renders `List of Dates.md` as a chronology table with date, event, relevance, and source columns. The raw Markdown is still available through Copy Markdown and Download, but the default reading surface is now built for scanning and checking citations.
+
+The broader lesson is simple: machine-readable storage and human-readable review are different jobs. Keep the stored artifact plain and portable, but render it in the app in the shape that matches the lawyer's task.
+
+## New Matter Product Rule
+
+New Matter is not a dashboard. It is a one-time intake form.
+
+That means it should not be clever. It should ask for the few things the system needs, in the order a lawyer naturally thinks:
+
+1. **Matter name** - the folder and case identity.
+2. **Parties** - client and opposite party.
+3. **Matter details** - type, jurisdiction, and a short description.
+4. **Initial files** - the documents that let the app initialize the record.
+
+The important copy detail is that the current app requires at least one file or folder before creation. So the UI should not say "files can be added later" as if the first upload is optional. The truthful version is: attach the first documents now; more files can be added later.
+
+This is a small example of good product engineering: copy must match behavior. Even a beautiful form becomes confusing if its words promise a path the code will reject.
+
+## Command Activity Strip Product Rule
+
+When the user presses the command button, the app must immediately answer:
+
+```text
+Did it hear me?
+What is it doing now?
+Do I need to wait or act?
+```
+
+Earlier versions answered that through the bottom terminal. The Home-first shell made the Home page calmer by hiding that developer-style terminal, but that created a new problem: commands could feel silent even though they were still logging internally.
+
+The compromise is a compact activity strip directly under the command input. It shows the last few status lines, with timestamps, next to the action that caused them. The old shell-level bottom terminal is hidden from normal pages because it made every screen feel like a developer console. Longer logs belong inside Activity, where the user is already asking what happened.
+
+The engineering lesson is that removing clutter is not the same as removing feedback. When you simplify a screen, preserve the user's sense of causality: I clicked, the app heard me, and this is what is happening.
