@@ -4,17 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createSkillRegistryService } from "../services/skill-registry-service.mjs";
+import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 
-const EXPECTED_SLASHES = [
-  "/matter-init",
-  "/prepare_matter",
-  "/extract",
-  "/describe_sources",
-  "/context_preview",
-  "/context_search",
-  "/create_listofdates",
-  "/doctor",
-];
+const EXPECTED_SLASHES = BUILTIN_SKILL_COMMANDS;
 
 test("skill registry reads all built-in skill stubs", async () => {
   const registry = await createSkillRegistryService({ appDir: process.cwd() }).readRegistry();
@@ -65,16 +57,7 @@ test("skill registry response shape remains API-compatible", async () => {
   const source = JSON.parse(await readFile(path.join(process.cwd(), "skills", "registry.json"), "utf8"));
   const registry = await createSkillRegistryService({ appDir: process.cwd() }).readRegistry();
 
-  assert.deepEqual(source.builtins, [
-    "matter-init",
-    "prepare_matter",
-    "extract",
-    "describe_sources",
-    "context_preview",
-    "context_search",
-    "create_listofdates",
-    "doctor",
-  ]);
+  assert.deepEqual(source.builtins.map((id) => `/${id}`), BUILTIN_SKILL_COMMANDS);
   assert.equal(source.skills, undefined);
   assert.ok(Array.isArray(registry.categories));
   assert.equal(typeof registry.principles, "object");
@@ -125,35 +108,57 @@ test("skill registry validation fails clearly for invalid built-in stubs", async
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-skill-registry-"));
   const registryPath = path.join(root, "skills", "registry.json");
   const builtinsDir = path.join(root, "skills", "builtins");
-  await mkdir(path.join(builtinsDir, "bad"), { recursive: true });
+  await mkdir(builtinsDir, { recursive: true });
   await writeFile(registryPath, `${JSON.stringify({
     schema_version: "skill-registry/v1",
     categories: ["Analyze"],
     principles: {},
-    builtins: ["bad"],
+    builtins: BUILTIN_SKILL_COMMANDS.map((slash) => slash.slice(1)),
   }, null, 2)}\n`);
-  await writeFile(path.join(builtinsDir, "bad", "skill.json"), `${JSON.stringify({
-    schema_version: "built-in-skill/v1",
-    id: "bad",
-    slash: "/bad",
-    title: "Bad",
-    category: "Analyze",
-    mode: "AI",
-    matter_required: true,
-    paid_provider_call: "yes",
-    rerun_guarded: false,
-    source_backed: "required",
-    inputs: [],
-    outputs: [],
-    upstream: [],
-    downstream: [],
-    default_lane: "10_Library",
-    runner_key: "/bad",
-    version: 1,
+  for (const slash of BUILTIN_SKILL_COMMANDS) {
+    const id = slash.slice(1);
+    await mkdir(path.join(builtinsDir, id), { recursive: true });
+    await writeFile(path.join(builtinsDir, id, "skill.json"), `${JSON.stringify({
+      schema_version: "built-in-skill/v1",
+      id,
+      slash,
+      title: id,
+      category: "Analyze",
+      mode: "AI",
+      matter_required: true,
+      paid_provider_call: slash === "/matter-init" ? "yes" : false,
+      rerun_guarded: false,
+      source_backed: "required",
+      inputs: [],
+      outputs: [],
+      upstream: [],
+      downstream: [],
+      default_lane: "10_Library",
+      runner_key: slash,
+      version: 1,
+    }, null, 2)}\n`);
+  }
+
+  await assert.rejects(
+    () => createSkillRegistryService({ registryPath, builtinsDir }).readRegistry(),
+    /paid_provider_call must be boolean for \/matter-init/,
+  );
+});
+
+test("skill registry rejects built-in manifest drift from shared commands", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-skill-registry-"));
+  const registryPath = path.join(root, "skills", "registry.json");
+  const builtinsDir = path.join(root, "skills", "builtins");
+  await mkdir(builtinsDir, { recursive: true });
+  await writeFile(registryPath, `${JSON.stringify({
+    schema_version: "skill-registry/v1",
+    categories: ["Analyze"],
+    principles: {},
+    builtins: ["extract"],
   }, null, 2)}\n`);
 
   await assert.rejects(
     () => createSkillRegistryService({ registryPath, builtinsDir }).readRegistry(),
-    /paid_provider_call must be boolean for \/bad/,
+    /must match shared\/builtin-skill-commands\.mjs/,
   );
 });
