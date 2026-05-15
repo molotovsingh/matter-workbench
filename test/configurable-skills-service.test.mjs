@@ -188,6 +188,7 @@ test("active configurable skill runs write only configured markdown and JSON art
   assert.equal(overwritten.runRecord.overwrite, "approved");
   const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
   assert.deepEqual(runs.runs.map((run) => run.status), ["succeeded", "succeeded"]);
+  assert.deepEqual(runs.runs.map((run) => run.title), ["Party and Officer Map v1", "Party and Officer Map v1"]);
   assert.deepEqual(runs.runs.map((run) => run.overwrite), ["approved", "not_needed"]);
 });
 
@@ -218,6 +219,7 @@ test("configurable skill service records overwrite cancellations", async () => {
 
   assert.equal(cancelled.state, "cancelled");
   assert.equal(cancelled.runRecord.status, "cancelled");
+  assert.equal(cancelled.runRecord.title, "Party and Officer Map v1");
   assert.equal(cancelled.runRecord.overwrite, "cancelled");
   const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
   assert.equal(runs.runs[0].status, "cancelled");

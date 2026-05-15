@@ -29,6 +29,7 @@ import {
   renderConfigurableSkillRunOutput,
   renderConfigurableSkillRunRail,
 } from "./configurable-skill-run-ui.js";
+import { formatConfigurableSkillDisplayName } from "./configurable-skill-version-labels.js";
 import { escapeHtml } from "./dom-utils.js";
 import {
   buildSkillIdeaInterview,
@@ -350,8 +351,10 @@ export function createAiCommandBox(ctx, options = {}) {
         return;
       }
       renderConfigurableSkillRunResult(result);
+      const skillName = formatConfigurableSkillDisplayName(result.skill || skill || result.runRecord || {}, slash || "Custom Skill");
       updateReport({
         status: "ran",
+        skillName,
         providerModel: [result.aiRun?.provider, result.aiRun?.model].filter(Boolean).join(" / "),
         artifacts: [result.outputPaths?.markdown, result.outputPaths?.json].filter(Boolean),
         runId: result.runId || result.runRecord?.id || "",
@@ -443,6 +446,7 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       updateReport({
         status: "cancelled",
+        skillName: formatConfigurableSkillDisplayName(cancelled?.skill || pending?.skill || cancelled?.runRecord || {}, pending?.slash || "Custom Skill"),
         artifacts: pending?.artifactPath ? [pending.artifactPath] : [],
         runId: cancelled?.runId || cancelled?.runRecord?.id || "",
         runRecord: cancelled?.runRecord || null,

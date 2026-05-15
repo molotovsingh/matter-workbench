@@ -1116,6 +1116,7 @@ test("command box creates a runnable skill only after current sample approval", 
         skill: {
           slash: "/party_officer_map",
           title: "Party and Officer Map",
+          version: 1,
         },
         markdown: "# Party and Officer Map\n\nA party row cites FILE-0001 p1.b1.",
         outputPaths: {
@@ -1131,6 +1132,7 @@ test("command box creates a runnable skill only after current sample approval", 
           id: "run_party_1",
           slash: "/party_officer_map",
           title: "Party and Officer Map",
+          version: 1,
           status: "succeeded",
           matterName: "Demo Matter",
           matterFolder: "Demo Matter",
@@ -1176,8 +1178,10 @@ test("command box creates a runnable skill only after current sample approval", 
 
   assert.deepEqual(runCalls, [{ slash: "/party_officer_map", overwrite: false }]);
   assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map/);
+  assert.match(ctx.elements.editorContent.innerHTML, /Party and Officer Map v1/);
   assert.match(ctx.elements.editorContent.innerHTML, /run_party_1/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run complete/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Party and Officer Map v1/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks good/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
