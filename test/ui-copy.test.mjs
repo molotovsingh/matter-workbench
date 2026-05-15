@@ -6,6 +6,11 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
   assert.match(html, /Matter Actions/);
+  assert.match(html, /Workbench/);
+  assert.match(html, /title="Matters">Matters/);
+  assert.match(html, /title="Skills">Skills/);
+  assert.match(html, /title="Activity">Activity/);
+  assert.match(html, /title="Settings">Settings/);
   assert.match(html, /matter-actions-section/);
   assert.match(html, /Search matters/);
   assert.match(html, /id="mattersSearchInput"/);
@@ -32,4 +37,8 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   assert.doesNotMatch(html, /legal-workbench \/ matter-init/);
   assert.doesNotMatch(html, /Phase 1/);
   assert.doesNotMatch(html, />V0</);
+  assert.doesNotMatch(html, />EX</);
+  assert.doesNotMatch(html, />SK</);
+  assert.doesNotMatch(html, />AC</);
+  assert.doesNotMatch(html, />SE</);
 });
