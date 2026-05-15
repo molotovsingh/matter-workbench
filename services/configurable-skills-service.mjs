@@ -242,7 +242,7 @@ export function createConfigurableSkillsService({
     let runRecord = await runLedger.createRun({
       skillId: skill.id,
       slash: skill.slash,
-      title: skill.title,
+      title: skillRunTitle(skill),
       matterName: path.basename(matterRoot),
       matterFolder: path.basename(matterRoot),
       matterRoot,
@@ -321,7 +321,7 @@ export function createConfigurableSkillsService({
     const record = await runLedger.recordCancelledRun({
       skillId: skill.id,
       slash: skill.slash,
-      title: skill.title,
+      title: skillRunTitle(skill),
       ...matterSummaryForRun(null, matterRoot),
       matterRoot,
       outputPaths: {
@@ -368,6 +368,13 @@ function createNoopRunLedger() {
       status: "cancelled",
     }),
   };
+}
+
+function skillRunTitle(skill = {}) {
+  const title = normalizeText(skill.title || skill.slash || "Custom Skill");
+  const version = Number(skill.version || 1);
+  const versionLabel = `v${Number.isFinite(version) && version > 0 ? version : 1}`;
+  return /\bv\d+\s*$/i.test(title) ? title : `${title} ${versionLabel}`;
 }
 
 function matterSummaryForRun(matter = null, matterRoot = "") {

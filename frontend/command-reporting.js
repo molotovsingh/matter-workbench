@@ -21,6 +21,7 @@ export function formatCommandReport(report) {
   if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
   if (report.skillIdeaId) lines.push(`- Saved skill idea: ${report.skillIdeaId}`);
   if (report.sampleId) lines.push(`- Sample output: ${report.sampleId}`);
+  if (report.skillName) lines.push(`- Skill: ${report.skillName}`);
   if (report.plannerSource) lines.push(`- Planner: ${report.plannerModel || report.plannerSource}`);
   if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
   if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);

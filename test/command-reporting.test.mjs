@@ -22,6 +22,7 @@ test("formatCommandReport renders copyable command metadata", () => {
     typedInput: "/party_officer_map",
     matchedCommand: "/party_officer_map",
     status: "ran",
+    skillName: "Party and Officer Map v2",
     providerModel: "openai-direct / gpt-5.4",
     runId: "run_123",
     overwrite: "approved",
@@ -36,6 +37,7 @@ test("formatCommandReport renders copyable command metadata", () => {
   assert.match(report, /# Command Report/);
   assert.match(report, /- Matter: Ayesha Vs Japan Airlines/);
   assert.match(report, /- Matched command: `\/party_officer_map`/);
+  assert.match(report, /- Skill: Party and Officer Map v2/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
   assert.match(report, /- Run id: run_123/);
   assert.match(report, /- Output document: Replaced existing output document/);

@@ -1,5 +1,9 @@
 import { formatSkillIdeaImplementationBriefMarkdown } from "../skill-idea-implementation-brief.js";
 import { formatConfigurableRunOutputDocumentState } from "../configurable-skill-run-labels.js";
+import {
+  formatConfigurableSkillDisplayName,
+  formatConfigurableSkillVersionLabel,
+} from "../configurable-skill-version-labels.js";
 
 export function skillsPageSummary(registry = {}, matterStatus = null, configurableSkills = null) {
   const skills = Array.isArray(registry.skills) ? registry.skills : [];
@@ -208,7 +212,7 @@ export function renderSkillsPageHtml({
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml)}
       <section>
         <h2>Custom Skills</h2>
-        <p class="muted">Approved and activated skills created from reviewed samples. Only the latest approved version is shown as runnable. Earlier versions are kept in history.</p>
+        <p class="muted">Approved and activated skills created from reviewed samples. The visible skill name includes its version. The slash command stays stable and runs the latest approved version; earlier versions are kept in history.</p>
         ${renderSkillCards(summary.custom, escapeHtml, {
           improvementIdeas: skillIdeas?.ideas || [],
           configurableSkillRuns: configurableSkillRuns?.runs || [],
@@ -651,7 +655,7 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
       <div class="skill-card-header">
         <div>
           <div class="skill-slash"><code>${escape(skill.slash || "")}</code></div>
-          <h3>${escape(skill.title || skill.id || skill.slash || "Skill")}</h3>
+          <h3>${escape(skill.configurable ? customSkillDisplayName(skill) : skill.title || skill.id || skill.slash || "Skill")}</h3>
         </div>
         <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
       </div>
@@ -700,7 +704,7 @@ function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, es
         <span class="pipeline-state ${escape(customSkillDisplayStatusClass(activeVersion))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillDisplayStatusLabel(activeVersion).toLowerCase()}`)}</span>
       </summary>
       <p class="muted">
-        Latest runnable version: <code>${escape(activeVersion.slash || skill.slash || "")}</code>.
+        Latest runnable version: ${escape(customSkillDisplayName(activeVersion))}. Type <code>${escape(activeVersion.slash || skill.slash || "")}</code> to run it.
         Improve it by typing <code>${escape(`${activeVersion.slash || skill.slash || ""} modify`)}</code> in Quick Actions.
       </p>
       <dl class="skill-card-meta compact">
@@ -859,8 +863,11 @@ function normalizeComparableText(value) {
 }
 
 function customSkillVersionLabel(skill = {}) {
-  const version = Number(skill.version || 1);
-  return `v${Number.isFinite(version) && version > 0 ? version : 1}`;
+  return formatConfigurableSkillVersionLabel(skill);
+}
+
+function customSkillDisplayName(skill = {}) {
+  return formatConfigurableSkillDisplayName(skill);
 }
 
 function customSkillLinkedVersionLabel(skillId, allCustomSkills) {

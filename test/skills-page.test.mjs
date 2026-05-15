@@ -206,7 +206,8 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
   assert.match(html, /Custom Skills/);
-  assert.match(html, /Only the latest approved version is shown as runnable/);
+  assert.match(html, /The visible skill name includes its version/);
+  assert.match(html, /The slash command stays stable and runs the latest approved version/);
   assert.match(html, /Paid AI Skills/);
   assert.match(html, /Deterministic Skills/);
   assert.match(html, /Coming Later: Skill Builder Expansion/);
@@ -401,9 +402,10 @@ test("skills page promotes latest duplicate custom skill and keeps older copy in
   assert.equal(summary.allCustom.length, 2);
   assert.equal(summary.custom[0].slash, "/party_officer_map_2");
   assert.match(customSection, /<div class="skill-slash"><code>\/party_officer_map_2<\/code><\/div>/);
+  assert.match(customSection, /<h3>Party and Officer Map v1<\/h3>/);
   assert.doesNotMatch(customSection, /<div class="skill-slash"><code>\/party_officer_map<\/code><\/div>/);
   assert.match(customSection, /<strong>v1 - Superseded<\/strong>/);
-  assert.match(customSection, /Latest runnable version: <code>\/party_officer_map_2<\/code>/);
+  assert.match(customSection, /Latest runnable version: Party and Officer Map v1\. Type <code>\/party_officer_map_2<\/code> to run it/);
 });
 
 test("skills page renders custom skill version lineage from configurable store", () => {
@@ -524,11 +526,12 @@ test("skills page renders custom skill version lineage from configurable store",
   assert.match(customSection, /Active/);
   assert.match(customSection, /Disabled/);
   assert.match(customSection, /<dt>Version<\/dt><dd>v2<\/dd>/);
+  assert.match(customSection, /<h3>Party and Officer Map v2<\/h3>/);
   assert.match(customSection, /<strong>v1 - Disabled<\/strong>/);
   assert.match(customSection, /<dt>Previous<\/dt><dd>v1 \(disabled\)<\/dd>/);
   assert.doesNotMatch(customSection, /<dt>Replaced by<\/dt><dd>v2 \(active\)<\/dd>/);
   assert.match(customSection, /Version history/);
-  assert.match(customSection, /Latest runnable version: <code>\/party_officer_map<\/code>/);
+  assert.match(customSection, /Latest runnable version: Party and Officer Map v2\. Type <code>\/party_officer_map<\/code> to run it/);
   assert.match(customSection, /\/party_officer_map modify/);
   assert.match(customSection, /include relationship confidence and unresolved aliases/);
   assert.match(customSection, /discover formal party names, officers, aliases, and relationships/);
@@ -610,7 +613,7 @@ test("custom skill run report is copyable and excludes work product", () => {
   const report = formatConfigurableSkillRunReport({
     id: "run_party_1",
     slash: "/party_officer_map",
-    title: "Party and Officer Map",
+    title: "Party and Officer Map v2",
     matterName: "Ayesha Vs Japan Airlines",
     matterFolder: "Ayesha Vs Japan Airlines",
     status: "succeeded",
@@ -633,6 +636,7 @@ test("custom skill run report is copyable and excludes work product", () => {
 
   assert.match(report, /^# Custom Skill Run Report/);
   assert.match(report, /- Status: succeeded/);
+  assert.match(report, /- Skill: Party and Officer Map v2/);
   assert.match(report, /- Slash command: \/party_officer_map/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
   assert.match(report, /- Output document: Replaced existing output document/);
