@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { MATTER_WORKSPACE_LANES } from "../shared/matter-contract.mjs";
 
 const FALLBACK_CATEGORIES = [
@@ -55,6 +56,7 @@ async function normalizeRegistry(registry, { registryPath, builtinsDir, configur
       : FALLBACK_CATEGORIES,
   );
   const usesBuiltins = Array.isArray(registry.builtins) && registry.builtins.length > 0;
+  if (usesBuiltins) assertBuiltinManifestMatchesCommandList(registry.builtins, { registryPath });
   const rawSkills = await loadSkillCards(registry, { registryPath, builtinsDir });
   const configurableCards = configurableSkillsService
     ? await configurableSkillsService.activeSkillCards()
@@ -87,6 +89,22 @@ async function normalizeRegistry(registry, { registryPath, builtinsDir, configur
     skills,
     registry_path: registryPath,
   };
+}
+
+function assertBuiltinManifestMatchesCommandList(builtins, { registryPath }) {
+  const manifestSlashes = builtins.map((builtin) => {
+    const id = typeof builtin === "string" ? builtin : builtin?.id;
+    return id ? `/${id}` : "";
+  });
+  if (
+    manifestSlashes.length === BUILTIN_SKILL_COMMANDS.length
+    && manifestSlashes.every((slash, index) => slash === BUILTIN_SKILL_COMMANDS[index])
+  ) {
+    return;
+  }
+  throw new Error(
+    `Built-in skill manifest in ${registryPath} must match shared/builtin-skill-commands.mjs`,
+  );
 }
 
 async function loadSkillCards(registry, { registryPath, builtinsDir }) {
