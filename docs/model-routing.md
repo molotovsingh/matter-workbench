@@ -390,6 +390,134 @@ Recommended rules:
 
 OpenRouter supports model arrays for fallback, but the app should decide when that feature is allowed.
 
+## Provider Fallback Policy
+
+The app should treat provider choice as a runtime route, not as a permanent allegiance to one vendor path.
+
+The two practical routes are:
+
+```text
+OpenAI direct
+OpenRouter / vendor-mediated
+```
+
+The policy question is not "which provider is best forever?" The useful question is:
+
+```text
+For this task, which route is primary, which route is allowed as fallback, and what must be recorded if fallback happens?
+```
+
+### Principles
+
+1. Provider fallback must be task-specific.
+2. Direct-to-vendor and vendor-mediated routes should both be supported where the task policy allows it.
+3. No lawyer-facing task should silently move to a materially weaker model or different data-handling route.
+4. Every AI run must record requested provider/model, returned provider/model, fallback reason, and validation outcome.
+5. If fallback changes the expected quality/risk posture, the UI or run report should say so.
+6. If structured JSON, citation preservation, or source-grounding fails after fallback, the run fails closed.
+
+### Two-Pass List of Dates Evidence
+
+The Atlas two-pass bakeoff showed why fallback needs to consider both model quality and provider reliability.
+
+Quality finding:
+
+```text
+best legal-use accuracy: gpt-4.1 -> gpt-5.4-mini
+clean concise alternate: gpt-5.4-mini -> gpt-5.4
+```
+
+Operational finding:
+
+```text
+OpenRouter Claude editor passes can work, but strict JSON can be fragile.
+Claude as verbose first pass repeatedly returned truncated / unterminated JSON with the current chunk shape.
+```
+
+This means OpenRouter should not be treated as "bad" or "good" globally. It should be treated as another route with task-specific evidence.
+
+### Recommended V0 Fallback Shape
+
+For source-backed chronology work:
+
+```text
+primary: configured proven model pair
+fallback route: same role, same or comparable quality tier, explicit allowlist only
+retry: same provider/model on transient 5xx/network failure
+fail closed: malformed JSON after retry, citation failure, source-grounding failure
+```
+
+For the current two-pass chronology eval:
+
+```text
+pass 1 fallback:
+  only to a model proven to return valid candidate JSON on chunks of this size
+
+pass 2 fallback:
+  OpenRouter Claude can be tested as an editor fallback, but the run must record JSON retries and returned model aliases
+```
+
+For skill interviews and skill authoring:
+
+```text
+primary: OpenAI direct premium policy
+fallback: deterministic fallback for interview planning; no automatic fallback for authoring unless validation and human review remain intact
+```
+
+For lightweight router tasks:
+
+```text
+primary: cheap structured model
+fallback: same-tier structured model is acceptable
+```
+
+### Fallback Metadata
+
+Every provider-backed run should eventually include:
+
+```json
+{
+  "requestedProvider": "openai-direct",
+  "requestedModel": "gpt-4.1",
+  "returnedProvider": "openai-direct",
+  "returnedModel": "gpt-4.1-2025-04-14",
+  "fallbackUsed": false,
+  "fallbackReason": "",
+  "attempts": 1,
+  "structuredOutputValid": true,
+  "citationValidationPassed": true
+}
+```
+
+If fallback happens:
+
+```json
+{
+  "requestedProvider": "openai-direct",
+  "requestedModel": "gpt-5.4-mini",
+  "actualProvider": "openrouter",
+  "actualModel": "anthropic/claude-4.6-sonnet-20260217",
+  "fallbackUsed": true,
+  "fallbackReason": "primary provider timeout",
+  "structuredOutputValid": true,
+  "citationValidationPassed": true
+}
+```
+
+This is especially important with brokered providers because the returned model alias may differ from the requested model id.
+
+### Non-Goals For Now
+
+Do not add yet:
+
+- visible model chooser for lawyers;
+- silent auto-fallback for `/create_listofdates`;
+- multi-provider fallback for all skills;
+- provider fallback that bypasses validation;
+- fallback from a premium legal task to a cheap model merely to save cost.
+
+The next implementation step should be a small policy resolver shape, not broad runtime failover.
+
 ## Configuration Shape
 
 A later config file could look like this:
