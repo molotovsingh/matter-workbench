@@ -97,7 +97,7 @@ function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, es
       </summary>
       <p class="muted">
         Latest runnable version: ${escape(customSkillDisplayName(activeVersion))}. Type <code>${escape(activeVersion.slash || skill.slash || "")}</code> to run it.
-        Improve it by typing <code>${escape(`${activeVersion.slash || skill.slash || ""} modify`)}</code> in Quick Actions.
+        Improve it by typing <code>${escape(`${activeVersion.slash || skill.slash || ""} modify`)}</code> in the command box.
       </p>
       <dl class="skill-card-meta compact">
         <div><dt>Latest run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>

@@ -525,7 +525,7 @@ test("command box cancels explicit new skill mode without saving", async () => {
 
   assert.deepEqual(savedIdeas, []);
   assert.equal(ctx.elements.aiCommandInput.value, "");
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment receipts, prepare matter, open drafts");
   assert.match(ctx.elements.aiCommandSession.innerHTML, /New skill idea cancelled/);
   assert.equal(ctx.statusCalls.at(-1).bar, "New Skill Cancelled");
 });
@@ -1444,7 +1444,7 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /skill version was not changed/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Run Cancelled");
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment receipts, prepare matter, open drafts");
 
   ctx.elements.aiCommandInput.value = "/party_officer_map";
   await form.submit();
@@ -1462,7 +1462,7 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Run Report/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Complete");
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment receipts, prepare matter, open drafts");
 });
 
 test("command box clears stale custom skill run cards on matter switch", async () => {
@@ -1528,7 +1528,7 @@ test("command box clears stale custom skill run cards on matter switch", async (
   assert.equal(ctx.elements.aiCommandSession.innerHTML, "");
   assert.equal(ctx.elements.aiCommandCopyReport.hidden, true);
   assert.equal(ctx.elements.aiCommandReportStatus.textContent, "");
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment, open library, create list of dates");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "find payment receipts, prepare matter, open drafts");
   assert.equal(ctx.elements.aiCommandSubmit.textContent, "Go");
   assert.equal(ctx.elements.aiCommandSubmit.disabled, false);
 });
