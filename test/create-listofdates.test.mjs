@@ -207,6 +207,202 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.match(markdown, /FILE-0001 p1\.b2/);
 });
 
+test("create-listofdates two-pass mode writes candidate ledger and final stable artifacts", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "Agreement and notice note",
+      short_label: "Agreement note",
+    },
+  ]);
+  const pass1Calls = [];
+  const pass2Calls = [];
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    env: { CREATE_LISTOFDATES_TWO_PASS_ENABLED: "1" },
+    pass1Provider: async ({ matter, chunk, chunkIndex, chunkCount, schema }) => {
+      pass1Calls.push({ matter, chunk, chunkIndex, chunkCount, schema });
+      assert.equal(schema.required.includes("candidates"), true);
+      assert.equal(chunk[0].source_label, "Agreement and notice note");
+      return {
+        candidates: [
+          {
+            date_iso: "2026-04-20",
+            date_text: "20 April 2026",
+            event_candidate: "Agreement was signed by Mehta and Skyline.",
+            legal_materiality: "Potential foundation date for the client's contract chronology.",
+            citation: "FILE-0001 p1.b1",
+            source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
+            candidate_type: "agreement",
+            party_posture: "helps_client",
+            same_fact_hint: "",
+            date_uncertainty: "",
+            ocr_suspicion: "",
+            needs_review: false,
+            confidence: 0.94,
+          },
+          {
+            date_iso: "2026-05-01",
+            date_text: "01 May 2026",
+            event_candidate: "Notice was issued after the inspection.",
+            legal_materiality: "Potential notice date for the client's chronology.",
+            citation: "FILE-0001 p1.b2",
+            source_excerpt: "Notice was issued on 01 May 2026 after the inspection.",
+            candidate_type: "notice",
+            party_posture: "helps_client",
+            same_fact_hint: "",
+            date_uncertainty: "",
+            ocr_suspicion: "",
+            needs_review: false,
+            confidence: 0.9,
+          },
+          {
+            date_iso: "2026-06-01",
+            date_text: "01 June 2026",
+            event_candidate: "Invalid candidate should be dropped.",
+            legal_materiality: "Invalid citation.",
+            citation: "FILE-9999 p1.b1",
+            source_excerpt: "Invalid.",
+            candidate_type: "other",
+            party_posture: "unclear",
+            same_fact_hint: "",
+            date_uncertainty: "",
+            ocr_suspicion: "",
+            needs_review: true,
+            confidence: 0.1,
+          },
+        ],
+      };
+    },
+    pass2Provider: async ({ matter, candidates, schema }) => {
+      pass2Calls.push({ matter, candidates, schema });
+      assert.equal(matter.matter_name, "Mehta vs Skyline");
+      assert.deepEqual(candidates.map((candidate) => candidate.candidate_id), ["cand_0001", "cand_0002"]);
+      assert.equal(candidates[0].source_label, "Agreement and notice note");
+      assert.equal(schema.properties.entries.type, "array");
+      return {
+        entries: [
+          {
+            date_iso: "2026-04-20",
+            date_text: "20 April 2026",
+            event: "Agreement was signed by Mehta and Skyline.",
+            citation: "FILE-0001 p1.b1",
+            needs_review: false,
+            confidence: 0.94,
+            ...lawyerFields({
+              event_type: "agreement",
+              legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+              issue_tags: ["agreement"],
+            }),
+          },
+          {
+            date_iso: "2026-05-01",
+            date_text: "01 May 2026",
+            event: "Notice was issued after the inspection.",
+            citation: "FILE-0001 p1.b2",
+            needs_review: false,
+            confidence: 0.89,
+            ...lawyerFields({
+              event_type: "notice",
+              legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+              issue_tags: ["notice", "inspection"],
+            }),
+          },
+        ],
+      };
+    },
+  });
+
+  assert.equal(pass1Calls.length, 1);
+  assert.equal(pass2Calls.length, 1);
+  assert.equal(result.engineVersion, "create-listofdates-v2-two-pass");
+  assert.equal(result.generationMode, "two_pass");
+  assert.equal(result.counts.candidateEntries, 3);
+  assert.equal(result.counts.acceptedCandidates, 2);
+  assert.equal(result.counts.entries, 2);
+  assert.equal(result.outputPaths.candidates, "10_Library/List of Dates Candidates.json");
+  assert.equal(result.pass1AiRun.task, "create_listofdates_pass1");
+  assert.equal(result.pass1AiRun.model, "gpt-4.1");
+  assert.equal(result.pass2AiRun.task, "create_listofdates_pass2");
+  assert.equal(result.pass2AiRun.model, "gpt-5.4-mini");
+  assert.equal(result.aiRun.provider, "two-pass");
+  assert.equal(result.aiRun.model, "gpt-4.1 -> gpt-5.4-mini");
+
+  const candidateLedger = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates Candidates.json"), "utf8"));
+  assert.equal(candidateLedger.schema_version, "list-of-dates-candidates/v1");
+  assert.equal(candidateLedger.status, "succeeded");
+  assert.equal(candidateLedger.candidates.length, 2);
+  assert.equal(candidateLedger.candidates[0].candidate_id, "cand_0001");
+  assert.equal(candidateLedger.candidates[0].source_label, "Agreement and notice note");
+  assert.equal(candidateLedger.pass2_ai_run.model, "gpt-5.4-mini");
+
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.equal(jsonOutput.engine_version, "create-listofdates-v2-two-pass");
+  assert.equal(jsonOutput.generation_mode, "two_pass");
+  assert.equal(jsonOutput.candidate_ledger_path, "10_Library/List of Dates Candidates.json");
+  assert.equal(jsonOutput.entries.length, 2);
+  assert.equal(jsonOutput.pass1_ai_run.model, "gpt-4.1");
+  assert.equal(jsonOutput.pass2_ai_run.model, "gpt-5.4-mini");
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.match(markdown, /Generated by create-listofdates-v2-two-pass/);
+  assert.match(markdown, /Agreement and notice note \(FILE-0001 p1\.b1\)/);
+});
+
+test("create-listofdates two-pass failure leaves existing final artifacts unchanged and marks ledger failed", async () => {
+  const root = await prepareExtractedMatter();
+  const outputDir = path.join(root, "10_Library");
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(path.join(outputDir, "List of Dates.md"), "old markdown\n");
+  await writeFile(path.join(outputDir, "List of Dates.json"), "{\"old\":true}\n");
+  await writeFile(path.join(outputDir, "List of Dates.csv"), "old\n");
+
+  await assert.rejects(
+    () => runCreateListOfDates({
+      matterRoot: root,
+      env: { CREATE_LISTOFDATES_TWO_PASS_ENABLED: "1" },
+      pass1Provider: async () => ({
+        candidates: [
+          {
+            date_iso: "2026-04-20",
+            date_text: "20 April 2026",
+            event_candidate: "Agreement was signed by Mehta and Skyline.",
+            legal_materiality: "Potential foundation date for the client's contract chronology.",
+            citation: "FILE-0001 p1.b1",
+            source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
+            candidate_type: "agreement",
+            party_posture: "helps_client",
+            same_fact_hint: "",
+            date_uncertainty: "",
+            ocr_suspicion: "",
+            needs_review: false,
+            confidence: 0.94,
+          },
+        ],
+      }),
+      pass2Provider: async () => {
+        const error = new Error("editor failed");
+        error.statusCode = 502;
+        throw error;
+      },
+    }),
+    /editor failed/,
+  );
+
+  assert.equal(await readFile(path.join(outputDir, "List of Dates.md"), "utf8"), "old markdown\n");
+  assert.equal(await readFile(path.join(outputDir, "List of Dates.json"), "utf8"), "{\"old\":true}\n");
+  assert.equal(await readFile(path.join(outputDir, "List of Dates.csv"), "utf8"), "old\n");
+  const candidateLedger = JSON.parse(await readFile(path.join(outputDir, "List of Dates Candidates.json"), "utf8"));
+  assert.equal(candidateLedger.status, "failed");
+  assert.equal(candidateLedger.error_message, "editor failed");
+  assert.equal(candidateLedger.candidates.length, 1);
+});
+
 test("create-listofdates enriches entries with Source Index labels without changing citations", async () => {
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);

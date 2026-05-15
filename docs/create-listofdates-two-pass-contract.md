@@ -1,8 +1,8 @@
 # Two-Pass `/create_listofdates` Runtime Contract
 
-Status: design contract only. This document does not switch the production runtime.
+Status: design contract plus gated runtime path. The production default remains the one-pass runtime unless `CREATE_LISTOFDATES_TWO_PASS_ENABLED=1` is set.
 
-This contract records the path from the reusable two-pass smoke harness to a production-safe `/create_listofdates` implementation. The current one-pass skill remains the default until this contract is implemented behind a gate and re-smoked on real matters.
+This contract records the path from the reusable two-pass smoke harness to a production-safe `/create_listofdates` implementation. The current one-pass skill remains the default while the two-pass path is gated and re-smoked on real matters.
 
 ## Why Change
 
@@ -257,13 +257,13 @@ If pass 2 succeeds but validation fails:
 ## Rollout Plan
 
 1. Keep one-pass `/create_listofdates` as default.
-2. Implement two-pass behind an explicit env gate, for example:
+2. Enable two-pass only behind the explicit env gate:
 
 ```text
 CREATE_LISTOFDATES_TWO_PASS_ENABLED=1
 ```
 
-3. Add task names:
+3. Use the task names:
 
 ```text
 AI_TASKS.CREATE_LISTOFDATES_PASS1
@@ -282,13 +282,18 @@ AI_TASKS.CREATE_LISTOFDATES_PASS2
 
 ## Tests To Add When Implementing
 
-Service tests:
+Implemented service tests:
 
-- pass 1 writes candidate ledger without replacing final List of Dates;
+- pass 1 writes candidate ledger in gated mode;
+- pass 2 writes the stable final List of Dates paths after validation;
+- pass 2 failure leaves existing final List of Dates artifacts unchanged and marks the candidate ledger failed;
+- model policy exposes separate pass 1 and pass 2 task defaults.
+
+Remaining tests before promoting the gated runtime:
+
 - pass 2 merges duplicate candidates into one final row;
 - final rows preserve raw citations and readable labels;
 - precedent-like candidate rows are dropped unless matter-procedural;
-- pass 2 failure does not overwrite existing final artifacts;
 - validation failure does not overwrite final artifacts;
 - metadata records both requested and returned provider/model for each pass.
 
