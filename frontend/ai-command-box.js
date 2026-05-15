@@ -1,7 +1,6 @@
 import { getJson, postJson } from "./api-client.js";
 import { writeClipboardText as defaultWriteClipboardText } from "./clipboard.js";
 import {
-  normalizeCommandInput,
   parseDeterministicCommand,
   parseNewSkillModeCommand,
   parseSkillIdeaInput,
@@ -37,6 +36,7 @@ import {
   planSkillIdeaInterview,
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
+import { classifySkillIdeaSessionInput } from "./skill-idea-session-commands.js";
 import {
   describeInterviewPlanner,
   renderAnsweredQuestions,
@@ -859,13 +859,18 @@ export function createAiCommandBox(ctx, options = {}) {
   async function handleSkillIdeaInterviewInput(userRequest) {
     const session = currentSkillIdeaInterview;
     if (!session) return;
-    const normalized = normalizeCommandInput(userRequest);
-    if (normalized === "cancel") {
+    const command = classifySkillIdeaSessionInput(userRequest, {
+      ready: Boolean(session.ready),
+      hasSavedIdea: Boolean(session.savedIdea),
+      hasActiveSample: Boolean(session.sampleReview?.activeSample),
+      sampleApproved: Boolean(session.sampleReview?.approved),
+    });
+    if (command.action === "cancel") {
       clearCommandInput();
       cancelSkillIdeaInterview();
       return;
     }
-    if (!userRequest) {
+    if (command.action === "blank") {
       renderSkillIdeaSession("Answer the current question, or choose Cancel.");
       return;
     }
@@ -878,97 +883,74 @@ export function createAiCommandBox(ctx, options = {}) {
         await createConfigurableSkillFromApprovedSample();
         return;
       }
-      if (normalized === "save idea" || normalized === "save updates") {
+      if (command.action === "save") {
         clearCommandInput();
         await saveSkillIdeaInterviewSession();
         return;
       }
       if (session.savedIdea) {
-        if (normalized === "generate sample" || normalized === "use this matter for sample" || normalized === "regenerate sample") {
+        if (command.action === "generate_sample") {
           clearCommandInput();
-          await generateSavedSkillIdeaSample({ feedback: normalized === "regenerate sample" ? "Regenerate the sample with the current design brief." : "" });
+          await generateSavedSkillIdeaSample({ feedback: command.feedback || "" });
           return;
         }
-        if (normalized === "copy sample") {
+        if (command.action === "copy_sample") {
           clearCommandInput();
           await copySavedSkillIdeaSample();
           return;
         }
-        if (/^copy sample v\d+$/i.test(normalized)) {
+        if (command.action === "copy_sample_version") {
           clearCommandInput();
-          await copySavedSkillIdeaSampleByVersion(Number(normalized.match(/\d+$/)?.[0] || 0));
+          await copySavedSkillIdeaSampleByVersion(command.version);
           return;
         }
-        if (normalized === "looks right" || normalized === "approve sample" || normalized === "sample approved") {
+        if (command.action === "approve_sample") {
           clearCommandInput();
           await approveSavedSkillIdeaSampleAndCreateSkill();
           return;
         }
-        if (normalized === "create skill") {
+        if (command.action === "create_skill") {
           clearCommandInput();
           await createConfigurableSkillFromApprovedSample();
           return;
         }
-        if (normalized === "copy review packet") {
+        if (command.action === "copy_review_packet") {
           clearCommandInput();
           await copySavedSkillIdeaReviewPacket();
           return;
         }
-        if (normalized === "mark ready for review" || normalized === "mark ready") {
+        if (command.action === "mark_ready") {
           clearCommandInput();
           await markSavedSkillIdeaReady();
           return;
         }
-        if (normalized === "open in skills" || normalized === "open skills") {
+        if (command.action === "open_skills") {
           clearCommandInput();
           await openSavedSkillIdeaInSkills();
           return;
         }
-        if (normalized === "start another idea") {
+        if (command.action === "start_another") {
           clearCommandInput();
           startAnotherSkillIdea();
           return;
         }
-        if (normalized === "edit answers" || normalized === "edit") {
-          if (!Array.isArray(session.interview.questions) || session.interview.questions.length === 0) {
-            renderSkillIdeaSession("No follow-up questions were asked. Edit the skill idea by starting again, or generate a sample from a matter.");
-            return;
-          }
-          session.editingSavedIdea = true;
-          session.ready = false;
-          session.questionIndex = 0;
-          aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
-          aiCommandSubmit.textContent = "Answer";
-          renderSkillIdeaSession();
+        if (command.action === "edit_answers") {
+          beginSkillIdeaAnswerEditing(session, { editingSavedIdea: true });
           return;
         }
-        if (session.sampleReview?.activeSample && !session.sampleReview.approved) {
+        if (command.action === "sample_feedback") {
           clearCommandInput();
-          await generateSavedSkillIdeaSample({ feedback: userRequest.trim() });
+          await generateSavedSkillIdeaSample({ feedback: command.feedback || userRequest.trim() });
           return;
         }
       }
-      if (normalized === "edit answers" || normalized === "edit") {
-        if (!Array.isArray(session.interview.questions) || session.interview.questions.length === 0) {
-          renderSkillIdeaSession("No follow-up questions were asked. Edit the skill idea by starting again, or generate a sample from a matter.");
-          return;
-        }
-        session.editingSavedIdea = Boolean(session.savedIdea);
-        session.ready = false;
-        session.questionIndex = 0;
-        aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
-        aiCommandSubmit.textContent = "Answer";
-        renderSkillIdeaSession();
+      if (command.action === "edit_answers") {
+        beginSkillIdeaAnswerEditing(session, { editingSavedIdea: Boolean(session.savedIdea) });
         return;
       }
-      if (normalized === "generate sample" || normalized === "generate sample from this matter" || normalized === "use this matter for sample") {
+      if (command.action === "generate_sample") {
         clearCommandInput();
         await generateSavedSkillIdeaSample();
-        return;
-      }
-      if (normalized === "save idea") {
-        clearCommandInput();
-        await saveSkillIdeaInterviewSession();
         return;
       }
       renderSkillIdeaSession(session.savedIdea
@@ -1014,6 +996,20 @@ export function createAiCommandBox(ctx, options = {}) {
       });
     }
     renderSkillIdeaSession();
+  }
+
+  function beginSkillIdeaAnswerEditing(session, { editingSavedIdea = false } = {}) {
+    if (!Array.isArray(session.interview.questions) || session.interview.questions.length === 0) {
+      renderSkillIdeaSession("No follow-up questions were asked. Edit the skill idea by starting again, or generate a sample from a matter.");
+      return false;
+    }
+    session.editingSavedIdea = editingSavedIdea;
+    session.ready = false;
+    session.questionIndex = 0;
+    aiCommandInput.value = session.answers[session.interview.questions[0]?.id] || "";
+    aiCommandSubmit.textContent = "Answer";
+    renderSkillIdeaSession();
+    return true;
   }
 
   async function saveSkillIdeaInterviewSession({ silent = false } = {}) {
