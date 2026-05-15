@@ -87,15 +87,15 @@ export function createMatterOverview(ctx, skills) {
 
 export function renderMatterPipelineStatusLoading() {
   return `
-    <h2>Matter Pipeline</h2>
-    <p class="muted">Checking existing matter artifacts...</p>
+    <h2>Matter readiness</h2>
+    <p class="muted">Checking what has already been prepared for this matter...</p>
   `;
 }
 
 export function renderMatterPipelineStatusUnavailable(message) {
   return `
-    <h2>Matter Pipeline</h2>
-    <p class="muted">Pipeline status unavailable: ${escapeHtml(message || "Unknown error")}</p>
+    <h2>Matter readiness</h2>
+    <p class="muted">Matter readiness is unavailable: ${escapeHtml(message || "Unknown error")}</p>
   `;
 }
 
@@ -106,10 +106,10 @@ export function renderMatterPipelineStatus(status, escape) {
       <div class="pipeline-stage ${stage.present ? "present" : "not-run"}">
         <div class="pipeline-stage-main">
           <div>
-            <strong>${escape(stage.slash || stage.label || "")}</strong>
-            <span class="pipeline-stage-label">${escape(stage.label || "")}</span>
+            <strong>${escape(stageDisplayLabel(stage))}</strong>
+            ${stage.slash ? `<span class="pipeline-stage-label">${escape(stage.slash)}</span>` : ""}
           </div>
-          <span class="pipeline-state ${stage.present ? "present" : "not-run"}">${stage.present ? "Present" : "Not run"}</span>
+          <span class="pipeline-state ${stage.present ? "present" : "not-run"}">${stage.present ? "Done" : "Not started"}</span>
         </div>
         ${renderStageArtifacts(stage.artifacts, escape)}
         ${renderStageAiRun(stage.aiRun, escape)}
@@ -119,14 +119,14 @@ export function renderMatterPipelineStatus(status, escape) {
     : '<p class="muted">No pipeline status available.</p>';
 
   return `
-    <h2>Matter Pipeline</h2>
-    <p class="muted">Derived from files in the active matter folder. Missing artifacts are shown as not run.</p>
+    <h2>Matter readiness</h2>
+    <p class="muted">Based on files already saved for this matter. Missing work products are shown as not started.</p>
     <div class="pipeline-stage-list">${rows}</div>
   `;
 }
 
 function renderStageArtifacts(artifacts, escape) {
-  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No artifact found.</div>';
+  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No output document found.</div>';
   return `
     <div class="pipeline-artifacts">
       ${artifacts.slice(0, 4).map((artifact) => `<code>${escape(artifact)}</code>`).join("")}
@@ -167,10 +167,10 @@ function renderStageRerunHint(stage, escape) {
 
 function rerunHintText(advice) {
   if (advice.shouldConfirm) {
-    return "Current work product exists. Run will ask before replacing it or starting a paid provider call.";
+    return "An output document already exists. The app will ask before replacing it or starting a paid AI action.";
   }
   if (advice.state === "stale") {
-    return `${advice.reason || "Newer source material exists."} Review the current work product, then regenerate deliberately to include newer inputs.`;
+    return `${sentenceWithPeriod(advice.reason || "Newer source material exists")} Review the existing output document, then regenerate deliberately to include newer inputs.`;
   }
   if (advice.state === "missing") {
     return "No output document exists yet; the next run will create one.";
@@ -181,7 +181,13 @@ function rerunHintText(advice) {
   if (advice.state === "missing_upstream") {
     return "Required source material is missing. Complete the earlier step before creating this work product.";
   }
-  return advice.reason || "Review the current work product before regenerating.";
+  return advice.reason || "Review the existing output document before regenerating.";
+}
+
+function sentenceWithPeriod(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
 function rerunHintMeta(stage, advice) {
@@ -198,12 +204,27 @@ function rerunHintMeta(stage, advice) {
 
 function rerunStateLabel(state) {
   return ({
-    current: "Current",
-    stale: "Stale",
-    missing: "Not run",
-    failed: "Needs rerun",
-    missing_upstream: "Missing inputs",
+    current: "Up to date",
+    stale: "Needs update",
+    missing: "Not started",
+    failed: "Needs attention",
+    missing_upstream: "Waiting on earlier step",
   })[state] || "Status unknown";
+}
+
+function stageDisplayLabel(stage) {
+  const bySlash = {
+    "/matter-init": "Set up matter",
+    "/extract": "Extract documents",
+    "/describe_sources": "Label sources",
+    "/context_preview": "Preview matter context",
+    "/context_search": "Find in matter",
+    "/create_listofdates": "Create list of dates",
+    "/doctor": "Check matter",
+    "/prepare_matter": "Prepare matter",
+  };
+  if (bySlash[stage?.slash]) return bySlash[stage.slash];
+  return stage?.label || stage?.slash || "";
 }
 
 function rerunStateClass(state) {

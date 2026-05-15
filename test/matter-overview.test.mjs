@@ -50,15 +50,20 @@ test("matter overview renders read-only pipeline status", () => {
     ],
   }, escapeHtml);
 
-  assert.match(html, /Matter Pipeline/);
+  assert.match(html, /Matter readiness/);
+  assert.match(html, /Based on files already saved for this matter/);
+  assert.match(html, /Set up matter/);
   assert.match(html, /\/matter-init/);
-  assert.match(html, /Present/);
+  assert.match(html, /Done/);
+  assert.doesNotMatch(html, />Present</);
   assert.match(html, /\/describe_sources/);
-  assert.match(html, /Stale/);
-  assert.match(html, /Review the current work product, then regenerate deliberately/);
+  assert.match(html, /Label sources/);
+  assert.match(html, /Needs update/);
+  assert.doesNotMatch(html, />Stale</);
+  assert.match(html, /Review the existing output document, then regenerate deliberately/);
   assert.match(html, /10_Library\/List of Dates\.md/);
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
-  assert.match(html, /Run will ask before replacing it/);
+  assert.match(html, /app will ask before replacing it/);
   assert.match(html, /36 rows/);
 });
