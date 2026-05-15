@@ -7,7 +7,7 @@ export function renderPrepareMatterHtml(plan, escapeHtml = defaultEscapeHtml) {
   const nextStage = stages.find((stage) => stage.id === nextStep.stage);
 
   return `
-    <h1>Prepare Matter</h1>
+    <h1>Prepare matter</h1>
     <p>
       A guided preparation plan for <strong>${escapeHtml(matterName)}</strong>.
       It reads existing artifacts first, skips current stages, and asks before paid source labeling.
@@ -23,7 +23,7 @@ export function renderPrepareMatterHtml(plan, escapeHtml = defaultEscapeHtml) {
       ` : ""}
     </section>
     <section class="matter-pipeline-card prepare-matter-card">
-      <h2>Preparation Plan</h2>
+      <h2>Preparation steps</h2>
       <div class="pipeline-stage-list">
         ${stages.length ? stages.map((stage) => renderPrepareStage(stage, escapeHtml)).join("") : "<p class=\"muted\">No active matter. Pick a matter from the sidebar to begin.</p>"}
       </div>
@@ -51,7 +51,7 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
       <ul class="overlap-list">
         <li><strong>Stage:</strong> ${escapeHtml(stage?.slash || "/describe_sources")}</li>
         <li><strong>Artifact:</strong> <code>${escapeHtml(advice.artifactPath || "10_Library/Source Index.json")}</code></li>
-        <li><strong>State:</strong> ${escapeHtml(stage?.state || advice.state || "missing")}</li>
+        <li><strong>Status:</strong> ${escapeHtml(stageStateLabel(stage || { state: advice.state || "missing" }))}</li>
         <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
       </ul>
       <p>Cancel leaves existing artifacts unchanged.</p>
@@ -106,7 +106,7 @@ function renderListOfDatesRecommendation(stage, escapeHtml) {
 }
 
 function renderArtifacts(artifacts, escapeHtml) {
-  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No artifact found.</div>';
+  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No output document found.</div>';
   return `
     <div class="pipeline-artifacts">
       ${artifacts.slice(0, 4).map((artifact) => `<code>${escapeHtml(artifact)}</code>`).join("")}
@@ -116,15 +116,15 @@ function renderArtifacts(artifacts, escapeHtml) {
 }
 
 function stageStateLabel(stage) {
-  if (stage.action === "skip_current") return "Current - skipped";
-  if (stage.action === "confirm_paid_run") return "Needs confirmation";
+  if (stage.action === "skip_current") return "Already done";
+  if (stage.action === "confirm_paid_run") return "Needs approval";
   return ({
     ready_to_run: "Ready to run",
     blocked: "Blocked",
-    missing: "Missing",
-    stale: "Stale",
-    failed: "Needs rerun",
-    current: "Current",
+    missing: "Not started",
+    stale: "Needs update",
+    failed: "Needs attention",
+    current: "Up to date",
   })[stage.state] || "Status unknown";
 }
 
