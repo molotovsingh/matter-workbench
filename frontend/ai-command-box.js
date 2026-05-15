@@ -40,10 +40,9 @@ import {
 import { classifySkillIdeaSessionInput } from "./skill-idea-session-commands.js";
 import {
   describeInterviewPlanner,
-  renderAnsweredQuestions,
-  renderQuestionExamples,
-  renderSavedSkillIdeaChecklist,
-  renderSkillIdeaUnderstood,
+  renderActiveSkillIdeaQuestionHtml,
+  renderReadySkillIdeaSessionHtml,
+  renderSavedSkillIdeaSessionHtml,
 } from "./skill-idea-session-rendering.js";
 import {
   buildSkillCreationOverlapRequest,
@@ -59,16 +58,12 @@ import {
   formatSampleProvider,
   formatSkillSampleCopy,
   getLedgerSamples,
-  getSampleAiRun,
   getSampleId,
   getSampleMarkdown,
-  getSampleMatter,
   getSampleState,
   getSampleVersion,
-  isSampleStale,
   markSampleReviewStale,
   normalizeUiSample,
-  renderSampleLedger,
 } from "./skill-sample-review.js";
 import {
   renderCreatedSkillCommandRailHtml,
@@ -1092,171 +1087,26 @@ export function createAiCommandBox(ctx, options = {}) {
     const { interview, answers, questionIndex, ready, savedIdea, editingSavedIdea, sampleReview, createdSkill } = currentSkillIdeaInterview;
     aiCommandSession.hidden = false;
     if (ready && savedIdea && !editingSavedIdea) {
-      aiCommandSession.innerHTML = renderSavedSkillIdeaSession({ idea: savedIdea, interview, answers, sampleReview, createdSkill, errorMessage });
+      aiCommandSession.innerHTML = renderSavedSkillIdeaSessionHtml({
+        idea: savedIdea,
+        interview,
+        answers,
+        sampleReview,
+        createdSkill,
+        activeMatter: ctx.getActiveMatter?.() || {},
+        errorMessage,
+      });
       wireSkillIdeaSessionActions();
       return;
     }
     if (ready) {
       const activeMatter = ctx.getActiveMatter?.() || {};
-      const hasMatter = Boolean(activeMatter?.folderName);
-      const primaryLabel = hasMatter ? "Generate sample from this matter" : "Pick matter to test this skill";
-      aiCommandSession.innerHTML = `
-        <section class="command-interview" aria-live="polite">
-          <h3>Ready to generate a sample output</h3>
-          <p class="muted">Not runnable yet. The next step is to test this idea against a matter. ${hasMatter ? "The idea will be saved before sample generation." : "Pick a matter to test this skill."}</p>
-          ${renderSkillIdeaUnderstood(interview)}
-          ${Array.isArray(interview.questions) && interview.questions.length === 0 ? '<p class="muted">No follow-up questions were needed because the initial request already contains a detailed skill specification.</p>' : ""}
-          ${renderAnsweredQuestions(interview, answers)}
-          ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
-          <div class="command-interview-actions">
-            <button type="button" data-skill-interview-action="generate-sample"${hasMatter ? "" : " disabled"}>${escapeHtml(primaryLabel)}</button>
-            <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
-            <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
-          </div>
-        </section>
-      `;
+      aiCommandSession.innerHTML = renderReadySkillIdeaSessionHtml({ interview, answers, activeMatter, errorMessage });
       wireSkillIdeaSessionActions();
       return;
     }
-    const question = interview.questions[questionIndex] || {};
-    aiCommandSession.innerHTML = `
-      <section class="command-interview" aria-live="polite">
-        <h3>Skill idea interview</h3>
-        <p class="muted">Temporary browser-memory session. Refreshing may lose it.</p>
-        ${renderSkillIdeaUnderstood(interview)}
-        <div class="command-interview-question">
-          <strong>Question ${questionIndex + 1}</strong>
-          <p>${escapeHtml(question.label || "")}</p>
-          ${question.help ? `<p>${escapeHtml(question.help)}</p>` : ""}
-          ${renderQuestionExamples(question)}
-        </div>
-        ${renderAnsweredQuestions(interview, answers)}
-        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
-        <div class="command-interview-actions">
-          <button type="button" class="secondary" data-skill-interview-action="cancel">Cancel</button>
-        </div>
-      </section>
-    `;
+    aiCommandSession.innerHTML = renderActiveSkillIdeaQuestionHtml({ interview, answers, questionIndex, errorMessage });
     wireSkillIdeaSessionActions();
-  }
-
-  function renderSavedSkillIdeaSession({ idea, interview, answers, sampleReview = {}, createdSkill = null, errorMessage = "" }) {
-    const brief = idea.designBrief || {};
-    const readiness = idea.readiness || {};
-    const status = String(idea.status || "incomplete");
-    const checklistReady = Boolean(readiness.ready);
-    const statusText = status === "ready_for_review"
-      ? "Ready for review"
-      : checklistReady
-        ? "Incomplete - ready to mark for review"
-        : "Incomplete";
-    const checklistText = checklistReady
-      ? "Complete"
-      : `Incomplete ${Number(readiness.passedCount || 0)}/${Number(readiness.totalCount || 0)}`;
-    return `
-      <section class="command-interview" aria-live="polite">
-        <h3>Saved skill idea</h3>
-        <p class="muted">Not runnable yet. No prompt, code, slash command, activation, or matter artifact has been generated.</p>
-        ${renderSkillIdeaUnderstood(interview)}
-        <dl class="skill-card-meta">
-          <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
-          <div><dt>Checklist</dt><dd>${escapeHtml(checklistText)}</dd></div>
-          <div><dt>Output</dt><dd>${escapeHtml(brief.expectedOutputArtifact || "Not specified")}</dd></div>
-          <div><dt>Lane</dt><dd>${escapeHtml(brief.targetLane || "Not specified")}</dd></div>
-          <div><dt>Risk</dt><dd>${escapeHtml(brief.riskLevel || "Not assessed")}</dd></div>
-        </dl>
-        <details class="skill-idea-brief" open>
-          <summary>Design brief <span class="muted">Not runnable yet</span></summary>
-          <dl class="skill-card-meta">
-            <div><dt>User</dt><dd>${escapeHtml(brief.intendedUser || "Not specified")}</dd></div>
-            <div><dt>Problem</dt><dd>${escapeHtml(brief.problem || "Not specified")}</dd></div>
-            <div><dt>Inputs</dt><dd>${escapeHtml(brief.expectedInputs || "Not specified")}</dd></div>
-            <div><dt>Paid/free</dt><dd>${escapeHtml(brief.paidPosture || "Not specified")}</dd></div>
-          </dl>
-          ${brief.notes ? `<p class="muted">${escapeHtml(brief.notes)}</p>` : ""}
-        </details>
-        ${renderAnsweredQuestions(interview, answers)}
-        ${renderSavedSkillIdeaChecklist(readiness)}
-        ${renderSavedSkillIdeaSampleReview({ idea, sampleReview, createdSkill })}
-        ${errorMessage ? `<p class="form-error">${escapeHtml(errorMessage)}</p>` : ""}
-        <div class="command-interview-actions">
-          ${renderSampleReviewButtons(sampleReview, createdSkill)}
-          <button type="button" data-skill-interview-action="copy-packet">Copy Review Packet</button>
-          <button type="button" class="secondary" data-skill-interview-action="mark-ready"${checklistReady && status !== "ready_for_review" ? "" : " disabled"}>Mark ready for review</button>
-          <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
-          <button type="button" class="secondary" data-skill-interview-action="open-skills">Open in Skills</button>
-          <button type="button" class="secondary" data-skill-interview-action="start-another">Start another idea</button>
-        </div>
-      </section>
-    `;
-  }
-
-  function renderSavedSkillIdeaSampleReview({ idea, sampleReview = {}, createdSkill = null }) {
-    const activeMatter = ctx.getActiveMatter?.() || {};
-    const activeSample = sampleReview.activeSample || null;
-    const sampleMatter = getSampleMatter(activeSample);
-    const matterName = activeSample
-      ? sampleMatter.matterName || sampleMatter.folderName || ""
-      : activeMatter?.metadata?.matterName || activeMatter?.folderName || "";
-    const matterFolder = activeSample
-      ? sampleMatter.folderName || ""
-      : activeMatter?.folderName || "";
-    const sampleVersion = activeSample ? getSampleVersion(activeSample, Array.isArray(sampleReview.samples) ? sampleReview.samples.length : 1) : 0;
-    const approved = Boolean(sampleReview.approved);
-    const stale = Boolean(sampleReview.stale);
-    const readySkill = createdSkill || sampleReview.createdSkill || null;
-    const sampleStatus = stale
-      ? sampleReview.staleReason || "Design brief changed after this sample was generated. Regenerate the sample before approving it."
-      : readySkill?.slash
-        ? `Skill Ready. Use ${readySkill.slash}.`
-      : approved
-      ? "Sample approved. Skill creation can be retried from this approved sample."
-      : activeSample
-        ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks right to create the skill.`
-        : matterFolder
-          ? "Generate an AI sample output from the selected test matter."
-          : "Pick a matter to generate a sample output.";
-    return `
-      <div class="skill-idea-sample-review">
-        <h4>Sample output review</h4>
-        <p class="muted">${escapeHtml(sampleStatus)}</p>
-        ${readySkill?.slash ? `<p><strong>Skill Ready</strong>: type <code>${escapeHtml(readySkill.slash)}</code> to run it.</p>` : ""}
-        <dl class="skill-card-meta">
-          <div><dt>Test matter</dt><dd>${escapeHtml(matterName || "No matter selected")}</dd></div>
-          <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder || "Pick a matter first")}</dd></div>
-          <div><dt>Sample</dt><dd>${activeSample ? escapeHtml(`v${sampleVersion || 1}`) : "Not generated"}</dd></div>
-        </dl>
-        ${getSampleAiRun(activeSample).provider || getSampleAiRun(activeSample).model ? `
-          <p class="muted">Sample provider: ${escapeHtml(formatSampleProvider(activeSample))}</p>
-        ` : ""}
-        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you choose Looks right and creation/validation succeeds.</p>
-        ${renderSampleLedger(sampleReview)}
-      </div>
-    `;
-  }
-
-  function renderSampleReviewButtons(sampleReview = {}, createdSkill = null) {
-    const activeMatter = ctx.getActiveMatter?.() || {};
-    const hasMatter = Boolean(activeMatter?.folderName);
-    const activeSample = sampleReview.activeSample || null;
-    const approved = Boolean(sampleReview.approved);
-    const stale = Boolean(sampleReview.stale) || isSampleStale(activeSample);
-    const readySkill = createdSkill || sampleReview.createdSkill || null;
-    const generateLabel = activeSample ? "Regenerate sample" : "Generate sample from this matter";
-    const generateAction = activeSample ? "regenerate-sample" : "generate-sample";
-    if (readySkill?.slash) {
-      return `
-        <button type="button" data-skill-interview-action="run-created-skill">Run now</button>
-        <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
-      `;
-    }
-    return `
-      <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved ? "" : " disabled"}>${escapeHtml(generateLabel)}</button>
-      ${approved && !stale
-        ? '<button type="button" data-skill-interview-action="create-skill">Try creating skill again</button>'
-        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale ? "" : " disabled"}>Looks right - create skill</button>`}
-      <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
-    `;
   }
 
   async function generateSavedSkillIdeaSample({ feedback = "" } = {}) {

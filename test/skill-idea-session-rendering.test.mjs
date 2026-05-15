@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   describeInterviewPlanner,
+  renderActiveSkillIdeaQuestionHtml,
   renderAnsweredQuestions,
   renderQuestionExamples,
+  renderReadySkillIdeaSessionHtml,
   renderSavedSkillIdeaChecklist,
+  renderSavedSkillIdeaSessionHtml,
+  renderSampleReviewButtonsHtml,
   renderSkillIdeaUnderstood,
 } from "../frontend/skill-idea-session-rendering.js";
 
@@ -73,4 +77,99 @@ test("skill idea session rendering shows answers, examples, and checklist", () =
   assert.match(checklist, /Readiness checklist/);
   assert.match(checklist, /OK/);
   assert.match(checklist, /Missing/);
+});
+
+test("skill idea session rendering shows ready state with matter-gated sample action", () => {
+  const interview = {
+    understood: "Build a party map",
+    questions: [],
+  };
+  const withoutMatter = renderReadySkillIdeaSessionHtml({ interview, activeMatter: {} });
+  assert.match(withoutMatter, /Ready to generate a sample output/);
+  assert.match(withoutMatter, /Pick matter to test this skill/);
+  assert.match(withoutMatter, /data-skill-interview-action="generate-sample" disabled/);
+
+  const withMatter = renderReadySkillIdeaSessionHtml({
+    interview,
+    activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
+  });
+  assert.match(withMatter, /Generate sample from this matter/);
+  assert.doesNotMatch(withMatter, /data-skill-interview-action="generate-sample" disabled/);
+});
+
+test("skill idea session rendering escapes active question and saved session content", () => {
+  const interview = {
+    understood: "Use <bad>",
+    questions: [
+      {
+        id: "tone",
+        label: "Tone <script>",
+        help: "Help <script>",
+        examples: ["formal"],
+      },
+    ],
+  };
+  const questionHtml = renderActiveSkillIdeaQuestionHtml({
+    interview,
+    questionIndex: 0,
+    errorMessage: "Error <x>",
+  });
+  assert.match(questionHtml, /Tone &lt;script&gt;/);
+  assert.match(questionHtml, /Help &lt;script&gt;/);
+  assert.match(questionHtml, /Error &lt;x&gt;/);
+
+  const savedHtml = renderSavedSkillIdeaSessionHtml({
+    idea: {
+      status: "incomplete",
+      designBrief: {
+        expectedOutputArtifact: "20_Workshop/Party <Map>.md",
+        targetLane: "20_Workshop",
+        riskLevel: "medium",
+        intendedUser: "Lawyer",
+        problem: "Map officers",
+        expectedInputs: "Source records",
+        paidPosture: "Paid",
+      },
+      readiness: {
+        ready: true,
+        passedCount: 8,
+        totalCount: 8,
+      },
+    },
+    interview,
+    answers: { tone: "formal" },
+    activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
+  });
+  assert.match(savedHtml, /Incomplete - ready to mark for review/);
+  assert.match(savedHtml, /20_Workshop\/Party &lt;Map&gt;\.md/);
+  assert.match(savedHtml, /data-skill-interview-action="mark-ready"/);
+});
+
+test("skill idea session sample buttons reflect approved and created skill states", () => {
+  const activeMatter = { folderName: "Ayesha Vs Japan Airlines" };
+  assert.match(
+    renderSampleReviewButtonsHtml({ sampleReview: {}, activeMatter }),
+    /Generate sample from this matter/,
+  );
+
+  const activeSample = {
+    id: "sample-1",
+    state: "approved_current",
+    version: 1,
+  };
+  assert.match(
+    renderSampleReviewButtonsHtml({
+      sampleReview: { activeSample, approved: true, stale: false },
+      activeMatter,
+    }),
+    /Try creating skill again/,
+  );
+
+  assert.match(
+    renderSampleReviewButtonsHtml({
+      sampleReview: { activeSample, createdSkill: { slash: "/party_map" } },
+      activeMatter,
+    }),
+    /data-skill-interview-action="run-created-skill"/,
+  );
 });
