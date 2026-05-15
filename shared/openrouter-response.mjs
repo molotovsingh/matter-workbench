@@ -1,18 +1,3 @@
-export function createRequestSignal(timeoutMs) {
-  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
-    return {
-      signal: null,
-      cancelTimeout: () => {},
-    };
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return {
-    signal: controller.signal,
-    cancelTimeout: () => clearTimeout(timer),
-  };
-}
-
 export function parseOpenRouterJsonContent(payload) {
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string") {
