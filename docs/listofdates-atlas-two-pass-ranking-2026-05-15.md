@@ -6,13 +6,15 @@ This note records a live two-pass model bakeoff on:
 /Users/aksingh/matters-matter-workbench/Atlas Constuction vs Diptishree
 ```
 
-Generated outputs are local matter-derived work product under:
+Most generated outputs are local matter-derived work product under:
 
 ```text
 .local/listofdates-two-pass/
 ```
 
-They are not committed.
+They are not committed. The user-approved comparison goldens listed later in this note are committed separately under `evals/listofdates/golden/atlas-two-pass-2026-05-15/`.
+
+Production contract: `docs/create-listofdates-two-pass-contract.md`.
 
 ## What Was Tested
 

@@ -10,6 +10,8 @@ It exists because the Atlas Construction smoke showed a clear pattern:
 
 The harness is for model and prompt evaluation only. It does not change the production `/create_listofdates` runtime.
 
+Production contract: `docs/create-listofdates-two-pass-contract.md`.
+
 ## Command
 
 ```bash
