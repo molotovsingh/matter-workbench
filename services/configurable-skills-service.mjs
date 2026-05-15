@@ -25,6 +25,11 @@ import {
   createDefaultRunProvider,
 } from "./configurable-skill-providers.mjs";
 import {
+  createNoopRunLedger,
+  matterSummaryForRun,
+  skillRunTitle,
+} from "./configurable-skill-run-metadata.mjs";
+import {
   CONFIGURABLE_SKILLS_SCHEMA_VERSION,
   createConfigurableSkillStore,
 } from "./configurable-skill-store.mjs";
@@ -348,50 +353,6 @@ export function createConfigurableSkillsService({
     recordCancelledRun,
     runSkill,
     storePath,
-  };
-}
-
-function createNoopRunLedger() {
-  return {
-    createRun: async (entry = {}) => ({
-      id: "",
-      ...entry,
-      status: entry.status || "running",
-    }),
-    updateRun: async (id, patch = {}) => ({
-      id,
-      ...patch,
-    }),
-    recordCancelledRun: async (entry = {}) => ({
-      id: "",
-      ...entry,
-      status: "cancelled",
-    }),
-  };
-}
-
-function skillRunTitle(skill = {}) {
-  const title = normalizeText(skill.title || skill.slash || "Custom Skill");
-  const version = Number(skill.version || 1);
-  const versionLabel = `v${Number.isFinite(version) && version > 0 ? version : 1}`;
-  return /\bv\d+\s*$/i.test(title) ? title : `${title} ${versionLabel}`;
-}
-
-function matterSummaryForRun(matter = null, matterRoot = "") {
-  const source = matter && typeof matter === "object" ? matter : {};
-  const folder = path.basename(matterRoot || "");
-  return {
-    matterName: normalizeText(
-      source.matterName
-      || source.matter_name
-      || source.name
-      || folder,
-    ),
-    matterFolder: normalizeText(
-      source.folderName
-      || source.folder_name
-      || folder,
-    ),
   };
 }
 
