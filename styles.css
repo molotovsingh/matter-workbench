@@ -148,7 +148,7 @@ strong {
 .app-shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: 56px 280px 1fr;
+  grid-template-columns: 92px 280px 1fr;
 }
 
 .activity-bar {
@@ -156,19 +156,18 @@ strong {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 12px 10px;
 }
 
 .activity-logo {
-  width: 34px;
-  height: 34px;
-  background: var(--accent);
-  display: grid;
-  place-items: center;
-  font-size: 12px;
+  color: var(--muted);
+  font-size: var(--font-size-xs);
   font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  margin-bottom: 6px;
+  text-transform: uppercase;
 }
 
 .activity-spacer {
@@ -176,17 +175,20 @@ strong {
 }
 
 .activity-item {
-  width: 34px;
-  height: 34px;
-  border: 0;
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  font-size: var(--font-size-sm);
+  text-align: left;
 }
 
 .activity-item.active,
 .activity-item:hover {
   background: var(--accent-soft);
+  border-color: var(--accent-border);
   color: var(--hover-text);
 }
 
