@@ -17,9 +17,9 @@ import { createDeterministicCommandController } from "./deterministic-command-co
 import { createNewSkillModeController } from "./new-skill-mode-controller.js";
 import {
   findActiveConfigurableSkillBySlash,
-  isConfigurableSkillOutputReplacementCommand,
   parseConfigurableSkillRevisionCommand,
 } from "./configurable-skill-commands.js";
+import { classifyConfigurableSkillRunInput } from "./configurable-skill-run-commands.js";
 import {
   buildConfigurableRunPending,
   getConfigurableRunArtifactPath,
@@ -398,37 +398,37 @@ export function createAiCommandBox(ctx, options = {}) {
   }
 
   async function handlePendingConfigurableRunInput(userRequest) {
-    const normalized = normalizeCommandInput(userRequest);
     const pendingPhase = pendingConfigurableRun?.phase || "overwrite";
-    if (pendingPhase === "improve") {
-      if (normalized === "cancel") {
-        clearPendingConfigurableRun("Skill improvement cancelled", "No improvement idea was saved.");
-        return true;
-      }
+    const action = classifyConfigurableSkillRunInput(userRequest, { phase: pendingPhase });
+    if (action === "cancel_improvement") {
+      clearPendingConfigurableRun("Skill improvement cancelled", "No improvement idea was saved.");
+      return true;
+    }
+    if (action === "save_improvement") {
       await saveConfigurableSkillImprovement(userRequest);
       return true;
     }
-    if (normalized === "open output") {
+    if (action === "open_output") {
       openPendingConfigurableOutput();
       return true;
     }
-    if (normalized === "looks good" || normalized === "good" || normalized === "run looks good") {
+    if (action === "accept_run") {
       markConfigurableSkillRunAccepted();
       return true;
     }
-    if (normalized === "improve" || normalized === "improve this skill" || normalized === "revise" || normalized === "revise this skill") {
+    if (action === "improve_skill") {
       renderConfigurableSkillImprovementPrompt();
       return true;
     }
-    if (pendingPhase === "action_sheet" && isConfigurableSkillOutputReplacementCommand(normalized)) {
+    if (action === "show_overwrite_prompt") {
       renderConfigurableSkillOverwritePrompt(pendingConfigurableRun);
       return true;
     }
-    if (pendingPhase === "action_sheet" && (normalized === "cancel" || normalized === "keep current" || normalized === "keep existing document" || normalized === "keep existing output")) {
+    if (action === "clear_action_sheet") {
       clearPendingConfigurableRun("No action taken", "Kept the existing output document. Nothing ran and the skill was not changed.");
       return true;
     }
-    if (normalized === "cancel" || normalized === "keep current" || normalized === "keep existing document" || normalized === "keep existing output") {
+    if (action === "cancel_overwrite") {
       const pending = pendingConfigurableRun;
       pendingConfigurableRun = null;
       let cancelled = null;
@@ -465,7 +465,7 @@ export function createAiCommandBox(ctx, options = {}) {
       });
       return true;
     }
-    if (isConfigurableSkillOutputReplacementCommand(normalized)) {
+    if (action === "replace_output") {
       const pending = pendingConfigurableRun;
       await runConfigurableSkillCommand(pending, userRequest, { overwrite: true });
       return true;
