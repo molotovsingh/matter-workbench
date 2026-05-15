@@ -26,6 +26,7 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   assert.match(html, /find payment receipts/);
   assert.match(html, /prepare matter/);
   assert.match(html, /new skill/);
+  assert.match(html, /Local workspace/);
   assert.match(html, /Paid AI actions ask before running/);
   assert.match(html, /New skill ideas are saved for review/);
   assert.match(html, /No matter selected/);
@@ -35,6 +36,7 @@ test("app shell uses lawyer-facing first impression labels", async () => {
   assert.doesNotMatch(html, /Slash Skills/);
   assert.doesNotMatch(html, /matter-init\.log/);
   assert.doesNotMatch(html, /legal-workbench \/ matter-init/);
+  assert.doesNotMatch(html, />local</);
   assert.doesNotMatch(html, /Phase 1/);
   assert.doesNotMatch(html, />V0</);
   assert.doesNotMatch(html, />EX</);
