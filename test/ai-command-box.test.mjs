@@ -1196,7 +1196,7 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.equal(ctx.statusCalls.at(-1).bar, "Run Accepted");
 });
 
-test("command box blocks duplicate-like skill creation until distinct justification passes overlap check", async () => {
+test("command box lets a freeform distinct justification override a repeated overlap gate", async () => {
   const sampleCalls = [];
   const createSkillCalls = [];
   const routerCalls = [];
@@ -1252,19 +1252,16 @@ test("command box blocks duplicate-like skill creation until distinct justificat
     }),
     checkSkillIntent: async (body) => {
       routerCalls.push(body);
-      if (!body.overrideJustification) {
-        return {
-          decision: "needs_user_approval",
-          recommended_action: "modify_existing_skill",
-          matched_skill: "/create_listofdates",
-          confidence: 0.97,
-          reason: "This chronology request overlaps with the existing list-of-dates skill.",
-          suggested_next_action: "Improve /create_listofdates instead of creating another chronology skill.",
-          user_gate_required: true,
-          mece_violation: true,
-        };
-      }
-      return noSkillOverlapDecision();
+      return {
+        decision: "needs_user_approval",
+        recommended_action: "modify_existing_skill",
+        matched_skill: "/create_listofdates",
+        confidence: 0.97,
+        reason: "This chronology request overlaps with the existing list-of-dates skill.",
+        suggested_next_action: "Improve /create_listofdates instead of creating another chronology skill.",
+        user_gate_required: true,
+        mece_violation: true,
+      };
     },
     createSkillFromIdea: async (ideaId, body = {}) => {
       createSkillCalls.push({ ideaId, body });
@@ -1301,7 +1298,7 @@ test("command box blocks duplicate-like skill creation until distinct justificat
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Review Existing Skill");
 
-  await box.handleCommand({ userRequest: "justify new skill: this produces a workshop issue review, not the library chronology artifact" });
+  await box.handleCommand({ userRequest: "this produces a workshop issue review, not the library chronology artifact" });
 
   assert.equal(routerCalls.length, 2);
   assert.equal(routerCalls[1].overrideJustification, "this produces a workshop issue review, not the library chronology artifact");

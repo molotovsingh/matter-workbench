@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildSkillCreationOverlapRequest,
+  hasSkillCreationOverlapOverride,
   isBlockingSkillOverlapDecision,
   isSkillImprovementIdeaSession,
   parseSkillCreationOverlapJustification,
@@ -54,6 +55,13 @@ test("skill creation overlap helpers block duplicate decisions and parse justifi
     matched_skill: "/create_listofdates",
   }), true);
   assert.equal(isBlockingSkillOverlapDecision({
+    decision: "needs_user_approval",
+    matched_skill: "/create_listofdates",
+    mece_violation: true,
+  }, {
+    overrideJustification: "separate workshop artifact and issue structure",
+  }), false);
+  assert.equal(isBlockingSkillOverlapDecision({
     recommended_action: "modify_existing_skill",
   }), true);
   assert.equal(isBlockingSkillOverlapDecision({
@@ -71,6 +79,8 @@ test("skill creation overlap helpers block duplicate decisions and parse justifi
     "this is court-facing",
   );
   assert.equal(parseSkillCreationOverlapJustification("ordinary text"), "");
+  assert.equal(hasSkillCreationOverlapOverride("too short"), false);
+  assert.equal(hasSkillCreationOverlapOverride("distinct issue grouping"), true);
 });
 
 test("skill creation overlap gate rendering escapes router fields", () => {
