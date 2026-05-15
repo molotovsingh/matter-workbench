@@ -51,6 +51,11 @@ export function createMatterScreens(ctx) {
       if (mattersSearchMeta) mattersSearchMeta.textContent = "";
       return;
     }
+    if (mattersState.active && !matterSearchQuery) {
+      mattersList.innerHTML = "";
+      if (mattersSearchMeta) mattersSearchMeta.textContent = "";
+      return;
+    }
     const filteredMatters = filterMatters(mattersState.matters, matterSearchQuery);
     if (mattersSearchMeta) {
       mattersSearchMeta.textContent = matterSearchQuery
