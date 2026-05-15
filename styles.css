@@ -959,6 +959,7 @@ summary {
 
 .title-center {
   flex: 1;
+  min-width: 0;
   text-align: center;
 }
 
@@ -967,6 +968,12 @@ summary {
 .title-text {
   color: var(--muted);
   font-size: 12px;
+}
+
+.title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .title-left,

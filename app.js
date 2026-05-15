@@ -139,7 +139,9 @@ function setActiveMatter(nextMatter, options = {}) {
   activeMatter = activeMatterStore.merge(nextMatter);
   if (elements.addFilesButton) elements.addFilesButton.hidden = !activeMatter.folderName;
   if (elements.titleText) {
-    elements.titleText.textContent = activeMatter.folderName || "No matter selected";
+    elements.titleText.textContent = activeMatter.folderName
+      ? `Active matter: ${activeMatter.folderName}`
+      : "No matter selected";
   }
   if (elements.bottomMeta) {
     elements.bottomMeta.textContent = activeMatter.folderName || "No matter selected";
