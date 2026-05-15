@@ -1,7 +1,7 @@
 # Refactor Staging Plan
 
 Date: 2026-05-13
-Status: staged plan; Stage 0 completed
+Status: staged plan; Stage 0, Stage 1, and first Stage 2 slices completed
 Scope: targeted refactors with low regression risk
 
 ## Goal
@@ -35,51 +35,77 @@ This was done first because there were active behavior risks in the new sample-r
 
 ---
 
-## Stage 1 (Current Hardening Track): Split Command Rail Monolith
+## Stage 1 (Done): Split Command Rail Monolith
 
-Proceed in small slices. Several low-risk extractions have already landed, including command parsing, command reporting helpers, and configurable-skill command helpers.
+This was completed in small slices so the Command rail could stay stable while
+the skill factory grew.
 
 ### Why now
 
-`frontend/ai-command-box.js` is carrying parsing, state machine, rendering, API orchestration, and telemetry/reporting in one unit. That slows safe changes.
+`frontend/ai-command-box.js` had been carrying parsing, state machine,
+rendering, API orchestration, and telemetry/reporting in one unit. That slowed
+safe changes and caused refactor collisions.
 
-### PR slices
+### Completed shape
 
-1. Continue extracting skill-idea interview state transitions.
-   - from: `frontend/ai-command-box.js`
-   - to: `frontend/skill-idea-session-state.js`
-2. Extract sample-review rendering/actions.
-   - from: `frontend/ai-command-box.js`
-   - to: `frontend/views/skill-sample-review.js`
-3. Keep follow-up refactors opportunistic and behavior-preserving.
+- `frontend/ai-command-box.js` is now a façade around focused controllers.
+- `frontend/skill-idea-session-controller.js` owns interview, samples, approval,
+  and skill creation flow.
+- `frontend/configurable-skill-run-controller.js` owns active custom skill runs,
+  output replacement, run reports, and skill-improvement entry.
+- Command reporting, router-check handling, deterministic command dispatch,
+  new-skill mode, suggestions, and sample-review helpers live in focused modules.
+- Skills page summary, health, saved ideas, and card rendering were split into
+  smaller view modules.
 
-### Exit criteria
+### Completion evidence
 
-- `frontend/ai-command-box.js` reduced to orchestration shell.
-- No behavior drift in `test/ai-command-box.test.mjs`.
-- New modules have focused tests where pure logic exists.
+- `frontend/ai-command-box.js` is roughly 325 lines.
+- Full suite passed after the split.
+- Custom-skill creation, modification, sample review, run, overwrite, reporting,
+  and Skills page flows retained regression coverage.
 
 ---
 
-## Stage 2 (Next): Backend Seams For Growth
+## Stage 2 (Partly Done): Backend Seams For Growth
 
-Run in the next backend touch that adds or modifies AI-backed endpoints.
+The first backend seams have been split. Further backend refactors should now
+be opportunistic rather than automatic.
 
-### Work
+### Completed
 
-1. Replace route `if` chain with route registry in `routes/api-routes.mjs`.
-2. Unify provider HTTP request plumbing (timeouts, error mapping, request envelope shape).
-   - targets:
-   - `services/skill-sample-output-service.mjs`
-   - `services/skill-interview-planner-service.mjs`
-   - any other AI caller using similar fetch+timeout+error logic
-3. Keep model-policy and provider-policy boundaries unchanged, but reduce duplicated transport code.
+- `routes/api-routes.mjs` is now a top-level dispatcher.
+- `routes/app-shell-routes.mjs` owns config, settings, matters, workspace, file
+  preview, and command diagnostics endpoints.
+- `routes/matter-workflow-routes.mjs` owns matter engines, matter status,
+  prepare matter, context preview, and context search endpoints.
+- `routes/skill-factory-routes.mjs` owns skill registry, ideas, samples,
+  configurable skills, and run ledger endpoints.
+- `shared/provider-http.mjs` and OpenRouter response/error helpers now carry the
+  common provider transport pieces.
+- Built-in command registry drift is guarded by startup/test validation between
+  `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
-### Exit criteria
+### Remaining
+
+Only continue this stage when the next backend change naturally touches the
+same surface.
+
+- Route files still use explicit branch checks rather than a route table. That is
+  acceptable at current size.
+- `services/configurable-skills-service.mjs` still owns lifecycle orchestration,
+  but low-level store, provider, validation, context, and run metadata helpers
+  are already split.
+- `create-listofdates-engine.mjs` remains large because it carries meaningful
+  chronology and legal-output policy. Do not mechanically split that policy
+  without a behavior reason.
+
+### Current exit criteria
 
 - Endpoint behavior unchanged in `test/api-smoke.test.mjs`.
-- Policy behavior unchanged in `test/model-policy.test.mjs` and `test/ai-provider-policy.test.mjs`.
-- Shared transport utilities adopted by at least two AI services.
+- Policy behavior unchanged in `test/model-policy.test.mjs` and
+  `test/ai-provider-policy.test.mjs`.
+- Shared transport utilities remain the common path for new AI callers.
 
 ---
 
@@ -135,8 +161,15 @@ In those cycles, ship behavior changes first, then refactor in the next hardenin
 
 ## Recommended order from today
 
-1. Stage 1 now, in small behavior-preserving slices.
-2. Stage 2 only when the next backend AI endpoint change makes shared transport useful.
-3. Stage 2 in the next backend AI endpoint change.
-4. Stage 3 only when new interview templates are being added.
-5. Stage 4 as the hardening pass after Stage 1 and Stage 3.
+1. Do not keep refactoring only because older hotspots existed. Many have been
+   reduced.
+2. Use behavior-driven triggers:
+   - if changing Command rail skill behavior, consider a focused extraction from
+     `frontend/skill-idea-session-controller.js`;
+   - if changing custom skill runtime semantics, consider a focused extraction
+     from `services/configurable-skills-service.mjs`;
+   - if changing chronology quality rules, keep the change close to
+     `create-listofdates-engine.mjs` and protect it with golden-output tests.
+3. Stage 3 only when new interview templates or planner normalization rules are
+   being added.
+4. Stage 4 only if the test suite starts becoming hard to triage again.
