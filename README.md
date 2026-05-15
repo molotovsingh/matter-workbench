@@ -186,6 +186,7 @@ MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 - `frontend/` - command rail UI, screens, workspace views, and skill-specific frontend runners
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
+- `routes/app-shell-routes.mjs` - app settings, matters, workspace, uploads, files, overlap checks, and command diagnostics
 - `routes/matter-workflow-routes.mjs` - matter setup, extraction, source labeling, chronology, status, context, and rerun advice routes
 - `routes/skill-factory-routes.mjs` - skills registry, skill ideas, sample output, configurable skill creation/runs, and factory health routes
 - `services/` - matter store, workspace, upload, status, preparation, skill governance, and logging services

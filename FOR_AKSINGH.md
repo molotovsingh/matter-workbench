@@ -330,12 +330,14 @@ Important route files:
 
 ```text
 routes/api-routes.mjs
+routes/app-shell-routes.mjs
 routes/matter-workflow-routes.mjs
 routes/skill-factory-routes.mjs
 ```
 
-Think of `routes/api-routes.mjs` as the reception desk. It still handles settings, config, matters, workspace, and files directly, but it now hands the two bigger families to smaller route files:
+Think of `routes/api-routes.mjs` as the reception desk. It no longer owns individual endpoint behavior; it hands route families to smaller files:
 
+- `routes/app-shell-routes.mjs` for app settings, matters, workspace, file preview/raw file routes, uploads, overlap checks, and command diagnostics.
 - `routes/matter-workflow-routes.mjs` for the matter pipeline: setup, extraction, source labels, list of dates, doctor, status, prepare matter, context preview/search, and rerun advice.
 - `routes/skill-factory-routes.mjs` for the skill factory: built-in/custom skills, skill ideas, interview planning, sample output, sample approval, create skill, custom skill runs, run history, and factory health.
 
