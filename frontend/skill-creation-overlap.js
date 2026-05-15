@@ -1,12 +1,14 @@
 import { escapeHtml } from "./dom-utils.js";
 import {
   buildSkillCreationOverlapRequest as buildSkillCreationOverlapRequestFromPolicy,
+  hasSkillCreationOverlapOverride,
   isBlockingSkillOverlapDecision,
   isSkillImprovementIdea as isSkillImprovementIdeaFromPolicy,
   parseSkillCreationOverlapJustification,
 } from "../shared/skill-creation-overlap-policy.mjs";
 
 export {
+  hasSkillCreationOverlapOverride,
   isBlockingSkillOverlapDecision,
   parseSkillCreationOverlapJustification,
 };

@@ -18,7 +18,8 @@ export function buildSkillCreationOverlapRequest({ session = null, idea = {} } =
   ].filter(Boolean).join("\n");
 }
 
-export function isBlockingSkillOverlapDecision(decision = {}) {
+export function isBlockingSkillOverlapDecision(decision = {}, { overrideJustification = "" } = {}) {
+  if (hasSkillCreationOverlapOverride(overrideJustification)) return false;
   return Boolean(
     decision.user_gate_required
     || decision.mece_violation
@@ -32,4 +33,8 @@ export function parseSkillCreationOverlapJustification(input) {
   const text = String(input || "").trim();
   const match = text.match(/^(?:justify\s+new\s+skill|distinct\s+because|separate\s+because)\s*[:,-]?\s+(.+)$/i);
   return match?.[1]?.trim() || "";
+}
+
+export function hasSkillCreationOverlapOverride(overrideJustification = "") {
+  return String(overrideJustification || "").replace(/\s+/g, " ").trim().length >= 12;
 }

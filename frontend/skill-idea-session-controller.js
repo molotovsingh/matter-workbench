@@ -170,6 +170,13 @@ export function createSkillIdeaSessionController({
         await createConfigurableSkillFromApprovedSample();
         return;
       }
+      if (session.skillCreationOverlapGate && command.action === "unknown") {
+        clearCommandInput();
+        session.skillCreationOverlapOverride = userRequest;
+        session.skillCreationOverlapCleared = null;
+        await createConfigurableSkillFromApprovedSample();
+        return;
+      }
       if (command.action === "save") {
         clearCommandInput();
         await saveSkillIdeaInterviewSession();
@@ -710,7 +717,7 @@ export function createSkillIdeaSessionController({
         routerDecision: decision,
         providerRunInvoked: true,
       });
-      if (isBlockingSkillOverlapDecision(decision)) {
+      if (isBlockingSkillOverlapDecision(decision, { overrideJustification })) {
         session.skillCreationOverlapGate = {
           decision,
           userRequest,
