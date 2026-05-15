@@ -10,7 +10,7 @@ import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import {
-  normalizeOptionalString,
+  createOpenRouterProviderError,
   parseOpenRouterJsonContent,
 } from "./shared/openrouter-response.mjs";
 import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
@@ -790,7 +790,7 @@ export function createOpenRouterProvider({
       },
       timeoutMessage: `OpenRouter list-of-dates request timed out after ${timeoutMs}ms`,
       isErrorPayload: ({ response, payload: responsePayload }) => !response.ok || Boolean(responsePayload?.error),
-      mapProviderError: createOpenRouterError,
+      mapProviderError: createOpenRouterProviderError,
       body,
     });
 
@@ -825,59 +825,6 @@ function stripUnsupportedJsonSchemaKeywords(value) {
     copy[key] = stripUnsupportedJsonSchemaKeywords(child);
   }
   return copy;
-}
-
-function createOpenRouterError(response, payload) {
-  const errorPayload = payload?.error || {};
-  const error = new Error(formatOpenRouterErrorMessage(response, errorPayload));
-  error.statusCode = mapOpenRouterErrorStatus(response?.status, errorPayload.code);
-  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
-  if (providerName) error.providerName = providerName;
-  if (errorPayload.code) error.openRouterCode = errorPayload.code;
-  return error;
-}
-
-function formatOpenRouterErrorMessage(response, errorPayload = {}) {
-  const baseMessage = normalizeOptionalString(errorPayload.message) || `OpenRouter returned ${response?.status || "an error"}`;
-  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
-  const rawMessage = summarizeOpenRouterRawError(errorPayload?.metadata?.raw);
-  const parts = [baseMessage];
-  if (providerName) parts.push(`provider: ${providerName}`);
-  if (rawMessage) parts.push(`upstream: ${rawMessage}`);
-  return parts.join(" | ");
-}
-
-function summarizeOpenRouterRawError(raw) {
-  if (!raw) return "";
-  if (typeof raw === "string") {
-    try {
-      return summarizeOpenRouterRawError(JSON.parse(raw)) || truncateErrorDetail(raw);
-    } catch {
-      return truncateErrorDetail(raw);
-    }
-  }
-  if (typeof raw !== "object" || Array.isArray(raw)) return truncateErrorDetail(String(raw));
-  const message = normalizeOptionalString(raw?.error?.message)
-    || normalizeOptionalString(raw?.message)
-    || normalizeOptionalString(raw?.error);
-  if (message) return truncateErrorDetail(message);
-  try {
-    return truncateErrorDetail(JSON.stringify(raw));
-  } catch {
-    return "";
-  }
-}
-
-function truncateErrorDetail(value, limit = 500) {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  if (text.length <= limit) return text;
-  return `${text.slice(0, limit - 1)}...`;
-}
-
-function mapOpenRouterErrorStatus(responseStatus, errorCode) {
-  const status = Number(errorCode) || Number(responseStatus);
-  if (status >= 500) return 503;
-  return 502;
 }
 
 function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {

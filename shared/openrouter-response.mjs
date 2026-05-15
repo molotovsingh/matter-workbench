@@ -30,6 +30,59 @@ export function parseOpenRouterJsonContent(payload) {
   throw error;
 }
 
+export function createOpenRouterProviderError(response, payload) {
+  const errorPayload = payload?.error || {};
+  const error = new Error(formatOpenRouterErrorMessage(response, errorPayload));
+  error.statusCode = mapOpenRouterErrorStatus(response?.status, errorPayload.code);
+  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
+  if (providerName) error.providerName = providerName;
+  if (errorPayload.code) error.openRouterCode = errorPayload.code;
+  return error;
+}
+
+export function formatOpenRouterErrorMessage(response, errorPayload = {}) {
+  const baseMessage = normalizeOptionalString(errorPayload.message) || `OpenRouter returned ${response?.status || "an error"}`;
+  const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
+  const rawMessage = summarizeOpenRouterRawError(errorPayload?.metadata?.raw);
+  const parts = [baseMessage];
+  if (providerName) parts.push(`provider: ${providerName}`);
+  if (rawMessage) parts.push(`upstream: ${rawMessage}`);
+  return parts.join(" | ");
+}
+
+export function summarizeOpenRouterRawError(raw) {
+  if (!raw) return "";
+  if (typeof raw === "string") {
+    try {
+      return summarizeOpenRouterRawError(JSON.parse(raw)) || truncateOpenRouterErrorDetail(raw);
+    } catch {
+      return truncateOpenRouterErrorDetail(raw);
+    }
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) return truncateOpenRouterErrorDetail(String(raw));
+  const message = normalizeOptionalString(raw?.error?.message)
+    || normalizeOptionalString(raw?.message)
+    || normalizeOptionalString(raw?.error);
+  if (message) return truncateOpenRouterErrorDetail(message);
+  try {
+    return truncateOpenRouterErrorDetail(JSON.stringify(raw));
+  } catch {
+    return "";
+  }
+}
+
+export function truncateOpenRouterErrorDetail(value, limit = 500) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 1)}...`;
+}
+
+export function mapOpenRouterErrorStatus(responseStatus, errorCode) {
+  const status = Number(errorCode) || Number(responseStatus);
+  if (status >= 500) return 503;
+  return 502;
+}
+
 export function attachOpenRouterAiRunMetadata(content, payload) {
   const aiRun = extractOpenRouterAiRunMetadata(payload);
   if (!Object.keys(aiRun).length) return content;
