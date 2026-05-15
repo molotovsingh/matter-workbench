@@ -1,0 +1,324 @@
+export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
+  const status = normalizeIdeaStatusForView(idea.status);
+  const brief = normalizeDesignBriefForView(idea.designBrief);
+  const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const classification = classifySkillIdeaForReview(idea, registry);
+  const matter = idea.matter || {};
+  const openQuestions = buildSkillIdeaOpenQuestions({ brief, readiness });
+  const statusText = reviewPacketStatusText(status, readiness);
+  const checklistText = readiness.ready
+    ? "Complete"
+    : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`;
+  const lines = [
+    "# Skill Idea Review Packet",
+    "",
+    `- Idea id: ${packetValue(idea.id)}`,
+    `- Status: ${statusText}`,
+    `- Checklist: ${checklistText}`,
+    `- Suggested classification: ${classification}`,
+    `- Matter: ${packetValue(matter.matterName || matter.folderName)}`,
+    `- Matter folder: ${packetValue(matter.folderName)}`,
+    "",
+    "## Original User Text",
+    "",
+    packetBlock(idea.text),
+    "",
+    "## Design Brief",
+    "",
+    `- Intended user: ${packetValue(brief.intendedUser)}`,
+    `- Problem / job to be done: ${packetValue(brief.problem)}`,
+    `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
+    `- Expected output artifact: ${packetValue(brief.expectedOutputArtifact)}`,
+    `- Target lane: ${packetValue(brief.targetLane)}`,
+    `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
+    `- Risk level: ${packetValue(brief.riskLevel)}`,
+    "",
+    "## Interview Answers / Notes",
+    "",
+    packetBlock(brief.notes),
+    "",
+    "## Readiness Checklist",
+    "",
+    ...readiness.items.map((item) => `- ${item.passed ? "[x]" : "[ ]"} ${item.label}`),
+    "",
+    "## Open Questions",
+    "",
+    ...openQuestions.map((question) => `- ${question}`),
+    "",
+    "## Boundary",
+    "",
+    "This is not a runnable skill. No prompt, code, or provider call has been generated.",
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+export function renderSavedIdeas(ideas, escape) {
+  const normalized = Array.isArray(ideas) ? ideas : [];
+  return `
+    <section>
+      <h2>Saved Ideas</h2>
+      <p class="muted">Non-running idea inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or runnable skills.</p>
+      ${normalized.length ? `
+        <div class="skills-grid">
+          ${normalized.map((idea) => renderSavedIdeaCard(idea, escape)).join("")}
+        </div>
+      ` : '<p class="muted">No saved skill ideas yet. Use the Command rail with text like <code>create a skill to summarize pleadings</code>.</p>'}
+    </section>
+  `;
+}
+
+export function statusLabel(status) {
+  if (status === "ready_for_review") return "Ready for review";
+  if (status === "parked") return "Parked";
+  if (status === "dismissed") return "Dismissed";
+  return "Incomplete";
+}
+
+export function statusClass(status) {
+  if (status === "dismissed") return "not-run";
+  if (status === "ready_for_review") return "present";
+  return "pending";
+}
+
+export function normalizeIdeaStatusForView(status) {
+  if (status === "proposed") return "incomplete";
+  if (status === "marked_for_future") return "parked";
+  if (["incomplete", "ready_for_review", "parked", "dismissed"].includes(status)) return status;
+  return "incomplete";
+}
+
+export function extractTargetSkill(text) {
+  const match = String(text || "").match(/\bTarget skill:\s*(\/[a-z0-9_-]+)/i);
+  return match?.[1] || "";
+}
+
+function renderSavedIdeaCard(idea, escape) {
+  const status = normalizeIdeaStatusForView(idea.status);
+  const matter = idea.matter || {};
+  const matterLabel = matter.matterName || matter.folderName || "No matter attached";
+  const brief = normalizeDesignBriefForView(idea.designBrief);
+  const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
+  return `
+    <article class="skill-card skill-idea-card" id="skill-idea-${escape(idea.id || "")}">
+      <div class="skill-card-header">
+        <div>
+          <div class="skill-slash"><code>proposal</code></div>
+          <h3>Saved Skill Idea</h3>
+        </div>
+        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+      </div>
+      <p class="muted">Original idea</p>
+      <p>${escape(idea.text || "")}</p>
+      <dl class="skill-card-meta">
+        <div><dt>Created</dt><dd>${escape(idea.createdAt || "")}</dd></div>
+        <div><dt>Matter</dt><dd>${escape(matterLabel)}</dd></div>
+        <div><dt>Folder</dt><dd>${escape(matter.folderName || "None")}</dd></div>
+        <div><dt>Runtime</dt><dd>Not runnable</dd></div>
+      </dl>
+      <details class="skill-idea-brief">
+        <summary>Design brief <span class="muted">Not runnable yet</span></summary>
+        <p class="muted">
+          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, runnable skills, or matter artifacts.
+        </p>
+        <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
+          <label>
+            <span>Intended user</span>
+            <input type="text" name="intendedUser" value="${escape(brief.intendedUser)}" autocomplete="off" />
+          </label>
+          <label>
+            <span>Problem / job to be done</span>
+            <textarea name="problem">${escape(brief.problem)}</textarea>
+          </label>
+          <label>
+            <span>Expected inputs</span>
+            <textarea name="expectedInputs">${escape(brief.expectedInputs)}</textarea>
+          </label>
+          <label>
+            <span>Expected output artifact</span>
+            <input type="text" name="expectedOutputArtifact" value="${escape(brief.expectedOutputArtifact)}" autocomplete="off" />
+          </label>
+          <div class="skill-idea-brief-grid">
+            ${renderSelectField({
+              name: "targetLane",
+              label: "Target lane",
+              value: brief.targetLane,
+              options: [
+                ["", "Not chosen"],
+                ["10_Library", "10_Library - Analysis Library"],
+                ["20_Workshop", "20_Workshop - Strategy Workshop"],
+                ["30_Drafts", "30_Drafts - Drafts"],
+                ["40_Dispatch", "40_Dispatch - Dispatch"],
+              ],
+            }, escape)}
+            ${renderSelectField({
+              name: "paidPosture",
+              label: "Paid/free posture",
+              value: brief.paidPosture,
+              options: [
+                ["", "Not chosen"],
+                ["free", "Free/local"],
+                ["paid", "Paid/provider-backed"],
+                ["unknown", "Unknown"],
+              ],
+            }, escape)}
+            ${renderSelectField({
+              name: "riskLevel",
+              label: "Risk level",
+              value: brief.riskLevel,
+              options: [
+                ["", "Not assessed"],
+                ["low", "Low"],
+                ["medium", "Medium"],
+                ["high", "High"],
+              ],
+            }, escape)}
+          </div>
+          <label>
+            <span>Notes / acceptance criteria</span>
+            <textarea name="notes">${escape(brief.notes)}</textarea>
+          </label>
+          <div class="form-actions">
+            <button type="submit">Save design brief</button>
+          </div>
+        </form>
+      </details>
+      ${renderReadinessChecklist(readiness, escape)}
+      <div class="form-actions">
+        <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
+        <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
+        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+        <span class="artifact-action-status muted" data-skill-idea-copy-status="${escape(idea.id || "")}"></span>
+      </div>
+    </article>
+  `;
+}
+
+function reviewPacketStatusText(status, readiness) {
+  const label = statusLabel(status);
+  if (status === "incomplete" && readiness.ready) {
+    return `${label} - ready to mark for review`;
+  }
+  return label;
+}
+
+function normalizeDesignBriefForView(designBrief = {}) {
+  return {
+    intendedUser: designBrief.intendedUser || "",
+    problem: designBrief.problem || "",
+    expectedInputs: designBrief.expectedInputs || "",
+    expectedOutputArtifact: designBrief.expectedOutputArtifact || "",
+    targetLane: designBrief.targetLane || "",
+    paidPosture: designBrief.paidPosture || "",
+    riskLevel: designBrief.riskLevel || "",
+    notes: designBrief.notes || "",
+  };
+}
+
+function renderSelectField({ name, label, value, options }, escape) {
+  return `
+    <label>
+      <span>${escape(label)}</span>
+      <select name="${escape(name)}">
+        ${options.map(([optionValue, optionLabel]) => `
+          <option value="${escape(optionValue)}"${optionValue === value ? " selected" : ""}>${escape(optionLabel)}</option>
+        `).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function normalizeReadinessForView(readiness, brief) {
+  if (readiness && Array.isArray(readiness.items)) {
+    return {
+      state: readiness.state || (readiness.ready ? "ready_for_review" : "incomplete"),
+      ready: Boolean(readiness.ready),
+      passedCount: Number(readiness.passedCount || 0),
+      totalCount: Number(readiness.totalCount || readiness.items.length),
+      items: readiness.items.map((item) => ({
+        key: item.key || "",
+        label: item.label || item.key || "Readiness item",
+        passed: Boolean(item.passed),
+      })),
+    };
+  }
+  const items = [
+    ["intendedUser", "Intended user present"],
+    ["problem", "Problem/job present"],
+    ["expectedInputs", "Expected inputs present"],
+    ["expectedOutputArtifact", "Expected output artifact present"],
+    ["targetLane", "Target lane selected"],
+    ["paidPosture", "Paid/free posture selected"],
+    ["riskLevel", "Risk level selected"],
+    ["notes", "Notes or acceptance criteria present"],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    passed: Boolean(brief[key]),
+  }));
+  const passedCount = items.filter((item) => item.passed).length;
+  const ready = passedCount === items.length;
+  return {
+    state: ready ? "ready_for_review" : "incomplete",
+    ready,
+    passedCount,
+    totalCount: items.length,
+    items,
+  };
+}
+
+function classifySkillIdeaForReview(idea, registry) {
+  const primaryText = `${idea?.text || ""}\n${idea?.designBrief?.problem || ""}\n${idea?.designBrief?.expectedOutputArtifact || ""}`;
+  const notes = String(idea?.designBrief?.notes || "");
+  const targetSkill = extractTargetSkill(notes) || extractTargetSkill(primaryText);
+  const knownSlashes = new Set((Array.isArray(registry?.skills) ? registry.skills : [])
+    .map((skill) => skill.slash)
+    .filter(Boolean));
+  if (targetSkill && knownSlashes.has(targetSkill)) return `modification candidate (${targetSkill})`;
+  if (targetSkill) return `adjacent skill improvement (${targetSkill})`;
+  if (/\b(list\s+of\s+dates|chronolog|timeline|describe\s+sources|source\s+labels?|context\s+search|find|search)\b/i.test(primaryText)) {
+    return "adjacent skill improvement";
+  }
+  return "new skill idea";
+}
+
+function buildSkillIdeaOpenQuestions({ brief, readiness }) {
+  const questions = readiness.items
+    .filter((item) => !item.passed)
+    .map((item) => `Complete readiness item: ${item.label}.`);
+  if (brief.paidPosture === "unknown") questions.push("Confirm whether this should be free/local or paid/provider-backed.");
+  if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output artifact, if any.");
+  if (!brief.targetLane) questions.push("Confirm the target workspace lane.");
+  return questions.length ? questions : ["None from the readiness checklist."];
+}
+
+function packetValue(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "Not specified";
+}
+
+function packetBlock(value) {
+  const normalized = String(value || "").trim();
+  return normalized || "Not specified";
+}
+
+function renderReadinessChecklist(readiness, escape) {
+  return `
+    <div class="skill-idea-readiness">
+      <div class="skill-idea-readiness-header">
+        <strong>Readiness checklist</strong>
+        <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Ready for review" : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`}</span>
+      </div>
+      <ul>
+        ${readiness.items.map((item) => `
+          <li class="${item.passed ? "passed" : "missing"}">
+            <span>${item.passed ? "OK" : "Missing"}</span>
+            ${escape(item.label)}
+          </li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
+}
