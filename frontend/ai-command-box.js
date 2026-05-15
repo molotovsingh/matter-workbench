@@ -25,7 +25,7 @@ export {
   parseSkillIdeaInput,
 } from "./command-parsing.js";
 
-const DEFAULT_COMMAND_PLACEHOLDER = "find payment receipts, prepare matter, open drafts";
+const DEFAULT_COMMAND_PLACEHOLDER = "Ask about this matter, run a skill, or search documents";
 
 export function createAiCommandBox(ctx, options = {}) {
   const {
