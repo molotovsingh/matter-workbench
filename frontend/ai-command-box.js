@@ -24,6 +24,7 @@ import {
   getConfigurableRunArtifactPath,
   renderConfigurableSkillCancelledRail,
   renderConfigurableSkillExistingOutputSheetHtml,
+  renderConfigurableSkillImprovementPromptHtml,
   renderConfigurableSkillOverwritePromptHtml,
   renderConfigurableSkillRunOutput,
   renderConfigurableSkillRunRail,
@@ -506,20 +507,7 @@ export function createAiCommandBox(ctx, options = {}) {
     pendingConfigurableRun.phase = "improve";
     const slash = pendingConfigurableRun.slash || pendingConfigurableRun.skill?.slash || "";
     aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = `
-      <section class="command-interview" aria-live="polite">
-        <h3>Improve this skill</h3>
-        <p>What should this skill do better?</p>
-        <p class="muted">Describe the change in plain English. This saves a non-running revision idea; it does not modify the active skill yet.</p>
-        <dl class="skill-card-meta">
-          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
-          <div><dt>Current output</dt><dd><code>${escapeHtml(pendingConfigurableRun.artifactPath || "")}</code></dd></div>
-        </dl>
-        <div class="command-interview-actions">
-          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
-        </div>
-      </section>
-    `;
+    aiCommandSession.innerHTML = renderConfigurableSkillImprovementPromptHtml(pendingConfigurableRun);
     aiCommandInput.placeholder = "Describe what should improve...";
     aiCommandSubmit.textContent = "Save idea";
     wireConfigurableSkillActions();

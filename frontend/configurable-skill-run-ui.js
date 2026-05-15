@@ -116,6 +116,24 @@ export function renderConfigurableSkillOverwritePromptHtml(result = {}, pendingR
     `;
 }
 
+export function renderConfigurableSkillImprovementPromptHtml(pendingRun = {}) {
+  const slash = pendingRun.slash || pendingRun.skill?.slash || "";
+  return `
+      <section class="command-interview" aria-live="polite">
+        <h3>Improve this skill</h3>
+        <p>What should this skill do better?</p>
+        <p class="muted">Describe the change in plain English. This saves a non-running revision idea; it does not modify the active skill yet.</p>
+        <dl class="skill-card-meta">
+          <div><dt>Skill</dt><dd><code>${escapeHtml(slash)}</code></dd></div>
+          <div><dt>Current output</dt><dd><code>${escapeHtml(pendingRun.artifactPath || "")}</code></dd></div>
+        </dl>
+        <div class="command-interview-actions">
+          <button type="button" class="secondary" data-configurable-skill-action="cancel">Cancel</button>
+        </div>
+      </section>
+    `;
+}
+
 export function renderConfigurableSkillCancelledRail(result = {}) {
   const skill = result.skill || result.runRecord || {};
   const runRecord = result.runRecord || {};
