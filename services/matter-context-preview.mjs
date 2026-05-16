@@ -1,4 +1,4 @@
-import { SOURCE_INDEX_RELATIVE } from "./matter-context-sources.mjs";
+import { SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 
 export const MATTER_CONTEXT_PREVIEW_SCHEMA_VERSION = "matter-context-preview/v1";
 

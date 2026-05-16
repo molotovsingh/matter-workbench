@@ -8,6 +8,11 @@ import {
   legalWorkbenchSystemPrompt,
 } from "./shared/legal-workbench-policy-prompt.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
+import {
+  MATTER_LIBRARY_DIR,
+  SOURCE_INDEX_FILENAME,
+  SOURCE_INDEX_RELATIVE,
+} from "./shared/matter-artifacts.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import {
   parseOpenRouterJsonContent,
@@ -19,8 +24,6 @@ import { sourceLabelContainsFileId } from "./shared/source-labels.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
-const OUTPUT_JSON_NAME = "Source Index.json";
-const OUTPUT_DIR_NAME = "10_Library";
 const BLOCK_CHAR_LIMIT = 1200;
 const MAX_BLOCKS_PER_SOURCE = 12;
 const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
@@ -212,8 +215,8 @@ export async function runSourceDescriptors(options = {}) {
     sources: descriptors,
   };
 
-  const outputDir = path.join(matterRoot, OUTPUT_DIR_NAME);
-  const outputJson = path.join(outputDir, OUTPUT_JSON_NAME);
+  const outputDir = path.join(matterRoot, MATTER_LIBRARY_DIR);
+  const outputJson = path.join(outputDir, SOURCE_INDEX_FILENAME);
   if (!dryRun) {
     await mkdir(outputDir, { recursive: true });
     await writeFileAtomic(outputJson, `${JSON.stringify(artifact, null, 2)}\n`);
@@ -241,7 +244,7 @@ export async function runSourceDescriptors(options = {}) {
       `[source-index] read ${records.length} extraction record(s)`,
       `[source-index] built ${sourcePackets.length} bounded source packet(s)`,
       dryRun
-        ? "[source-index] dry run only. Re-run with apply to write Source Index.json."
+        ? `[source-index] dry run only. Re-run with apply to write ${SOURCE_INDEX_FILENAME}.`
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
     ],
   };
@@ -285,7 +288,7 @@ export function createOpenRouterSourceDescriptorProvider({
             task: "Create source descriptors for these source packets.",
             matter,
             contract_summary: {
-              artifact: "10_Library/Source Index.json",
+              artifact: SOURCE_INDEX_RELATIVE,
               schema_version: SOURCE_INDEX_SCHEMA_VERSION,
               descriptor_key: ["file_id", "sha256"],
               evidence_required: true,

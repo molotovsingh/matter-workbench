@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
+import { SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
 import {
   effectiveShortSourceLabel,
@@ -8,7 +9,7 @@ import {
   sourceLabelContainsFileId,
 } from "../shared/source-labels.mjs";
 
-export const SOURCE_INDEX_RELATIVE = "10_Library/Source Index.json";
+export { SOURCE_INDEX_RELATIVE };
 
 const EXTRACTION_RECORD_SCHEMA_VERSION = "extraction-record/v1";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";

@@ -1,9 +1,10 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { SOURCE_INDEX_RELATIVE } from "./matter-context-sources.mjs";
-
-const LIST_OF_DATES_JSON_RELATIVE = "10_Library/List of Dates.json";
-const LIST_OF_DATES_MARKDOWN_RELATIVE = "10_Library/List of Dates.md";
+import {
+  LIST_OF_DATES_JSON_RELATIVE,
+  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
 
 export async function readLibraryArtifactSummaries(root, limits, warnings) {
   const candidates = [

@@ -901,6 +901,8 @@ The app now uses that distinction in the List of Dates rerun path. If only sourc
 
 The freshness logic now lives in `services/matter-rerun-advice-service.mjs`, separate from `services/matter-status-service.mjs`. That keeps the overview service focused on "what stages exist and what artifacts are present", while rerun advice owns the trickier question of whether a skill is missing, current, stale, label-refresh-only, review-needed, or regeneration-needed. This is the right split because freshness rules will keep evolving with the product contract, while the overview card should remain boring and stable.
 
+The canonical Library artifact paths now live in `shared/matter-artifacts.mjs`. That means status cards, context packets, and rerun advice all agree on `10_Library/Source Index.json` and the List of Dates artifacts from one source of truth.
+
 The source-label rules themselves now live in `shared/source-labels.mjs`. That is a small but important foundation: Source Index readers, List of Dates generation, label refresh, and context packets all resolve labels the same way. A confirmed or overridden lawyer label wins; unsafe labels containing `FILE-0001` style identifiers are not promoted into lawyer-facing fields. This is how you prevent one surface from being polished while another leaks internal names.
 
 The same care now applies to artifact writes. Source Index JSON, List of Dates JSON/CSV/Markdown, and custom-skill output files go through the shared atomic file writer, so a failed process is less likely to leave half-written legal work product on disk. This is boring in the best way: source-backed legal artifacts should fail before replacement, not fail halfway through replacement.

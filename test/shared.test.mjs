@@ -5,6 +5,13 @@ import path from "node:path";
 import test from "node:test";
 import { parseCsv, parseCsvRow, toCsv } from "../shared/csv.mjs";
 import { loadLocalEnv, parseEnvText, upsertLocalEnv } from "../shared/local-env.mjs";
+import {
+  LIST_OF_DATES_CSV_RELATIVE,
+  LIST_OF_DATES_JSON_RELATIVE,
+  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  MATTER_LIBRARY_DIR,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
 import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
 import {
   effectiveShortSourceLabel,
@@ -63,6 +70,14 @@ test("source label helpers prefer confirmed labels and suppress FILE identifiers
     file_id: "FILE-0002",
     display_label: "Bad FILE-0002 label",
   }).source_label, undefined);
+});
+
+test("matter artifact path constants keep native Library outputs aligned", () => {
+  assert.equal(MATTER_LIBRARY_DIR, "10_Library");
+  assert.equal(SOURCE_INDEX_RELATIVE, "10_Library/Source Index.json");
+  assert.equal(LIST_OF_DATES_JSON_RELATIVE, "10_Library/List of Dates.json");
+  assert.equal(LIST_OF_DATES_CSV_RELATIVE, "10_Library/List of Dates.csv");
+  assert.equal(LIST_OF_DATES_MARKDOWN_RELATIVE, "10_Library/List of Dates.md");
 });
 
 test("local env parser supports named and raw OpenAI keys", async () => {

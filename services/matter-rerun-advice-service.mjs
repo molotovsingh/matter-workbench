@@ -1,11 +1,17 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
+import {
+  LIST_OF_DATES_JSON_RELATIVE,
+  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
 
-const LIBRARY_DIR = "10_Library";
-export const SOURCE_INDEX_RELATIVE = `${LIBRARY_DIR}/Source Index.json`;
-export const LIST_OF_DATES_JSON_RELATIVE = `${LIBRARY_DIR}/List of Dates.json`;
-export const LIST_OF_DATES_MARKDOWN_RELATIVE = `${LIBRARY_DIR}/List of Dates.md`;
+export {
+  LIST_OF_DATES_JSON_RELATIVE,
+  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  SOURCE_INDEX_RELATIVE,
+};
 
 export async function readRerunAdviceForSkill(skill, root) {
   const normalizedSkill = normalizeSkillName(skill);
