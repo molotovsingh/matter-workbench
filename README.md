@@ -183,6 +183,7 @@ MATTER_ROOT=/absolute/path/to/matter npm run extract:dry-run
 MATTER_ROOT=/absolute/path/to/matter npm run extract
 MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates:dry-run
 MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
+npm run matter-attention:report -- --only-problems
 ```
 
 ## Files
@@ -194,9 +195,10 @@ MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
 - `routes/app-shell-routes.mjs` - app settings, matters, workspace, uploads, files, overlap checks, and command diagnostics
-- `routes/matter-workflow-routes.mjs` - matter setup, extraction, source labeling, chronology, status, context, and rerun advice routes
+- `routes/matter-workflow-routes.mjs` - matter setup, extraction, source labeling, chronology, status, attention, context, and rerun advice routes
 - `routes/skill-factory-routes.mjs` - skills registry, skill ideas, sample output, configurable skill creation/runs, and factory health routes
 - `services/` - matter store, workspace, upload, status, preparation, skill governance, and logging services
+- `scripts/matter-attention-report.mjs` - read-only developer sweep over matter-level blockers and warnings
 - `services/configurable-skill-*.mjs` - custom skill definition, store, provider, context, validation, and run-ledger helpers
 - `matter-init-engine.mjs` - deterministic copy-only intake engine
 - `extract-engine.mjs` - deterministic extraction engine with optional OCR provider integration

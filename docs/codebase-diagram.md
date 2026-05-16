@@ -257,6 +257,20 @@ flowchart LR
   LodEval -->|"golden markdown/json checks"| LodContract["List of Dates quality gates"]
 ```
 
+## Developer Attention Surface
+
+Matter-level blocker and warning inspection is intentionally read-only:
+
+- API: `GET /api/matter-attention`
+- named inspection without active-matter switching: `GET /api/matter-attention?matter=...`
+- CLI sweep: `npm run matter-attention:report -- --only-problems`
+
+The implementation lives in:
+
+- `services/matter-attention-service.mjs`
+- `scripts/matter-attention-report.mjs`
+- `docs/future-design-decisions/matter-developer-attention-surface.md`
+
 ## Current Provider Posture
 
 - `/extract` is deterministic by default. Mistral OCR is opt-in through `MISTRAL_OCR_ENABLED=1`.
