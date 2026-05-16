@@ -6,6 +6,7 @@
     "matter-init": "node matter-init-engine.mjs --apply",
     "extract:dry-run": "node extract-engine.mjs",
     "extract": "node extract-engine.mjs --apply",
+    "matter-attention:report": "node scripts/matter-attention-report.mjs",
     "create-listofdates:dry-run": "node create-listofdates-engine.mjs",
     "create-listofdates": "node create-listofdates-engine.mjs --apply"
   },

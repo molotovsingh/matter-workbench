@@ -115,6 +115,14 @@ Run tests:
 npm test
 ```
 
+Developer attention sweep:
+
+```sh
+npm run matter-attention:report -- --only-problems
+```
+
+This is a read-only diagnostic view over all matters in the configured matters home. It answers: “which matters are blocked, which need developer review, and what artifact proves it?” Use `--json` when you want machine-readable output, or `--matter "Matter Name"` when you want to inspect one matter without changing the active matter in the app.
+
 ## Important Local Config
 
 Copy `.env.example` to `.env` and fill only the keys you intend to use.

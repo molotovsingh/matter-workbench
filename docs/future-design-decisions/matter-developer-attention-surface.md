@@ -37,6 +37,22 @@ Developer tooling may also inspect a named matter without switching the active m
 GET /api/matter-attention?matter=Atlas%20Constuction%20vs%20Diptishree
 ```
 
+There is also a read-only command-line report for sweeping the configured matters home:
+
+```sh
+npm run matter-attention:report -- --only-problems
+```
+
+Useful variants:
+
+```sh
+npm run matter-attention:report -- --matter "Ayesha Vs Japan Airlines"
+npm run matter-attention:report -- --json
+npm run matter-attention:report -- --matters-home /absolute/path/to/matters
+```
+
+The CLI uses the same service as the API. It does not switch the active matter and does not write to matter folders.
+
 It does not:
 
 - write new logs;
