@@ -9,6 +9,7 @@ import {
   MATTER_WORKSPACE_LANES,
   workspaceLaneLabel,
 } from "../shared/workspace-lanes.mjs";
+import { readWorkspaceFile } from "./workspace-files.js";
 
 export function renderTreeNode(node, depth = 0, options = {}) {
   if (node.kind === "file") {
@@ -268,9 +269,7 @@ export function createWorkspaceView(ctx) {
     }
 
     try {
-      const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
+      const result = await readWorkspaceFile(filePath);
 
       breadcrumbs.textContent = `${activeMatter.folderName} > ${result.path}`;
       ctx.setStatus({

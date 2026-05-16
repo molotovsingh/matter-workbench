@@ -4,6 +4,7 @@ import { escapeHtml } from "../dom-utils.js";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
+import { readWorkspaceTextFile } from "../workspace-files.js";
 
 export function createListOfDatesSkill(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -180,14 +181,6 @@ export function createListOfDatesSkill(ctx) {
   }
 
   return { renderListOfDatesResult, runCreateListOfDates };
-}
-
-async function readWorkspaceTextFile(filePath) {
-  const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
-  if (typeof result.content !== "string") throw new Error("file preview did not include text content");
-  return result.content;
 }
 
 function setArtifactActionStatus(statusElement, message, isError = false) {
