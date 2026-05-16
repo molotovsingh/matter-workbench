@@ -1,11 +1,11 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 export const COMMAND_INTERACTION_LOG_SCHEMA_VERSION = "command-interaction-log/v1";
 
 const MAX_TEXT_LENGTH = 1200;
 const MAX_TERMINAL_LINES = 8;
-const REDACTED_SECRET = "[redacted-secret]";
 
 export function createCommandInteractionLogService({
   appDir,
@@ -123,8 +123,5 @@ function toPosix(value) {
 }
 
 function redactSecrets(value) {
-  return String(value || "")
-    .replace(/\b(OPENAI_API_KEY|OPENROUTER_API_KEY|MISTRAL_API_KEY)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/gi, `$1=${REDACTED_SECRET}`)
-    .replace(/\bBearer\s+sk-[A-Za-z0-9_-]+/gi, `Bearer ${REDACTED_SECRET}`)
-    .replace(/\bsk-[A-Za-z0-9_-]+/g, REDACTED_SECRET);
+  return redactSensitiveText(value);
 }

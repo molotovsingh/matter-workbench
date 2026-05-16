@@ -804,7 +804,7 @@ The compromise is a compact activity strip directly under the command input. It 
 
 The command interaction log follows the same rule with a privacy guard. It keeps only a whitelisted diagnostic record, and retained text fields now redact common provider secrets such as `OPENAI_API_KEY=...`, bearer tokens, and raw `sk-...` keys. Logs should help debug the product, not become another place where credentials can accidentally live forever.
 
-The copied reports now follow that same boundary. That includes the command report, custom skill run report, context preview/search reports, and skill factory health report. That matters because copied reports are more portable than server logs: they can land in chat, email, or a bug tracker. If the app is going to make diagnostics easy to share, it must make the safe path the default path.
+The copied reports now follow that same boundary. That includes the command report, custom skill run report, context preview/search reports, and skill factory health report. That matters because copied reports are more portable than server logs: they can land in chat, email, or a bug tracker. If the app is going to make diagnostics easy to share, it must make the safe path the default path. The actual redaction rule lives in `shared/secret-redaction.mjs` so server diagnostics and browser copy/report surfaces do not drift apart.
 
 The engineering lesson is that removing clutter is not the same as removing feedback. When you simplify a screen, preserve the user's sense of causality: I clicked, the app heard me, and this is what is happening.
 
