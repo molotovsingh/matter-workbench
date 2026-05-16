@@ -867,6 +867,6 @@ That is not just tidiness. Good scenario tests should make the story easy to rea
 
 The new-skill flow has one moment that matters most: the generated sample. That is where a lawyer decides whether the proposed skill is useful, safe, and worth turning into something runnable.
 
-The session controller still owns the conversation, but sample ledger refresh now lives in `frontend/skill-idea-sample-ledger.js`. That helper does one narrow job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
+The session controller still owns the conversation, but sample work now sits behind two smaller helpers. `frontend/skill-idea-sample-actions.js` owns generating, approving, copying, and displaying sample output. `frontend/skill-idea-sample-ledger.js` does one narrower job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
 
-This is a useful kind of frontend refactor because it moves the fragile part of the payoff into a small tested module. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
+This is a useful kind of frontend refactor because it moves the fragile part of the payoff out of the command-session controller and into focused modules. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
