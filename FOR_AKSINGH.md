@@ -515,6 +515,12 @@ The tests are not just ceremonial. They lock down the legal workflow rules:
 - meta sources are filtered before AI;
 - clustering avoids false payment discrepancies.
 
+The command-box scenario tests are split by product story:
+
+- `test/ai-command-box.test.mjs` covers core command dispatch, suggestions, lane opening, reports, and paid rerun cancellation;
+- `test/ai-command-box-skill-ideas.test.mjs` covers new-skill interview, sample review, overlap gates, and activation;
+- `test/ai-command-box-configurable-skills.test.mjs` covers running and improving already-created configurable skills.
+
 Good lesson: tests should protect the professional contract, not only the code mechanics.
 
 ## Bugs We Hit and What They Taught
@@ -878,9 +884,9 @@ This split matters because file IDs, duplicate hashes, and intake numbering are 
 
 ## Test Lesson: Keep Scenarios Clear
 
-The command-box tests cover many real user paths, so the file is naturally long. The fake browser form, fake command rail, and fake status elements now live in `test-support/ai-command-box-helpers.mjs`.
+The command-box tests cover many real user paths, so they are now split by the kind of story they protect. Basic command routing stays in `test/ai-command-box.test.mjs`; new-skill interview and sample-review behavior lives in `test/ai-command-box-skill-ideas.test.mjs`; configurable custom skill runs live in `test/ai-command-box-configurable-skills.test.mjs`. The fake browser form, fake command rail, and fake status elements live in `test-support/ai-command-box-helpers.mjs`.
 
-That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper, the test file can spend more of its space explaining behavior instead of rebuilding the stage.
+That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper and long scenarios are grouped by product surface, each test file can spend more of its space explaining behavior instead of rebuilding the stage.
 
 ## Frontend Sample Lesson: Protect the Payoff
 
