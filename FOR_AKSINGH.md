@@ -418,6 +418,7 @@ Important files:
 - `frontend/event-wiring.js` - user actions and skill dispatch;
 - `frontend/ai-command-box.js` - small Command rail facade;
 - `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
+- `frontend/skill-idea-session-action-wiring.js` - button/action wiring for saved skill idea sessions;
 - `frontend/skill-idea-sample-actions.js` - sample generation, approval, copying, and sample output display;
 - `frontend/skill-idea-creation-actions.js` - approved-sample activation, overlap gating, and skill-ready rendering;
 - `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, and run review actions;
