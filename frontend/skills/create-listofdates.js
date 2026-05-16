@@ -1,4 +1,5 @@
 import { postJson } from "../api-client.js";
+import { writeClipboardText } from "../clipboard.js";
 import { escapeHtml } from "../dom-utils.js";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
@@ -187,30 +188,6 @@ async function readWorkspaceTextFile(filePath) {
   if (!response.ok) throw new Error(result.error || `file API returned ${response.status}`);
   if (typeof result.content !== "string") throw new Error("file preview did not include text content");
   return result.content;
-}
-
-async function writeClipboardText(text) {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall back for embedded browser contexts that expose Clipboard API but deny write permission.
-    }
-  }
-
-  const scratch = document.createElement("textarea");
-  scratch.value = text;
-  scratch.setAttribute("readonly", "");
-  scratch.style.position = "fixed";
-  scratch.style.top = "-9999px";
-  document.body.appendChild(scratch);
-  scratch.select();
-  try {
-    if (!document.execCommand("copy")) throw new Error("clipboard copy was rejected");
-  } finally {
-    document.body.removeChild(scratch);
-  }
 }
 
 function setArtifactActionStatus(statusElement, message, isError = false) {

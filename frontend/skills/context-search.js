@@ -1,4 +1,5 @@
 import { getJson } from "../api-client.js";
+import { writeClipboardText as defaultWriteClipboardText } from "../clipboard.js";
 import { escapeHtml } from "../dom-utils.js";
 import {
   formatContextSearchReport,
@@ -7,7 +8,7 @@ import {
 
 export function createContextSearchSkill(ctx, options = {}) {
   const { breadcrumbs, editorContent } = ctx.elements;
-  const writeClipboardText = options.writeClipboardText || writeClipboard;
+  const writeClipboardText = options.writeClipboardText || defaultWriteClipboardText;
 
   async function runContextSearch(commandOrOptions = "/context_search") {
     const options = typeof commandOrOptions === "object" && commandOrOptions !== null
@@ -117,21 +118,4 @@ export function createContextSearchSkill(ctx, options = {}) {
   }
 
   return { renderContextSearchResult, runContextSearch };
-}
-
-async function writeClipboard(text) {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  if (typeof document === "undefined") throw new Error("clipboard is unavailable");
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "-1000px";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
 }
