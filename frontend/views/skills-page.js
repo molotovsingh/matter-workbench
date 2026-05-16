@@ -66,6 +66,12 @@ export function renderSkillsPageHtml({
       ${configurableSkillsError ? `<p class="form-warning">Custom skills unavailable: ${escapeHtml(configurableSkillsError)}</p>` : ""}
       ${configurableSkillRunsError ? `<p class="form-warning">Custom skill run history unavailable: ${escapeHtml(configurableSkillRunsError)}</p>` : ""}
       <section class="skills-section">
+        <h2>Native Skills</h2>
+        <p class="muted">Core legal workflows that ship with the app. Start here before creating custom one-off skills.</p>
+        <p class="muted">${matterNote}</p>
+        ${renderSkillCards(summary.nativeBuiltins, escapeHtml, { variant: "builtin-list" })}
+      </section>
+      <section class="skills-section">
         <h2>Your Skills</h2>
         <p class="muted">Skills you created and can run on any active matter. Only the latest approved version is shown as runnable; earlier versions are kept in history.</p>
         ${renderSkillCards(summary.custom, escapeHtml, {
@@ -77,15 +83,8 @@ export function renderSkillsPageHtml({
       </section>
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml, { compact: true, samplesByIdea: skillIdeaSamplesById })}
       <section class="skills-section">
-        <h2>Built-in Skills</h2>
-        <p class="muted">Code-backed capabilities that ship with the app, grouped by the role they play in the matter workflow.</p>
-        <p class="muted">${matterNote}</p>
-        ${renderBuiltinSkillGroup({
-          title: "Native legal skills",
-          description: "Lawyer-facing source-backed work products. These are the skills to grow before creating custom one-off workflows.",
-          skills: summary.nativeBuiltins,
-          escape: escapeHtml,
-        })}
+        <h2>Supporting Tools</h2>
+        <p class="muted">Setup, search, and maintenance capabilities that support the native legal skills.</p>
         ${renderBuiltinSkillGroup({
           title: "Setup and readiness",
           description: "Matter setup, document reading, and guarded preparation steps. They support legal skills but should not compete with them.",
@@ -120,9 +119,9 @@ function renderSkillsStats(summary, ideas, escape) {
   const activeIdeas = normalizedIdeas.filter((idea) => idea?.status !== "dismissed");
   return `
     <div class="skills-page-counts" aria-label="Skills summary">
-      <span>${summary.custom.length} active</span>
+      <span>${summary.nativeBuiltins.length} native</span>
+      <span>${summary.custom.length} custom</span>
       <span>${activeIdeas.length} ideas</span>
-      <span>${summary.builtins.length} built-in</span>
       <span>${summary.hasMatterStatus ? escape(summary.matterName || "Matter selected") : "Planning mode"}</span>
     </div>
   `;

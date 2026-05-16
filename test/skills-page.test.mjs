@@ -183,8 +183,14 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Copy Health Report/);
   assert.match(html, /data-skill-factory-copy-health/);
   assert.match(html, /What skills can you use, and what ideas are still being developed/);
+  assert.match(html, /0 custom/);
+  assert.match(html, /1 native/);
+  assert.match(html, /Native Skills/);
+  assert.match(html, /Core legal workflows that ship with the app/);
   assert.match(html, /Your Skills/);
   assert.match(html, /Ideas/);
+  assert.ok(html.indexOf("Native Skills") < html.indexOf("Your Skills"));
+  assert.ok(html.indexOf("Your Skills") < html.indexOf("Ideas"));
   assert.match(html, /create a skill to summarize pleadings/);
   assert.match(html, /new skill bundle exhibits/);
   assert.match(html, /Design brief/);
@@ -208,9 +214,8 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Park idea/);
   assert.match(html, /Dismiss/);
   assert.match(html, /Parked/);
-  assert.match(html, /Built-in Skills/);
-  assert.match(html, /grouped by the role they play in the matter workflow/);
-  assert.match(html, /Native legal skills/);
+  assert.match(html, /Supporting Tools/);
+  assert.match(html, /Setup, search, and maintenance capabilities that support the native legal skills/);
   assert.match(html, /Setup and readiness/);
   assert.match(html, /Only the latest approved version is shown as runnable/);
   assert.match(html, /\/extract/);

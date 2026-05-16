@@ -905,3 +905,9 @@ That matched both the arrow submit button and every suggestion button inside the
 ```
 
 This is a good frontend lesson because nothing was wrong with the JavaScript. The DOM was rendering the right suggestions, but the CSS contract was too loose. In dense app shells, selectors should name the surface they intend to own; otherwise a later nested control quietly inherits styles meant for a completely different job.
+
+## Product Surface Lesson: Lead With The System's Native Work
+
+The Skills page briefly had the right data but the wrong first impression. It showed custom skills first, so the page looked like the product only had three skills even though the header counted native and built-in capabilities. That is a product hierarchy bug, not a data bug.
+
+The fix was to put `Native Skills` first: Source Labels / Document Index and Create List of Dates. Custom skills now sit below them as user-created extensions, and setup/search/maintenance tools sit lower as supporting tools. This matches the product direction: the app should feel like a staged legal workbench with strong native workflows, not a blank skill registry where every slash command has equal weight.
