@@ -4,6 +4,7 @@ import {
 } from "./configurable-skill-commands.js";
 import { createConfigurableSkillImprovementActions } from "./configurable-skill-improvement-actions.js";
 import { classifyConfigurableSkillRunInput } from "./configurable-skill-run-commands.js";
+import { createCreatedSkillCommandRailActions } from "./created-skill-command-rail-actions.js";
 import {
   buildConfigurableRunPending,
   getConfigurableRunArtifactPath,
@@ -15,7 +16,6 @@ import {
 } from "./configurable-skill-run-ui.js";
 import { formatConfigurableSkillDisplayName } from "./configurable-skill-version-labels.js";
 import { escapeHtml } from "./dom-utils.js";
-import { renderCreatedSkillCommandRailHtml } from "./skill-builder-result-rendering.js";
 import { formatConfigurableSkillRunReport } from "./views/skills-page.js";
 
 export function createConfigurableSkillRunController({
@@ -45,7 +45,6 @@ export function createConfigurableSkillRunController({
   writeClipboardText,
 }) {
   let pendingConfigurableRun = null;
-  let lastCreatedConfigurableSkill = null;
   const improvementActions = createConfigurableSkillImprovementActions({
     aiCommandInput,
     aiCommandSession,
@@ -64,6 +63,17 @@ export function createConfigurableSkillRunController({
     },
     updateReport,
     wireConfigurableSkillActions,
+  });
+  const createdSkillRail = createCreatedSkillCommandRailActions({
+    aiCommandInput,
+    aiCommandSession,
+    aiCommandSubmit,
+    ctx,
+    deterministicCommands,
+    editorContent,
+    recordCommandInteraction,
+    runConfigurableSkillCommand,
+    setCurrentSkillIdeaInterview,
   });
 
   async function findConfigurableSkillCommand(userRequest) {
@@ -437,62 +447,6 @@ export function createConfigurableSkillRunController({
     });
   }
 
-  function wireCreatedSkillActions() {
-    aiCommandSession?.querySelectorAll?.("[data-created-skill-action]")?.forEach((button) => {
-      button.addEventListener("click", async () => {
-        const action = button.dataset.createdSkillAction;
-        if (action === "run") {
-          const skill = lastCreatedConfigurableSkill;
-          if (skill?.slash) await runConfigurableSkillCommand(skill, skill.slash);
-          return;
-        }
-        if (action === "open-skills") {
-          await deterministicCommands.showSkillsPage("open skills");
-          return;
-        }
-        if (action === "start-another") {
-          setCurrentSkillIdeaInterview(null);
-          if (aiCommandInput) {
-            aiCommandInput.value = "";
-            aiCommandInput.placeholder = "create a skill to...";
-          }
-          aiCommandSubmit.disabled = false;
-          aiCommandSubmit.textContent = "→";
-          if (aiCommandSession) {
-            aiCommandSession.hidden = true;
-            aiCommandSession.innerHTML = "";
-          }
-          editorContent.innerHTML = `
-            <h1>Command</h1>
-            <section class="skill-router-result">
-              <h2>Start another idea</h2>
-              <p>Type the next skill idea in the Command rail. Nothing will run until it becomes a validated skill in a later workflow.</p>
-            </section>
-          `;
-          ctx.setStatus({
-            mood: "idle",
-            card: "<strong>Ready for another idea</strong><br />Type a new skill idea in the Command rail.",
-            bar: "Skill Idea",
-            terminal: "[skill-ideas] ready for another idea",
-          });
-          recordCommandInteraction({
-            renderedState: "skill_idea/start_another",
-            status: "started_another_idea",
-            providerRunInvoked: false,
-          });
-        }
-      });
-    });
-  }
-
-  function renderCreatedSkillCommandRail(skill = {}) {
-    lastCreatedConfigurableSkill = skill;
-    if (!aiCommandSession) return;
-    aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = renderCreatedSkillCommandRailHtml(skill);
-    wireCreatedSkillActions();
-  }
-
   function clearPendingForMatterChange() {
     pendingConfigurableRun = null;
   }
@@ -507,7 +461,7 @@ export function createConfigurableSkillRunController({
     findConfigurableSkillRevisionCommand,
     handlePendingConfigurableRunInput,
     hasPendingRun,
-    renderCreatedSkillCommandRail,
+    renderCreatedSkillCommandRail: createdSkillRail.renderCreatedSkillCommandRail,
     runConfigurableSkillCommand,
     startConfigurableSkillImprovement,
   };
