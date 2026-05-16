@@ -61,6 +61,7 @@
       ],
       "properties": {
         "policyVersion": { "type": "string" },
+        "policyPromptVersion": { "type": "string" },
         "task": { "type": "string" },
         "tier": { "type": "string" },
         "provider": { "type": "string" },
@@ -101,10 +102,20 @@
       "additionalProperties": false,
       "required": [
         "file_id",
+        "source_id",
         "sha256",
+        "content_hash",
         "source_path",
         "display_label",
         "short_label",
+        "suggested_label",
+        "confirmed_label",
+        "label_status",
+        "label_source",
+        "label_reason",
+        "label_revision",
+        "confirmed_by",
+        "confirmed_at",
         "document_type",
         "document_date",
         "date_basis",
@@ -119,7 +130,15 @@
           "type": "string",
           "pattern": "^FILE-\\d{4,}$"
         },
+        "source_id": {
+          "type": "string",
+          "pattern": "^FILE-\\d{4,}$"
+        },
         "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "content_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
@@ -134,6 +153,34 @@
         "short_label": {
           "type": "string",
           "minLength": 1
+        },
+        "suggested_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmed_label": {
+          "type": "string"
+        },
+        "label_status": {
+          "type": "string",
+          "enum": ["suggested", "confirmed", "overridden", "needs_review"]
+        },
+        "label_source": {
+          "type": "string",
+          "enum": ["model", "filename", "document_text", "lawyer_override"]
+        },
+        "label_reason": {
+          "type": "string"
+        },
+        "label_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "confirmed_by": {
+          "type": "string"
+        },
+        "confirmed_at": {
+          "type": "string"
         },
         "document_type": {
           "type": "string",

@@ -9,6 +9,29 @@ import {
   validateAndSortDescriptors,
 } from "../source-descriptors-engine.mjs";
 
+test("documented Source Index schema includes generated label governance fields", async () => {
+  const schema = JSON.parse(await readFile(new URL("../docs/source-index.v1.schema.json", import.meta.url), "utf8"));
+  const descriptor = schema.$defs.sourceDescriptor;
+  for (const field of [
+    "source_id",
+    "content_hash",
+    "suggested_label",
+    "confirmed_label",
+    "label_status",
+    "label_source",
+    "label_reason",
+    "label_revision",
+    "confirmed_by",
+    "confirmed_at",
+  ]) {
+    assert.ok(descriptor.required.includes(field), `${field} should be required`);
+    assert.ok(descriptor.properties[field], `${field} should be documented`);
+  }
+  assert.ok(schema.properties.ai_run.properties.policyPromptVersion);
+  assert.deepEqual(descriptor.properties.label_status.enum, ["suggested", "confirmed", "overridden", "needs_review"]);
+  assert.deepEqual(descriptor.properties.label_source.enum, ["model", "filename", "document_text", "lawyer_override"]);
+});
+
 async function makeMatterRoot() {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-source-index-test-"));
   const root = path.join(tmp, "matter");
