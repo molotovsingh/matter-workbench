@@ -82,6 +82,9 @@ be opportunistic rather than automatic.
   prepare matter, context preview, and context search endpoints.
 - `routes/skill-factory-routes.mjs` owns skill registry, ideas, samples,
   configurable skills, and run ledger endpoints.
+- `routes/route-dispatcher.mjs` owns exact routes, pattern routes, and ordered
+  route-group dispatch, so route matching no longer lives as repeated branch
+  control flow in each route module.
 - `shared/provider-http.mjs` and OpenRouter response/error helpers now carry the
   common provider transport pieces.
 - `source-descriptors-provider.mjs` now owns Source Labels / Document Index
@@ -131,8 +134,6 @@ be opportunistic rather than automatic.
 Only continue this stage when the next backend change naturally touches the
 same surface.
 
-- Route files still use explicit branch checks rather than a route table. That is
-  acceptable at current size.
 - `services/configurable-skills-service.mjs` still owns lifecycle orchestration,
   but low-level store, provider, validation, context, and run metadata helpers
   are already split.

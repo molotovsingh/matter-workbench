@@ -26,6 +26,13 @@ export async function dispatchRoutes({ request, requestUrl, response, routes = [
   return false;
 }
 
+export async function dispatchRouteGroups(context, handlers = []) {
+  for (const handler of handlers) {
+    if (await handler(context)) return true;
+  }
+  return false;
+}
+
 function matchRoutePath(route, pathname) {
   if (route.path) return route.path === pathname ? [] : null;
   if (!route.pattern) return null;

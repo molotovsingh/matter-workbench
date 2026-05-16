@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dispatchRoutes, exactRoute, patternRoute } from "../routes/route-dispatcher.mjs";
+import {
+  dispatchRouteGroups,
+  dispatchRoutes,
+  exactRoute,
+  patternRoute,
+} from "../routes/route-dispatcher.mjs";
 
 test("dispatchRoutes runs the matching exact method and path", async () => {
   const calls = [];
@@ -50,4 +55,27 @@ test("dispatchRoutes returns false when no route matches", async () => {
   });
 
   assert.equal(handled, false);
+});
+
+test("dispatchRouteGroups runs ordered handlers and short-circuits on handled request", async () => {
+  const calls = [];
+  const context = { request: { method: "GET" } };
+  const handled = await dispatchRouteGroups(context, [
+    async (received) => {
+      assert.equal(received, context);
+      calls.push("first");
+      return false;
+    },
+    async () => {
+      calls.push("second");
+      return true;
+    },
+    async () => {
+      calls.push("third");
+      throw new Error("should not run");
+    },
+  ]);
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ["first", "second"]);
 });

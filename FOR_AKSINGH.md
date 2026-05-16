@@ -851,6 +851,8 @@ POST /api/skill-ideas     -> create idea
 
 This does not change schemas or route behavior. It changes maintainability. The route file now reads more like a map, and the branchy matching logic lives in one tested helper.
 
+The top-level API handoff uses the same idea now: `routes/api-routes.mjs` sends a request through ordered route groups instead of repeating three separate `if handled then return` checks. Tiny cleanup, but useful hygiene: when routing gets more surface area, the code still reads as "try workflow routes, then shell routes, then skill-factory routes" rather than another mini-router hidden in control flow.
+
 The same HTTP cleanup changed static file serving from "read the whole file into memory, then send it" to streaming. For a local app this is not glamorous, but it is the right default: large files should flow through the server instead of becoming one big buffer whenever someone opens them.
 
 ## Matter Context Lesson: Keep The Facade Thin
