@@ -49,7 +49,7 @@ export function createMultipartUploadHandler({
         }
         const currentIndex = fileIndex;
         fileIndex += 1;
-        filePromises.push(new Promise((resolveFile, rejectFile) => {
+        const filePromise = new Promise((resolveFile, rejectFile) => {
           const tempPath = path.join(tempDir, `upload-${String(currentIndex).padStart(5, "0")}`);
           const out = createWriteStream(tempPath);
           let streamBytes = 0;
@@ -86,7 +86,9 @@ export function createMultipartUploadHandler({
             });
           });
           fileStream.pipe(out);
-        }));
+        });
+        filePromise.catch(fail);
+        filePromises.push(filePromise);
       });
 
       bb.on("filesLimit", () => fail(makeHttpError("Too many files", 413)));

@@ -6,20 +6,25 @@ import test from "node:test";
 import { createWorkbenchServer } from "../server.mjs";
 
 async function postMultipart(baseUrl, pathName, form) {
+  const { response, payload } = await postMultipartRaw(baseUrl, pathName, form);
+  assert.equal(response.ok, true, payload.error);
+  return payload;
+}
+
+async function postMultipartRaw(baseUrl, pathName, form) {
   const response = await fetch(`${baseUrl}${pathName}`, {
     method: "POST",
     body: form,
   });
   const payload = await response.json();
-  assert.equal(response.ok, true, payload.error);
-  return payload;
+  return { response, payload };
 }
 
 function appendTextFile(form, fieldName, filename, text) {
   form.append(fieldName, new Blob([text], { type: "text/plain" }), filename);
 }
 
-async function withServer(run) {
+async function withServer(run, options = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-upload-api-test-"));
   const appDir = path.join(tmp, "app");
   const mattersHome = path.join(tmp, "matters");
@@ -28,6 +33,7 @@ async function withServer(run) {
     appDir,
     env: { MATTERS_HOME: mattersHome },
     host: "127.0.0.1",
+    maxUploadBytes: options.maxUploadBytes,
     port: 0,
     skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
   });
@@ -85,4 +91,20 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
     assert.match(updated.intakeAdded.receivedDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(updated.intakeAdded.intakeDirName, /Follow Up/);
   });
+});
+
+test("multipart upload route returns 413 when the configured byte limit is exceeded", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const form = new FormData();
+    form.set("name", "Too Large Matter");
+    form.set("metadata", JSON.stringify({
+      matterName: "Too Large Matter",
+    }));
+    form.set("paths", JSON.stringify(["large.txt"]));
+    appendTextFile(form, "files", "large.txt", "This upload is deliberately larger than the test limit.");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
+    assert.equal(response.status, 413);
+    assert.match(payload.error, /upload too large/i);
+  }, { maxUploadBytes: 10 });
 });

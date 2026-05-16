@@ -908,6 +908,8 @@ Upload handling has the same boundary now. `services/multipart-upload.mjs` owns 
 
 That split is boring on purpose. Upload code is where small mistakes become durable disk mistakes. Keeping "which bytes came in", "where may they be copied", and "what legal workflow should run after copy" in separate modules makes future file-import changes easier to test without disturbing matter creation.
 
+One useful bug fell out of that testability work: the oversized-upload path could reject the request and still leave a per-file stream promise rejected without a handler. The fix attaches each file promise to the shared multipart failure path, and the server now lets tests inject a tiny byte limit so the real HTTP route proves oversized uploads return `413` cleanly.
+
 ## Test Lesson: Keep Scenarios Clear
 
 The command-box tests cover many real user paths, so they are now split by the kind of story they protect. Basic command routing stays in `test/ai-command-box.test.mjs`; new-skill interview and sample-review behavior lives in `test/ai-command-box-skill-ideas.test.mjs`; configurable custom skill runs live in `test/ai-command-box-configurable-skills.test.mjs`. The fake browser form, fake command rail, and fake status elements live in `test-support/ai-command-box-helpers.mjs`.

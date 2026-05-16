@@ -44,7 +44,11 @@ export async function createWorkbenchServer(options = {}) {
   const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
-  const uploadService = createUploadService({ matterStore, workspaceService });
+  const uploadService = createUploadService({
+    matterStore,
+    workspaceService,
+    maxUploadBytes: options.maxUploadBytes,
+  });
   const aiSettingsService = createAiSettingsService({ appDir, env });
   const commandInteractionLogService = createCommandInteractionLogService({
     appDir,

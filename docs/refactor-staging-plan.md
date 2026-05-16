@@ -128,6 +128,9 @@ be opportunistic rather than automatic.
   relative-path count validation, and safe copying from staged temp files into
   matter intake folders. The upload service no longer carries low-level file
   write/path mechanics.
+- The multipart upload limit path is now covered through the real HTTP route:
+  tests inject a small `maxUploadBytes` limit and assert oversized uploads
+  return `413` without an unhandled file-stream rejection.
 - `services/listofdates-dependency-state.mjs` now owns the pure decision that
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on
