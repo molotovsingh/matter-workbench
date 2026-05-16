@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
 
@@ -64,7 +65,7 @@ export function createListOfDatesSkill(ctx) {
       title: `Review List of Dates before regenerating — ${activeMatter.folderName}`,
       confirmLabel: "Regenerate List of Dates",
       cancelLabel: "Keep current List of Dates",
-      extraActions: (advice) => advice.dependencyState === "label_refresh_needed"
+      extraActions: (advice) => advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED
         ? [{
           id: "refresh-labels",
           label: "Refresh labels only",

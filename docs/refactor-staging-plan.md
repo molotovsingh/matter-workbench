@@ -114,6 +114,9 @@ be opportunistic rather than automatic.
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on
   disk mtimes, artifact reads, and advice message envelopes.
+- `frontend/listofdates-dependency-state.js` mirrors those API contract strings
+  for browser affordances, so the refresh-only UI does not depend on scattered
+  literals.
 - `services/matter-context-path-policy.mjs` now owns the pure path-exclusion
   trust boundary for matter context packets: secrets, logs, dependency folders,
   machine junk, and temporary Office files stay out of model-bound context.

@@ -1,5 +1,6 @@
 import { getJson } from "../api-client.js";
 import { escapeHtml, validateMetadata } from "../dom-utils.js";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 
 export function createMatterOverview(ctx, skills) {
   const { editorContent } = ctx.elements;
@@ -169,10 +170,10 @@ function renderStageRerunHint(stage, escape) {
 
 function rerunHintText(advice) {
   if (advice.state === "stale") {
-    if (advice.dependencyState === "label_refresh_needed") {
+    if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return "Source labels changed after this chronology was rendered. A label refresh should be enough; AI chronology regeneration is not required unless the legal facts changed.";
     }
-    if (advice.dependencyState === "chronology_review_needed") {
+    if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED) {
       return "Source metadata changed after this chronology was rendered. Review the current chronology before deciding whether to regenerate.";
     }
     return `${sentenceWithPeriod(advice.reason || "Newer source material exists")} Review the existing output document, then regenerate deliberately to include newer inputs.`;
