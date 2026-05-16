@@ -253,6 +253,8 @@ The engine rejects provider output that cites the wrong file, invents missing re
 
 Good lesson: if AI is allowed to describe a source, it must not be allowed to mutate the source identity.
 
+The provider wiring for this skill now lives in `source-descriptors-provider.mjs`. That file owns the OpenRouter request shape, model-policy resolution, timeout behavior, and fake-provider metadata used by tests. The engine keeps the legal artifact responsibilities: reading matter files, building bounded source packets, validating the returned descriptors, normalizing label-governance fields, and writing `Source Index.json`. This is the right split because model-routing risk and source-record integrity are different kinds of work.
+
 ### `create-listofdates-engine.mjs`
 
 This is the chronology builder.

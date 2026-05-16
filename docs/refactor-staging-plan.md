@@ -84,6 +84,11 @@ be opportunistic rather than automatic.
   configurable skills, and run ledger endpoints.
 - `shared/provider-http.mjs` and OpenRouter response/error helpers now carry the
   common provider transport pieces.
+- `source-descriptors-provider.mjs` now owns Source Labels / Document Index
+  provider request construction, model-policy resolution, timeout handling, and
+  injected-provider metadata. `source-descriptors-engine.mjs` remains focused on
+  matter IO, packet building, descriptor validation, normalization, and artifact
+  writing.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 

@@ -541,7 +541,7 @@ document_classification
 
 `source_description` is the better product name because the output is not just a category. It includes the readable label that downstream legal work needs.
 
-Llama via OpenRouter is wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; the provider layer decides which configured model satisfies that task.
+Llama via OpenRouter is wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; `source-descriptors-provider.mjs` decides which configured model satisfies that task and owns the OpenRouter request shape.
 
 For bakeoffs, use a source-description output budget around `3000` tokens. Smaller budgets can work for one tiny document, but source index responses contain a full descriptor object per source, including parties, evidence, warnings, and labels. The current default for `OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS` is `3000`.
 
