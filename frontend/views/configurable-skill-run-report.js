@@ -1,4 +1,5 @@
 import { formatConfigurableRunOutputDocumentState } from "../configurable-skill-run-labels.js";
+import { redactSensitiveText } from "../secret-redaction.js";
 
 export function formatConfigurableSkillRunReport(run = {}) {
   const outputPaths = run.outputPaths || {};
@@ -25,12 +26,12 @@ export function formatConfigurableSkillRunReport(run = {}) {
     "## Warnings",
     "",
     ...(Array.isArray(run.warnings) && run.warnings.length
-      ? run.warnings.map((warning) => `- ${warning}`)
+      ? run.warnings.map((warning) => `- ${redactSensitiveText(warning)}`)
       : ["- None."]),
     "",
     "## Error",
     "",
-    run.errorMessage ? `- ${run.errorMessage}` : "- None.",
+    run.errorMessage ? `- ${redactSensitiveText(run.errorMessage)}` : "- None.",
     "",
     "## Boundary",
     "",
@@ -41,5 +42,5 @@ export function formatConfigurableSkillRunReport(run = {}) {
 
 function packetValue(value) {
   const normalized = String(value || "").trim();
-  return normalized || "Not specified";
+  return redactSensitiveText(normalized || "Not specified");
 }

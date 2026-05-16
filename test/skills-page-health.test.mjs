@@ -58,3 +58,19 @@ test("skills page health report excludes repair or runtime claims", () => {
   assert.match(report, /This is a read-only health report/);
   assert.doesNotMatch(report, /repair stores, call providers, generate skills, run skills, or write matter artifacts\.\n\n.+generated Markdown/s);
 });
+
+test("skills page health report redacts secrets in copied issue text", () => {
+  const report = formatSkillFactoryHealthReport({
+    state: "warning",
+    checks: [
+      { id: "links", label: "OPENAI_API_KEY=sk-check-secret", state: "warning" },
+    ],
+    issues: [
+      { severity: "warning", message: "provider rejected Bearer sk-issue-secret" },
+    ],
+  });
+
+  assert.doesNotMatch(report, /sk-check-secret|sk-issue-secret/);
+  assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /Bearer \[redacted-secret\]/);
+});

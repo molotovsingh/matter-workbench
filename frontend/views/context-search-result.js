@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../secret-redaction.js";
+
 export function contextSearchSummary(result = {}) {
   return {
     counts: result.counts || {},
@@ -110,10 +112,10 @@ export function formatContextSearchReport(result = {}) {
   const lines = [
     "# Matter Context Search Report",
     "",
-    `- Matter: ${matter.matter_name || matter.folder_name || "Unknown matter"}`,
-    `- Matter folder: ${matter.folder_name || "Unknown"}`,
-    `- Searched: ${searchedAt || "Not reported"}`,
-    `- Query: \`${query || ""}\``,
+    `- Matter: ${redactSensitiveText(matter.matter_name || matter.folder_name || "Unknown matter")}`,
+    `- Matter folder: ${redactSensitiveText(matter.folder_name || "Unknown")}`,
+    `- Searched: ${redactSensitiveText(searchedAt || "Not reported")}`,
+    `- Query: \`${redactSensitiveText(query || "")}\``,
     `- Matches: ${counts.matches || 0}`,
     `- Sources: ${counts.sources || 0}`,
     `- Evidence blocks searched: ${counts.searched_blocks || 0}`,
@@ -124,15 +126,15 @@ export function formatContextSearchReport(result = {}) {
 
   if (warnings.length) {
     lines.push("", "## Warnings", "");
-    for (const warning of warnings) lines.push(`- ${warning}`);
+    for (const warning of warnings) lines.push(`- ${redactSensitiveText(warning)}`);
   }
 
   if (results.length) {
     lines.push("", "## Matches", "");
     for (const match of results.slice(0, 25)) {
       const label = match.source_short_label || match.source_label || "Unlabelled source";
-      lines.push(`- ${label} (${match.citation || "no citation"})`);
-      if (match.snippet) lines.push(`  - Snippet: ${match.snippet}`);
+      lines.push(`- ${redactSensitiveText(label)} (${redactSensitiveText(match.citation || "no citation")})`);
+      if (match.snippet) lines.push(`  - Snippet: ${redactSensitiveText(match.snippet)}`);
     }
   }
 

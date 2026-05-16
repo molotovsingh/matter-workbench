@@ -55,6 +55,27 @@ test("context search renders source labels, citations, and bounded snippets", ()
   assert.doesNotMatch(report, /OPENROUTER_API_KEY|MISTRAL_API_KEY|sk-/);
 });
 
+test("context search copied report redacts secrets from query and snippets", () => {
+  const report = formatContextSearchReport({
+    query: "payment OPENAI_API_KEY=sk-query-secret",
+    matter: {
+      folder_name: "Matter sk-folder-secret",
+    },
+    warnings: ["OPENROUTER_API_KEY=sk-warning-secret"],
+    results: [
+      {
+        citation: "FILE-0001 p1.b1",
+        source_short_label: "Document sk-label-secret",
+        snippet: "authorization: Bearer sk-snippet-secret",
+      },
+    ],
+  });
+
+  assert.doesNotMatch(report, /sk-query-secret|sk-folder-secret|sk-warning-secret|sk-label-secret|sk-snippet-secret/);
+  assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /Bearer \[redacted-secret\]/);
+});
+
 test("context search renders empty results without treating them as errors", () => {
   const html = renderContextSearchResultHtml({
     query: "nonexistent",

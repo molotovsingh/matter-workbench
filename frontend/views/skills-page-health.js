@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../secret-redaction.js";
+
 export function formatSkillFactoryHealthReport(health = {}) {
   const summary = health.summary || {};
   const issues = Array.isArray(health.issues) ? health.issues : [];
@@ -5,8 +7,8 @@ export function formatSkillFactoryHealthReport(health = {}) {
   const lines = [
     "# Skill Factory Health Report",
     "",
-    `- State: ${health.state || "unknown"}`,
-    `- Checked at: ${health.checkedAt || "Not available"}`,
+    `- State: ${redactSensitiveText(health.state || "unknown")}`,
+    `- Checked at: ${redactSensitiveText(health.checkedAt || "Not available")}`,
     `- Ideas: ${summary.ideas ?? 0}`,
     `- Samples: ${summary.samples ?? 0}`,
     `- Stored custom skill records: ${summary.configurableSkills ?? 0}`,
@@ -16,12 +18,12 @@ export function formatSkillFactoryHealthReport(health = {}) {
     "",
     "## Checks",
     "",
-    ...checks.map((check) => `- ${check.state === "ok" ? "[x]" : "[ ]"} ${check.label || check.id || "Check"}`),
+    ...checks.map((check) => `- ${check.state === "ok" ? "[x]" : "[ ]"} ${redactSensitiveText(check.label || check.id || "Check")}`),
     "",
     "## Issues",
     "",
     ...(issues.length
-      ? issues.map((issue) => `- ${String(issue.severity || "issue").toUpperCase()}: ${issue.message || issue.code || "Unknown issue"}`)
+      ? issues.map((issue) => `- ${redactSensitiveText(String(issue.severity || "issue").toUpperCase())}: ${redactSensitiveText(issue.message || issue.code || "Unknown issue")}`)
       : ["- None observed."]),
     "",
     "## Boundary",

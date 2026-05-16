@@ -33,3 +33,23 @@ test("configurable skill run report contains metadata but not generated output",
   assert.match(report, /metadata only/);
   assert.doesNotMatch(report, /Generated work product/);
 });
+
+test("configurable skill run report redacts secrets in copied diagnostics", () => {
+  const report = formatConfigurableSkillRunReport({
+    id: "run_123",
+    title: "Party Map sk-title-secret",
+    slash: "/party_map",
+    status: "failed",
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    outputPaths: {
+      markdown: "20_Workshop/sk-path-secret.md",
+    },
+    warnings: ["OPENAI_API_KEY=sk-warning-secret"],
+    errorMessage: "provider rejected Bearer sk-error-secret",
+  });
+
+  assert.doesNotMatch(report, /sk-title-secret|sk-path-secret|sk-warning-secret|sk-error-secret/);
+  assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /Bearer \[redacted-secret\]/);
+});

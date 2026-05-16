@@ -61,6 +61,32 @@ test("context preview renders packet stats without raw block text", () => {
   assert.doesNotMatch(report, /full extracted paragraph text/i);
 });
 
+test("context preview copied report redacts secrets from diagnostic fields", () => {
+  const report = formatContextReport({
+    matter: {
+      folder_name: "Matter sk-folder-secret",
+    },
+    warnings: ["OPENROUTER_API_KEY=sk-warning-secret"],
+    top_sources: [
+      {
+        file_id: "FILE-0001",
+        source_short_label: "Document sk-label-secret",
+        sample_citations: ["FILE-0001 p1.b1"],
+      },
+    ],
+    library_artifacts: [
+      {
+        path: "10_Library/sk-path-secret.json",
+        summary: "provider rejected Bearer sk-summary-secret",
+      },
+    ],
+  });
+
+  assert.doesNotMatch(report, /sk-folder-secret|sk-warning-secret|sk-label-secret|sk-path-secret|sk-summary-secret/);
+  assert.match(report, /OPENROUTER_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /Bearer \[redacted-secret\]/);
+});
+
 test("context preview surfaces missing Source Index warning", () => {
   const result = {
     matter: {

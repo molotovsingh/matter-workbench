@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../secret-redaction.js";
+
 export function contextPreviewSummary(result = {}) {
   return {
     counts: result.counts || {},
@@ -137,9 +139,9 @@ export function formatContextReport(result = {}) {
   const lines = [
     "# Matter Context Report",
     "",
-    `- Matter: ${matter.matter_name || matter.folder_name || "Unknown matter"}`,
-    `- Matter folder: ${matter.folder_name || "Unknown"}`,
-    `- Generated: ${generatedAt || "Not reported"}`,
+    `- Matter: ${redactSensitiveText(matter.matter_name || matter.folder_name || "Unknown matter")}`,
+    `- Matter folder: ${redactSensitiveText(matter.folder_name || "Unknown")}`,
+    `- Generated: ${redactSensitiveText(generatedAt || "Not reported")}`,
     `- Sources: ${counts.sources || 0}`,
     `- Evidence blocks: ${counts.evidence_blocks_included || 0} included, ${counts.evidence_blocks_omitted || 0} omitted`,
     `- Source Index: ${sourceIndexPresent ? "present" : "missing"}`,
@@ -149,7 +151,7 @@ export function formatContextReport(result = {}) {
 
   if (warnings.length) {
     lines.push("", "## Warnings", "");
-    for (const warning of warnings) lines.push(`- ${warning}`);
+    for (const warning of warnings) lines.push(`- ${redactSensitiveText(warning)}`);
   }
 
   if (topSources.length) {
@@ -159,14 +161,14 @@ export function formatContextReport(result = {}) {
       const citations = Array.isArray(source.sample_citations) && source.sample_citations.length
         ? ` (${source.sample_citations.join(", ")})`
         : "";
-      lines.push(`- ${source.file_id}: ${label}${citations}`);
+      lines.push(`- ${redactSensitiveText(source.file_id)}: ${redactSensitiveText(label)}${redactSensitiveText(citations)}`);
     }
   }
 
   if (libraryArtifacts.length) {
     lines.push("", "## Library Artifacts", "");
     for (const artifact of libraryArtifacts) {
-      lines.push(`- ${artifact.path}: ${artifact.summary || artifact.kind || ""}`);
+      lines.push(`- ${redactSensitiveText(artifact.path)}: ${redactSensitiveText(artifact.summary || artifact.kind || "")}`);
     }
   }
 
