@@ -894,6 +894,8 @@ The app now uses that distinction in the List of Dates rerun path. If only sourc
 
 The source-label rules themselves now live in `shared/source-labels.mjs`. That is a small but important foundation: Source Index readers, List of Dates generation, label refresh, and context packets all resolve labels the same way. A confirmed or overridden lawyer label wins; unsafe labels containing `FILE-0001` style identifiers are not promoted into lawyer-facing fields. This is how you prevent one surface from being polished while another leaks internal names.
 
+The same care now applies to artifact writes. List of Dates JSON, CSV, and Markdown outputs go through the shared atomic file writer, so a failed process is less likely to leave a half-written generated chronology on disk. This is boring in the best way: source-backed legal artifacts should fail before replacement, not fail halfway through replacement.
+
 ## Frontend Lesson: Scope Generic Selectors
 
 The command box once had a small but ugly regression: typing `/` opened the slash-command suggestions, but each suggestion row inherited the dark square submit-button styling. The cause was a selector that was too broad:

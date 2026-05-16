@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { renderListOfDatesMarkdown } from "../create-listofdates-engine.mjs";
 import { toCsv } from "../shared/csv.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
@@ -75,8 +76,8 @@ export async function refreshListOfDatesSourceLabels(options = {}) {
   if (!dryRun) {
     await mkdir(outputDir, { recursive: true });
     await writeJsonFile(path.join(outputDir, "List of Dates.json"), nextJson);
-    await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(refresh.entries, LIST_OF_DATES_CSV_HEADERS));
-    await writeFile(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, refresh.entries, engineVersion));
+    await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(refresh.entries, LIST_OF_DATES_CSV_HEADERS));
+    await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, refresh.entries, engineVersion));
   }
 
   outputLines.push(`[listofdates] refreshed ${refresh.refreshedEntries} chronology row label(s)`);
@@ -155,7 +156,7 @@ async function readSourceIndexArtifact(filePath) {
 }
 
 async function writeJsonFile(filePath, value) {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function buildLabelRefreshIndex({ snapshot, sourceIndex }) {

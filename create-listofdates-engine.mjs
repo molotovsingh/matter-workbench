@@ -1,6 +1,7 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
@@ -405,9 +406,9 @@ export async function runCreateListOfDates(options = {}) {
 
   if (!dryRun) {
     await mkdir(outputDir, { recursive: true });
-    await writeFile(
+    await writeJsonFile(
       path.join(outputDir, "List of Dates.json"),
-      `${JSON.stringify({
+      {
         schema_version: "list-of-dates/v1",
         engine_version: ENGINE_VERSION,
         generated_at: new Date().toISOString(),
@@ -416,10 +417,10 @@ export async function runCreateListOfDates(options = {}) {
         source_record_count: records.length,
         source_snapshot: createSourceSnapshot(sourceIndex),
         entries,
-      }, null, 2)}\n`,
+      },
     );
-    await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-    await writeFile(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries));
+    await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
+    await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries));
   }
 
   outputLines.push(`[listofdates] accepted ${acceptedEntries.length} cited date event(s)`);
@@ -586,8 +587,8 @@ async function runCreateListOfDatesTwoPass({
         entries,
       };
       await writeJsonFile(path.join(outputDir, "List of Dates.json"), listJson);
-      await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-      await writeFile(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
+      await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
+      await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
       await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
     }
 
@@ -1000,7 +1001,7 @@ function createCandidateLedger({
 }
 
 async function writeJsonFile(filePath, value) {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function addNumber(target, key, value) {
