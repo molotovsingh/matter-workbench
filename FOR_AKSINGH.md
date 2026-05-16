@@ -819,3 +819,18 @@ POST /api/skill-ideas     -> create idea
 This does not change schemas or route behavior. It changes maintainability. The route file now reads more like a map, and the branchy matching logic lives in one tested helper.
 
 The same HTTP cleanup changed static file serving from "read the whole file into memory, then send it" to streaming. For a local app this is not glamorous, but it is the right default: large files should flow through the server instead of becoming one big buffer whenever someone opens them.
+
+## Matter Context Lesson: Separate Packet Building From Search
+
+`matter-context-service` has two different jobs:
+
+```text
+Build the bounded matter packet from disk.
+Search that packet for useful source-backed snippets.
+```
+
+Those jobs are related, but they should not be the same module. Packet building cares about filesystem traversal, file registers, extraction records, Source Index trust checks, library artifact summaries, and limits. Search cares about query normalization, term matching, snippets, result counts, and preserving citations.
+
+The search code now lives in `services/matter-context-search.mjs`. The main context service still exposes the same public API, but the responsibility is clearer: build the packet, then hand it to a focused search module.
+
+The lesson is that a good extraction does not need to change behavior to be worthwhile. Sometimes the best refactor is simply moving a self-contained decision into a smaller room where future changes cannot accidentally disturb disk layout or packet schema.
