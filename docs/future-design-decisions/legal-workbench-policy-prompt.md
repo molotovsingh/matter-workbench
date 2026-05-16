@@ -158,15 +158,16 @@ The first code slice adds a shared module:
 shared/legal-workbench-policy-prompt.mjs
 ```
 
-The module exposes small composable policy sections, not one opaque string:
+The module exposes small composable policy sections, not one opaque string.
+Current exports:
 
 ```text
-globalLegalPolicy
-sourceCitationPolicy
-visibilityPolicy
-datePrecisionPolicy
-nativeSkillPolicy(skill)
-customSkillPolicy
+LEGAL_WORKBENCH_POLICY_PROMPT_VERSION
+GLOBAL_LEGAL_POLICY_PROMPT
+SOURCE_VISIBILITY_POLICY_PROMPT
+NATIVE_SKILL_POLICY_PROMPTS
+CUSTOM_SKILL_POLICY_PROMPT
+legalWorkbenchSystemPrompt(taskPrompt, options)
 ```
 
 Provider-backed tasks should compose the relevant sections into their existing
@@ -193,6 +194,10 @@ or skill-shaping output:
 3. Skill interview planning.
 4. Skill sample generation.
 5. Configurable skill authoring and run execution.
+
+The simple AI settings connection probe is deliberately outside this contract
+because it is not legal work product; it only asks the configured provider to
+reply with a fixed health-check token.
 
 ## Acceptance Checks
 
