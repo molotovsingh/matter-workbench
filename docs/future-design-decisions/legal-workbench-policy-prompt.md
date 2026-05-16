@@ -1,7 +1,7 @@
 # Future Design Decision: Legal Workbench Policy Prompt
 
 Date: 2026-05-16
-Status: Contract direction / not implemented
+Status: First implementation slice landed
 
 ## Why This Exists
 
@@ -152,14 +152,13 @@ rules.
 
 ## Implementation Shape
 
-A future code slice should add a shared module, for example:
+The first code slice adds a shared module:
 
 ```text
 shared/legal-workbench-policy-prompt.mjs
 ```
 
-The module should expose small composable policy sections, not one opaque
-string:
+The module exposes small composable policy sections, not one opaque string:
 
 ```text
 globalLegalPolicy
@@ -173,7 +172,7 @@ customSkillPolicy
 Provider-backed tasks should compose the relevant sections into their existing
 task prompts.
 
-AI run metadata should record the policy prompt version used, for example:
+AI run metadata records the policy prompt version used, for example:
 
 ```json
 {
@@ -186,8 +185,8 @@ versions change.
 
 ## First Consumers
 
-Start with the surfaces already producing lawyer-visible or skill-shaping
-output:
+The first implementation covers the surfaces already producing lawyer-visible
+or skill-shaping output:
 
 1. `/describe_sources` as `Source Labels / Document Index`.
 2. `/create_listofdates` candidate and editor passes.
@@ -218,4 +217,3 @@ This contract does not propose:
 - court-facing exports in the first slice;
 - rewriting the List of Dates engine before the source-record contract is
   stable.
-

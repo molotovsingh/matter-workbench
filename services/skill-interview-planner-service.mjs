@@ -1,4 +1,8 @@
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import {
+  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
+  legalWorkbenchSystemPrompt,
+} from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import {
   fetchProviderJsonWithTimeout,
@@ -99,7 +103,7 @@ export const SKILL_INTERVIEW_PLAN_SCHEMA = {
   },
 };
 
-const SKILL_INTERVIEW_SYSTEM_PROMPT = [
+const SKILL_INTERVIEW_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You plan short design interviews for future Legal Workbench skills.",
   "Return only strict JSON matching the supplied schema.",
   "Your job is to understand the exact skill idea and ask the lawyer-readable follow-up questions actually needed.",
@@ -122,7 +126,9 @@ const SKILL_INTERVIEW_SYSTEM_PROMPT = [
   "If source discipline matters, include it as a default assumption unless it truly needs a user choice.",
   "For external-facing drafting, ask about audience, tone, and whether legal assessment should be included.",
   "For adjacent skill improvements, ask what changes and what must stay unchanged.",
-].join(" ");
+], {
+  customSkill: true,
+});
 
 export function createSkillInterviewPlannerService({
   registryService,
@@ -183,6 +189,7 @@ export function createSkillInterviewPlannerService({
           provider: providerConfig.provider,
           model: providerConfig.model,
           fallback: policy.fallback,
+          policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
         },
         plan,
       };

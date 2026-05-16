@@ -9,6 +9,7 @@ import {
 import {
   createConfigurableSkillsService,
   createOpenAiAuthoringProvider,
+  createOpenAiRunProvider,
 } from "../services/configurable-skills-service.mjs";
 
 const PARTY_BRIEF = Object.freeze({
@@ -131,6 +132,76 @@ test("configurable skill authoring fails closed on malformed OpenAI JSON", async
     }),
     /OpenAI skill authoring response was not valid JSON/,
   );
+});
+
+test("configurable skill authoring and run providers carry the shared legal workbench policy prompt", async () => {
+  const authoringBodies = [];
+  const authoringProvider = createOpenAiAuthoringProvider({
+    apiKey: "sk-test",
+    endpoint: "https://example.test/responses",
+    model: "gpt-5.4",
+    maxOutputTokens: 1000,
+    fetchImpl: async (_endpoint, options) => {
+      authoringBodies.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            title: "Party Map",
+            slash: "/party_map",
+            description: "Map parties.",
+            target_lane: "20_Workshop",
+            output_artifact: "20_Workshop/Party Map.md",
+            matter_required: true,
+            paid_provider_call: true,
+            source_backed: "required",
+            prompt: "Map parties from source-backed context.",
+            citation_policy: "Use lawyer-readable labels.",
+          }),
+        }),
+      };
+    },
+  });
+  const runBodies = [];
+  const runProvider = createOpenAiRunProvider({
+    apiKey: "sk-test",
+    endpoint: "https://example.test/responses",
+    model: "gpt-5.4",
+    maxOutputTokens: 1000,
+    fetchImpl: async (_endpoint, options) => {
+      runBodies.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        json: async () => ({ output_text: "# Party Map\n\nSource-backed." }),
+      };
+    },
+  });
+
+  await authoringProvider({
+    idea: { id: "idea", text: "party map" },
+    sample: { id: "sample", matter: { matter_name: "Demo" }, sampleMarkdown: "# Sample" },
+    existingSlashes: [],
+    schema: { type: "object" },
+  });
+  await runProvider({
+    skill: {
+      title: "Party Map",
+      slash: "/party_map",
+      description: "Map parties.",
+      outputArtifact: "20_Workshop/Party Map.md",
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Map parties from source-backed context.",
+        citationPolicy: "Use lawyer-readable labels.",
+      },
+    },
+    matterContext: { matter: { matter_name: "Demo" }, evidenceBlocks: [] },
+  });
+
+  assert.match(authoringBodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(authoringBodies[0].input[0].content, /Custom skill policy/);
+  assert.match(runBodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(runBodies[0].input[0].content, /Keep raw FILE-NNNN pX\.bY citations in audit metadata/);
 });
 
 test("configurable skill validation blocks bad source-backed samples and keeps draft non-runnable", async () => {

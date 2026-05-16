@@ -1,5 +1,6 @@
 import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import {
   AI_TASKS,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
@@ -18,6 +19,19 @@ const VALID_DECISIONS = new Set([
   "override_requested",
 ]);
 const VALID_RECOMMENDATIONS = new Set([...VALID_DECISIONS, "none"]);
+const SKILL_ROUTER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+  "You are the Legal Workbench skill router.",
+  "Classify a user's skill request against the supplied skill registry.",
+  "Be MECE: do not recommend duplicate skills when an existing skill has the same category, goal, input contract, and output contract.",
+  "If there is a direct MECE violation, recommend modifying the existing skill and require user approval.",
+  "Treat expert preferences or legal heuristics as skill tuning, not a new executable workflow.",
+  "Be legal-setting aware: forum, jurisdiction, case type, procedural stage, side, relief, and audience may justify profiles or tuning before new skills.",
+  "All AI legal work product should be markdown-first until export/print skills are mature; DOCX/PDF belong to Export skills.",
+  "Return only JSON in the requested schema.",
+], {
+  customSkill: true,
+  sourceVisibility: false,
+});
 
 const ROUTER_OUTPUT_SCHEMA = {
   type: "object",
@@ -150,16 +164,7 @@ export function createOpenAiSkillRouterProvider({
         input: [
           {
             role: "system",
-            content: [
-              "You are the Legal Workbench skill router.",
-              "Classify a user's skill request against the supplied skill registry.",
-              "Be MECE: do not recommend duplicate skills when an existing skill has the same category, goal, input contract, and output contract.",
-              "If there is a direct MECE violation, recommend modifying the existing skill and require user approval.",
-              "Treat expert preferences or legal heuristics as skill tuning, not a new executable workflow.",
-              "Be legal-setting aware: forum, jurisdiction, case type, procedural stage, side, relief, and audience may justify profiles or tuning before new skills.",
-              "All AI legal work product should be markdown-first until export/print skills are mature; DOCX/PDF belong to Export skills.",
-              "Return only JSON in the requested schema.",
-            ].join(" "),
+            content: SKILL_ROUTER_SYSTEM_PROMPT,
           },
           {
             role: "user",

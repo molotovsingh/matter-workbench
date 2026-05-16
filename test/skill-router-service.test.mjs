@@ -118,6 +118,8 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
   assert.equal(bodies[0].model, "policy-router-model");
   assert.equal(bodies[0].max_output_tokens, 777);
   assert.equal(bodies[0].input[0].role, "system");
+  assert.match(bodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(bodies[0].input[0].content, /Custom skill policy/);
   assert.equal(bodies[0].text.format.name, "skill_router_decision");
 });
 

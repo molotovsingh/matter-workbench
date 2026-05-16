@@ -3,7 +3,10 @@ import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createSkillSampleOutputService } from "../services/skill-sample-output-service.mjs";
+import {
+  createOpenAiSkillSampleOutputProvider,
+  createSkillSampleOutputService,
+} from "../services/skill-sample-output-service.mjs";
 import { toCsv } from "../shared/csv.mjs";
 
 const HASH_ONE = "a".repeat(64);
@@ -58,10 +61,39 @@ test("skill sample output service generates a bounded review sample without writ
   assert.equal(output.matter.matter_name, "Mehta vs Skyline");
   assert.match(output.sample_markdown, /^# Client Update Email/);
   assert.equal(output.ai_run.task, "skill_sample_output");
+  assert.equal(output.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.ok(output.warnings.includes("Sample output only. Creating a skill still requires approval and validation."));
 
   const libraryFiles = await readdir(path.join(matterRoot, "10_Library"));
   assert.deepEqual(libraryFiles.sort(), ["List of Dates.md", "Source Index.json"]);
+});
+
+test("skill sample output provider carries the shared legal workbench policy prompt", async () => {
+  const bodies = [];
+  const provider = createOpenAiSkillSampleOutputProvider({
+    apiKey: "sk-test",
+    endpoint: "https://api.openai.com/v1/responses",
+    model: "gpt-5.4",
+    maxOutputTokens: 1200,
+    fetchImpl: async (_endpoint, options) => {
+      bodies.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        json: async () => ({ output_text: "# Sample\n\nSource-backed review." }),
+      };
+    },
+  });
+
+  const markdown = await provider({
+    idea: { text: "draft a careful internal review note" },
+    matterContext: { matter: { matter_name: "Demo" }, evidence_blocks: [] },
+  });
+
+  assert.match(markdown, /Source-backed review/);
+  assert.equal(bodies.length, 1);
+  assert.match(bodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(bodies[0].input[0].content, /Custom skill policy/);
+  assert.match(bodies[0].input[0].content, /must not expose raw system identifiers/);
 });
 
 test("skill sample output service includes feedback and previous sample for regeneration", async () => {

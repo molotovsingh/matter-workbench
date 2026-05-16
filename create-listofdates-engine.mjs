@@ -8,6 +8,7 @@ import {
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
+import { legalWorkbenchSystemPrompt } from "./shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import {
   createOpenRouterProviderError,
@@ -46,7 +47,7 @@ const EVENT_TYPES = [
   "other",
 ];
 const EVENT_TYPE_SET = new Set(EVENT_TYPES);
-const LIST_OF_DATES_SYSTEM_PROMPT = [
+const LIST_OF_DATES_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are a careful Indian legal chronology assistant.",
   "Create a lawyer-facing, client-favourable, source-backed list of dates from extracted document blocks.",
   "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
@@ -64,8 +65,10 @@ const LIST_OF_DATES_SYSTEM_PROMPT = [
   "Keep readable source labels separate from raw citations; raw FILE-NNNN pX.bY citations remain canonical.",
   "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text.",
   "Return one compact JSON object only, matching the requested schema.",
-].join(" ");
-const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = [
+], {
+  nativeSkill: "create_listofdates",
+});
+const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are a careful Indian legal chronology assistant doing first-pass evidence triage.",
   "Create a deliberately verbose candidate ledger for a later chronology editor.",
   "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
@@ -77,8 +80,10 @@ const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = [
   "Use readable source labels when supplied, but raw FILE-NNNN pX.bY citations remain canonical.",
   "Mark OCR suspicion and date uncertainty instead of hiding it.",
   "Return one compact JSON object only, matching the requested schema.",
-].join(" ");
-const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = [
+], {
+  nativeSkill: "create_listofdates",
+});
+const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are a careful Indian legal chronology editor.",
   "Convert a verbose candidate ledger into a lawyer-facing, client-perspective List of Dates.",
   "Use only the supplied candidate ledger and matter metadata.",
@@ -90,7 +95,9 @@ const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = [
   "Write legal_relevance as one source-supported sentence explaining why the event matters to the declared client's case.",
   "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
   "Return one compact JSON object only, matching the requested schema.",
-].join(" ");
+], {
+  nativeSkill: "create_listofdates",
+});
 const HIGH_RISK_CONCLUSION_TERMS = [
   "fraud",
   "bad faith",
@@ -957,6 +964,7 @@ function mergeAiRunMetadata(baseAiRun, responseAiRuns) {
 function twoPassAiRunMetadata(pass1AiRun, pass2AiRun) {
   return {
     policyVersion: pass2AiRun.policyVersion || pass1AiRun.policyVersion,
+    policyPromptVersion: pass2AiRun.policyPromptVersion || pass1AiRun.policyPromptVersion,
     task: "create_listofdates_two_pass",
     tier: "source_backed_analysis",
     provider: "two-pass",

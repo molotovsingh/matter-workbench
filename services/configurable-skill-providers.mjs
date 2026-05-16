@@ -1,4 +1,5 @@
 import { publicSkill } from "./configurable-skill-definition.mjs";
+import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS } from "../shared/model-policy.mjs";
 import {
   extractOpenAiOutputText,
@@ -38,7 +39,7 @@ export const AUTHORING_SCHEMA = {
   },
 };
 
-const AUTHORING_SYSTEM_PROMPT = [
+const AUTHORING_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You create strict configurable skill definitions for Matter Workbench.",
   "Return only JSON matching the schema.",
   "Do not generate code, routes, tests, files, or executable JavaScript.",
@@ -47,17 +48,22 @@ const AUTHORING_SYSTEM_PROMPT = [
   "Prefer safe internal workshop artifacts unless the approved design clearly asks for drafts or dispatch.",
   "The prompt must require source-backed factual statements when the skill is internal legal work product.",
   "Never claim the skill is court-ready or final legal advice.",
-].join(" ");
+], {
+  customSkill: true,
+});
 
-const RUN_SYSTEM_PROMPT = [
+const RUN_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are running an approved configurable Matter Workbench skill.",
   "Return Markdown only.",
   "Use the supplied skill prompt, matter context packet, and output artifact contract.",
   "Do not produce code, schema, provider config, or activation text.",
   "Do not mention that you are an AI model.",
   "Do not invent facts. Mark uncertainty and missing evidence clearly.",
-  "For source-backed internal work, cite readable source labels plus raw FILE-NNNN pX.bY citations.",
-].join(" ");
+  "For source-backed work, cite readable source labels in normal lawyer-visible text.",
+  "Keep raw FILE-NNNN pX.bY citations in audit metadata or technical views unless the approved output contract explicitly asks for audit citations.",
+], {
+  customSkill: true,
+});
 
 export function createDefaultAuthoringProvider({ providerConfig, env, fetchImpl }) {
   if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {

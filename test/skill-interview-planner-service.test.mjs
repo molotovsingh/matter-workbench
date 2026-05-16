@@ -207,6 +207,8 @@ test("OpenRouter skill interview planner sends strict no-fallback JSON-schema re
   assert.equal(requests[0].body.provider.allow_fallbacks, false);
   assert.equal(requests[0].body.response_format.type, "json_schema");
   assert.equal(requests[0].body.response_format.json_schema.strict, true);
+  assert.match(requests[0].body.messages[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(requests[0].body.messages[0].content, /Custom skill policy/);
   assert.match(requests[0].body.messages[0].content, /must not generate runnable skill code/i);
   assert.match(requests[0].body.messages[0].content, /up to about ten questions/i);
   assert.match(requests[0].body.messages[0].content, /detailed step-by-step skill specification, return zero questions/i);
@@ -358,6 +360,7 @@ test("skill interview planner can use OpenAI direct gpt-5.4 provider policy", as
   assert.equal(result.planner.used, true);
   assert.equal(result.planner.provider, "openai-direct");
   assert.equal(result.planner.model, "gpt-5.4");
+  assert.equal(result.planner.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(result.plan.inferred_design_brief.expectedOutputArtifact, "30_Drafts/Client Update Email.md");
   assert.equal(requests[0].endpoint, "https://api.openai.com/v1/responses");
   assert.equal(requests[0].body.model, "gpt-5.4");

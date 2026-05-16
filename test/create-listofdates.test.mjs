@@ -169,6 +169,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.deepEqual(result.entries.map((entry) => entry.date_iso), ["2026-04-20", "2026-05-01"]);
   assert.deepEqual(result.aiRun, {
     policyVersion: "model-policy/v1-current",
+    policyPromptVersion: "legal-workbench-policy/v1",
     task: "source_backed_analysis",
     tier: "source_backed_analysis",
     provider: "openai-direct",
@@ -1241,6 +1242,8 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(Object.hasOwn(requestSchema.properties.entries.items.properties.issue_tags.items, "maxLength"), false);
   assert.equal(schema.properties.entries.maxItems, 3);
   assert.equal(schema.properties.entries.items.properties.confidence.maximum, 1);
+  assert.match(requests[0].body.messages[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(requests[0].body.messages[0].content, /Native skill policy for Create List of Dates/);
   assert.match(requests[0].body.messages[0].content, /lawyer-facing, client-favourable/);
   assert.match(requests[0].body.messages[0].content, /Every legal_relevance sentence must be supported/);
   assert.match(requests[0].body.messages[1].content, /allowed_event_types/);
@@ -1398,6 +1401,7 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
   assert.equal(result.entries.length, 1);
   assert.deepEqual(result.aiRun, {
     policyVersion: "model-policy/v1-current",
+    policyPromptVersion: "legal-workbench-policy/v1",
     task: "source_backed_analysis",
     tier: "source_backed_analysis",
     provider: "openrouter",

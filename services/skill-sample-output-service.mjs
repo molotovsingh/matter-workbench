@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import {
+  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
+  legalWorkbenchSystemPrompt,
+} from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import {
   extractOpenAiOutputText,
@@ -22,7 +26,7 @@ const MAX_FEEDBACK_LENGTH = 3000;
 const MAX_PREVIOUS_SAMPLE_LENGTH = 12000;
 const MAX_SAMPLE_LENGTH = 30000;
 
-const SAMPLE_SYSTEM_PROMPT = [
+const SAMPLE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You create sample outputs for proposed Legal Workbench skills.",
   "This is not skill generation. Do not produce code, prompts, schemas, configuration, or slash commands.",
   "Return Markdown only.",
@@ -32,7 +36,9 @@ const SAMPLE_SYSTEM_PROMPT = [
   "If the output is client-facing or dispatch-facing, keep raw FILE citations internal unless the design brief explicitly asks to show them.",
   "Do not invent facts. Mark uncertainty and missing evidence clearly.",
   "Do not claim the skill is runnable or ready.",
-].join(" ");
+], {
+  customSkill: true,
+});
 
 export function createSkillSampleOutputService({
   matterStore,
@@ -84,6 +90,7 @@ export function createSkillSampleOutputService({
         provider: providerConfig.provider,
         model: providerConfig.model,
         task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
+        policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
       },
       warnings: [
         "Sample output only. Creating a skill still requires approval and validation.",

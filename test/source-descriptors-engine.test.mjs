@@ -61,6 +61,7 @@ test("source descriptors engine writes source-index/v1 with fake provider descri
   assert.equal(result.outputPaths.json, "10_Library/Source Index.json");
   assert.deepEqual(result.aiRun, {
     policyVersion: "source-index-skeleton/v1",
+    policyPromptVersion: "legal-workbench-policy/v1",
     task: "source_description",
     tier: "source_description",
     provider: "fake-provider",
@@ -240,6 +241,8 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(requests[0].body.model, "meta-llama/source-description-model");
   assert.equal(requests[0].body.max_tokens, 1300);
   assert.equal(requests[0].initHasSignal, true);
+  assert.match(requests[0].body.messages[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(requests[0].body.messages[0].content, /Native skill policy for Source Labels \/ Document Index/);
   assert.match(requests[0].body.messages[0].content, /include that date in display_label/);
   assert.match(requests[0].body.messages[0].content, /lawyer-readable form such as 20 April 2026/);
   assert.match(requests[0].body.messages[0].content, /email_header for email headers, court_order_date for court order headings/);

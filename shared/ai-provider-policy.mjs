@@ -1,4 +1,5 @@
 import { AI_PROVIDERS } from "./model-policy.mjs";
+import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "./legal-workbench-policy-prompt.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT } from "./responses-client.mjs";
 
 const OPENROUTER_PROVIDER_SORTS = new Set(["price", "throughput", "latency"]);
@@ -41,6 +42,7 @@ export function modelPolicyMetadata(policy, providerConfig = resolveProviderConf
     policyVersion: policy.policyVersion,
     task: policy.task,
     tier: policy.tier,
+    policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     provider: providerConfig.provider,
     model: providerConfig.model,
     maxOutputTokens: providerConfig.maxOutputTokens,

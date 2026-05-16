@@ -2,6 +2,10 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
+import {
+  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
+  legalWorkbenchSystemPrompt,
+} from "./shared/legal-workbench-policy-prompt.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import {
@@ -17,7 +21,7 @@ const OUTPUT_JSON_NAME = "Source Index.json";
 const OUTPUT_DIR_NAME = "10_Library";
 const BLOCK_CHAR_LIMIT = 1200;
 const MAX_BLOCKS_PER_SOURCE = 12;
-const SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS = [
+const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
   "You create source descriptors for legal matter source documents.",
   "Follow the Source Descriptors contract: keep FILE-NNNN citations canonical, add human-readable document labels, and never overstate weak evidence.",
   "When a reliable document date is known, include that date in display_label.",
@@ -30,6 +34,9 @@ const SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS = [
   "Return JSON only in the requested schema.",
   "Use only the supplied source packets.",
 ];
+const SOURCE_DESCRIPTOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt(SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS, {
+  nativeSkill: "source_labels",
+});
 
 const DOCUMENT_TYPES = new Set([
   "email",
@@ -268,7 +275,7 @@ export function createOpenRouterSourceDescriptorProvider({
       messages: [
         {
           role: "system",
-          content: SOURCE_DESCRIPTOR_SYSTEM_INSTRUCTIONS.join(" "),
+          content: SOURCE_DESCRIPTOR_SYSTEM_PROMPT,
         },
         {
           role: "user",
@@ -653,6 +660,7 @@ function matterSummary(matterJson) {
 function fakeProviderMetadata() {
   return {
     policyVersion: "source-index-skeleton/v1",
+    policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     task: "source_description",
     tier: "source_description",
     provider: "fake-provider",
