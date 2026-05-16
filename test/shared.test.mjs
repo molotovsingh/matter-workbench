@@ -88,16 +88,23 @@ test("secret redaction helper covers provider keys and bearer tokens", () => {
     "MISTRAL_API_KEY=\"sk-mistral-secret\"",
     "authorization: Bearer sk-bearer-secret",
     "Authorization: Bearer mistral-token-secret",
+    '"apiKey": "future-provider-token"',
+    "x-api-key=opaque-provider-token",
     "raw sk-raw-secret",
   ].join("\n");
 
   const redacted = redactSensitiveText(text);
 
-  assert.doesNotMatch(redacted, /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|mistral-token-secret|sk-raw-secret/);
+  assert.doesNotMatch(
+    redacted,
+    /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|mistral-token-secret|future-provider-token|opaque-provider-token|sk-raw-secret/,
+  );
   assert.match(redacted, new RegExp(`OPENAI_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`OPENROUTER_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`MISTRAL_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`Bearer ${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`"apiKey":${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`x-api-key=${escapeRegExp(REDACTED_SECRET)}`));
 });
 
 test("local env parser supports named and raw OpenAI keys", async () => {
