@@ -422,6 +422,8 @@ Important files:
 - `frontend/skill-idea-creation-actions.js` - approved-sample activation, overlap gating, and skill-ready rendering;
 - `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, and run review actions;
 - `frontend/configurable-skill-improvement-actions.js` - "Improve this skill" ideas that feed back into the sample-review flow without changing the active skill;
+- `frontend/skill-idea-interview.js` - interview planning, planner fallback, and design-brief normalization;
+- `frontend/skill-idea-interview-templates.js` - deterministic interview templates, adjacent-native-skill patterns, and simple output-lane hints;
 - `frontend/matter-screens.js` - settings and matter screens;
 - `frontend/workspace-view.js` - explorer and preview rendering;
 - `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
@@ -449,6 +451,8 @@ ai-command-box.js
 That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea creation actions. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
 
 The same rule now applies to custom skill runs. A run can finish, ask before replacing an existing output, be accepted for that run, or become an improvement idea. Those are related in the product, but they are not the same responsibility in code. `frontend/configurable-skill-run-controller.js` keeps the run and review state. `frontend/configurable-skill-improvement-actions.js` handles the bridge from "this skill should be better" into a saved, non-running revision idea that must generate a sample before any new version can become active.
+
+The skill-idea interview planner has the same split. `frontend/skill-idea-interview-templates.js` is the product-policy shelf: limitation review, pleading summary, evidence gaps, weakness review, adjacent native skills, and output-lane hints. `frontend/skill-idea-interview.js` remains the planner engine: choose a template, normalize model-planned interviews, enforce lanes/risk/posture, and produce a design brief. That makes future product tuning less risky because adding a new native-adjacent pattern should not require reading the whole planner algorithm.
 
 ## Shared Contracts
 
