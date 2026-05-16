@@ -13,6 +13,7 @@ import {
 } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
+import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { parseCsv } from "../shared/csv.mjs";
 
 async function makeMatterRoot(name = "matter") {
@@ -468,6 +469,130 @@ test("create-listofdates enriches entries with Source Index labels without chang
   const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
   assert.match(markdown, /Agreement note dated 20 April 2026/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
+});
+
+test("list-of-dates label refresh updates rendered labels without an AI rerun", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "Draft source label",
+      short_label: "Draft label",
+      label_status: "suggested",
+      label_revision: 1,
+    },
+  ]);
+  await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Agreement was signed by Mehta and Skyline.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "agreement",
+            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+            issue_tags: ["agreement"],
+          }),
+        },
+      ],
+    }),
+  });
+  const beforeJson = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.equal(beforeJson.entries[0].source_label, "Draft source label");
+
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "Draft source label",
+      short_label: "Draft label",
+      confirmed_label: "Confirmed agreement note dated 20 April 2026",
+      label_status: "confirmed",
+      label_source: "lawyer_override",
+      label_revision: 2,
+    },
+  ]);
+
+  const result = await refreshListOfDatesSourceLabels({ matterRoot: root });
+
+  assert.equal(result.refreshMode, "label_refresh");
+  assert.equal(result.counts.aiRequests, 0);
+  assert.equal(result.counts.entries, 1);
+  assert.equal(result.counts.refreshedEntries, 1);
+  assert.equal(result.entries[0].source_label, "Confirmed agreement note dated 20 April 2026");
+  assert.equal(result.entries[0].label_status, "confirmed");
+  assert.equal(result.entries[0].label_revision, 2);
+  assert.match(result.outputLines.join("\n"), /without calling an AI provider/);
+
+  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  assert.match(markdown, /Confirmed agreement note dated 20 April 2026/);
+  assert.doesNotMatch(markdown, /Draft source label/);
+  assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
+
+  const afterJson = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  assert.equal(afterJson.generated_at, beforeJson.generated_at);
+  assert.ok(afterJson.label_refreshed_at);
+  assert.equal(afterJson.source_snapshot[0].source_label, "Confirmed agreement note dated 20 April 2026");
+});
+
+test("list-of-dates label refresh refuses changed source content", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: record.sha256,
+      source_path: record.source_path,
+      display_label: "Original source label",
+      short_label: "Original source",
+    },
+  ]);
+  await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async () => ({
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          date_text: "20 April 2026",
+          event: "Agreement was signed by Mehta and Skyline.",
+          citation: "FILE-0001 p1.b1",
+          needs_review: false,
+          confidence: 0.94,
+          ...lawyerFields({
+            event_type: "agreement",
+            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+            issue_tags: ["agreement"],
+          }),
+        },
+      ],
+    }),
+  });
+  const beforeMarkdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  await writeSourceIndex(root, [
+    {
+      file_id: record.file_id,
+      sha256: "changed-source-hash",
+      source_path: record.source_path,
+      display_label: "Changed document label",
+      short_label: "Changed document",
+    },
+  ]);
+
+  await assert.rejects(
+    () => refreshListOfDatesSourceLabels({ matterRoot: root }),
+    /source document changed/i,
+  );
+
+  assert.equal(await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8"), beforeMarkdown);
 });
 
 test("create-listofdates filters manifest records before AI while preserving substantive duplicate events", async () => {

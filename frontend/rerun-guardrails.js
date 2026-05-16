@@ -7,6 +7,7 @@ export async function confirmCurrentArtifactRerun({
   title = "Review before regenerating",
   confirmLabel = "Regenerate anyway",
   cancelLabel = "Keep current",
+  extraActions = [],
 }) {
   let advice = null;
   try {
@@ -15,6 +16,8 @@ export async function confirmCurrentArtifactRerun({
     advice = rerunAdviceUnavailable(skill, error);
   }
   if (!advice?.shouldConfirm) return true;
+  const actions = typeof extraActions === "function" ? extraActions(advice) : extraActions;
+  const normalizedActions = Array.isArray(actions) ? actions : [];
 
   const { breadcrumbs, editorContent } = ctx.elements;
   ctx.setActivityActive("explorer");
@@ -32,6 +35,7 @@ export async function confirmCurrentArtifactRerun({
     title,
     confirmLabel,
     cancelLabel,
+    extraActions: normalizedActions,
   });
 
   return new Promise((resolve) => {
@@ -42,6 +46,12 @@ export async function confirmCurrentArtifactRerun({
       return;
     }
     cancelButton.focus?.();
+    for (const action of normalizedActions) {
+      const actionButton = document.getElementById(actionButtonId(action.id));
+      if (actionButton) {
+        actionButton.addEventListener("click", () => resolve(action.id), { once: true });
+      }
+    }
     runButton.addEventListener("click", () => resolve(true), { once: true });
     cancelButton.addEventListener("click", () => resolve(false), { once: true });
   });
@@ -52,6 +62,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
     title = "Review before regenerating",
     confirmLabel = "Regenerate anyway",
     cancelLabel = "Keep current",
+    extraActions = [],
   } = options;
   const heading = advice.state === "unknown" ? "Could not verify current output" : "Review current output before regenerating";
   const skill = advice.skill || "This skill";
@@ -77,6 +88,9 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
       <p>Regenerating can start a paid AI provider call and may replace the output document. Keeping current leaves the existing artifact unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="rerunConfirmCancel">${escapeHtml(cancelLabel)}</button>
+        ${extraActions.map((action) => `
+          <button type="button" class="secondary" id="${escapeHtml(actionButtonId(action.id))}">${escapeHtml(action.label)}</button>
+        `).join("")}
         <button type="button" class="secondary" id="rerunConfirmRun">${escapeHtml(confirmLabel)}</button>
       </div>
     </div>
@@ -112,6 +126,15 @@ function rerunAdviceUnavailable(skill, error) {
 
 function terminalPrefix(skill) {
   return skill === "/describe_sources" ? "[source-index]" : "[listofdates]";
+}
+
+function actionButtonId(id) {
+  return `rerunAction${String(id || "")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("")}`;
 }
 
 function defaultEscapeHtml(value) {

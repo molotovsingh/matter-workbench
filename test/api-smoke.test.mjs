@@ -446,6 +446,16 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(contextSearch.results[0].citation, "FILE-0001 p1.b1");
     assert.equal(contextSearch.results[0].source_short_label, "Smoke event note, 20 April 2026");
     assert.match(contextSearch.results[0].snippet, /Smoke event/);
+    const sourceIndexPath = path.join(matterRoot, "10_Library", "Source Index.json");
+    const sourceIndexJson = JSON.parse(await readFile(sourceIndexPath, "utf8"));
+    sourceIndexJson.sources[0].confirmed_label = "Confirmed smoke matter source";
+    sourceIndexJson.sources[0].label_status = "confirmed";
+    sourceIndexJson.sources[0].label_revision = 2;
+    await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexJson, null, 2)}\n`);
+    const refreshedListOfDates = await postJson(baseUrl, "/api/create-listofdates/refresh-labels", { dryRun: false });
+    assert.equal(refreshedListOfDates.refreshMode, "label_refresh");
+    assert.equal(refreshedListOfDates.counts.aiRequests, 0);
+    assert.equal(refreshedListOfDates.entries[0].source_label, "Confirmed smoke matter source");
     const skillIntent = await postJson(baseUrl, "/api/skills/check-intent", {
       userRequest: "Create a new list of dates skill",
     });

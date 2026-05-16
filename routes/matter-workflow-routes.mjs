@@ -2,6 +2,7 @@ import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
+import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
@@ -69,6 +70,14 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
         }
         sendJson(response, 200, await runCreateListOfDates(options));
+      }),
+      exactRoute("POST", "/api/create-listofdates/refresh-labels", async () => {
+        const root = matterStore.ensureMatterRoot();
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await refreshListOfDatesSourceLabels({
+          matterRoot: root,
+          dryRun: Boolean(body.dryRun),
+        }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
         sendJson(response, 200, await runDoctorScan(matterStore.ensureMatterRoot()));

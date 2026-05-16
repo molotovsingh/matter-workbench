@@ -33,6 +33,22 @@ test("rerun confirmation renders current artifact details without native confirm
   assert.doesNotMatch(html, /window\.confirm/);
 });
 
+test("rerun confirmation renders optional label-refresh action", () => {
+  const html = renderRerunConfirmationHtml({
+    skill: "/create_listofdates",
+    state: "stale",
+    dependencyState: "label_refresh_needed",
+    shouldConfirm: true,
+    artifactPath: "10_Library/List of Dates.md",
+    message: "Source labels changed. Refresh labels or regenerate.",
+  }, escapeHtml, {
+    extraActions: [{ id: "refresh-labels", label: "Refresh labels only" }],
+  });
+
+  assert.match(html, /Refresh labels only/);
+  assert.match(html, /id="rerunActionRefreshLabels"/);
+});
+
 test("rerun confirmation escapes advice fields", () => {
   const html = renderRerunConfirmationHtml({
     skill: "/describe_sources",
@@ -45,6 +61,57 @@ test("rerun confirmation escapes advice fields", () => {
   assert.match(html, /&lt;Source Index&gt;/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>/);
+});
+
+test("rerun confirmation resolves optional action id", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalDocument = globalThis.document;
+  const buttons = {
+    rerunConfirmCancel: fakeButton(),
+    rerunConfirmRun: fakeButton(),
+    rerunActionRefreshLabels: fakeButton(),
+  };
+  const editorContent = { innerHTML: "" };
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      skill: "/create_listofdates",
+      state: "stale",
+      dependencyState: "label_refresh_needed",
+      shouldConfirm: true,
+      artifactPath: "10_Library/List of Dates.md",
+    }),
+  });
+  globalThis.document = {
+    getElementById: (id) => buttons[id] || null,
+  };
+
+  try {
+    const promise = confirmCurrentArtifactRerun({
+      ctx: {
+        elements: {
+          breadcrumbs: { textContent: "" },
+          editorContent,
+        },
+        setActivityActive: () => {},
+        setStatus: () => {},
+      },
+      skill: "/create_listofdates",
+      escapeHtml,
+      extraActions: (advice) => advice.dependencyState === "label_refresh_needed"
+        ? [{ id: "refresh-labels", label: "Refresh labels only" }]
+        : [],
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.match(editorContent.innerHTML, /Refresh labels only/);
+    buttons.rerunActionRefreshLabels.click();
+    assert.equal(await promise, "refresh-labels");
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.document = originalDocument;
+  }
 });
 
 test("rerun confirmation is fail-safe when advice API is unavailable", async () => {

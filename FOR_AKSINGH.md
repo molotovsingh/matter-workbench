@@ -890,6 +890,8 @@ This is a useful architecture lesson. Sometimes the backend has the right shape,
 
 The Source Index now also carries the beginning of a label-versioning contract: a stable `source_id`, a separate `content_hash`, suggested/confirmed labels, label status, label reason, and confirmation metadata placeholders. That split matters because a label change is cheap, while a document change can affect legal chronology. Good systems do not call both things "stale"; they distinguish label refresh from chronology review and regeneration.
 
+The app now uses that distinction in the List of Dates rerun path. If only source labels changed, the guardrail can offer `Refresh labels only`, which updates `List of Dates.json`, `.csv`, and `.md` without calling an AI provider. The refresh service refuses to run if a source hash, document type, document date, or quality flag changed, because those changes may affect the chronology itself. The engineering lesson is cost and safety are linked: a good workflow should spend the model only when legal judgment may need to change.
+
 ## Frontend Lesson: Scope Generic Selectors
 
 The command box once had a small but ugly regression: typing `/` opened the slash-command suggestions, but each suggestion row inherited the dark square submit-button styling. The cause was a selector that was too broad:

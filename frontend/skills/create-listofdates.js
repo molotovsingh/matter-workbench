@@ -57,14 +57,21 @@ export function createListOfDatesSkill(ctx) {
       return;
     }
 
-    if (!await confirmCurrentArtifactRerun({
+    const rerunDecision = await confirmCurrentArtifactRerun({
       ctx,
       skill: "/create_listofdates",
       escapeHtml,
       title: `Review List of Dates before regenerating — ${activeMatter.folderName}`,
       confirmLabel: "Regenerate List of Dates",
       cancelLabel: "Keep current List of Dates",
-    })) {
+      extraActions: (advice) => advice.dependencyState === "label_refresh_needed"
+        ? [{
+          id: "refresh-labels",
+          label: "Refresh labels only",
+        }]
+        : [],
+    });
+    if (!rerunDecision) {
       ctx.setStatus({
         mood: "idle",
         card: "<strong>Run cancelled</strong><br />Existing List of Dates artifacts were left unchanged.",
@@ -80,6 +87,11 @@ export function createListOfDatesSkill(ctx) {
       `;
       const back = document.getElementById("runListOfDatesBack");
       if (back) back.addEventListener("click", ctx.goToExplorer);
+      return;
+    }
+
+    if (rerunDecision === "refresh-labels") {
+      await refreshListOfDatesLabels(command, activeMatter);
       return;
     }
 
@@ -113,6 +125,48 @@ export function createListOfDatesSkill(ctx) {
         <p class="form-error">List of dates failed: ${escapeHtml(error.message)}</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button" id="runListOfDatesRetry">Try again</button>
+          <button type="button" class="run-skill-button secondary" id="runListOfDatesBack">Back to overview</button>
+        </div>
+      `;
+      const retry = document.getElementById("runListOfDatesRetry");
+      if (retry) retry.addEventListener("click", () => runCreateListOfDates(command));
+      const back = document.getElementById("runListOfDatesBack");
+      if (back) back.addEventListener("click", ctx.goToExplorer);
+    }
+  }
+
+  async function refreshListOfDatesLabels(command, activeMatter) {
+    ctx.setActivityActive("explorer");
+    breadcrumbs.textContent = `${activeMatter.folderName} > /create_listofdates label refresh`;
+    ctx.setStatus({
+      mood: "idle",
+      card: "<strong>Refreshing List of Dates labels</strong><br />Updating source labels without calling an AI provider...",
+      bar: "List of Dates Label Refresh",
+      terminal: [
+        `> workbench.run ${command} --refresh-labels`,
+        "[listofdates] checking source hashes...",
+        "[listofdates] refreshing markdown labels...",
+      ],
+    });
+    editorContent.innerHTML = `<h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1><p>Refreshing List of Dates labels...</p>`;
+
+    try {
+      const payload = await postJson("/api/create-listofdates/refresh-labels", { dryRun: false });
+      renderListOfDatesResult(payload);
+      await ctx.refreshWorkspace({ silent: true, preserveStatus: true, preserveEditor: true });
+    } catch (error) {
+      ctx.setStatus({
+        mood: "idle",
+        card: `<strong>Label refresh failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "List of Dates Label Refresh Failed",
+        terminal: `[listofdates] label refresh failed: ${error.message}`,
+      });
+      editorContent.innerHTML = `
+        <h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p class="form-error">Label refresh failed: ${escapeHtml(error.message)}</p>
+        <p>Regenerate the List of Dates if source documents, dates, types, or OCR state changed.</p>
+        <div class="form-actions">
+          <button type="button" class="run-skill-button" id="runListOfDatesRetry">Regenerate List of Dates</button>
           <button type="button" class="run-skill-button secondary" id="runListOfDatesBack">Back to overview</button>
         </div>
       `;
