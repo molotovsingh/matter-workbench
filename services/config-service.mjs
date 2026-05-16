@@ -8,14 +8,14 @@ export function createConfigService({ appDir, env = process.env } = {}) {
 
   const configPath = path.join(appDir, "config.json");
   const defaultMattersHome = path.join(os.homedir(), "matters-matter-workbench");
-  let mattersHome = env.MATTERS_HOME ? path.resolve(env.MATTERS_HOME) : null;
+  let mattersHome = env.MATTERS_HOME ? resolveMattersHomePath(env.MATTERS_HOME) : null;
 
   async function load() {
     if (mattersHome) return;
     try {
       const loaded = JSON.parse(await readFile(configPath, "utf8"));
       if (loaded && typeof loaded.mattersHome === "string") {
-        mattersHome = path.resolve(loaded.mattersHome);
+        mattersHome = resolveMattersHomePath(loaded.mattersHome);
       }
     } catch {
       // First-run flow handles missing config.
@@ -32,7 +32,7 @@ export function createConfigService({ appDir, env = process.env } = {}) {
       error.statusCode = 400;
       throw error;
     }
-    const resolved = path.resolve(rawValue.replace(/^~(?=$|\/|\\)/, os.homedir()));
+    const resolved = resolveMattersHomePath(rawValue);
     await mkdir(resolved, { recursive: true });
     const homeChanged = resolved !== mattersHome;
     mattersHome = resolved;
@@ -48,4 +48,8 @@ export function createConfigService({ appDir, env = process.env } = {}) {
     setMattersHome,
     getMattersHome: () => mattersHome,
   };
+}
+
+function resolveMattersHomePath(rawValue) {
+  return path.resolve(String(rawValue || "").replace(/^~(?=$|\/|\\)/, os.homedir()));
 }
