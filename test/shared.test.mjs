@@ -13,6 +13,7 @@ import {
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
+import { redactSensitiveText, REDACTED_SECRET } from "../shared/secret-redaction.mjs";
 import {
   effectiveShortSourceLabel,
   effectiveSourceLabel,
@@ -80,6 +81,24 @@ test("matter artifact path constants keep native Library outputs aligned", () =>
   assert.equal(LIST_OF_DATES_MARKDOWN_RELATIVE, "10_Library/List of Dates.md");
 });
 
+test("secret redaction helper covers provider keys and bearer tokens", () => {
+  const text = [
+    "OPENAI_API_KEY=sk-openai-secret",
+    "OPENROUTER_API_KEY='sk-openrouter-secret'",
+    "MISTRAL_API_KEY=\"sk-mistral-secret\"",
+    "authorization: Bearer sk-bearer-secret",
+    "raw sk-raw-secret",
+  ].join("\n");
+
+  const redacted = redactSensitiveText(text);
+
+  assert.doesNotMatch(redacted, /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|sk-raw-secret/);
+  assert.match(redacted, new RegExp(`OPENAI_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`OPENROUTER_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`MISTRAL_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`Bearer ${escapeRegExp(REDACTED_SECRET)}`));
+});
+
 test("local env parser supports named and raw OpenAI keys", async () => {
   assert.deepEqual(parseEnvText("OPENAI_MODEL=test-model\n"), { OPENAI_MODEL: "test-model" });
   assert.deepEqual(parseEnvText("sk-test_raw_key\n"), { OPENAI_API_KEY: "sk-test_raw_key" });
@@ -125,3 +144,7 @@ test("local env upsert writes through atomic temp files and preserves unrelated 
   assert.match(text, /MATTERS_HOME=\/tmp\/matters/);
   assert.deepEqual((await readdir(tmp)).filter((name) => name.endsWith(".tmp")), []);
 });
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
