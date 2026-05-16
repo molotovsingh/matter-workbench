@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const SKILL_SAMPLES_SCHEMA_VERSION = "skill-samples/v1";
@@ -15,36 +16,42 @@ export function createSkillSamplesService({
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = samplesPath || path.join(root, "skill-samples.json");
+  const persistence = createJsonStorePersistence({
+    storePath,
+    serialize: serializeStore,
+  });
 
   async function recordSample({ idea = {}, sample = {} } = {}) {
     const ideaId = String(idea.id || sample.idea?.id || "").trim();
     if (!ideaId) throw makeHttpError("Skill idea id is required for sample storage", 400);
-    const timestamp = now().toISOString();
-    const store = await readStore();
-    const sampleId = String(sample.sample_id || idFactory()).trim();
-    const version = store.samples.filter((candidate) => candidate.ideaId === ideaId).length + 1;
-    const stored = normalizeStoredSample({
-      id: sampleId,
-      ideaId,
-      version,
-      createdAt: String(sample.generated_at || timestamp),
-      updatedAt: timestamp,
-      approved: false,
-      approvedAt: "",
-      designBriefHash: hashDesignBrief(idea.designBrief || sample.idea?.designBrief || {}),
-      matter: normalizeSampleMatter(sample.matter),
-      sampleMarkdown: boundedSampleMarkdown(sample.sample_markdown),
-      feedback: String(sample.feedback || ""),
-      aiRun: sample.ai_run || {},
-      warnings: Array.isArray(sample.warnings) ? sample.warnings : [],
-      rawSample: sample,
+    return persistence.withStoreMutation(async () => {
+      const timestamp = now().toISOString();
+      const store = await readStore();
+      const sampleId = String(sample.sample_id || idFactory()).trim();
+      const version = store.samples.filter((candidate) => candidate.ideaId === ideaId).length + 1;
+      const stored = normalizeStoredSample({
+        id: sampleId,
+        ideaId,
+        version,
+        createdAt: String(sample.generated_at || timestamp),
+        updatedAt: timestamp,
+        approved: false,
+        approvedAt: "",
+        designBriefHash: hashDesignBrief(idea.designBrief || sample.idea?.designBrief || {}),
+        matter: normalizeSampleMatter(sample.matter),
+        sampleMarkdown: boundedSampleMarkdown(sample.sample_markdown),
+        feedback: String(sample.feedback || ""),
+        aiRun: sample.ai_run || {},
+        warnings: Array.isArray(sample.warnings) ? sample.warnings : [],
+        rawSample: sample,
+      });
+      store.samples.push(stored);
+      await writeStore(store);
+      return {
+        schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
+        sample: stored,
+      };
     });
-    store.samples.push(stored);
-    await writeStore(store);
-    return {
-      schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-      sample: stored,
-    };
   }
 
   async function approveSample({ ideaId, sampleId, designBrief = {} } = {}) {
@@ -52,29 +59,31 @@ export function createSkillSamplesService({
     const normalizedSampleId = String(sampleId || "").trim();
     if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
     if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400);
-    const store = await readStore();
-    const sample = store.samples.find((candidate) => candidate.ideaId === normalizedIdeaId && candidate.id === normalizedSampleId);
-    if (!sample) throw makeHttpError("Skill sample not found", 404);
-    const currentHash = hashDesignBrief(designBrief);
-    if (sample.designBriefHash !== currentHash) {
-      throw makeHttpError("Approved sample is stale because the design brief changed", 409);
-    }
-    const timestamp = now().toISOString();
-    for (const candidate of store.samples) {
-      if (candidate.ideaId === normalizedIdeaId) {
-        candidate.approved = false;
-        candidate.approvedAt = "";
-        candidate.updatedAt = timestamp;
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const sample = store.samples.find((candidate) => candidate.ideaId === normalizedIdeaId && candidate.id === normalizedSampleId);
+      if (!sample) throw makeHttpError("Skill sample not found", 404);
+      const currentHash = hashDesignBrief(designBrief);
+      if (sample.designBriefHash !== currentHash) {
+        throw makeHttpError("Approved sample is stale because the design brief changed", 409);
       }
-    }
-    sample.approved = true;
-    sample.approvedAt = timestamp;
-    sample.updatedAt = timestamp;
-    await writeStore(store);
-    return {
-      schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-      sample: normalizeStoredSample(sample),
-    };
+      const timestamp = now().toISOString();
+      for (const candidate of store.samples) {
+        if (candidate.ideaId === normalizedIdeaId) {
+          candidate.approved = false;
+          candidate.approvedAt = "";
+          candidate.updatedAt = timestamp;
+        }
+      }
+      sample.approved = true;
+      sample.approvedAt = timestamp;
+      sample.updatedAt = timestamp;
+      await writeStore(store);
+      return {
+        schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
+        sample: normalizeStoredSample(sample),
+      };
+    });
   }
 
   async function getApprovedCurrentSample({ ideaId, designBrief = {} } = {}) {
@@ -139,11 +148,7 @@ export function createSkillSamplesService({
   }
 
   async function writeStore(store) {
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await writeFile(storePath, `${JSON.stringify({
-      schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-      samples: store.samples.map(normalizeStoredSample),
-    }, null, 2)}\n`);
+    await persistence.writeStoreFile(store);
   }
 
   return {
@@ -155,6 +160,13 @@ export function createSkillSamplesService({
     recordSample,
     storePath,
   };
+}
+
+function serializeStore(store) {
+  return formatJsonStore({
+    schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
+    samples: store.samples.map(normalizeStoredSample),
+  });
 }
 
 export function hashDesignBrief(designBrief = {}) {

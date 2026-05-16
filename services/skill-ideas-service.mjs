@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const SKILL_IDEAS_SCHEMA_VERSION = "skill-ideas/v1";
@@ -44,6 +45,10 @@ export function createSkillIdeasService({
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = ideasPath || path.join(root, "skill-ideas.json");
+  const persistence = createJsonStorePersistence({
+    storePath,
+    serialize: serializeStore,
+  });
 
   async function listIdeas() {
     const store = await readStore();
@@ -64,44 +69,48 @@ export function createSkillIdeasService({
 
   async function createIdea({ text, matter = null, designBrief = {} } = {}) {
     const normalizedText = normalizeIdeaText(text);
-    const timestamp = now().toISOString();
-    const store = await readStore();
-    const idea = {
-      id: idFactory(),
-      text: normalizedText,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      status: "incomplete",
-      matter: normalizeMatterSummary(matter),
-      designBrief: normalizeDesignBrief(designBrief),
-    };
-    const normalizedIdea = normalizeStoredIdea(idea);
-    store.ideas.push(normalizedIdea);
-    await writeStore(store);
-    return {
-      schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: normalizedIdea,
-    };
+    return persistence.withStoreMutation(async () => {
+      const timestamp = now().toISOString();
+      const store = await readStore();
+      const idea = {
+        id: idFactory(),
+        text: normalizedText,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        status: "incomplete",
+        matter: normalizeMatterSummary(matter),
+        designBrief: normalizeDesignBrief(designBrief),
+      };
+      const normalizedIdea = normalizeStoredIdea(idea);
+      store.ideas.push(normalizedIdea);
+      await writeStore(store);
+      return {
+        schema_version: SKILL_IDEAS_SCHEMA_VERSION,
+        idea: normalizedIdea,
+      };
+    });
   }
 
   async function updateIdeaDesignBrief(id, designBrief = {}) {
     const normalizedId = String(id || "").trim();
     if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
-    const store = await readStore();
-    const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
-    if (!idea) throw makeHttpError("Skill idea not found", 404);
-    idea.designBrief = normalizeDesignBrief(designBrief);
-    if (idea.status === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
-      idea.status = "incomplete";
-    }
-    idea.updatedAt = now().toISOString();
-    const normalizedIdea = normalizeStoredIdea(idea);
-    Object.assign(idea, normalizedIdea);
-    await writeStore(store);
-    return {
-      schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: normalizedIdea,
-    };
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
+      if (!idea) throw makeHttpError("Skill idea not found", 404);
+      idea.designBrief = normalizeDesignBrief(designBrief);
+      if (idea.status === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+        idea.status = "incomplete";
+      }
+      idea.updatedAt = now().toISOString();
+      const normalizedIdea = normalizeStoredIdea(idea);
+      Object.assign(idea, normalizedIdea);
+      await writeStore(store);
+      return {
+        schema_version: SKILL_IDEAS_SCHEMA_VERSION,
+        idea: normalizedIdea,
+      };
+    });
   }
 
   async function updateIdeaStatus(id, status) {
@@ -111,21 +120,23 @@ export function createSkillIdeasService({
     if (!SKILL_IDEA_STATUSES.has(normalizedStatus)) {
       throw makeHttpError(`Invalid skill idea status: ${normalizedStatus || "blank"}`, 400);
     }
-    const store = await readStore();
-    const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
-    if (!idea) throw makeHttpError("Skill idea not found", 404);
-    if (normalizedStatus === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
-      throw makeHttpError("Skill idea is not ready for review", 400);
-    }
-    idea.status = normalizedStatus;
-    idea.updatedAt = now().toISOString();
-    const normalizedIdea = normalizeStoredIdea(idea);
-    Object.assign(idea, normalizedIdea);
-    await writeStore(store);
-    return {
-      schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: normalizedIdea,
-    };
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
+      if (!idea) throw makeHttpError("Skill idea not found", 404);
+      if (normalizedStatus === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+        throw makeHttpError("Skill idea is not ready for review", 400);
+      }
+      idea.status = normalizedStatus;
+      idea.updatedAt = now().toISOString();
+      const normalizedIdea = normalizeStoredIdea(idea);
+      Object.assign(idea, normalizedIdea);
+      await writeStore(store);
+      return {
+        schema_version: SKILL_IDEAS_SCHEMA_VERSION,
+        idea: normalizedIdea,
+      };
+    });
   }
 
   async function readStore() {
@@ -151,11 +162,7 @@ export function createSkillIdeasService({
   }
 
   async function writeStore(store) {
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await writeFile(storePath, `${JSON.stringify({
-      schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      ideas: store.ideas.map(normalizeStoredIdea),
-    }, null, 2)}\n`);
+    await persistence.writeStoreFile(store);
   }
 
   return {
@@ -166,6 +173,13 @@ export function createSkillIdeasService({
     updateIdeaStatus,
     storePath,
   };
+}
+
+function serializeStore(store) {
+  return formatJsonStore({
+    schema_version: SKILL_IDEAS_SCHEMA_VERSION,
+    ideas: store.ideas.map(normalizeStoredIdea),
+  });
 }
 
 function normalizeIdeaText(text) {

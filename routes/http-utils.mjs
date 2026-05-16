@@ -19,5 +19,12 @@ export async function readRequestJson(request, { maxBodyBytes = DEFAULT_JSON_BOD
     chunks.push(buffer);
   }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw makeHttpError("Invalid JSON request body", 400);
+    }
+    throw error;
+  }
 }

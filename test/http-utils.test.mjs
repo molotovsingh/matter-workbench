@@ -23,3 +23,14 @@ test("readRequestJson throws 413 when JSON body exceeds the limit", async () => 
     },
   );
 });
+
+test("readRequestJson throws 400 for invalid JSON", async () => {
+  await assert.rejects(
+    () => readRequestJson(Readable.from(['{"ok": true'])),
+    (error) => {
+      assert.equal(error.statusCode, 400);
+      assert.match(error.message, /invalid json/i);
+      return true;
+    },
+  );
+});

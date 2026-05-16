@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeStoredSkill } from "./configurable-skill-definition.mjs";
+import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
@@ -8,6 +9,10 @@ export const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
 export function createConfigurableSkillStore({ appDir, skillsPath } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = skillsPath || path.join(root, "configurable-skills.json");
+  const persistence = createJsonStorePersistence({
+    storePath,
+    serialize: serializeStore,
+  });
 
   async function readStore() {
     try {
@@ -28,16 +33,29 @@ export function createConfigurableSkillStore({ appDir, skillsPath } = {}) {
   }
 
   async function writeStore(store) {
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await writeFile(storePath, `${JSON.stringify({
-      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-      skills: store.skills.map(normalizeStoredSkill),
-    }, null, 2)}\n`);
+    await persistence.writeStoreFile(store);
+  }
+
+  async function updateStore(mutator) {
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const result = await mutator(store);
+      await writeStore(store);
+      return result;
+    });
   }
 
   return {
     readStore,
     storePath,
+    updateStore,
     writeStore,
   };
+}
+
+function serializeStore(store) {
+  return formatJsonStore({
+    schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
+    skills: store.skills.map(normalizeStoredSkill),
+  });
 }

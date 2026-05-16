@@ -767,3 +767,16 @@ The cleanup split those jobs:
 The important change is not just fewer lines. It is fewer reasons to open the same file. Home can now change without touching Settings. Activity can read recent logs without scraping hidden DOM text. Command reports can ask the activity store for recent lines instead of treating a hidden terminal as the source of truth.
 
 That is what reduced architectural depth means in practice: fewer hops, fewer mixed responsibilities, and fewer surprising dependencies between screens.
+
+## Backend Persistence Lesson: Small Hardening Beats a Big Rewrite
+
+The backend debt report was right about one practical risk: several JSON-backed stores were doing the classic read-modify-write pattern. That is fine for a toy script, but in a server it has two sharp edges:
+
+1. two overlapping requests can read the same old file and accidentally overwrite each other's changes;
+2. a process crash in the middle of a write can leave a half-written JSON file behind.
+
+The fix was deliberately modest. Instead of redesigning storage, the app now has one shared JSON persistence helper. It serializes mutations inside the running Node process and writes through a temporary file before renaming it into place. In plain terms: requests line up before editing the same store, and the final file is replaced in one filesystem move.
+
+This is not a database, and it is not a distributed lock for multiple server processes. But that is the point: good engineering does not always mean jumping to the biggest abstraction. For a local workbench that runs as one Node server, this reduces real risk without changing schemas, routes, or user behavior.
+
+The same slice also fixed invalid JSON request bodies. Bad client JSON should be a `400` problem, not a mysterious `500` server failure. That distinction matters because errors should teach the caller what kind of mistake happened.

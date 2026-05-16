@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION = "configurable-skill-runs/v1";
@@ -20,40 +21,48 @@ export function createConfigurableSkillRunsService({
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = runsPath || path.join(root, "configurable-skill-runs.json");
+  const persistence = createJsonStorePersistence({
+    storePath,
+    serialize: serializeStore,
+  });
 
   async function createRun(entry = {}) {
-    const store = await readStore();
-    const timestamp = now().toISOString();
-    const record = normalizeRunRecord({
-      ...entry,
-      id: entry.id || idFactory(),
-      status: entry.status || "running",
-      startedAt: entry.startedAt || timestamp,
-      finishedAt: entry.finishedAt || "",
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const timestamp = now().toISOString();
+      const record = normalizeRunRecord({
+        ...entry,
+        id: entry.id || idFactory(),
+        status: entry.status || "running",
+        startedAt: entry.startedAt || timestamp,
+        finishedAt: entry.finishedAt || "",
+      });
+      store.runs.push(record);
+      await writeStore(store);
+      return record;
     });
-    store.runs.push(record);
-    await writeStore(store);
-    return record;
   }
 
   async function updateRun(id, patch = {}) {
     const runId = normalizeText(id);
     if (!runId) throw makeHttpError("Run id is required", 400);
-    const store = await readStore();
-    const index = store.runs.findIndex((run) => run.id === runId);
-    if (index === -1) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404);
-    const next = normalizeRunRecord({
-      ...store.runs[index],
-      ...patch,
-      finishedAt: patch.finishedAt || (
-        TERMINAL_STATUSES.has(patch.status) && !store.runs[index].finishedAt
-          ? now().toISOString()
-          : store.runs[index].finishedAt
-      ),
+    return persistence.withStoreMutation(async () => {
+      const store = await readStore();
+      const index = store.runs.findIndex((run) => run.id === runId);
+      if (index === -1) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404);
+      const next = normalizeRunRecord({
+        ...store.runs[index],
+        ...patch,
+        finishedAt: patch.finishedAt || (
+          TERMINAL_STATUSES.has(patch.status) && !store.runs[index].finishedAt
+            ? now().toISOString()
+            : store.runs[index].finishedAt
+        ),
+      });
+      store.runs[index] = next;
+      await writeStore(store);
+      return next;
     });
-    store.runs[index] = next;
-    await writeStore(store);
-    return next;
   }
 
   async function recordCancelledRun(entry = {}) {
@@ -106,11 +115,7 @@ export function createConfigurableSkillRunsService({
   }
 
   async function writeStore(store) {
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await writeFile(storePath, `${JSON.stringify({
-      schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
-      runs: store.runs.map(normalizeRunRecord),
-    }, null, 2)}\n`);
+    await persistence.writeStoreFile(store);
   }
 
   return {
@@ -120,6 +125,13 @@ export function createConfigurableSkillRunsService({
     storePath,
     updateRun,
   };
+}
+
+function serializeStore(store) {
+  return formatJsonStore({
+    schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
+    runs: store.runs.map(normalizeRunRecord),
+  });
 }
 
 export function normalizeRunRecord(record = {}) {
