@@ -2688,6 +2688,22 @@ summary {
   max-width: 640px;
 }
 
+.builtin-skill-group {
+  margin-top: 18px;
+}
+
+.builtin-skill-group > h3 {
+  color: var(--text);
+  font-size: var(--font-size-body);
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.builtin-skill-group > h3 + .muted {
+  margin: 0 0 10px;
+  max-width: 680px;
+}
+
 .activity-page {
   max-width: 860px;
 }
@@ -3107,7 +3123,7 @@ summary {
 
 .builtin-skill-row {
   display: grid;
-  grid-template-columns: minmax(132px, 0.38fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.32fr) auto;
   gap: 14px;
   align-items: baseline;
   border-bottom: 1px solid var(--border-subtle);
@@ -3118,14 +3134,7 @@ summary {
   border-bottom: 0;
 }
 
-.builtin-skill-row > code {
-  color: var(--muted);
-  font-size: var(--font-size-xs);
-  overflow-wrap: anywhere;
-}
-
 .builtin-skill-row h3 {
-  display: inline;
   color: var(--text);
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -3133,11 +3142,28 @@ summary {
 }
 
 .builtin-skill-row p {
-  display: inline;
   color: var(--muted);
   font-size: var(--font-size-sm);
   line-height: 1.45;
-  margin: 0 0 0 8px;
+  margin: 3px 0 0;
+}
+
+.builtin-skill-command {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.builtin-skill-command code {
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.builtin-skill-command span {
+  color: var(--muted-light);
+  font-size: var(--font-size-xs);
 }
 
 .skill-idea-row {

@@ -870,3 +870,22 @@ The new-skill flow has one moment that matters most: the generated sample. That 
 The session controller still owns the conversation, but sample work now sits behind two smaller helpers. `frontend/skill-idea-sample-actions.js` owns generating, approving, copying, and displaying sample output. `frontend/skill-idea-sample-ledger.js` does one narrower job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
 
 This is a useful kind of frontend refactor because it moves the fragile part of the payoff out of the command-session controller and into focused modules. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
+
+## Native Skill Lesson: Keep The Spine, Fix The Surface
+
+The native skill layer has a working spine:
+
+```text
+/matter-init -> /extract -> /describe_sources -> /create_listofdates
+```
+
+The mistake would be to throw that away because the Skills page felt too technical. The better fix is to keep the engines and classify the surface properly:
+
+- setup and readiness tools prepare the matter;
+- Source Labels / Document Index prepares the source record;
+- Create List of Dates is the first hero native legal skill;
+- search, context preview, and doctor are utilities.
+
+This is a useful architecture lesson. Sometimes the backend has the right shape, but the product surface tells the wrong story. Refactoring the presentation taxonomy can reduce confusion without destabilizing the runtime.
+
+The Source Index now also carries the beginning of a label-versioning contract: a stable `source_id`, a separate `content_hash`, suggested/confirmed labels, label status, label reason, and confirmation metadata placeholders. That split matters because a label change is cheap, while a document change can affect legal chronology. Good systems do not call both things "stale"; they distinguish label refresh from chronology review and regeneration.

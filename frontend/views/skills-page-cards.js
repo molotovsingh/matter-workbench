@@ -83,16 +83,30 @@ function renderBuiltinSkillRow(skill, escape) {
       ? "No artifact status"
       : "Workspace-level";
   const stateClass = status?.present ? "present" : "not-run";
+  const surfaceLabel = builtinSurfaceLabel(skill);
   return `
     <article class="builtin-skill-row">
-      <code>${escape(skill.slash || "")}</code>
       <div>
         <h3>${escape(skill.title || skill.id || skill.slash || "Skill")}</h3>
         <p>${escape(skill.purpose || "No description provided.")}</p>
       </div>
+      <div class="builtin-skill-command">
+        <code>${escape(skill.slash || "")}</code>
+        ${surfaceLabel ? `<span>${escape(surfaceLabel)}</span>` : ""}
+      </div>
       <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
     </article>
   `;
+}
+
+function builtinSurfaceLabel(skill = {}) {
+  const surface = String(skill.product_surface || "").trim();
+  if (surface === "native_legal") return "Native legal";
+  if (surface === "readiness") return "Readiness";
+  if (surface === "setup") return "Setup";
+  if (surface === "utility") return "Utility";
+  if (surface === "maintenance") return "Maintenance";
+  return "";
 }
 
 function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = [] } = {}) {

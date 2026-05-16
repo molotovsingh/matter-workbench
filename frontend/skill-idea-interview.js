@@ -8,7 +8,7 @@ const ADJACENT_SKILL_PATTERNS = [
   },
   {
     slash: "/describe_sources",
-    title: "Describe Sources",
+    title: "Source Labels / Document Index",
     patterns: [/describe\s+sources/i, /source\s+labels?/i, /source\s+descriptors?/i],
     targetLane: "10_Library",
     outputArtifact: "10_Library/Source Index.json",

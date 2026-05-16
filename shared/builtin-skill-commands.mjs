@@ -29,7 +29,7 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
   },
   {
     command: "/describe_sources",
-    description: "Label sources with lawyer-readable names. Paid AI actions ask first.",
+    description: "Create Source Labels / Document Index for List of Dates. Paid AI actions ask first.",
   },
   {
     command: "/context_preview",

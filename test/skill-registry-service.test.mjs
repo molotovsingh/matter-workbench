@@ -29,14 +29,18 @@ test("skill registry reads all built-in skill stubs", async () => {
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
   const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
   assert.equal(prepareMatter.category, "Prepare");
+  assert.equal(prepareMatter.product_surface, "readiness");
   assert.equal(prepareMatter.paid_provider_call, true);
   assert.equal(prepareMatter.rerun_guarded, true);
   assert.equal(prepareMatter.source_backed, "optional");
   assert.equal(sourceLabels.paid_provider_call, true);
+  assert.equal(sourceLabels.title, "Source Labels / Document Index");
+  assert.equal(sourceLabels.product_surface, "native_legal");
   assert.equal(sourceLabels.rerun_guarded, true);
   assert.equal(sourceLabels.default_lane, "10_Library");
   const contextPreview = registry.skills.find((skill) => skill.slash === "/context_preview");
   assert.equal(contextPreview.paid_provider_call, false);
+  assert.equal(contextPreview.product_surface, "utility");
   assert.equal(contextPreview.rerun_guarded, false);
   assert.equal(contextPreview.category, "Review");
   const contextSearch = registry.skills.find((skill) => skill.slash === "/context_search");
@@ -44,7 +48,9 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(contextSearch.rerun_guarded, false);
   assert.equal(contextSearch.category, "Review");
   assert.equal(listOfDates.category, "Analyze");
+  assert.equal(listOfDates.product_surface, "native_legal");
   assert.equal(listOfDates.mode, "AI");
+  assert.deepEqual(listOfDates.downstream, []);
   assert.equal(listOfDates.markdown_first, true);
   assert.deepEqual(listOfDates.outputs, [
     "10_Library/List of Dates.md",

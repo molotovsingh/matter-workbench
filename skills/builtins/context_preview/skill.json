@@ -4,6 +4,7 @@
   "slash": "/context_preview",
   "title": "Context Preview",
   "category": "Review",
+  "product_surface": "utility",
   "purpose": "Show a read-only summary of the bounded matter context packet for future Q&A/search without exposing raw source text.",
   "mode": "deterministic",
   "matter_required": true,

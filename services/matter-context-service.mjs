@@ -131,6 +131,8 @@ export function summarizeMatterContextPacket(packet) {
       entry_count: artifact.entry_count ?? null,
     })),
     top_sources: sources.slice(0, 12).map((source) => ({
+      source_id: source.source_id || source.file_id || "",
+      content_hash: source.content_hash || source.sha256 || "",
       file_id: source.file_id || "",
       source_label: source.source_label || "",
       source_short_label: source.source_short_label || "",
@@ -180,6 +182,8 @@ function buildSources(records, registerByFileId, sourceDescriptors, limits, warn
     const descriptor = sourceDescriptors.get(record.file_id);
     const sourcePath = toPacketPath(record.source_path || register?.source_path || "");
     sources.push({
+      source_id: descriptor?.source_id || record.file_id,
+      content_hash: descriptor?.content_hash || record.sha256 || register?.sha256 || "",
       file_id: record.file_id,
       sha256: record.sha256 || register?.sha256 || "",
       source_path: sourcePath,
@@ -217,6 +221,8 @@ function collectEvidenceBlocks(record, descriptor) {
       if (!/^p\d+\.b\d+$/.test(blockId) || !text) continue;
       blocks.push({
         citation: `${record.file_id} ${blockId}`,
+        source_id: descriptor?.source_id || record.file_id,
+        content_hash: descriptor?.content_hash || record.sha256 || "",
         file_id: record.file_id,
         page: Number.isInteger(pageNumber) ? pageNumber : null,
         block_id: blockId,

@@ -77,6 +77,11 @@ role context. Later, after documents are in place, a metadata review should
 correct typos, truncated names, wrong roles, and stage assumptions before
 native skills rely on them.
 
+Implementation direction is tracked in
+[Native Skill Implementation Contract](native-skill-implementation-contract.md).
+That contract preserves the current native spine while separating lawyer-facing
+legal skills from setup, readiness, search, and maintenance surfaces.
+
 ## Important Distinction: Chronology Is Not One Thing
 
 The current `/create_listofdates` skill is central, but "List of Dates" carries
@@ -141,6 +146,32 @@ cost reduction, and whether the output becomes a building block for later work.
 | 10 | Client Document Request List | What should we ask the client for? | Actionable request list with reason and priority | Converts analysis into work the lawyer can actually delegate. |
 | 11 | Matter Brief / Counsel Note | What is the case, in working form? | Source-backed brief: facts, posture, issues, evidence, risks, gaps, next steps | High-value synthesis once the foundations exist. |
 | 12 | Drafting Pack Builder | What reusable material can feed pleadings/submissions/notices? | Source-backed drafting blocks, not final unsupervised drafts | Reduces expensive open-ended drafting calls. |
+
+## Current Built-In Skill Treatment
+
+The existing built-in layer should not be archived wholesale. The working spine
+is:
+
+```text
+/matter-init -> /extract -> /describe_sources -> /create_listofdates
+```
+
+The problem is the current product surface, not the engines themselves.
+
+| Existing command | Product treatment |
+| --- | --- |
+| `/matter-init` | Keep as setup plumbing behind Add New Matter and import documents |
+| `/extract` | Keep as document-reading plumbing |
+| `/describe_sources` | Keep engine; present as `Source Labels / Document Index` |
+| `/create_listofdates` | Keep as first hero native legal skill |
+| `/prepare_matter` | Keep as readiness/orchestration panel |
+| `/context_preview` | Keep as internal/audit utility |
+| `/context_search` | Keep as matter search utility |
+| `/doctor` | Keep as maintenance/admin utility |
+
+This means the app can keep stable slash commands and disk contracts while the
+Skills page stops implying that every built-in command is the same kind of
+lawyer-facing legal skill.
 
 ## MECE Logic
 

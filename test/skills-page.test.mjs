@@ -22,6 +22,7 @@ function registryFixture() {
         id: "extract",
         slash: "/extract",
         title: "Extract",
+        product_surface: "setup",
         purpose: "Convert working-copy documents into extraction records.",
         mode: "deterministic",
         matter_required: true,
@@ -37,6 +38,7 @@ function registryFixture() {
         id: "create_listofdates",
         slash: "/create_listofdates",
         title: "Create List of Dates",
+        product_surface: "native_legal",
         purpose: "Build a cited legal chronology.",
         mode: "AI",
         matter_required: true,
@@ -207,7 +209,9 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Dismiss/);
   assert.match(html, /Parked/);
   assert.match(html, /Built-in Skills/);
-  assert.match(html, /Code-backed capabilities that ship with the app/);
+  assert.match(html, /grouped by the role they play in the matter workflow/);
+  assert.match(html, /Native legal skills/);
+  assert.match(html, /Setup and readiness/);
   assert.match(html, /Only the latest approved version is shown as runnable/);
   assert.match(html, /\/extract/);
   assert.match(html, /\/create_listofdates/);

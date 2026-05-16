@@ -43,9 +43,9 @@ export function renderSourceDescriptorsResultHtml(result, escapeHtml) {
     : "";
 
   return `
-    <h1>/describe_sources result</h1>
+    <h1>Source Labels / Document Index result</h1>
     <p>
-      Source descriptors were generated from extraction records and written as a source index for downstream chronology labels.
+      Source labels were generated from extraction records and written as the source record for downstream List of Dates work.
     </p>
     <dl class="skill-contract">
       <div>

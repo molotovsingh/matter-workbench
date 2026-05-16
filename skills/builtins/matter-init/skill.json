@@ -4,6 +4,7 @@
   "slash": "/matter-init",
   "title": "Matter Init",
   "category": "Ingest",
+  "product_surface": "setup",
   "purpose": "Create deterministic matter intake structure, preserve originals, classify working copies, detect duplicates, and write matter metadata.",
   "mode": "deterministic",
   "matter_required": false,

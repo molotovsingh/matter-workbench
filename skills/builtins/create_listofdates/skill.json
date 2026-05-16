@@ -4,6 +4,7 @@
   "slash": "/create_listofdates",
   "title": "Create List of Dates",
   "category": "Analyze",
+  "product_surface": "native_legal",
   "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",
   "mode": "AI",
   "matter_required": true,
@@ -24,11 +25,7 @@
   "upstream": [
     "/extract"
   ],
-  "downstream": [
-    "/extract_claims",
-    "/draft_petition",
-    "/review_chronology"
-  ],
+  "downstream": [],
   "default_lane": "10_Library",
   "runner_key": "/create_listofdates",
   "version": 1

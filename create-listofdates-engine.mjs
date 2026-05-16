@@ -123,6 +123,8 @@ const CSV_HEADERS = [
   "supporting_citations",
   "citation",
   "source_file_id",
+  "source_id",
+  "content_hash",
   "source_label",
   "source_short_label",
   "file_id",
@@ -404,6 +406,7 @@ export async function runCreateListOfDates(options = {}) {
         matter: matterSummary(matterJson),
         ai_run: aiRun,
         source_record_count: records.length,
+        source_snapshot: createSourceSnapshot(sourceIndex),
         entries,
       }, null, 2)}\n`,
     );
@@ -565,6 +568,7 @@ async function runCreateListOfDatesTwoPass({
         pass1_ai_run: pass1AiRun,
         pass2_ai_run: pass2AiRun,
         source_record_count: records.length,
+        source_snapshot: createSourceSnapshot(sourceIndex),
         validation: {
           candidate_count: candidates.length,
           accepted_entries: acceptedEntries.length,
@@ -1120,10 +1124,16 @@ async function readSourceIndex(matterRoot, blocks) {
     const block = blockByFileId.get(source?.file_id);
     if (!block || source.sha256 !== block.sha256) continue;
     if (source.source_path !== block.source_path) continue;
-    const label = normalizeDisplayText(source.display_label);
-    const shortLabel = normalizeDisplayText(source.short_label);
+    const label = effectiveSourceLabel(source);
+    const shortLabel = effectiveShortSourceLabel(source, label);
     const metadata = {
+      source_id: normalizeDisplayText(source.source_id || source.file_id),
+      content_hash: normalizeDisplayText(source.content_hash || source.sha256),
       document_type: normalizeDisplayText(source.document_type).toLowerCase(),
+      document_date: normalizeDisplayText(source.document_date),
+      needs_review: Boolean(source.needs_review),
+      label_status: normalizeDisplayText(source.label_status),
+      label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
       display_label: label,
       short_label: shortLabel,
     };
@@ -1134,6 +1144,37 @@ async function readSourceIndex(matterRoot, blocks) {
     index.set(source.file_id, metadata);
   }
   return index;
+}
+
+function createSourceSnapshot(sourceIndex = new Map()) {
+  return [...sourceIndex.entries()]
+    .map(([fileId, source]) => ({
+      file_id: fileId,
+      source_id: source.source_id || fileId,
+      content_hash: source.content_hash || "",
+      source_label: source.source_label || "",
+      source_short_label: source.source_short_label || "",
+      document_type: source.document_type || "",
+      document_date: source.document_date || "",
+      needs_review: Boolean(source.needs_review),
+      label_status: source.label_status || "",
+      label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
+    }))
+    .sort((a, b) => a.file_id.localeCompare(b.file_id, undefined, { numeric: true }));
+}
+
+function effectiveSourceLabel(source = {}) {
+  const status = normalizeDisplayText(source.label_status).toLowerCase();
+  const confirmed = normalizeDisplayText(source.confirmed_label);
+  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
+  return normalizeDisplayText(source.display_label || source.suggested_label);
+}
+
+function effectiveShortSourceLabel(source = {}, fallback = "") {
+  const status = normalizeDisplayText(source.label_status).toLowerCase();
+  const confirmed = normalizeDisplayText(source.confirmed_label);
+  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
+  return normalizeDisplayText(source.short_label) || fallback;
 }
 
 function filterChronologyCandidateBlocks(blocks, sourceIndex = new Map()) {
@@ -1274,6 +1315,8 @@ function normalizeCandidateNote(value) {
 
 function sourceLabelFields(sourceMetadata = {}) {
   const fields = {};
+  if (sourceMetadata.source_id) fields.source_id = sourceMetadata.source_id;
+  if (sourceMetadata.content_hash) fields.content_hash = sourceMetadata.content_hash;
   if (sourceMetadata.source_label) fields.source_label = sourceMetadata.source_label;
   if (sourceMetadata.source_short_label) fields.source_short_label = sourceMetadata.source_short_label;
   return fields;

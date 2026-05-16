@@ -65,6 +65,12 @@ labels, source inventory, extraction, or matter metadata, then regenerate the
 artifact. The lawyer's manual editing belongs downstream in draft petitions,
 not in the canonical generated chronology.
 
+Not every upstream change requires AI regeneration. If only a source label
+changes, the app should refresh the rendered label in the List of Dates. If a
+document, source hash, document date, OCR/extraction text, or material source
+metadata changes, the app should move into chronology review or regeneration
+instead.
+
 ## Non-Goals
 
 This design does not authorize:

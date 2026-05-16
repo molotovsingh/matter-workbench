@@ -440,18 +440,25 @@ test("create-listofdates enriches entries with Source Index labels without chang
   assert.equal(result.entries.length, 1);
   assert.equal(result.entries[0].citation, "FILE-0001 p1.b1");
   assert.equal(result.entries[0].source_file_id, "FILE-0001");
+  assert.equal(result.entries[0].source_id, "FILE-0001");
+  assert.equal(result.entries[0].content_hash, record.sha256);
   assert.equal(result.entries[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(result.entries[0].source_short_label, "Agreement note");
 
   const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
   assert.equal(jsonOutput.entries[0].citation, "FILE-0001 p1.b1");
   assert.equal(jsonOutput.entries[0].source_file_id, "FILE-0001");
+  assert.equal(jsonOutput.entries[0].source_id, "FILE-0001");
+  assert.equal(jsonOutput.entries[0].content_hash, record.sha256);
+  assert.equal(jsonOutput.source_snapshot[0].content_hash, record.sha256);
   assert.equal(jsonOutput.entries[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(jsonOutput.entries[0].source_short_label, "Agreement note");
 
   const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
+  assert.equal(csvRows[0].source_id, "FILE-0001");
+  assert.equal(csvRows[0].content_hash, record.sha256);
   assert.equal(csvRows[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(csvRows[0].source_short_label, "Agreement note");
 

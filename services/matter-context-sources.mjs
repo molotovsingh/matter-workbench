@@ -219,13 +219,44 @@ async function readTrustedSourceDescriptors(root, registerByFileId, warnings) {
       warnings.push(`Ignored Source Index descriptor for ${fileId}: source_path does not match current register`);
       continue;
     }
-    if (labelContainsFileId(descriptor.display_label) || labelContainsFileId(descriptor.short_label)) {
+    if (
+      labelContainsFileId(descriptor.display_label)
+      || labelContainsFileId(descriptor.short_label)
+      || labelContainsFileId(descriptor.suggested_label)
+      || labelContainsFileId(descriptor.confirmed_label)
+    ) {
       warnings.push(`Ignored Source Index labels for ${fileId}: human label contains a FILE-NNNN identifier`);
       continue;
     }
-    byFileId.set(fileId, descriptor);
+    byFileId.set(fileId, normalizeTrustedSourceDescriptor(descriptor));
   }
   return byFileId;
+}
+
+function normalizeTrustedSourceDescriptor(descriptor = {}) {
+  const displayLabel = effectiveSourceLabel(descriptor);
+  const shortLabel = effectiveShortSourceLabel(descriptor, displayLabel);
+  return {
+    ...descriptor,
+    source_id: descriptor.source_id || descriptor.file_id || "",
+    content_hash: descriptor.content_hash || descriptor.sha256 || "",
+    display_label: displayLabel,
+    short_label: shortLabel,
+  };
+}
+
+function effectiveSourceLabel(descriptor = {}) {
+  const status = String(descriptor.label_status || "").trim().toLowerCase();
+  const confirmed = String(descriptor.confirmed_label || "").replace(/\s+/g, " ").trim();
+  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
+  return String(descriptor.display_label || descriptor.suggested_label || "").replace(/\s+/g, " ").trim();
+}
+
+function effectiveShortSourceLabel(descriptor = {}, fallback = "") {
+  const status = String(descriptor.label_status || "").trim().toLowerCase();
+  const confirmed = String(descriptor.confirmed_label || "").replace(/\s+/g, " ").trim();
+  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
+  return String(descriptor.short_label || "").replace(/\s+/g, " ").trim() || fallback;
 }
 
 function labelContainsFileId(value) {

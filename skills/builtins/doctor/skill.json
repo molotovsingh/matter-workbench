@@ -4,6 +4,7 @@
   "slash": "/doctor",
   "title": "Doctor",
   "category": "Maintain",
+  "product_surface": "maintenance",
   "purpose": "Detect and repair legacy or inconsistent local matter layout and metadata issues.",
   "mode": "deterministic",
   "matter_required": true,

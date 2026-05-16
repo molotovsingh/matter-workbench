@@ -78,6 +78,16 @@ test("source descriptors engine writes source-index/v1 with fake provider descri
   assert.equal(artifact.sources.length, 3);
 
   const email = artifact.sources.find((source) => source.file_id === "FILE-0001");
+  assert.equal(email.source_id, "FILE-0001");
+  assert.equal(email.content_hash, "1111111111111111111111111111111111111111111111111111111111111111");
+  assert.equal(email.suggested_label, "Email from Sharma to Mehta dated 20 April 2026");
+  assert.equal(email.confirmed_label, "");
+  assert.equal(email.label_status, "suggested");
+  assert.equal(email.label_source, "model");
+  assert.equal(email.label_revision, 1);
+  assert.equal(email.confirmed_by, "");
+  assert.equal(email.confirmed_at, "");
+  assert.match(email.label_reason, /Email header gives sender/);
   assert.equal(email.document_type, "email");
   assert.equal(email.document_date, "2026-04-20");
   assert.equal(email.date_basis, "email_header");
@@ -90,6 +100,7 @@ test("source descriptors engine writes source-index/v1 with fake provider descri
   assert.equal(scan.document_type, "affidavit");
   assert.equal(scan.document_date, null);
   assert.equal(scan.needs_review, true);
+  assert.equal(scan.label_status, "needs_review");
 });
 
 test("source descriptors preserve file_id, sha256, and source_path from extraction records", async () => {

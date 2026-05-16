@@ -31,24 +31,36 @@ decision to the front merely because it is important.
 
 ## Core Insight
 
-The original name "Document Index / Source Inventory" is slightly too static.
-For a lawyer, the useful first native skill is closer to:
+The original name "Document Index / Source Inventory" is slightly too static,
+but the opposite mistake is to let this skill swallow chronology.
+
+The lawyer-facing surface should be:
 
 ```text
-Discovery and Chronological Reading
+Source Labels / Document Index
 ```
 
-It should still create a source inventory, but the product value is not merely
-knowing that files exist. The value is knowing:
+The product promise is:
 
-- how the documents line up in time;
-- how the client's interview fits against the document chronology;
+```text
+Organize documents and prepare the source record for List of Dates.
+```
+
+It should create the source record that later chronology depends on. It should
+not itself decide the actual List of Dates.
+
+The product value is knowing:
+
+- what documents exist;
+- what each document should be called in lawyer language;
+- which internal source identity each lawyer label points to;
+- what type and date each document appears to have;
 - which documents are bad copies;
-- which documents should feed the first chronology;
-- whether the matter is original-side/fresh or appellate/challenge-stage.
+- which documents are missing or duplicated;
+- whether the source record is ready for chronology.
 
-The skill should behave like a careful junior arranging the brief before the
-lawyer starts legal analysis.
+The skill should behave like a careful junior arranging and labeling the brief
+before the lawyer starts legal analysis.
 
 ## Lawyer Workflow
 
@@ -59,7 +71,7 @@ Manual lawyer workflow, as described:
 3. Read them against the client interview.
 4. Determine the stage of the matter.
 5. Use the stage to label the client's role and legal posture.
-6. Start generating a List of Dates manually.
+6. Prepare the source record that will feed a List of Dates.
 7. Use the discovered issues to later identify facts in issue, cause of
    action, pleadings, findings, and legal questions.
 
@@ -269,9 +281,17 @@ Recommended source identity fields:
 ```json
 {
   "source_id": "",
-  "stable_file_hash": "",
+  "content_hash": "",
   "internal_file_name": "",
   "original_upload_name": "",
+  "suggested_label": "",
+  "confirmed_label": "",
+  "label_status": "suggested | confirmed | overridden | needs_review",
+  "label_source": "model | filename | document_text | lawyer_override",
+  "label_reason": "",
+  "label_revision": 1,
+  "confirmed_by": "",
+  "confirmed_at": "",
   "lawyer_document_label": "",
   "short_source_label": "",
   "document_type": "",
@@ -305,6 +325,12 @@ Reasons this matters:
 - stale-chronology checks can compare source IDs and hashes instead of fragile
   display names.
 
+Important distinction:
+
+- changing a lawyer-facing label does not mean the document changed;
+- changing the underlying source/content hash means chronology state must be
+  reassessed.
+
 Product rule:
 
 ```text
@@ -315,58 +341,29 @@ as soon as the app can infer or the lawyer can confirm one
 
 ## Primary Output
 
-The SME's preferred output is:
+The primary output is the source record, not the chronology.
 
-```text
-A comprehensive List of Dates PDF where I can click the source, reach the
-document, and go back to the List of Dates to resume reading.
-```
+The lawyer should be able to review:
 
-This first pass should be comprehensive and verbose. It should read like a
-grounded story of the matter, not a thin event log. It should be non-opinionated
-except for recording the role and posture of the client, such as:
+- document label;
+- document type;
+- document date or date uncertainty;
+- document quality status;
+- missing-document follow-up;
+- duplicate or better-copy status;
+- source link.
 
-```text
-client as plaintiff
-client as appellant
-client as petitioner
-client as complainant
-```
+The source review loop is:
 
-The chronology should record what the documents say. It should not decide the
-case in the first pass.
+1. read the suggested source label;
+2. click the source document;
+3. confirm or rename the label if needed;
+4. flag bad copy or missing material;
+5. continue to the next document.
 
-That means this skill cannot be designed as a dead table. It must support a
-review loop:
-
-1. read chronology entry;
-2. click source;
-3. inspect the source document/page/block;
-4. return to the same chronology position;
-5. continue reading.
-
-The implementation may use HTML first and export PDF later, but the product
-requirement is clear: the lawyer wants a court/work-product style chronology
-with navigable source access.
-
-Each row should be grounded. A row should include source access and relevant
-quality notes regardless of final output format or extension. PDF, HTML, MD,
-CSV, and JSON can differ in presentation, but the requirement is the same:
-
-```text
-date -> event -> source -> quality/limitation note where relevant
-```
-
-Bad-copy and uncertainty notes should be attached to the relevant event or
-document in review metadata. The clean chronology narrative should not be
-polluted by internal document-defect notes. The end of the List of Dates should
-contain a limitations and follow-up section for the client.
-
-If another round of documents is later shared, this document should be generated
-again. The regenerated version should attempt to remove earlier limitations
-where better material is now available, or preserve the remaining limitations
-where they cannot be resolved. Whether to proceed despite those limitations is
-a lawyer's call.
+Confirmed labels update the source record. They do not mutate chronology rows
+directly. Chronology and downstream drafting reuse the confirmed source label
+on the next render or regeneration.
 
 ## Handoff To Chronology And Drafting
 
@@ -396,6 +393,19 @@ If a source change may affect dates, facts, procedural history, limitation, or
 the challenged order, the product should nudge the lawyer to rerun the
 chronology or knowingly proceed despite the staleness warning before using
 drafting skills.
+
+Use three dependency states:
+
+```text
+label_refresh_needed
+chronology_review_needed
+chronology_regeneration_needed
+```
+
+If only a lawyer-facing label changes, refresh the visible rendering. If source
+metadata changes in a way that may affect interpretation, warn and review. If
+the source set or source content changes, regenerate the List of Dates unless
+the lawyer knowingly proceeds under a strong warning.
 
 This keeps the drafting layer cheaper and cleaner. Drafting skills should not
 need to rediscover the whole record each time; they should rely on the current
@@ -429,10 +439,8 @@ This native skill family should produce or feed:
 - `Document Index` / source inventory;
 - source identity map tying internal file names to lawyer-facing labels;
 - stage-aware context labels;
-- comprehensive first-pass List of Dates;
 - document quality flags;
 - source links;
-- first chronology candidate set;
 - List of Dates handoff;
 - client request candidates for bad/missing documents.
 
@@ -442,14 +450,11 @@ Possible files:
 10_Library/Document Index.json
 10_Library/Document Index.md
 10_Library/Chronological Reading Notes.md
-10_Library/List of Dates.json
-10_Library/List of Dates.md
-10_Library/List of Dates.pdf
 20_Workshop/Client Document Requests.md
 ```
 
 The exact file names can change later. The product requirement is that the
-inventory must not be isolated from chronology and source review.
+inventory must be useful to chronology without owning chronology.
 
 Visibility rule:
 
@@ -512,30 +517,21 @@ Those later tasks depend on:
 ## Product Requirement
 
 The native skill should be renamed in product language from a flat inventory to
-a lawyer-facing discovery workflow:
+a lawyer-facing source-record workflow:
 
 ```text
-Organize Documents and Build First Chronology
+Source Labels / Document Index
 ```
-
-Possible slash command remains a product decision. The user-facing card should
-not sound like backend inventory. It should sound like the first legal work a
-lawyer actually does.
 
 The skill promise:
 
 ```text
-Arrange the matter papers in a sensible reading order, flag bad copies, and
-start a source-linked List of Dates for lawyer review.
+Organize documents and prepare the source record for List of Dates.
 ```
 
-Revised promise after SME clarification:
-
-```text
-Build a comprehensive source-linked first List of Dates in chronological order,
-show document-quality limitations in the relevant rows, and collect follow-up
-requests for the client.
-```
+The existing slash command may remain `/describe_sources` for compatibility.
+The user-facing card should not sound like backend inventory, and it should not
+claim to build the chronology.
 
 ## Acceptance Criteria
 
@@ -547,21 +543,18 @@ A useful first version should:
 3. Classify documents into lawyer-readable categories.
 4. Keep internal file names, stable source IDs, and lawyer-facing document
    labels together in the source inventory.
-5. Sort dated events chronologically while preserving source links.
-6. Keep the challenged order at its actual date rather than moving it to the
-   top.
-7. Flag bad copies and unclear documents before downstream analysis.
-8. Attach bad-copy, uncertainty, and limitation notes to relevant events or
-   documents as review metadata, without polluting the clean chronology
-   narrative.
-9. Let the lawyer click from List of Dates to source and return to the same
-   reading position.
-10. Add a limitations and client follow-up section at the end.
-11. Regenerate cleanly when new documents arrive, reducing limitations where
-    possible and preserving unresolved limitations where needed.
-12. Mark the current chronology as needing rerun or stale when source
-    inventory changes may affect it.
-13. Keep legal conclusions out of the first pass.
+5. Store suggested and confirmed labels separately.
+6. Preserve the reason for the current label.
+7. Distinguish source label replacement from document/content replacement.
+8. Flag bad copies and unclear documents before downstream analysis.
+9. Attach bad-copy, uncertainty, and limitation notes to relevant documents as
+   review metadata.
+10. Let the lawyer click from source label to source document and return to the
+    same review position.
+11. Generate client follow-up candidates for missing or bad documents.
+12. Mark chronology dependency as label refresh, review, or regeneration when
+    source inventory changes may affect it.
+13. Keep legal conclusions out of this source-record layer.
 14. Mark uncertainty clearly instead of hiding it.
 
 ## Open SME Questions For Next Pass

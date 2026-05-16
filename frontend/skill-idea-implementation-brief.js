@@ -6,7 +6,7 @@ const KNOWN_TARGETS = [
   },
   {
     slash: "/describe_sources",
-    title: "Describe Sources",
+    title: "Source Labels / Document Index",
     keywords: /\b(describe\s+sources|source\s+labels?|source\s+descriptors?)\b/i,
   },
   {

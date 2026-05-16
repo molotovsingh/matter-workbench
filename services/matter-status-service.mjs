@@ -72,7 +72,7 @@ export function createMatterStatusService({ matterStore } = {}) {
       stage({
         id: "describe-sources",
         slash: "/describe_sources",
-        label: "Describe Sources",
+        label: "Source Labels / Document Index",
         present: sourceIndexPresent,
         artifacts: sourceIndexPresent ? [SOURCE_INDEX_RELATIVE] : [],
         aiRun: normalizeAiRun(sourceIndex?.ai_run),
@@ -133,17 +133,21 @@ async function listOfDatesRerunAdvice(root) {
   } : jsonTarget;
   const extractionInputs = await listExtractionRecordInputs(root);
   const sourceIndexInput = await inputFile(root, SOURCE_INDEX_RELATIVE);
+  const sourceIndexJson = sourceIndexInput
+    ? await readJsonIfPossible(path.join(root, SOURCE_INDEX_RELATIVE))
+    : null;
   return buildRerunAdvice({
     root,
     skill: "/create_listofdates",
     label: "list of dates",
     target,
     upstreamInputs: [
-      ...extractionInputs,
-      ...(sourceIndexInput ? [sourceIndexInput] : []),
+      ...extractionInputs.map((input) => ({ ...input, inputKind: "extraction_record" })),
+      ...(sourceIndexInput ? [{ ...sourceIndexInput, inputKind: "source_index" }] : []),
     ],
     staleDescription: "newer extraction records or Source Index changes were found",
     currentDescription: "No newer extraction records or Source Index changes were found.",
+    classifyStaleDependency: (newestInput) => classifyListOfDatesDependency(target, newestInput, sourceIndexJson),
   });
 }
 
@@ -155,6 +159,7 @@ function buildRerunAdvice({
   upstreamInputs,
   staleDescription,
   currentDescription,
+  classifyStaleDependency = null,
 }) {
   if (!target.exists) {
     return baseRerunAdvice({ skill, label, state: "missing", shouldConfirm: false });
@@ -185,6 +190,9 @@ function buildRerunAdvice({
   ), null);
   const stale = newestInput && newestInput.mtimeMs > target.mtimeMs + 1;
   if (stale) {
+    const dependencyState = typeof classifyStaleDependency === "function"
+      ? classifyStaleDependency(newestInput)
+      : "";
     return baseRerunAdvice({
       skill,
       label,
@@ -194,6 +202,7 @@ function buildRerunAdvice({
       lastRunAt: artifactRunTime(target),
       aiRun: normalizeAiRun(target.json?.ai_run),
       reason: staleDescription,
+      dependencyState,
       newestInputPath: newestInput.relativePath,
       newestInputAt: new Date(newestInput.mtimeMs).toISOString(),
     });
@@ -225,6 +234,7 @@ function baseRerunAdvice({
   lastRunAt = "",
   aiRun = null,
   reason = "",
+  dependencyState = "",
   newestInputPath = "",
   newestInputAt = "",
   inputCount = 0,
@@ -239,9 +249,48 @@ function baseRerunAdvice({
     provider: aiRun?.returnedProvider || aiRun?.provider || "",
     model: aiRun?.returnedModel || aiRun?.model || "",
     reason,
+    dependencyState,
     newestInputPath,
     newestInputAt,
     inputCount,
+  };
+}
+
+function classifyListOfDatesDependency(target, newestInput = {}, sourceIndex = null) {
+  if (newestInput.inputKind !== "source_index") return "chronology_regeneration_needed";
+  const snapshot = Array.isArray(target.json?.source_snapshot) ? target.json.source_snapshot : [];
+  if (!sourceIndex || !Array.isArray(sourceIndex.sources) || !snapshot.length) return "chronology_review_needed";
+  const byFileId = new Map(sourceIndex.sources.map((source) => [source.file_id, normalizeSnapshotSource(source)]));
+  const snapshotIds = new Set(snapshot.map((source) => source.file_id).filter(Boolean));
+  if (sourceIndex.sources.some((source) => source?.file_id && !snapshotIds.has(source.file_id))) {
+    return "chronology_regeneration_needed";
+  }
+  let compared = 0;
+  for (const previous of snapshot) {
+    const current = byFileId.get(previous.file_id);
+    if (!current) return "chronology_regeneration_needed";
+    compared += 1;
+    if ((previous.content_hash || "") !== (current.content_hash || "")) {
+      return "chronology_regeneration_needed";
+    }
+    if (
+      (previous.document_type || "") !== (current.document_type || "")
+      || (previous.document_date || "") !== (current.document_date || "")
+      || Boolean(previous.needs_review) !== Boolean(current.needs_review)
+    ) {
+      return "chronology_review_needed";
+    }
+  }
+  return compared ? "label_refresh_needed" : "chronology_review_needed";
+}
+
+function normalizeSnapshotSource(source = {}) {
+  return {
+    file_id: source.file_id || "",
+    content_hash: source.content_hash || source.sha256 || "",
+    document_type: source.document_type || "",
+    document_date: source.document_date || "",
+    needs_review: Boolean(source.needs_review),
   };
 }
 

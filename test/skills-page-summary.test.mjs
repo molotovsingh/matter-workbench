@@ -48,6 +48,22 @@ test("skills page summary promotes only the latest active custom skill", () => {
   assert.equal(summary.allCustom.find((skill) => skill.id === "skill_draft").primary, false);
 });
 
+test("skills page summary groups built-ins by product surface", () => {
+  const summary = skillsPageSummary({
+    skills: [
+      { id: "setup", slash: "/matter-init", product_surface: "setup" },
+      { id: "source", slash: "/describe_sources", product_surface: "native_legal" },
+      { id: "ready", slash: "/prepare_matter", product_surface: "readiness" },
+      { id: "search", slash: "/context_search", product_surface: "utility" },
+      { id: "doctor", slash: "/doctor", product_surface: "maintenance" },
+    ],
+  });
+
+  assert.deepEqual(summary.nativeBuiltins.map((skill) => skill.slash), ["/describe_sources"]);
+  assert.deepEqual(summary.setupBuiltins.map((skill) => skill.slash), ["/matter-init", "/prepare_matter"]);
+  assert.deepEqual(summary.utilityBuiltins.map((skill) => skill.slash), ["/context_search", "/doctor"]);
+});
+
 test("custom skill grouping falls back to stable signature without lineage", () => {
   assert.equal(
     customSkillGroupingKey({

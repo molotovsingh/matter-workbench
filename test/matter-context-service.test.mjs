@@ -164,9 +164,14 @@ test("matter context packet includes source-labeled extraction blocks and select
     {
       file_id: "FILE-0001",
       sha256: HASH_ONE,
+      source_id: "FILE-0001",
+      content_hash: HASH_ONE,
       source_path: sourcePath,
       display_label: "Legal Notice from Mehta to Skyline, 20 April 2026",
       short_label: "Legal notice, 20 Apr 2026",
+      suggested_label: "Legal Notice from Mehta to Skyline, 20 April 2026",
+      confirmed_label: "Confirmed Legal Notice dated 20 April 2026",
+      label_status: "confirmed",
       document_type: "legal_notice",
       document_date: "2026-04-20",
       needs_review: false,
@@ -184,8 +189,10 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(packet.file_registers.length, 1);
   assert.equal(packet.file_registers[0].rows[0].file_id, "FILE-0001");
   assert.equal(packet.sources.length, 1);
-  assert.equal(packet.sources[0].source_label, "Legal Notice from Mehta to Skyline, 20 April 2026");
-  assert.equal(packet.sources[0].source_short_label, "Legal notice, 20 Apr 2026");
+  assert.equal(packet.sources[0].source_id, "FILE-0001");
+  assert.equal(packet.sources[0].content_hash, HASH_ONE);
+  assert.equal(packet.sources[0].source_label, "Confirmed Legal Notice dated 20 April 2026");
+  assert.equal(packet.sources[0].source_short_label, "Confirmed Legal Notice dated 20 April 2026");
   assert.equal(packet.sources[0].document_type, "legal_notice");
   assert.deepEqual(packet.sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
   assert.equal(packet.evidence_blocks.length, 2);
@@ -193,7 +200,7 @@ test("matter context packet includes source-labeled extraction blocks and select
     "FILE-0001 p1.b1",
     "FILE-0001 p1.b2",
   ]);
-  assert.equal(packet.evidence_blocks[0].source_label, "Legal Notice from Mehta to Skyline, 20 April 2026");
+  assert.equal(packet.evidence_blocks[0].source_label, "Confirmed Legal Notice dated 20 April 2026");
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.json"));
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.md"));
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
@@ -202,7 +209,7 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(summary.schema_version, "matter-context-preview/v1");
   assert.equal(summary.counts.sources, 1);
   assert.equal(summary.counts.evidence_blocks_included, 2);
-  assert.equal(summary.top_sources[0].source_short_label, "Legal notice, 20 Apr 2026");
+  assert.equal(summary.top_sources[0].source_short_label, "Confirmed Legal Notice dated 20 April 2026");
   assert.deepEqual(summary.top_sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
   assert.doesNotMatch(JSON.stringify(summary), /Agreement was signed on 20 April 2026/);
 });

@@ -78,6 +78,15 @@ const SOURCE_REQUIRED_FIELDS = [
   "warnings",
 ];
 
+const LABEL_STATUS = {
+  SUGGESTED: "suggested",
+  NEEDS_REVIEW: "needs_review",
+};
+
+const LABEL_SOURCE = {
+  MODEL: "model",
+};
+
 const PARTY_REQUIRED_FIELDS = [
   "from",
   "to",
@@ -581,12 +590,30 @@ function validateDescriptorEvidence(descriptor, packet) {
 }
 
 function normalizeDescriptor(descriptor) {
+  const displayLabel = descriptor.display_label.trim();
+  const shortLabel = descriptor.short_label.trim();
+  const labelReason = descriptor.evidence
+    .map((evidence) => evidence.reason)
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
   return {
+    source_id: descriptor.file_id,
+    content_hash: descriptor.sha256,
     file_id: descriptor.file_id,
     sha256: descriptor.sha256,
     source_path: descriptor.source_path,
-    display_label: descriptor.display_label.trim(),
-    short_label: descriptor.short_label.trim(),
+    display_label: displayLabel,
+    short_label: shortLabel,
+    suggested_label: displayLabel,
+    confirmed_label: "",
+    label_status: descriptor.needs_review ? LABEL_STATUS.NEEDS_REVIEW : LABEL_STATUS.SUGGESTED,
+    label_source: LABEL_SOURCE.MODEL,
+    label_reason: labelReason,
+    label_revision: 1,
+    confirmed_by: "",
+    confirmed_at: "",
     document_type: descriptor.document_type,
     document_date: descriptor.document_date,
     date_basis: descriptor.date_basis,

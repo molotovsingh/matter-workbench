@@ -4,6 +4,7 @@
   "slash": "/extract",
   "title": "Extract",
   "category": "Extract",
+  "product_surface": "setup",
   "purpose": "Convert supported working-copy documents into stable source-backed extraction records and text companions.",
   "mode": "deterministic",
   "matter_required": true,

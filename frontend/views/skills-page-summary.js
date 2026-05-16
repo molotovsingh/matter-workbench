@@ -10,6 +10,7 @@ export function skillsPageSummary(registry = {}, matterStatus = null, configurab
     artifactStatus: statusBySlash.get(skill.slash) || null,
   }));
   const builtins = withStatus.filter((skill) => !skill.configurable);
+  const builtinGroups = groupBuiltinsByProductSurface(builtins);
   const registryCustom = withStatus.filter((skill) => skill.configurable);
   const customSource = configuredSkills.length ? configuredSkills : registryCustom;
   const allCustom = markPrimaryCustomSkills(customSource.map((skill) => ({
@@ -19,6 +20,9 @@ export function skillsPageSummary(registry = {}, matterStatus = null, configurab
   const custom = allCustom.filter((skill) => skill.primary !== false);
   return {
     builtins,
+    nativeBuiltins: builtinGroups.nativeLegal,
+    setupBuiltins: builtinGroups.setup,
+    utilityBuiltins: builtinGroups.utility,
     custom,
     allCustom,
     deterministic: builtins.filter((skill) => String(skill.mode || "").toLowerCase() !== "ai"),
@@ -26,6 +30,25 @@ export function skillsPageSummary(registry = {}, matterStatus = null, configurab
     matterName: matterStatus?.matterName || "",
     hasMatterStatus: Boolean(matterStatus),
   };
+}
+
+function groupBuiltinsByProductSurface(builtins = []) {
+  const groups = {
+    nativeLegal: [],
+    setup: [],
+    utility: [],
+  };
+  for (const skill of builtins) {
+    const surface = String(skill.product_surface || "").trim();
+    if (surface === "native_legal") {
+      groups.nativeLegal.push(skill);
+    } else if (surface === "setup" || surface === "readiness") {
+      groups.setup.push(skill);
+    } else {
+      groups.utility.push(skill);
+    }
+  }
+  return groups;
 }
 
 export function customSkillGroupingKey(skill = {}) {

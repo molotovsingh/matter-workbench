@@ -183,3 +183,98 @@ test("rerun advice confirms current list of dates and skips missing artifacts", 
   assert.equal(missing.state, "missing");
   assert.equal(missing.shouldConfirm, false);
 });
+
+test("list of dates rerun advice classifies source-index-only changes", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-list-source-change-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(path.join(root, "10_Library"), { recursive: true });
+  const recordPath = path.join(extractedDir, "FILE-0001.json");
+  const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
+  const listJsonPath = path.join(root, "10_Library", "List of Dates.json");
+  const listMarkdownPath = path.join(root, "10_Library", "List of Dates.md");
+
+  await writeFile(recordPath, "{}\n");
+  await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
+    displayLabel: "Confirmed notice label",
+    contentHash: "hash-one",
+    documentType: "notice",
+  }))}\n`);
+  await writeFile(listMarkdownPath, "# List of Dates\n");
+  await writeFile(listJsonPath, `${JSON.stringify({
+    generated_at: "2026-05-11T12:00:00.000Z",
+    source_snapshot: [
+      {
+        file_id: "FILE-0001",
+        source_id: "FILE-0001",
+        content_hash: "hash-one",
+        source_label: "Original notice label",
+        source_short_label: "Notice",
+        document_type: "notice",
+        document_date: "2026-05-01",
+        needs_review: false,
+        label_status: "suggested",
+        label_revision: 1,
+      },
+    ],
+  })}\n`);
+
+  const oldDate = new Date("2026-05-11T11:00:00.000Z");
+  const listDate = new Date("2026-05-11T12:00:00.000Z");
+  const sourceDate = new Date("2026-05-11T13:00:00.000Z");
+  await utimes(recordPath, oldDate, oldDate);
+  await utimes(listJsonPath, listDate, listDate);
+  await utimes(listMarkdownPath, listDate, listDate);
+  await utimes(sourceIndexPath, sourceDate, sourceDate);
+
+  const service = createMatterStatusService({
+    matterStore: {
+      ensureMatterRoot: () => root,
+      listIntakeFolders: async () => [{ name: "Intake 01 - Initial", intakeNumber: 1 }],
+    },
+  });
+
+  const labelRefresh = await service.readRerunAdvice("/create_listofdates");
+  assert.equal(labelRefresh.state, "stale");
+  assert.equal(labelRefresh.dependencyState, "label_refresh_needed");
+
+  await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
+    displayLabel: "Confirmed notice label",
+    contentHash: "hash-one",
+    documentType: "pleading",
+  }))}\n`);
+  await utimes(sourceIndexPath, sourceDate, sourceDate);
+  const review = await service.readRerunAdvice("/create_listofdates");
+  assert.equal(review.dependencyState, "chronology_review_needed");
+
+  await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
+    displayLabel: "Confirmed notice label",
+    contentHash: "hash-two",
+    documentType: "notice",
+  }))}\n`);
+  await utimes(sourceIndexPath, sourceDate, sourceDate);
+  const regeneration = await service.readRerunAdvice("/create_listofdates");
+  assert.equal(regeneration.dependencyState, "chronology_regeneration_needed");
+});
+
+function sourceIndexFixture({ displayLabel, contentHash, documentType }) {
+  return {
+    schema_version: "source-index/v1",
+    sources: [
+      {
+        file_id: "FILE-0001",
+        source_id: "FILE-0001",
+        sha256: contentHash,
+        content_hash: contentHash,
+        source_path: "00_Inbox/Intake 01 - Initial/By Type/Notices/notice.pdf",
+        display_label: displayLabel,
+        short_label: "Notice",
+        label_status: "confirmed",
+        confirmed_label: displayLabel,
+        document_type: documentType,
+        document_date: "2026-05-01",
+        needs_review: false,
+      },
+    ],
+  };
+}

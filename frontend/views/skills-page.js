@@ -78,11 +78,39 @@ export function renderSkillsPageHtml({
       ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml, { compact: true, samplesByIdea: skillIdeaSamplesById })}
       <section class="skills-section">
         <h2>Built-in Skills</h2>
-        <p class="muted">Code-backed capabilities that ship with the app. They are not editable from this page.</p>
+        <p class="muted">Code-backed capabilities that ship with the app, grouped by the role they play in the matter workflow.</p>
         <p class="muted">${matterNote}</p>
-        ${renderSkillCards(summary.builtins, escapeHtml, { variant: "builtin-list" })}
+        ${renderBuiltinSkillGroup({
+          title: "Native legal skills",
+          description: "Lawyer-facing source-backed work products. These are the skills to grow before creating custom one-off workflows.",
+          skills: summary.nativeBuiltins,
+          escape: escapeHtml,
+        })}
+        ${renderBuiltinSkillGroup({
+          title: "Setup and readiness",
+          description: "Matter setup, document reading, and guarded preparation steps. They support legal skills but should not compete with them.",
+          skills: summary.setupBuiltins,
+          escape: escapeHtml,
+        })}
+        ${renderBuiltinSkillGroup({
+          title: "Utilities and maintenance",
+          description: "Search, context preview, and workspace health tools.",
+          skills: summary.utilityBuiltins,
+          escape: escapeHtml,
+        })}
       </section>
       ${renderSkillFactoryHealth(skillFactoryHealth, escapeHtml, { collapsed: true })}
+    </div>
+  `;
+}
+
+function renderBuiltinSkillGroup({ title, description, skills, escape }) {
+  if (!Array.isArray(skills) || !skills.length) return "";
+  return `
+    <div class="builtin-skill-group">
+      <h3>${escape(title)}</h3>
+      <p class="muted">${escape(description)}</p>
+      ${renderSkillCards(skills, escape, { variant: "builtin-list" })}
     </div>
   `;
 }

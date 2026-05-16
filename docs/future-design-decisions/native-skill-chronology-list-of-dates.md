@@ -590,31 +590,53 @@ gap and suggest regeneration or source/metadata review.
 
 Skill 2 depends on the source inventory from Skill 1.
 
-The chronology should record the inventory snapshot or document set it was
-generated from. If Skill 1 later adds or materially changes source rows, the
-app should nudge the lawyer to rerun Skill 2 or knowingly proceed despite the
-staleness warning.
+The chronology should record the source inventory snapshot or document set it
+was generated from. If Skill 1 later changes source rows, the app should decide
+what kind of change occurred before spending money on AI regeneration.
 
-Suggested states:
+Use three dependency states:
 
 ```text
-current -> needs_rerun -> stale -> superseded
+label_refresh_needed
+chronology_review_needed
+chronology_regeneration_needed
 ```
 
-Use a soft nudge when:
+Use `label_refresh_needed` when only lawyer-facing source labels changed. The
+correct action is to refresh the rendered `Source` column or export labels. No
+AI rerun should be required.
 
-- new documents were added but not yet classified;
-- better copies were added for documents already used;
-- OCR or source extraction improved;
-- metadata such as matter stage, client role, or current objective changed.
+Use `chronology_review_needed` when source metadata changed in a way that may
+affect interpretation, but the underlying source content appears unchanged.
+Examples:
 
-Use a stronger warning before drafting when:
+- document type changed;
+- document category changed;
+- quality flag changed;
+- matter stage, client role, or current objective changed;
+- a source moved from `needs_review` to cleaner but the content hash stayed the
+  same.
 
-- new documents contain dates not represented in the current chronology;
-- a newly classified order, pleading, notice, reply, affidavit, or payment
-  record may affect the time spine;
-- a source previously marked missing or bad-copy has now been supplied;
-- the lawyer asks for a court-facing export after the source inventory changed.
+Use `chronology_regeneration_needed` when the underlying source set or content
+changed materially. Examples:
+
+- new documents were added;
+- documents were removed;
+- better copies replaced bad copies;
+- OCR or source extraction changed source text;
+- `content_hash` changed;
+- document date changed;
+- a source previously marked missing has now been supplied.
+
+Before drafting, the warning should be strong:
+
+```text
+New or changed documents may affect the List of Dates. Regenerate before
+drafting, or proceed with stale chronology.
+```
+
+Default action should be regenerate/review, not proceed. But do not hard-block
+the lawyer; time pressure may require proceeding knowingly.
 
 This is not mixing Skill 1 and Skill 2. It is the correct dependency:
 
