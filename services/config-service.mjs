@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { writeFileAtomic } from "../shared/atomic-file.mjs";
 
 export function createConfigService({ appDir, env = process.env } = {}) {
   if (!appDir) throw new Error("appDir is required");
@@ -22,7 +23,7 @@ export function createConfigService({ appDir, env = process.env } = {}) {
   }
 
   async function save() {
-    await writeFile(configPath, `${JSON.stringify({ mattersHome }, null, 2)}\n`);
+    await writeFileAtomic(configPath, `${JSON.stringify({ mattersHome }, null, 2)}\n`);
   }
 
   async function setMattersHome(rawValue) {

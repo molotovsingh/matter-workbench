@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { parseCsv, parseCsvRow, toCsv } from "../shared/csv.mjs";
-import { loadLocalEnv, parseEnvText } from "../shared/local-env.mjs";
+import { loadLocalEnv, parseEnvText, upsertLocalEnv } from "../shared/local-env.mjs";
 import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
 
 test("CSV parser and writer preserve quoted fields", () => {
@@ -46,4 +46,29 @@ test("local env parser supports named and raw OpenAI keys", async () => {
   const overrideEnv = { OPENAI_API_KEY: "sk-old_key" };
   await loadLocalEnv({ appDir, targetEnv: overrideEnv, override: true });
   assert.equal(overrideEnv.OPENAI_API_KEY, "sk-parent_raw_key");
+});
+
+test("local env upsert writes through atomic temp files and preserves unrelated keys", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-env-upsert-test-"));
+  await writeFile(path.join(tmp, ".env"), [
+    "# existing local config",
+    "OPENAI_MODEL=old-model",
+    "MATTERS_HOME=/tmp/matters",
+    "",
+  ].join("\n"));
+
+  const envPath = await upsertLocalEnv({
+    appDir: tmp,
+    values: {
+      OPENAI_MODEL: "new-model",
+      OPENAI_MAX_OUTPUT_TOKENS: "2048",
+    },
+  });
+
+  assert.equal(envPath, path.join(tmp, ".env"));
+  const text = await readFile(envPath, "utf8");
+  assert.match(text, /OPENAI_MODEL=new-model/);
+  assert.match(text, /OPENAI_MAX_OUTPUT_TOKENS=2048/);
+  assert.match(text, /MATTERS_HOME=\/tmp\/matters/);
+  assert.deepEqual((await readdir(tmp)).filter((name) => name.endsWith(".tmp")), []);
 });

@@ -1,6 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { writeFileAtomic } from "../shared/atomic-file.mjs";
 
 export function createJsonStorePersistence({ storePath, serialize }) {
   if (!storePath) throw new Error("storePath is required");
@@ -25,16 +23,7 @@ export function createJsonStorePersistence({ storePath, serialize }) {
 }
 
 export async function writeJsonFileAtomic(filePath, contents) {
-  const directory = path.dirname(filePath);
-  const tempPath = path.join(directory, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`);
-  await mkdir(directory, { recursive: true });
-  try {
-    await writeFile(tempPath, contents, { flag: "wx" });
-    await rename(tempPath, filePath);
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => {});
-    throw error;
-  }
+  await writeFileAtomic(filePath, contents);
 }
 
 export function formatJsonStore(payload) {

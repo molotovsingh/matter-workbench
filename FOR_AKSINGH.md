@@ -836,3 +836,11 @@ The search code now lives in `services/matter-context-search.mjs`. The main cont
 The disk-reading side is split as well. `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal. `services/matter-context-library-artifacts.mjs` owns the small summaries of selected library outputs, such as Source Index and List of Dates artifacts. That keeps the main packet builder focused on packet shape, limits, and evidence blocks.
 
 The lesson is that a good extraction does not need to change behavior to be worthwhile. Sometimes the best refactor is simply moving a self-contained decision into a smaller room where future changes cannot accidentally disturb disk layout or packet schema.
+
+## Persistence Lesson: Small Files Still Need Care
+
+This app stores a lot of useful state in ordinary local files: JSON ledgers, `config.json`, and `.env`. That is one of the reasons the project stays understandable. You can inspect the files, back them up, and reason about them without needing a database server.
+
+But local files still deserve database-like caution at write time. A half-written `config.json` or `.env` can be more annoying than a failed request because the bad file remains on disk. The shared `writeFileAtomic` helper writes to a temporary sibling file first and then renames it into place. On normal filesystems, that rename is the moment the new version becomes visible.
+
+The engineering lesson is simple: local-first does not mean casual. If a file is a source of truth, write it as though the process could be interrupted at the worst possible moment.

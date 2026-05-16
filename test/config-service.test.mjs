@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -12,6 +12,22 @@ test("config service defaults matters home to the user root", async () => {
     const service = createConfigService({ appDir: tmp, env: {} });
 
     assert.equal(service.defaultMattersHome, path.join(os.homedir(), "matters-matter-workbench"));
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("config service saves matters home atomically", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-workbench-config-"));
+  try {
+    const service = createConfigService({ appDir: tmp, env: {} });
+    const mattersHome = path.join(tmp, "matters");
+
+    const result = await service.setMattersHome(mattersHome);
+
+    assert.deepEqual(result, { mattersHome, homeChanged: true });
+    assert.deepEqual(JSON.parse(await readFile(service.configPath, "utf8")), { mattersHome });
+    assert.deepEqual((await readdir(tmp)).filter((name) => name.endsWith(".tmp")), []);
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }

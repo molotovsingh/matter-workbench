@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { writeFileAtomic } from "./atomic-file.mjs";
 
 const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const OPENAI_KEY_PATTERN = /^sk-[A-Za-z0-9_-]+$/;
@@ -94,7 +95,7 @@ export async function upsertLocalEnv({ appDir, values }) {
     nextLines.push(`${key}=${envEscape(value)}`);
   }
 
-  await writeFile(envPath, `${trimTrailingBlankLines(nextLines).join("\n")}\n`);
+  await writeFileAtomic(envPath, `${trimTrailingBlankLines(nextLines).join("\n")}\n`);
   return envPath;
 }
 
