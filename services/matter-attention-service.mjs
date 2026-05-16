@@ -208,7 +208,10 @@ export function createMatterAttentionService({
 
     const failed = log.rows.filter((row) => normalizeText(row.status) === "failed");
     const ocrRequired = log.rows.filter((row) => normalizeText(row.status) === "ocr-required-all");
-    const skipped = log.rows.filter((row) => normalizeText(row.status).startsWith("skipped-"));
+    const skipped = log.rows.filter((row) => {
+      const status = normalizeText(row.status);
+      return status.startsWith("skipped-") && status !== "skipped-duplicate";
+    });
     if (failed.length) {
       addItem(items, {
         severity: "blocker",
@@ -236,8 +239,8 @@ export function createMatterAttentionService({
         severity: "warning",
         category: "extraction",
         code: "extraction_skipped",
-        title: "Some files were skipped during extraction",
-        detail: `${skipped.length} file(s) were skipped, usually due to duplicates or unsupported formats.`,
+        title: "Some unsupported files were skipped during extraction",
+        detail: `${skipped.length} file(s) were skipped due to unsupported or otherwise non-extractable formats.`,
         action: "Review whether the skipped files are material to the matter.",
         evidence: sampleRowEvidence(logRelative, skipped, "file_id"),
       });
@@ -424,6 +427,7 @@ export function createMatterAttentionService({
       return;
     }
 
+    const warningKeys = new Set();
     for (const run of runs) {
       if (run.status === "failed") {
         addItem(items, {
@@ -437,6 +441,13 @@ export function createMatterAttentionService({
           occurredAt: run.finishedAt || run.startedAt || "",
         });
       } else if (Array.isArray(run.warnings) && run.warnings.length) {
+        const warningKey = [
+          run.title || run.slash || "unknown skill",
+          run.outputPaths?.markdown || "",
+          run.warnings.join("\n"),
+        ].join("\n");
+        if (warningKeys.has(warningKey)) continue;
+        warningKeys.add(warningKey);
         addItem(items, {
           severity: "warning",
           category: "custom_skill",

@@ -22,6 +22,7 @@ test("matter attention aggregates developer blockers from existing matter traces
     "FILE-0001,INTAKE-01,failed,unhandled parser error",
     "FILE-0002,INTAKE-01,ocr-required-all,scan has no embedded text",
     "FILE-0003,INTAKE-01,skipped-unsupported-format,legacy msg",
+    "FILE-0004,INTAKE-01,skipped-duplicate,duplicate of prior file",
     "",
   ].join("\n"));
   await writeFile(path.join(root, "10_Library", "Source Index.json"), `${JSON.stringify({
@@ -105,6 +106,26 @@ test("matter attention aggregates developer blockers from existing matter traces
             finishedAt: "2026-05-16T10:07:00.000Z",
             outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
           },
+          {
+            id: "run_warning_new",
+            slash: "/party_officer_map_2",
+            title: "Party and Officer Map",
+            status: "succeeded",
+            matterFolder: "Attention Matter",
+            warnings: ["Omitted 20 evidence block(s) due to maxBlocks=70"],
+            finishedAt: "2026-05-16T10:06:00.000Z",
+            outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
+          },
+          {
+            id: "run_warning_old",
+            slash: "/party_officer_map",
+            title: "Party and Officer Map",
+            status: "succeeded",
+            matterFolder: "Attention Matter",
+            warnings: ["Omitted 20 evidence block(s) due to maxBlocks=70"],
+            finishedAt: "2026-05-16T09:06:00.000Z",
+            outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
+          },
         ],
       }),
     },
@@ -125,6 +146,12 @@ test("matter attention aggregates developer blockers from existing matter traces
   assertAttentionCode(attention, "listofdates_json_missing");
   assertAttentionCode(attention, "custom_skill_failed");
   assertAttentionCode(attention, "command_failed");
+  assert.equal(
+    attention.items.filter((item) => item.code === "custom_skill_warnings").length,
+    1,
+  );
+  const skipped = attention.items.find((item) => item.code === "extraction_skipped");
+  assert.equal(skipped.detail, "1 file(s) were skipped due to unsupported or otherwise non-extractable formats.");
 });
 
 test("matter attention stays clear for a coherent matter lifecycle", async () => {
