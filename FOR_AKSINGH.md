@@ -420,7 +420,8 @@ Important files:
 - `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
 - `frontend/skill-idea-sample-actions.js` - sample generation, approval, copying, and sample output display;
 - `frontend/skill-idea-creation-actions.js` - approved-sample activation, overlap gating, and skill-ready rendering;
-- `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, run reports, and skill improvement ideas;
+- `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, and run review actions;
+- `frontend/configurable-skill-improvement-actions.js` - "Improve this skill" ideas that feed back into the sample-review flow without changing the active skill;
 - `frontend/matter-screens.js` - settings and matter screens;
 - `frontend/workspace-view.js` - explorer and preview rendering;
 - `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
@@ -446,6 +447,8 @@ ai-command-box.js
 ```
 
 That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea creation actions. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
+
+The same rule now applies to custom skill runs. A run can finish, ask before replacing an existing output, be accepted for that run, or become an improvement idea. Those are related in the product, but they are not the same responsibility in code. `frontend/configurable-skill-run-controller.js` keeps the run and review state. `frontend/configurable-skill-improvement-actions.js` handles the bridge from "this skill should be better" into a saved, non-running revision idea that must generate a sample before any new version can become active.
 
 ## Shared Contracts
 

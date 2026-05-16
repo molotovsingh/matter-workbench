@@ -1,18 +1,14 @@
 import {
-  buildConfigurableSkillImprovementBrief,
-  buildConfigurableSkillImprovementInterview,
-} from "./configurable-skill-improvement.js";
-import {
   findActiveConfigurableSkillBySlash,
   parseConfigurableSkillRevisionCommand,
 } from "./configurable-skill-commands.js";
+import { createConfigurableSkillImprovementActions } from "./configurable-skill-improvement-actions.js";
 import { classifyConfigurableSkillRunInput } from "./configurable-skill-run-commands.js";
 import {
   buildConfigurableRunPending,
   getConfigurableRunArtifactPath,
   renderConfigurableSkillCancelledRail,
   renderConfigurableSkillExistingOutputSheetHtml,
-  renderConfigurableSkillImprovementPromptHtml,
   renderConfigurableSkillOverwritePromptHtml,
   renderConfigurableSkillRunOutput,
   renderConfigurableSkillRunRail,
@@ -50,6 +46,25 @@ export function createConfigurableSkillRunController({
 }) {
   let pendingConfigurableRun = null;
   let lastCreatedConfigurableSkill = null;
+  const improvementActions = createConfigurableSkillImprovementActions({
+    aiCommandInput,
+    aiCommandSession,
+    aiCommandSubmit,
+    ctx,
+    defaultPlaceholder,
+    getPendingRun: () => pendingConfigurableRun,
+    recordCommandInteraction,
+    renderCommandError,
+    renderCommandRailError,
+    renderSkillIdeaSession,
+    saveSkillIdea,
+    setCurrentSkillIdeaInterview,
+    setPendingRun: (pending) => {
+      pendingConfigurableRun = pending;
+    },
+    updateReport,
+    wireConfigurableSkillActions,
+  });
 
   async function findConfigurableSkillCommand(userRequest) {
     const registry = await loadSkillRegistry().catch(() => null);
@@ -67,23 +82,9 @@ export function createConfigurableSkillRunController({
   }
 
   async function startConfigurableSkillImprovement(skill = {}, revisionText = "") {
-    commandReport.startReport({
-      typedInput: revisionText ? `improve ${skill.slash} ${revisionText}` : `improve ${skill.slash || ""}`,
-      matchedCommand: "skill_revision/idea",
-      status: "pending",
+    await improvementActions.startConfigurableSkillImprovement(skill, revisionText, {
+      startReport: commandReport.startReport,
     });
-    pendingConfigurableRun = {
-      phase: "improve",
-      slash: skill.slash || "",
-      title: skill.title || skill.slash || "Custom Skill",
-      artifactPath: Array.isArray(skill.outputs) ? skill.outputs[0] || "" : skill.outputArtifact || "",
-      skill,
-    };
-    if (revisionText) {
-      await saveConfigurableSkillImprovement(revisionText);
-      return;
-    }
-    renderConfigurableSkillImprovementPrompt();
   }
 
   async function runConfigurableSkillCommand(skill, userRequest, { overwrite = false } = {}) {
@@ -191,7 +192,7 @@ export function createConfigurableSkillRunController({
       return true;
     }
     if (action === "save_improvement") {
-      await saveConfigurableSkillImprovement(userRequest);
+      await improvementActions.saveConfigurableSkillImprovement(userRequest);
       return true;
     }
     if (action === "open_output") {
@@ -203,7 +204,7 @@ export function createConfigurableSkillRunController({
       return true;
     }
     if (action === "improve_skill") {
-      renderConfigurableSkillImprovementPrompt();
+      improvementActions.renderConfigurableSkillImprovementPrompt();
       return true;
     }
     if (action === "show_overwrite_prompt") {
@@ -282,23 +283,6 @@ export function createConfigurableSkillRunController({
     });
   }
 
-  function renderConfigurableSkillImprovementPrompt() {
-    if (!aiCommandSession || !pendingConfigurableRun) return;
-    pendingConfigurableRun.phase = "improve";
-    const slash = pendingConfigurableRun.slash || pendingConfigurableRun.skill?.slash || "";
-    aiCommandSession.hidden = false;
-    aiCommandSession.innerHTML = renderConfigurableSkillImprovementPromptHtml(pendingConfigurableRun);
-    aiCommandInput.placeholder = "Describe what should improve...";
-    aiCommandSubmit.textContent = "Save idea";
-    wireConfigurableSkillActions();
-    ctx.setStatus({
-      mood: "idle",
-      card: `<strong>Improve skill</strong><br />Describe what should change for <code>${escapeHtml(slash)}</code>.`,
-      bar: "Improve Skill",
-      terminal: `[configurable-skill] improvement prompt for ${slash}`,
-    });
-  }
-
   function clearPendingConfigurableRun(title, message) {
     pendingConfigurableRun = null;
     aiCommandInput.placeholder = defaultPlaceholder;
@@ -340,89 +324,6 @@ export function createConfigurableSkillRunController({
       bar: "Output Opened",
       terminal: `[configurable-skill] opened ${artifactPath}`,
     });
-  }
-
-  async function saveConfigurableSkillImprovement(userRequest) {
-    const pending = pendingConfigurableRun;
-    const changeText = String(userRequest || "").trim();
-    if (!changeText) {
-      renderConfigurableSkillImprovementPrompt();
-      renderCommandError("Describe what should improve.");
-      return;
-    }
-    const slash = pending?.slash || pending?.skill?.slash || "";
-    const title = pending?.title || pending?.skill?.title || slash || "Custom Skill";
-    const artifactPath = pending?.artifactPath || pending?.skill?.outputArtifact || "";
-    aiCommandSubmit.disabled = true;
-    aiCommandSubmit.textContent = "Saving...";
-    try {
-      const payload = await saveSkillIdea({
-        text: `Improve ${slash}: ${changeText}`,
-        designBrief: buildConfigurableSkillImprovementBrief({
-          slash,
-          title,
-          artifactPath,
-          changeText,
-          activeMatter: ctx.getActiveMatter?.() || {},
-        }),
-      });
-      const idea = payload.idea || {};
-      pendingConfigurableRun = null;
-      aiCommandInput.placeholder = defaultPlaceholder;
-      aiCommandSubmit.textContent = "→";
-      updateReport({
-        status: "saved",
-        skillIdeaId: idea.id || "",
-        matchedCommand: "skill_revision/idea",
-      });
-      recordCommandInteraction({
-        renderedState: "configurable_skill/improvement_idea",
-        status: "saved_idea",
-        skillIdeaId: idea.id || "",
-        providerRunInvoked: false,
-      });
-      setCurrentSkillIdeaInterview({
-        interview: buildConfigurableSkillImprovementInterview({
-          slash,
-          title,
-          artifactPath,
-          changeText,
-          activeMatter: ctx.getActiveMatter?.() || {},
-        }),
-        answers: {},
-        questionIndex: 0,
-        ready: true,
-        savedIdea: idea,
-        editingSavedIdea: false,
-        sampleReview: {
-          samples: [],
-          ledger: [],
-          activeSample: null,
-          approved: false,
-          stale: false,
-          staleReason: "",
-        },
-      });
-      renderSkillIdeaSession();
-      ctx.setStatus({
-        mood: "idle",
-        card: `<strong>Improvement idea saved</strong><br />Generate a revised sample before creating a new version. The active skill was not changed.`,
-        bar: "Ready for Revised Sample",
-        terminal: `[configurable-skill] saved improvement idea for ${slash}`,
-      });
-    } catch (error) {
-      renderCommandRailError(error.message);
-      updateReport({ status: "failed", error: error.message });
-      ctx.setStatus({
-        mood: "idle",
-        card: `<strong>Improvement not saved</strong><br />${escapeHtml(error.message)}`,
-        bar: "Improvement Failed",
-        terminal: `[configurable-skill] improvement failed: ${error.message}`,
-      });
-    } finally {
-      aiCommandSubmit.disabled = false;
-      aiCommandSubmit.textContent = "→";
-    }
   }
 
   function renderConfigurableSkillRunResult(result = {}) {
@@ -493,7 +394,7 @@ export function createConfigurableSkillRunController({
           return;
         }
         if (action === "improve") {
-          renderConfigurableSkillImprovementPrompt();
+          improvementActions.renderConfigurableSkillImprovementPrompt();
           return;
         }
         if (action === "open-skills") {
