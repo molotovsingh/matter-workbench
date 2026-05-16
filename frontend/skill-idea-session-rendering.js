@@ -3,6 +3,7 @@ import {
   formatSampleProvider,
   getSampleAiRun,
   getSampleMatter,
+  getSampleWarnings,
   getSampleVersion,
   isSampleStale,
   renderSampleLedger,
@@ -165,13 +166,13 @@ export function renderSavedSkillIdeaSessionHtml({
   const status = String(idea.status || "incomplete");
   const checklistReady = Boolean(readiness.ready);
   const statusText = status === "ready_for_review"
-    ? "Ready for review"
+    ? "Ready to review"
     : checklistReady
-      ? "Incomplete - ready to mark for review"
-      : "Incomplete";
+      ? "Draft complete"
+      : "Draft saved";
   const checklistText = checklistReady
     ? "Complete"
-    : `Incomplete ${Number(readiness.passedCount || 0)}/${Number(readiness.totalCount || 0)}`;
+    : `Needs details ${Number(readiness.passedCount || 0)}/${Number(readiness.totalCount || 0)}`;
   return `
       <section class="command-interview" aria-live="polite">
         <h3>Saved skill idea</h3>
@@ -222,21 +223,25 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
   const sampleVersion = activeSample ? getSampleVersion(activeSample, Array.isArray(sampleReview.samples) ? sampleReview.samples.length : 1) : 0;
   const approved = Boolean(sampleReview.approved);
   const stale = Boolean(sampleReview.stale);
+  const generating = Boolean(sampleReview.generating);
   const readySkill = createdSkill || sampleReview.createdSkill || null;
-  const sampleStatus = stale
+  const sampleStatus = generating
+    ? `Generating sample from ${matterName || matterFolder || "the selected matter"}. This may take a minute. No matter files will be changed.`
+    : stale
     ? sampleReview.staleReason || "Design brief changed after this sample was generated. Regenerate the sample before approving it."
     : readySkill?.slash
       ? `Skill Ready. Use ${readySkill.slash}.`
     : approved
       ? "Sample approved. Skill creation can be retried from this approved sample."
     : activeSample
-      ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks right to create the skill.`
+      ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks useful to create the skill.`
       : matterFolder
         ? "Generate an AI sample output from the selected test matter."
         : "Pick a matter to generate a sample output.";
   return `
       <div class="skill-idea-sample-review">
         <h4>Sample output review</h4>
+        ${generating ? '<div class="sample-progress" role="status">Generating sample output...</div>' : ""}
         <p class="muted">${escapeHtml(sampleStatus)}</p>
         ${readySkill?.slash ? `<p><strong>Skill Ready</strong>: type <code>${escapeHtml(readySkill.slash)}</code> to run it.</p>` : ""}
         <dl class="skill-card-meta">
@@ -244,10 +249,11 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
           <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder || "Pick a matter first")}</dd></div>
           <div><dt>Sample</dt><dd>${activeSample ? escapeHtml(`v${sampleVersion || 1}`) : "Not generated"}</dd></div>
         </dl>
+        ${renderSampleWarnings(activeSample)}
         ${getSampleAiRun(activeSample).provider || getSampleAiRun(activeSample).model ? `
           <p class="muted">Sample provider: ${escapeHtml(formatSampleProvider(activeSample))}</p>
         ` : ""}
-        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you choose Looks right and creation/validation succeeds.</p>
+        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you choose Looks useful and creation/validation succeeds.</p>
         ${renderSampleLedger(sampleReview)}
       </div>
     `;
@@ -258,8 +264,9 @@ export function renderSampleReviewButtonsHtml({ sampleReview = {}, createdSkill 
   const activeSample = sampleReview.activeSample || null;
   const approved = Boolean(sampleReview.approved);
   const stale = Boolean(sampleReview.stale) || isSampleStale(activeSample);
+  const generating = Boolean(sampleReview.generating);
   const readySkill = createdSkill || sampleReview.createdSkill || null;
-  const generateLabel = activeSample ? "Regenerate sample" : "Generate sample from this matter";
+  const generateLabel = activeSample ? "Needs changes - regenerate" : "Generate sample from this matter";
   const generateAction = activeSample ? "regenerate-sample" : "generate-sample";
   if (readySkill?.slash) {
     return `
@@ -268,10 +275,23 @@ export function renderSampleReviewButtonsHtml({ sampleReview = {}, createdSkill 
       `;
   }
   return `
-      <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved ? "" : " disabled"}>${escapeHtml(generateLabel)}</button>
+      <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved && !generating ? "" : " disabled"}>${escapeHtml(generating ? "Generating sample..." : generateLabel)}</button>
       ${approved && !stale
         ? '<button type="button" data-skill-interview-action="create-skill">Try creating skill again</button>'
-        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale ? "" : " disabled"}>Looks right - create skill</button>`}
+        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale && !generating ? "" : " disabled"}>Looks useful - create skill</button>`}
       <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
     `;
+}
+
+function renderSampleWarnings(sample) {
+  const warnings = getSampleWarnings(sample);
+  if (!warnings.length) return "";
+  return `
+    <div class="sample-warning-list" role="note">
+      <strong>Sample warnings</strong>
+      <ul>
+        ${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}
+      </ul>
+    </div>
+  `;
 }

@@ -24,10 +24,12 @@ export function renderSkillsPageHtml({
   configurableSkills = null,
   configurableSkillRuns = null,
   skillIdeas = null,
+  skillIdeaSamplesById = {},
   skillFactoryHealth = null,
   loadError = "",
   statusError = "",
   skillIdeasError = "",
+  skillIdeaSamplesError = "",
   skillFactoryHealthError = "",
   configurableSkillsError = "",
   configurableSkillRunsError = "",
@@ -59,6 +61,7 @@ export function renderSkillsPageHtml({
       ${registryError}
       ${statusWarning}
       ${ideasWarning}
+      ${skillIdeaSamplesError ? `<p class="form-warning">Some generated samples could not be loaded: ${escapeHtml(skillIdeaSamplesError)}</p>` : ""}
       ${skillFactoryHealthError ? `<p class="form-warning">Skill factory health unavailable: ${escapeHtml(skillFactoryHealthError)}</p>` : ""}
       ${configurableSkillsError ? `<p class="form-warning">Custom skills unavailable: ${escapeHtml(configurableSkillsError)}</p>` : ""}
       ${configurableSkillRunsError ? `<p class="form-warning">Custom skill run history unavailable: ${escapeHtml(configurableSkillRunsError)}</p>` : ""}
@@ -72,7 +75,7 @@ export function renderSkillsPageHtml({
           allCustomSkills: summary.allCustom || summary.custom,
         })}
       </section>
-      ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml, { compact: true })}
+      ${renderSavedIdeas(skillIdeas?.ideas || [], escapeHtml, { compact: true, samplesByIdea: skillIdeaSamplesById })}
       <section class="skills-section">
         <h2>Built-in Skills</h2>
         <p class="muted">Code-backed capabilities that ship with the app. They are not editable from this page.</p>

@@ -810,7 +810,7 @@ test("command box skill idea interview session saves answers into a design brief
   assert.match(savedIdeas[0].designBrief.notes, /Whole matter pleadings only/);
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Saved skill idea/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Incomplete - ready to mark for review/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Draft complete/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Copy Review Packet/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Mark ready for review/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open in Skills/);
@@ -818,13 +818,13 @@ test("command box skill idea interview session saves answers into a design brief
 
   await box.handleCommand({ userRequest: "copy review packet" });
   assert.match(copied, /^# Skill Idea Review Packet/);
-  assert.match(copied, /- Status: Incomplete - ready to mark for review/);
+  assert.match(copied, /- Status: Draft complete - ready to mark for review/);
   assert.match(copied, /This is not a runnable skill/);
   assert.doesNotMatch(copied, /API_KEY|\.env|source document text/i);
 
   await box.handleCommand({ userRequest: "mark ready for review" });
   assert.deepEqual(statusUpdates, [{ id: "idea_session_1", status: "ready_for_review" }]);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Status<\/dt><dd>Ready for review/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Status<\/dt><dd>Ready to review/);
 
   await box.handleCommand({ userRequest: "edit answers" });
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1/);
@@ -987,7 +987,9 @@ test("command box generates, revises, copies a sample, and creates a skill when 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample v1/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /openai-direct \/ gpt-5\.4/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks right/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Looks useful/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample warnings/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill creation is not available yet/);
   assert.equal(interactionLogs.at(-1).status, "sample_generated");
   assert.equal(interactionLogs.at(-1).provider_run_invoked, true);
 
@@ -1167,7 +1169,7 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.deepEqual(createSkillCalls, ["idea_party_map"]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map/);
-  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks right|Try creating skill/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks useful|Try creating skill/);
   assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
   assert.match(ctx.elements.editorContent.innerHTML, /\/party_officer_map/);
   assert.equal(ctx.elements.aiCommandInput.placeholder, "Type /party_officer_map to run it, or another action");

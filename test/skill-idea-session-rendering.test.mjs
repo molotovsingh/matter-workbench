@@ -140,7 +140,7 @@ test("skill idea session rendering escapes active question and saved session con
     answers: { tone: "formal" },
     activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
   });
-  assert.match(savedHtml, /Incomplete - ready to mark for review/);
+  assert.match(savedHtml, /Draft complete/);
   assert.match(savedHtml, /20_Workshop\/Party &lt;Map&gt;\.md/);
   assert.match(savedHtml, /data-skill-interview-action="mark-ready"/);
 });
@@ -167,9 +167,56 @@ test("skill idea session sample buttons reflect approved and created skill state
 
   assert.match(
     renderSampleReviewButtonsHtml({
+      sampleReview: { activeSample, approved: false, stale: false },
+      activeMatter,
+    }),
+    /Looks useful - create skill/,
+  );
+
+  assert.match(
+    renderSampleReviewButtonsHtml({
       sampleReview: { activeSample, createdSkill: { slash: "/party_map" } },
       activeMatter,
     }),
     /data-skill-interview-action="run-created-skill"/,
   );
+});
+
+test("skill idea session surfaces sample progress and warnings", () => {
+  const activeMatter = { folderName: "Ayesha Vs Japan Airlines" };
+  const progressHtml = renderSavedSkillIdeaSessionHtml({
+    idea: {
+      status: "incomplete",
+      designBrief: {},
+      readiness: { ready: false, passedCount: 0, totalCount: 8, items: [] },
+    },
+    interview: { understood: "Build evidence review" },
+    sampleReview: { generating: true },
+    activeMatter,
+  });
+  assert.match(progressHtml, /Generating sample from Ayesha Vs Japan Airlines/);
+  assert.match(progressHtml, /This may take a minute/);
+  assert.match(progressHtml, /No matter files will be changed/);
+
+  const warningHtml = renderSavedSkillIdeaSessionHtml({
+    idea: {
+      status: "incomplete",
+      designBrief: {},
+      readiness: { ready: true, passedCount: 8, totalCount: 8, items: [] },
+    },
+    interview: { understood: "Build evidence review" },
+    sampleReview: {
+      activeSample: {
+        id: "sample_1",
+        version: 1,
+        sampleMarkdown: "# Sample",
+        warnings: ["462 evidence block(s) were omitted from the bounded packet."],
+      },
+      samples: [],
+    },
+    activeMatter,
+  });
+  assert.match(warningHtml, /Sample warnings/);
+  assert.match(warningHtml, /462 evidence block\(s\) were omitted/);
+  assert.match(warningHtml, /Sample v1 ready for review/);
 });

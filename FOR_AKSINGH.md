@@ -671,6 +671,22 @@ That is why the order is:
 
 The important lesson is that technical health is valuable, but it should not become the product's main face. Factory health still exists because it protects the skill system. It is simply no longer the first thing a lawyer has to read.
 
+## Skill Sample Review Product Rule
+
+The new-skill flow has one real payoff moment: the sample.
+
+Before that moment, the lawyer is only describing a possible tool. After that moment, they can judge whether the system understood the job. That is why the app now treats the sample as first-class UI instead of burying it inside an admin-style idea record.
+
+The Skills page surfaces the latest generated sample on the idea itself. The command rail shows when a sample is being generated, warns that it may take a minute, and makes clear that no matter files are being changed. If the sample comes back with warnings, such as omitted evidence blocks, those warnings are visible next to the sample preview.
+
+The wording matters too. `Incomplete` was a bad label for an idea whose checklist was already complete and ready for review. The better lifecycle is:
+
+```text
+Draft saved -> Draft complete -> Ready to review -> Sample generated -> Sample approved
+```
+
+The product lesson is that trust is earned at the review surface, not in the backend. A powerful generated artifact is only useful if the user can see it, understand its limits, and decide what happens next.
+
 ## Activity Page Product Rule
 
 The Activity page should read like a receipt book, not a server log.

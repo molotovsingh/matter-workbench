@@ -27,6 +27,7 @@ test("skill idea session command classifier handles saved idea sample actions", 
   });
   assert.deepEqual(classifySkillIdeaSessionInput("copy sample", state), { action: "copy_sample" });
   assert.deepEqual(classifySkillIdeaSessionInput("copy sample v2", state), { action: "copy_sample_version", version: 2 });
+  assert.deepEqual(classifySkillIdeaSessionInput("looks useful", state), { action: "approve_sample" });
   assert.deepEqual(classifySkillIdeaSessionInput("looks right", state), { action: "approve_sample" });
   assert.deepEqual(classifySkillIdeaSessionInput("create skill", state), { action: "create_skill" });
   assert.deepEqual(classifySkillIdeaSessionInput("copy review packet", state), { action: "copy_review_packet" });

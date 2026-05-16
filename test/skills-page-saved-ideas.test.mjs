@@ -74,8 +74,69 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
     skills: [{ slash: "/create_listofdates" }],
   });
 
-  assert.match(packet, /Status: Incomplete - ready to mark for review/);
+  assert.match(packet, /Status: Draft complete - ready to mark for review/);
   assert.match(packet, /Checklist: Complete/);
   assert.match(packet, /Suggested classification: modification candidate \(\/create_listofdates\)/);
   assert.match(packet, /This is not a runnable skill/);
+});
+
+test("saved ideas renderer surfaces generated samples and warnings", () => {
+  const html = renderSavedIdeas([
+    {
+      id: "idea_1",
+      text: "create evidence consistency review",
+      status: "incomplete",
+      createdAt: "2026-05-15T10:00:00.000Z",
+      matter: {
+        matterName: "Ayesha Vs Japan Airlines",
+        folderName: "Ayesha Vs Japan Airlines",
+      },
+      designBrief: {
+        intendedUser: "Lawyer",
+        problem: "Review contradictions",
+        expectedInputs: "Source records",
+        expectedOutputArtifact: "20_Workshop/Evidence Consistency Review.md",
+        targetLane: "20_Workshop",
+        paidPosture: "paid",
+        riskLevel: "medium",
+        notes: "Source-backed.",
+      },
+      readiness: {
+        ready: true,
+        passedCount: 8,
+        totalCount: 8,
+        items: [],
+      },
+    },
+  ], escapeHtml, {
+    compact: true,
+    samplesByIdea: {
+      idea_1: [
+        {
+          id: "sample_1",
+          ideaId: "idea_1",
+          version: 1,
+          sampleMarkdown: "# Flight Disruption Evidence Consistency Review\n\nUseful sample.",
+          matter: {
+            matter_name: "Ayesha Vs Japan Airlines",
+            folder_name: "Ayesha Vs Japan Airlines",
+          },
+          aiRun: {
+            provider: "openai-direct",
+            model: "gpt-5.4",
+          },
+          warnings: ["462 evidence block(s) were omitted from the bounded packet."],
+          state: "current",
+        },
+      ],
+    },
+  });
+
+  assert.match(html, /Sample generated/);
+  assert.match(html, /Sample v1 generated/);
+  assert.match(html, /View latest sample/);
+  assert.match(html, /Flight Disruption Evidence Consistency Review/);
+  assert.match(html, /Sample warnings/);
+  assert.match(html, /462 evidence block\(s\) were omitted/);
+  assert.match(html, /data-skill-idea-copy-sample/);
 });

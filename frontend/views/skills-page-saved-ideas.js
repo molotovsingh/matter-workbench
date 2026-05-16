@@ -1,3 +1,15 @@
+import {
+  formatSampleProvider,
+  formatSampleStateLabel,
+  getSampleId,
+  getSampleMarkdown,
+  getSampleMatter,
+  getSampleState,
+  getSampleVersion,
+  getSampleWarnings,
+  normalizeUiSample,
+} from "../skill-sample-review.js";
+
 export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
   const brief = normalizeDesignBriefForView(idea.designBrief);
@@ -52,23 +64,23 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   return `${lines.join("\n")}\n`;
 }
 
-export function renderSavedIdeas(ideas, escape, { compact = false } = {}) {
+export function renderSavedIdeas(ideas, escape, { compact = false, samplesByIdea = {} } = {}) {
   const normalized = Array.isArray(ideas) ? ideas : [];
-  if (compact) return renderCompactSavedIdeas(normalized, escape);
+  if (compact) return renderCompactSavedIdeas(normalized, escape, { samplesByIdea });
   return `
     <section>
       <h2>Saved Ideas</h2>
       <p class="muted">Non-running idea inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or runnable skills.</p>
       ${normalized.length ? `
         <div class="skills-grid">
-          ${normalized.map((idea) => renderSavedIdeaCard(idea, escape)).join("")}
+          ${normalized.map((idea) => renderSavedIdeaCard(idea, escape, { samplesByIdea })).join("")}
         </div>
       ` : '<p class="muted">No saved skill ideas yet. Use the Command rail with text like <code>create a skill to summarize pleadings</code>.</p>'}
     </section>
   `;
 }
 
-function renderCompactSavedIdeas(ideas, escape) {
+function renderCompactSavedIdeas(ideas, escape, { samplesByIdea = {} } = {}) {
   const activeIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) !== "dismissed");
   const dismissedIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) === "dismissed");
   return `
@@ -78,12 +90,12 @@ function renderCompactSavedIdeas(ideas, escape) {
       ${ideas.length ? `
         <div class="skill-ideas-list">
           ${activeIdeas.length
-            ? activeIdeas.map((idea) => renderSavedIdeaRow(idea, escape)).join("")
+            ? activeIdeas.map((idea) => renderSavedIdeaRow(idea, escape, { samplesByIdea })).join("")
             : '<p class="muted skill-ideas-empty">No active skill ideas.</p>'}
           ${dismissedIdeas.length ? `
             <details class="skill-ideas-dismissed">
               <summary>Show ${dismissedIdeas.length} dismissed idea${dismissedIdeas.length === 1 ? "" : "s"}</summary>
-              ${dismissedIdeas.map((idea) => renderSavedIdeaRow(idea, escape)).join("")}
+              ${dismissedIdeas.map((idea) => renderSavedIdeaRow(idea, escape, { samplesByIdea })).join("")}
             </details>
           ` : ""}
         </div>
@@ -117,12 +129,14 @@ export function extractTargetSkill(text) {
   return match?.[1] || "";
 }
 
-function renderSavedIdeaCard(idea, escape) {
+function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
   const matter = idea.matter || {};
   const matterLabel = matter.matterName || matter.folderName || "No matter attached";
   const brief = normalizeDesignBriefForView(idea.designBrief);
   const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const latestSample = latestSampleForIdea(idea, samplesByIdea);
+  const progress = ideaProgress({ status, readiness, latestSample });
   const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
   return `
     <article class="skill-card skill-idea-card" id="skill-idea-${escape(idea.id || "")}">
@@ -131,7 +145,7 @@ function renderSavedIdeaCard(idea, escape) {
           <div class="skill-slash"><code>proposal</code></div>
           <h3>Saved Skill Idea</h3>
         </div>
-        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+        <span class="pipeline-state ${escape(progress.className)}">${escape(progress.label)}</span>
       </div>
       <p class="muted">Original idea</p>
       <p>${escape(idea.text || "")}</p>
@@ -209,6 +223,7 @@ function renderSavedIdeaCard(idea, escape) {
         </form>
       </details>
       ${renderReadinessChecklist(readiness, escape)}
+      ${renderIdeaSampleSummary(idea, latestSample, escape)}
       <div class="form-actions">
         <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
         <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
@@ -221,12 +236,14 @@ function renderSavedIdeaCard(idea, escape) {
   `;
 }
 
-function renderSavedIdeaRow(idea, escape) {
+function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
   const matter = idea.matter || {};
   const matterLabel = matter.matterName || matter.folderName || "No matter attached";
   const brief = normalizeDesignBriefForView(idea.designBrief);
   const readiness = normalizeReadinessForView(idea.readiness, brief);
+  const latestSample = latestSampleForIdea(idea, samplesByIdea);
+  const progress = ideaProgress({ status, readiness, latestSample });
   const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
   return `
     <article class="skill-idea-row" id="skill-idea-${escape(idea.id || "")}">
@@ -236,14 +253,15 @@ function renderSavedIdeaRow(idea, escape) {
           <div class="skill-idea-row-meta">
             <span>${escape(matterLabel)}</span>
             <span>${escape(formatIdeaDate(idea.createdAt || idea.updatedAt || ""))}</span>
+            ${latestSample ? `<span>${escape(sampleMetaText(latestSample))}</span>` : ""}
           </div>
         </div>
-        <span class="pipeline-state ${escape(statusClass(status))}">${escape(statusLabel(status))}</span>
+        <span class="pipeline-state ${escape(progress.className)}">${escape(progress.label)}</span>
       </div>
       <details class="skill-idea-row-details">
         <summary>
           Review details
-          <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Ready for review" : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`}</span>
+          <span class="pipeline-state ${escape(progress.className)}">${escape(progress.label)}</span>
         </summary>
         <p class="muted">This idea is not runnable. Reviewing it here does not create a slash command, call a provider, or write a matter artifact.</p>
         <details class="skill-idea-brief">
@@ -311,6 +329,7 @@ function renderSavedIdeaRow(idea, escape) {
           </form>
         </details>
         ${renderReadinessChecklist(readiness, escape)}
+        ${renderIdeaSampleSummary(idea, latestSample, escape)}
         <div class="form-actions">
           <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
           <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
@@ -327,7 +346,7 @@ function renderSavedIdeaRow(idea, escape) {
 function reviewPacketStatusText(status, readiness) {
   const label = statusLabel(status);
   if (status === "incomplete" && readiness.ready) {
-    return `${label} - ready to mark for review`;
+    return "Draft complete - ready to mark for review";
   }
   return label;
 }
@@ -443,7 +462,7 @@ function renderReadinessChecklist(readiness, escape) {
     <div class="skill-idea-readiness">
       <div class="skill-idea-readiness-header">
         <strong>Readiness checklist</strong>
-        <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Ready for review" : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`}</span>
+        <span class="pipeline-state ${readiness.ready ? "present" : "pending"}">${readiness.ready ? "Complete" : `Needs details ${readiness.passedCount}/${readiness.totalCount}`}</span>
       </div>
       <ul>
         ${readiness.items.map((item) => `
@@ -455,4 +474,85 @@ function renderReadinessChecklist(readiness, escape) {
       </ul>
     </div>
   `;
+}
+
+function ideaProgress({ status, readiness, latestSample } = {}) {
+  if (status === "dismissed") return { label: "Dismissed", className: "not-run" };
+  if (status === "parked") return { label: "Parked", className: "not-run" };
+  if (latestSample) {
+    const sampleState = getSampleState(latestSample);
+    if (sampleState === "approved_current") return { label: "Sample approved", className: "present" };
+    if (sampleState === "approved_stale" || sampleState === "stale") return { label: "Sample stale", className: "warning" };
+    return { label: "Sample generated", className: "present" };
+  }
+  if (status === "ready_for_review") return { label: "Ready to review", className: "present" };
+  if (readiness?.ready) return { label: "Draft complete", className: "present" };
+  return { label: "Draft saved", className: "pending" };
+}
+
+function latestSampleForIdea(idea, samplesByIdea = {}) {
+  const samples = samplesForIdea(idea, samplesByIdea);
+  return samples.length
+    ? [...samples].sort((a, b) => getSampleVersion(b, 0) - getSampleVersion(a, 0))[0]
+    : null;
+}
+
+function samplesForIdea(idea, samplesByIdea = {}) {
+  const id = String(idea?.id || "").trim();
+  if (!id) return [];
+  const raw = typeof samplesByIdea.get === "function" ? samplesByIdea.get(id) : samplesByIdea[id];
+  const samples = Array.isArray(raw) ? raw : Array.isArray(raw?.samples) ? raw.samples : [];
+  return samples.map(normalizeUiSample);
+}
+
+function renderIdeaSampleSummary(idea, sample, escape) {
+  if (!sample) return "";
+  const sampleId = getSampleId(sample);
+  const sampleState = getSampleState(sample);
+  const warnings = getSampleWarnings(sample);
+  const matter = getSampleMatter(sample);
+  const markdown = getSampleMarkdown(sample);
+  const previewLimit = 4000;
+  const truncated = markdown.length > previewLimit;
+  const preview = truncated
+    ? `${markdown.slice(0, previewLimit)}\n\n[Preview truncated. Copy sample for the full markdown.]`
+    : markdown;
+  return `
+    <section class="skill-idea-sample-summary" aria-label="Generated sample">
+      <div class="skill-idea-sample-summary-head">
+        <div>
+          <strong>Sample generated</strong>
+          <p class="muted">Review the latest sample before deciding whether this should become a skill.</p>
+        </div>
+        <span class="sample-state ${escape(sampleState)}">${escape(formatSampleStateLabel(sampleState))}</span>
+      </div>
+      <dl class="skill-card-meta compact">
+        <div><dt>Sample</dt><dd>v${escape(String(getSampleVersion(sample, 1)))}</dd></div>
+        <div><dt>Matter</dt><dd>${escape(matter.matterName || matter.folderName || "Selected matter")}</dd></div>
+        <div><dt>Provider</dt><dd>${escape(formatSampleProvider(sample))}</dd></div>
+      </dl>
+      ${warnings.length ? `
+        <div class="sample-warning-list" role="note">
+          <strong>Sample warnings</strong>
+          <ul>
+            ${warnings.map((warning) => `<li>${escape(warning)}</li>`).join("")}
+          </ul>
+        </div>
+      ` : ""}
+      <details class="skill-idea-sample-preview">
+        <summary>View latest sample</summary>
+        <pre class="skill-sample-preview-markdown">${escape(preview || "Sample markdown unavailable.")}</pre>
+      </details>
+      <div class="form-actions compact">
+        <button type="button" class="secondary" data-skill-idea-copy-sample data-skill-idea-id="${escape(idea.id || "")}" data-sample-id="${escape(sampleId)}"${sampleId ? "" : " disabled"}>Copy Sample</button>
+      </div>
+    </section>
+  `;
+}
+
+function sampleMetaText(sample) {
+  const state = getSampleState(sample);
+  if (state === "approved_current") return `Sample v${getSampleVersion(sample, 1)} approved`;
+  if (state === "approved_stale" || state === "stale") return `Sample v${getSampleVersion(sample, 1)} stale`;
+  return `Sample v${getSampleVersion(sample, 1)} generated`;
 }

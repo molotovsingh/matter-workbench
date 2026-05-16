@@ -29,6 +29,7 @@ import {
   getSampleMarkdown,
   getSampleState,
   getSampleVersion,
+  getSampleWarnings,
   markSampleReviewStale,
   normalizeUiSample,
 } from "./skill-sample-review.js";
@@ -436,11 +437,14 @@ export function createSkillIdeaSessionController({
 
     const sampleReview = ensureSampleReview(session);
     const previousSample = getSampleMarkdown(sampleReview.activeSample);
+    sampleReview.generating = true;
+    session.sampleReview = sampleReview;
+    renderSkillIdeaSession();
     aiCommandSubmit.disabled = true;
     aiCommandSubmit.textContent = "Generating...";
     ctx.setStatus({
       mood: "thinking",
-      card: "<strong>Generating sample output</strong><br />Using the selected matter context. This will not create a runnable skill.",
+      card: "<strong>Generating sample output</strong><br />This may take a minute. No matter files will be changed.",
       bar: "Generating Sample",
       terminal: `[skill-ideas] generating sample output for ${idea.id || "proposal"}`,
     });
@@ -458,6 +462,7 @@ export function createSkillIdeaSessionController({
       sampleReview.approved = false;
       sampleReview.stale = false;
       sampleReview.staleReason = "";
+      sampleReview.generating = false;
       session.sampleReview = sampleReview;
       await refreshSkillIdeaSampleLedger({ selectSampleId: getSampleId(sample) });
       updateReport({
@@ -478,14 +483,16 @@ export function createSkillIdeaSessionController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks right to create the skill.",
+        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks useful to create the skill.",
         bar: "Sample Output Ready",
         terminal: `[skill-ideas] sample v${sampleReview.samples.length} generated`,
       });
       aiCommandInput.value = "";
-      aiCommandInput.placeholder = "Type feedback, Looks right, Copy Sample, or Regenerate sample";
+      aiCommandInput.placeholder = "Type feedback, Looks useful, Copy Sample, or Regenerate sample";
       renderSkillIdeaSession();
     } catch (error) {
+      sampleReview.generating = false;
+      session.sampleReview = sampleReview;
       updateReport({ status: "failed", error: error.message, skillIdeaId: idea.id || "" });
       recordCommandInteraction({
         renderedState: "skill_idea/sample_output",
@@ -502,6 +509,7 @@ export function createSkillIdeaSessionController({
         terminal: `[skill-ideas] sample failed: ${error.message}`,
       });
     } finally {
+      sampleReview.generating = false;
       updateReport({
         statusBar: getStatusBarText(),
         terminalLines: getLatestTerminalLines(),
@@ -911,7 +919,10 @@ export function createSkillIdeaSessionController({
       sampleReview.ledger = ledger;
       sampleReview.samples = ledger;
       if (ledger.length) {
-        const selected = ledger.find((sample) => getSampleId(sample) === preferredId) || ledger.at(-1);
+        const selected = mergeSampleWarnings(
+          ledger.find((sample) => getSampleId(sample) === preferredId) || ledger.at(-1),
+          sampleReview.activeSample,
+        );
         applyActiveSampleState(sampleReview, selected);
       }
       session.sampleReview = sampleReview;
@@ -924,6 +935,14 @@ export function createSkillIdeaSessionController({
       session.sampleReview = sampleReview;
     }
     return sampleReview;
+  }
+
+  function mergeSampleWarnings(nextSample, previousSample) {
+    if (!nextSample) return nextSample;
+    if (getSampleWarnings(nextSample).length) return nextSample;
+    if (getSampleId(nextSample) !== getSampleId(previousSample)) return nextSample;
+    const previousWarnings = getSampleWarnings(previousSample);
+    return previousWarnings.length ? { ...nextSample, warnings: previousWarnings } : nextSample;
   }
 
   async function copySavedSkillIdeaReviewPacket() {

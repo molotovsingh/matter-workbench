@@ -48,6 +48,7 @@ test("skill sample output rendering keeps sample non-runnable and escapes markdo
       provider: "openai-direct",
       model: "gpt-5.4",
     },
+    warnings: ["462 evidence block(s) were omitted from the bounded packet."],
   }, {
     version: 1,
     approved: true,
@@ -61,6 +62,8 @@ test("skill sample output rendering keeps sample non-runnable and escapes markdo
   assert.match(html, /Sample v1 - approved/);
   assert.match(html, /openai-direct \/ gpt-5\.4/);
   assert.match(html, /Demo Matter/);
+  assert.match(html, /Sample warnings/);
+  assert.match(html, /462 evidence block\(s\) were omitted/);
   assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });

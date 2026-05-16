@@ -196,8 +196,8 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /value="medium" selected/);
   assert.match(html, /Save design brief/);
   assert.match(html, /Readiness checklist/);
-  assert.match(html, /Ready for review/);
-  assert.match(html, /Incomplete 0\/8/);
+  assert.match(html, /Draft complete/);
+  assert.match(html, /Needs details 0\/8/);
   assert.match(html, /Copy Review Packet/);
   assert.match(html, /data-skill-idea-copy-packet/);
   assert.match(html, /Copy Implementation Brief/);
@@ -831,7 +831,7 @@ test("skill idea review packet does not treat background mentions as modificatio
     },
   }, registryFixture());
 
-  assert.match(packet, /- Status: Incomplete - ready to mark for review/);
+  assert.match(packet, /- Status: Draft complete - ready to mark for review/);
   assert.match(packet, /- Checklist: Complete/);
   assert.match(packet, /- Suggested classification: new skill idea/);
   assert.doesNotMatch(packet, /modification candidate|adjacent skill improvement/);

@@ -5,6 +5,7 @@ import {
   getSampleMarkdown,
   getSampleState,
   getSampleVersion,
+  getSampleWarnings,
   renderSampleLedger,
 } from "./skill-sample-review.js";
 
@@ -46,6 +47,7 @@ export function renderCreatedSkillCommandRailHtml(skill = {}) {
 
 export function renderSkillSampleOutputHtml(sample, { version, approved, sampleReview = {} } = {}) {
   const sampleState = getSampleState(sample);
+  const warnings = getSampleWarnings(sample);
   const sampleApproved = approved || sampleState === "approved_current";
   const sampleStale = sampleState === "stale" || sampleState === "approved_stale";
   const statusText = sampleState === "approved_stale"
@@ -65,6 +67,14 @@ export function renderSkillSampleOutputHtml(sample, { version, approved, sampleR
           <div><dt>Matter</dt><dd>${escapeHtml(getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter")}</dd></div>
           <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
         </dl>
+        ${warnings.length ? `
+          <div class="sample-warning-list" role="note">
+            <strong>Sample warnings</strong>
+            <ul>
+              ${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}
+            </ul>
+          </div>
+        ` : ""}
         <pre class="skill-sample-markdown">${escapeHtml(getSampleMarkdown(sample))}</pre>
         ${renderSampleLedger(sampleReview, { central: true })}
       </section>

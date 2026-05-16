@@ -29,6 +29,7 @@ const sampleV1 = {
   },
   feedback: "Make this more specific.",
   sample_markdown: "## Old sample",
+  warnings: ["Earlier packet omitted evidence blocks."],
 };
 
 const sampleV2 = {
@@ -106,5 +107,6 @@ test("sample review copy distinguishes approved current from stale samples", () 
 
   const staleCopy = formatSkillSampleCopy(sampleV1, { approved: true });
   assert.match(staleCopy, /Approved earlier, now stale/);
+  assert.match(staleCopy, /Earlier packet omitted evidence blocks/);
   assert.match(staleCopy, /not a runnable skill/i);
 });

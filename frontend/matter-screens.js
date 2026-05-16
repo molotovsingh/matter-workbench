@@ -2,6 +2,13 @@ import { getJson, postJson } from "./api-client.js";
 import { writeClipboardText } from "./clipboard.js";
 import { escapeHtml } from "./dom-utils.js";
 import { filterMatters } from "./matter-search.js";
+import {
+  formatSkillSampleCopy,
+  getSampleId,
+  getSampleState,
+  getSampleVersion,
+  normalizeUiSample,
+} from "./skill-sample-review.js";
 import { renderActivityPageHtml } from "./views/activity-page.js";
 import { createHomeLandingController } from "./views/home-landing.js";
 import { createSettingsPageController } from "./views/settings-page.js";
@@ -117,6 +124,8 @@ export function createMatterScreens(ctx) {
     let statusError = "";
     let skillIdeas = null;
     let skillIdeasError = "";
+    let skillIdeaSamplesById = {};
+    let skillIdeaSamplesError = "";
     let skillFactoryHealth = null;
     let skillFactoryHealthError = "";
     let configurableSkills = null;
@@ -132,6 +141,11 @@ export function createMatterScreens(ctx) {
       skillIdeas = await getJson("/api/skill-ideas");
     } catch (error) {
       skillIdeasError = error.message;
+    }
+    if (Array.isArray(skillIdeas?.ideas) && skillIdeas.ideas.length) {
+      const loadedSamples = await loadSkillIdeaSamples(skillIdeas.ideas);
+      skillIdeaSamplesById = loadedSamples.samplesById;
+      skillIdeaSamplesError = loadedSamples.error;
     }
     try {
       skillFactoryHealth = await getJson("/api/skill-factory-health");
@@ -161,7 +175,9 @@ export function createMatterScreens(ctx) {
       loadError,
       statusError,
       skillIdeas,
+      skillIdeaSamplesById,
       skillIdeasError,
+      skillIdeaSamplesError,
       skillFactoryHealth,
       skillFactoryHealthError,
       configurableSkills,
@@ -174,8 +190,32 @@ export function createMatterScreens(ctx) {
     wireSkillFactoryHealthActions({ skillFactoryHealth });
     wireSkillIdeaActions({
       ideas: skillIdeas?.ideas || [],
+      samplesByIdea: skillIdeaSamplesById,
       registry,
     });
+  }
+
+  async function loadSkillIdeaSamples(ideas = []) {
+    const entries = await Promise.allSettled((Array.isArray(ideas) ? ideas : [])
+      .filter((idea) => idea?.id)
+      .map(async (idea) => {
+        const payload = await getJson(`/api/skill-ideas/${encodeURIComponent(idea.id)}/samples`);
+        return [idea.id, Array.isArray(payload.samples) ? payload.samples : []];
+      }));
+    const samplesById = {};
+    let failed = 0;
+    for (const entry of entries) {
+      if (entry.status === "fulfilled") {
+        const [ideaId, samples] = entry.value;
+        samplesById[ideaId] = samples;
+      } else {
+        failed += 1;
+      }
+    }
+    return {
+      samplesById,
+      error: failed ? `${failed} sample ledger${failed === 1 ? "" : "s"} unavailable.` : "",
+    };
   }
 
   function wireSkillsPageCommandActions() {
@@ -291,9 +331,17 @@ export function createMatterScreens(ctx) {
     });
   }
 
-  function wireSkillIdeaActions({ ideas = [], registry = {} } = {}) {
+  function wireSkillIdeaActions({ ideas = [], registry = {}, samplesByIdea = {} } = {}) {
     const ideaById = new Map((Array.isArray(ideas) ? ideas : [])
       .map((idea) => [idea.id, idea]));
+    const sampleById = new Map();
+    for (const samples of Object.values(samplesByIdea || {})) {
+      for (const sample of Array.isArray(samples) ? samples : []) {
+        const normalized = normalizeUiSample(sample);
+        const sampleId = getSampleId(normalized);
+        if (sampleId) sampleById.set(sampleId, normalized);
+      }
+    }
     editorContent.querySelectorAll?.("[data-skill-idea-copy-packet]")?.forEach((button) => {
       button.addEventListener("click", async () => {
         const id = button.dataset.skillIdeaId;
@@ -355,6 +403,44 @@ export function createMatterScreens(ctx) {
             card: `<strong>Implementation brief copy failed</strong><br />${escapeHtml(error.message)}`,
             bar: "Implementation Brief Failed",
             terminal: `[skill-ideas] implementation brief copy failed: ${error.message}`,
+          });
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
+    editorContent.querySelectorAll?.("[data-skill-idea-copy-sample]")?.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const ideaId = button.dataset.skillIdeaId || "";
+        const sampleId = button.dataset.sampleId || "";
+        const sample = sampleById.get(sampleId);
+        const status = editorContent.querySelector(`[data-skill-idea-copy-status="${cssEscape(ideaId)}"]`);
+        if (!sample) {
+          setArtifactActionStatus(status, "Sample not found.", true);
+          return;
+        }
+        button.disabled = true;
+        setArtifactActionStatus(status, "Copying sample...");
+        try {
+          await writeClipboardText(formatSkillSampleCopy(sample, {
+            version: getSampleVersion(sample, 1),
+            approved: getSampleState(sample) === "approved_current",
+          }));
+          setArtifactActionStatus(status, "Sample copied.");
+          ctx.setStatus({
+            mood: "idle",
+            card: "<strong>Sample copied</strong><br />This is review output only; no skill or matter artifact was created.",
+            bar: "Sample Copied",
+            terminal: `[skill-ideas] copied sample ${sampleId}`,
+          });
+        } catch (error) {
+          setArtifactActionStatus(status, `Copy failed: ${error.message}`, true);
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Sample copy failed</strong><br />${escapeHtml(error.message)}`,
+            bar: "Sample Copy Failed",
+            terminal: `[skill-ideas] sample copy failed: ${error.message}`,
           });
         } finally {
           button.disabled = false;

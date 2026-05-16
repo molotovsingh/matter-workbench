@@ -3,7 +3,7 @@ import { normalizeCommandInput } from "./command-parsing.js";
 const EDIT_COMMANDS = new Set(["edit answers", "edit"]);
 const GENERATE_SAMPLE_COMMANDS = new Set(["generate sample", "generate sample from this matter", "use this matter for sample"]);
 const SAVED_IDEA_GENERATE_SAMPLE_COMMANDS = new Set(["generate sample", "use this matter for sample", "regenerate sample"]);
-const APPROVE_SAMPLE_COMMANDS = new Set(["looks right", "approve sample", "sample approved"]);
+const APPROVE_SAMPLE_COMMANDS = new Set(["looks useful", "looks right", "approve sample", "sample approved"]);
 const MARK_READY_COMMANDS = new Set(["mark ready for review", "mark ready"]);
 const OPEN_SKILLS_COMMANDS = new Set(["open in skills", "open skills"]);
 

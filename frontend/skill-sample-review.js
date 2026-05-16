@@ -2,6 +2,7 @@ import { escapeHtml } from "./dom-utils.js";
 
 export function formatSkillSampleCopy(sample, { version, approved } = {}) {
   const state = getSampleState(sample);
+  const warnings = getSampleWarnings(sample);
   const statusText = state === "approved_stale"
     ? "Approved earlier, now stale. Regenerate before creating a skill."
     : approved
@@ -18,6 +19,7 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     `- Matter: ${getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter"}`,
     `- Provider/model: ${formatSampleProvider(sample)}`,
     `- Feedback: ${getSampleFeedback(sample) || "None"}`,
+    `- Warnings: ${warnings.length ? warnings.join("; ") : "None"}`,
     "",
     approved && state !== "approved_stale"
       ? "This sample is approved, but it is not a runnable skill until creation and validation succeed."
@@ -114,12 +116,14 @@ export function ensureSampleReview(session = {}) {
       approved: false,
       stale: false,
       staleReason: "",
+      generating: false,
     };
   }
   if (!Array.isArray(session.sampleReview.samples)) session.sampleReview.samples = [];
   if (!Array.isArray(session.sampleReview.ledger)) session.sampleReview.ledger = session.sampleReview.samples;
   if (typeof session.sampleReview.stale !== "boolean") session.sampleReview.stale = false;
   if (typeof session.sampleReview.staleReason !== "string") session.sampleReview.staleReason = "";
+  if (typeof session.sampleReview.generating !== "boolean") session.sampleReview.generating = false;
   return session.sampleReview;
 }
 
@@ -169,6 +173,7 @@ export function normalizeUiSample(sample = {}) {
     feedback: String(merged.feedback || ""),
     ai_run: aiRun,
     aiRun,
+    warnings: normalizeSampleWarnings(merged.warnings || sample.warnings || stored.warnings),
   };
 }
 
@@ -195,6 +200,10 @@ export function getSampleMatter(sample = {}) {
 
 export function getSampleAiRun(sample = {}) {
   return normalizeSampleAiRun(sample?.ai_run || sample?.aiRun || {});
+}
+
+export function getSampleWarnings(sample = {}) {
+  return normalizeSampleWarnings(sample?.warnings);
 }
 
 export function normalizeSampleAiRun(aiRun = {}) {
@@ -237,9 +246,15 @@ function getSampleCreatedAt(sample = {}) {
   return String(sample?.createdAt || sample?.created_at || sample?.generated_at || "").trim();
 }
 
-function formatSampleStateLabel(state) {
+export function formatSampleStateLabel(state) {
   if (state === "approved_current") return "Approved current";
   if (state === "approved_stale") return "Approved stale";
   if (state === "stale") return "Stale";
   return "Current";
+}
+
+function normalizeSampleWarnings(warnings) {
+  return Array.isArray(warnings)
+    ? warnings.map((warning) => String(warning || "").trim()).filter(Boolean).slice(0, 10)
+    : [];
 }
