@@ -93,6 +93,9 @@ be opportunistic rather than automatic.
   descriptor validation, evidence checks, lawyer-facing label safety, and
   normalization into label-governance fields. The engine still re-exports the
   public validation helpers for compatibility.
+- `source-descriptors-packets.mjs` now owns bounded source-packet construction:
+  duplicate file-id detection, source path/name projection, extraction summary
+  fields, block truncation, and block-count limits.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 

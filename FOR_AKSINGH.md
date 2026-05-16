@@ -255,7 +255,9 @@ Good lesson: if AI is allowed to describe a source, it must not be allowed to mu
 
 The provider wiring for this skill now lives in `source-descriptors-provider.mjs`. That file owns the OpenRouter request shape, model-policy resolution, timeout behavior, and fake-provider metadata used by tests.
 
-The Source Index contract now lives in `source-descriptors-validation.mjs`. That module owns the output schema, descriptor validation, evidence checks, lawyer-facing label safety, and normalization into label-governance fields. The engine keeps the legal artifact responsibilities: reading matter files, building bounded source packets, asking the provider, and writing `Source Index.json`. This is the right split because model-routing risk, source-record integrity, and matter-folder IO are three different kinds of work.
+The bounded packet builder now lives in `source-descriptors-packets.mjs`. That file decides how much source text is safe to show the labeling provider: file identity, extraction summary, selected blocks, and truncation limits.
+
+The Source Index contract now lives in `source-descriptors-validation.mjs`. That module owns the output schema, descriptor validation, evidence checks, lawyer-facing label safety, and normalization into label-governance fields. The engine keeps the legal artifact responsibilities: reading matter files, asking the provider, and writing `Source Index.json`. This is the right split because model-routing risk, source-record integrity, packet budgeting, and matter-folder IO are different kinds of work.
 
 ### `create-listofdates-engine.mjs`
 

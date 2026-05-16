@@ -567,7 +567,7 @@ Completed slices:
 4. Added source descriptor prompt and validator guardrails, including no `FILE-NNNN` in human labels.
 5. Enriched `/create_listofdates` output with `source_file_id`, `source_label`, and `source_short_label` while preserving `citation`.
 6. Verified the full chain on a disposable matter.
-7. Split provider request policy into `source-descriptors-provider.mjs` and Source Index schema/validation into `source-descriptors-validation.mjs`.
+7. Split provider request policy into `source-descriptors-provider.mjs`, bounded source packet construction into `source-descriptors-packets.mjs`, and Source Index schema/validation into `source-descriptors-validation.mjs`.
 
 Next likely slices:
 
