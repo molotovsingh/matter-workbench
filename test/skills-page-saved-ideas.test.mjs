@@ -80,6 +80,33 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
   assert.match(packet, /This is not a runnable skill/);
 });
 
+test("skill idea review packet redacts secrets from copied user text", () => {
+  const packet = formatSkillIdeaReviewPacket({
+    id: "idea_1",
+    text: "new skill OPENAI_API_KEY=sk-user-secret",
+    matter: {
+      matterName: "Matter sk-matter-secret",
+      folderName: "Matter sk-folder-secret",
+    },
+    designBrief: {
+      intendedUser: "Lawyer",
+      problem: "provider rejected Bearer sk-problem-secret",
+      expectedInputs: "OPENROUTER_API_KEY=sk-input-secret",
+      expectedOutputArtifact: "20_Workshop/sk-output-secret.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "medium",
+      notes: "MISTRAL_API_KEY=sk-notes-secret",
+    },
+  });
+
+  assert.doesNotMatch(packet, /sk-user-secret|sk-matter-secret|sk-folder-secret|sk-problem-secret|sk-input-secret|sk-output-secret|sk-notes-secret/);
+  assert.match(packet, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(packet, /Bearer \[redacted-secret\]/);
+  assert.match(packet, /OPENROUTER_API_KEY=\[redacted-secret\]/);
+  assert.match(packet, /MISTRAL_API_KEY=\[redacted-secret\]/);
+});
+
 test("saved ideas renderer surfaces generated samples and warnings", () => {
   const html = renderSavedIdeas([
     {

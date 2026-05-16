@@ -110,3 +110,20 @@ test("sample review copy distinguishes approved current from stale samples", () 
   assert.match(staleCopy, /Earlier packet omitted evidence blocks/);
   assert.match(staleCopy, /not a runnable skill/i);
 });
+
+test("sample review copy redacts secrets from copied sample text", () => {
+  const copy = formatSkillSampleCopy({
+    ...sampleV2,
+    matter: {
+      matter_name: "Matter sk-matter-secret",
+    },
+    feedback: "OPENAI_API_KEY=sk-feedback-secret",
+    warnings: ["OPENROUTER_API_KEY=sk-warning-secret"],
+    sample_markdown: "Generated sample includes Bearer sk-sample-secret",
+  });
+
+  assert.doesNotMatch(copy, /sk-matter-secret|sk-feedback-secret|sk-warning-secret|sk-sample-secret/);
+  assert.match(copy, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(copy, /OPENROUTER_API_KEY=\[redacted-secret\]/);
+  assert.match(copy, /Bearer \[redacted-secret\]/);
+});

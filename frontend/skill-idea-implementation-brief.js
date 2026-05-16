@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "./secret-redaction.js";
+
 const KNOWN_TARGETS = [
   {
     slash: "/create_listofdates",
@@ -555,15 +557,15 @@ function standardNonGoals() {
 function listOrFallback(values, fallback = "Not specified") {
   const list = Array.isArray(values) ? values : splitInputs(values);
   const normalized = list.map((value) => stringOrEmpty(value)).filter(Boolean);
-  return normalized.length ? normalized.map((value) => `- ${value}`) : [`- ${fallback}`];
+  return normalized.length ? normalized.map((value) => `- ${redactSensitiveText(value)}`) : [`- ${redactSensitiveText(fallback)}`];
 }
 
 function packetValue(value) {
-  return stringOrEmpty(value) || "Not specified";
+  return redactSensitiveText(stringOrEmpty(value) || "Not specified");
 }
 
 function packetBlock(value) {
-  return stringOrEmpty(value) || "Not specified";
+  return redactSensitiveText(stringOrEmpty(value) || "Not specified");
 }
 
 function stringOrEmpty(value) {

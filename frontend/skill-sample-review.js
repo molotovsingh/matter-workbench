@@ -1,4 +1,5 @@
 import { escapeHtml } from "./dom-utils.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 export function formatSkillSampleCopy(sample, { version, approved } = {}) {
   const state = getSampleState(sample);
@@ -16,10 +17,10 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     `- Sample: v${Number(version || getSampleVersion(sample, 1))}`,
     `- Status: ${statusText}`,
     `- Ledger state: ${formatSampleStateLabel(state)}`,
-    `- Matter: ${getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter"}`,
-    `- Provider/model: ${formatSampleProvider(sample)}`,
-    `- Feedback: ${getSampleFeedback(sample) || "None"}`,
-    `- Warnings: ${warnings.length ? warnings.join("; ") : "None"}`,
+    `- Matter: ${redactSensitiveText(getSampleMatter(sample).matterName || getSampleMatter(sample).folderName || "Selected matter")}`,
+    `- Provider/model: ${redactSensitiveText(formatSampleProvider(sample))}`,
+    `- Feedback: ${redactSensitiveText(getSampleFeedback(sample) || "None")}`,
+    `- Warnings: ${redactSensitiveText(warnings.length ? warnings.join("; ") : "None")}`,
     "",
     approved && state !== "approved_stale"
       ? "This sample is approved, but it is not a runnable skill until creation and validation succeed."
@@ -27,7 +28,7 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     "",
     "## Sample",
     "",
-    getSampleMarkdown(sample),
+    redactSensitiveText(getSampleMarkdown(sample)),
   ];
   return lines.join("\n");
 }

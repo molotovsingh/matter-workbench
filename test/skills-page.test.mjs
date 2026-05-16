@@ -697,6 +697,32 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.doesNotMatch(packet, /API_KEY|OPENAI_API_KEY|MISTRAL_API_KEY|\.env|BEGIN EXTRACTION RECORD|raw document text/i);
 });
 
+test("skill idea implementation brief redacts secrets from copied user text", () => {
+  const packet = formatSkillIdeaImplementationBrief({
+    id: "idea_secret",
+    text: "new skill OPENAI_API_KEY=sk-user-secret",
+    matter: {
+      matterName: "Matter sk-matter-secret",
+      folderName: "Matter sk-folder-secret",
+    },
+    designBrief: {
+      intendedUser: "Lawyer",
+      problem: "provider rejected Bearer sk-problem-secret",
+      expectedInputs: "OPENROUTER_API_KEY=sk-input-secret",
+      expectedOutputArtifact: "20_Workshop/sk-output-secret.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "high",
+      notes: "MISTRAL_API_KEY=sk-notes-secret",
+    },
+  }, registryFixture());
+
+  assert.doesNotMatch(packet, /sk-user-secret|sk-matter-secret|sk-folder-secret|sk-problem-secret|sk-input-secret|sk-output-secret|sk-notes-secret/);
+  assert.match(packet, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(packet, /Bearer \[redacted-secret\]/);
+  assert.match(packet, /OPENROUTER_API_KEY=\[redacted-secret\]/);
+});
+
 test("skill idea implementation brief keeps party and officer mapping as a new skill", () => {
   const packet = formatSkillIdeaImplementationBrief({
     id: "idea_party_map",

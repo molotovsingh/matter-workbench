@@ -9,6 +9,7 @@ import {
   getSampleWarnings,
   normalizeUiSample,
 } from "../skill-sample-review.js";
+import { redactSensitiveText } from "../secret-redaction.js";
 
 export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
@@ -443,12 +444,12 @@ function buildSkillIdeaOpenQuestions({ brief, readiness }) {
 
 function packetValue(value) {
   const normalized = String(value || "").trim();
-  return normalized || "Not specified";
+  return redactSensitiveText(normalized || "Not specified");
 }
 
 function packetBlock(value) {
   const normalized = String(value || "").trim();
-  return normalized || "Not specified";
+  return redactSensitiveText(normalized || "Not specified");
 }
 
 function formatIdeaDate(value) {
