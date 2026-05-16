@@ -89,6 +89,10 @@ be opportunistic rather than automatic.
   injected-provider metadata. `source-descriptors-engine.mjs` remains focused on
   matter IO, packet building, descriptor validation, normalization, and artifact
   writing.
+- `source-descriptors-validation.mjs` now owns the Source Index output schema,
+  descriptor validation, evidence checks, lawyer-facing label safety, and
+  normalization into label-governance fields. The engine still re-exports the
+  public validation helpers for compatibility.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
