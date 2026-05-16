@@ -87,12 +87,13 @@ test("secret redaction helper covers provider keys and bearer tokens", () => {
     "OPENROUTER_API_KEY='sk-openrouter-secret'",
     "MISTRAL_API_KEY=\"sk-mistral-secret\"",
     "authorization: Bearer sk-bearer-secret",
+    "Authorization: Bearer mistral-token-secret",
     "raw sk-raw-secret",
   ].join("\n");
 
   const redacted = redactSensitiveText(text);
 
-  assert.doesNotMatch(redacted, /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|sk-raw-secret/);
+  assert.doesNotMatch(redacted, /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|mistral-token-secret|sk-raw-secret/);
   assert.match(redacted, new RegExp(`OPENAI_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`OPENROUTER_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`MISTRAL_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
