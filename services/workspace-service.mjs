@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { INITIAL_INTAKE_DIR_NAME } from "../shared/matter-contract.mjs";
 import { assertInsideRoot, makeHttpError, toPosix } from "../shared/safe-paths.mjs";
+import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
 const maxTreeDepth = 6;
 const maxChildrenPerDirectory = 160;
@@ -56,7 +57,12 @@ export function createWorkspaceService({ matterStore } = {}) {
   function resolveMatterPath(relativePath = "") {
     const root = matterStore.ensureMatterRoot();
     const resolved = path.resolve(root, relativePath || ".");
-    return assertInsideRoot(root, resolved, "Requested path is outside the matter root");
+    const safePath = assertInsideRoot(root, resolved, "Requested path is outside the matter root");
+    const matterRelative = toPosix(path.relative(root, safePath));
+    if (isBlockedWorkspacePath(matterRelative)) {
+      throw makeHttpError("Requested path is hidden from workspace preview", 403);
+    }
+    return safePath;
   }
 
   function toMatterRelative(filePath) {

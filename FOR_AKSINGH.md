@@ -949,6 +949,8 @@ The same care now applies to artifact writes. Source Index JSON, List of Dates J
 
 That split matters because "show me the file tree" and "turn a legal chronology markdown table into a scannable lawyer surface" are different jobs. The file explorer should stay generic. The List of Dates renderer can now evolve around legal document readability, source fragments, copy/download actions, and chronology summary rules without making the whole workspace sidebar harder to reason about.
 
+The backend has a matching direct-preview guard in `services/workspace-path-policy.mjs`. The tree already hides dotfiles and system folders, but a user could still guess a raw preview URL. The workspace path policy blocks hidden/system paths such as `.env`, `.git`, `node_modules`, app-side hidden folders, and Office temp files before `readFilePreview` or `getRawFile` can serve them.
+
 ## Frontend Lesson: Scope Generic Selectors
 
 The command box once had a small but ugly regression: typing `/` opened the slash-command suggestions, but each suggestion row inherited the dark square submit-button styling. The cause was a selector that was too broad:

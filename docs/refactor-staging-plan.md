@@ -120,6 +120,9 @@ be opportunistic rather than automatic.
 - `services/matter-context-path-policy.mjs` now owns the pure path-exclusion
   trust boundary for matter context packets: secrets, logs, dependency folders,
   machine junk, and temporary Office files stay out of model-bound context.
+- `services/workspace-path-policy.mjs` now owns direct workspace-preview path
+  blocking for hidden/system paths, so manually guessed raw-file URLs cannot
+  bypass what the workspace tree hides.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
