@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
   buildConfigurableSkillMatterContextPacket,
@@ -35,6 +35,7 @@ import {
 } from "./configurable-skill-store.mjs";
 import { validateDraftSkill } from "./configurable-skill-validation.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
@@ -284,8 +285,8 @@ export function createConfigurableSkillsService({
         aiRun,
         warnings,
       };
-      await writeFile(markdownPath, `${markdown}\n`);
-      await writeFile(jsonPath, `${JSON.stringify({
+      await writeFileAtomic(markdownPath, `${markdown}\n`);
+      await writeFileAtomic(jsonPath, `${JSON.stringify({
         ...metadata,
         runId: runRecord.id,
         markdown,

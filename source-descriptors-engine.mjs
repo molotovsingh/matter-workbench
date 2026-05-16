@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
+import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import {
   LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
   legalWorkbenchSystemPrompt,
@@ -215,7 +216,7 @@ export async function runSourceDescriptors(options = {}) {
   const outputJson = path.join(outputDir, OUTPUT_JSON_NAME);
   if (!dryRun) {
     await mkdir(outputDir, { recursive: true });
-    await writeFile(outputJson, `${JSON.stringify(artifact, null, 2)}\n`);
+    await writeFileAtomic(outputJson, `${JSON.stringify(artifact, null, 2)}\n`);
   }
 
   return {
