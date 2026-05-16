@@ -109,6 +109,11 @@ same surface.
 - `services/configurable-skills-service.mjs` still owns lifecycle orchestration,
   but low-level store, provider, validation, context, and run metadata helpers
   are already split.
+- `services/skill-interview-planner-providers.mjs` now owns skill-interview
+  provider request construction, shared policy prompt composition, OpenAI/OpenRouter
+  response parsing, and timeout/error mapping. The planner service remains the
+  orchestrator for enablement, registry summaries, matter metadata summaries,
+  fallback decisions, and schema metadata.
 - `create-listofdates-engine.mjs` remains large because it carries meaningful
   chronology and legal-output policy. Do not mechanically split that policy
   without a behavior reason.
