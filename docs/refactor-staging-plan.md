@@ -117,6 +117,9 @@ be opportunistic rather than automatic.
   skill output path resolution and paired Markdown/JSON artifact writes. The
   configurable skill service remains focused on lifecycle orchestration and run
   ledger updates.
+- `services/multipart-upload.mjs` now owns multipart stream parsing, temp-file
+  staging, upload byte limits, and cleanup. `services/upload-service.mjs`
+  remains focused on create-matter and add-intake domain flow.
 - `services/listofdates-dependency-state.mjs` now owns the pure decision that
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on

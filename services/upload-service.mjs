@@ -1,112 +1,18 @@
-import { createWriteStream } from "node:fs";
-import { copyFile, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
-import os from "node:os";
+import { copyFile, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
-import busboy from "busboy";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
 import { isInsideRoot, makeHttpError, validateRelativePath } from "../shared/safe-paths.mjs";
+import {
+  createMultipartUploadHandler,
+  DEFAULT_MAX_UPLOAD_BYTES,
+} from "./multipart-upload.mjs";
 
-const defaultMaxUploadBytes = 500 * 1024 * 1024;
-
-export function createUploadService({ matterStore, workspaceService, maxUploadBytes = defaultMaxUploadBytes } = {}) {
+export function createUploadService({ matterStore, workspaceService, maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!workspaceService) throw new Error("workspaceService is required");
 
-  async function handleMultipartUpload(request) {
-    const contentType = request.headers["content-type"] || "";
-    if (!contentType.startsWith("multipart/form-data")) {
-      throw makeHttpError("Expected multipart/form-data", 400);
-    }
-
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "matter-upload-"));
-    return new Promise((resolve, reject) => {
-      const bb = busboy({
-        headers: request.headers,
-        limits: { fileSize: maxUploadBytes, files: 5000, fields: 20 },
-      });
-
-      const fields = {};
-      const filePromises = [];
-      let totalBytes = 0;
-      let fileIndex = 0;
-      let aborted = false;
-
-      const fail = (error) => {
-        if (aborted) return;
-        aborted = true;
-        request.unpipe(bb);
-        rm(tempDir, { recursive: true, force: true }).finally(() => {});
-        reject(error);
-      };
-
-      bb.on("field", (name, value) => {
-        fields[name] = value;
-      });
-
-      bb.on("file", (fieldname, fileStream, info) => {
-        if (aborted) {
-          fileStream.resume();
-          return;
-        }
-        const currentIndex = fileIndex;
-        fileIndex += 1;
-        filePromises.push(new Promise((resolveFile, rejectFile) => {
-          const tempPath = path.join(tempDir, `upload-${String(currentIndex).padStart(5, "0")}`);
-          const out = createWriteStream(tempPath);
-          let streamBytes = 0;
-          let settled = false;
-          const rejectOnce = (error) => {
-            if (settled) return;
-            settled = true;
-            rejectFile(error);
-          };
-          fileStream.on("data", (chunk) => {
-            streamBytes += chunk.length;
-            totalBytes += chunk.length;
-            if (totalBytes > maxUploadBytes) {
-              const error = makeHttpError("Upload too large", 413);
-              rejectOnce(error);
-              fail(error);
-              return;
-            }
-          });
-          fileStream.on("limit", () => {
-            const error = makeHttpError("Upload too large", 413);
-            rejectOnce(error);
-            fail(error);
-          });
-          fileStream.on("error", rejectOnce);
-          out.on("error", rejectOnce);
-          out.on("finish", () => {
-            if (settled) return;
-            settled = true;
-            resolveFile({
-              index: currentIndex,
-              filename: info.filename,
-              tempPath,
-              bytes: streamBytes,
-            });
-          });
-          fileStream.pipe(out);
-        }));
-      });
-
-      bb.on("filesLimit", () => fail(makeHttpError("Too many files", 413)));
-      bb.on("error", fail);
-      bb.on("finish", async () => {
-        if (aborted) return;
-        try {
-          resolve({ fields, files: await Promise.all(filePromises), tempDir });
-        } catch (error) {
-          await rm(tempDir, { recursive: true, force: true });
-          reject(error);
-        }
-      });
-
-      request.pipe(bb);
-    });
-  }
+  const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
 
   function parseJsonField(fields, name, fallback) {
     if (!fields[name]) return fallback;

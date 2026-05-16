@@ -902,6 +902,8 @@ The messy legacy details live in `services/doctor-legacy-layout.mjs`: old folder
 
 This split matters because file IDs, duplicate hashes, and intake numbering are rules other services depend on. When those rules live behind a small tested helper, upload, overlap checks, and matter status can reuse them without each service quietly inventing its own version.
 
+Upload handling has the same boundary now. `services/multipart-upload.mjs` owns the noisy HTTP mechanics: parse multipart, stream uploaded files into a temporary directory, enforce byte limits, and clean up on failure. `services/upload-service.mjs` owns the legal-workbench domain step: create a new matter or add a new intake, then run the deterministic matter-init path. The lesson is that "receiving bytes" and "turning bytes into an intake ledger" are different jobs.
+
 ## Test Lesson: Keep Scenarios Clear
 
 The command-box tests cover many real user paths, so they are now split by the kind of story they protect. Basic command routing stays in `test/ai-command-box.test.mjs`; new-skill interview and sample-review behavior lives in `test/ai-command-box-skill-ideas.test.mjs`; configurable custom skill runs live in `test/ai-command-box-configurable-skills.test.mjs`. The fake browser form, fake command rail, and fake status elements live in `test-support/ai-command-box-helpers.mjs`.
