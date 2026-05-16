@@ -1,11 +1,12 @@
 import { postFormData, postJson } from "../api-client.js";
-import { escapeHtml, formatBytes, matterFromWorkspace } from "../dom-utils.js";
+import { escapeHtml, matterFromWorkspace } from "../dom-utils.js";
 import {
   buildFileUploadFormData,
   collectFilesFromDataTransfer,
   collectFilesFromInput,
   hashCollectedFiles,
 } from "../file-collection.js";
+import { updateCollectedFileListElement } from "../file-list-view.js";
 
 export function renderAddFilesForm(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -83,16 +84,7 @@ export function renderAddFilesForm(ctx) {
   };
 
   const updateFileList = () => {
-    if (!pendingFiles.length) {
-      fileList.hidden = true;
-      fileList.innerHTML = "";
-      return;
-    }
-    fileList.hidden = false;
-    const totalBytes = pendingFiles.reduce((sum, item) => sum + item.file.size, 0);
-    const summary = `<li class="file-list-summary">${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"} ready — ${formatBytes(totalBytes)}</li>`;
-    const rows = pendingFiles.map((item) => `<li class="file-list-entry">${escapeHtml(item.relativePath)}</li>`).join("");
-    fileList.innerHTML = summary + rows;
+    updateCollectedFileListElement(fileList, pendingFiles);
   };
 
   function renderThisMatterInfo(warning) {
