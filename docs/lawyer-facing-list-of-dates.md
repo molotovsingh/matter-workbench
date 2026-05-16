@@ -14,7 +14,7 @@ The next step is not to make the chronology more dramatic. The next step is to m
 - client-favourable;
 - readable by an advocate reviewing the file;
 - strict about what the cited source actually supports;
-- audit-friendly, with raw citations preserved.
+- audit-friendly, with raw citations preserved internally.
 
 The output should help the lawyer see why an event matters, not merely that an event occurred.
 
@@ -24,13 +24,46 @@ Today this is acceptable:
 2024-09-30 | Possession deadline missed | FILE-0007 p1.b2
 ```
 
-The desired lawyer-facing form is closer to:
+The desired internal review form is closer to:
 
 ```text
-2024-09-30 | Possession deadline missed | Supports delay / default theory under the client's possession claim | Flat Purchase Agreement - 12 April 2022 (FILE-0007 p1.b2)
+2024-09-30 | Possession deadline missed | Supports delay / default theory under the client's possession claim | Flat Purchase Agreement - 12 April 2022
 ```
 
-The chronology should still read like a case-preparation tool, not a drafted pleading.
+The raw `FILE-0007 p1.b2` citation should remain attached behind the row for
+source-clicking and audit. It should not be part of the visible court-facing
+source label.
+
+The chronology should still read like a case-preparation tool, not a drafted
+pleading.
+
+## Review Output vs Court-Facing Output
+
+There are two different visibility rules.
+
+For internal review, the system may keep raw `FILE-NNNN pX.bY` citations in
+JSON, audit views, hover details, or developer/evaluation outputs.
+
+For court-facing exports, raw developer references must not appear. A filed
+List of Dates should show only lawyer/court-recognizable source labels such as:
+
+- confirmed document titles;
+- annexure labels;
+- exhibit labels;
+- paper-book page references.
+
+The court should never see internal names such as `FILE-0007`, storage paths,
+hashes, extraction IDs, or opaque upload names.
+
+## Generated Library Artifact
+
+The List of Dates should be treated as a generated Library artifact, not a
+lawyer-edited pleading draft.
+
+If the chronology is wrong or stale, the product should fix upstream source
+labels, source inventory, extraction, or matter metadata, then regenerate the
+artifact. The lawyer's manual editing belongs downstream in draft petitions,
+not in the canonical generated chronology.
 
 ## Non-Goals
 
@@ -42,7 +75,7 @@ This design does not authorize:
 - pleading-draft language;
 - conclusory accusations such as "fraud", "bad faith", or "breach proved" unless the cited source itself says that;
 - hiding source uncertainty behind polished prose;
-- replacing canonical `FILE-NNNN pX.bY` citations with human labels.
+- losing canonical `FILE-NNNN pX.bY` citations from internal metadata.
 
 The skill may make the chronology client-favourable. It may not fabricate the client's case.
 
@@ -222,7 +255,7 @@ The lawyer-facing Markdown table should move from a neutral source log to a revi
 ```text
 | Date | Event | Legal Relevance | Source |
 |---|---|---|---|
-| 2024-09-30 | Possession deadline missed | Supports the client's delay/default theory because the cited agreement records 30 September 2024 as the possession deadline. | Flat Purchase Agreement - 12 April 2022 (FILE-0007 p1.b2) |
+| 2024-09-30 | Possession deadline missed | Supports the client's delay/default theory because the cited agreement records 30 September 2024 as the possession deadline. | Flat Purchase Agreement - 12 April 2022 |
 ```
 
 Columns:
@@ -232,7 +265,10 @@ Columns:
 - `Legal Relevance`
 - `Source`
 
-Do not remove the raw citation from `Source`. The readable label helps the lawyer scan the table; the raw citation keeps it auditable.
+Do not remove the raw citation from the underlying JSON or audit metadata. The
+readable label helps the lawyer scan the table; the raw citation keeps it
+auditable behind the scenes. Court-facing exports must not show raw `FILE-...`
+citations in the visible `Source` column.
 
 The CSV can carry the same fields as the JSON for review and filtering.
 
@@ -240,7 +276,7 @@ The CSV can carry the same fields as the JSON for review and filtering.
 
 The guardrails are the main point of this design.
 
-1. Raw `FILE-NNNN pX.bY` citations remain canonical.
+1. Raw `FILE-NNNN pX.bY` citations remain canonical internally.
 2. Every event must cite exactly one extracted block.
 3. Every `legal_relevance` sentence must be supported by the same cited source as the event.
 4. Use `claimed`, `denied`, `alleged`, `states`, or `records` for disputed facts.
@@ -250,6 +286,7 @@ The guardrails are the main point of this design.
 8. If a source records only a relative date, bare year, statute year, or section number, do not create a dated event unless a full calendar date is available.
 9. Do not collapse multiple same-day events when they carry different legal meaning or different citations.
 10. Do not hide contradictions. If a case contains both a claim and counter-evidence, both should be visible as source-backed events.
+11. Never expose raw developer citations, hashes, storage paths, or extraction IDs in court-facing exports.
 
 ## Client-Favourable Does Not Mean One-Sided
 
@@ -303,7 +340,8 @@ The eval should report:
 - extra events that are meta-documentation rather than evidence;
 - legal relevance unsupported by the cited block;
 - disputed facts stated as proven;
-- missing raw citation in Markdown;
+- missing raw citation in internal JSON or audit metadata;
+- raw developer citation leaking into a court-facing export;
 - missing readable source label where `Source Index.json` exists.
 
 ### Golden Checker Direction

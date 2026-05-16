@@ -311,9 +311,74 @@ Rules:
 
 - name the legal job;
 - keep filenames stable and readable;
+- include a date, and use a timestamp when multiple generated versions may
+  exist on the same date;
+- include the audience/status when it changes how the file may be used;
 - avoid pretending a draft is final;
 - preserve raw citations where required;
 - place outputs in the lane that matches the lawyer's mental model.
+
+Recommended filename pattern:
+
+```text
+YYYY-MM-DD [HHMM IST] - Legal Job - Audience/Status.ext
+```
+
+Examples:
+
+- `2026-05-16 1430 IST - List of Dates - Internal - Not for Circulation.md`
+- `2026-05-16 1430 IST - Client Follow-up List - Internal.md`
+- `2026-05-16 - Writ Petition - Working Draft.docx`
+- `2026-05-16 - Writ Petition - Lawyer Review.docx`
+- `2026-05-16 - Writ Petition - Court Filing Copy.pdf`
+
+The app may still keep stable internal contract paths for automation, such as
+`10_Library/List of Dates.json`. The lawyer-facing display name or versioned
+history entry can be longer and more descriptive.
+
+Use `Not for Circulation` for internal assessments, lawyer-review files, and
+workshop material that should not be sent onward. Do not use it for court-facing
+or dispatch-ready files.
+
+## Artifact Visibility Language
+
+Not every generated file should be visible to lawyers by default.
+
+The visible workspace should show clean lawyer-useful outputs. Internal support
+files should exist for safety, evaluation, and audit, but they should not make
+the Matter Explorer look like a pile of half-drafts.
+
+Recommended display rule:
+
+```text
+one clear primary output -> optional supporting outputs -> technical/audit files
+hidden by default
+```
+
+Use these naming distinctions:
+
+| Artifact type | Visible naming | Default visibility |
+| --- | --- | --- |
+| Main skill output | Legal job name, e.g. `List of Dates` | Visible |
+| Supporting lawyer note | Job name, e.g. `Client Follow-up List` | Visible below primary |
+| Internal candidate set | `Candidate Ledger` | Hidden/audit |
+| QA check | `Run Quality Check` | Hidden or secondary |
+| Raw model/provider output | Provider/debug name only | Hidden/developer |
+| Editable legal document | `Working Draft` | Visible in `Drafts` |
+| Filing/sending copy | `Filing Copy` or `Ready to Send` | Visible in `Dispatch` |
+
+Avoid:
+
+- `Draft` for internal assessments;
+- `Final` for anything not lawyer-approved for dispatch;
+- `AI Draft 1`, `AI Draft 2`, etc. in the main workspace;
+- provider/model names in lawyer-facing filenames;
+- file names that expose technical stages such as `pass_1`, `pass_2`, `raw`,
+  `candidate`, or `validation` unless the user opens an audit/debug view.
+
+This distinction matters because lawyers read file names as legal status. A file
+called `Draft` will be treated as something to edit or rely on. Internal
+assessment files should not carry that signal.
 
 ## Command Rail Language
 

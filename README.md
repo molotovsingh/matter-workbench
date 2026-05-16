@@ -17,6 +17,10 @@ For the current tester-facing workflow, Command rail commands, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
 
+For the product strategy behind a reusable built-in skill library that reduces
+custom skill demand and AI spend, see
+[docs/future-design-decisions/native-skill-library-strategy.md](docs/future-design-decisions/native-skill-library-strategy.md).
+
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
 behind an explicit confirmation. Superseded planning contracts now live under
