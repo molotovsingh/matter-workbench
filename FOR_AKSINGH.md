@@ -470,6 +470,8 @@ On the backend, the model-backed interview planner has a similar boundary. `serv
 
 The sample-output generator follows the same pattern. `services/skill-sample-output-service.mjs` owns the matter-context packet, idea normalization, sample envelope, warnings, and no-artifact-write guarantee. `services/skill-sample-output-providers.mjs` owns the OpenAI/OpenRouter request bodies, sample-specific system prompt, response parsing, and timeout/error mapping. That keeps the "show the lawyer a sample before creating a skill" workflow separate from the model plumbing that may change as providers change.
 
+The skill router is also split now. `services/skill-router-service.mjs` owns registry lookup, MECE overlap normalization, user-gate decisions, and legal-setting cleanup. `services/skill-router-providers.mjs` owns the OpenAI request body and router system prompt. That boundary matters because the router is a product-policy decision point; changing provider transport should not require touching the code that decides whether a request is a duplicate, a tuning preference, or a genuinely new workflow.
+
 ## Shared Contracts
 
 The `shared/` folder is where many important boundaries live.

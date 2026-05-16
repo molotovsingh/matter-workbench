@@ -106,6 +106,10 @@ be opportunistic rather than automatic.
   OpenAI/OpenRouter response parsing, and timeout/error mapping. The sample
   service remains the orchestrator for matter-context bounding, idea
   normalization, sample envelopes, warnings, and the no-artifact-write contract.
+- `services/skill-router-providers.mjs` now owns skill-router provider request
+  construction and router policy prompt composition. The router service remains
+  the orchestrator for registry reads, MECE decision normalization, approval
+  gates, and legal-setting cleanup.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
