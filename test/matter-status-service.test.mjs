@@ -236,7 +236,9 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
 
   const labelRefresh = await service.readRerunAdvice("/create_listofdates");
   assert.equal(labelRefresh.state, "stale");
+  assert.equal(labelRefresh.shouldConfirm, true);
   assert.equal(labelRefresh.dependencyState, "label_refresh_needed");
+  assert.match(labelRefresh.message, /cheap label\/render refresh/);
 
   await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
     displayLabel: "Confirmed notice label",
@@ -246,6 +248,7 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
   await utimes(sourceIndexPath, sourceDate, sourceDate);
   const review = await service.readRerunAdvice("/create_listofdates");
   assert.equal(review.dependencyState, "chronology_review_needed");
+  assert.equal(review.shouldConfirm, false);
 
   await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
     displayLabel: "Confirmed notice label",
@@ -255,6 +258,7 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
   await utimes(sourceIndexPath, sourceDate, sourceDate);
   const regeneration = await service.readRerunAdvice("/create_listofdates");
   assert.equal(regeneration.dependencyState, "chronology_regeneration_needed");
+  assert.equal(regeneration.shouldConfirm, false);
 });
 
 function sourceIndexFixture({ displayLabel, contentHash, documentType }) {

@@ -168,11 +168,17 @@ function renderStageRerunHint(stage, escape) {
 }
 
 function rerunHintText(advice) {
+  if (advice.state === "stale") {
+    if (advice.dependencyState === "label_refresh_needed") {
+      return "Source labels changed after this chronology was rendered. A label refresh should be enough; AI chronology regeneration is not required unless the legal facts changed.";
+    }
+    if (advice.dependencyState === "chronology_review_needed") {
+      return "Source metadata changed after this chronology was rendered. Review the current chronology before deciding whether to regenerate.";
+    }
+    return `${sentenceWithPeriod(advice.reason || "Newer source material exists")} Review the existing output document, then regenerate deliberately to include newer inputs.`;
+  }
   if (advice.shouldConfirm) {
     return "An output document already exists. The app will ask before replacing it or starting a paid AI action.";
-  }
-  if (advice.state === "stale") {
-    return `${sentenceWithPeriod(advice.reason || "Newer source material exists")} Review the existing output document, then regenerate deliberately to include newer inputs.`;
   }
   if (advice.state === "missing") {
     return "No output document exists yet; the next run will create one.";

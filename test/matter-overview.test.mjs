@@ -70,3 +70,27 @@ test("matter overview renders read-only pipeline status", () => {
   assert.match(html, /app will ask before replacing it/);
   assert.match(html, /36 rows/);
 });
+
+test("matter overview explains label refresh without implying AI regeneration is required", () => {
+  const html = renderMatterPipelineStatus({
+    stages: [
+      {
+        slash: "/create_listofdates",
+        label: "Create List of Dates",
+        present: true,
+        artifacts: ["10_Library/List of Dates.md"],
+        rerunAdvice: {
+          state: "stale",
+          shouldConfirm: true,
+          dependencyState: "label_refresh_needed",
+          reason: "Only Source Index labels appear newer than this artifact.",
+          newestInputPath: "10_Library/Source Index.json",
+        },
+      },
+    ],
+  }, escapeHtml);
+
+  assert.match(html, /Source labels changed after this chronology was rendered/);
+  assert.match(html, /label refresh should be enough/);
+  assert.match(html, /AI chronology regeneration is not required/);
+});

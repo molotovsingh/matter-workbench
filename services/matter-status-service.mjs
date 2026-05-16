@@ -193,19 +193,24 @@ function buildRerunAdvice({
     const dependencyState = typeof classifyStaleDependency === "function"
       ? classifyStaleDependency(newestInput)
       : "";
-    return baseRerunAdvice({
+    const labelRefreshOnly = dependencyState === "label_refresh_needed";
+    const advice = baseRerunAdvice({
       skill,
       label,
       state: "stale",
-      shouldConfirm: false,
+      shouldConfirm: labelRefreshOnly,
       artifactPath: target.relativePath,
       lastRunAt: artifactRunTime(target),
       aiRun: normalizeAiRun(target.json?.ai_run),
-      reason: staleDescription,
+      reason: labelRefreshOnly
+        ? "Only Source Index labels appear newer than this artifact."
+        : staleDescription,
       dependencyState,
       newestInputPath: newestInput.relativePath,
       newestInputAt: new Date(newestInput.mtimeMs).toISOString(),
     });
+    if (labelRefreshOnly) advice.message = formatLabelRefreshMessage(advice);
+    return advice;
   }
 
   const aiRun = normalizeAiRun(target.json?.ai_run);
@@ -223,6 +228,17 @@ function buildRerunAdvice({
   });
   advice.message = formatRerunMessage(advice);
   return advice;
+}
+
+function formatLabelRefreshMessage(advice) {
+  const lines = [
+    `${advice.skill} has a current ${advice.label} artifact, but source labels changed after it was rendered.`,
+    `Artifact: ${advice.artifactPath}`,
+  ];
+  if (advice.lastRunAt) lines.push(`Last run: ${advice.lastRunAt}`);
+  lines.push("This usually needs a cheap label/render refresh, not AI chronology regeneration.");
+  lines.push("Regenerate only if the legal chronology itself may be wrong.");
+  return lines.join("\n");
 }
 
 function baseRerunAdvice({
