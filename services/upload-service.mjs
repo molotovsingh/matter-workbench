@@ -1,8 +1,13 @@
-import { copyFile, mkdir, rm, stat } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
-import { isInsideRoot, makeHttpError, validateRelativePath } from "../shared/safe-paths.mjs";
+import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
+import {
+  parseUploadJsonField,
+  validateUploadPathList,
+  writeUploadedFiles,
+} from "./upload-file-intake.mjs";
 import {
   createMultipartUploadHandler,
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -13,36 +18,6 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
   if (!workspaceService) throw new Error("workspaceService is required");
 
   const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
-
-  function parseJsonField(fields, name, fallback) {
-    if (!fields[name]) return fallback;
-    try {
-      return JSON.parse(fields[name]);
-    } catch {
-      throw makeHttpError(`Invalid ${name} JSON`, 400);
-    }
-  }
-
-  function validatePathList(fields, files) {
-    const relativePaths = parseJsonField(fields, "paths", []);
-    if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-      throw makeHttpError("paths array must match file count", 400);
-    }
-    return relativePaths;
-  }
-
-  async function writeUploadedFiles(files, relativePaths, destinationRoot, escapeMessage) {
-    await mkdir(destinationRoot, { recursive: true });
-    for (const file of files.sort((a, b) => a.index - b.index)) {
-      const safeRel = validateRelativePath(relativePaths[file.index]);
-      const destination = path.resolve(destinationRoot, safeRel);
-      if (!isInsideRoot(destinationRoot, destination)) {
-        throw makeHttpError(escapeMessage, 400);
-      }
-      await mkdir(path.dirname(destination), { recursive: true });
-      await copyFile(file.tempPath, destination);
-    }
-  }
 
   async function createMatter(request) {
     const mattersHome = matterStore.ensureMattersHome();
@@ -63,11 +38,13 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
         if (cause.code !== "ENOENT") throw cause;
       }
 
-      const metadata = parseJsonField(fields, "metadata", {});
-      const relativePaths = validatePathList(fields, files);
+      const metadata = parseUploadJsonField(fields, "metadata", {});
+      const relativePaths = validateUploadPathList(fields, files);
       const evidenceDir = path.join(matterPath, "00_Inbox", "Intake 01 - Initial", "Source Files");
       if (!isInsideRoot(mattersHome, evidenceDir)) throw makeHttpError("Invalid matter path", 400);
-      await writeUploadedFiles(files, relativePaths, evidenceDir, "Resolved destination escapes matter root");
+      await writeUploadedFiles(files, relativePaths, evidenceDir, {
+        escapeMessage: "Resolved destination escapes matter root",
+      });
       matterStore.setMatterRoot(matterPath);
       await runMatterInit({ matterRoot: matterPath, metadata, dryRun: false });
       return await workspaceService.readWorkspace();
@@ -81,7 +58,7 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
       const label = validateIntakeLabel(fields.label);
-      const relativePaths = validatePathList(fields, files);
+      const relativePaths = validateUploadPathList(fields, files);
       if (!files.length) throw makeHttpError("No files attached", 400);
 
       const intakeNumber = await matterStore.nextIntakeNumber(root);
@@ -92,7 +69,9 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
       const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
       const sourceFilesDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
       if (!isInsideRoot(root, sourceFilesDir)) throw makeHttpError("Resolved intake path escapes matter root", 400);
-      await writeUploadedFiles(files, relativePaths, sourceFilesDir, "Resolved destination escapes intake root");
+      await writeUploadedFiles(files, relativePaths, sourceFilesDir, {
+        escapeMessage: "Resolved destination escapes intake root",
+      });
 
       const existing = await matterStore.readExistingMatterMetadata(root);
       const result = await runMatterInit({

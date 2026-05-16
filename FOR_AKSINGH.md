@@ -904,7 +904,9 @@ The messy legacy details live in `services/doctor-legacy-layout.mjs`: old folder
 
 This split matters because file IDs, duplicate hashes, and intake numbering are rules other services depend on. When those rules live behind a small tested helper, upload, overlap checks, and matter status can reuse them without each service quietly inventing its own version.
 
-Upload handling has the same boundary now. `services/multipart-upload.mjs` owns the noisy HTTP mechanics: parse multipart, stream uploaded files into a temporary directory, enforce byte limits, and clean up on failure. `services/upload-service.mjs` owns the legal-workbench domain step: create a new matter or add a new intake, then run the deterministic matter-init path. The lesson is that "receiving bytes" and "turning bytes into an intake ledger" are different jobs.
+Upload handling has the same boundary now. `services/multipart-upload.mjs` owns the noisy HTTP mechanics: parse multipart, stream uploaded files into a temporary directory, enforce byte limits, and clean up on failure. `services/upload-file-intake.mjs` owns the next narrow step: parse upload JSON fields, make sure every uploaded file has a matching relative path, reject unsafe paths, and copy staged temp files into the intake folder. `services/upload-service.mjs` owns the legal-workbench domain step: create a new matter or add a new intake, then run the deterministic matter-init path.
+
+That split is boring on purpose. Upload code is where small mistakes become durable disk mistakes. Keeping "which bytes came in", "where may they be copied", and "what legal workflow should run after copy" in separate modules makes future file-import changes easier to test without disturbing matter creation.
 
 ## Test Lesson: Keep Scenarios Clear
 

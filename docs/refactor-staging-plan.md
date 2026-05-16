@@ -124,6 +124,10 @@ be opportunistic rather than automatic.
 - `services/multipart-upload.mjs` now owns multipart stream parsing, temp-file
   staging, upload byte limits, and cleanup. `services/upload-service.mjs`
   remains focused on create-matter and add-intake domain flow.
+- `services/upload-file-intake.mjs` now owns upload JSON-field parsing,
+  relative-path count validation, and safe copying from staged temp files into
+  matter intake folders. The upload service no longer carries low-level file
+  write/path mechanics.
 - `services/listofdates-dependency-state.mjs` now owns the pure decision that
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on
