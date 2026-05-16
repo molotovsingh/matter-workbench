@@ -859,6 +859,6 @@ This split matters because file IDs, duplicate hashes, and intake numbering are 
 
 ## Test Lesson: Keep Scenarios Clear
 
-The command-box tests cover many real user paths, so the file is naturally long. The fake browser form, fake command rail, and fake status elements now live in `test/ai-command-box-helpers.mjs`.
+The command-box tests cover many real user paths, so the file is naturally long. The fake browser form, fake command rail, and fake status elements now live in `test-support/ai-command-box-helpers.mjs`.
 
 That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper, the test file can spend more of its space explaining behavior instead of rebuilding the stage.

@@ -6,7 +6,7 @@ import {
   fakeCtx,
   fakeForm,
   noSkillOverlapDecision,
-} from "./ai-command-box-helpers.mjs";
+} from "../test-support/ai-command-box-helpers.mjs";
 
 test("command box dispatches deterministic slash commands through injected skill runners", async () => {
   const calls = [];
