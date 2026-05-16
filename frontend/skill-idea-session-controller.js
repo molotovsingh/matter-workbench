@@ -19,7 +19,6 @@ import {
   renderSkillCreationOverlapGateHtml,
 } from "./skill-creation-overlap.js";
 import {
-  applyActiveSampleState,
   ensureSampleReview,
   findSampleByVersion,
   formatSampleProvider,
@@ -29,10 +28,10 @@ import {
   getSampleMarkdown,
   getSampleState,
   getSampleVersion,
-  getSampleWarnings,
   markSampleReviewStale,
   normalizeUiSample,
 } from "./skill-sample-review.js";
+import { refreshSkillIdeaSampleLedger as refreshSampleLedger } from "./skill-idea-sample-ledger.js";
 import {
   renderSkillReadyHtml,
   renderSkillSampleOutputHtml,
@@ -908,41 +907,11 @@ export function createSkillIdeaSessionController({
   }
 
   async function refreshSkillIdeaSampleLedger({ selectSampleId = "" } = {}) {
-    const session = currentSkillIdeaInterview;
-    const idea = session?.savedIdea;
-    if (!idea?.id) return ensureSampleReview(session || {});
-    const sampleReview = ensureSampleReview(session);
-    const preferredId = selectSampleId || getSampleId(sampleReview.activeSample);
-    try {
-      const payload = await listSkillIdeaSamples(idea.id);
-      const ledger = Array.isArray(payload.samples) ? payload.samples.map(normalizeUiSample) : [];
-      sampleReview.ledger = ledger;
-      sampleReview.samples = ledger;
-      if (ledger.length) {
-        const selected = mergeSampleWarnings(
-          ledger.find((sample) => getSampleId(sample) === preferredId) || ledger.at(-1),
-          sampleReview.activeSample,
-        );
-        applyActiveSampleState(sampleReview, selected);
-      }
-      session.sampleReview = sampleReview;
-    } catch {
-      const ledger = getLedgerSamples(sampleReview);
-      sampleReview.ledger = ledger;
-      if (sampleReview.activeSample) {
-        applyActiveSampleState(sampleReview, sampleReview.activeSample);
-      }
-      session.sampleReview = sampleReview;
-    }
-    return sampleReview;
-  }
-
-  function mergeSampleWarnings(nextSample, previousSample) {
-    if (!nextSample) return nextSample;
-    if (getSampleWarnings(nextSample).length) return nextSample;
-    if (getSampleId(nextSample) !== getSampleId(previousSample)) return nextSample;
-    const previousWarnings = getSampleWarnings(previousSample);
-    return previousWarnings.length ? { ...nextSample, warnings: previousWarnings } : nextSample;
+    return refreshSampleLedger({
+      session: currentSkillIdeaInterview,
+      listSkillIdeaSamples,
+      selectSampleId,
+    });
   }
 
   async function copySavedSkillIdeaReviewPacket() {

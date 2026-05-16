@@ -862,3 +862,11 @@ This split matters because file IDs, duplicate hashes, and intake numbering are 
 The command-box tests cover many real user paths, so the file is naturally long. The fake browser form, fake command rail, and fake status elements now live in `test-support/ai-command-box-helpers.mjs`.
 
 That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper, the test file can spend more of its space explaining behavior instead of rebuilding the stage.
+
+## Frontend Sample Lesson: Protect the Payoff
+
+The new-skill flow has one moment that matters most: the generated sample. That is where a lawyer decides whether the proposed skill is useful, safe, and worth turning into something runnable.
+
+The session controller still owns the conversation, but sample ledger refresh now lives in `frontend/skill-idea-sample-ledger.js`. That helper does one narrow job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
+
+This is a useful kind of frontend refactor because it moves the fragile part of the payoff into a small tested module. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
