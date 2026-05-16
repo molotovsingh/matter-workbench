@@ -114,6 +114,9 @@ be opportunistic rather than automatic.
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on
   disk mtimes, artifact reads, and advice message envelopes.
+- `services/matter-context-path-policy.mjs` now owns the pure path-exclusion
+  trust boundary for matter context packets: secrets, logs, dependency folders,
+  machine junk, and temporary Office files stay out of model-bound context.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 

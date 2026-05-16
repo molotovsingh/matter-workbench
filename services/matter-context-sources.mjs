@@ -2,7 +2,10 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
 import { SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
-import { toPosix } from "../shared/safe-paths.mjs";
+import {
+  isExcludedMatterContextPath,
+  toMatterContextPacketPath,
+} from "./matter-context-path-policy.mjs";
 import {
   effectiveShortSourceLabel,
   effectiveSourceLabel,
@@ -13,24 +16,6 @@ export { SOURCE_INDEX_RELATIVE };
 
 const EXTRACTION_RECORD_SCHEMA_VERSION = "extraction-record/v1";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
-
-const MACHINE_JUNK_NAMES = new Set([
-  ".DS_Store",
-  "Thumbs.db",
-  "desktop.ini",
-]);
-
-const EXCLUDED_PATH_SEGMENTS = new Set([
-  ".git",
-  "node_modules",
-]);
-
-const SECRET_OR_LOG_EXTENSIONS = new Set([
-  ".env",
-  ".log",
-  ".sqlite",
-  ".db",
-]);
 
 export async function readMatterContextSources(root, warnings = []) {
   const matterJson = await readMatterJson(root);
@@ -62,9 +47,10 @@ async function discoverIntakes(root, matterJson) {
   const byDir = new Map();
   for (const intake of matterIntakes(matterJson)) {
     if (!intake?.intake_dir) continue;
-    byDir.set(toPosix(intake.intake_dir), {
+    const intakeDir = toMatterContextPacketPath(intake.intake_dir);
+    byDir.set(intakeDir, {
       intake_id: intake.intake_id || intakeIdFromDir(intake.intake_dir),
-      intake_dir: toPosix(intake.intake_dir),
+      intake_dir: intakeDir,
     });
   }
 
@@ -141,9 +127,9 @@ function normalizeRegisterRow(row, intake) {
   return {
     file_id: row.file_id || "",
     intake_id: row.intake_id || intake.intake_id,
-    source_path: toPacketPath(row.source_path || ""),
-    original_path: toPacketPath(row.original_path || ""),
-    working_copy_path: toPacketPath(row.working_copy_path || ""),
+    source_path: toMatterContextPacketPath(row.source_path || ""),
+    original_path: toMatterContextPacketPath(row.original_path || ""),
+    working_copy_path: toMatterContextPacketPath(row.working_copy_path || ""),
     category: row.category || "",
     original_name: row.original_name || path.basename(row.source_path || ""),
     sha256: row.sha256 || "",
@@ -174,20 +160,7 @@ function shouldExcludeRegisterRow(row = {}) {
     row.working_copy_path,
     row.original_name,
   ].filter(Boolean);
-  return candidates.some(isExcludedMatterPath);
-}
-
-function isExcludedMatterPath(value) {
-  const normalized = toPacketPath(value);
-  const segments = normalized.split("/").filter(Boolean);
-  if (segments.some((segment) => EXCLUDED_PATH_SEGMENTS.has(segment))) return true;
-  const basename = segments.at(-1) || "";
-  if (!basename) return false;
-  if (MACHINE_JUNK_NAMES.has(basename)) return true;
-  if (basename.startsWith("~$")) return true;
-  if (basename === ".env" || basename.startsWith(".env.")) return true;
-  if (SECRET_OR_LOG_EXTENSIONS.has(path.extname(basename).toLowerCase())) return true;
-  return false;
+  return candidates.some(isExcludedMatterContextPath);
 }
 
 async function readTrustedSourceDescriptors(root, registerByFileId, warnings) {
@@ -279,8 +252,4 @@ async function readExtractionRecords(root, intakes, warnings) {
     }
   }
   return records.sort((a, b) => String(a.file_id).localeCompare(String(b.file_id), undefined, { numeric: true }));
-}
-
-function toPacketPath(value) {
-  return toPosix(String(value || ""));
 }

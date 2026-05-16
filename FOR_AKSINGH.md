@@ -871,6 +871,7 @@ The context layer now has clearer rooms:
 - `services/matter-context-preview.mjs` turns that packet into the small UI preview.
 - `services/matter-context-search.mjs` searches packet evidence blocks.
 - `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal.
+- `services/matter-context-path-policy.mjs` owns the path exclusion rules that keep secrets, logs, dependency folders, machine junk, and temporary Office files out of context packets.
 - `services/matter-context-library-artifacts.mjs` owns the small summaries of selected library outputs, such as Source Index and List of Dates artifacts.
 
 The public imports stayed stable, so callers can still import `buildMatterContextPacket`, `summarizeMatterContextPacket`, and `searchMatterContextPacket` from the service module. Internally, the facade no longer owns packet construction and preview shaping. That matters because future work on context packets, source labels, or search ranking can now land in the right file instead of reopening one mixed service.
