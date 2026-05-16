@@ -427,6 +427,7 @@ Important files:
 - `frontend/skill-idea-interview.js` - interview planning, planner fallback, and design-brief normalization;
 - `frontend/skill-idea-interview-templates.js` - deterministic interview templates, adjacent-native-skill patterns, and simple output-lane hints;
 - `frontend/matter-screens.js` - settings and matter screens;
+- `frontend/skills-page-actions.js` - Skills and Activity page copy/open/status button wiring;
 - `frontend/workspace-view.js` - workspace tree, lane opening, and generic file preview selection;
 - `frontend/listofdates-markdown-preview.js` - List of Dates markdown parsing, scannable chronology rendering, and copy/download actions;
 - `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
