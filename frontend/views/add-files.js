@@ -1,4 +1,4 @@
-import { postJson } from "../api-client.js";
+import { postFormData, postJson } from "../api-client.js";
 import { escapeHtml, formatBytes, matterFromWorkspace } from "../dom-utils.js";
 import { collectFilesFromDataTransfer, collectFilesFromInput, hashFile } from "../file-collection.js";
 
@@ -221,13 +221,7 @@ export function renderAddFilesForm(ctx) {
       formData.append("label", label);
       formData.append("paths", JSON.stringify(pendingFiles.map((item) => item.relativePath)));
       pendingFiles.forEach((item) => formData.append("files", item.file, item.file.name));
-      const response = await fetch("/api/matters/add-files", { method: "POST", body: formData });
-      const payload = await response.json();
-      if (!response.ok) {
-        const err = new Error(payload.error || `add-files returned ${response.status}`);
-        err.statusCode = response.status;
-        throw err;
-      }
+      const payload = await postFormData("/api/matters/add-files", formData);
       ctx.setActiveMatter(matterFromWorkspace(payload));
       const a = payload.intakeAdded;
       ctx.setStatus({

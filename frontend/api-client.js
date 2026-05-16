@@ -12,6 +12,14 @@ export async function postJson(url, body = {}) {
   return parseJsonResponse(response, url);
 }
 
+export async function postFormData(url, formData) {
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData,
+  });
+  return parseJsonResponse(response, url);
+}
+
 async function parseJsonResponse(response, label) {
   let payload = null;
   try {
@@ -20,7 +28,9 @@ async function parseJsonResponse(response, label) {
     // Non-JSON response; error below includes status.
   }
   if (!response.ok) {
-    throw new Error(payload?.error || `${label} returned ${response.status}`);
+    const error = new Error(payload?.error || `${label} returned ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
   }
   return payload;
 }

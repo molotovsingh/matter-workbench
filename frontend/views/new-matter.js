@@ -1,4 +1,4 @@
-import { postJson } from "../api-client.js";
+import { postFormData, postJson } from "../api-client.js";
 import { escapeHtml, formatBytes, matterFromWorkspace } from "../dom-utils.js";
 import { collectFilesFromDataTransfer, collectFilesFromInput, hashFile } from "../file-collection.js";
 
@@ -247,13 +247,7 @@ export function renderNewMatterForm(ctx) {
       formData.append("metadata", JSON.stringify(metadata));
       formData.append("paths", JSON.stringify(pendingFiles.map((item) => item.relativePath)));
       pendingFiles.forEach((item) => formData.append("files", item.file, item.file.name));
-      const response = await fetch("/api/matters/new", { method: "POST", body: formData });
-      const payload = await response.json();
-      if (!response.ok) {
-        const error = new Error(payload.error || `matters/new returned ${response.status}`);
-        error.statusCode = response.status;
-        throw error;
-      }
+      const payload = await postFormData("/api/matters/new", formData);
       await ctx.loadMattersList();
       ctx.setActiveMatter(matterFromWorkspace(payload));
       ctx.setStatus({
