@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "./secret-redaction.js";
+
 const DEFAULT_ACTIVITY_LINE_CAP = 500;
 
 export function createActivityLogStore({
@@ -56,7 +58,7 @@ export function latestActivityLines(lines = [], { limit = 4, newestFirst = true 
 export function normalizeActivityInput(input = []) {
   const values = Array.isArray(input) ? input : String(input || "").split("\n");
   return values
-    .map((line) => String(line || "").trim())
+    .map((line) => redactSensitiveText(String(line || "").trim()))
     .filter(Boolean);
 }
 

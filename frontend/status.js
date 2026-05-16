@@ -1,5 +1,6 @@
 import { escapeHtml } from "./dom-utils.js";
 import { createActivityLogStore } from "./activity-log-store.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 const COMPACT_ACTIVITY_LINE_CAP = 3;
 
@@ -19,7 +20,7 @@ export function createStatusController({
   }
 
   function setStatus({ bar, terminal } = {}) {
-    if (bar !== undefined && statusBarRight) statusBarRight.innerHTML = `<span>${escapeHtml(bar)}</span>`;
+    if (bar !== undefined && statusBarRight) statusBarRight.innerHTML = `<span>${escapeHtml(redactSensitiveText(bar))}</span>`;
     if (terminal !== undefined) appendTerminal(terminal);
   }
 
@@ -77,5 +78,5 @@ export function formatCompactActivityLine(line) {
     .replace(/\s+/g, " ")
     .trim();
   if (!message) return null;
-  return { time, message };
+  return { time, message: redactSensitiveText(message) };
 }
