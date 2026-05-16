@@ -18,6 +18,11 @@ coherent:
 The cleanup is product-facing: stop presenting setup, search, maintenance, and
 legal work-product skills as if they are the same kind of thing.
 
+The provider-backed parts of this spine should also inherit the shared
+[Legal Workbench Policy Prompt](legal-workbench-policy-prompt.md). That prompt
+contract keeps legal-output rules stable across OpenAI direct, OpenRouter, and
+future models.
+
 ## Current Native Spine
 
 | Slash command | Keep? | Product treatment |

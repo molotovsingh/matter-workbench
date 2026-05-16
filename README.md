@@ -20,6 +20,9 @@ local env, paid rerun behavior, and review checklist, see
 For the product strategy behind a reusable built-in skill library that reduces
 custom skill demand and AI spend, see
 [docs/future-design-decisions/native-skill-library-strategy.md](docs/future-design-decisions/native-skill-library-strategy.md).
+For the shared legal-output prompt contract that keeps source, citation,
+visibility, and model-risk rules stable across providers, see
+[docs/future-design-decisions/legal-workbench-policy-prompt.md](docs/future-design-decisions/legal-workbench-policy-prompt.md).
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

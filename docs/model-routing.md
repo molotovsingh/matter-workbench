@@ -38,6 +38,11 @@ The shared clients are intentionally thin. They know how to make provider reques
 
 That judgment belongs in model policy.
 
+The complementary legal-output baseline is tracked in
+[Legal Workbench Policy Prompt](future-design-decisions/legal-workbench-policy-prompt.md).
+Model policy decides where a task runs. The policy prompt defines the
+professional rules each provider-backed task must carry wherever it runs.
+
 ## OpenRouter Fit
 
 OpenRouter is useful here because it provides access to multiple models behind one API surface. Matter Workbench currently uses two API shapes:
@@ -60,7 +65,7 @@ Important caution: OpenRouter routing is a provider capability, not a skill desi
 This document still does not propose:
 
 - Adding new provider code in documentation-only changes.
-- Changing prompts.
+- Changing prompts as part of model-routing itself.
 - Changing skill registry schema.
 - Moving every model choice into the UI.
 - Letting an AI model choose the production model policy.

@@ -911,3 +911,11 @@ This is a good frontend lesson because nothing was wrong with the JavaScript. Th
 The Skills page briefly had the right data but the wrong first impression. It showed custom skills first, so the page looked like the product only had three skills even though the header counted native and built-in capabilities. That is a product hierarchy bug, not a data bug.
 
 The fix was to put `Native Skills` first: Source Labels / Document Index and Create List of Dates. Custom skills now sit below them as user-created extensions, and setup/search/maintenance tools sit lower as supporting tools. This matches the product direction: the app should feel like a staged legal workbench with strong native workflows, not a blank skill registry where every slash command has equal weight.
+
+## Policy Prompt Lesson: Models Are Replaceable, Legal Rules Are Not
+
+As the product starts using more than one model route, prompt discipline becomes part of architecture, not just copywriting. OpenAI direct, OpenRouter, a cheaper router model, a stronger drafting model, or a future firm-configured model may all behave differently by default. The app cannot let those defaults decide whether raw `FILE-0001` citations leak into lawyer-visible Markdown, whether a year-only source becomes a fake exact date, or whether repeated citations turn into duplicate chronology events.
+
+The right shape is an app-owned legal workbench policy prompt. Model routing decides where the request goes; the policy prompt decides the professional rules that travel with it. Custom skills can add workflow-specific instructions, but they should not be allowed to override the baseline rules: do not invent facts, preserve uncertainty, keep internal citations internal, use lawyer-readable source labels, obey schemas, and fail closed when source support is insufficient.
+
+That is a useful engineering lesson. When a system depends on replaceable external intelligence, the product has to carry its own values and constraints in code, tests, and durable contracts. Otherwise changing models quietly changes the profession-facing behavior of the app.

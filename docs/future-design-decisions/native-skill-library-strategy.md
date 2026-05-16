@@ -82,6 +82,11 @@ Implementation direction is tracked in
 That contract preserves the current native spine while separating lawyer-facing
 legal skills from setup, readiness, search, and maintenance surfaces.
 
+Provider-backed native and custom skills should also inherit the
+[Legal Workbench Policy Prompt](legal-workbench-policy-prompt.md), which keeps
+source, citation, uncertainty, visibility, and model-risk rules stable even when
+the underlying model changes.
+
 ## Important Distinction: Chronology Is Not One Thing
 
 The current `/create_listofdates` skill is central, but "List of Dates" carries
