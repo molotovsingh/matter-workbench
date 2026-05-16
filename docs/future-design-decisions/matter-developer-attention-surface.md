@@ -31,6 +31,12 @@ matter-attention/v1
 
 The endpoint requires an active matter, just like `/api/matter-status`.
 
+Developer tooling may also inspect a named matter without switching the active matter:
+
+```text
+GET /api/matter-attention?matter=Atlas%20Constuction%20vs%20Diptishree
+```
+
 It does not:
 
 - write new logs;

@@ -97,6 +97,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await matterStatusService.readMatterStatus());
       }),
       exactRoute("GET", "/api/matter-attention", async () => {
+        const matterName = requestUrl.searchParams.get("matter") || "";
+        if (matterName.trim()) {
+          const { name, matterPath } = matterStore.matterPathForName(matterName);
+          sendJson(response, 200, await matterAttentionService.readMatterAttention(matterPath, { matterName: name }));
+          return;
+        }
         sendJson(response, 200, await matterAttentionService.readMatterAttention());
       }),
       exactRoute("GET", "/api/prepare-matter", async () => {

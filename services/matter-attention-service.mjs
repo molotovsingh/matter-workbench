@@ -28,8 +28,10 @@ export function createMatterAttentionService({
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
-  async function readMatterAttention(root = matterStore.ensureMatterRoot()) {
-    const matterName = matterStore.activeMatterNameWithinHome?.() || path.basename(root);
+  async function readMatterAttention(root = matterStore.ensureMatterRoot(), options = {}) {
+    const matterName = normalizeText(options.matterName)
+      || matterStore.activeMatterNameWithinHome?.()
+      || path.basename(root);
     const items = [];
     const context = {
       root,
