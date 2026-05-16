@@ -474,6 +474,8 @@ The skill router is also split now. `services/skill-router-service.mjs` owns reg
 
 Custom-skill run artifacts now have their own backend seam as well. `services/configurable-skill-run-artifacts.mjs` resolves the configured Markdown/JSON output paths and writes the paired files. `services/configurable-skills-service.mjs` still decides whether a skill can run, creates ledger records, calls the provider, and marks success or failure. This is a small distinction, but it keeps "where should this output be parked?" separate from "should this lifecycle action happen?"
 
+The same lifecycle split now covers custom-skill activation. `services/configurable-skill-lifecycle.mjs` builds a draft skill from the authored model output, then activates it as version 1 or supersedes a previous active version. The service still controls the important sequence: get approved sample, call authoring model, validate the draft, then mutate the store. The helper owns the pure bookkeeping: family id, previous skill id, version number, active/disabled status, and supersession metadata.
+
 ## Shared Contracts
 
 The `shared/` folder is where many important boundaries live.

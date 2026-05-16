@@ -117,6 +117,10 @@ be opportunistic rather than automatic.
   skill output path resolution and paired Markdown/JSON artifact writes. The
   configurable skill service remains focused on lifecycle orchestration and run
   ledger updates.
+- `services/configurable-skill-lifecycle.mjs` now owns pure configurable skill
+  draft construction and version activation/supersession. The configurable skill
+  service remains focused on provider calls, validation, store mutation order,
+  and runtime execution.
 - `services/multipart-upload.mjs` now owns multipart stream parsing, temp-file
   staging, upload byte limits, and cleanup. `services/upload-service.mjs`
   remains focused on create-matter and add-intake domain flow.

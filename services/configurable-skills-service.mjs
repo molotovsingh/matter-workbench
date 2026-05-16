@@ -7,7 +7,6 @@ import {
 } from "./configurable-skill-context.mjs";
 import {
   boundedOutputMarkdown,
-  CONFIGURABLE_SKILL_SCHEMA_VERSION,
   normalizeArtifactPath,
   normalizeAuthoredDefinition,
   normalizeSlash,
@@ -28,6 +27,10 @@ import {
   resolveConfigurableSkillRunArtifacts,
   writeConfigurableSkillRunArtifacts,
 } from "./configurable-skill-run-artifacts.mjs";
+import {
+  activateDraftConfigurableSkillVersion,
+  buildDraftConfigurableSkill,
+} from "./configurable-skill-lifecycle.mjs";
 import {
   createNoopRunLedger,
   matterSummaryForRun,
@@ -140,44 +143,14 @@ export function createConfigurableSkillsService({
 
       const timestamp = now().toISOString();
       const skillId = idFactory();
-      const version = targetSkill ? targetSkill.version + 1 : 1;
-      const draft = normalizeStoredSkill({
-        id: skillId,
-        schema_version: CONFIGURABLE_SKILL_SCHEMA_VERSION,
-        status: "draft",
-        version,
-        familyId: targetSkill?.familyId || targetSkill?.id || skillId,
-        previousSkillId: targetSkill?.id || "",
-        replacedBySkillId: "",
-        supersededAt: "",
-        title: authored.title,
-        slash: authored.slash,
-        description: authored.description,
-        sourceIdeaId: idea.id,
-        sourceSampleId: sample.id,
-        approvedSampleHash: sample.designBriefHash,
-        targetLane: authored.target_lane,
-        outputArtifact: authored.output_artifact,
-        matterRequired: authored.matter_required,
-        paidProviderCall: authored.paid_provider_call,
-        sourceBacked: authored.source_backed,
-        promptConfig: {
-          prompt: authored.prompt,
-          citationPolicy: authored.citation_policy,
-        },
-        modelPolicy: {
-          task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
-          provider: runProviderConfig.provider,
-          model: runProviderConfig.model,
-        },
-        validation: {
-          status: "pending",
-          messages: [],
-          validatedAt: "",
-        },
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        activatedAt: "",
+      const draft = buildDraftConfigurableSkill({
+        authored,
+        idea,
+        sample,
+        targetSkill,
+        runProviderConfig,
+        timestamp,
+        skillId,
       });
 
       const validation = await validateDraftSkill({
@@ -196,25 +169,10 @@ export function createConfigurableSkillsService({
           skill: normalizeStoredSkill(draft),
         };
       }
-      draft.status = "active";
-      draft.activatedAt = timestamp;
-      draft.updatedAt = timestamp;
-      if (targetSkill) {
-        const previousIndex = store.skills.findIndex((skill) => skill.id === targetSkill.id);
-        if (previousIndex !== -1) {
-          store.skills[previousIndex] = normalizeStoredSkill({
-            ...store.skills[previousIndex],
-            status: "disabled",
-            replacedBySkillId: draft.id,
-            supersededAt: timestamp,
-            updatedAt: timestamp,
-          });
-        }
-      }
-      store.skills.push(draft);
+      const activated = activateDraftConfigurableSkillVersion({ store, draft, targetSkill, timestamp });
       return {
         schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-        skill: normalizeStoredSkill(draft),
+        skill: activated,
       };
     });
     if (validationError) throw validationError;
