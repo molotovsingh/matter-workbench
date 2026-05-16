@@ -5,6 +5,7 @@ export const COMMAND_INTERACTION_LOG_SCHEMA_VERSION = "command-interaction-log/v
 
 const MAX_TEXT_LENGTH = 1200;
 const MAX_TERMINAL_LINES = 8;
+const REDACTED_SECRET = "[redacted-secret]";
 
 export function createCommandInteractionLogService({
   appDir,
@@ -112,11 +113,18 @@ function normalizeTerminalLines(lines) {
 }
 
 function truncate(value, maxLength = MAX_TEXT_LENGTH) {
-  const text = String(value || "").trim();
+  const text = redactSecrets(String(value || "").trim());
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
 function toPosix(value) {
   return String(value || "").split(path.sep).join("/");
+}
+
+function redactSecrets(value) {
+  return String(value || "")
+    .replace(/\b(OPENAI_API_KEY|OPENROUTER_API_KEY|MISTRAL_API_KEY)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/gi, `$1=${REDACTED_SECRET}`)
+    .replace(/\bBearer\s+sk-[A-Za-z0-9_-]+/gi, `Bearer ${REDACTED_SECRET}`)
+    .replace(/\bsk-[A-Za-z0-9_-]+/g, REDACTED_SECRET);
 }

@@ -85,3 +85,30 @@ test("command interaction normalization bounds large fields", () => {
   assert.deepEqual(record.terminal_lines, ["line 5", "line 6", "line 7", "line 8", "line 9", "line 10", "line 11", "line 12"]);
   assert.deepEqual(record.errors, ["boom"]);
 });
+
+test("command interaction normalization redacts secrets inside retained fields", () => {
+  const record = normalizeInteraction({
+    typed_input: "set OPENAI_API_KEY=sk-typed-secret",
+    terminal_lines: [
+      "curl authorization: Bearer sk-terminal-secret",
+      "OPENROUTER_API_KEY='sk-openrouter-secret'",
+    ],
+    error: "provider rejected sk-error-secret",
+    router_decision: {
+      decision: "new_skill_candidate",
+      reason: "MISTRAL_API_KEY=sk-mistral-secret was present in copied text",
+    },
+  }, {
+    now: () => new Date("2026-05-12T10:00:00.000Z"),
+  });
+  const serialized = JSON.stringify(record);
+
+  assert.doesNotMatch(serialized, /sk-typed-secret|sk-terminal-secret|sk-openrouter-secret|sk-error-secret|sk-mistral-secret/);
+  assert.match(record.typed_input, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.deepEqual(record.terminal_lines, [
+    "curl authorization: Bearer [redacted-secret]",
+    "OPENROUTER_API_KEY=[redacted-secret]",
+  ]);
+  assert.deepEqual(record.errors, ["provider rejected [redacted-secret]"]);
+  assert.match(record.router_decision.reason, /MISTRAL_API_KEY=\[redacted-secret\]/);
+});
