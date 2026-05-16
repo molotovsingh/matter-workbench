@@ -96,6 +96,16 @@ be opportunistic rather than automatic.
 - `source-descriptors-packets.mjs` now owns bounded source-packet construction:
   duplicate file-id detection, source path/name projection, extraction summary
   fields, block truncation, and block-count limits.
+- `services/skill-interview-planner-providers.mjs` now owns skill-interview
+  provider request construction, shared policy prompt composition, OpenAI/OpenRouter
+  response parsing, and timeout/error mapping. The planner service remains the
+  orchestrator for enablement, registry summaries, matter metadata summaries,
+  fallback decisions, and schema metadata.
+- `services/skill-sample-output-providers.mjs` now owns sample-output provider
+  request construction, sample-specific policy prompt composition,
+  OpenAI/OpenRouter response parsing, and timeout/error mapping. The sample
+  service remains the orchestrator for matter-context bounding, idea
+  normalization, sample envelopes, warnings, and the no-artifact-write contract.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
@@ -109,11 +119,6 @@ same surface.
 - `services/configurable-skills-service.mjs` still owns lifecycle orchestration,
   but low-level store, provider, validation, context, and run metadata helpers
   are already split.
-- `services/skill-interview-planner-providers.mjs` now owns skill-interview
-  provider request construction, shared policy prompt composition, OpenAI/OpenRouter
-  response parsing, and timeout/error mapping. The planner service remains the
-  orchestrator for enablement, registry summaries, matter metadata summaries,
-  fallback decisions, and schema metadata.
 - `create-listofdates-engine.mjs` remains large because it carries meaningful
   chronology and legal-output policy. Do not mechanically split that policy
   without a behavior reason.

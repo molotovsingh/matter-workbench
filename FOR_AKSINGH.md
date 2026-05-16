@@ -468,6 +468,8 @@ The skill-idea interview planner has the same split. `frontend/skill-idea-interv
 
 On the backend, the model-backed interview planner has a similar boundary. `services/skill-interview-planner-service.mjs` decides whether planning is enabled, summarizes the active matter and skill registry, chooses fallback behavior, and returns the plan envelope. `services/skill-interview-planner-providers.mjs` owns the OpenAI/OpenRouter request bodies, shared legal-workbench system prompt, response parsing, and timeout/error mapping. This matters because provider/model risk should be isolated from the business rule "what context is safe to send for a skill idea interview."
 
+The sample-output generator follows the same pattern. `services/skill-sample-output-service.mjs` owns the matter-context packet, idea normalization, sample envelope, warnings, and no-artifact-write guarantee. `services/skill-sample-output-providers.mjs` owns the OpenAI/OpenRouter request bodies, sample-specific system prompt, response parsing, and timeout/error mapping. That keeps the "show the lawyer a sample before creating a skill" workflow separate from the model plumbing that may change as providers change.
+
 ## Shared Contracts
 
 The `shared/` folder is where many important boundaries live.
