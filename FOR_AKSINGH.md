@@ -850,3 +850,9 @@ The engineering lesson is simple: local-first does not mean casual. If a file is
 The app has a "doctor" endpoint that detects and fixes old matter folder layouts. That is maintenance work, not everyday product work. The route-facing service now stays small: scan, apply requested fixes, and report what remains.
 
 The messy legacy details live in `services/doctor-legacy-layout.mjs`: old folder names, old CSV headers, backup behavior, path rewriting, and `matter.json` migration. This is the right shape because legacy migration code tends to accumulate edge cases over time. Keeping it in its own room makes it easier to test without letting migration history leak into the normal matter workflow.
+
+## Matter Store Lesson: Keep State Separate From File Arithmetic
+
+`services/matter-store.mjs` tracks the active matter and validates matter names against the configured matters home. That is stateful shell infrastructure. The arithmetic around intake folders and file-register rows is now in `services/matter-store-intakes.mjs`.
+
+This split matters because file IDs, duplicate hashes, and intake numbering are rules other services depend on. When those rules live behind a small tested helper, upload, overlap checks, and matter status can reuse them without each service quietly inventing its own version.

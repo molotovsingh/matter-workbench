@@ -1,8 +1,14 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { parseCsv } from "../shared/csv.mjs";
 import { normalizeMatterMetadata } from "../shared/matter-contract.mjs";
 import { isInsideRoot, makeHttpError, toPosix, validateMatterName } from "../shared/safe-paths.mjs";
+import {
+  listIntakeFolders as listMatterIntakeFolders,
+  nextFileIdStart as readNextFileIdStart,
+  nextIntakeNumber as readNextIntakeNumber,
+  priorHashIndex as readPriorHashIndex,
+  registerHashSet,
+} from "./matter-store-intakes.mjs";
 
 export function createMatterStore({ configService, initialMatterRoot = null } = {}) {
   if (!configService) throw new Error("configService is required");
@@ -129,80 +135,25 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
   }
 
   async function listIntakeFolders(root = ensureMatterRoot()) {
-    const inboxPath = path.join(root, "00_Inbox");
-    try {
-      const entries = await readdir(inboxPath, { withFileTypes: true });
-      return entries
-        .filter((entry) => entry.isDirectory() && /^Intake (\d{2,})\b/.test(entry.name))
-        .map((entry) => {
-          const match = entry.name.match(/^Intake (\d{2,})/);
-          return { name: entry.name, intakeNumber: parseInt(match[1], 10) };
-        })
-        .sort((a, b) => a.intakeNumber - b.intakeNumber);
-    } catch {
-      return [];
-    }
+    return listMatterIntakeFolders(root);
   }
 
   async function nextIntakeNumber(root = ensureMatterRoot()) {
-    const folders = await listIntakeFolders(root);
-    if (!folders.length) return 1;
-    return folders[folders.length - 1].intakeNumber + 1;
+    return readNextIntakeNumber(root);
   }
 
   async function nextFileIdStart(root = ensureMatterRoot()) {
-    const folders = await listIntakeFolders(root);
-    let max = 0;
-    for (const folder of folders) {
-      const registerPath = path.join(root, "00_Inbox", folder.name, "File Register.csv");
-      try {
-        const rows = parseCsv(await readFile(registerPath, "utf8"));
-        for (const row of rows) {
-          const match = (row.file_id || "").match(/FILE-(\d+)/);
-          if (match) max = Math.max(max, parseInt(match[1], 10));
-        }
-      } catch {
-        // ignore missing or malformed historical registers
-      }
-    }
-    return max + 1;
+    return readNextFileIdStart(root);
   }
 
   async function priorHashIndex(root = ensureMatterRoot()) {
-    const folders = await listIntakeFolders(root);
-    const index = new Map();
-    for (const folder of folders) {
-      const registerPath = path.join(root, "00_Inbox", folder.name, "File Register.csv");
-      try {
-        const rows = parseCsv(await readFile(registerPath, "utf8"));
-        for (const row of rows) {
-          if (!row.sha256 || !row.file_id) continue;
-          if (row.status === "duplicate-of-prior-intake") continue;
-          if (!index.has(row.sha256)) index.set(row.sha256, row.file_id);
-        }
-      } catch {
-        // ignore missing or malformed historical registers
-      }
-    }
-    return index;
+    return readPriorHashIndex(root);
   }
 
   async function extractRegisterHashes(matterFolderName) {
     if (!getMattersHome()) return new Set();
     const { matterPath } = matterPathForName(matterFolderName);
-    const hashes = new Set();
-    for (const folder of await listIntakeFolders(matterPath)) {
-      const registerPath = path.join(matterPath, "00_Inbox", folder.name, "File Register.csv");
-      try {
-        const rows = parseCsv(await readFile(registerPath, "utf8"));
-        for (const row of rows) {
-          if (row.sha256) hashes.add(row.sha256);
-        }
-      } catch {
-        // ignore missing or malformed historical registers
-      }
-    }
-    return hashes;
+    return registerHashSet(matterPath);
   }
 
   function toMatterRelative(filePath) {
