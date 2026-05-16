@@ -13,6 +13,7 @@ import {
 } from "./shared/openrouter-response.mjs";
 import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
+import { sourceLabelContainsFileId } from "./shared/source-labels.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
@@ -573,7 +574,7 @@ function validateWarnings(warnings, fileId) {
 }
 
 function validateHumanLabel(label, fieldLabel) {
-  if (/\bFILE-\d{4,}\b/.test(label)) {
+  if (sourceLabelContainsFileId(label)) {
     throwProviderError(`${fieldLabel} must not include FILE-NNNN identifiers`);
   }
 }

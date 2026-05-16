@@ -6,6 +6,12 @@ import test from "node:test";
 import { parseCsv, parseCsvRow, toCsv } from "../shared/csv.mjs";
 import { loadLocalEnv, parseEnvText, upsertLocalEnv } from "../shared/local-env.mjs";
 import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
+import {
+  effectiveShortSourceLabel,
+  effectiveSourceLabel,
+  sourceLabelContainsFileId,
+  sourceLabelMetadata,
+} from "../shared/source-labels.mjs";
 
 test("CSV parser and writer preserve quoted fields", () => {
   const rows = [
@@ -25,6 +31,38 @@ test("safe path helpers reject path escapes", () => {
   assert.throws(() => validateRelativePath("folder/../file.txt"), /Invalid path segment/);
   assert.equal(isInsideRoot("/tmp/root", "/tmp/root/a.txt"), true);
   assert.equal(isInsideRoot("/tmp/root", "/tmp/rooted/a.txt"), false);
+});
+
+test("source label helpers prefer confirmed labels and suppress FILE identifiers", () => {
+  const source = {
+    file_id: "FILE-0001",
+    sha256: "hash-1",
+    display_label: "Model label",
+    short_label: "Model short",
+    confirmed_label: "Confirmed agreement dated 20 April 2026",
+    label_status: "confirmed",
+    label_revision: 3,
+  };
+
+  assert.equal(effectiveSourceLabel(source), "Confirmed agreement dated 20 April 2026");
+  assert.equal(effectiveShortSourceLabel(source, "fallback"), "Confirmed agreement dated 20 April 2026");
+  assert.equal(sourceLabelContainsFileId("See FILE-0001"), true);
+  assert.deepEqual(sourceLabelMetadata(source), {
+    source_id: "FILE-0001",
+    content_hash: "hash-1",
+    document_type: "",
+    document_date: "",
+    needs_review: false,
+    label_status: "confirmed",
+    label_revision: 3,
+    source_label: "Confirmed agreement dated 20 April 2026",
+    source_short_label: "Confirmed agreement dated 20 April 2026",
+  });
+
+  assert.equal(sourceLabelMetadata({
+    file_id: "FILE-0002",
+    display_label: "Bad FILE-0002 label",
+  }).source_label, undefined);
 });
 
 test("local env parser supports named and raw OpenAI keys", async () => {

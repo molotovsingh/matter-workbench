@@ -3,6 +3,10 @@ import path from "node:path";
 import { renderListOfDatesMarkdown } from "../create-listofdates-engine.mjs";
 import { toCsv } from "../shared/csv.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
+import {
+  normalizeSourceLabelText,
+  sourceLabelMetadata,
+} from "../shared/source-labels.mjs";
 
 const LIST_OF_DATES_CSV_HEADERS = [
   "date_iso",
@@ -192,31 +196,18 @@ function buildLabelRefreshIndex({ snapshot, sourceIndex }) {
 }
 
 function sourceLabelMetadataFromSourceIndexSource(source) {
-  const label = effectiveSourceLabel(source);
-  const shortLabel = effectiveShortSourceLabel(source, label);
-  const metadata = {
+  return {
     file_id: source.file_id || "",
-    source_id: normalizeDisplayText(source.source_id || source.file_id),
-    content_hash: normalizeDisplayText(source.content_hash || source.sha256),
-    document_type: normalizeDisplayText(source.document_type).toLowerCase(),
-    document_date: normalizeDisplayText(source.document_date),
-    needs_review: Boolean(source.needs_review),
-    label_status: normalizeDisplayText(source.label_status),
-    label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
+    ...sourceLabelMetadata(source),
   };
-  if (label && !hasFileIdPrefix(label) && !hasFileIdPrefix(shortLabel)) {
-    metadata.source_label = label;
-    metadata.source_short_label = shortLabel || label;
-  }
-  return metadata;
 }
 
 function normalizeRefreshSnapshotSource(source = {}) {
   return {
     file_id: source.file_id || "",
     content_hash: source.content_hash || source.sha256 || "",
-    document_type: normalizeDisplayText(source.document_type).toLowerCase(),
-    document_date: normalizeDisplayText(source.document_date),
+    document_type: normalizeSourceLabelText(source.document_type).toLowerCase(),
+    document_date: normalizeSourceLabelText(source.document_date),
     needs_review: Boolean(source.needs_review),
   };
 }
@@ -313,28 +304,6 @@ function sourceLabelSignature(record = {}) {
     record.label_status || "",
     Number.isInteger(record.label_revision) ? record.label_revision : "",
   ].join("|");
-}
-
-function effectiveSourceLabel(source = {}) {
-  const status = normalizeDisplayText(source.label_status).toLowerCase();
-  const confirmed = normalizeDisplayText(source.confirmed_label);
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return normalizeDisplayText(source.display_label || source.suggested_label);
-}
-
-function effectiveShortSourceLabel(source = {}, fallback = "") {
-  const status = normalizeDisplayText(source.label_status).toLowerCase();
-  const confirmed = normalizeDisplayText(source.confirmed_label);
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return normalizeDisplayText(source.short_label) || fallback;
-}
-
-function normalizeDisplayText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function hasFileIdPrefix(value) {
-  return /\bFILE-\d{4,}\b/.test(String(value || ""));
 }
 
 function throwLabelRefreshUnsafe(message) {

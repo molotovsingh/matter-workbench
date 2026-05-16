@@ -2,6 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
+import {
+  effectiveShortSourceLabel,
+  effectiveSourceLabel,
+  sourceLabelContainsFileId,
+} from "../shared/source-labels.mjs";
 
 export const SOURCE_INDEX_RELATIVE = "10_Library/Source Index.json";
 
@@ -220,10 +225,10 @@ async function readTrustedSourceDescriptors(root, registerByFileId, warnings) {
       continue;
     }
     if (
-      labelContainsFileId(descriptor.display_label)
-      || labelContainsFileId(descriptor.short_label)
-      || labelContainsFileId(descriptor.suggested_label)
-      || labelContainsFileId(descriptor.confirmed_label)
+      sourceLabelContainsFileId(descriptor.display_label)
+      || sourceLabelContainsFileId(descriptor.short_label)
+      || sourceLabelContainsFileId(descriptor.suggested_label)
+      || sourceLabelContainsFileId(descriptor.confirmed_label)
     ) {
       warnings.push(`Ignored Source Index labels for ${fileId}: human label contains a FILE-NNNN identifier`);
       continue;
@@ -243,24 +248,6 @@ function normalizeTrustedSourceDescriptor(descriptor = {}) {
     display_label: displayLabel,
     short_label: shortLabel,
   };
-}
-
-function effectiveSourceLabel(descriptor = {}) {
-  const status = String(descriptor.label_status || "").trim().toLowerCase();
-  const confirmed = String(descriptor.confirmed_label || "").replace(/\s+/g, " ").trim();
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return String(descriptor.display_label || descriptor.suggested_label || "").replace(/\s+/g, " ").trim();
-}
-
-function effectiveShortSourceLabel(descriptor = {}, fallback = "") {
-  const status = String(descriptor.label_status || "").trim().toLowerCase();
-  const confirmed = String(descriptor.confirmed_label || "").replace(/\s+/g, " ").trim();
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return String(descriptor.short_label || "").replace(/\s+/g, " ").trim() || fallback;
-}
-
-function labelContainsFileId(value) {
-  return /\bFILE-\d{4,}\b/.test(String(value || ""));
 }
 
 async function readExtractionRecords(root, intakes, warnings) {

@@ -17,6 +17,7 @@ import {
 import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "./shared/responses-client.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
+import { sourceLabelMetadata } from "./shared/source-labels.mjs";
 import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1132,23 +1133,9 @@ async function readSourceIndex(matterRoot, blocks) {
     const block = blockByFileId.get(source?.file_id);
     if (!block || source.sha256 !== block.sha256) continue;
     if (source.source_path !== block.source_path) continue;
-    const label = effectiveSourceLabel(source);
-    const shortLabel = effectiveShortSourceLabel(source, label);
     const metadata = {
-      source_id: normalizeDisplayText(source.source_id || source.file_id),
-      content_hash: normalizeDisplayText(source.content_hash || source.sha256),
-      document_type: normalizeDisplayText(source.document_type).toLowerCase(),
-      document_date: normalizeDisplayText(source.document_date),
-      needs_review: Boolean(source.needs_review),
-      label_status: normalizeDisplayText(source.label_status),
-      label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
-      display_label: label,
-      short_label: shortLabel,
+      ...sourceLabelMetadata(source, { includeDisplayFields: true }),
     };
-    if (label && !hasFileIdPrefix(label) && !hasFileIdPrefix(shortLabel)) {
-      metadata.source_label = label;
-      metadata.source_short_label = shortLabel || label;
-    }
     index.set(source.file_id, metadata);
   }
   return index;
@@ -1169,20 +1156,6 @@ function createSourceSnapshot(sourceIndex = new Map()) {
       label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
     }))
     .sort((a, b) => a.file_id.localeCompare(b.file_id, undefined, { numeric: true }));
-}
-
-function effectiveSourceLabel(source = {}) {
-  const status = normalizeDisplayText(source.label_status).toLowerCase();
-  const confirmed = normalizeDisplayText(source.confirmed_label);
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return normalizeDisplayText(source.display_label || source.suggested_label);
-}
-
-function effectiveShortSourceLabel(source = {}, fallback = "") {
-  const status = normalizeDisplayText(source.label_status).toLowerCase();
-  const confirmed = normalizeDisplayText(source.confirmed_label);
-  if ((status === "confirmed" || status === "overridden") && confirmed) return confirmed;
-  return normalizeDisplayText(source.short_label) || fallback;
 }
 
 function filterChronologyCandidateBlocks(blocks, sourceIndex = new Map()) {
@@ -1428,10 +1401,6 @@ function normalizeIssueTags(value) {
 
 function normalizeDisplayText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function hasFileIdPrefix(value) {
-  return /\bFILE-\d{4,}\b/.test(String(value || ""));
 }
 
 function isValidDateIso(value) {
