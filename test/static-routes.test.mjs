@@ -13,6 +13,7 @@ test("static route containment rejects traversal and prefix sibling paths", () =
   assert.equal(resolveStaticPath(appDir, "/styles.css"), path.join(appDir, "styles.css"));
   assert.equal(resolveStaticPath(appDir, "/../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/../../etc/passwd"), null);
+  assert.equal(resolveStaticPath(appDir, "/%E0%A4%A"), null);
 });
 
 test("static route streams file content with no-store headers", async () => {

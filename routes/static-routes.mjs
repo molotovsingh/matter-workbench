@@ -16,7 +16,12 @@ const contentTypes = new Map([
 ]);
 
 export function resolveStaticPath(appDir, urlPath) {
-  const cleanPath = decodeURIComponent(urlPath.split("?")[0]);
+  let cleanPath;
+  try {
+    cleanPath = decodeURIComponent(urlPath.split("?")[0]);
+  } catch {
+    return null;
+  }
   const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
   const absolutePath = path.resolve(appDir, relativePath);
   if (!isInsideRoot(appDir, absolutePath)) return null;
