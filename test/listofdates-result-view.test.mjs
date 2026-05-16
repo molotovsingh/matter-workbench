@@ -46,7 +46,7 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
   assert.match(html, /Legal Relevance/);
   assert.match(html, /Flags a payment-record inconsistency/);
   assert.match(html, /Bank Statement for Skyline Developers/);
-  assert.match(html, /FILE-0001 p1\.b11/);
+  assert.doesNotMatch(html, /FILE-\d{4}\s+p\d+\.b\d+/);
   assert.match(html, /payment discrepancy/);
   assert.match(html, /Accepted events/);
   assert.match(html, /Rendered rows/);

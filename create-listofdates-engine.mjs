@@ -411,7 +411,7 @@ export async function runCreateListOfDates(options = {}) {
       }, null, 2)}\n`,
     );
     await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-    await writeFile(path.join(outputDir, "List of Dates.md"), renderMarkdown(matterJson, entries));
+    await writeFile(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries));
   }
 
   outputLines.push(`[listofdates] accepted ${acceptedEntries.length} cited date event(s)`);
@@ -579,7 +579,7 @@ async function runCreateListOfDatesTwoPass({
       };
       await writeJsonFile(path.join(outputDir, "List of Dates.json"), listJson);
       await writeFile(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-      await writeFile(path.join(outputDir, "List of Dates.md"), renderMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
+      await writeFile(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
       await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
     }
 
@@ -1459,7 +1459,7 @@ function matterSummary(matterJson) {
   };
 }
 
-function renderMarkdown(matterJson, entries, engineVersion = ENGINE_VERSION) {
+export function renderListOfDatesMarkdown(matterJson, entries, engineVersion = ENGINE_VERSION) {
   const rows = entries.map((entry) => (
     `| ${escapeMarkdownCell(entry.date_iso)} | ${escapeMarkdownCell(entry.event)} | ${escapeMarkdownCell(entry.legal_relevance)} | ${escapeMarkdownCell(formatSourceForDisplay(entry))} |`
   ));
@@ -1467,15 +1467,35 @@ function renderMarkdown(matterJson, entries, engineVersion = ENGINE_VERSION) {
 }
 
 function formatSourceForDisplay(entry) {
-  if (Array.isArray(entry.supporting_sources) && entry.supporting_sources.length) {
-    return entry.supporting_sources.map(formatSupportingSourceForDisplay).join("<br>");
+  const sources = Array.isArray(entry.supporting_sources) && entry.supporting_sources.length
+    ? entry.supporting_sources
+    : [entry];
+  const labels = [];
+  const seen = new Set();
+  for (const source of sources) {
+    const label = formatSupportingSourceForDisplay(source);
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    labels.push(label);
   }
-  return formatSupportingSourceForDisplay(entry);
+  return labels.length ? labels.join("<br>") : "Unlabeled source";
 }
 
 function formatSupportingSourceForDisplay(source) {
-  const label = source.source_label || source.original_name || source.source_path;
-  return label ? `${label} (${source.citation})` : source.citation;
+  return source.source_label
+    || source.source_short_label
+    || source.original_name
+    || readableSourcePath(source.source_path)
+    || "Unlabeled source";
+}
+
+function readableSourcePath(sourcePath = "") {
+  const name = path.basename(String(sourcePath || ""));
+  return name
+    .replace(/^FILE-\d{4,}__/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function escapeMarkdownCell(value) {

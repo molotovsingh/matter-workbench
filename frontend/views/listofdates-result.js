@@ -137,19 +137,42 @@ function renderSourceCell(entry, escapeHtml) {
   const sources = Array.isArray(entry.supporting_sources) && entry.supporting_sources.length
     ? entry.supporting_sources
     : [entry];
+  const labels = uniqueSourceLabels(sources);
   return `
     <div class="source-stack">
-      ${sources.map((source) => {
-        const label = source.source_label || source.original_name || source.source_path || "Source";
-        return `
-          <span class="source-stack-item">
-            ${escapeHtml(label)}
-            ${source.citation ? `<br /><code>${escapeHtml(source.citation)}</code>` : ""}
-          </span>
-        `;
-      }).join("")}
+      ${labels.map((label) => `<span class="source-stack-item">${escapeHtml(label)}</span>`).join("")}
     </div>
   `;
+}
+
+function uniqueSourceLabels(sources = []) {
+  const labels = [];
+  const seen = new Set();
+  for (const source of sources) {
+    const label = sourceLabel(source);
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(label);
+  }
+  return labels.length ? labels : ["Unlabeled source"];
+}
+
+function sourceLabel(source = {}) {
+  return source.source_label
+    || source.source_short_label
+    || source.original_name
+    || readableSourcePath(source.source_path)
+    || "Unlabeled source";
+}
+
+function readableSourcePath(sourcePath = "") {
+  const parts = String(sourcePath || "").split(/[\\/]+/).filter(Boolean);
+  const name = parts[parts.length - 1] || "";
+  return name
+    .replace(/^FILE-\d{4,}__/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function clusterLabel(clusterType) {
