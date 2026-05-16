@@ -6,6 +6,10 @@ import {
   LIST_OF_DATES_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
+import {
+  classifyListOfDatesDependencyState,
+  LIST_OF_DATES_DEPENDENCY_STATES,
+} from "./listofdates-dependency-state.mjs";
 
 export {
   LIST_OF_DATES_JSON_RELATIVE,
@@ -57,7 +61,11 @@ export async function listOfDatesRerunAdvice(root) {
     ],
     staleDescription: "newer extraction records or Source Index changes were found",
     currentDescription: "No newer extraction records or Source Index changes were found.",
-    classifyStaleDependency: (newestInput) => classifyListOfDatesDependency(target, newestInput, sourceIndexJson),
+    classifyStaleDependency: (newestInput) => classifyListOfDatesDependencyState({
+      target,
+      newestInput,
+      sourceIndex: sourceIndexJson,
+    }),
   });
 }
 
@@ -103,7 +111,7 @@ function buildRerunAdvice({
     const dependencyState = typeof classifyStaleDependency === "function"
       ? classifyStaleDependency(newestInput)
       : "";
-    const labelRefreshOnly = dependencyState === "label_refresh_needed";
+    const labelRefreshOnly = dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED;
     const advice = baseRerunAdvice({
       skill,
       label,
@@ -179,44 +187,6 @@ function baseRerunAdvice({
     newestInputPath,
     newestInputAt,
     inputCount,
-  };
-}
-
-function classifyListOfDatesDependency(target, newestInput = {}, sourceIndex = null) {
-  if (newestInput.inputKind !== "source_index") return "chronology_regeneration_needed";
-  const snapshot = Array.isArray(target.json?.source_snapshot) ? target.json.source_snapshot : [];
-  if (!sourceIndex || !Array.isArray(sourceIndex.sources) || !snapshot.length) return "chronology_review_needed";
-  const byFileId = new Map(sourceIndex.sources.map((source) => [source.file_id, normalizeSnapshotSource(source)]));
-  const snapshotIds = new Set(snapshot.map((source) => source.file_id).filter(Boolean));
-  if (sourceIndex.sources.some((source) => source?.file_id && !snapshotIds.has(source.file_id))) {
-    return "chronology_regeneration_needed";
-  }
-  let compared = 0;
-  for (const previous of snapshot) {
-    const current = byFileId.get(previous.file_id);
-    if (!current) return "chronology_regeneration_needed";
-    compared += 1;
-    if ((previous.content_hash || "") !== (current.content_hash || "")) {
-      return "chronology_regeneration_needed";
-    }
-    if (
-      (previous.document_type || "") !== (current.document_type || "")
-      || (previous.document_date || "") !== (current.document_date || "")
-      || Boolean(previous.needs_review) !== Boolean(current.needs_review)
-    ) {
-      return "chronology_review_needed";
-    }
-  }
-  return compared ? "label_refresh_needed" : "chronology_review_needed";
-}
-
-function normalizeSnapshotSource(source = {}) {
-  return {
-    file_id: source.file_id || "",
-    content_hash: source.content_hash || source.sha256 || "",
-    document_type: source.document_type || "",
-    document_date: source.document_date || "",
-    needs_review: Boolean(source.needs_review),
   };
 }
 

@@ -110,6 +110,10 @@ be opportunistic rather than automatic.
   construction and router policy prompt composition. The router service remains
   the orchestrator for registry reads, MECE decision normalization, approval
   gates, and legal-setting cleanup.
+- `services/listofdates-dependency-state.mjs` now owns the pure decision that
+  separates `label_refresh_needed`, `chronology_review_needed`, and
+  `chronology_regeneration_needed`. The rerun advice service remains focused on
+  disk mtimes, artifact reads, and advice message envelopes.
 - Built-in command registry drift is guarded by startup/test validation between
   `shared/builtin-skill-commands.mjs` and `skills/registry.json`.
 
