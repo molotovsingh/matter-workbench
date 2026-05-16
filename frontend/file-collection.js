@@ -52,6 +52,24 @@ export async function hashFile(file) {
     .join("");
 }
 
+export async function hashCollectedFiles(collectedFiles = []) {
+  const hashes = [];
+  for (const item of collectedFiles) hashes.push(await hashFile(item.file));
+  return hashes;
+}
+
+export function buildFileUploadFormData(collectedFiles = [], fields = {}) {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value ?? "");
+  }
+  formData.append("paths", JSON.stringify(collectedFiles.map((item) => item.relativePath)));
+  for (const item of collectedFiles) {
+    formData.append("files", item.file, item.file.name);
+  }
+  return formData;
+}
+
 export function collectFilesFromInput(input) {
   const result = [];
   const files = Array.from(input.files || []);

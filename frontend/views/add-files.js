@@ -1,6 +1,11 @@
 import { postFormData, postJson } from "../api-client.js";
 import { escapeHtml, formatBytes, matterFromWorkspace } from "../dom-utils.js";
-import { collectFilesFromDataTransfer, collectFilesFromInput, hashFile } from "../file-collection.js";
+import {
+  buildFileUploadFormData,
+  collectFilesFromDataTransfer,
+  collectFilesFromInput,
+  hashCollectedFiles,
+} from "../file-collection.js";
 
 export function renderAddFilesForm(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -192,8 +197,7 @@ export function renderAddFilesForm(ctx) {
           bar: "Checking",
           terminal: `[add-files] hashing ${pendingFiles.length} files`,
         });
-        const hashes = [];
-        for (const item of pendingFiles) hashes.push(await hashFile(item.file));
+        const hashes = await hashCollectedFiles(pendingFiles);
         const checkPayload = await postJson("/api/matters/check-overlap", { hashes, proposedName: activeMatter.folderName });
         const warnings = checkPayload.warnings || [];
         const thisMatter = warnings.find((w) => w.matterName === activeMatter.folderName);
@@ -217,10 +221,7 @@ export function renderAddFilesForm(ctx) {
           label ? `[add-files] label: ${label}` : "[add-files] no label",
         ],
       });
-      const formData = new FormData();
-      formData.append("label", label);
-      formData.append("paths", JSON.stringify(pendingFiles.map((item) => item.relativePath)));
-      pendingFiles.forEach((item) => formData.append("files", item.file, item.file.name));
+      const formData = buildFileUploadFormData(pendingFiles, { label });
       const payload = await postFormData("/api/matters/add-files", formData);
       ctx.setActiveMatter(matterFromWorkspace(payload));
       const a = payload.intakeAdded;
