@@ -1,7 +1,8 @@
 # Refactor Staging Plan
 
 Date: 2026-05-13
-Status: staged plan; Stage 0, Stage 1, and first Stage 2 slices completed
+Last updated: 2026-05-16
+Status: staged plan; Stage 0, Stage 1, first Stage 2 slices, and Stage 4 completed
 Scope: targeted refactors with low regression risk
 
 ## Goal
@@ -129,23 +130,47 @@ Do this when adding the next 2 to 3 domain templates or legal-skill interview pa
 
 ---
 
-## Stage 4 (Later): Test Suite Maintainability
+## Stage 4 (Done): Test Suite Maintainability
 
-Run once Stage 1 and Stage 3 are merged.
+This was done once the command rail had enough focused modules to make the
+large scenario file more costly than useful.
 
-### Work
+### Completed
 
-1. Split `test/ai-command-box.test.mjs` into workflow-focused suites:
-   - command parsing and dispatch
-   - interview flow
-   - sample review lifecycle
-   - report/logging behavior
-2. Keep integration assertions, reduce single-file churn and conflict rate.
+- `test/ai-command-box.test.mjs` now covers core command dispatch, lane opening,
+  suggestions, reports, and paid rerun cancellation.
+- `test/ai-command-box-skill-ideas.test.mjs` now covers interview flow,
+  sample-review lifecycle, overlap gates, sample approval, and skill activation.
+- `test/ai-command-box-configurable-skills.test.mjs` now covers active custom
+  skill runs, overwrite confirmation, stale cards, and improvement ideas.
+- `test-support/ai-command-box-helpers.mjs` remains the shared fake browser
+  harness, so each scenario file can focus on user behavior.
 
-### Exit criteria
+### Completion evidence
 
-- Faster triage from failing tests (clear suite ownership).
-- No loss in scenario coverage.
+- Full suite remained green at `361/361`.
+- Scenario coverage was preserved; the split is file ownership only.
+- Future failures should name the product surface directly in the test path.
+
+---
+
+## Stage 5 (Opportunistic): UI Surface Boundaries
+
+Only do this when the next change naturally touches the same surface.
+
+### Completed Opportunistic Slices
+
+- `frontend/listofdates-markdown-preview.js` now owns List of Dates markdown
+  parsing, chronology preview rendering, and copy/download actions. The
+  workspace view decides which preview to open, but the document renderer can
+  evolve separately.
+- `frontend/skill-idea-session-action-wiring.js` now owns saved/interview skill
+  idea button wiring. The session controller still owns the state machine.
+
+### Rule
+
+Do not split UI modules just because a file is long. Split only when a module
+has a noun-shaped responsibility that future work will touch independently.
 
 ---
 
@@ -172,4 +197,7 @@ In those cycles, ship behavior changes first, then refactor in the next hardenin
      `create-listofdates-engine.mjs` and protect it with golden-output tests.
 3. Stage 3 only when new interview templates or planner normalization rules are
    being added.
-4. Stage 4 only if the test suite starts becoming hard to triage again.
+4. Stage 4 is complete. Add new command-box scenarios to the focused suite that
+   matches the product story.
+5. Use Stage 5 opportunistically. Current good seams are document preview
+   renderers and small action-wiring modules, not broad UI rewrites.
