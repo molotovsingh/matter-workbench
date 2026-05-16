@@ -856,3 +856,9 @@ The messy legacy details live in `services/doctor-legacy-layout.mjs`: old folder
 `services/matter-store.mjs` tracks the active matter and validates matter names against the configured matters home. That is stateful shell infrastructure. The arithmetic around intake folders and file-register rows is now in `services/matter-store-intakes.mjs`.
 
 This split matters because file IDs, duplicate hashes, and intake numbering are rules other services depend on. When those rules live behind a small tested helper, upload, overlap checks, and matter status can reuse them without each service quietly inventing its own version.
+
+## Test Lesson: Keep Scenarios Clear
+
+The command-box tests cover many real user paths, so the file is naturally long. The fake browser form, fake command rail, and fake status elements now live in `test/ai-command-box-helpers.mjs`.
+
+That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper, the test file can spend more of its space explaining behavior instead of rebuilding the stage.
