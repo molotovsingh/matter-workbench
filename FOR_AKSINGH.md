@@ -833,6 +833,6 @@ Those jobs are related, but they should not be the same module. Packet building 
 
 The search code now lives in `services/matter-context-search.mjs`. The main context service still exposes the same public API, but the responsibility is clearer: build the packet, then hand it to a focused search module.
 
-The disk-reading side is split as well. `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal. That keeps the main packet builder focused on packet shape, limits, evidence blocks, and library summaries.
+The disk-reading side is split as well. `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal. `services/matter-context-library-artifacts.mjs` owns the small summaries of selected library outputs, such as Source Index and List of Dates artifacts. That keeps the main packet builder focused on packet shape, limits, and evidence blocks.
 
 The lesson is that a good extraction does not need to change behavior to be worthwhile. Sometimes the best refactor is simply moving a self-contained decision into a smaller room where future changes cannot accidentally disturb disk layout or packet schema.
