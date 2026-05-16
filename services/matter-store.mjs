@@ -80,16 +80,21 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
     return { name, matterPath: resolved };
   }
 
-  async function switchMatter(rawName) {
-    const { matterPath } = matterPathForName(rawName);
+  async function resolveExistingMatter(rawName) {
+    const target = matterPathForName(rawName);
     let targetStat;
     try {
-      targetStat = await stat(matterPath);
+      targetStat = await stat(target.matterPath);
     } catch (cause) {
       if (cause && cause.code === "ENOENT") throw makeHttpError("Matter not found", 404);
       throw cause;
     }
     if (!targetStat.isDirectory()) throw makeHttpError("Not a directory", 400);
+    return target;
+  }
+
+  async function switchMatter(rawName) {
+    const { matterPath } = await resolveExistingMatter(rawName);
     matterRoot = matterPath;
     return matterRoot;
   }
@@ -179,6 +184,7 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
     readMatterJson,
     readMatterMetadata,
     readPrimaryIntake,
+    resolveExistingMatter,
     setMatterRoot,
     switchMatter,
     toMatterRelative,

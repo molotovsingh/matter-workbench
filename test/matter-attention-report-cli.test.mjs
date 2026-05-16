@@ -66,6 +66,31 @@ test("matter attention report CLI can print a compact problem-only text report",
   assert.doesNotMatch(stdout, /CLEAR Clear Matter/);
 });
 
+test("matter attention report CLI fails clearly for a missing selected matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-attention-report-missing-test-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  await writeClearMatter(path.join(mattersHome, "Clear Matter"));
+  await mkdir(appDir, { recursive: true });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      scriptPath,
+      "--app-dir",
+      appDir,
+      "--matters-home",
+      mattersHome,
+      "--matter",
+      "Missing Matter",
+    ], { cwd: repoRoot }),
+    (error) => {
+      assert.equal(error.code, 1);
+      assert.match(error.stderr, /Matter not found/);
+      return true;
+    },
+  );
+});
+
 async function writeClearMatter(root) {
   const intakeDir = path.join(root, "00_Inbox", "Intake 01 - Initial");
   const extractedDir = path.join(intakeDir, "_extracted");

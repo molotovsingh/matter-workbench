@@ -81,3 +81,39 @@ test("matter attention API can inspect a named matter without switching active m
     await new Promise((resolve) => app.server.close(resolve));
   }
 });
+
+test("matter attention API rejects missing named matters without switching active matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-attention-missing-api-test-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const activeRoot = path.join(mattersHome, "Active Matter");
+  await mkdir(path.join(activeRoot, "00_Inbox", "Intake 01 - Initial"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(path.join(activeRoot, "matter.json"), "{}\n");
+  await writeFile(path.join(activeRoot, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    matterRoot: activeRoot,
+    host: "127.0.0.1",
+    port: 0,
+    commandInteractionLogPath: path.join(appDir, ".local", "command-interactions.jsonl"),
+    configurableSkillRunsPath: path.join(appDir, "configurable-skill-runs.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+  try {
+    const response = await fetch(`${baseUrl}/api/matter-attention?matter=${encodeURIComponent("Missing Matter")}`);
+    const body = await response.json();
+    assert.equal(response.status, 404);
+    assert.equal(body.error, "Matter not found");
+
+    const config = await (await fetch(`${baseUrl}/api/config`)).json();
+    assert.equal(config.activeMatterName, "Active Matter");
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});

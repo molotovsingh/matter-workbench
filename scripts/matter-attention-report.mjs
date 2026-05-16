@@ -29,17 +29,19 @@ export async function buildMatterAttentionReport(options = {}) {
   }
 
   const selectedMatter = normalizeText(options.matter);
-  const matters = selectedMatter
-    ? [{ name: selectedMatter }]
-    : await matterStore.listMattersHomeChildren();
   const reports = [];
-  for (const matter of matters) {
-    const rawName = matter.name;
-    try {
-      const { name, matterPath } = matterStore.matterPathForName(rawName);
-      reports.push(await matterAttentionService.readMatterAttention(matterPath, { matterName: name }));
-    } catch (error) {
-      reports.push(failedMatterReport(rawName, error));
+  if (selectedMatter) {
+    const { name, matterPath } = await matterStore.resolveExistingMatter(selectedMatter);
+    reports.push(await matterAttentionService.readMatterAttention(matterPath, { matterName: name }));
+  } else {
+    for (const matter of await matterStore.listMattersHomeChildren()) {
+      const rawName = matter.name;
+      try {
+        const { name, matterPath } = await matterStore.resolveExistingMatter(rawName);
+        reports.push(await matterAttentionService.readMatterAttention(matterPath, { matterName: name }));
+      } catch (error) {
+        reports.push(failedMatterReport(rawName, error));
+      }
     }
   }
 
