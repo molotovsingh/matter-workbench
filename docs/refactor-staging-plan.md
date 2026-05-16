@@ -113,6 +113,10 @@ be opportunistic rather than automatic.
   construction and router policy prompt composition. The router service remains
   the orchestrator for registry reads, MECE decision normalization, approval
   gates, and legal-setting cleanup.
+- `services/configurable-skill-run-artifacts.mjs` now owns configurable custom
+  skill output path resolution and paired Markdown/JSON artifact writes. The
+  configurable skill service remains focused on lifecycle orchestration and run
+  ledger updates.
 - `services/listofdates-dependency-state.mjs` now owns the pure decision that
   separates `label_refresh_needed`, `chronology_review_needed`, and
   `chronology_regeneration_needed`. The rerun advice service remains focused on

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import path from "node:path";
 import {
   buildConfigurableSkillMatterContextPacket,
@@ -25,6 +25,10 @@ import {
   createDefaultRunProvider,
 } from "./configurable-skill-providers.mjs";
 import {
+  resolveConfigurableSkillRunArtifacts,
+  writeConfigurableSkillRunArtifacts,
+} from "./configurable-skill-run-artifacts.mjs";
+import {
   createNoopRunLedger,
   matterSummaryForRun,
   skillRunTitle,
@@ -35,10 +39,9 @@ import {
 } from "./configurable-skill-store.mjs";
 import { validateDraftSkill } from "./configurable-skill-validation.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
-import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
+import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
 export { CONFIGURABLE_SKILL_SCHEMA_VERSION, skillToRegistryCard } from "./configurable-skill-definition.mjs";
@@ -224,16 +227,13 @@ export function createConfigurableSkillsService({
     const skill = store.skills.find((candidate) => candidate.slash === normalizedSlash && candidate.status === "active");
     if (!skill) throw makeHttpError(`No active configurable skill for ${normalizedSlash}`, 404);
     const matterRoot = matterStore.ensureMatterRoot();
-    const outputArtifact = normalizeArtifactPath(skill.outputArtifact, skill.targetLane);
-    const outputJson = outputArtifact.replace(/\.md$/i, ".json");
-    const markdownPath = resolveRelativeInside(matterRoot, outputArtifact);
-    const jsonPath = resolveRelativeInside(matterRoot, outputJson);
-    if (!overwrite && await exists(markdownPath)) {
+    const { outputPaths, filePaths } = resolveConfigurableSkillRunArtifacts({ matterRoot, skill });
+    if (!overwrite && await exists(filePaths.markdown)) {
       return {
         schema_version: "configurable-skill-run/v1",
         state: "requires_overwrite",
         skill: publicSkill(skill),
-        artifactPath: outputArtifact,
+        artifactPath: outputPaths.markdown,
       };
     }
 
@@ -258,10 +258,7 @@ export function createConfigurableSkillsService({
       matterName: path.basename(matterRoot),
       matterFolder: path.basename(matterRoot),
       matterRoot,
-      outputPaths: {
-        markdown: outputArtifact,
-        json: outputJson,
-      },
+      outputPaths,
       aiRun,
       overwrite: overwrite ? "approved" : "not_needed",
       startedAt: timestamp,
@@ -275,39 +272,32 @@ export function createConfigurableSkillsService({
         matterContext: summarizeMatterContext(packet),
         providerConfig,
       }));
-      await mkdir(path.dirname(markdownPath), { recursive: true });
       const metadata = {
         schema_version: "configurable-skill-run/v1",
         skill: publicSkill(skill),
         matter: packet.matter || {},
-        outputPath: outputArtifact,
+        outputPath: outputPaths.markdown,
         generatedAt: now().toISOString(),
         aiRun,
         warnings,
       };
-      await writeFileAtomic(markdownPath, `${markdown}\n`);
-      await writeFileAtomic(jsonPath, `${JSON.stringify({
-        ...metadata,
-        runId: runRecord.id,
+      await writeConfigurableSkillRunArtifacts({
+        filePaths,
         markdown,
-      }, null, 2)}\n`);
+        metadata,
+        runId: runRecord.id,
+      });
       runRecord = await runLedger.updateRun(runRecord.id, {
         status: "succeeded",
         ...matterSummary,
         warnings,
-        outputPaths: {
-          markdown: outputArtifact,
-          json: outputJson,
-        },
+        outputPaths,
       });
       return {
         ...metadata,
         state: "written",
         markdown,
-        outputPaths: {
-          markdown: outputArtifact,
-          json: outputJson,
-        },
+        outputPaths,
         runId: runRecord.id,
         runRecord,
       };

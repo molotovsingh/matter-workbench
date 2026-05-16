@@ -472,6 +472,8 @@ The sample-output generator follows the same pattern. `services/skill-sample-out
 
 The skill router is also split now. `services/skill-router-service.mjs` owns registry lookup, MECE overlap normalization, user-gate decisions, and legal-setting cleanup. `services/skill-router-providers.mjs` owns the OpenAI request body and router system prompt. That boundary matters because the router is a product-policy decision point; changing provider transport should not require touching the code that decides whether a request is a duplicate, a tuning preference, or a genuinely new workflow.
 
+Custom-skill run artifacts now have their own backend seam as well. `services/configurable-skill-run-artifacts.mjs` resolves the configured Markdown/JSON output paths and writes the paired files. `services/configurable-skills-service.mjs` still decides whether a skill can run, creates ledger records, calls the provider, and marks success or failure. This is a small distinction, but it keeps "where should this output be parked?" separate from "should this lifecycle action happen?"
+
 ## Shared Contracts
 
 The `shared/` folder is where many important boundaries live.
