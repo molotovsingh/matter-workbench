@@ -5,6 +5,7 @@ import {
   deriveReportPatchFromStatus,
   formatCommandReport,
   normalizeTerminalLines,
+  redactSensitiveText,
 } from "../frontend/command-reporting.js";
 
 test("normalizeTerminalLines accepts scalars and arrays", () => {
@@ -44,6 +45,38 @@ test("formatCommandReport renders copyable command metadata", () => {
   assert.doesNotMatch(report, /- Overwrite:/);
   assert.match(report, /`20_Workshop\/Party and Officer Map\.md`/);
   assert.match(report, /## Latest Terminal Lines/);
+});
+
+test("formatCommandReport redacts secrets before copying diagnostic text", () => {
+  const report = formatCommandReport({
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    timestamp: "2026-05-14T09:00:00.000Z",
+    typedInput: "OPENAI_API_KEY=sk-typed-secret /party_officer_map",
+    matchedCommand: "/party_officer_map",
+    status: "failed",
+    plannerFallbackReason: "provider rejected Bearer sk-fallback-secret",
+    providerModel: "openai-direct / gpt-5.4",
+    error: "OPENROUTER_API_KEY='sk-openrouter-secret'",
+    artifacts: ["20_Workshop/sk-artifact-secret.md"],
+    statusBar: "MISTRAL_API_KEY=sk-status-secret",
+    terminalLines: [
+      "curl authorization: Bearer sk-terminal-secret",
+      "raw key sk-raw-secret",
+    ],
+  });
+
+  assert.doesNotMatch(report, /sk-typed-secret|sk-fallback-secret|sk-openrouter-secret|sk-artifact-secret|sk-status-secret|sk-terminal-secret|sk-raw-secret/);
+  assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /Bearer \[redacted-secret\]/);
+  assert.match(report, /OPENROUTER_API_KEY=\[redacted-secret\]/);
+  assert.match(report, /MISTRAL_API_KEY=\[redacted-secret\]/);
+});
+
+test("redactSensitiveText covers common provider secret forms", () => {
+  assert.equal(redactSensitiveText("OPENAI_API_KEY=sk-test"), "OPENAI_API_KEY=[redacted-secret]");
+  assert.equal(redactSensitiveText("authorization: Bearer sk-token"), "authorization: Bearer [redacted-secret]");
+  assert.equal(redactSensitiveText("raw sk-token"), "raw [redacted-secret]");
 });
 
 test("buildCommandInteractionLogBody maps command report fields to beta diagnostics shape", () => {

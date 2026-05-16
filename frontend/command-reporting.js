@@ -1,5 +1,14 @@
 import { formatConfigurableRunOutputDocumentState } from "./configurable-skill-run-labels.js";
 
+export const REDACTED_SECRET = "[redacted-secret]";
+
+export function redactSensitiveText(value = "") {
+  return String(value)
+    .replace(/\b(OPENAI_API_KEY|OPENROUTER_API_KEY|MISTRAL_API_KEY)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/gi, `$1=${REDACTED_SECRET}`)
+    .replace(/\bBearer\s+sk-[A-Za-z0-9_-]+/gi, `Bearer ${REDACTED_SECRET}`)
+    .replace(/\bsk-[A-Za-z0-9_-]+/g, REDACTED_SECRET);
+}
+
 export function normalizeTerminalLines(terminal) {
   if (terminal === undefined || terminal === null) return [];
   const values = Array.isArray(terminal) ? terminal : [terminal];
@@ -10,33 +19,33 @@ export function formatCommandReport(report) {
   const lines = [
     "# Command Report",
     "",
-    `- Matter: ${report.matterName || "Unknown"}`,
-    `- Matter folder: ${report.matterFolder || "Unknown"}`,
-    `- Timestamp: ${report.timestamp || ""}`,
-    `- Typed input: \`${report.typedInput || ""}\``,
-    `- Matched command: \`${report.matchedCommand || "none"}\``,
-    `- Status: ${report.status || "unknown"}`,
+    `- Matter: ${redactSensitiveText(report.matterName || "Unknown")}`,
+    `- Matter folder: ${redactSensitiveText(report.matterFolder || "Unknown")}`,
+    `- Timestamp: ${redactSensitiveText(report.timestamp || "")}`,
+    `- Typed input: \`${redactSensitiveText(report.typedInput || "")}\``,
+    `- Matched command: \`${redactSensitiveText(report.matchedCommand || "none")}\``,
+    `- Status: ${redactSensitiveText(report.status || "unknown")}`,
   ];
 
-  if (report.routerDecision) lines.push(`- Router/check result: ${report.routerDecision}${report.routerMatchedSkill ? ` -> ${report.routerMatchedSkill}` : ""}`);
-  if (report.skillIdeaId) lines.push(`- Saved skill idea: ${report.skillIdeaId}`);
-  if (report.sampleId) lines.push(`- Sample output: ${report.sampleId}`);
-  if (report.skillName) lines.push(`- Skill: ${report.skillName}`);
-  if (report.plannerSource) lines.push(`- Planner: ${report.plannerModel || report.plannerSource}`);
-  if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${report.plannerFallbackReason}`);
-  if (report.providerModel) lines.push(`- Provider/model: ${report.providerModel}`);
-  if (report.runId) lines.push(`- Run id: ${report.runId}`);
+  if (report.routerDecision) lines.push(`- Router/check result: ${redactSensitiveText(report.routerDecision)}${report.routerMatchedSkill ? ` -> ${redactSensitiveText(report.routerMatchedSkill)}` : ""}`);
+  if (report.skillIdeaId) lines.push(`- Saved skill idea: ${redactSensitiveText(report.skillIdeaId)}`);
+  if (report.sampleId) lines.push(`- Sample output: ${redactSensitiveText(report.sampleId)}`);
+  if (report.skillName) lines.push(`- Skill: ${redactSensitiveText(report.skillName)}`);
+  if (report.plannerSource) lines.push(`- Planner: ${redactSensitiveText(report.plannerModel || report.plannerSource)}`);
+  if (report.plannerFallbackReason) lines.push(`- Planner fallback reason: ${redactSensitiveText(report.plannerFallbackReason)}`);
+  if (report.providerModel) lines.push(`- Provider/model: ${redactSensitiveText(report.providerModel)}`);
+  if (report.runId) lines.push(`- Run id: ${redactSensitiveText(report.runId)}`);
   if (report.overwrite) lines.push(`- Output document: ${formatConfigurableRunOutputDocumentState(report.overwrite)}`);
-  if (report.error) lines.push(`- Error: ${report.error}`);
+  if (report.error) lines.push(`- Error: ${redactSensitiveText(report.error)}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {
     lines.push("- Artifact paths touched/preserved:");
     for (const artifact of report.artifacts.slice(0, 8)) {
-      lines.push(`  - \`${artifact}\``);
+      lines.push(`  - \`${redactSensitiveText(artifact)}\``);
     }
   }
-  if (report.statusBar) lines.push(`- Visible status: ${report.statusBar}`);
+  if (report.statusBar) lines.push(`- Visible status: ${redactSensitiveText(report.statusBar)}`);
   if (Array.isArray(report.terminalLines) && report.terminalLines.length) {
-    lines.push("", "## Latest Terminal Lines", "", "```text", ...report.terminalLines, "```");
+    lines.push("", "## Latest Terminal Lines", "", "```text", ...report.terminalLines.map(redactSensitiveText), "```");
   }
   return lines.join("\n");
 }
