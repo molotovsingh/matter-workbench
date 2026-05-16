@@ -844,3 +844,9 @@ This app stores a lot of useful state in ordinary local files: JSON ledgers, `co
 But local files still deserve database-like caution at write time. A half-written `config.json` or `.env` can be more annoying than a failed request because the bad file remains on disk. The shared `writeFileAtomic` helper writes to a temporary sibling file first and then renames it into place. On normal filesystems, that rename is the moment the new version becomes visible.
 
 The engineering lesson is simple: local-first does not mean casual. If a file is a source of truth, write it as though the process could be interrupted at the worst possible moment.
+
+## Maintenance Lesson: Keep the Doctor Small at the Door
+
+The app has a "doctor" endpoint that detects and fixes old matter folder layouts. That is maintenance work, not everyday product work. The route-facing service now stays small: scan, apply requested fixes, and report what remains.
+
+The messy legacy details live in `services/doctor-legacy-layout.mjs`: old folder names, old CSV headers, backup behavior, path rewriting, and `matter.json` migration. This is the right shape because legacy migration code tends to accumulate edge cases over time. Keeping it in its own room makes it easier to test without letting migration history leak into the normal matter workflow.

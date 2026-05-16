@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -43,5 +43,7 @@ test("doctor migrates legacy intake layout and backs up edited files", async () 
   const migrated = JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
   assert.equal(Array.isArray(migrated.intakes), true);
   assert.equal(migrated.phase_1_intake, undefined);
+  assert.equal((await readdir(root)).some((name) => name.endsWith(".tmp")), false);
+  assert.equal((await readdir(path.join(root, "00_Inbox", "Intake 01 - Initial"))).some((name) => name.endsWith(".tmp")), false);
   assert.equal((await runDoctorScan(root)).issues.length, 0);
 });
