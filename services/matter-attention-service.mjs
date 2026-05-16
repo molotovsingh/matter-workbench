@@ -466,18 +466,26 @@ export function createMatterAttentionService({
     const logPath = commandInteractionLogService?.logPath;
     if (!logPath) return;
     const interactions = await readCommandInteractions(logPath);
+    const failureKeys = new Set();
     const matterInteractions = interactions
       .filter((entry) => commandBelongsToMatter(entry, matterName))
       .filter(isCommandFailure)
       .slice(-COMMAND_FAILURE_LIMIT)
       .reverse();
     for (const entry of matterInteractions) {
+      const detail = commandFailureDetail(entry);
+      const failureKey = [
+        entry.matched_command || entry.typed_input || "unknown command",
+        detail,
+      ].join("\n");
+      if (failureKeys.has(failureKey)) continue;
+      failureKeys.add(failureKey);
       addItem(items, {
         severity: "warning",
         category: "command",
         code: "command_failed",
         title: `Command failed: ${entry.matched_command || entry.typed_input || "unknown command"}`,
-        detail: commandFailureDetail(entry),
+        detail,
         action: "Use the command interaction log to reproduce the route/UI failure.",
         evidence: [evidence(toPosix(path.relative(path.dirname(path.dirname(logPath)), logPath)))],
         occurredAt: entry.timestamp || "",
@@ -680,8 +688,10 @@ function commandBelongsToMatter(entry, matterName) {
 
 function isCommandFailure(entry) {
   if (!entry || typeof entry !== "object") return false;
-  if (normalizeText(entry.status) === "failed") return true;
+  const status = normalizeText(entry.status);
+  if (status === "failed") return true;
   if (Array.isArray(entry.errors) && entry.errors.length) return true;
+  if (["ran", "complete", "completed", "succeeded", "cancelled", "router_checked"].includes(status)) return false;
   const searchable = [
     entry.status_bar,
     ...(Array.isArray(entry.terminal_lines) ? entry.terminal_lines : []),

@@ -50,14 +50,34 @@ test("matter attention aggregates developer blockers from existing matter traces
 
   const commandLogPath = path.join(root, ".local", "command-interactions.jsonl");
   await mkdir(path.dirname(commandLogPath), { recursive: true });
-  await writeFile(commandLogPath, `${JSON.stringify({
-    timestamp: "2026-05-16T10:00:00.000Z",
-    matter: { folder_name: "Attention Matter" },
-    typed_input: "/create_listofdates",
-    matched_command: "/create_listofdates",
-    status: "failed",
-    errors: ["provider returned invalid chronology"],
-  })}\n`);
+  await writeFile(commandLogPath, [
+    JSON.stringify({
+      timestamp: "2026-05-16T09:58:00.000Z",
+      matter: { folder_name: "Attention Matter" },
+      typed_input: "/extract",
+      matched_command: "/extract",
+      status: "ran",
+      status_bar: "Extract Complete",
+      terminal_lines: ["old line: provider failed earlier", "[extract] totals: 1 extracted, 0 failed"],
+    }),
+    JSON.stringify({
+      timestamp: "2026-05-16T09:59:00.000Z",
+      matter: { folder_name: "Attention Matter" },
+      typed_input: "/create_listofdates",
+      matched_command: "/create_listofdates",
+      status: "failed",
+      errors: ["provider returned invalid chronology"],
+    }),
+    JSON.stringify({
+      timestamp: "2026-05-16T10:00:00.000Z",
+      matter: { folder_name: "Attention Matter" },
+      typed_input: "/create_listofdates",
+      matched_command: "/create_listofdates",
+      status: "failed",
+      errors: ["provider returned invalid chronology"],
+    }),
+    "",
+  ].join("\n"));
 
   const service = createMatterAttentionService({
     matterStore: matterStoreFixture(root, "Attention Matter"),
@@ -146,6 +166,8 @@ test("matter attention aggregates developer blockers from existing matter traces
   assertAttentionCode(attention, "listofdates_json_missing");
   assertAttentionCode(attention, "custom_skill_failed");
   assertAttentionCode(attention, "command_failed");
+  assert.equal(attention.items.filter((item) => item.code === "command_failed").length, 1);
+  assert.ok(!attention.items.some((item) => /\/extract/.test(item.title)));
   assert.equal(
     attention.items.filter((item) => item.code === "custom_skill_warnings").length,
     1,
