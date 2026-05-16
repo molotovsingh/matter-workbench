@@ -820,9 +820,9 @@ This does not change schemas or route behavior. It changes maintainability. The 
 
 The same HTTP cleanup changed static file serving from "read the whole file into memory, then send it" to streaming. For a local app this is not glamorous, but it is the right default: large files should flow through the server instead of becoming one big buffer whenever someone opens them.
 
-## Matter Context Lesson: Separate Packet Building From Search
+## Matter Context Lesson: Keep The Facade Thin
 
-`matter-context-service` has two different jobs:
+`matter-context-service` started as a convenient public entry point for two different jobs:
 
 ```text
 Build the bounded matter packet from disk.
@@ -831,9 +831,16 @@ Search that packet for useful source-backed snippets.
 
 Those jobs are related, but they should not be the same module. Packet building cares about filesystem traversal, file registers, extraction records, Source Index trust checks, library artifact summaries, and limits. Search cares about query normalization, term matching, snippets, result counts, and preserving citations.
 
-The search code now lives in `services/matter-context-search.mjs`. The main context service still exposes the same public API, but the responsibility is clearer: build the packet, then hand it to a focused search module.
+The context layer now has clearer rooms:
 
-The disk-reading side is split as well. `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal. `services/matter-context-library-artifacts.mjs` owns the small summaries of selected library outputs, such as Source Index and List of Dates artifacts. That keeps the main packet builder focused on packet shape, limits, and evidence blocks.
+- `services/matter-context-service.mjs` is the facade that the routes use.
+- `services/matter-context-packet.mjs` builds the bounded packet shape.
+- `services/matter-context-preview.mjs` turns that packet into the small UI preview.
+- `services/matter-context-search.mjs` searches packet evidence blocks.
+- `services/matter-context-sources.mjs` owns matter JSON loading, intake discovery, file-register parsing, current Source Index trust checks, and extraction-record traversal.
+- `services/matter-context-library-artifacts.mjs` owns the small summaries of selected library outputs, such as Source Index and List of Dates artifacts.
+
+The public imports stayed stable, so callers can still import `buildMatterContextPacket`, `summarizeMatterContextPacket`, and `searchMatterContextPacket` from the service module. Internally, the facade no longer owns packet construction and preview shaping. That matters because future work on context packets, source labels, or search ranking can now land in the right file instead of reopening one mixed service.
 
 The lesson is that a good extraction does not need to change behavior to be worthwhile. Sometimes the best refactor is simply moving a self-contained decision into a smaller room where future changes cannot accidentally disturb disk layout or packet schema.
 
