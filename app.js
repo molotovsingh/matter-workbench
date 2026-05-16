@@ -101,8 +101,11 @@ const ctx = {
   getMattersState: () => mattersState,
 };
 
-const { setStatus } = createStatusController(elements);
+const statusController = createStatusController(elements);
+const { setStatus } = statusController;
 ctx.setStatus = setStatus;
+ctx.getActivityLogLines = statusController.getActivityLogLines;
+ctx.getActivityLogText = statusController.getActivityLogText;
 
 const workspaceView = createWorkspaceView(ctx);
 ctx.openFilePreview = workspaceView.openFilePreview;

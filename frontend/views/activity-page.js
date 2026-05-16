@@ -16,11 +16,12 @@ export function renderActivityPageHtml({
   configurableSkillRuns = null,
   configurableSkillRunsError = "",
   activeMatter = {},
+  activityLogLines = [],
   activityLogText = "",
 } = {}, escapeHtml) {
   const summary = activityPageSummary(configurableSkillRuns);
   const receiptGroups = groupRunsByReceiptState(summary.runs);
-  const activityLogLines = latestActivityLogLines(activityLogText);
+  const systemLogLines = latestActivityLogLines(activityLogLines.length ? activityLogLines : activityLogText);
   return `
     <div class="activity-page">
       <div class="activity-hero">
@@ -66,15 +67,15 @@ export function renderActivityPageHtml({
         </section>
       ` : ""}
 
-      ${activityLogLines.length ? `
+      ${systemLogLines.length ? `
         <section class="activity-section">
           <details class="activity-system-log">
             <summary>
               <span>System Log</span>
-              <span>${escapeHtml(`${activityLogLines.length} recent`)}</span>
+              <span>${escapeHtml(`${systemLogLines.length} recent`)}</span>
             </summary>
             <ol>
-              ${activityLogLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+              ${systemLogLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
             </ol>
           </details>
         </section>
@@ -83,9 +84,9 @@ export function renderActivityPageHtml({
   `;
 }
 
-function latestActivityLogLines(text = "") {
-  return String(text || "")
-    .split("\n")
+function latestActivityLogLines(lines = []) {
+  const values = Array.isArray(lines) ? lines : String(lines || "").split("\n");
+  return values
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(-20);

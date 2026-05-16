@@ -14,6 +14,7 @@ export function createCommandReportController({
   reportStatusElement,
   statusBarRight,
   terminalOutput,
+  getActivityLogLines,
 } = {}) {
   let latestReport = null;
 
@@ -161,6 +162,10 @@ export function createCommandReportController({
   }
 
   function getLatestTerminalLines() {
+    const activityLines = getActivityLogLines?.({ limit: 8 });
+    if (Array.isArray(activityLines)) {
+      return activityLines.map((line) => String(line || "").trim()).filter(Boolean).slice(-8);
+    }
     const existing = terminalOutput?.textContent
       ? terminalOutput.textContent.split("\n").map((line) => line.trim()).filter(Boolean)
       : [];

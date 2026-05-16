@@ -1,10 +1,10 @@
 import { getJson, postJson } from "./api-client.js";
 import { writeClipboardText } from "./clipboard.js";
 import { escapeHtml } from "./dom-utils.js";
-import { setShellMatterMode } from "./shell-presentation.js";
-import { renderNewMatterForm } from "./views/new-matter.js";
+import { filterMatters } from "./matter-search.js";
 import { renderSkillRouterPanel, wireSkillRouterPanel } from "./skill-router-panel.js";
 import { renderActivityPageHtml } from "./views/activity-page.js";
+import { createHomeLandingController } from "./views/home-landing.js";
 import {
   formatConfigurableSkillRunReport,
   formatSkillFactoryHealthReport,
@@ -26,7 +26,6 @@ export function createMatterScreens(ctx) {
     mattersPicker,
     mattersSearchInput,
     mattersSearchMeta,
-    workspaceTree,
   } = ctx.elements;
   let matterSearchQuery = "";
 
@@ -84,38 +83,18 @@ export function createMatterScreens(ctx) {
     mattersSearchInput.value = matterSearchQuery;
   }
 
-  function filterMatters(matters = [], query = "") {
-    const normalizedQuery = normalizeMatterSearchText(query);
-    if (!normalizedQuery) return matters;
-    return matters.filter((matter) => normalizeMatterSearchText([
-      matter.name,
-      matter.folderName,
-      matter.inputLabel,
-      matter.clientName,
-      matter.oppositeParty,
-      matter.matterName,
-    ].filter(Boolean).join(" ")).includes(normalizedQuery));
+  function resetMatterSearchUi() {
+    matterSearchQuery = "";
+    if (mattersSearchInput) mattersSearchInput.value = "";
+    if (mattersSearchMeta) mattersSearchMeta.textContent = "";
+    if (mattersList) mattersList.innerHTML = "";
   }
 
-  function normalizeMatterSearchText(value = "") {
-    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
-  }
-
-  function timeAwareGreeting(date = new Date()) {
-    const hour = date.getHours();
-    if (hour < 12) return "Good morning.";
-    if (hour < 17) return "Good afternoon.";
-    return "Good evening.";
-  }
-
-  function latestActivityLines(text = "") {
-    return String(text || "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(-4)
-      .reverse();
-  }
+  const homeLanding = createHomeLandingController({
+    ctx,
+    setActivityActive,
+    resetMatterSearch: resetMatterSearchUi,
+  });
 
   async function renderSettings() {
     setActivityActive("settings");
@@ -330,7 +309,7 @@ export function createMatterScreens(ctx) {
       configurableSkillRuns,
       configurableSkillRunsError,
       activeMatter: ctx.getActiveMatter(),
-      activityLogText: ctx.elements.terminalOutput?.textContent || "",
+      activityLogLines: ctx.getActivityLogLines?.({ limit: 20 }) || [],
     }, escapeHtml);
     wireConfigurableSkillRunActions({ configurableSkillRuns });
   }
@@ -612,202 +591,7 @@ export function createMatterScreens(ctx) {
   }
 
   function renderBlankLanding() {
-    setActivityActive("explorer");
-    ctx.clearActiveMatter();
-    setShellMatterMode(ctx.elements, false);
-    if (ctx.elements.titleText) ctx.elements.titleText.textContent = "No matter selected";
-    if (ctx.elements.bottomMeta) ctx.elements.bottomMeta.textContent = "No matter selected";
-    matterSearchQuery = "";
-    if (mattersSearchInput) mattersSearchInput.value = "";
-    if (mattersSearchMeta) mattersSearchMeta.textContent = "";
-    if (mattersList) mattersList.innerHTML = "";
-    workspaceTree.innerHTML = "";
-    breadcrumbs.textContent = "Home";
-    const mattersState = ctx.getMattersState();
-    const hasMatters = mattersState.matters.length > 0;
-    const resumeMatterName = mattersState.resumeMatterName || "";
-    const canResume = Boolean(
-      resumeMatterName && mattersState.matters.some((matter) => matter.name === resumeMatterName),
-    );
-    const availableMatters = mattersState.matters.slice(0, 3);
-    const recentActivityLines = latestActivityLines(ctx.elements.terminalOutput?.textContent || "");
-    const greeting = timeAwareGreeting();
-    editorContent.innerHTML = `
-      <section class="landing-home">
-        <div class="landing-kicker">Home</div>
-        <h1>${escapeHtml(greeting)}</h1>
-        <p class="landing-lede">
-          ${hasMatters
-            ? "Choose a matter to begin, or use the assistant to prepare documents, search cases, or run an action."
-            : "Create your first matter to begin."}
-        </p>
-        ${canResume ? `
-          <button id="continueLastMatterButton" class="home-continue-card" type="button">
-            <span class="home-card-kicker">Continue where you left off</span>
-            <strong>${escapeHtml(resumeMatterName)}</strong>
-            <span>Open this matter</span>
-            <span class="home-continue-arrow" aria-hidden="true">→</span>
-          </button>
-        ` : ""}
-        <div class="home-dashboard-grid">
-          <section class="home-card">
-            <div class="home-card-header">
-              <h2>Available matters</h2>
-              <span>${mattersState.matters.length} total</span>
-            </div>
-            ${availableMatters.length ? `
-              <ul class="home-matter-list">
-                ${availableMatters.map((matter) => `
-                  <li>
-                    <button type="button" data-home-matter-name="${escapeHtml(matter.name)}">
-                      <span class="home-matter-dot" aria-hidden="true"></span>
-                      <strong>${escapeHtml(matter.name)}</strong>
-                    </button>
-                  </li>
-                `).join("")}
-              </ul>
-            ` : '<p class="muted">No matters yet.</p>'}
-            <button id="homeViewAllMattersButton" class="home-card-link" type="button">View all matters →</button>
-          </section>
-          <section class="home-card">
-            <div class="home-card-header">
-              <h2>Quick actions</h2>
-            </div>
-            <div class="home-quick-actions">
-              <button id="homeFindMatterAction" type="button">
-                <strong>Find a matter</strong>
-                <span>Search by client, party, or matter name</span>
-              </button>
-              <button id="homeAddMatterAction" type="button">
-                <strong>Add new matter</strong>
-                <span>Create a new case folder</span>
-              </button>
-              <button id="homeNewSkillAction" type="button">
-                <strong>New skill</strong>
-                <span>Design a reusable matter action</span>
-              </button>
-              <button id="homePrepareMatterAction" type="button">
-                <strong>Prepare matter</strong>
-                <span>Check setup and run missing preparation</span>
-              </button>
-            </div>
-          </section>
-        </div>
-        <section id="homeMatterSearchPanel" class="home-matter-search-panel" hidden>
-          <label for="homeMatterSearchInput">Search existing matters</label>
-          <input
-            id="homeMatterSearchInput"
-            type="search"
-            placeholder="Type a client, party, or matter name"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <div id="homeMatterSearchMeta" class="matter-search-meta">${hasMatters ? `Type to search ${mattersState.matters.length} matter${mattersState.matters.length === 1 ? "" : "s"}.` : "No matters are available yet."}</div>
-          <ul id="homeMattersList" class="home-matters-list matters-list"></ul>
-        </section>
-        <section class="home-card home-activity-card">
-          <div class="home-card-header">
-            <h2>Recent activity</h2>
-          </div>
-          ${recentActivityLines.length ? `
-            <ul class="home-activity-list">
-              ${recentActivityLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-            </ul>
-          ` : '<p class="muted">No activity yet. Pick a matter to begin.</p>'}
-        </section>
-      </section>
-      ${mattersState.mattersHome ? `
-        <details class="local-folder-details">
-          <summary>Show local folder</summary>
-          <p><code>${escapeHtml(mattersState.mattersHome)}</code></p>
-        </details>
-      ` : ""}
-    `;
-    editorContent.scrollTop = 0;
-    globalThis.requestAnimationFrame?.(() => {
-      editorContent.scrollTop = 0;
-    });
-    globalThis.setTimeout?.(() => {
-      editorContent.scrollTop = 0;
-    }, 0);
-    document.getElementById("continueLastMatterButton")?.addEventListener("click", () => {
-      ctx.switchToMatter?.(resumeMatterName);
-    });
-    document.getElementById("homeAddMatterButton")?.addEventListener("click", () => {
-      renderNewMatterForm(ctx);
-    });
-    document.getElementById("homeAddMatterAction")?.addEventListener("click", () => {
-      renderNewMatterForm(ctx);
-    });
-    const homeSearchButton = document.getElementById("homeSearchMatterButton");
-    const homeViewAllMattersButton = document.getElementById("homeViewAllMattersButton");
-    const homeFindMatterAction = document.getElementById("homeFindMatterAction");
-    const homeSearchPanel = document.getElementById("homeMatterSearchPanel");
-    const homeSearchInput = document.getElementById("homeMatterSearchInput");
-    const homeSearchMeta = document.getElementById("homeMatterSearchMeta");
-    const homeMattersList = document.getElementById("homeMattersList");
-    const revealHomeSearch = () => {
-      if (!homeSearchPanel || !homeSearchInput) return;
-      homeSearchPanel.hidden = false;
-      homeSearchInput.focus();
-      renderHomeMatterResults(homeSearchInput.value);
-    };
-    const runHomeCommand = (command) => {
-      if (ctx.elements.aiCommandInput) ctx.elements.aiCommandInput.value = command;
-      ctx.runCommand?.(command);
-    };
-    const renderHomeMatterResults = (query = "") => {
-      const trimmedQuery = String(query || "").trim();
-      if (!trimmedQuery) {
-        homeMattersList.innerHTML = "";
-        homeSearchMeta.textContent = hasMatters
-          ? `Type to search ${mattersState.matters.length} matter${mattersState.matters.length === 1 ? "" : "s"}.`
-          : "No matters are available yet.";
-        return;
-      }
-      const filteredMatters = filterMatters(mattersState.matters, trimmedQuery);
-      homeSearchMeta.textContent = `${filteredMatters.length} of ${mattersState.matters.length} matters`;
-      if (!filteredMatters.length) {
-        homeMattersList.innerHTML = `<li class="matters-empty">No matters match "${escapeHtml(trimmedQuery)}".</li>`;
-        return;
-      }
-      homeMattersList.innerHTML = filteredMatters.map((matter) => (
-        `<li><button type="button" class="matters-entry" data-home-matter-name="${escapeHtml(matter.name)}">${escapeHtml(matter.name)}</button></li>`
-      )).join("");
-    };
-    editorContent.querySelectorAll?.("[data-home-matter-name]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const name = button.dataset.homeMatterName || "";
-        if (name) ctx.switchToMatter?.(name);
-      });
-    });
-    homeSearchButton?.addEventListener("click", revealHomeSearch);
-    homeViewAllMattersButton?.addEventListener("click", revealHomeSearch);
-    homeFindMatterAction?.addEventListener("click", revealHomeSearch);
-    document.getElementById("homeNewSkillAction")?.addEventListener("click", () => runHomeCommand("new skill"));
-    document.getElementById("homePrepareMatterAction")?.addEventListener("click", () => runHomeCommand("prepare matter"));
-    homeSearchInput?.addEventListener("input", (event) => {
-      renderHomeMatterResults(event.target.value);
-    });
-    homeMattersList?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-home-matter-name]");
-      const name = button?.dataset?.homeMatterName || "";
-      if (!name) return;
-      if (homeSearchInput) homeSearchInput.value = "";
-      homeMattersList.innerHTML = "";
-      ctx.switchToMatter?.(name);
-    });
-    ctx.setStatus({
-      mood: "idle",
-      card: hasMatters
-        ? "<strong>Pick a matter</strong><br />Search existing matters or add a new one from Home."
-        : "<strong>Ready</strong><br />Create your first matter to begin.",
-      bar: "Pick a matter to begin",
-      terminal: [
-        "[landing] no active matter",
-        `[landing] ${mattersState.matters.length} matter(s) available`,
-      ],
-    });
+    homeLanding.renderBlankLanding();
   }
 
   async function goToExplorer() {

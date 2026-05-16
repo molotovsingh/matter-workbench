@@ -71,6 +71,7 @@ export function createAiCommandBox(ctx, options = {}) {
     reportStatusElement: aiCommandReportStatus,
     statusBarRight,
     terminalOutput,
+    getActivityLogLines: options.getActivityLogLines || ctx.getActivityLogLines,
   });
   const {
     copyLatestReport,

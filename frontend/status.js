@@ -1,19 +1,16 @@
 import { escapeHtml } from "./dom-utils.js";
+import { createActivityLogStore } from "./activity-log-store.js";
 
-const TERMINAL_LINE_CAP = 500;
 const COMPACT_ACTIVITY_LINE_CAP = 3;
 
-export function createStatusController({ terminalOutput, statusBarRight, aiCommandActivityStrip }) {
+export function createStatusController({
+  terminalOutput,
+  statusBarRight,
+  aiCommandActivityStrip,
+  activityLogStore = createActivityLogStore(),
+}) {
   function appendTerminal(lines) {
-    const incoming = Array.isArray(lines) ? lines : [lines];
-    if (!incoming.length) return;
-    const stamp = new Date().toLocaleTimeString([], { hour12: false });
-    const stamped = incoming.map((line) => `${stamp} ${line}`);
-    const existing = terminalOutput?.textContent ? terminalOutput.textContent.split("\n") : [];
-    const combined = existing.concat(stamped);
-    const trimmed = combined.length > TERMINAL_LINE_CAP
-      ? combined.slice(combined.length - TERMINAL_LINE_CAP)
-      : combined;
+    const trimmed = activityLogStore.append(lines);
     if (terminalOutput) {
       terminalOutput.textContent = trimmed.join("\n");
       terminalOutput.scrollTop = terminalOutput.scrollHeight;
@@ -24,6 +21,14 @@ export function createStatusController({ terminalOutput, statusBarRight, aiComma
   function setStatus({ bar, terminal } = {}) {
     if (bar !== undefined && statusBarRight) statusBarRight.innerHTML = `<span>${escapeHtml(bar)}</span>`;
     if (terminal !== undefined) appendTerminal(terminal);
+  }
+
+  function getActivityLogLines(options = {}) {
+    return activityLogStore.getLines(options);
+  }
+
+  function getActivityLogText() {
+    return activityLogStore.getText();
   }
 
   function renderCommandActivityStrip(lines) {
@@ -51,7 +56,13 @@ export function createStatusController({ terminalOutput, statusBarRight, aiComma
     `;
   }
 
-  return { appendTerminal, setStatus };
+  return {
+    activityLogStore,
+    appendTerminal,
+    getActivityLogLines,
+    getActivityLogText,
+    setStatus,
+  };
 }
 
 export function formatCompactActivityLine(line) {

@@ -750,3 +750,20 @@ Earlier versions answered that through the bottom terminal. The Home-first shell
 The compromise is a compact activity strip directly under the command input. It shows the last few status lines, with timestamps, next to the action that caused them. The old shell-level bottom terminal is hidden from normal pages because it made every screen feel like a developer console. Longer logs belong inside Activity, where the user is already asking what happened.
 
 The engineering lesson is that removing clutter is not the same as removing feedback. When you simplify a screen, preserve the user's sense of causality: I clicked, the app heard me, and this is what is happening.
+
+## Shell Refactor Lesson: Reduce Architectural Depth
+
+After the Home-first visual release, the next risk was not the UI itself. It was where the UI logic lived.
+
+`frontend/matter-screens.js` had become the shell's traffic controller and was also rendering the full Home page. That is a classic depth smell: to understand a simple Home search click, you had to mentally pass through shell state, matter state, DOM rendering, activity logging, and command wiring in one file.
+
+The cleanup split those jobs:
+
+- `frontend/views/home-landing.js` owns the Home page HTML and Home-only event wiring.
+- `frontend/matter-search.js` owns matter search normalization/filtering.
+- `frontend/activity-log-store.js` owns recent activity state.
+- `frontend/status.js` mirrors that activity into the compact command strip and hidden debug terminal.
+
+The important change is not just fewer lines. It is fewer reasons to open the same file. Home can now change without touching Settings. Activity can read recent logs without scraping hidden DOM text. Command reports can ask the activity store for recent lines instead of treating a hidden terminal as the source of truth.
+
+That is what reduced architectural depth means in practice: fewer hops, fewer mixed responsibilities, and fewer surprising dependencies between screens.
