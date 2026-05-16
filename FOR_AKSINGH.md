@@ -796,3 +796,26 @@ The fix was deliberately modest. Instead of redesigning storage, the app now has
 This is not a database, and it is not a distributed lock for multiple server processes. But that is the point: good engineering does not always mean jumping to the biggest abstraction. For a local workbench that runs as one Node server, this reduces real risk without changing schemas, routes, or user behavior.
 
 The same slice also fixed invalid JSON request bodies. Bad client JSON should be a `400` problem, not a mysterious `500` server failure. That distinction matters because errors should teach the caller what kind of mistake happened.
+
+## Backend Routing Lesson: Make Dispatch Visible
+
+The backend used to route many API requests with long linear chains like:
+
+```text
+if method is GET and path is /api/config ...
+if method is POST and path is /api/config ...
+if method is GET and path is /api/matters ...
+```
+
+That works, but it hides the shape of the API in control flow. To see what a route module owned, you had to read every branch. The safer pattern is now a small route dispatcher plus explicit route tables:
+
+```text
+GET  /api/config          -> config summary
+POST /api/config          -> save matters home
+GET  /api/skill-ideas     -> list ideas
+POST /api/skill-ideas     -> create idea
+```
+
+This does not change schemas or route behavior. It changes maintainability. The route file now reads more like a map, and the branchy matching logic lives in one tested helper.
+
+The same HTTP cleanup changed static file serving from "read the whole file into memory, then send it" to streaming. For a local app this is not glamorous, but it is the right default: large files should flow through the server instead of becoming one big buffer whenever someone opens them.

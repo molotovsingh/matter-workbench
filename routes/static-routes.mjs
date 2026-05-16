@@ -1,4 +1,6 @@
-import { readFile, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import { isInsideRoot } from "../shared/safe-paths.mjs";
 
@@ -38,10 +40,14 @@ export async function serveStatic({ appDir, request, response }) {
       "content-length": fileStat.size,
       "cache-control": "no-store",
     });
-    response.end(await readFile(filePath));
+    await pipeline(createReadStream(filePath), response);
   } catch {
-    response.writeHead(404);
-    response.end("Not found");
+    if (response.headersSent) {
+      response.destroy?.();
+    } else {
+      response.writeHead(404);
+      response.end("Not found");
+    }
   }
   return true;
 }
