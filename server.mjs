@@ -8,6 +8,7 @@ import { createConfigurableSkillRunsService } from "./services/configurable-skil
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
+import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
@@ -72,6 +73,12 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     runsPath: options.configurableSkillRunsPath,
   });
+  const matterAttentionService = createMatterAttentionService({
+    matterStore,
+    matterStatusService,
+    configurableSkillRunsService,
+    commandInteractionLogService,
+  });
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
@@ -117,6 +124,7 @@ export async function createWorkbenchServer(options = {}) {
     configService,
     configurableSkillsService,
     env,
+    matterAttentionService,
     matterStore,
     matterContextService,
     matterStatusService,

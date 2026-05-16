@@ -10,6 +10,7 @@ import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
 
 export async function handleMatterWorkflowApiRequest({ request, requestUrl, response, services }) {
   const {
+    matterAttentionService,
     matterContextService,
     matterStore,
     matterStatusService,
@@ -94,6 +95,9 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("GET", "/api/matter-status", async () => {
         sendJson(response, 200, await matterStatusService.readMatterStatus());
+      }),
+      exactRoute("GET", "/api/matter-attention", async () => {
+        sendJson(response, 200, await matterAttentionService.readMatterAttention());
       }),
       exactRoute("GET", "/api/prepare-matter", async () => {
         sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan());
