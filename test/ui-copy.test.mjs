@@ -67,3 +67,11 @@ test("shell terminal is hidden outside Activity content", async () => {
   assert.match(css, /\.bottom-panel\s*\{[\s\S]*?display: none;/);
   assert.match(css, /activity-system-log/);
 });
+
+test("command slash suggestions are not styled as submit buttons", async () => {
+  const css = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.doesNotMatch(css, /\.ai-command-form button\s*\{/);
+  assert.match(css, /\.ai-command-form \.command-panel-input-row button\s*\{/);
+  assert.match(css, /\.command-suggestion\s*\{[\s\S]*?width: 100%;[\s\S]*?padding: 8px;/);
+});

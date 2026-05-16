@@ -889,3 +889,19 @@ The mistake would be to throw that away because the Skills page felt too technic
 This is a useful architecture lesson. Sometimes the backend has the right shape, but the product surface tells the wrong story. Refactoring the presentation taxonomy can reduce confusion without destabilizing the runtime.
 
 The Source Index now also carries the beginning of a label-versioning contract: a stable `source_id`, a separate `content_hash`, suggested/confirmed labels, label status, label reason, and confirmation metadata placeholders. That split matters because a label change is cheap, while a document change can affect legal chronology. Good systems do not call both things "stale"; they distinguish label refresh from chronology review and regeneration.
+
+## Frontend Lesson: Scope Generic Selectors
+
+The command box once had a small but ugly regression: typing `/` opened the slash-command suggestions, but each suggestion row inherited the dark square submit-button styling. The cause was a selector that was too broad:
+
+```css
+.ai-command-form button
+```
+
+That matched both the arrow submit button and every suggestion button inside the same form. The fix was to scope the submit-button rule to the input row:
+
+```css
+.ai-command-form .command-panel-input-row button
+```
+
+This is a good frontend lesson because nothing was wrong with the JavaScript. The DOM was rendering the right suggestions, but the CSS contract was too loose. In dense app shells, selectors should name the surface they intend to own; otherwise a later nested control quietly inherits styles meant for a completely different job.
