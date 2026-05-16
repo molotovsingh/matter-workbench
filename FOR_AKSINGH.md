@@ -417,7 +417,9 @@ Important files:
 - `styles.css` - layout and visual system;
 - `frontend/event-wiring.js` - user actions and skill dispatch;
 - `frontend/ai-command-box.js` - small Command rail facade;
-- `frontend/skill-idea-session-controller.js` - new skill interview, sample review, approval, and create-skill flow;
+- `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
+- `frontend/skill-idea-sample-actions.js` - sample generation, approval, copying, and sample output display;
+- `frontend/skill-idea-creation-actions.js` - approved-sample activation, overlap gating, and skill-ready rendering;
 - `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, run reports, and skill improvement ideas;
 - `frontend/matter-screens.js` - settings and matter screens;
 - `frontend/workspace-view.js` - explorer and preview rendering;
@@ -443,7 +445,7 @@ ai-command-box.js
   -> report controller
 ```
 
-That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea session controller. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
+That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea creation actions. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
 
 ## Shared Contracts
 
@@ -874,7 +876,7 @@ That is not just tidiness. Good scenario tests should make the story easy to rea
 
 The new-skill flow has one moment that matters most: the generated sample. That is where a lawyer decides whether the proposed skill is useful, safe, and worth turning into something runnable.
 
-The session controller still owns the conversation, but sample work now sits behind two smaller helpers. `frontend/skill-idea-sample-actions.js` owns generating, approving, copying, and displaying sample output. `frontend/skill-idea-sample-ledger.js` does one narrower job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
+The session controller still owns the conversation, but the risky work now sits behind smaller helpers. `frontend/skill-idea-sample-actions.js` owns generating, approving, copying, and displaying sample output. `frontend/skill-idea-creation-actions.js` owns the approved-sample activation path: check existing skills for overlap, pause if the idea duplicates a native/custom skill, create the runnable skill only after the gate clears, then show the skill-ready rail. `frontend/skill-idea-sample-ledger.js` does one narrower job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
 
 This is a useful kind of frontend refactor because it moves the fragile part of the payoff out of the command-session controller and into focused modules. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
 
