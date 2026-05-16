@@ -426,7 +426,8 @@ Important files:
 - `frontend/skill-idea-interview.js` - interview planning, planner fallback, and design-brief normalization;
 - `frontend/skill-idea-interview-templates.js` - deterministic interview templates, adjacent-native-skill patterns, and simple output-lane hints;
 - `frontend/matter-screens.js` - settings and matter screens;
-- `frontend/workspace-view.js` - explorer and preview rendering;
+- `frontend/workspace-view.js` - workspace tree, lane opening, and generic file preview selection;
+- `frontend/listofdates-markdown-preview.js` - List of Dates markdown parsing, scannable chronology rendering, and copy/download actions;
 - `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
 - `frontend/api-client.js` - API helper;
 - `frontend/state.js` - shared state;
@@ -924,6 +925,12 @@ The canonical Library artifact paths now live in `shared/matter-artifacts.mjs`. 
 The source-label rules themselves now live in `shared/source-labels.mjs`. That is a small but important foundation: Source Index readers, List of Dates generation, label refresh, and context packets all resolve labels the same way. A confirmed or overridden lawyer label wins; unsafe labels containing `FILE-0001` style identifiers are not promoted into lawyer-facing fields. This is how you prevent one surface from being polished while another leaks internal names.
 
 The same care now applies to artifact writes. Source Index JSON, List of Dates JSON/CSV/Markdown, and custom-skill output files go through the shared atomic file writer, so a failed process is less likely to leave half-written legal work product on disk. This is boring in the best way: source-backed legal artifacts should fail before replacement, not fail halfway through replacement.
+
+## Preview Lesson: Keep Document Rendering Separate From the Explorer
+
+`frontend/workspace-view.js` decides which matter file is active, highlights it in the tree, opens workspace lanes, and chooses the preview path. The List of Dates markdown preview now lives in `frontend/listofdates-markdown-preview.js`.
+
+That split matters because "show me the file tree" and "turn a legal chronology markdown table into a scannable lawyer surface" are different jobs. The file explorer should stay generic. The List of Dates renderer can now evolve around legal document readability, source fragments, copy/download actions, and chronology summary rules without making the whole workspace sidebar harder to reason about.
 
 ## Frontend Lesson: Scope Generic Selectors
 

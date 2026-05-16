@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
 import {
-  findTreeNodeByPath,
   parseListOfDatesMarkdown,
   renderListOfDatesPreviewActions,
   renderListOfDatesMarkdownPreview,
+} from "../frontend/listofdates-markdown-preview.js";
+import {
+  findTreeNodeByPath,
   renderTreeNode,
   renderWorkspaceLaneView,
 } from "../frontend/workspace-view.js";
