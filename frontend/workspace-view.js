@@ -48,7 +48,7 @@ export function renderTreeNode(node, depth = 0, options = {}) {
     : renderDirectoryChildren(children, depth, options);
   const displayChildren = partitionChildrenForDisplay(children, options);
   const childCount = displayChildren.visibleCount ? `<span class="tree-meta">${displayChildren.visibleCount}</span>` : "";
-  const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
+  const truncated = node.truncated ? `<li class="tree-truncated">Some entries are hidden because this folder is large.</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
   const displayName = workspaceLaneLabel(node.path, node.name);
   const canonicalName = options.showTechnical && displayName !== node.name
@@ -348,7 +348,7 @@ export function createWorkspaceView(ctx) {
       `;
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before opening a workspace lane.",
+        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before opening a workspace area.",
         bar: "No Matter",
         terminal: `[workspace] lane requested without active matter: ${lanePath}`,
       });
@@ -364,12 +364,12 @@ export function createWorkspaceView(ctx) {
       editorContent.innerHTML = `
         <h1>${escapeHtml(laneLabel)}</h1>
         <p><code>${escapeHtml(lanePath)}</code></p>
-        <p class="form-error">This lane folder is missing from the active matter.</p>
+        <p class="form-error">This workspace area is missing from the active matter.</p>
       `;
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Lane missing</strong><br /><code>${escapeHtml(lanePath)}</code> was not found in this matter.`,
-        bar: "Lane Missing",
+        card: `<strong>Workspace area missing</strong><br /><code>${escapeHtml(lanePath)}</code> was not found in this matter.`,
+        bar: "Workspace Area Missing",
         terminal: `[workspace] missing lane ${lanePath}`,
       });
       return { ok: false, reason: "missing_lane" };
@@ -379,8 +379,8 @@ export function createWorkspaceView(ctx) {
     editorContent.innerHTML = renderWorkspaceLaneView(lane, laneNode);
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>${escapeHtml(laneLabel)}</strong><br />Opened <code>${escapeHtml(lanePath)}</code> without running a skill.`,
-      bar: "Lane Opened",
+      card: `<strong>${escapeHtml(laneLabel)}</strong><br />Opened this workspace area without running a skill.`,
+      bar: "Workspace Area Opened",
       terminal: `[workspace] opened ${lanePath}`,
     });
     return { ok: true, empty: !(laneNode.children || []).length };
@@ -403,7 +403,7 @@ export function findTreeNodeByPath(node, relativePath) {
 
 export function renderWorkspaceLaneView(lane, laneNode) {
   const children = laneNode?.children || [];
-  const label = lane?.label || workspaceLaneLabel(laneNode?.path, laneNode?.name || "Workspace Lane");
+  const label = lane?.label || workspaceLaneLabel(laneNode?.path, laneNode?.name || "Workspace Area");
   const path = lane?.path || laneNode?.path || "";
   const purpose = lane?.purpose || "matter workspace files";
   const files = children.filter((child) => child.kind === "file").length;
@@ -421,7 +421,7 @@ export function renderWorkspaceLaneView(lane, laneNode) {
       </ul>
       ${children.length > 16 ? `<p class="muted">Showing 16 of ${children.length} entries.</p>` : ""}
     `
-    : '<p class="muted">This lane is empty.</p>';
+    : '<p class="muted">This workspace area is empty.</p>';
 
   return `
     <h1>${escapeHtml(label)}</h1>

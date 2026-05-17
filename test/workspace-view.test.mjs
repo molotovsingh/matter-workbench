@@ -72,7 +72,7 @@ test("workspace tree renders human-readable lane labels while preserving folder 
   assert.match(technicalHtml, /tree-canonical-name">10_Library/);
 });
 
-test("workspace lane lookup and preview render empty and populated lanes", () => {
+test("workspace area lookup and preview render empty and populated areas", () => {
   const tree = {
     name: "Demo Matter",
     kind: "directory",
@@ -126,7 +126,7 @@ test("workspace lane lookup and preview render empty and populated lanes", () =>
     findTreeNodeByPath(tree, "30_Drafts"),
   );
   assert.match(draftsHtml, /Drafts/);
-  assert.match(draftsHtml, /This lane is empty/);
+  assert.match(draftsHtml, /This workspace area is empty/);
 });
 
 test("workspace tree hides technical files by default and exposes them when requested", () => {
