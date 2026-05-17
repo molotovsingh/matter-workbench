@@ -14,17 +14,23 @@ export function createCommandInteractionLogService({
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = logPath || path.join(root, ".local", "command-interactions.jsonl");
+  let appendQueue = Promise.resolve();
 
   async function appendInteraction(entry = {}) {
     const record = normalizeInteraction(entry, { now });
-    await mkdir(path.dirname(storePath), { recursive: true });
-    await appendFile(storePath, `${JSON.stringify(record)}\n`, "utf8");
-    return {
+    const result = {
       schema_version: COMMAND_INTERACTION_LOG_SCHEMA_VERSION,
       logged: true,
       path: toPosix(path.relative(root, storePath)),
       timestamp: record.timestamp,
     };
+    const write = appendQueue.then(async () => {
+      await mkdir(path.dirname(storePath), { recursive: true });
+      await appendFile(storePath, `${JSON.stringify(record)}\n`, "utf8");
+    });
+    appendQueue = write.catch(() => {});
+    await write;
+    return result;
   }
 
   return {

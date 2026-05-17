@@ -86,6 +86,29 @@ test("command interaction normalization bounds large fields", () => {
   assert.deepEqual(record.errors, ["boom"]);
 });
 
+test("command interaction log serializes concurrent appends", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "command-log-service-concurrent-"));
+  const logPath = path.join(appDir, ".local", "command-interactions.jsonl");
+  const service = createCommandInteractionLogService({
+    appDir,
+    logPath,
+    now: () => new Date("2026-05-12T10:00:00.000Z"),
+  });
+
+  await Promise.all(Array.from({ length: 20 }, (_, index) => service.appendInteraction({
+    typed_input: `command ${index}`,
+    status: "ran",
+  })));
+
+  const lines = (await readFile(logPath, "utf8")).trim().split("\n");
+  assert.equal(lines.length, 20);
+  const records = lines.map((line) => JSON.parse(line));
+  assert.deepEqual(
+    records.map((record) => record.typed_input),
+    Array.from({ length: 20 }, (_, index) => `command ${index}`),
+  );
+});
+
 test("command interaction normalization redacts secrets inside retained fields", () => {
   const record = normalizeInteraction({
     typed_input: "set OPENAI_API_KEY=sk-typed-secret",
