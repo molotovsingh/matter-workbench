@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
 import {
   describeSourcesRerunAdvice,
@@ -78,7 +79,7 @@ export function createMatterStatusService({ matterStore } = {}) {
         label: "Source Labels / Document Index",
         present: sourceIndexPresent,
         artifacts: sourceIndexPresent ? [SOURCE_INDEX_RELATIVE] : [],
-        aiRun: normalizeAiRun(sourceIndex?.ai_run),
+        aiRun: normalizeAiRunMetadata(sourceIndex?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
         rerunAdvice: sourceRerunAdvice,
       }),
       stage({
@@ -90,7 +91,7 @@ export function createMatterStatusService({ matterStore } = {}) {
           ...(listOfDatesMarkdownPresent ? [LIST_OF_DATES_MARKDOWN_RELATIVE] : []),
           ...(listOfDatesJsonPresent ? [LIST_OF_DATES_JSON_RELATIVE] : []),
         ],
-        aiRun: normalizeAiRun(listOfDates?.ai_run),
+        aiRun: normalizeAiRunMetadata(listOfDates?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
         metrics: listOfDatesMetrics(listOfDates),
         rerunAdvice: listRerunAdvice,
       }),
@@ -159,18 +160,6 @@ async function readJsonIfPossible(filePath) {
   } catch {
     return null;
   }
-}
-
-function normalizeAiRun(aiRun) {
-  if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) return null;
-  const normalized = {};
-  for (const key of ["provider", "model", "returnedModel", "returnedProvider", "policyPromptVersion"]) {
-    const value = normalizeText(aiRun[key]);
-    if (value) normalized[key] = value;
-  }
-  const maxOutputTokens = Number(aiRun.maxOutputTokens);
-  if (Number.isInteger(maxOutputTokens) && maxOutputTokens > 0) normalized.maxOutputTokens = maxOutputTokens;
-  return Object.keys(normalized).length ? normalized : null;
 }
 
 function normalizeText(value) {

@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
   LIST_OF_DATES_JSON_RELATIVE,
@@ -99,7 +100,7 @@ function buildRerunAdvice({
       shouldConfirm: false,
       artifactPath: target.relativePath,
       lastRunAt: artifactRunTime(target),
-      aiRun: normalizeAiRun(target.json?.ai_run),
+      aiRun: normalizeAiRunMetadata(target.json?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
     });
   }
 
@@ -119,7 +120,7 @@ function buildRerunAdvice({
       shouldConfirm: labelRefreshOnly,
       artifactPath: target.relativePath,
       lastRunAt: artifactRunTime(target),
-      aiRun: normalizeAiRun(target.json?.ai_run),
+      aiRun: normalizeAiRunMetadata(target.json?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
       reason: labelRefreshOnly
         ? "Only Source Index labels appear newer than this artifact."
         : staleDescription,
@@ -131,7 +132,7 @@ function buildRerunAdvice({
     return advice;
   }
 
-  const aiRun = normalizeAiRun(target.json?.ai_run);
+  const aiRun = normalizeAiRunMetadata(target.json?.ai_run, { fields: AI_RUN_STATUS_FIELDS });
   const lastRunAt = artifactRunTime(target);
   const advice = baseRerunAdvice({
     skill,
@@ -309,18 +310,6 @@ function artifactRunTime(target) {
 
 function normalizeSkillName(skill) {
   return String(skill || "").trim();
-}
-
-function normalizeAiRun(aiRun) {
-  if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) return null;
-  const normalized = {};
-  for (const key of ["provider", "model", "returnedModel", "returnedProvider", "policyPromptVersion"]) {
-    const value = normalizeText(aiRun[key]);
-    if (value) normalized[key] = value;
-  }
-  const maxOutputTokens = Number(aiRun.maxOutputTokens);
-  if (Number.isInteger(maxOutputTokens) && maxOutputTokens > 0) normalized.maxOutputTokens = maxOutputTokens;
-  return Object.keys(normalized).length ? normalized : null;
 }
 
 function normalizeText(value) {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { AI_RUN_LEDGER_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
@@ -163,12 +164,10 @@ function normalizeOutputPaths(outputPaths = {}) {
 }
 
 function normalizeAiRun(aiRun = {}) {
-  return {
-    provider: normalizeText(aiRun.provider),
-    model: normalizeText(aiRun.model),
-    task: normalizeText(aiRun.task),
-    policyPromptVersion: normalizeText(aiRun.policyPromptVersion),
-  };
+  return normalizeAiRunMetadata(aiRun, {
+    fields: AI_RUN_LEDGER_FIELDS,
+    includeEmptyFields: true,
+  });
 }
 
 function normalizeWarnings(warnings = []) {

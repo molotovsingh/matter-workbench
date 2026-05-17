@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { AI_RUN_LEDGER_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
@@ -202,12 +203,10 @@ function normalizeSampleMatter(matter = {}) {
 }
 
 function normalizeAiRun(aiRun = {}) {
-  return {
-    provider: String(aiRun.provider || "").trim(),
-    model: String(aiRun.model || "").trim(),
-    task: String(aiRun.task || "").trim(),
-    policyPromptVersion: String(aiRun.policyPromptVersion || "").trim(),
-  };
+  return normalizeAiRunMetadata(aiRun, {
+    fields: AI_RUN_LEDGER_FIELDS,
+    includeEmptyFields: true,
+  });
 }
 
 function decorateSampleWithState(sample, currentHash) {

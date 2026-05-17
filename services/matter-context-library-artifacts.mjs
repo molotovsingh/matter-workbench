@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { AI_RUN_CONTEXT_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import {
   LIST_OF_DATES_JSON_RELATIVE,
   LIST_OF_DATES_MARKDOWN_RELATIVE,
@@ -95,31 +96,10 @@ function summarizeJsonArtifact(relativePath, json, info) {
 }
 
 function sanitizeAiRun(aiRun = {}) {
-  if (!aiRun || typeof aiRun !== "object") return null;
-  const sanitized = {};
-  for (const key of [
-    "policyVersion",
-    "policyPromptVersion",
-    "task",
-    "tier",
-    "provider",
-    "model",
-    "maxOutputTokens",
-    "fallback",
-    "returnedModel",
-    "returnedProvider",
-  ]) {
-    if (aiRun[key] !== undefined && aiRun[key] !== null && aiRun[key] !== "") {
-      sanitized[key] = aiRun[key];
-    }
-  }
-  if (aiRun.usage && typeof aiRun.usage === "object") {
-    sanitized.usage = {};
-    for (const key of ["promptTokens", "completionTokens", "totalTokens", "cost"]) {
-      if (aiRun.usage[key] !== undefined && aiRun.usage[key] !== null) sanitized.usage[key] = aiRun.usage[key];
-    }
-  }
-  return Object.keys(sanitized).length ? sanitized : null;
+  return normalizeAiRunMetadata(aiRun, {
+    fields: AI_RUN_CONTEXT_FIELDS,
+    includeUsage: true,
+  });
 }
 
 function firstMarkdownHeading(markdown) {
