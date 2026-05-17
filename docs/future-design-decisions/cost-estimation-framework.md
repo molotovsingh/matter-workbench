@@ -7,7 +7,7 @@ Status: Parked for later product decision
 
 Matter Workbench is moving toward more AI-assisted workflows: source
 description, List of Dates, context search, skill idea interviews, future
-Copilot Q&A, and eventually governed configurable skills.
+matter Co-pilot work, and eventually governed configurable skills.
 
 That creates a product obligation: users should not be surprised by AI spend.
 
@@ -445,4 +445,3 @@ Bill
 Invoice
 Audit total
 ```
-

@@ -26,7 +26,7 @@ preview/search surfaces now exist; provider-backed Q&A, chat memory, and
 artifact-writing chat do not.
 
 The downstream provider-backed Q&A contract lives in
-[Copilot Q&A Contract](copilot-qna-contract.md). This document defines the
+[Matter Co-pilot Product Policy](copilot-qna-contract.md). This document defines the
 evidence packet; that document defines answer behavior, citation validation,
 provider/cost posture, and chat-only boundaries.
 
@@ -306,7 +306,7 @@ Paid rerun guardrails remain mandatory for artifact-producing skills such as
 `/describe_sources` and `/create_listofdates`. Q&A must not become a side door
 for overwriting source labels, chronologies, drafts, or dispatch materials.
 
-See [Copilot Q&A Contract](copilot-qna-contract.md) before adding any
+See [Matter Co-pilot Product Policy](copilot-qna-contract.md) before adding any
 provider-backed `/ask` behavior.
 
 ## Command Rail Rule

@@ -1,11 +1,12 @@
-# Copilot Q&A Contract
+# Matter Co-pilot Product Policy
 
 Date: 2026-05-12
 
 Audience: main coding session for `matter-workbench`
 
-Status: planning note only. This document records the safe future shape for
-matter Q&A / Copilot behavior. It does not add runtime behavior.
+Status: product policy and runtime contract. This document records the safe
+future shape for matter Co-pilot behavior. The first runtime slice may still be
+Q&A-only, but the product layer is broader than Q&A.
 
 ## Why This Exists
 
@@ -13,54 +14,110 @@ The current Command rail is intentionally deterministic. It can run known
 skills, show status, open lanes, preview context, and search the bounded context
 packet locally.
 
-That is different from Copilot Q&A.
+That is different from Matter Co-pilot.
 
 The Skills tab is a governance surface for built-in and configurable skills. It
 can explain capabilities, provider posture, sample history, and skill-factory
 health, but it is not a Q&A/chat surface.
 
-Copilot Q&A would let the user ask:
+Matter Co-pilot should eventually let the user ask:
 
 ```text
 what is the strongest limitation point?
 what compensation can Mehta claim?
 what documents contradict Skyline's reply?
 prepare a table of issues from the record
+where is the addendum agreement?
+what is the best opening hook for first argument?
+change para 8 of the grounds to add this case law
 ```
 
-Those questions are useful, but they are not harmless. A poor answer can look
-authoritative even when the record does not support it. The app therefore needs
-a contract before provider-backed Q&A enters the product.
+Those requests are useful, but they are not harmless. A poor answer can look
+authoritative even when the record does not support it, and a poor amendment
+can silently damage a lawyer-owned draft. The app therefore needs a contract
+before provider-backed Co-pilot behavior becomes broad.
 
 ## Product Rule
 
-Copilot may answer questions about the active matter. It may not silently
-become a drafting engine, artifact writer, skill runner, or source of uncited
-legal conclusions.
+Matter Co-pilot is the freeform matter-work layer over prepared matter context,
+source-backed Library artifacts, and lawyer-owned drafts.
 
-The first version should be explicit:
+It is not the same thing as a native skill.
+
+Native skills create governed, repeatable artifacts such as Source Labels /
+Document Index and List of Dates. Co-pilot helps the lawyer do transient matter
+work: locate, explain, compare, strategize, test framing, draft small passages,
+or amend an existing draft when an explicit draft/amendment workflow exists.
+
+Co-pilot may not silently become an artifact writer, skill runner, dispatch
+engine, or source of uncited legal conclusions.
+
+The first Q&A version should stay explicit:
 
 ```text
 /ask what compensation can Mehta claim?
 ask what compensation can Mehta claim?
 ```
 
-Do not start by letting arbitrary unsupported text auto-route into paid Q&A.
+Do not start by letting arbitrary unsupported text auto-route into paid Q&A or
+paid Co-pilot work.
+
+## Product Layers
+
+Use this separation when implementing future surfaces:
+
+```text
+native skills -> governed source-backed artifacts
+co-pilot -> freeform active-matter thinking and transient help
+draft amendment -> explicit proposed change to a lawyer-owned draft
+dispatch -> frozen sent/filed snapshot
+```
+
+The practical meaning:
+
+- Co-pilot can help find, explain, compare, and strategize from the active
+  matter context.
+- Co-pilot answers are not durable matter artifacts by default.
+- Draft text in `30_Drafts` or outside the app is lawyer-owned working text.
+- Surgical draft amendments should target a paragraph, section, issue, or
+  selected passage and produce a preview/diff or new version.
+- Human edits are authoritative. The app should not regenerate over them by
+  default.
+- `40_Dispatch` copies are frozen snapshots. Further changes require a new
+  working draft.
 
 ## Relationship To Current Context Work
 
-Copilot Q&A must use the existing bounded matter context packet:
+Co-pilot must use the existing bounded matter context packet:
 
 ```text
 matter-context-packet/v1
 ```
 
 The context reader decides what evidence is allowed into the model prompt. The
-Copilot layer decides how to answer with that evidence.
+Co-pilot layer decides how to answer or propose work with that evidence.
 
 Use [Matter Context Reader Contract](matter-context-reader-contract.md) before
 implementing this runtime. If the context packet cannot be built or contains no
-citable evidence, Copilot Q&A is not ready for that matter.
+citable evidence, Co-pilot is not ready for source-backed matter answers.
+
+## Work Classes
+
+Co-pilot work should be classified before provider calls.
+
+| Work class | Example | Artifact behavior |
+| --- | --- | --- |
+| Locate | `where is the addendum agreement?` | Prefer deterministic/local search first; no artifact. |
+| Explain | `what does the State Commission say on limitation?` | Chat answer with cited support; no artifact. |
+| Strategize | `what is the best hook for first argument?` | Chat answer with facts/inferences separated; no artifact. |
+| Compare | `what contradicts the builder's reply?` | Chat answer or temporary table; no artifact unless exported. |
+| Draft passage | `give me a tighter version of this ground` | Proposed text only; not a filed/sent draft. |
+| Amend draft | `change para 8 of the grounds...` | Explicit preview/diff/new-version workflow; no silent overwrite. |
+
+The first runtime implementation can support only the first two or three
+classes. The policy still records the larger product direction so future slices
+do not accidentally treat every Co-pilot request as either Q&A or custom-skill
+creation.
 
 ## What V2 Proves
 
@@ -94,7 +151,7 @@ What this repo should not copy blindly:
 
 ## First Runtime Shape
 
-The first Copilot runtime slice should be narrow:
+The first Co-pilot runtime slice should be narrow:
 
 ```text
 Command rail
@@ -109,8 +166,8 @@ No durable matter files should be written.
 No `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` artifact should
 be created.
 
-If the user wants a durable output, the app should guide them toward an explicit
-skill or future draft-producing workflow.
+If the user wants a durable output, the app should guide them toward an
+explicit skill, export, or future draft/amendment workflow.
 
 ## Input Contract
 
@@ -145,7 +202,7 @@ The answer should return structured data:
   "answer": "source-backed markdown answer",
   "sources": [
     {
-      "citation": "FILE-0001 p1.b2",
+      "raw_citation": "FILE-0001 p1.b2",
       "source_label": "Legal Notice from Mehta Legal LLP to Skyline Developers Pvt Ltd, 20 April 2026",
       "snippet": "bounded quoted or paraphrased support"
     }
@@ -184,9 +241,12 @@ Model-returned citations are not trusted automatically.
 After the provider returns an answer, the app must check:
 
 - every source citation matches a citation in the context packet;
-- every factual paragraph has at least one raw `FILE-NNNN pX.bY` citation;
-- readable labels are display metadata only;
-- no answer hides raw citations behind source labels;
+- every factual paragraph maps to at least one raw `FILE-NNNN pX.bY` citation
+  internally;
+- readable labels are display metadata only, not proof;
+- normal lawyer-visible rendering should prefer source labels;
+- raw citations must remain available in structured data, audit views, hover
+  details, or copy reports;
 - citation-free answers are allowed only for `not_found`, `blocked`, or purely
   operational messages.
 
@@ -239,7 +299,8 @@ Not allowed:
 
 ## Provider And Cost Rules
 
-Provider-backed Q&A is a paid AI action. The UI should show:
+Provider-backed Co-pilot work is a paid AI action unless it resolves through
+deterministic local search. The UI should show:
 
 - provider;
 - model;
@@ -251,8 +312,8 @@ Provider-backed Q&A is a paid AI action. The UI should show:
 The first implementation should not add automatic fallback. Provider failure
 should fail closed.
 
-Recommended default can follow the beta list-of-dates model posture unless a
-separate Q&A bakeoff says otherwise:
+Recommended Q&A default can follow the beta list-of-dates model posture unless
+a separate Co-pilot bakeoff says otherwise:
 
 ```text
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
@@ -260,12 +321,13 @@ OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=openai/gpt-4.1
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
 ```
 
-Do not reuse this blindly for final legal drafting. Q&A and drafting are
-different risk classes.
+Do not reuse this blindly for draft amendment or external-facing drafting.
+Q&A, strategy, and draft amendment are different risk classes even when they
+share the same Co-pilot surface.
 
 ## Search Versus Q&A
 
-Keep local context search and Copilot Q&A separate.
+Keep local context search and Co-pilot Q&A separate.
 
 Local search:
 
@@ -280,7 +342,7 @@ search legal notice
 - returns matching blocks/snippets;
 - read-only.
 
-Copilot Q&A:
+Co-pilot Q&A:
 
 ```text
 ask what payments are disputed?
@@ -295,6 +357,10 @@ ask what payments are disputed?
 This distinction matters because search is evidence retrieval, while Q&A is
 legal-language synthesis.
 
+Surgical amendment is a third path. It should not be smuggled through local
+search or Q&A. It needs draft selection, target passage identification, preview,
+and acceptance/versioning semantics.
+
 ## No-Matter Rule
 
 If no matter is active, Q&A must stop before provider calls:
@@ -307,10 +373,10 @@ Do not send user questions or empty context to a provider.
 
 ## Not In First Slice
 
-Do not add these in the first Q&A runtime PR:
+Do not add these in the first Co-pilot runtime PR:
 
 - semantic/vector search;
-- document drafting;
+- document drafting or draft amendment;
 - final pleading generation;
 - dispatch/email;
 - durable chat memory;

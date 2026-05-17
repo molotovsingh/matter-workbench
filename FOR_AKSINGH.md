@@ -1039,3 +1039,21 @@ That is a useful engineering lesson. When a system depends on replaceable extern
 The implementation now lives in `shared/legal-workbench-policy-prompt.mjs`. Provider-backed surfaces compose that shared policy with their own task prompt, and AI run metadata records `policyPromptVersion`. This keeps the policy testable: if a future model route, router provider, or custom skill path omits the baseline rules, tests can catch that as an architecture regression rather than leaving it as a prompt-quality opinion.
 
 The metadata normalization now lives in `shared/ai-run-metadata.mjs`. That may sound like a small housekeeping file, but it matters. Before this refactor, matter status, rerun advice, context packets, custom-skill run ledgers, and sample ledgers each had their own little whitelist of AI-run fields. That is how audit fields go missing: one surface learns about `policyPromptVersion`, another forgets it, and the app starts telling an incomplete story about which policy governed a model result. A shared normalizer turns that into one contract with tests.
+
+## Product Policy Lesson: Native Skills And Co-pilot Are Different Layers
+
+The app is not moving toward "everything is a custom skill." The better shape is a staged workbench.
+
+Native skills do the disciplined, repeatable work: prepare the source record, create readable source labels, build the List of Dates, and preserve audit metadata. They reduce cost because later legal work can consume clean artifacts instead of rereading the whole matter every time.
+
+Matter Co-pilot is a different layer. It is the high-agency working conversation inside an active matter: "where is the addendum agreement?", "what is the best opening hook?", "compare these two positions", or "change para 8 of the grounds to add this case law." That is valuable precisely because it is freeform. But freeform does not mean uncontrolled writes.
+
+The policy boundary is now explicit:
+
+- Co-pilot answers are transient unless the user starts an explicit artifact workflow.
+- `30_Drafts` belongs to the lawyer once a draft exists; human edits are authoritative.
+- Draft amendments should be surgical: paragraph, section, issue, or selected passage changes with preview/diff or new-version semantics.
+- `40_Dispatch` is frozen sent/filed material, not another editable workspace.
+- A source-label second pass can improve model-suggested labels, but only a lawyer action can make a label confirmed.
+
+That last point is important. Good source labels from a strong model can remove a lot of busywork, but they should not be confused with lawyer confirmation. A second pass can polish `suggested_label` and mark uncertainty; it should not pretend the lawyer reviewed the source.

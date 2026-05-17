@@ -144,6 +144,32 @@ Important distinction:
 This is what lets the app separate a harmless label update from a material
 document replacement.
 
+## Source Label Second Pass
+
+Do not make the first product slice depend on an elaborate lawyer-confirmation
+workflow for every label.
+
+A strong structured model can do a useful second pass over source labels before
+the lawyer ever sees them. That pass may:
+
+- improve `suggested_label`;
+- improve short/court-safe labels;
+- add or revise `label_reason`;
+- mark low-confidence labels as `needs_review`;
+- preserve source identity and content hash unchanged.
+
+It must not:
+
+- set `label_status` to `confirmed`;
+- overwrite a lawyer override;
+- mutate chronology rows directly;
+- pretend a label change proves or disproves an event.
+
+If only labels changed, downstream List of Dates output needs a label refresh.
+If the underlying source hash, source set, document date, document type,
+category, OCR/extraction text, or quality state changed, the app should move to
+chronology review or regeneration according to the taxonomy below.
+
 ## Staleness Taxonomy
 
 Do not use one broad `stale` bucket for everything.
@@ -246,6 +272,24 @@ After dispatch:
 - stop normal rerun suggestions on that dispatched file;
 - require a new working draft for further changes;
 - do not silently overwrite or improve dispatched material.
+
+## Co-pilot And Draft Ownership
+
+Native skills prepare governed source-backed artifacts. Matter Co-pilot is a
+separate layer for freeform active-matter work: locate, explain, compare,
+strategize, draft small passages, and propose amendments.
+
+The boundary is:
+
+- `10_Library` artifacts such as Source Index and List of Dates are generated
+  source records, not lawyer-edited pleadings;
+- `30_Drafts` is lawyer-owned working text once created;
+- Co-pilot may propose surgical amendments to drafts only through an explicit
+  draft/amendment workflow;
+- amendment workflows should target paragraph, section, issue, or selected
+  passage changes and use preview/diff or new-version semantics;
+- human edits are authoritative;
+- `40_Dispatch` remains frozen, with further work starting from a new draft.
 
 ## First Foundation Slice
 

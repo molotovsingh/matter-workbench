@@ -37,6 +37,7 @@ This contract applies to provider-backed tasks:
 - skill interview planning;
 - skill sample generation;
 - configurable skill authoring and runs;
+- future matter Co-pilot answers, strategy, and draft-amendment workflows;
 - future native legal skills.
 
 It does not apply to deterministic commands such as file setup, extraction,
@@ -49,7 +50,7 @@ task-specific prompts.
 
 ## Layered Prompt Shape
 
-Use four layers.
+Use five layers.
 
 ### 1. Global Workbench Policy
 
@@ -111,10 +112,34 @@ For `Source Labels / Document Index`, the policy should include:
 
 - distinguish a document title from a party position or procedural event;
 - prefer labels a lawyer can verify and rename;
+- use model second-pass polishing before creating elaborate manual review
+  burden, where practical;
+- never mark a model-polished label as lawyer-confirmed;
 - preserve stable source identity internally;
 - surface bad-copy and missing-document signals without blocking by default.
 
-### 4. Custom Skill Policy
+### 4. Matter Co-pilot And Draft Ownership Policy
+
+Co-pilot is the freeform matter-work layer over prepared context and
+lawyer-owned drafts. It may locate, explain, compare, strategize, draft small
+passages, or propose amendments when a runtime explicitly supports that work.
+
+It must still carry the workbench policy:
+
+- transient Co-pilot answers are not durable matter artifacts by default;
+- draft text in `30_Drafts` or an external editor is lawyer-owned working
+  text;
+- human edits are authoritative;
+- amendments should be bounded to a paragraph, section, issue, or selected
+  passage and should use preview/diff or new-version semantics;
+- the app must not silently overwrite lawyer edits;
+- `40_Dispatch` copies are frozen sent/filed snapshots and require a new
+  working draft for further changes.
+
+This policy keeps "high-agency Co-pilot" from becoming uncontrolled artifact
+mutation. The surface can be flexible; the write boundary cannot be ambiguous.
+
+### 5. Custom Skill Policy
 
 Custom skills may customize workflow, output shape, audience, and firm-specific
 style. They must not override the baseline legal discipline.
@@ -167,6 +192,7 @@ GLOBAL_LEGAL_POLICY_PROMPT
 SOURCE_VISIBILITY_POLICY_PROMPT
 NATIVE_SKILL_POLICY_PROMPTS
 CUSTOM_SKILL_POLICY_PROMPT
+COPILOT_DRAFT_POLICY_PROMPT
 legalWorkbenchSystemPrompt(taskPrompt, options)
 ```
 

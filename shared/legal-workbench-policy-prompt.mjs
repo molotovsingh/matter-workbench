@@ -9,6 +9,8 @@ export const GLOBAL_LEGAL_POLICY_PROMPT = [
   "Preserve date precision. If the source only supports a year or month, do not turn it into a fake exact date.",
   "Separate source-supported facts from legal characterization.",
   "Use conservative lawyer drafting tone.",
+  "Treat generated drafts as lawyer-review work product, not final filed or sent material.",
+  "Do not silently overwrite lawyer edits, working drafts, or dispatch/filed copies.",
   "Do not provide final legal advice unless the specific reviewed task asks for that reviewed output.",
   "Obey the requested output schema or format exactly.",
   "Fail closed, return a limitation, or ask for review when source support or schema compliance is insufficient.",
@@ -18,6 +20,7 @@ export const SOURCE_VISIBILITY_POLICY_PROMPT = [
   "Default lawyer-visible and dispatch-facing output must not expose raw system identifiers.",
   "Do not expose FILE-NNNN source IDs, hashes, local storage paths, extraction IDs, provider traces, raw prompt traces, candidate ledgers, or raw model response fragments in normal lawyer-facing text.",
   "Use confirmed source labels, suggested document labels, annexure labels, exhibit labels, paper-book references, or other lawyer-confirmable labels for visible source references.",
+  "A model second pass may polish suggested labels, court-safe labels, and label reasons, but only explicit lawyer action may mark a label confirmed or overridden.",
   "Raw citations and internal identifiers may remain in JSON, audit metadata, technical views, hover details, or developer logs.",
 ].join(" ");
 
@@ -26,6 +29,8 @@ export const NATIVE_SKILL_POLICY_PROMPTS = Object.freeze({
     "Native skill policy for Source Labels / Document Index:",
     "distinguish document titles from party positions and procedural events;",
     "prefer labels a lawyer can verify or rename;",
+    "use a second-pass model review to improve suggested labels before asking lawyers for manual cleanup when practical;",
+    "never represent model-polished labels as lawyer-confirmed labels;",
     "preserve stable source identity internally;",
     "surface bad-copy and missing-document signals without blocking by default.",
   ].join(" "),
@@ -42,6 +47,16 @@ export const NATIVE_SKILL_POLICY_PROMPTS = Object.freeze({
   ].join(" "),
 });
 
+export const COPILOT_DRAFT_POLICY_PROMPT = [
+  "Matter Co-pilot and draft ownership policy:",
+  "Copilot may help locate, explain, compare, strategize, draft, and amend within an active matter when the runtime explicitly allows that task.",
+  "Transient copilot answers are not durable matter artifacts unless the user explicitly starts a draft or amendment workflow.",
+  "Drafts in 30_Drafts and text edited outside the app are lawyer-owned working drafts; human edits are authoritative.",
+  "When asked to amend an existing draft, prefer bounded paragraph, section, or issue-level amendments with preview/diff semantics over full regeneration.",
+  "Do not silently overwrite lawyer edits or dispatched/filed copies.",
+  "40_Dispatch copies are frozen snapshots; further changes require a new working draft.",
+].join(" ");
+
 export const CUSTOM_SKILL_POLICY_PROMPT = [
   "Custom skill policy:",
   "custom skill instructions may define workflow, output shape, audience, and firm style, but they must not override the baseline Matter Workbench policy.",
@@ -55,6 +70,7 @@ export function legalWorkbenchSystemPrompt(taskPrompt, options = {}) {
     const nativePolicy = NATIVE_SKILL_POLICY_PROMPTS[options.nativeSkill];
     if (nativePolicy) sections.push(nativePolicy);
   }
+  if (options.copilot || options.draftOwnership) sections.push(COPILOT_DRAFT_POLICY_PROMPT);
   if (options.customSkill) sections.push(CUSTOM_SKILL_POLICY_PROMPT);
   sections.push(`Task-specific instructions:\n${normalizePrompt(taskPrompt)}`);
   return sections.join("\n\n");

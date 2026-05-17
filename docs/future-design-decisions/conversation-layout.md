@@ -126,7 +126,7 @@ Revisit this decision when at least two of these are true:
 
 - skill idea interviews regularly exceed three turns;
 - users need to read or edit long review packets in the app;
-- Copilot Q&A is added;
+- Matter Co-pilot is added;
 - strategy/pairing conversations become part of the product;
 - copied interaction logs show repeated confusion about where the answer went;
 - users ask for a larger conversation surface.

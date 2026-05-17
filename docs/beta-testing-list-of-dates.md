@@ -45,7 +45,7 @@ The `latency` route is the recommended `/create_listofdates` OpenRouter route fo
 
 ## Current Tester Workflow
 
-Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet. Future provider-backed Q&A is parked in [Copilot Q&A Contract](copilot-qna-contract.md).
+Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet. Future provider-backed matter Co-pilot behavior is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
 
 1. Pick a matter from the sidebar.
 2. Type `status` in the Command rail.

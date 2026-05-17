@@ -464,7 +464,7 @@ Revisit this when at least two are true:
 - review packets feel too technical;
 - Skills tab grows beyond read-only governance;
 - custom/configurable skills become real;
-- Copilot Q&A is added;
+- Matter Co-pilot is added;
 - cost estimation reaches the UI;
 - generated artifacts need more consistent legal names.
 
