@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
-import { renderMatterPipelineStatus } from "../frontend/views/matter-overview.js";
+import {
+  renderMatterAttentionStatus,
+  renderMatterPipelineStatus,
+} from "../frontend/views/matter-overview.js";
 
 test("matter overview renders read-only pipeline status", () => {
   const html = renderMatterPipelineStatus({
@@ -93,4 +96,64 @@ test("matter overview explains label refresh without implying AI regeneration is
   assert.match(html, /Source labels changed after this chronology was rendered/);
   assert.match(html, /label refresh should be enough/);
   assert.match(html, /AI chronology regeneration is not required/);
+});
+
+test("matter overview renders developer attention blockers compactly", () => {
+  const html = renderMatterAttentionStatus({
+    summary: {
+      state: "blocked",
+      total: 2,
+      blocker: 1,
+      warning: 1,
+      info: 0,
+    },
+    items: [
+      {
+        severity: "blocker",
+        category: "extraction",
+        title: "Extraction failed",
+        detail: "One working copy could not be converted into text.",
+        action: "Open Extraction Log.csv and inspect the failed row.",
+        evidence: [
+          { path: "00_Inbox/Intake 01 - Initial/Extraction Log.csv", row: "FILE-0001", status: "failed" },
+          { path: "00_Inbox/Intake 01 - Initial/Source Files/bad.pdf", row: "FILE-0002", status: "unsupported" },
+        ],
+      },
+      {
+        severity: "warning",
+        category: "source_labels",
+        title: "Source labels need review",
+        detail: "Some labels are still suggested.",
+        action: "Review Source Index.json.",
+      },
+    ],
+  }, escapeHtml);
+
+  assert.match(html, /Developer attention/);
+  assert.match(html, /Blocked/);
+  assert.match(html, /1<\/strong> Blockers/);
+  assert.match(html, /1<\/strong> Warnings/);
+  assert.match(html, /Extraction failed/);
+  assert.match(html, /Blocker/);
+  assert.match(html, /Open Extraction Log\.csv/);
+  assert.match(html, /00_Inbox\/Intake 01 - Initial\/Extraction Log\.csv - FILE-0001 - failed/);
+  assert.match(html, /00_Inbox\/Intake 01 - Initial\/Source Files\/bad\.pdf - FILE-0002 - unsupported/);
+  assert.match(html, /Source labels need review/);
+});
+
+test("matter overview renders clear developer attention state", () => {
+  const html = renderMatterAttentionStatus({
+    summary: {
+      state: "clear",
+      total: 0,
+      blocker: 0,
+      warning: 0,
+      info: 0,
+    },
+    items: [],
+  }, escapeHtml);
+
+  assert.match(html, /Clear/);
+  assert.match(html, /No developer blockers or warnings found/);
+  assert.doesNotMatch(html, /matter-attention-item/);
 });
