@@ -240,6 +240,64 @@ test("matter attention stays clear for a coherent matter lifecycle", async () =>
   assert.deepEqual(attention.items, []);
 });
 
+test("matter attention reads command failures through the command log service", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-attention-command-reader-test-"));
+  const intakeDir = path.join(root, "00_Inbox", "Intake 01 - Initial");
+  const workingCopy = path.join(intakeDir, "By Type", "Text Notes", "FILE-0001__facts.txt");
+  await mkdir(path.dirname(workingCopy), { recursive: true });
+  await mkdir(path.join(root, "10_Library"), { recursive: true });
+  await writeFile(path.join(root, "matter.json"), "{}\n");
+  await writeFile(workingCopy, "Facts\n");
+  await writeFile(path.join(intakeDir, "File Register.csv"), [
+    "file_id,intake_id,working_copy_path,category,status,notes",
+    "FILE-0001,INTAKE-01,00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt,Text Notes,unique,",
+    "",
+  ].join("\n"));
+  await writeFile(path.join(intakeDir, "Extraction Log.csv"), [
+    "file_id,intake_id,status,notes",
+    "FILE-0001,INTAKE-01,extracted,",
+    "",
+  ].join("\n"));
+
+  const service = createMatterAttentionService({
+    matterStore: matterStoreFixture(root, "Command Matter"),
+    matterStatusService: {
+      readMatterStatus: async () => ({
+        stages: [
+          { slash: "/extract", state: "present" },
+          { slash: "/describe_sources", state: "not_run" },
+          { slash: "/create_listofdates", state: "not_run" },
+        ],
+      }),
+    },
+    configurableSkillRunsService: {
+      listRuns: async () => ({ runs: [] }),
+    },
+    commandInteractionLogService: {
+      readRecentInteractions: async ({ limit }) => {
+        assert.equal(limit, 200);
+        return [
+          {
+            timestamp: "2026-05-16T10:07:00.000Z",
+            matter: { folder_name: "Command Matter" },
+            typed_input: "/describe_sources",
+            matched_command: "/describe_sources",
+            status: "failed",
+            errors: ["provider unavailable"],
+          },
+        ];
+      },
+    },
+    now: () => new Date("2026-05-16T10:08:00.000Z"),
+  });
+
+  const attention = await service.readMatterAttention();
+  const commandFailure = attention.items.find((item) => item.code === "command_failed");
+  assert.equal(commandFailure.title, "Command failed: /describe_sources");
+  assert.equal(commandFailure.detail, "provider unavailable");
+  assert.deepEqual(commandFailure.evidence, [{ path: "command-interactions.jsonl" }]);
+});
+
 function matterStoreFixture(root, matterName) {
   return {
     ensureMatterRoot: () => root,
