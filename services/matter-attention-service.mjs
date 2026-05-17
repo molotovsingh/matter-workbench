@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
+import { buildCustomSkillRunAttentionItems } from "./matter-attention-custom-runs.mjs";
 import {
   LIST_OF_DATES_JSON_RELATIVE,
   LIST_OF_DATES_MARKDOWN_RELATIVE,
@@ -10,7 +11,6 @@ import { buildCommandFailureAttentionItems } from "./matter-attention-command-fa
 
 export const MATTER_ATTENTION_SCHEMA_VERSION = "matter-attention/v1";
 
-const CUSTOM_RUN_LIMIT = 100;
 const SEVERITY_ORDER = new Map([
   ["blocker", 0],
   ["warning", 1],
@@ -407,59 +407,11 @@ export function createMatterAttentionService({
   }
 
   async function collectCustomSkillRunAttention({ matterName, items }) {
-    if (!configurableSkillRunsService?.listRuns) return;
-    let runs = [];
-    try {
-      const result = await configurableSkillRunsService.listRuns({
-        matterFolder: matterName,
-        limit: CUSTOM_RUN_LIMIT,
-      });
-      runs = Array.isArray(result?.runs) ? result.runs : [];
-    } catch (error) {
-      addItem(items, {
-        severity: "warning",
-        category: "custom_skill",
-        code: "custom_skill_runs_unreadable",
-        title: "Custom skill run ledger could not be read",
-        detail: error?.message || "Unable to read configurable skill runs.",
-        action: "Inspect configurable-skill-runs.json.",
-      });
-      return;
-    }
-
-    const warningKeys = new Set();
-    for (const run of runs) {
-      if (run.status === "failed") {
-        addItem(items, {
-          severity: "blocker",
-          category: "custom_skill",
-          code: "custom_skill_failed",
-          title: `Custom skill failed: ${run.title || run.slash || "unknown skill"}`,
-          detail: run.errorMessage || "The run receipt is marked failed.",
-          action: "Inspect the custom skill receipt and rerun after fixing the cause.",
-          evidence: run.outputPaths?.markdown ? [evidence(run.outputPaths.markdown, { runId: run.id })] : [{ runId: run.id }],
-          occurredAt: run.finishedAt || run.startedAt || "",
-        });
-      } else if (Array.isArray(run.warnings) && run.warnings.length) {
-        const warningKey = [
-          run.title || run.slash || "unknown skill",
-          run.outputPaths?.markdown || "",
-          run.warnings.join("\n"),
-        ].join("\n");
-        if (warningKeys.has(warningKey)) continue;
-        warningKeys.add(warningKey);
-        addItem(items, {
-          severity: "warning",
-          category: "custom_skill",
-          code: "custom_skill_warnings",
-          title: `Custom skill warning: ${run.title || run.slash || "unknown skill"}`,
-          detail: run.warnings.join("; "),
-          action: "Review the run warning before relying on the output.",
-          evidence: run.outputPaths?.markdown ? [evidence(run.outputPaths.markdown, { runId: run.id })] : [{ runId: run.id }],
-          occurredAt: run.finishedAt || run.startedAt || "",
-        });
-      }
-    }
+    const customRunItems = await buildCustomSkillRunAttentionItems({
+      configurableSkillRunsService,
+      matterName,
+    });
+    for (const item of customRunItems) addItem(items, item);
   }
 
   async function collectCommandFailureAttention({ matterName, items }) {
