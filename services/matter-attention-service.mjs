@@ -498,25 +498,7 @@ export function createMatterAttentionService({
     if (typeof logService.readRecentInteractions === "function") {
       return logService.readRecentInteractions({ limit: COMMAND_LOG_LIMIT });
     }
-    const logPath = logService.logPath;
-    if (!logPath) return [];
-    let text = "";
-    try {
-      text = await readFile(logPath, "utf8");
-    } catch {
-      return [];
-    }
-    const lines = text.split(/\r?\n/).filter(Boolean).slice(-COMMAND_LOG_LIMIT);
-    const entries = [];
-    for (const line of lines) {
-      try {
-        const entry = JSON.parse(line);
-        entries.push(entry);
-      } catch {
-        // Corrupt command-log lines should not break the attention surface.
-      }
-    }
-    return entries;
+    return [];
   }
 
   function commandLogEvidence(logService) {

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createCommandInteractionLogService } from "../services/command-interaction-log-service.mjs";
 import { createMatterAttentionService } from "../services/matter-attention-service.mjs";
 
 test("matter attention aggregates developer blockers from existing matter traces", async () => {
@@ -149,7 +150,10 @@ test("matter attention aggregates developer blockers from existing matter traces
         ],
       }),
     },
-    commandInteractionLogService: { logPath: commandLogPath },
+    commandInteractionLogService: createCommandInteractionLogService({
+      appDir: root,
+      logPath: commandLogPath,
+    }),
     now: () => new Date("2026-05-16T10:08:00.000Z"),
   });
 
