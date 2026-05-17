@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
-import {
-  renderMatterAttentionStatus,
-  renderMatterPipelineStatus,
-} from "../frontend/views/matter-overview.js";
+import { renderMatterAttentionStatus } from "../frontend/views/matter-attention-card.js";
+import { renderMatterPipelineStatus } from "../frontend/views/matter-overview.js";
 
 test("matter overview renders read-only pipeline status", () => {
   const html = renderMatterPipelineStatus({
