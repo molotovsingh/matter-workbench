@@ -186,6 +186,8 @@ MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 npm run matter-attention:report -- --only-problems
 ```
 
+The active matter overview also renders a read-only Developer attention card from `/api/matter-attention`, so blocker and warning counts are visible without opening the terminal report first.
+
 ## Files
 
 - `index.html` - app shell markup

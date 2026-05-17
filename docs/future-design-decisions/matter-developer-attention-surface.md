@@ -53,6 +53,8 @@ npm run matter-attention:report -- --matters-home /absolute/path/to/matters
 
 The CLI uses the same service as the API. It does not switch the active matter and does not write to matter folders.
 
+The active matter overview also shows a compact **Developer attention** card. It reads the same `/api/matter-attention` response and displays the current blocker/warning counts plus a bounded set of evidence-backed items. This gives developers a visible matter-level signal during normal app use without asking them to dig through terminal output first.
+
 It does not:
 
 - write new logs;
@@ -139,4 +141,4 @@ Commands:
 
 This keeps observability close to the matter lifecycle without creating a second logging system. The app already has trace artifacts. The missing layer was a deliberate reader that says: “for this matter, here is what deserves developer attention.” Command interaction JSONL is owned by `services/command-interaction-log-service.mjs`, including serialized appends and recent-entry reads; the attention service consumes that boundary rather than owning command-log parsing.
 
-That is also why this is not lawyer-facing yet. The wording, severity, and evidence paths are meant for developers. A later UI can choose how much of this to show in Settings, Activity, or an admin/debug panel.
+That is also why this is not a polished lawyer-facing health score. The wording, severity, and evidence paths are meant for developers and operators. The current matter overview card is deliberately diagnostic; a later lawyer-facing health surface can decide which parts should become softer warnings, readiness hints, or admin-only details.

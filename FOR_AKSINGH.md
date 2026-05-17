@@ -123,6 +123,8 @@ npm run matter-attention:report -- --only-problems
 
 This is a read-only diagnostic view over all matters in the configured matters home. It answers: “which matters are blocked, which need developer review, and what artifact proves it?” Use `--json` when you want machine-readable output, or `--matter "Matter Name"` when you want to inspect one matter without changing the active matter in the app.
 
+The app now uses the same idea in the active matter overview. The **Developer attention** card is a compact matter health board: blocker count, warning count, and a bounded list of evidence-backed items. It is deliberately diagnostic, not a polished lawyer-facing alarm. That distinction matters because developers need paths, source ids, run ids, and log clues; lawyers need calmer readiness language.
+
 ## Important Local Config
 
 Copy `.env.example` to `.env` and fill only the keys you intend to use.
@@ -831,6 +833,7 @@ The first working version was useful, but the service started collecting too man
 
 The refactor split the collectors by lifecycle responsibility:
 
+- `frontend/views/matter-attention-card.js` owns the overview card renderer, so the matter overview does not become a mixed renderer for every diagnostic concern.
 - `services/matter-attention-service.mjs` is now the orchestrator. It chooses the matter, calls collectors, normalizes items, sorts them, and builds the summary.
 - `services/matter-attention-intake.mjs` owns setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file warnings.
 - `services/matter-attention-source-labels.mjs` owns Source Index existence, schema, label-review, developer-name leak, count mismatch, and Source Labels rerun advice.

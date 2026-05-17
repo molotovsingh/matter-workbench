@@ -264,9 +264,11 @@ Matter-level blocker and warning inspection is intentionally read-only:
 - API: `GET /api/matter-attention`
 - named inspection without active-matter switching: `GET /api/matter-attention?matter=...`
 - CLI sweep: `npm run matter-attention:report -- --only-problems`
+- UI: active matter overview renders a compact Developer attention card from the same API
 
 The implementation lives in:
 
+- `frontend/views/matter-attention-card.js` - overview card renderer for blocker/warning counts and bounded evidence-backed items.
 - `services/matter-attention-service.mjs` - orchestration, item normalization, sorting, summary.
 - `services/matter-attention-intake.mjs` - matter setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file signals.
 - `services/matter-attention-source-labels.mjs` - Source Index existence/schema/label-review/developer-name and Source Labels rerun-advice signals.
