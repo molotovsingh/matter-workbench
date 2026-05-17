@@ -1,3 +1,5 @@
+import { lawyerFacingSourceLabel } from "../source-citation-display.js";
+
 export function listOfDatesSummary(result) {
   const counts = result.counts || {};
   return {
@@ -159,11 +161,16 @@ function uniqueSourceLabels(sources = []) {
 }
 
 function sourceLabel(source = {}) {
-  return source.source_label
+  const label = source.source_label
     || source.source_short_label
     || source.original_name
     || readableSourcePath(source.source_path)
     || "Unlabeled source";
+  return lawyerFacingSourceLabel({
+    label,
+    citation: source.citation,
+    fallback: "Unlabeled source",
+  });
 }
 
 function readableSourcePath(sourcePath = "") {

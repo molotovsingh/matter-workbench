@@ -45,7 +45,8 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
 
   assert.match(html, /Legal Relevance/);
   assert.match(html, /Flags a payment-record inconsistency/);
-  assert.match(html, /Bank Statement for Skyline Developers/);
+  assert.match(html, /Bank Statement for Skyline Developers Pvt Ltd, September 2023 \(page 1\)/);
+  assert.match(html, /Payment Receipt issued by Skyline Developers Pvt Ltd, 12 September 2023 \(page 1\)/);
   assert.doesNotMatch(html, /FILE-\d{4}\s+p\d+\.b\d+/);
   assert.match(html, /payment discrepancy/);
   assert.match(html, /Accepted events/);

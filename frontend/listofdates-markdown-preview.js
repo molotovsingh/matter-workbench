@@ -1,4 +1,5 @@
 import { writeClipboardText } from "./clipboard.js";
+import { lawyerFacingSourceFragment } from "./source-citation-display.js";
 
 export function renderListOfDatesPreviewActions(filePath, escape) {
   if (!isListOfDatesMarkdownPath(filePath)) return "";
@@ -124,7 +125,7 @@ function renderSourceFragments(source = "", escape) {
   const fragments = splitSourceFragments(source);
   if (!fragments.length) return '<span class="muted">No source</span>';
   return fragments
-    .map(lawyerFacingSourceFragment)
+    .map((fragment) => lawyerFacingSourceFragment(fragment))
     .map((fragment) => `<span>${escape(fragment)}</span>`)
     .join("");
 }
@@ -206,36 +207,6 @@ function splitSourceFragments(source = "") {
     if (/^S\d+(,\s*S\d+)*$/i.test(fragment)) return fragment.split(/\s*,\s*/);
     return [fragment];
   }).filter(Boolean);
-}
-
-function lawyerFacingSourceFragment(fragment = "") {
-  const raw = String(fragment || "");
-  const pageNumbers = uniqueValues(
-    Array.from(raw.matchAll(/\bFILE-\d{4}\s+p(\d+)(?:\.b\d+)?/gi))
-      .map((match) => match[1])
-      .filter(Boolean),
-  );
-  const pageLabel = formatPageLabel(pageNumbers);
-  const visible = raw
-    .replace(/\s*\([^)]*\bFILE-\d{4}\b[^)]*\)/gi, "")
-    .replace(/\bFILE-\d{4}(?:\s+p\d+(?:\.b\d+)?)?/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+([,.;:])/g, "$1")
-    .replace(/^[\s,.;:()/-]+|[\s,.;:()/-]+$/g, "")
-    .trim();
-  const label = visible || "Source label unavailable";
-  return pageLabel ? `${label} (${pageLabel})` : label;
-}
-
-function uniqueValues(values = []) {
-  return [...new Set(values)];
-}
-
-function formatPageLabel(pages = []) {
-  if (!pages.length) return "";
-  if (pages.length === 1) return `page ${pages[0]}`;
-  if (pages.length === 2) return `pages ${pages[0]} and ${pages[1]}`;
-  return `pages ${pages.slice(0, -1).join(", ")}, and ${pages[pages.length - 1]}`;
 }
 
 function stripExtension(name = "") {
