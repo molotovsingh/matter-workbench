@@ -177,7 +177,7 @@ AI run metadata records the policy prompt version used, for example:
 
 ```json
 {
-  "policy_prompt_version": "legal-workbench-policy/v1"
+  "policyPromptVersion": "legal-workbench-policy/v1"
 }
 ```
 
