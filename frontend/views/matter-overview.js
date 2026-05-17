@@ -133,7 +133,7 @@ export function renderMatterPipelineStatus(status, escape) {
         <div class="pipeline-stage-main">
           <div>
             <strong>${escape(stageDisplayLabel(stage))}</strong>
-            ${stage.slash ? `<span class="pipeline-stage-label">${escape(lawyerActionPill(stage.slash, { paidProviderCall: stage.paidProviderCall }))}</span>` : ""}
+            ${stage.slash ? `<span class="pipeline-stage-label">${escape(lawyerActionPill(stage, { paidProviderCall: stage.paidProviderCall }))}</span>` : ""}
           </div>
           <span class="pipeline-state ${stage.present ? "present" : "not-run"}">${stage.present ? "Done" : "Not started"}</span>
         </div>
@@ -245,7 +245,7 @@ function rerunStateLabel(state) {
 }
 
 function stageDisplayLabel(stage) {
-  if (stage?.slash) return lawyerActionLabel(stage.slash, stage.label || stage.slash);
+  if (stage?.slash) return lawyerActionLabel(stage, stage.label || stage.slash);
   return stage?.label || stage?.slash || "";
 }
 

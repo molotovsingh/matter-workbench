@@ -41,8 +41,6 @@ export async function createWorkbenchServer(options = {}) {
     configService,
     initialMatterRoot: options.matterRoot || env.MATTER_ROOT || null,
   });
-  const matterStatusService = createMatterStatusService({ matterStore });
-  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
   const uploadService = createUploadService({
@@ -73,12 +71,6 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     runsPath: options.configurableSkillRunsPath,
   });
-  const matterAttentionService = createMatterAttentionService({
-    matterStore,
-    matterStatusService,
-    configurableSkillRunsService,
-    commandInteractionLogService,
-  });
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
@@ -96,6 +88,14 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     registryPath: options.skillRegistryPath,
     configurableSkillsService,
+  });
+  const matterStatusService = createMatterStatusService({ matterStore, skillRegistryService });
+  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService });
+  const matterAttentionService = createMatterAttentionService({
+    matterStore,
+    matterStatusService,
+    configurableSkillRunsService,
+    commandInteractionLogService,
   });
   const skillInterviewPlannerService = createSkillInterviewPlannerService({
     registryService: skillRegistryService,

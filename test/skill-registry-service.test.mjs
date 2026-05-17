@@ -35,6 +35,9 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(prepareMatter.source_backed, "optional");
   assert.equal(sourceLabels.paid_provider_call, true);
   assert.equal(sourceLabels.title, "Source Labels / Document Index");
+  assert.equal(sourceLabels.display.action, "Label Sources");
+  assert.equal(sourceLabels.display.artifact, "Source Labels");
+  assert.equal(sourceLabels.display.pill, "Uses AI");
   assert.equal(sourceLabels.product_surface, "native_legal");
   assert.equal(sourceLabels.rerun_guarded, true);
   assert.equal(sourceLabels.default_lane, "10_Library");
@@ -49,6 +52,9 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(contextSearch.category, "Review");
   assert.equal(listOfDates.category, "Analyze");
   assert.equal(listOfDates.product_surface, "native_legal");
+  assert.equal(listOfDates.display.action, "Create List of Dates");
+  assert.equal(listOfDates.display.artifact, "List of Dates");
+  assert.equal(listOfDates.display.running, "Creating List of Dates");
   assert.equal(listOfDates.mode, "AI");
   assert.deepEqual(listOfDates.downstream, []);
   assert.equal(listOfDates.markdown_first, true);
@@ -72,6 +78,10 @@ test("skill registry response shape remains API-compatible", async () => {
   assert.ok(registry.skills.every((skill) => typeof skill.purpose === "string" && skill.purpose.length > 0));
   assert.ok(registry.skills.every((skill) => Array.isArray(skill.inputs)));
   assert.ok(registry.skills.every((skill) => Array.isArray(skill.outputs)));
+  assert.ok(registry.skills
+    .filter((skill) => !skill.configurable)
+    .every((skill) => ["action", "artifact", "running", "complete", "pill"]
+      .every((field) => typeof skill.display?.[field] === "string" && skill.display[field].length > 0)));
 });
 
 test("skill registry merges active configurable skill cards without mutating built-ins", async () => {

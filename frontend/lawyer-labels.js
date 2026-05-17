@@ -1,55 +1,4 @@
-const ACTION_LABELS = Object.freeze({
-  "/prepare_matter": {
-    label: "Prepare Matter",
-    running: "Preparing matter",
-    result: "Preparation complete",
-    pill: "Guided",
-  },
-  "/matter-init": {
-    label: "Set Up Matter",
-    running: "Setting up matter",
-    result: "Matter set up",
-    pill: "Local",
-  },
-  "/extract": {
-    label: "Extract Documents",
-    running: "Extracting documents",
-    result: "Documents extracted",
-    pill: "Local",
-  },
-  "/describe_sources": {
-    label: "Label Sources",
-    resultLabel: "Source Labels",
-    running: "Labeling sources",
-    result: "Source labels complete",
-    pill: "Uses AI",
-  },
-  "/create_listofdates": {
-    label: "Create List of Dates",
-    resultLabel: "List of Dates",
-    running: "Creating List of Dates",
-    result: "List of Dates complete",
-    pill: "Uses AI",
-  },
-  "/context_preview": {
-    label: "Preview Matter Context",
-    running: "Preparing matter preview",
-    result: "Matter preview ready",
-    pill: "Local",
-  },
-  "/context_search": {
-    label: "Search Matter Context",
-    running: "Searching matter context",
-    result: "Search complete",
-    pill: "Local",
-  },
-  "/doctor": {
-    label: "Check Matter",
-    running: "Checking matter",
-    result: "Matter check complete",
-    pill: "Diagnostics",
-  },
-});
+let skillDisplayByCommand = new Map();
 
 const ARTIFACT_LABELS = Object.freeze([
   [/^matter\.json$/i, "Matter metadata"],
@@ -62,29 +11,40 @@ const ARTIFACT_LABELS = Object.freeze([
   [/List of Dates Candidates\.json$/i, "Internal chronology candidates"],
 ]);
 
-export function lawyerActionLabel(command, fallback = "Action") {
-  const key = normalizeCommand(command);
-  return ACTION_LABELS[key]?.label || cleanFallback(fallback);
+export function setLawyerLabelRegistry(registryOrSkills = {}) {
+  const skills = Array.isArray(registryOrSkills)
+    ? registryOrSkills
+    : Array.isArray(registryOrSkills?.skills)
+      ? registryOrSkills.skills
+      : [];
+  skillDisplayByCommand = new Map(skills
+    .filter((skill) => skill?.slash && skill.display)
+    .map((skill) => [normalizeCommand(skill.slash), normalizeDisplay(skill.display)]));
 }
 
-export function lawyerActionResultLabel(command, fallback = "Result") {
-  const key = normalizeCommand(command);
-  return ACTION_LABELS[key]?.resultLabel || ACTION_LABELS[key]?.label || cleanFallback(fallback);
+export function lawyerActionLabel(commandOrSkill, fallback = "Action") {
+  return resolveDisplay(commandOrSkill)?.action || cleanFallback(fallbackFrom(commandOrSkill, fallback));
 }
 
-export function lawyerActionRunningLabel(command, fallback = "Running") {
-  const key = normalizeCommand(command);
-  return ACTION_LABELS[key]?.running || cleanFallback(fallback);
+export function lawyerActionResultLabel(commandOrSkill, fallback = "Result") {
+  const display = resolveDisplay(commandOrSkill);
+  return display?.artifact || display?.action || cleanFallback(fallbackFrom(commandOrSkill, fallback));
 }
 
-export function lawyerActionCompleteLabel(command, fallback = "Complete") {
-  const key = normalizeCommand(command);
-  return ACTION_LABELS[key]?.result || cleanFallback(fallback);
+export function lawyerActionRunningLabel(commandOrSkill, fallback = "Running") {
+  return resolveDisplay(commandOrSkill)?.running || cleanFallback(fallbackFrom(commandOrSkill, fallback));
 }
 
-export function lawyerActionPill(command, { paidProviderCall = null } = {}) {
-  const key = normalizeCommand(command);
-  if (ACTION_LABELS[key]?.pill) return ACTION_LABELS[key].pill;
+export function lawyerActionCompleteLabel(commandOrSkill, fallback = "Complete") {
+  return resolveDisplay(commandOrSkill)?.complete || cleanFallback(fallbackFrom(commandOrSkill, fallback));
+}
+
+export function lawyerActionPill(commandOrSkill, { paidProviderCall = null } = {}) {
+  const display = resolveDisplay(commandOrSkill);
+  if (display?.pill) return display.pill;
+  if (typeof commandOrSkill === "object" && commandOrSkill && typeof commandOrSkill.paid_provider_call === "boolean") {
+    return commandOrSkill.paid_provider_call ? "Uses AI" : "Local";
+  }
   if (paidProviderCall === true) return "Uses AI";
   if (paidProviderCall === false) return "Local";
   return "";
@@ -115,6 +75,34 @@ export function normalizeCommand(command = "") {
   const value = String(command || "").trim();
   if (!value) return "";
   return value.startsWith("/") ? value : `/${value}`;
+}
+
+function resolveDisplay(commandOrSkill) {
+  const direct = normalizeDisplay(commandOrSkill?.display);
+  if (direct) return direct;
+  const command = typeof commandOrSkill === "object" && commandOrSkill
+    ? commandOrSkill.slash
+    : commandOrSkill;
+  return skillDisplayByCommand.get(normalizeCommand(command)) || null;
+}
+
+function normalizeDisplay(display) {
+  if (!display || typeof display !== "object" || Array.isArray(display)) return null;
+  const normalized = {};
+  for (const key of ["action", "artifact", "running", "complete", "pill"]) {
+    if (typeof display[key] === "string" && display[key].trim()) {
+      normalized[key] = display[key].trim();
+    }
+  }
+  return Object.keys(normalized).length ? normalized : null;
+}
+
+function fallbackFrom(commandOrSkill, fallback) {
+  if (typeof commandOrSkill === "object" && commandOrSkill) {
+    return commandOrSkill.title || commandOrSkill.label || commandOrSkill.slash || fallback;
+  }
+  if (fallback && !["Action", "Result", "Running", "Complete"].includes(fallback)) return fallback;
+  return commandOrSkill || fallback;
 }
 
 function cleanFallback(value = "") {

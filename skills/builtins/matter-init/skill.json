@@ -3,6 +3,13 @@
   "id": "matter-init",
   "slash": "/matter-init",
   "title": "Matter Init",
+  "display": {
+    "action": "Set Up Matter",
+    "artifact": "Matter Setup",
+    "running": "Setting up matter",
+    "complete": "Matter set up",
+    "pill": "Local"
+  },
   "category": "Ingest",
   "product_surface": "setup",
   "purpose": "Create deterministic matter intake structure, preserve originals, classify working copies, detect duplicates, and write matter metadata.",

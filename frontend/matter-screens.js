@@ -6,6 +6,7 @@ import { renderActivityPageHtml } from "./views/activity-page.js";
 import { createHomeLandingController } from "./views/home-landing.js";
 import { createSettingsPageController } from "./views/settings-page.js";
 import { renderSkillsPageHtml } from "./views/skills-page.js";
+import { setLawyerLabelRegistry } from "./lawyer-labels.js";
 
 export function createMatterScreens(ctx) {
   const {
@@ -121,6 +122,7 @@ export function createMatterScreens(ctx) {
     let configurableSkillRunsError = "";
     try {
       registry = await getJson("/api/skills");
+      setLawyerLabelRegistry(registry);
     } catch (error) {
       loadError = error.message;
     }

@@ -3,6 +3,13 @@
   "id": "context_search",
   "slash": "/context_search",
   "title": "Context Search",
+  "display": {
+    "action": "Search Matter Context",
+    "artifact": "Matter Search Results",
+    "running": "Searching matter context",
+    "complete": "Search complete",
+    "pill": "Local"
+  },
   "category": "Review",
   "product_surface": "utility",
   "purpose": "Search the bounded matter context packet locally and return source labels plus raw citations without calling an AI provider.",

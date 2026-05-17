@@ -94,12 +94,12 @@ function renderBuiltinSkillRow(skill, escape) {
   return `
     <article class="builtin-skill-row">
       <div>
-        <h3>${escape(lawyerActionLabel(skill.slash, skill.title || skill.id || "Skill"))}</h3>
+        <h3>${escape(lawyerActionLabel(skill, skill.title || skill.id || "Skill"))}</h3>
         <p>${escape(skill.purpose || "No description provided.")}</p>
       </div>
       <div class="builtin-skill-command">
         ${surfaceLabel ? `<span>${escape(surfaceLabel)}</span>` : ""}
-        ${skill.slash ? `<span>${escape(lawyerActionPill(skill.slash, { paidProviderCall: skill.paid_provider_call }))}</span>` : ""}
+        ${skill.slash ? `<span>${escape(lawyerActionPill(skill, { paidProviderCall: skill.paid_provider_call }))}</span>` : ""}
         ${skill.slash ? `<details><summary>Command</summary><code>${escape(skill.slash)}</code></details>` : ""}
       </div>
       <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
@@ -143,8 +143,8 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
     <article class="skill-card">
       <div class="skill-card-header">
         <div>
-          <div class="skill-slash">${skill.configurable ? `<code>${escape(skill.slash || "")}</code>` : escape(lawyerActionPill(skill.slash, { paidProviderCall: skill.paid_provider_call }))}</div>
-          <h3>${escape(skill.configurable ? customSkillDisplayName(skill) : lawyerActionLabel(skill.slash, skill.title || skill.id || "Skill"))}</h3>
+          <div class="skill-slash">${skill.configurable ? `<code>${escape(skill.slash || "")}</code>` : escape(lawyerActionPill(skill, { paidProviderCall: skill.paid_provider_call }))}</div>
+          <h3>${escape(skill.configurable ? customSkillDisplayName(skill) : lawyerActionLabel(skill, skill.title || skill.id || "Skill"))}</h3>
         </div>
         <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
       </div>

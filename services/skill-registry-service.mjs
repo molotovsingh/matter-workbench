@@ -17,6 +17,7 @@ const FALLBACK_CATEGORIES = [
 const BUILTIN_SKILL_SCHEMA_VERSION = "built-in-skill/v1";
 const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 const LANE_SET = new Set(MATTER_WORKSPACE_LANES.map((lane) => lane.path));
+const BUILTIN_DISPLAY_FIELDS = ["action", "artifact", "running", "complete", "pill"];
 
 export function createSkillRegistryService({ appDir, registryPath, builtinsDir, configurableSkillsService = null } = {}) {
   const resolvedPath = registryPath || path.join(path.resolve(appDir || process.cwd()), "skills", "registry.json");
@@ -163,6 +164,9 @@ function normalizeBuiltinSkillCard(skill, { registryPath, categorySet }) {
 
   const normalized = {
     ...skill,
+    display: skill.schema_version === BUILTIN_SKILL_SCHEMA_VERSION
+      ? normalizeBuiltinDisplay(skill)
+      : normalizeConfigurableDisplay(skill),
     inputs: skill.inputs,
     outputs: skill.outputs,
     upstream: skill.upstream,
@@ -171,6 +175,35 @@ function normalizeBuiltinSkillCard(skill, { registryPath, categorySet }) {
   };
   delete normalized._stub_path;
   return normalized;
+}
+
+function normalizeBuiltinDisplay(skill) {
+  if (!skill.display || typeof skill.display !== "object" || Array.isArray(skill.display)) {
+    throw new Error(`display must be an object for ${skill.slash}`);
+  }
+  const display = {};
+  for (const field of BUILTIN_DISPLAY_FIELDS) {
+    const value = typeof skill.display[field] === "string" ? skill.display[field].trim() : "";
+    if (!value) throw new Error(`display.${field} must be a non-empty string for ${skill.slash}`);
+    display[field] = value;
+  }
+  return display;
+}
+
+function normalizeConfigurableDisplay(skill) {
+  const action = normalizeDisplayText(skill.display?.action || skill.title || skill.slash || "Custom Skill");
+  const artifact = normalizeDisplayText(skill.display?.artifact || action);
+  return {
+    action,
+    artifact,
+    running: normalizeDisplayText(skill.display?.running || `Running ${action}`),
+    complete: normalizeDisplayText(skill.display?.complete || `${action} complete`),
+    pill: normalizeDisplayText(skill.display?.pill || (skill.paid_provider_call ? "Uses AI" : "Local")),
+  };
+}
+
+function normalizeDisplayText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function normalizeLegacySkillCard(skill, { registryPath, categorySet }) {

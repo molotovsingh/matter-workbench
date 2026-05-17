@@ -47,11 +47,11 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
     <div class="form-warning" role="alertdialog" aria-labelledby="preparePaidConfirmTitle">
       <h2 id="preparePaidConfirmTitle">Label sources may use a paid AI provider</h2>
       <p>
-        Prepare Matter is ready to run <strong>${escapeHtml(lawyerActionLabel(stage?.slash, stage?.label || "Label sources"))}</strong>.
+        Prepare Matter is ready to run <strong>${escapeHtml(lawyerActionLabel(stage, stage?.label || "Label sources"))}</strong>.
         This updates the matter's source labels for downstream List of Dates work.
       </p>
       <ul class="overlap-list">
-        <li><strong>Step:</strong> ${escapeHtml(lawyerActionLabel(stage?.slash, stage?.label || "Label sources"))}</li>
+        <li><strong>Step:</strong> ${escapeHtml(lawyerActionLabel(stage, stage?.label || "Label sources"))}</li>
         <li><strong>Saved record:</strong> ${escapeHtml(lawyerArtifactLabel(advice.artifactPath || "10_Library/Source Index.json"))}</li>
         <li><strong>Status:</strong> ${escapeHtml(stageStateLabel(stage || { state: advice.state || "missing" }))}</li>
         <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
@@ -59,7 +59,7 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
       <p>Cancel leaves existing artifacts unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="preparePaidCancel">Keep current</button>
-        <button type="button" class="secondary" id="preparePaidRun">Run ${escapeHtml(lawyerActionLabel(stage?.slash, "Label sources"))}</button>
+        <button type="button" class="secondary" id="preparePaidRun">Run ${escapeHtml(lawyerActionLabel(stage, "Label sources"))}</button>
       </div>
     </div>
   `;
@@ -79,8 +79,8 @@ function renderPrepareStage(stage, escapeHtml) {
     <div class="pipeline-stage ${stateClass(stage.state)}">
       <div class="pipeline-stage-main">
         <div>
-          <strong>${escapeHtml(lawyerActionLabel(stage.slash, stage.label || stage.slash || ""))}</strong>
-          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash))}</span>
+          <strong>${escapeHtml(lawyerActionLabel(stage, stage.label || stage.slash || ""))}</strong>
+          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage))}</span>
         </div>
         <span class="pipeline-state ${stateClass(stage.state)}">${escapeHtml(stageStateLabel(stage))}</span>
       </div>
@@ -96,8 +96,8 @@ function renderListOfDatesRecommendation(stage, escapeHtml) {
     <div class="pipeline-stage ${stateClass(stage.state)}">
       <div class="pipeline-stage-main">
         <div>
-          <strong>${escapeHtml(lawyerActionLabel(stage.slash, stage.label || "Create list of dates"))}</strong>
-          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash || "/create_listofdates"))}</span>
+          <strong>${escapeHtml(lawyerActionLabel(stage, stage.label || "Create list of dates"))}</strong>
+          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash ? stage : "/create_listofdates"))}</span>
         </div>
         <span class="pipeline-state ${stateClass(stage.state)}">Recommended separately</span>
       </div>

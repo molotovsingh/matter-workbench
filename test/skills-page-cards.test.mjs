@@ -1,13 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
+import { setLawyerLabelRegistry } from "../frontend/lawyer-labels.js";
 import { renderSkillCards } from "../frontend/views/skills-page-cards.js";
 
 test("skills page cards render built-in skill metadata and escape artifacts", () => {
+  setLawyerLabelRegistry([
+    {
+      slash: "/matter-init",
+      display: {
+        action: "Set Up Matter",
+        artifact: "Matter Setup",
+        running: "Setting up matter",
+        complete: "Matter set up",
+        pill: "Local",
+      },
+    },
+  ]);
   const html = renderSkillCards([
     {
       slash: "/extract",
       title: "Extract <Docs>",
+      display: {
+        action: "Extract Documents",
+        artifact: "Extracted Documents",
+        running: "Extracting documents",
+        complete: "Documents extracted",
+        pill: "Local",
+      },
       purpose: "Convert working copies.",
       mode: "deterministic",
       matter_required: true,

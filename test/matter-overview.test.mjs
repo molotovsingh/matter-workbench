@@ -10,12 +10,26 @@ test("matter overview renders read-only pipeline status", () => {
       {
         slash: "/matter-init",
         label: "Matter Init",
+        display: {
+          action: "Set Up Matter",
+          artifact: "Matter Setup",
+          running: "Setting up matter",
+          complete: "Matter set up",
+          pill: "Local",
+        },
         present: true,
         artifacts: ["matter.json", "00_Inbox/Intake 01 - Initial/File Register.csv"],
       },
       {
         slash: "/describe_sources",
         label: "Describe Sources",
+        display: {
+          action: "Label Sources",
+          artifact: "Source Labels",
+          running: "Labeling sources",
+          complete: "Source labels complete",
+          pill: "Uses AI",
+        },
         present: true,
         artifacts: [],
         rerunAdvice: {

@@ -3,6 +3,13 @@
   "id": "doctor",
   "slash": "/doctor",
   "title": "Doctor",
+  "display": {
+    "action": "Check Matter",
+    "artifact": "Matter Check",
+    "running": "Checking matter",
+    "complete": "Matter check complete",
+    "pill": "Diagnostics"
+  },
   "category": "Maintain",
   "product_surface": "maintenance",
   "purpose": "Detect and repair legacy or inconsistent local matter layout and metadata issues.",

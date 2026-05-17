@@ -69,7 +69,7 @@ export function createPrepareMatterSkill(ctx) {
         return;
       }
       if (stage.action === "blocked") {
-        const stageLabel = lawyerActionLabel(stage.slash, stage.label);
+        const stageLabel = lawyerActionLabel(stage, stage.label);
         ctx.setStatus({
           mood: "idle",
           card: `<strong>${escapeHtml(stageLabel)} blocked</strong><br />${escapeHtml(stage.reason || "Resolve this before continuing.")}`,
@@ -103,10 +103,10 @@ export function createPrepareMatterSkill(ctx) {
   }
 
   async function runStage(stage) {
-    const stageLabel = lawyerActionLabel(stage.slash, stage.label);
+    const stageLabel = lawyerActionLabel(stage, stage.label);
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>${escapeHtml(lawyerActionRunningLabel(stage.slash, `Running ${stageLabel}`))}</strong><br />Using the existing preparation step.`,
+      card: `<strong>${escapeHtml(lawyerActionRunningLabel(stage, `Running ${stageLabel}`))}</strong><br />Using the existing preparation step.`,
       bar: `${stageLabel} Running`,
       terminal: [
         `> workbench.run ${stage.slash}`,
@@ -127,7 +127,7 @@ export function createPrepareMatterSkill(ctx) {
       }
       ctx.setStatus({
         mood: "success",
-        card: `<strong>${escapeHtml(lawyerActionCompleteLabel(stage.slash, `${stageLabel} complete`))}</strong><br />Preparation will recompute the next step from saved files.`,
+        card: `<strong>${escapeHtml(lawyerActionCompleteLabel(stage, `${stageLabel} complete`))}</strong><br />Preparation will recompute the next step from saved files.`,
         bar: `${stageLabel} Complete`,
         terminal: `[prepare] complete: ${stage.slash}`,
       });

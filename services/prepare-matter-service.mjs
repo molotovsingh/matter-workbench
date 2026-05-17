@@ -274,10 +274,12 @@ function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
 
 function stageBase(slash, statusStage) {
   const definition = STAGE_DEFINITIONS.find((candidate) => candidate.slash === slash);
+  const display = statusStage?.display || null;
   return {
     id: definition.id,
     slash,
-    label: definition.label,
+    label: display?.action || definition.label,
+    ...(display ? { display } : {}),
     description: definition.description,
     paidProviderCall: definition.paidProviderCall,
     artifacts: Array.isArray(statusStage?.artifacts) ? statusStage.artifacts : [],

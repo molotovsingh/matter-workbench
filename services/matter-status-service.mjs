@@ -11,10 +11,11 @@ import {
   listOfDatesRerunAdvice,
 } from "./matter-rerun-advice-service.mjs";
 
-export function createMatterStatusService({ matterStore } = {}) {
+export function createMatterStatusService({ matterStore, skillRegistryService = null } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
   async function readMatterStatus(root = matterStore.ensureMatterRoot()) {
+    const displayBySlash = await readDisplayBySlash(skillRegistryService);
     const matterJsonPath = path.join(root, "matter.json");
     const matterJsonPresent = await fileExists(matterJsonPath);
     const intakeFolders = await matterStore.listIntakeFolders(root);
@@ -56,7 +57,8 @@ export function createMatterStatusService({ matterStore } = {}) {
       stage({
         id: "matter-init",
         slash: "/matter-init",
-        label: "Matter Init",
+        display: displayBySlash.get("/matter-init"),
+        label: displayBySlash.get("/matter-init")?.action || "Matter Init",
         present: matterJsonPresent && intakeRegisters.length > 0,
         artifacts: [
           ...(matterJsonPresent ? ["matter.json"] : []),
@@ -66,7 +68,8 @@ export function createMatterStatusService({ matterStore } = {}) {
       stage({
         id: "extract",
         slash: "/extract",
-        label: "Extract",
+        display: displayBySlash.get("/extract"),
+        label: displayBySlash.get("/extract")?.action || "Extract",
         present: extractionRecords.length > 0 || extractionLogs.length > 0,
         artifacts: [
           ...extractionRecords.map((record) => `${record.path} (${record.count} record${record.count === 1 ? "" : "s"})`),
@@ -76,7 +79,8 @@ export function createMatterStatusService({ matterStore } = {}) {
       stage({
         id: "describe-sources",
         slash: "/describe_sources",
-        label: "Source Labels / Document Index",
+        display: displayBySlash.get("/describe_sources"),
+        label: displayBySlash.get("/describe_sources")?.action || "Source Labels / Document Index",
         present: sourceIndexPresent,
         artifacts: sourceIndexPresent ? [SOURCE_INDEX_RELATIVE] : [],
         aiRun: normalizeAiRunMetadata(sourceIndex?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
@@ -85,7 +89,8 @@ export function createMatterStatusService({ matterStore } = {}) {
       stage({
         id: "create-listofdates",
         slash: "/create_listofdates",
-        label: "Create List of Dates",
+        display: displayBySlash.get("/create_listofdates"),
+        label: displayBySlash.get("/create_listofdates")?.action || "Create List of Dates",
         present: listOfDatesMarkdownPresent || listOfDatesJsonPresent,
         artifacts: [
           ...(listOfDatesMarkdownPresent ? [LIST_OF_DATES_MARKDOWN_RELATIVE] : []),
@@ -111,11 +116,12 @@ export function createMatterStatusService({ matterStore } = {}) {
   return { readMatterStatus, readRerunAdvice };
 }
 
-function stage({ id, slash, label, present, artifacts = [], aiRun = null, metrics = null, rerunAdvice = null }) {
+function stage({ id, slash, label, display = null, present, artifacts = [], aiRun = null, metrics = null, rerunAdvice = null }) {
   return {
     id,
     slash,
     label,
+    ...(display ? { display } : {}),
     present: Boolean(present),
     state: present ? "present" : "not_run",
     artifacts,
@@ -123,6 +129,18 @@ function stage({ id, slash, label, present, artifacts = [], aiRun = null, metric
     ...(metrics ? { metrics } : {}),
     ...(rerunAdvice ? { rerunAdvice } : {}),
   };
+}
+
+async function readDisplayBySlash(skillRegistryService) {
+  if (!skillRegistryService?.listSkills) return new Map();
+  try {
+    const skills = await skillRegistryService.listSkills();
+    return new Map((Array.isArray(skills) ? skills : [])
+      .filter((skill) => skill?.slash && skill.display)
+      .map((skill) => [skill.slash, skill.display]));
+  } catch {
+    return new Map();
+  }
 }
 
 function listOfDatesMetrics(listOfDates) {
@@ -160,10 +178,6 @@ async function readJsonIfPossible(filePath) {
   } catch {
     return null;
   }
-}
-
-function normalizeText(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
 function toMatterRelative(root, filePath) {

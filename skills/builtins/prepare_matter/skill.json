@@ -3,6 +3,13 @@
   "id": "prepare_matter",
   "slash": "/prepare_matter",
   "title": "Prepare Matter",
+  "display": {
+    "action": "Prepare Matter",
+    "artifact": "Preparation Plan",
+    "running": "Preparing matter",
+    "complete": "Preparation complete",
+    "pill": "Guided"
+  },
   "category": "Prepare",
   "product_surface": "readiness",
   "purpose": "Show a disk-derived readiness plan and optionally run setup, extraction, and source labeling through existing guarded paths.",

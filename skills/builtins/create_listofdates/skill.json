@@ -3,6 +3,13 @@
   "id": "create_listofdates",
   "slash": "/create_listofdates",
   "title": "Create List of Dates",
+  "display": {
+    "action": "Create List of Dates",
+    "artifact": "List of Dates",
+    "running": "Creating List of Dates",
+    "complete": "List of Dates complete",
+    "pill": "Uses AI"
+  },
   "category": "Analyze",
   "product_surface": "native_legal",
   "purpose": "Build a cited legal chronology from extraction records using AI judgment while preserving source-block citations.",

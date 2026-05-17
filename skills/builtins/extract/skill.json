@@ -3,6 +3,13 @@
   "id": "extract",
   "slash": "/extract",
   "title": "Extract",
+  "display": {
+    "action": "Extract Documents",
+    "artifact": "Extracted Documents",
+    "running": "Extracting documents",
+    "complete": "Documents extracted",
+    "pill": "Local"
+  },
   "category": "Extract",
   "product_surface": "setup",
   "purpose": "Convert supported working-copy documents into stable source-backed extraction records and text companions.",

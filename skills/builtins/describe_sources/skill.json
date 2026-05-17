@@ -3,6 +3,13 @@
   "id": "describe_sources",
   "slash": "/describe_sources",
   "title": "Source Labels / Document Index",
+  "display": {
+    "action": "Label Sources",
+    "artifact": "Source Labels",
+    "running": "Labeling sources",
+    "complete": "Source labels complete",
+    "pill": "Uses AI"
+  },
   "category": "Organize",
   "product_surface": "native_legal",
   "purpose": "Organize documents and prepare the source record for List of Dates.",

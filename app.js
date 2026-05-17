@@ -19,6 +19,7 @@ import { createDoctorSkill } from "./frontend/skills/doctor.js";
 import { escapeHtml, matterFromWorkspace } from "./frontend/dom-utils.js";
 import { switchMatterFlow } from "./frontend/matter-switch-flow.js";
 import { setShellMatterMode } from "./frontend/shell-presentation.js";
+import { setLawyerLabelRegistry } from "./frontend/lawyer-labels.js";
 
 if (globalThis.history && "scrollRestoration" in globalThis.history) {
   globalThis.history.scrollRestoration = "manual";
@@ -236,6 +237,14 @@ async function loadMattersList() {
   ctx.renderMattersList();
 }
 
+async function loadSkillDisplayRegistry() {
+  try {
+    setLawyerLabelRegistry(await getJson("/api/skills"));
+  } catch {
+    setLawyerLabelRegistry([]);
+  }
+}
+
 async function switchToMatter(name) {
   setStatus({
     mood: "idle",
@@ -293,6 +302,7 @@ async function bootstrap() {
     ctx.renderFirstRun(config.defaultMattersHome);
     return;
   }
+  await loadSkillDisplayRegistry();
   const resumeMatterName = config.activeMatterName || "";
   if (config.hasActiveMatter) {
     await postJson("/api/active-matter/clear");

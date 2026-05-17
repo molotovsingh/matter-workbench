@@ -3,6 +3,13 @@
   "id": "context_preview",
   "slash": "/context_preview",
   "title": "Context Preview",
+  "display": {
+    "action": "Preview Matter Context",
+    "artifact": "Matter Context Preview",
+    "running": "Preparing matter preview",
+    "complete": "Matter preview ready",
+    "pill": "Local"
+  },
   "category": "Review",
   "product_surface": "utility",
   "purpose": "Show a read-only summary of the bounded matter context packet for future Q&A/search without exposing raw source text.",
