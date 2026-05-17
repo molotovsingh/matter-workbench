@@ -184,6 +184,11 @@ AI run metadata records the policy prompt version used, for example:
 That makes model behavior easier to audit when providers, model IDs, or prompt
 versions change.
 
+Configurable skill definitions and run receipts should preserve the same policy
+prompt version in their model/run metadata. A custom skill can change the task
+instructions, but it should not erase which app-level legal policy governed the
+provider request.
+
 ## First Consumers
 
 The first implementation covers the surfaces already producing lawyer-visible

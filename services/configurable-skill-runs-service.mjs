@@ -167,6 +167,7 @@ function normalizeAiRun(aiRun = {}) {
     provider: normalizeText(aiRun.provider),
     model: normalizeText(aiRun.model),
     task: normalizeText(aiRun.task),
+    policyPromptVersion: normalizeText(aiRun.policyPromptVersion),
   };
 }
 

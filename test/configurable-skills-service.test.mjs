@@ -236,13 +236,15 @@ test("configurable skill validation blocks bad draft run output", async () => {
 
 test("active configurable skill runs write only configured markdown and JSON artifacts", async () => {
   const { service, matterRoot, runLedger } = await makeServiceHarness();
-  await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  const created = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  assert.equal(created.skill.modelPolicy.policyPromptVersion, "legal-workbench-policy/v1");
 
   const firstRun = await service.runSkill({ slash: "/party_officer_map" });
 
   assert.equal(firstRun.state, "written");
   assert.equal(firstRun.runRecord.status, "succeeded");
   assert.equal(firstRun.runRecord.overwrite, "not_needed");
+  assert.equal(firstRun.runRecord.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(firstRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
   assert.equal(firstRun.outputPaths.json, "20_Workshop/Party and Officer Map.json");
   assert.match(firstRun.markdown, /FILE-0001 p1\.b1/);
@@ -251,6 +253,7 @@ test("active configurable skill runs write only configured markdown and JSON art
   const metadata = JSON.parse(await readFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.json"), "utf8"));
   assert.match(markdown, /^# Party and Officer Map/);
   assert.equal(metadata.skill.slash, "/party_officer_map");
+  assert.equal(metadata.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
 
   const blocked = await service.runSkill({ slash: "/party_officer_map" });
   assert.equal(blocked.state, "requires_overwrite");

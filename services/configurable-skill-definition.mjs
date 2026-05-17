@@ -93,6 +93,7 @@ export function normalizeStoredSkill(skill = {}) {
       task: normalizeText(skill.modelPolicy?.task || AI_TASKS.CONFIGURABLE_SKILL_RUN),
       provider: normalizeText(skill.modelPolicy?.provider),
       model: normalizeText(skill.modelPolicy?.model),
+      policyPromptVersion: normalizeText(skill.modelPolicy?.policyPromptVersion),
     },
     validation: {
       status: ["pending", "passed", "failed"].includes(skill.validation?.status) ? skill.validation.status : "pending",

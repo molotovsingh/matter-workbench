@@ -25,6 +25,7 @@ test("configurable skill run ledger records running and succeeded metadata only"
       provider: "openai-direct",
       model: "gpt-5.4",
       task: "configurable_skill_run",
+      policyPromptVersion: "legal-workbench-policy/v1",
     },
     prompt: "must not persist",
     markdown: "# must not persist",
@@ -40,6 +41,7 @@ test("configurable skill run ledger records running and succeeded metadata only"
   assert.equal(succeeded.status, "succeeded");
   assert.equal(succeeded.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
   assert.equal(succeeded.aiRun.model, "gpt-5.4");
+  assert.equal(succeeded.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(succeeded.warnings[0], "bounded context omitted 5 blocks");
 
   const rawStore = await readFile(service.storePath, "utf8");

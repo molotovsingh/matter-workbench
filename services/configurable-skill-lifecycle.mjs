@@ -2,6 +2,7 @@ import {
   CONFIGURABLE_SKILL_SCHEMA_VERSION,
   normalizeStoredSkill,
 } from "./configurable-skill-definition.mjs";
+import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS } from "../shared/model-policy.mjs";
 
 export function buildDraftConfigurableSkill({
@@ -42,6 +43,7 @@ export function buildDraftConfigurableSkill({
       task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
       provider: runProviderConfig.provider,
       model: runProviderConfig.model,
+      policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     },
     validation: {
       status: "pending",

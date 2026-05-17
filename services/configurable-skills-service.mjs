@@ -43,6 +43,7 @@ import {
 import { validateDraftSkill } from "./configurable-skill-validation.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
@@ -208,6 +209,7 @@ export function createConfigurableSkillsService({
       provider: providerConfig.provider,
       model: providerConfig.model,
       task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
+      policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     };
     let runRecord = await runLedger.createRun({
       skillId: skill.id,
