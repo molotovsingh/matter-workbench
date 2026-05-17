@@ -1,4 +1,6 @@
 node_modules/
+react-dist/
+react-ui/node_modules/
 .DS_Store
 .env
 .npm-cache/

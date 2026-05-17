@@ -11,8 +11,15 @@ test("static route containment rejects traversal and prefix sibling paths", () =
 
   assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "index.html"));
   assert.equal(resolveStaticPath(appDir, "/styles.css"), path.join(appDir, "styles.css"));
+  assert.equal(resolveStaticPath(appDir, "/react"), path.join(appDir, "react-dist", "index.html"));
+  assert.equal(resolveStaticPath(appDir, "/react/"), path.join(appDir, "react-dist", "index.html"));
+  assert.equal(
+    resolveStaticPath(appDir, "/react/assets/index.js"),
+    path.join(appDir, "react-dist", "assets", "index.js"),
+  );
   assert.equal(resolveStaticPath(appDir, "/../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/../../etc/passwd"), null);
+  assert.equal(resolveStaticPath(appDir, "/react/../../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/%E0%A4%A"), null);
 });
 

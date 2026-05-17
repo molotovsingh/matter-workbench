@@ -166,6 +166,28 @@ matters should live and creates that folder for you. Use **+ New Matter** in
 the sidebar to create a matter, or pick an existing one from the **Matters**
 list.
 
+### React UI track
+
+The React/Vite interface now lives inside this repo under `react-ui/`; the old
+separate prototype repo is no longer required as a source of truth.
+
+For iterative frontend work against the local backend:
+
+```bash
+npm run ui:dev
+```
+
+This serves the React UI at `http://127.0.0.1:5173/` and proxies `/api` to the
+Matter Workbench backend. To build the React UI inside the main repo:
+
+```bash
+npm run ui:build
+```
+
+The build output goes to ignored `react-dist/`. The backend can serve that
+compiled UI at `/react/`, while `/` continues to serve the current stable
+plain-JS v1 UI until we deliberately switch defaults.
+
 ## Switching matters
 
 The sidebar shows every matter under your matters home. Click any entry in the
@@ -202,6 +224,8 @@ The active matter overview also renders a read-only Developer attention card fro
 - `styles.css` - app visual system and layout
 - `app.js` - frontend composition, state bootstrapping, and built-in skill dispatch
 - `frontend/` - command rail UI, screens, workspace views, and skill-specific frontend runners
+- `react-ui/` - React/Vite UI track imported into the main repo for future frontend work
+- `react-dist/` - ignored generated build output for the React UI, served at `/react/`
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
 - `routes/app-shell-routes.mjs` - app settings, matters, workspace, uploads, files, overlap checks, and command diagnostics

@@ -470,7 +470,26 @@ The core lifecycle service is still `services/configurable-skills-service.mjs`, 
 
 ## The Frontend
 
-The frontend is plain browser JavaScript, not React.
+The stable v1 frontend is plain browser JavaScript. The React/Vite UI that was
+previously being explored in a separate local repo has now been absorbed into
+this repo under `react-ui/`, so there is one product codebase again.
+
+In plain English: we did not move into two houses. We brought the useful React
+prototype furniture into the main house, put it in one room, and left the old
+prototype house ready to be demolished later.
+
+The current safe arrangement is:
+
+- `/` serves the existing stable plain-JS v1 app.
+- `react-ui/` contains the React source for the next frontend track.
+- `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the main backend.
+- `npm run ui:build` type-checks and builds the React app.
+- `react-dist/` is generated output and is ignored by git.
+- `/react/` can serve the compiled React build from the same backend.
+
+This means the separate `matter-workbench-react-ui-claude` repo is no longer a
+source of truth. Keep it only as a temporary backup until we are comfortable
+deleting it.
 
 Important files:
 
@@ -496,6 +515,13 @@ Important files:
 - `frontend/api-client.js` - API helper;
 - `frontend/state.js` - shared state;
 - `frontend/status.js` - status output.
+- `react-ui/src/App.tsx` - React shell composition for the imported UI track;
+- `react-ui/src/api/client.ts` - React UI API adapter against the same backend contract;
+- `react-ui/src/components/command/CommandPanel.tsx` - React version of the command rail;
+- `react-ui/src/components/RerunConfirmDialog.tsx` - React rerun confirmation dialog;
+- `react-ui/src/views/MatterOverview.tsx` - React matter overview and readiness surface;
+- `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
+- `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
 

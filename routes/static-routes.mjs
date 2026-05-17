@@ -22,6 +22,17 @@ export function resolveStaticPath(appDir, urlPath) {
   } catch {
     return null;
   }
+
+  if (cleanPath === "/react" || cleanPath === "/react/" || cleanPath.startsWith("/react/")) {
+    const reactRelativePath = cleanPath === "/react" || cleanPath === "/react/"
+      ? "index.html"
+      : cleanPath.replace(/^\/react\/+/, "");
+    const reactRoot = path.resolve(appDir, "react-dist");
+    const reactPath = path.resolve(reactRoot, reactRelativePath);
+    if (!isInsideRoot(reactRoot, reactPath)) return null;
+    return reactPath;
+  }
+
   const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
   const absolutePath = path.resolve(appDir, relativePath);
   if (!isInsideRoot(appDir, absolutePath)) return null;
