@@ -118,7 +118,7 @@ test("command box runs active configurable slash commands and handles overwrite 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open output/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Run again/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Improve this skill/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map modify/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /<summary><strong>Command<\/strong><\/summary><code>\/party_officer_map<\/code>/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Output Exists");
 
   await box.handleCommand({ userRequest: "open output" });

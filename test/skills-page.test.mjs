@@ -407,7 +407,7 @@ test("skills page promotes latest duplicate custom skill and keeps older copy in
   assert.match(customSection, /<h3>Party and Officer Map<\/h3>/);
   assert.doesNotMatch(customSection, /data-skill-card-command="\/party_officer_map"/);
   assert.match(customSection, /<strong>v1 - Superseded<\/strong>/);
-  assert.match(customSection, /Latest runnable version: Party and Officer Map v1\. Type <code>\/party_officer_map_2<\/code> to run it/);
+  assert.match(customSection, /Latest runnable version: Party and Officer Map v1\. Use the Run button to run it/);
 });
 
 test("skills page renders custom skill version lineage from configurable store", () => {
@@ -531,8 +531,8 @@ test("skills page renders custom skill version lineage from configurable store",
   assert.match(customSection, /<h3>Party and Officer Map<\/h3>/);
   assert.match(customSection, /<strong>v1 - Disabled<\/strong>/);
   assert.match(customSection, /Version history/);
-  assert.match(customSection, /Latest runnable version: Party and Officer Map v2\. Type <code>\/party_officer_map<\/code> to run it/);
-  assert.match(customSection, /\/party_officer_map modify/);
+  assert.match(customSection, /Latest runnable version: Party and Officer Map v2\. Use the Run button to run it/);
+  assert.match(customSection, /data-skill-card-command="\/party_officer_map modify"/);
   assert.match(customSection, /include relationship confidence and unresolved aliases/);
   assert.match(customSection, /discover formal party names, officers, aliases, and relationships/);
   assert.match(customSection, /<dt>Latest run<\/dt><dd>Mehta vs Skyline - Succeeded<\/dd>/);

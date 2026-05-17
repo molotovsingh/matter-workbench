@@ -898,7 +898,7 @@ test("command box generates, revises, copies a sample, and creates a skill when 
   assert.deepEqual(createSkillCalls, ["idea_sample_1"]);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/client_update_email/);
-  assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
+  assert.match(ctx.elements.editorContent.innerHTML, /This skill has been created and validated/);
   assert.equal(interactionLogs.at(-3).status, "sample_approved");
   assert.equal(interactionLogs.at(-3).provider_run_invoked, false);
   assert.equal(interactionLogs.at(-2).status, "overlap_checked");
@@ -1049,9 +1049,9 @@ test("command box creates a runnable skill only after current sample approval", 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Skill Ready/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/party_officer_map/);
   assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger|Looks useful|Try creating skill/);
-  assert.match(ctx.elements.editorContent.innerHTML, /You can use this skill by typing/);
+  assert.match(ctx.elements.editorContent.innerHTML, /This skill has been created and validated/);
   assert.match(ctx.elements.editorContent.innerHTML, /\/party_officer_map/);
-  assert.equal(ctx.elements.aiCommandInput.placeholder, "Type /party_officer_map to run it, or another action");
+  assert.equal(ctx.elements.aiCommandInput.placeholder, "Ask, run a skill, or describe another action");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Ready");
 
   ctx.elements.aiCommandInput.value = "/party_officer_map";

@@ -62,10 +62,16 @@ function renderActiveCustomSkillCard(skill, escape, { improvementIdeas = [], con
       </div>
       <p>${escape(skill.purpose || "No description provided.")}</p>
       <div class="active-custom-skill-path">
-        <code>${escape(slash)}</code>
-        <span>→</span>
+        <span>Output</span>
+        <span>:</span>
         <span>${output ? `<code>${escape(output)}</code>` : '<span class="muted">No output declared</span>'}</span>
       </div>
+      ${slash ? `
+        <details class="skill-output-list">
+          <summary><strong>Command</strong></summary>
+          <code>${escape(slash)}</code>
+        </details>
+      ` : ""}
       <div class="active-custom-skill-run">
         ${latestRun
           ? `Last run: ${escape(latestRun.matterName || latestRun.matterFolder || "Unknown matter")} - <strong>${escape(runStatusLabel(latestRun.status))}</strong>${latestRun.startedAt || latestRun.finishedAt ? ` <span>${escape(formatRunTime(latestRun.startedAt || latestRun.finishedAt))}</span>` : ""}`
@@ -199,8 +205,8 @@ function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, es
         <span class="pipeline-state ${escape(customSkillDisplayStatusClass(activeVersion))}">${escape(`${customSkillVersionLabel(activeVersion)} ${customSkillDisplayStatusLabel(activeVersion).toLowerCase()}`)}</span>
       </summary>
       <p class="muted">
-        Latest runnable version: ${escape(customSkillDisplayName(activeVersion))}. Type <code>${escape(activeVersion.slash || skill.slash || "")}</code> to run it.
-        Improve it by typing <code>${escape(`${activeVersion.slash || skill.slash || ""} modify`)}</code> in the command box.
+        Latest runnable version: ${escape(customSkillDisplayName(activeVersion))}. Use the Run button to run it.
+        Open command details if you prefer typing commands.
       </p>
       <dl class="skill-card-meta compact">
         <div><dt>Latest run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>
@@ -245,7 +251,7 @@ function renderCustomSkillImprovementIdeas(skill, ideas, escape) {
     return `
       <div class="skill-output-list">
         <strong>Suggested improvements</strong>
-        <span class="muted">None saved yet. Run the skill, then type <code>${escape(skill.slash || "")} modify</code> to suggest a revision.</span>
+        <span class="muted">None saved yet. Run the skill, then use Improve to suggest a revision.</span>
       </div>
     `;
   }

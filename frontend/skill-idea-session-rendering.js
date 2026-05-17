@@ -230,7 +230,7 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
     : stale
     ? sampleReview.staleReason || "Design brief changed after this sample was generated. Regenerate the sample before approving it."
     : readySkill?.slash
-      ? `Skill Ready. Use ${readySkill.slash}.`
+      ? "Skill Ready. Use Run now to run it on the selected matter."
     : approved
       ? "Sample approved. Skill creation can be retried from this approved sample."
     : activeSample
@@ -243,7 +243,7 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
         <h4>Sample output review</h4>
         ${generating ? '<div class="sample-progress" role="status">Generating sample output...</div>' : ""}
         <p class="muted">${escapeHtml(sampleStatus)}</p>
-        ${readySkill?.slash ? `<p><strong>Skill Ready</strong>: type <code>${escapeHtml(readySkill.slash)}</code> to run it.</p>` : ""}
+        ${readySkill?.slash ? `<details class="skill-output-list"><summary><strong>Command</strong></summary><code>${escapeHtml(readySkill.slash)}</code></details>` : ""}
         <dl class="skill-card-meta">
           <div><dt>Test matter</dt><dd>${escapeHtml(matterName || "No matter selected")}</dd></div>
           <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder || "Pick a matter first")}</dd></div>

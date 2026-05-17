@@ -79,12 +79,10 @@ export function createSkillIdeaCreationActions({
       configurableSkillRuns.renderCreatedSkillCommandRail(skill);
       void refreshConfigurableSlashSuggestions({ force: true });
       aiCommandInput.value = "";
-      aiCommandInput.placeholder = skill.slash
-        ? `Type ${skill.slash} to run it, or another action`
-        : defaultPlaceholder;
+      aiCommandInput.placeholder = "Ask, run a skill, or describe another action";
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Skill Ready</strong><br />You can use <code>${escapeHtml(skill.slash || "")}</code>.`,
+        card: "<strong>Skill Ready</strong><br />Use Run now or open it from Skills.",
         bar: "Skill Ready",
         terminal: `[skill-builder] activated ${skill.slash || "custom skill"}`,
       });
