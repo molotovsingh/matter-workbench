@@ -6,12 +6,10 @@ import {
   LIST_OF_DATES_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
-import { toPosix } from "../shared/safe-paths.mjs";
+import { buildCommandFailureAttentionItems } from "./matter-attention-command-failures.mjs";
 
 export const MATTER_ATTENTION_SCHEMA_VERSION = "matter-attention/v1";
 
-const COMMAND_LOG_LIMIT = 200;
-const COMMAND_FAILURE_LIMIT = 10;
 const CUSTOM_RUN_LIMIT = 100;
 const SEVERITY_ORDER = new Map([
   ["blocker", 0],
@@ -465,46 +463,11 @@ export function createMatterAttentionService({
   }
 
   async function collectCommandFailureAttention({ matterName, items }) {
-    if (!commandInteractionLogService) return;
-    const interactions = await readCommandInteractions(commandInteractionLogService);
-    const failureKeys = new Set();
-    const matterInteractions = interactions
-      .filter((entry) => commandBelongsToMatter(entry, matterName))
-      .filter(isCommandFailure)
-      .slice(-COMMAND_FAILURE_LIMIT)
-      .reverse();
-    for (const entry of matterInteractions) {
-      const detail = commandFailureDetail(entry);
-      const failureKey = [
-        entry.matched_command || entry.typed_input || "unknown command",
-        detail,
-      ].join("\n");
-      if (failureKeys.has(failureKey)) continue;
-      failureKeys.add(failureKey);
-      addItem(items, {
-        severity: "warning",
-        category: "command",
-        code: "command_failed",
-        title: `Command failed: ${entry.matched_command || entry.typed_input || "unknown command"}`,
-        detail,
-        action: "Use the command interaction log to reproduce the route/UI failure.",
-        evidence: [commandLogEvidence(commandInteractionLogService)],
-        occurredAt: entry.timestamp || "",
-      });
-    }
-  }
-
-  async function readCommandInteractions(logService) {
-    if (typeof logService.readRecentInteractions === "function") {
-      return logService.readRecentInteractions({ limit: COMMAND_LOG_LIMIT });
-    }
-    return [];
-  }
-
-  function commandLogEvidence(logService) {
-    const logPath = logService.logPath;
-    if (!logPath) return evidence("command-interactions.jsonl");
-    return evidence(toPosix(path.relative(path.dirname(path.dirname(logPath)), logPath)));
+    const commandItems = await buildCommandFailureAttentionItems({
+      commandInteractionLogService,
+      matterName,
+    });
+    for (const item of commandItems) addItem(items, item);
   }
 
   return { readMatterAttention };
@@ -672,31 +635,6 @@ function hasDeveloperNameLeak(values) {
       || /[a-f0-9]{32,}/i.test(text)
       || /00_Inbox|10_Library|20_Workshop|30_Drafts|40_Dispatch/.test(text);
   });
-}
-
-function commandBelongsToMatter(entry, matterName) {
-  const matter = entry?.matter || {};
-  return normalizeText(matter.folder_name || matter.folderName) === matterName
-    || normalizeText(matter.matter_name || matter.matterName) === matterName;
-}
-
-function isCommandFailure(entry) {
-  if (!entry || typeof entry !== "object") return false;
-  const status = normalizeText(entry.status);
-  if (status === "failed") return true;
-  if (Array.isArray(entry.errors) && entry.errors.length) return true;
-  if (["ran", "complete", "completed", "succeeded", "cancelled", "router_checked"].includes(status)) return false;
-  const searchable = [
-    entry.status_bar,
-    ...(Array.isArray(entry.terminal_lines) ? entry.terminal_lines : []),
-  ].map(normalizeText).join("\n");
-  return /\b(failed|error|unavailable)\b/i.test(searchable);
-}
-
-function commandFailureDetail(entry) {
-  const errors = Array.isArray(entry.errors) ? entry.errors.filter(Boolean) : [];
-  if (errors.length) return errors.join("; ");
-  return normalizeText(entry.status_bar || entry.terminal_lines?.at?.(-1) || "Command log indicates a failure.");
 }
 
 function joinDetailSentences(parts) {
