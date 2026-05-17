@@ -212,6 +212,7 @@ export function normalizeSampleAiRun(aiRun = {}) {
     provider: String(aiRun.provider || "").trim(),
     model: String(aiRun.model || "").trim(),
     task: String(aiRun.task || "").trim(),
+    policyPromptVersion: String(aiRun.policyPromptVersion || "").trim(),
   };
 }
 

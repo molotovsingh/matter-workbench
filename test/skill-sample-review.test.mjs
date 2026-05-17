@@ -26,6 +26,7 @@ const sampleV1 = {
   ai_run: {
     provider: "openai-direct",
     model: "gpt-5.4",
+    policyPromptVersion: "legal-workbench-policy/v1",
   },
   feedback: "Make this more specific.",
   sample_markdown: "## Old sample",
@@ -45,6 +46,7 @@ const sampleV2 = {
   ai_run: {
     provider: "openai-direct",
     model: "gpt-5.4",
+    policyPromptVersion: "legal-workbench-policy/v1",
   },
   sample_markdown: "## Current sample",
 };
@@ -58,6 +60,7 @@ test("sample review helpers merge and sort ledger samples by version", () => {
 
   assert.deepEqual(ledger.map(getSampleId), ["sample_1", "sample_2"]);
   assert.equal(findSampleByVersion({ ledger }, 2)?.sample_id, "sample_2");
+  assert.equal(findSampleByVersion({ ledger }, 2)?.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
 });
 
 test("sample review helpers derive active approval and stale state", () => {
