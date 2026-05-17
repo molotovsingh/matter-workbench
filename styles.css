@@ -2743,12 +2743,45 @@ summary {
   padding: 2px 6px;
 }
 
+.matter-attention-disclosure > summary,
 .matter-attention-heading,
 .matter-attention-item-main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.matter-attention-disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.matter-attention-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.matter-attention-disclosure > summary::before {
+  content: "▸";
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 2px;
+  transform: translateY(1px);
+}
+
+.matter-attention-disclosure[open] > summary::before {
+  content: "▾";
+}
+
+.matter-attention-disclosure > summary span:first-child {
+  flex: 1;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.matter-attention-disclosure > p:first-of-type {
+  margin-top: 12px;
 }
 
 .matter-attention-heading h2 {

@@ -142,7 +142,9 @@ test("matter overview renders developer attention blockers compactly", () => {
     ],
   }, escapeHtml);
 
-  assert.match(html, /Developer attention/);
+  assert.match(html, /<details class="matter-attention-disclosure">/);
+  assert.match(html, /Developer diagnostics/);
+  assert.doesNotMatch(html, /<details class="matter-attention-disclosure" open>/);
   assert.match(html, /Blocked/);
   assert.match(html, /1<\/strong> Blockers/);
   assert.match(html, /1<\/strong> Warnings/);

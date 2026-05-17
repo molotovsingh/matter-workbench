@@ -2,15 +2,25 @@ import { escapeHtml } from "../dom-utils.js";
 
 export function renderMatterAttentionLoading() {
   return `
-    <h2>Developer attention</h2>
-    <p class="muted">Checking matter-level blockers and warnings...</p>
+    <details class="matter-attention-disclosure">
+      <summary>
+        <span>Developer diagnostics</span>
+        <span class="pipeline-state not-run">Checking</span>
+      </summary>
+      <p class="muted">Checking matter-level blockers and warnings...</p>
+    </details>
   `;
 }
 
 export function renderMatterAttentionUnavailable(message) {
   return `
-    <h2>Developer attention</h2>
-    <p class="muted">Developer attention is unavailable: ${escapeHtml(message || "Unknown error")}</p>
+    <details class="matter-attention-disclosure">
+      <summary>
+        <span>Developer diagnostics</span>
+        <span class="pipeline-state failed">Unavailable</span>
+      </summary>
+      <p class="muted">Developer diagnostics are unavailable: ${escapeHtml(message || "Unknown error")}</p>
+    </details>
   `;
 }
 
@@ -24,18 +34,20 @@ export function renderMatterAttentionStatus(attention, escape) {
   const stateClass = attentionStateClass(state);
 
   return `
-    <div class="matter-attention-heading">
-      <h2>Developer attention</h2>
-      <span class="pipeline-state ${escape(stateClass)}">${escape(stateLabel)}</span>
-    </div>
-    <p class="muted">Read-only diagnostics gathered from intake, extraction, source labels, chronology, skill runs, and command failures.</p>
-    ${renderMatterAttentionSummary(summary, escape)}
-    ${items.length ? `
-      <div class="matter-attention-list">
-        ${visibleItems.map((item) => renderMatterAttentionItem(item, escape)).join("")}
-      </div>
-      ${hiddenCount ? `<p class="matter-attention-more muted">+${hiddenCount} more item${hiddenCount === 1 ? "" : "s"} in the full matter-attention report.</p>` : ""}
-    ` : '<p class="matter-attention-clear muted">No developer blockers or warnings found for this matter.</p>'}
+    <details class="matter-attention-disclosure">
+      <summary>
+        <span>Developer diagnostics</span>
+        <span class="pipeline-state ${escape(stateClass)}">${escape(stateLabel)}</span>
+      </summary>
+      <p class="muted">Read-only checks for intake, extraction, source labels, chronology, skill runs, and command failures.</p>
+      ${renderMatterAttentionSummary(summary, escape)}
+      ${items.length ? `
+        <div class="matter-attention-list">
+          ${visibleItems.map((item) => renderMatterAttentionItem(item, escape)).join("")}
+        </div>
+        ${hiddenCount ? `<p class="matter-attention-more muted">+${hiddenCount} more item${hiddenCount === 1 ? "" : "s"} in the full matter-attention report.</p>` : ""}
+      ` : '<p class="matter-attention-clear muted">No developer blockers or warnings found for this matter.</p>'}
+    </details>
   `;
 }
 
