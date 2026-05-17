@@ -56,10 +56,10 @@ export function createDeterministicCommandController({
 
       const runSkill = skillDispatch[parsedCommand.command];
       if (!runSkill) {
-        renderCommandError(`No runner is wired for ${parsedCommand.command}.`);
+        renderCommandError("This command is unavailable in this build.");
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>Command unavailable</strong><br />No runner is wired for <code>${escapeHtml(parsedCommand.command)}</code>.`,
+          card: "<strong>Command unavailable</strong><br />This action is not available in this build.",
           bar: "Command Unavailable",
           terminal: `[ai-command] no runner for ${parsedCommand.command}`,
         });
@@ -69,8 +69,8 @@ export function createDeterministicCommandController({
 
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> -> <code>${escapeHtml(parsedCommand.command)}</code>.`,
-        bar: "Command Matched",
+        card: `<strong>Running skill</strong><br />Starting <code>${escapeHtml(parsedCommand.command)}</code>.`,
+        bar: "Running Skill",
         terminal: `[ai-command] ${userRequest} -> ${parsedCommand.command}`,
       });
       await runSkill(parsedCommand.command);
@@ -97,10 +97,10 @@ export function createDeterministicCommandController({
 
   function showWorkspaceLane(parsedCommand, userRequest) {
     if (!ctx.openWorkspaceLane) {
-      renderCommandError("Workspace lane navigation is unavailable.");
+      renderCommandError("Workspace navigation is unavailable.");
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Command unavailable</strong><br />Workspace lane navigation is not wired.",
+        card: "<strong>Command unavailable</strong><br />Workspace navigation is not available in this build.",
         bar: "Command Unavailable",
         terminal: `[ai-command] lane navigation unavailable for ${parsedCommand.lanePath}`,
       });
@@ -109,8 +109,8 @@ export function createDeterministicCommandController({
 
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> opens <code>${escapeHtml(parsedCommand.lanePath)}</code>.`,
-      bar: "Command Matched",
+      card: `<strong>Opening workspace</strong><br />Opening ${escapeHtml(parsedCommand.title || parsedCommand.lanePath)}.`,
+      bar: "Opening Workspace",
       terminal: `[ai-command] ${userRequest} -> ${parsedCommand.lanePath}`,
     });
     return ctx.openWorkspaceLane(parsedCommand.lanePath);
@@ -119,10 +119,10 @@ export function createDeterministicCommandController({
   async function runContextSearch(parsedCommand, userRequest) {
     const runSearch = skillDispatch[parsedCommand.command];
     if (!runSearch) {
-      renderCommandError(`No runner is wired for ${parsedCommand.command}.`);
+      renderCommandError("Search is unavailable in this build.");
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Command unavailable</strong><br />No runner is wired for <code>${escapeHtml(parsedCommand.command)}</code>.`,
+        card: "<strong>Search unavailable</strong><br />Matter search is not available in this build.",
         bar: "Command Unavailable",
         terminal: `[ai-command] no runner for ${parsedCommand.command}`,
       });
@@ -132,8 +132,8 @@ export function createDeterministicCommandController({
 
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> searches the bounded matter context.`,
-      bar: "Command Matched",
+      card: "<strong>Searching matter</strong><br />Searching the selected matter context.",
+      bar: "Searching Matter",
       terminal: `[ai-command] ${userRequest} -> ${parsedCommand.command}`,
     });
     await runSearch({
@@ -175,7 +175,7 @@ export function createDeterministicCommandController({
       renderCommandError("Skills view is unavailable.");
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Command unavailable</strong><br />Skills view is not wired.",
+        card: "<strong>Command unavailable</strong><br />The Skills page is not available in this build.",
         bar: "Command Unavailable",
         terminal: "[ai-command] skills view unavailable",
       });
@@ -185,8 +185,8 @@ export function createDeterministicCommandController({
 
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Command matched</strong><br /><code>${escapeHtml(userRequest)}</code> opens the read-only Skills page.`,
-      bar: "Command Matched",
+      card: "<strong>Opening Skills</strong><br />Opening the read-only Skills page.",
+      bar: "Opening Skills",
       terminal: `[ai-command] ${userRequest} -> skills`,
     });
     await ctx.renderSkills();

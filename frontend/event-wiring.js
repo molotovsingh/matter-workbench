@@ -59,8 +59,8 @@ export function wireAppEvents(ctx, skills) {
       const runSkill = skillDispatch[skill];
       if (!runSkill) {
         ctx.setStatus({
-          bar: "Unknown Skill",
-          terminal: `[skills] no runner is wired for ${skill || "unknown skill"}`,
+          bar: "Skill Unavailable",
+          terminal: `[skills] unavailable skill action: ${skill || "unknown skill"}`,
         });
         return;
       }
