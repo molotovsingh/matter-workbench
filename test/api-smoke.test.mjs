@@ -236,9 +236,11 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(sourceDescriptors.counts.descriptors, 1);
     assert.equal(sourceDescriptors.outputPaths.json, "10_Library/Source Index.json");
     assert.equal(sourceDescriptors.sources[0].file_id, "FILE-0001");
+    assert.equal(sourceDescriptors.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
     const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
+    assert.equal(listOfDates.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
     const matterStatus = await getJson(baseUrl, "/api/matter-status");
     assert.deepEqual(matterStatus.stages.map((stage) => [stage.slash, stage.state]), [
       ["/matter-init", "present"],
@@ -257,9 +259,11 @@ test("server API smoke test keeps public routes stable", async () => {
     const sourceRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/describe_sources")}`);
     assert.equal(sourceRerunAdvice.shouldConfirm, true);
     assert.equal(sourceRerunAdvice.artifactPath, "10_Library/Source Index.json");
+    assert.equal(sourceRerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
     const listRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/create_listofdates")}`);
     assert.equal(listRerunAdvice.shouldConfirm, true);
     assert.equal(listRerunAdvice.artifactPath, "10_Library/List of Dates.md");
+    assert.equal(listRerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
     const skills = await getJson(baseUrl, "/api/skills");
     assert.equal(skills.schema_version, "skill-registry/v1");
     assert.ok(Array.isArray(skills.categories));
@@ -347,6 +351,7 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(sampleOutput.schema_version, "skill-sample-output/v1");
     assert.equal(sampleOutput.ai_run.task, "skill_sample_output");
     assert.equal(sampleOutput.ai_run.model, "gpt-5.4");
+    assert.equal(sampleOutput.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
     assert.match(sampleOutput.sample_markdown, /^# Client Update Email/);
     assert.ok(sampleOutput.warnings.includes("Sample output only. Creating a skill still requires approval and validation."));
     assert.ok(sampleOutput.sample_id);
@@ -374,6 +379,7 @@ test("server API smoke test keeps public routes stable", async () => {
       [partySample.sample_id, 1, "current"],
     ]);
     assert.equal(partySamples.samples[0].aiRun.model, "gpt-5.4");
+    assert.equal(partySamples.samples[0].aiRun.policyPromptVersion, "legal-workbench-policy/v1");
     const missingSamplesResponse = await fetch(`${baseUrl}/api/skill-ideas/${encodeURIComponent("missing_idea")}/samples`);
     const missingSamples = await missingSamplesResponse.json();
     assert.equal(missingSamplesResponse.status, 404);
@@ -651,6 +657,7 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
     assert.equal(listOfDates.aiRun.provider, "openrouter");
     assert.equal(listOfDates.aiRun.model, "qwen/qwen3-source-backed");
     assert.equal(listOfDates.aiRun.returnedProvider, "route-test-provider");
+    assert.equal(listOfDates.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   } finally {
     globalThis.fetch = realFetch;
     await new Promise((resolve) => app.server.close(resolve));
