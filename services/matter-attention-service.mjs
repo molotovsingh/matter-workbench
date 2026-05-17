@@ -536,11 +536,11 @@ function addRerunAdviceAttention(items, category, advice, { staleTitle, staleAct
       category,
       code: `${category}_stale`,
       title: staleTitle,
-      detail: [
+      detail: joinDetailSentences([
         advice.reason,
         advice.dependencyState ? `Dependency state: ${advice.dependencyState}.` : "",
         advice.newestInputPath ? `Newest input: ${advice.newestInputPath}.` : "",
-      ].filter(Boolean).join(" "),
+      ]),
       action: staleAction,
       evidence: [advice.artifactPath, advice.newestInputPath].filter(Boolean).map((item) => evidence(item)),
       occurredAt: advice.newestInputAt || "",
@@ -705,6 +705,19 @@ function commandFailureDetail(entry) {
   const errors = Array.isArray(entry.errors) ? entry.errors.filter(Boolean) : [];
   if (errors.length) return errors.join("; ");
   return normalizeText(entry.status_bar || entry.terminal_lines?.at?.(-1) || "Command log indicates a failure.");
+}
+
+function joinDetailSentences(parts) {
+  return parts
+    .map((part) => sentenceWithTerminalPunctuation(part))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function sentenceWithTerminalPunctuation(value) {
+  const text = normalizeText(value);
+  if (!text) return "";
+  return /[.!?:;]$/.test(text) ? text : `${text}.`;
 }
 
 function normalizeText(value, maxLength = 800) {

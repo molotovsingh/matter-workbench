@@ -172,6 +172,11 @@ test("matter attention aggregates developer blockers from existing matter traces
     attention.items.filter((item) => item.code === "custom_skill_warnings").length,
     1,
   );
+  const staleChronology = attention.items.find((item) => item.code === "chronology_stale");
+  assert.equal(
+    staleChronology.detail,
+    "Only Source Index labels appear newer than this artifact. Dependency state: label_refresh_needed. Newest input: 10_Library/Source Index.json.",
+  );
   const skipped = attention.items.find((item) => item.code === "extraction_skipped");
   assert.equal(skipped.detail, "1 file(s) were skipped due to unsupported or otherwise non-extractable formats.");
 });
