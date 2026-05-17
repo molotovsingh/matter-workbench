@@ -32,7 +32,7 @@ export function formatCommandReport(report) {
   if (report.overwrite) lines.push(`- Output document: ${formatConfigurableRunOutputDocumentState(report.overwrite)}`);
   if (report.error) lines.push(`- Error: ${redactSensitiveText(report.error)}`);
   if (Array.isArray(report.artifacts) && report.artifacts.length) {
-    lines.push("- Artifact paths touched/preserved:");
+    lines.push("- Output paths touched/preserved:");
     for (const artifact of report.artifacts.slice(0, 8)) {
       lines.push(`  - \`${redactSensitiveText(artifact)}\``);
     }
