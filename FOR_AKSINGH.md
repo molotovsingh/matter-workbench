@@ -816,6 +816,33 @@ The copied reports now follow that same boundary. That includes the command repo
 
 The engineering lesson is that removing clutter is not the same as removing feedback. When you simplify a screen, preserve the user's sense of causality: I clicked, the app heard me, and this is what is happening.
 
+## Matter Attention Architecture Lesson
+
+The Matter Attention surface is the developer's matter health board. It does not create artifacts, run skills, or call providers. It reads the existing record and answers:
+
+```text
+What is broken in this matter?
+What warning is worth developer review?
+Which file or log line proves it?
+```
+
+The first working version was useful, but the service started collecting too many jobs in one file: intake setup, extraction logs, Source Index state, List of Dates state, custom skill runs, and command failures. That is exactly how a diagnostic system quietly becomes another hard-to-debug subsystem.
+
+The refactor split the collectors by lifecycle responsibility:
+
+- `services/matter-attention-service.mjs` is now the orchestrator. It chooses the matter, calls collectors, normalizes items, sorts them, and builds the summary.
+- `services/matter-attention-intake.mjs` owns setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file warnings.
+- `services/matter-attention-source-labels.mjs` owns Source Index existence, schema, label-review, developer-name leak, count mismatch, and Source Labels rerun advice.
+- `services/matter-attention-chronology.mjs` owns List of Dates JSON/Markdown presence and chronology dependency-state advice.
+- `services/matter-attention-custom-runs.mjs` owns custom skill run failures.
+- `services/matter-attention-command-failures.mjs` owns recent command failure signals.
+- `services/matter-attention-rerun-advice.mjs` owns the shared conversion from rerun-advice state into attention items.
+- `services/matter-attention-items.mjs` owns stable item ids, sorting, and summary counts.
+
+That split is not academic. It means a future bug like "OCR placeholder warnings are too noisy" points to intake. A bug like "label refresh is being treated like regeneration" points to Source Labels or Chronology attention. A bug like "failed custom skill runs are duplicated" points to custom runs. The service no longer requires you to read the whole matter lifecycle before changing one diagnostic rule.
+
+Good engineers do not only add observability. They make observability itself observable: small collectors, explicit item codes, stable evidence fields, and tests around every lifecycle slice.
+
 ## Shell Refactor Lesson: Reduce Architectural Depth
 
 After the Home-first visual release, the next risk was not the UI itself. It was where the UI logic lived.

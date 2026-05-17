@@ -267,7 +267,14 @@ Matter-level blocker and warning inspection is intentionally read-only:
 
 The implementation lives in:
 
-- `services/matter-attention-service.mjs`
+- `services/matter-attention-service.mjs` - orchestration, item normalization, sorting, summary.
+- `services/matter-attention-intake.mjs` - matter setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file signals.
+- `services/matter-attention-source-labels.mjs` - Source Index existence/schema/label-review/developer-name and Source Labels rerun-advice signals.
+- `services/matter-attention-chronology.mjs` - List of Dates JSON/Markdown and chronology dependency-state signals.
+- `services/matter-attention-custom-runs.mjs` - custom skill run failure and ledger warning signals.
+- `services/matter-attention-command-failures.mjs` - recent command failure signals through the command log service boundary.
+- `services/matter-attention-rerun-advice.mjs` - shared rerun-advice-to-attention-item mapping.
+- `services/matter-attention-items.mjs` - stable item ids, sorting, and summary counts.
 - `services/command-interaction-log-service.mjs`
 - `scripts/matter-attention-report.mjs`
 - `docs/future-design-decisions/matter-developer-attention-surface.md`
