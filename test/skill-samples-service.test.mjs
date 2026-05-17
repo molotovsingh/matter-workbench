@@ -39,6 +39,7 @@ test("skill samples persist generated samples and approve only current design br
         provider: "openai-direct",
         model: "gpt-5.4",
         task: "skill_sample_output",
+        policyPromptVersion: "legal-workbench-policy/v1",
       },
     },
   });
@@ -46,6 +47,7 @@ test("skill samples persist generated samples and approve only current design br
   assert.equal(recorded.sample.id, "sample_one");
   assert.equal(recorded.sample.ideaId, "idea_party_map");
   assert.equal(recorded.sample.approved, false);
+  assert.equal(recorded.sample.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
 
   const approved = await service.approveSample({
     ideaId: idea.id,
@@ -60,6 +62,7 @@ test("skill samples persist generated samples and approve only current design br
     designBrief: idea.designBrief,
   });
   assert.equal(current.id, "sample_one");
+  assert.equal(current.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
 
   await assert.rejects(
     () => service.getApprovedCurrentSample({
@@ -104,7 +107,11 @@ test("skill samples list versions with current, stale, and approval states", asy
       matter: { matter_name: "Matter A", folder_name: "Matter A" },
       sample_markdown: "# Sample one",
       feedback: "",
-      ai_run: { provider: "openai-direct", model: "gpt-5.4" },
+      ai_run: {
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
     },
   });
   await service.recordSample({
@@ -113,7 +120,11 @@ test("skill samples list versions with current, stale, and approval states", asy
       matter: { matter_name: "Matter A", folder_name: "Matter A" },
       sample_markdown: "# Sample two",
       feedback: "Make it more source-backed.",
-      ai_run: { provider: "openai-direct", model: "gpt-5.4" },
+      ai_run: {
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
     },
   });
 
@@ -137,6 +148,7 @@ test("skill samples list versions with current, stale, and approval states", asy
     ["sample_2", true, "approved_current"],
   ]);
   assert.equal(currentLedger.samples[1].feedback, "Make it more source-backed.");
+  assert.equal(currentLedger.samples[1].aiRun.policyPromptVersion, "legal-workbench-policy/v1");
 
   const staleLedger = await service.listSamplesForIdea({
     ideaId: idea.id,
