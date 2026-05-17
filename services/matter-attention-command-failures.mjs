@@ -3,6 +3,7 @@ import { toPosix } from "../shared/safe-paths.mjs";
 
 const DEFAULT_COMMAND_LOG_LIMIT = 200;
 const DEFAULT_COMMAND_FAILURE_LIMIT = 10;
+const FAILURE_WORD_PATTERN = /(^|[^a-z])(failed|error|unavailable)([^a-z]|$)/i;
 
 export async function buildCommandFailureAttentionItems({
   commandInteractionLogService,
@@ -62,11 +63,9 @@ function isCommandFailure(entry) {
   if (status === "failed") return true;
   if (Array.isArray(entry.errors) && entry.errors.length) return true;
   if (["ran", "complete", "completed", "succeeded", "cancelled", "router_checked"].includes(status)) return false;
-  const searchable = [
-    entry.status_bar,
-    ...(Array.isArray(entry.terminal_lines) ? entry.terminal_lines : []),
-  ].map(normalizeText).join("\n");
-  return /\b(failed|error|unavailable)\b/i.test(searchable);
+  if (hasFailureWord(status)) return true;
+  if (hasFailureWord(entry.status_bar)) return true;
+  return Array.isArray(entry.terminal_lines) && entry.terminal_lines.some(hasFailureWord);
 }
 
 function commandFailureDetail(entry) {
@@ -79,4 +78,8 @@ function normalizeText(value, maxLength = 800) {
   const text = String(value || "").trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1)}…`;
+}
+
+function hasFailureWord(value) {
+  return FAILURE_WORD_PATTERN.test(String(value || ""));
 }
