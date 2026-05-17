@@ -3,6 +3,11 @@ import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
 import { buildCustomSkillRunAttentionItems } from "./matter-attention-custom-runs.mjs";
 import {
+  normalizeAttentionItem,
+  sortAttentionItems,
+  summarizeAttentionItems,
+} from "./matter-attention-items.mjs";
+import {
   LIST_OF_DATES_JSON_RELATIVE,
   LIST_OF_DATES_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
@@ -10,12 +15,6 @@ import {
 import { buildCommandFailureAttentionItems } from "./matter-attention-command-failures.mjs";
 
 export const MATTER_ATTENTION_SCHEMA_VERSION = "matter-attention/v1";
-
-const SEVERITY_ORDER = new Map([
-  ["blocker", 0],
-  ["warning", 1],
-  ["info", 2],
-]);
 
 export function createMatterAttentionService({
   matterStore,
@@ -50,7 +49,7 @@ export function createMatterAttentionService({
       generated_at: now().toISOString(),
       matterName,
       matterRoot: root,
-      summary: summarize(orderedItems),
+      summary: summarizeAttentionItems(orderedItems),
       items: orderedItems,
     };
   }
@@ -466,53 +465,7 @@ function addRerunAdviceAttention(items, category, advice, { staleTitle, staleAct
 }
 
 function addItem(items, item) {
-  items.push({
-    id: stableItemId(item),
-    severity: item.severity || "warning",
-    category: item.category || "matter",
-    code: item.code || "attention",
-    title: item.title || "Developer attention needed",
-    detail: item.detail || "",
-    action: item.action || "",
-    evidence: Array.isArray(item.evidence) ? item.evidence : [],
-    occurredAt: item.occurredAt || "",
-  });
-}
-
-function stableItemId(item) {
-  return [
-    item.category || "matter",
-    item.code || "attention",
-    item.title || "",
-    item.occurredAt || "",
-  ].join(":")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 160) || "attention";
-}
-
-function sortAttentionItems(items) {
-  return [...items].sort((a, b) => {
-    const severity = (SEVERITY_ORDER.get(a.severity) ?? 9) - (SEVERITY_ORDER.get(b.severity) ?? 9);
-    if (severity) return severity;
-    const timeA = Date.parse(a.occurredAt || "") || 0;
-    const timeB = Date.parse(b.occurredAt || "") || 0;
-    if (timeA !== timeB) return timeB - timeA;
-    return a.id.localeCompare(b.id);
-  });
-}
-
-function summarize(items) {
-  const counts = { blocker: 0, warning: 0, info: 0 };
-  for (const item of items) {
-    if (Object.hasOwn(counts, item.severity)) counts[item.severity] += 1;
-  }
-  return {
-    total: items.length,
-    ...counts,
-    state: counts.blocker ? "blocked" : counts.warning ? "attention_needed" : "clear",
-  };
+  items.push(normalizeAttentionItem(item));
 }
 
 async function readJsonFile(filePath) {
