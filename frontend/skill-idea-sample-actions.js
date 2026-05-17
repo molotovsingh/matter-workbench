@@ -100,7 +100,7 @@ export function createSkillIdeaSampleActions({
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks useful to create the skill.",
+        card: "<strong>Sample output ready</strong><br />Review it, type feedback to regenerate, or choose Looks useful to try creating the skill.",
         bar: "Sample Output Ready",
         terminal: `[skill-ideas] sample v${sampleReview.samples.length} generated`,
       });
@@ -189,7 +189,7 @@ export function createSkillIdeaSampleActions({
       renderSkillIdeaSession();
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Sample approved</strong><br />Creating and validating the runnable skill.",
+        card: "<strong>Sample approved</strong><br />Checking whether it can become a runnable skill.",
         bar: "Sample Approved",
         terminal: "[skill-ideas] sample approved",
       });

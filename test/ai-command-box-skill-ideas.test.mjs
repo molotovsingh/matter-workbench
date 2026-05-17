@@ -122,7 +122,7 @@ test("command box opens deterministic skill idea interview session without runni
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Planner: deterministic/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1/);
   assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Temporary browser-memory session/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Not runnable yet|Unsaved interview/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
   assert.equal(interactionLogs.length, 1);
@@ -178,7 +178,7 @@ test("command box enters explicit new skill mode without router check", async ()
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /New skill idea/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Describe the skill you want in your own words/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /It will not generate code, prompts, or run a provider-backed skill/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /It will not run, change matter files, or create a skill until a sample is approved and validated/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "New Skill Idea");
   assert.equal(interactionLogs.length, 1);
@@ -571,7 +571,7 @@ test("command box renders router fallback inside the rail without replacing the 
   assert.match(ctx.elements.aiCommandSession.innerHTML, /72%/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open full result/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Use or improve existing skill/);
-  assert.equal(ctx.statusCalls.at(-1).bar, "Router Ready");
+  assert.equal(ctx.statusCalls.at(-1).bar, "Skill Fit Ready");
   assert.equal(interactionLogs.length, 1);
   assert.equal(interactionLogs[0].matched_command, "router/check");
   assert.equal(interactionLogs[0].rendered_state, "router/check");

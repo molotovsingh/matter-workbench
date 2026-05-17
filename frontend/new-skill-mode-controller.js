@@ -68,7 +68,7 @@ export function createNewSkillModeController({
     render();
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>New skill idea</strong><br />Describe the skill you want in your own words. Nothing will run.",
+      card: "<strong>New skill idea</strong><br />Describe the skill you want in your own words. Nothing will run or change matter files.",
       bar: "New Skill Idea",
       terminal: "[skill-ideas] awaiting freeform idea",
     });
@@ -83,7 +83,7 @@ export function createNewSkillModeController({
       <section class="command-interview" aria-live="polite">
         <h3>New skill idea</h3>
         <p>Describe the skill you want in your own words. You do not need to use special phrasing.</p>
-        <p class="muted">This will only create a non-runnable idea for review. It will not generate code, prompts, or run a provider-backed skill.</p>
+        <p class="muted">First we save an idea for review. It will not run, change matter files, or create a skill until a sample is approved and validated.</p>
         <dl class="skill-card-meta">
           <div><dt>Matter</dt><dd>${escapeHtml(matterName)}</dd></div>
           <div><dt>Matter folder</dt><dd>${escapeHtml(matterFolder)}</dd></div>

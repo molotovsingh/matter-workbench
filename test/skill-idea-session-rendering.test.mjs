@@ -170,7 +170,7 @@ test("skill idea session sample buttons reflect approved and created skill state
       sampleReview: { activeSample, approved: false, stale: false },
       activeMatter,
     }),
-    /Looks useful - create skill/,
+    /Looks useful - try creating skill/,
   );
 
   assert.match(

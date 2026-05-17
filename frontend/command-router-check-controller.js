@@ -18,7 +18,7 @@ export function createCommandRouterCheckController({
 }) {
   async function checkIntent({ userRequest, overrideJustification }) {
     if (!userRequest) {
-      renderCommandError("Enter a command or future skill idea.");
+      renderCommandError("Enter a command or describe a skill idea.");
       return;
     }
 
@@ -31,8 +31,8 @@ export function createCommandRouterCheckController({
     aiCommandSubmit.textContent = "Checking...";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Command</strong><br />Checking this future skill idea against the current skill list.",
-      bar: "Command Check",
+      card: "<strong>Skill fit check</strong><br />Checking whether this idea overlaps an existing skill.",
+      bar: "Skill Fit Check",
       terminal: `[ai-command] checking intent: ${userRequest}`,
     });
 
@@ -55,8 +55,8 @@ export function createCommandRouterCheckController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Router decision</strong><br />${escapeHtml(decision.decision)}${decision.matched_skill ? ` for <code>${escapeHtml(decision.matched_skill)}</code>` : ""}.`,
-        bar: "Router Ready",
+        card: `<strong>Skill fit result</strong><br />${escapeHtml(decision.decision)}${decision.matched_skill ? ` for <code>${escapeHtml(decision.matched_skill)}</code>` : ""}.`,
+        bar: "Skill Fit Ready",
         terminal: `[ai-command] ${decision.decision}${decision.matched_skill ? ` -> ${decision.matched_skill}` : ""}`,
       });
     } catch (error) {
@@ -70,8 +70,8 @@ export function createCommandRouterCheckController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Command check failed</strong><br />${escapeHtml(error.message)}`,
-        bar: "Command Check Failed",
+        card: `<strong>Skill fit check failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Skill Fit Check Failed",
         terminal: `[ai-command] failed: ${error.message}`,
       });
     } finally {

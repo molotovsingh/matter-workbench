@@ -187,7 +187,7 @@ function buildSimpleInterview({ originalText, ideaText }) {
     originalText,
     ideaText,
     targetSkill: "",
-    understood: `You want to save a future skill idea for: ${ideaText || originalText}.`,
+    understood: `You want to save a skill idea for: ${ideaText || originalText}.`,
     designBrief: {
       intendedUser: "Legal team",
       problem: sentenceCase(ideaText || originalText),

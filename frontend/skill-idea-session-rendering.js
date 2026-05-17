@@ -135,7 +135,7 @@ export function renderActiveSkillIdeaQuestionHtml({ interview = {}, answers = {}
   return `
       <section class="command-interview" aria-live="polite">
         <h3>Skill idea interview</h3>
-        <p class="muted">Temporary browser-memory session. Refreshing may lose it.</p>
+        <p class="muted">Unsaved interview. Finish or save before refreshing.</p>
         ${renderSkillIdeaUnderstood(interview)}
         <div class="command-interview-question">
           <strong>Question ${questionIndex + 1}</strong>
@@ -234,7 +234,7 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
     : approved
       ? "Sample approved. Skill creation can be retried from this approved sample."
     : activeSample
-      ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks useful to create the skill.`
+      ? `Sample v${sampleVersion || 1} ready for review. Type feedback to regenerate, or choose Looks useful to try creating the skill.`
       : matterFolder
         ? "Generate an AI sample output from the selected test matter."
         : "Pick a matter to generate a sample output.";
@@ -253,7 +253,7 @@ export function renderSavedSkillIdeaSampleReviewHtml({ sampleReview = {}, create
         ${getSampleAiRun(activeSample).provider || getSampleAiRun(activeSample).model ? `
           <p class="muted">Sample provider: ${escapeHtml(formatSampleProvider(activeSample))}</p>
         ` : ""}
-        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after you choose Looks useful and creation/validation succeeds.</p>
+        <p class="muted">Sample generation may call the configured AI provider. A skill becomes runnable only after sample approval, overlap check, and validation succeed.</p>
         ${renderSampleLedger(sampleReview)}
       </div>
     `;
@@ -278,7 +278,7 @@ export function renderSampleReviewButtonsHtml({ sampleReview = {}, createdSkill 
       <button type="button" data-skill-interview-action="${generateAction}"${hasMatter && !approved && !generating ? "" : " disabled"}>${escapeHtml(generating ? "Generating sample..." : generateLabel)}</button>
       ${approved && !stale
         ? '<button type="button" data-skill-interview-action="create-skill">Try creating skill again</button>'
-        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale && !generating ? "" : " disabled"}>Looks useful - create skill</button>`}
+        : `<button type="button" class="secondary" data-skill-interview-action="approve-sample"${activeSample && !stale && !generating ? "" : " disabled"}>Looks useful - try creating skill</button>`}
       <button type="button" class="secondary" data-skill-interview-action="copy-sample"${activeSample ? "" : " disabled"}>Copy Sample</button>
     `;
 }

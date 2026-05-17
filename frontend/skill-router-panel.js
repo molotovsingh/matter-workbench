@@ -120,7 +120,7 @@ export function renderRouterDecision(decision, options = {}) {
   ` : "";
 
   return `
-    <h3>Router decision</h3>
+    <h3>Skill fit result</h3>
     <dl class="skill-contract skill-router-contract">
       <div><dt>Decision</dt><dd>${escapeHtml(decision.decision || "")}</dd></div>
       <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>

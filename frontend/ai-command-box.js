@@ -220,7 +220,7 @@ export function createAiCommandBox(ctx, options = {}) {
       return;
     }
     if (!userRequest) {
-      renderCommandError("Enter a slash command or future skill idea.");
+      renderCommandError("Enter a command or describe a skill idea.");
       return;
     }
 
@@ -281,7 +281,7 @@ export function createAiCommandBox(ctx, options = {}) {
     aiCommandSession.hidden = false;
     aiCommandSession.innerHTML = `
       <section class="command-interview" aria-live="polite">
-        <h3>Command check failed</h3>
+        <h3>Skill fit check failed</h3>
         <p class="form-error">${escapeHtml(message)}</p>
       </section>
     `;
