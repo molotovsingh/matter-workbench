@@ -494,7 +494,8 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     const duplicateCreatePayload = await duplicateCreateResponse.json();
     assert.equal(duplicateCreateResponse.status, 409);
-    assert.match(duplicateCreatePayload.error, /Existing skill may already cover this request: \/create_listofdates/);
+    assert.match(duplicateCreatePayload.error, /This may already be covered by \/create_listofdates/);
+    assert.match(duplicateCreatePayload.error, /separate custom skill/);
     const commandInteraction = await postJson(baseUrl, "/api/command-interactions", {
       typed_input: "Create a new list of dates skill",
       matched_command: "router/check",

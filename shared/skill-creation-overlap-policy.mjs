@@ -31,7 +31,7 @@ export function isBlockingSkillOverlapDecision(decision = {}, { overrideJustific
 
 export function parseSkillCreationOverlapJustification(input) {
   const text = String(input || "").trim();
-  const match = text.match(/^(?:justify\s+new\s+skill|distinct\s+because|separate\s+because)\s*[:,-]?\s+(.+)$/i);
+  const match = text.match(/^(?:justify\s+new\s+skill|create\s+separate\s+skill\s+with\s+reason|create\s+separate\s+skill\s+anyway|create\s+separate\s+skill|separate\s+skill|distinct\s+because|separate\s+because|create\s+anyway\s+because)\s*[:,-]?\s+(.+)$/i);
   return match?.[1]?.trim() || "";
 }
 

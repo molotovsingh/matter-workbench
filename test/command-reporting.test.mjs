@@ -37,8 +37,8 @@ test("formatCommandReport renders copyable command metadata", () => {
 
   assert.match(report, /# Command Report/);
   assert.match(report, /- Matter: Ayesha Vs Japan Airlines/);
-  assert.match(report, /- Matched command: `\/party_officer_map`/);
-  assert.match(report, /- Skill: Party and Officer Map v2/);
+    assert.match(report, /- Matched command: `\/party_officer_map`/);
+    assert.match(report, /- Skill: Party and Officer Map v2/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
   assert.match(report, /- Run id: run_123/);
   assert.match(report, /- Output document: Replaced existing output document/);
@@ -120,6 +120,19 @@ test("buildCommandInteractionLogBody maps command report fields to beta diagnost
     status_bar: "Skill Run Complete",
     terminal_lines: ["[custom-skill] done"],
   });
+
+  const routerReport = formatCommandReport({
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    timestamp: "2026-05-14T09:00:00.000Z",
+    typedInput: "create a new chronology skill",
+    matchedCommand: "router/check",
+    status: "checked",
+    routerDecision: "needs_user_approval",
+    routerMatchedSkill: "/create_listofdates",
+  });
+  assert.match(routerReport, /- Skill fit check: needs_user_approval -> \/create_listofdates/);
+  assert.doesNotMatch(routerReport, /Router\/check result/);
 });
 
 test("deriveReportPatchFromStatus preserves status-bar and terminal-derived command states", () => {

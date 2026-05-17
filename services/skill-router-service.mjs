@@ -172,7 +172,7 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
     confidence,
     reason,
     user_gate_required: userGateRequired,
-    user_gate_choices: userGateRequired ? ["Approve modification", "Justify new skill"] : [],
+    user_gate_choices: userGateRequired ? ["Use or improve existing skill", "Create separate skill with reason"] : [],
     suggested_next_action: collapseWhitespace(raw.suggested_next_action || ""),
     mece_violation: Boolean(meceViolation || directOverlap),
     legal_setting: normalizeLegalSetting(raw.legal_setting),

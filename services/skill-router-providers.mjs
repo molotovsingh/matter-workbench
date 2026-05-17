@@ -56,7 +56,7 @@ export function createOpenAiSkillRouterProvider({
                 markdown_first: skill.markdown_first,
               })),
               direct_mece_violation_rule: "same category + same goal + same input contract + same output contract",
-              user_gate_choices: ["Approve modification", "Justify new skill"],
+              user_gate_choices: ["Use or improve existing skill", "Create separate skill with reason"],
             }),
           },
         ],

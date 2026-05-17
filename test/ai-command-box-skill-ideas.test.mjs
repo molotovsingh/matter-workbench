@@ -566,12 +566,11 @@ test("command box renders router fallback inside the rail without replacing the 
   assert.equal(ctx.elements.aiCommandInput.value, "");
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Router\/check result/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /modification_candidate/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /This may already be covered/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /72%/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open full result/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Approve modification/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Use or improve existing skill/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Router Ready");
   assert.equal(interactionLogs.length, 1);
   assert.equal(interactionLogs[0].matched_command, "router/check");
@@ -1176,7 +1175,8 @@ test("command box lets a freeform distinct justification override a repeated ove
   assert.equal(sampleCalls.length, 1);
   assert.deepEqual(createSkillCalls, []);
   assert.equal(routerCalls.length, 1);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /Existing skill may already cover this/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /This may already be covered/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /Create separate skill anyway/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Review Existing Skill");
 

@@ -21,7 +21,7 @@ export function formatCommandReport(report) {
     `- Status: ${redactSensitiveText(report.status || "unknown")}`,
   ];
 
-  if (report.routerDecision) lines.push(`- Router/check result: ${redactSensitiveText(report.routerDecision)}${report.routerMatchedSkill ? ` -> ${redactSensitiveText(report.routerMatchedSkill)}` : ""}`);
+  if (report.routerDecision) lines.push(`- Skill fit check: ${redactSensitiveText(report.routerDecision)}${report.routerMatchedSkill ? ` -> ${redactSensitiveText(report.routerMatchedSkill)}` : ""}`);
   if (report.skillIdeaId) lines.push(`- Saved skill idea: ${redactSensitiveText(report.skillIdeaId)}`);
   if (report.sampleId) lines.push(`- Sample output: ${redactSensitiveText(report.sampleId)}`);
   if (report.skillName) lines.push(`- Skill: ${redactSensitiveText(report.skillName)}`);

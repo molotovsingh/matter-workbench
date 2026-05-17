@@ -148,26 +148,24 @@ export function createCommandRouterCheckController({
       ? `${Math.round(decision.confidence * 100)}%`
       : "n/a";
     const gateActions = decision.user_gate_required ? `
-      <button type="button" class="secondary" data-command-router-action="approve">Approve modification</button>
-      <button type="button" class="secondary" data-command-router-action="justify">Justify new skill</button>
+      <button type="button" class="secondary" data-command-router-action="approve">Use or improve existing skill</button>
+      <button type="button" class="secondary" data-command-router-action="justify">Create separate skill with reason</button>
     ` : "";
     return `
       <section class="command-interview command-router-result" aria-live="polite">
-        <h3>Router/check result</h3>
-        <p class="muted">This response stays in the Command rail. Nothing ran.</p>
+        <h3>This may already be covered</h3>
+        <p class="muted">Nothing ran. Choose whether this should use/improve the existing skill or become a separate custom skill.</p>
         <p><code>${escapeHtml(userRequest)}</code></p>
         <dl class="skill-card-meta">
-          <div><dt>Decision</dt><dd>${escapeHtml(decision.decision || "")}</dd></div>
-          <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>
-          <div><dt>Matched skill</dt><dd><code>${escapeHtml(matchedSkill)}</code></dd></div>
+          <div><dt>Closest match</dt><dd><code>${escapeHtml(matchedSkill)}</code></dd></div>
+          <div><dt>Suggested path</dt><dd>${escapeHtml(decision.suggested_next_action || decision.recommended_action || "")}</dd></div>
           <div><dt>Confidence</dt><dd>${escapeHtml(confidence)}</dd></div>
           <div><dt>Reason</dt><dd>${escapeHtml(decision.reason || "")}</dd></div>
-          <div><dt>Next action</dt><dd>${escapeHtml(decision.suggested_next_action || "")}</dd></div>
         </dl>
         <form class="ai-command-override-form" data-command-router-override hidden>
           <label>
-            <span>Override justification</span>
-            <textarea data-command-router-override-input spellcheck="true" placeholder="Explain the distinct purpose, input, output, workflow stage, legal setting, or audience.">${escapeHtml(overrideJustification || "")}</textarea>
+            <span>Why should this be a separate custom skill?</span>
+            <textarea data-command-router-override-input spellcheck="true" placeholder="Example: This has a different output artifact, audience, workflow stage, or legal setting.">${escapeHtml(overrideJustification || "")}</textarea>
           </label>
           <div class="command-interview-actions">
             <button type="submit">Re-check</button>
@@ -195,15 +193,15 @@ export function createCommandRouterCheckController({
         if (action === "approve") {
           if (message) {
             message.textContent = decision.matched_skill
-              ? `Approved locally: this should become a modification request for ${decision.matched_skill}.`
-              : "Approved locally: this should become a modification request.";
+              ? `Use or improve ${decision.matched_skill}. No separate skill was created.`
+              : "Use or improve the existing skill. No separate skill was created.";
           }
           return;
         }
         if (action === "justify") {
           if (overrideForm) overrideForm.hidden = false;
           overrideInput?.focus?.();
-          if (message) message.textContent = "Add an override justification, then re-check.";
+          if (message) message.textContent = "Add the reason only if this needs its own output, audience, workflow stage, or legal setting.";
           return;
         }
         if (action === "open-full") {

@@ -78,6 +78,10 @@ test("skill creation overlap helpers block duplicate decisions and parse justifi
     parseSkillCreationOverlapJustification("distinct because this is court-facing"),
     "this is court-facing",
   );
+  assert.equal(
+    parseSkillCreationOverlapJustification("create separate skill with reason: workshop issue review, not library chronology"),
+    "workshop issue review, not library chronology",
+  );
   assert.equal(parseSkillCreationOverlapJustification("ordinary text"), "");
   assert.equal(hasSkillCreationOverlapOverride("too short"), false);
   assert.equal(hasSkillCreationOverlapOverride("distinct issue grouping"), true);
@@ -96,7 +100,10 @@ test("skill creation overlap gate rendering escapes router fields", () => {
     overrideJustification: "distinct <reason>",
   });
 
-  assert.match(html, /Existing skill may already cover this/);
+  assert.match(html, /This may already be covered/);
+  assert.match(html, /Use existing skill/);
+  assert.match(html, /Improve existing skill/);
+  assert.match(html, /Create separate skill anyway/);
   assert.match(html, /91%/);
   assert.match(html, /\/create_listofdates&lt;script&gt;/);
   assert.match(html, /Overlap &lt;script&gt;alert\(1\)&lt;\/script&gt;/);

@@ -102,8 +102,8 @@ export function renderRouterDecision(decision, options = {}) {
   const confidence = Number.isFinite(decision.confidence)
     ? `${Math.round(decision.confidence * 100)}%`
     : "n/a";
-  const gateRequired = decision.user_gate_required ? "Yes" : "No";
-  const mece = decision.mece_violation ? "Yes" : "No";
+  const needsChoice = decision.user_gate_required ? "Yes" : "No";
+  const directOverlap = decision.mece_violation ? "Yes" : "No";
   const legalSetting = renderLegalSetting(decision.legal_setting);
   const overrideRequires = Array.isArray(decision.override_requires) && decision.override_requires.length
     ? `<ul>${decision.override_requires.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
@@ -113,8 +113,8 @@ export function renderRouterDecision(decision, options = {}) {
     : "";
   const gateActions = decision.user_gate_required ? `
     <div class="form-actions skill-router-gate-actions">
-      <button type="button" id="${escapeHtml(prefix)}ApproveModification">Approve modification</button>
-      <button type="button" class="secondary" id="${escapeHtml(prefix)}JustifyNew">Justify new skill</button>
+      <button type="button" id="${escapeHtml(prefix)}ApproveModification">Use or improve existing skill</button>
+      <button type="button" class="secondary" id="${escapeHtml(prefix)}JustifyNew">Create separate skill with reason</button>
     </div>
     <div id="${escapeHtml(prefix)}GateMessage" class="form-note"></div>
   ` : "";
@@ -126,8 +126,8 @@ export function renderRouterDecision(decision, options = {}) {
       <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>
       <div><dt>Matched skill</dt><dd><code>${escapeHtml(matchedSkill)}</code>${matchedCard}</dd></div>
       <div><dt>Confidence</dt><dd>${escapeHtml(confidence)}</dd></div>
-      <div><dt>MECE violation</dt><dd>${escapeHtml(mece)}</dd></div>
-      <div><dt>User gate</dt><dd>${escapeHtml(gateRequired)}</dd></div>
+      <div><dt>Direct overlap</dt><dd>${escapeHtml(directOverlap)}</dd></div>
+      <div><dt>Needs choice</dt><dd>${escapeHtml(needsChoice)}</dd></div>
       <div><dt>Reason</dt><dd>${escapeHtml(decision.reason || "")}</dd></div>
       <div><dt>Next action</dt><dd>${escapeHtml(decision.suggested_next_action || "")}</dd></div>
       <div><dt>Legal setting</dt><dd>${legalSetting}</dd></div>
@@ -169,8 +169,8 @@ export function wireRouterGateButtons({
     approveButton.addEventListener("click", () => {
       if (gateMessage) {
         gateMessage.textContent = approveMessage || (decision.matched_skill
-          ? `Approved locally: treat this as a modification request for ${decision.matched_skill}.`
-          : "Approved locally: treat this as a modification request.");
+          ? `Use or improve ${decision.matched_skill}. No separate skill was created.`
+          : "Use or improve the existing skill. No separate skill was created.");
       }
     });
   }
@@ -179,7 +179,7 @@ export function wireRouterGateButtons({
       overrideLabel.hidden = false;
       overrideInput.focus();
       resultBox.scrollIntoView({ block: "nearest" });
-      if (gateMessage) gateMessage.textContent = "Add an override justification above, then run the check again.";
+      if (gateMessage) gateMessage.textContent = "Add the reason only if this needs its own output, audience, workflow stage, or legal setting.";
     });
   }
 }

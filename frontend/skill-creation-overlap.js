@@ -38,32 +38,39 @@ export function renderSkillCreationOverlapGateHtml({
   errorMessage = "",
 } = {}) {
   const matchedSkill = decision.matched_skill || "none";
+  const matchedTitle = decision.matched_skill_card?.title || decision.matched_skill_card?.display?.action || matchedSkill;
   const confidence = Number.isFinite(decision.confidence)
     ? `${Math.round(decision.confidence * 100)}%`
     : "n/a";
   return `
     <section class="command-interview command-router-result" aria-live="polite">
-      <h3>Existing skill may already cover this</h3>
-      <p class="muted">Skill creation is paused. This does not modify your approved sample or the active skill list.</p>
+      <h3>This may already be covered</h3>
+      <p class="muted">Your idea and approved sample are saved. No runnable skill has been created yet.</p>
       <p><code>${escapeHtml(userRequest)}</code></p>
       <dl class="skill-card-meta">
-        <div><dt>Matched skill</dt><dd><code>${escapeHtml(matchedSkill)}</code></dd></div>
-        <div><dt>Recommended action</dt><dd>${escapeHtml(decision.recommended_action || "")}</dd></div>
+        <div><dt>Closest match</dt><dd>${escapeHtml(matchedTitle)}${matchedSkill && matchedSkill !== "none" ? ` <code>${escapeHtml(matchedSkill)}</code>` : ""}</dd></div>
+        <div><dt>Suggested path</dt><dd>${escapeHtml(decision.suggested_next_action || "Use or improve the existing skill unless this idea has a different output, audience, or workflow stage.")}</dd></div>
         <div><dt>Confidence</dt><dd>${escapeHtml(confidence)}</dd></div>
         <div><dt>Reason</dt><dd>${escapeHtml(decision.reason || "")}</dd></div>
-        <div><dt>Next action</dt><dd>${escapeHtml(decision.suggested_next_action || "Use the existing skill, improve it, or justify why this is a distinct new skill.")}</dd></div>
       </dl>
-      <form class="ai-command-override-form" data-skill-overlap-form>
+      <div class="command-interview-actions skill-overlap-choice-actions">
+        <button type="button" data-skill-overlap-action="use-existing"${matchedSkill === "none" ? " disabled" : ""}>Use existing skill</button>
+        <button type="button" class="secondary" data-skill-overlap-action="improve-existing"${matchedSkill === "none" ? " disabled" : ""}>Improve existing skill</button>
+        <button type="button" class="secondary" data-skill-overlap-action="create-separate">Create separate skill anyway</button>
+        <button type="button" class="secondary" data-skill-overlap-action="park">Park idea</button>
+      </div>
+      <form class="ai-command-override-form" data-skill-overlap-form hidden>
         <label>
-          <span>Why is this a separate new skill?</span>
-          <textarea data-skill-overlap-justification spellcheck="true" placeholder="Explain the distinct purpose, inputs, output artifact, workflow stage, legal setting, or audience.">${escapeHtml(overrideJustification || "")}</textarea>
+          <span>Why should this be a separate custom skill?</span>
+          <textarea data-skill-overlap-justification spellcheck="true" placeholder="Example: This produces a workshop issue review, not the Library List of Dates artifact.">${escapeHtml(overrideJustification || "")}</textarea>
         </label>
         <div class="command-interview-actions">
           <button type="submit">Re-check and create skill</button>
-          <button type="button" class="secondary" data-skill-overlap-action="cancel">Cancel</button>
+          <button type="button" class="secondary" data-skill-overlap-action="hide-separate">Back</button>
         </div>
         <div class="form-error" data-skill-overlap-error${errorMessage ? "" : " hidden"}>${escapeHtml(errorMessage)}</div>
       </form>
+      <div class="form-note" data-skill-overlap-message></div>
     </section>
   `;
 }

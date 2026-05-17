@@ -158,7 +158,7 @@ export function createSkillIdeaCreationActions({
         renderSkillCreationOverlapGate({ decision, userRequest, overrideJustification });
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>Existing skill may already cover this</strong><br />Review <code>${escapeHtml(decision.matched_skill || "the matched skill")}</code> before creating another skill.`,
+          card: `<strong>This may already be covered</strong><br />Choose whether to use, improve, park, or create a separate skill.`,
           bar: "Review Existing Skill",
           terminal: `[skill-builder] overlap gate ${decision.matched_skill || ""}`.trim(),
         });
@@ -214,12 +214,15 @@ export function createSkillIdeaCreationActions({
     const form = aiCommandSession?.querySelector?.("[data-skill-overlap-form]");
     const input = aiCommandSession?.querySelector?.("[data-skill-overlap-justification]");
     const errorBox = aiCommandSession?.querySelector?.("[data-skill-overlap-error]");
+    const message = aiCommandSession?.querySelector?.("[data-skill-overlap-message]");
+    const matchedSkill = decision.matched_skill || "";
+    const matchedTitle = decision.matched_skill_card?.title || decision.matched_skill_card?.display?.action || matchedSkill || "the existing skill";
     form?.addEventListener?.("submit", async (event) => {
       event.preventDefault();
       const justification = input?.value?.trim?.() || "";
       if (!justification) {
         if (errorBox) {
-          errorBox.textContent = "Explain why this is a separate new skill before continuing.";
+          errorBox.textContent = "Explain what makes this a separate custom skill before continuing.";
           errorBox.hidden = false;
         }
         return;
@@ -233,17 +236,83 @@ export function createSkillIdeaCreationActions({
     });
     aiCommandSession?.querySelectorAll?.("[data-skill-overlap-action]")?.forEach((button) => {
       button.addEventListener("click", () => {
-        if (button.dataset.skillOverlapAction === "cancel") {
+        const action = button.dataset.skillOverlapAction;
+        if (action === "create-separate") {
+          if (form) form.hidden = false;
+          if (message) {
+            message.textContent = "Add the reason only if this needs its own output, audience, workflow stage, or legal setting.";
+          }
+          input?.focus?.();
+          return;
+        }
+        if (action === "hide-separate") {
+          if (form) form.hidden = true;
+          if (message) message.textContent = "";
+          return;
+        }
+        if (action === "use-existing") {
+          setSession?.(null);
+          if (matchedSkill && aiCommandInput) {
+            aiCommandInput.value = matchedSkill;
+            aiCommandInput.placeholder = `Press Enter to run ${matchedSkill}, or edit the command`;
+            aiCommandInput.focus?.();
+          }
+          if (aiCommandSession) {
+            aiCommandSession.hidden = false;
+            aiCommandSession.innerHTML = `
+              <section class="command-interview" aria-live="polite">
+                <h3>Use existing skill</h3>
+                <p class="muted">Your idea and sample stay saved in Skills. Press Enter to run the existing skill, or edit the command first.</p>
+              </section>
+            `;
+          }
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Use existing skill</strong><br /><code>${escapeHtml(matchedSkill || matchedTitle)}</code> is ready in the command box.`,
+            bar: "Use Existing Skill",
+            terminal: `[skill-builder] using existing skill ${matchedSkill}`.trim(),
+          });
+          return;
+        }
+        if (action === "improve-existing") {
+          setSession?.(null);
+          const isConfigurableMatch = Boolean(decision.matched_skill_card?.configurable);
+          const improvementPrompt = isConfigurableMatch && matchedSkill.startsWith("/")
+            ? `Improve ${matchedSkill} to `
+            : `Improve ${matchedTitle} to `;
+          if (aiCommandInput) {
+            aiCommandInput.value = improvementPrompt;
+            aiCommandInput.placeholder = `Describe what should improve in ${matchedTitle}`;
+            aiCommandInput.focus?.();
+          }
+          if (aiCommandSession) {
+            aiCommandSession.hidden = false;
+            aiCommandSession.innerHTML = `
+              <section class="command-interview" aria-live="polite">
+                <h3>Improve existing skill</h3>
+                <p class="muted">Your original idea and sample stay saved in Skills. Finish the sentence in the command box to capture the improvement request.</p>
+              </section>
+            `;
+          }
+          ctx.setStatus({
+            mood: "idle",
+            card: `<strong>Improve existing skill</strong><br />Describe what should change for <code>${escapeHtml(matchedSkill || matchedTitle)}</code>.`,
+            bar: "Improve Existing Skill",
+            terminal: `[skill-builder] improvement path ${matchedSkill}`.trim(),
+          });
+          return;
+        }
+        if (action === "park") {
           renderSkillIdeaSession(
             decision.matched_skill
-              ? `Skill creation paused. Use ${decision.matched_skill} or justify why this should be a separate new skill.`
-              : "Skill creation paused. Use the existing skill or justify why this should be a separate new skill.",
+              ? `Skill creation parked. Your idea and sample are saved. You can use ${decision.matched_skill}, improve it, or return later from Skills.`
+              : "Skill creation parked. Your idea and sample are saved. You can return later from Skills.",
           );
           ctx.setStatus({
             mood: "idle",
-            card: "<strong>Skill creation paused</strong><br />No skill was created.",
-            bar: "Skill Creation Paused",
-            terminal: `[skill-builder] creation paused after overlap check ${userRequest}`.trim(),
+            card: "<strong>Skill idea parked</strong><br />No runnable skill was created.",
+            bar: "Skill Idea Parked",
+            terminal: `[skill-builder] idea parked after overlap check ${userRequest}`.trim(),
           });
         }
       });

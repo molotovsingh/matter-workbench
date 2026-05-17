@@ -66,7 +66,7 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
   assert.equal(result.recommended_action, "modify_existing_skill");
   assert.equal(result.matched_skill, "/create_listofdates");
   assert.equal(result.mece_violation, true);
-  assert.deepEqual(result.user_gate_choices, ["Approve modification", "Justify new skill"]);
+  assert.deepEqual(result.user_gate_choices, ["Use or improve existing skill", "Create separate skill with reason"]);
 });
 
 test("skill router uses model policy env overrides for OpenAI requests", async () => {

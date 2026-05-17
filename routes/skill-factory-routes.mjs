@@ -158,7 +158,7 @@ async function assertSkillCreationOverlapCleared({ idea, skillRouterService, ove
   if (!isBlockingSkillOverlapDecision(decision, { overrideJustification })) return;
   const matched = decision.matched_skill ? ` ${decision.matched_skill}` : "";
   throw makeHttpError(
-    `Existing skill may already cover this request${matched ? `:${matched}` : ""}. Justify why this is a distinct new skill before creating it.`,
+    `This may already be covered${matched ? ` by${matched}` : ""}. Choose the existing skill, improve it, park the idea, or explain why this should be a separate custom skill.`,
     409,
   );
 }
