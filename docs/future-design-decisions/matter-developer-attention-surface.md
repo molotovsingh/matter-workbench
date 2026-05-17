@@ -137,6 +137,6 @@ Commands:
 
 ## Why This Shape
 
-This keeps observability close to the matter lifecycle without creating a second logging system. The app already has trace artifacts. The missing layer was a deliberate reader that says: “for this matter, here is what deserves developer attention.”
+This keeps observability close to the matter lifecycle without creating a second logging system. The app already has trace artifacts. The missing layer was a deliberate reader that says: “for this matter, here is what deserves developer attention.” Command interaction JSONL is owned by `services/command-interaction-log-service.mjs`, including serialized appends and recent-entry reads; the attention service consumes that boundary rather than owning command-log parsing.
 
 That is also why this is not lawyer-facing yet. The wording, severity, and evidence paths are meant for developers. A later UI can choose how much of this to show in Settings, Activity, or an admin/debug panel.

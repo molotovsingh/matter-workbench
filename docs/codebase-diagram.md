@@ -268,6 +268,7 @@ Matter-level blocker and warning inspection is intentionally read-only:
 The implementation lives in:
 
 - `services/matter-attention-service.mjs`
+- `services/command-interaction-log-service.mjs`
 - `scripts/matter-attention-report.mjs`
 - `docs/future-design-decisions/matter-developer-attention-surface.md`
 
