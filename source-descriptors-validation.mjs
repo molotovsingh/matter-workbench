@@ -154,10 +154,8 @@ export function validateAndSortDescriptors(providerResponse, sourcePackets) {
     if (!packet) throwProviderError(`Unexpected source descriptor file_id: ${descriptor.file_id}`);
     if (seen.has(descriptor.file_id)) throwProviderError(`Duplicate source descriptor for ${descriptor.file_id}`);
     seen.add(descriptor.file_id);
-    if (descriptor.sha256 !== packet.sha256) throwProviderError(`sha256 mismatch for ${descriptor.file_id}`);
-    if (descriptor.source_path !== packet.source_path) throwProviderError(`source_path mismatch for ${descriptor.file_id}`);
     validateDescriptorEvidence(descriptor, packet);
-    descriptors.push(normalizeDescriptor(descriptor));
+    descriptors.push(normalizeDescriptor(descriptor, packet));
   }
 
   return descriptors.sort((a, b) => a.file_id.localeCompare(b.file_id));
@@ -170,9 +168,6 @@ function validateDescriptorShape(descriptor) {
   }
   assertNonEmptyString(descriptor.file_id, "file_id");
   if (!/^FILE-\d{4,}$/.test(descriptor.file_id)) throwProviderError(`Invalid file_id: ${descriptor.file_id}`);
-  assertNonEmptyString(descriptor.sha256, `sha256 for ${descriptor.file_id}`);
-  if (!/^[0-9a-f]{64}$/.test(descriptor.sha256)) throwProviderError(`Invalid sha256 for ${descriptor.file_id}`);
-  assertNonEmptyString(descriptor.source_path, `source_path for ${descriptor.file_id}`);
   assertNonEmptyString(descriptor.display_label, `display_label for ${descriptor.file_id}`);
   assertNonEmptyString(descriptor.short_label, `short_label for ${descriptor.file_id}`);
   validateHumanLabel(descriptor.display_label, `display_label for ${descriptor.file_id}`);
@@ -243,7 +238,7 @@ function validateDescriptorEvidence(descriptor, packet) {
   }
 }
 
-function normalizeDescriptor(descriptor) {
+function normalizeDescriptor(descriptor, packet) {
   const displayLabel = descriptor.display_label.trim();
   const shortLabel = descriptor.short_label.trim();
   const labelReason = descriptor.evidence
@@ -254,10 +249,12 @@ function normalizeDescriptor(descriptor) {
     .trim();
   return {
     source_id: descriptor.file_id,
-    content_hash: descriptor.sha256,
+    content_hash: packet.sha256,
     file_id: descriptor.file_id,
-    sha256: descriptor.sha256,
-    source_path: descriptor.source_path,
+    // Source identity is server-owned. The model may copy identity fields, but
+    // the persisted Source Index must use extraction-record values.
+    sha256: packet.sha256,
+    source_path: packet.source_path,
     display_label: displayLabel,
     short_label: shortLabel,
     suggested_label: displayLabel,

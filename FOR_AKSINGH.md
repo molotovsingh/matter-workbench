@@ -132,6 +132,34 @@ connected, writable, and operational?" Keeping those separate prevents a
 provider-key failure, unreadable matters home, or global route problem from
 masquerading as a defect in one matter's lifecycle.
 
+## Clean-Slate Beta Testing Lesson
+
+On 2026-05-17 we ran a real **Mode A** beta pass: move generated matter artifacts
+to backup, keep `matter.json` plus the real source files, then import and run the
+matter path again as a beta user would. The detailed report is here:
+
+```text
+docs/v1-beta-mode-a-acceptance-2026-05-17.md
+```
+
+That test found three useful engineering lessons.
+
+First, old artifacts can make the app look healthier than it is. A rerun over
+existing `10_Library` files is not the same as a first-run import. Clean-slate
+testing exposed source-label timeouts and a model-copied hash mismatch that a
+normal rerun could have hidden.
+
+Second, source identity must belong to the backend, not the model. The model is
+allowed to suggest labels and dates, but hashes and source paths come from
+extraction records. If a model copies a 64-character hash incorrectly, the app
+should not treat the real file as corrupt.
+
+Third, long legal jobs need patient infrastructure. Techbeliever generated a
+large List of Dates, but the test harness hit Node fetch's default header
+timeout before the app responded. The artifact was present on disk; the harness
+was impatient. That is why long native-skill acceptance now uses an explicit
+`http.request` path instead of relying on default fetch behavior.
+
 ## Important Local Config
 
 Copy `.env.example` to `.env` and fill only the keys you intend to use.

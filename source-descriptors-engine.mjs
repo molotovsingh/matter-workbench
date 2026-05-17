@@ -21,6 +21,7 @@ import { toPosix } from "./shared/safe-paths.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
+const DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE = 8;
 
 export { createOpenRouterSourceDescriptorProvider } from "./source-descriptors-provider.mjs";
 export { buildSourcePackets } from "./source-descriptors-packets.mjs";
@@ -47,13 +48,22 @@ export async function runSourceDescriptors(options = {}) {
   if (!sourcePackets.length) throw new Error("Extraction records contain no source packets to describe.");
 
   const matter = matterSummary(matterJson);
-  const providerResponse = await provider({
-    matter,
-    sources: sourcePackets,
-    schema: SOURCE_INDEX_OUTPUT_SCHEMA,
-  });
-  const descriptors = validateAndSortDescriptors(providerResponse, sourcePackets);
-  const aiRun = options.aiRun || mergeAiRunMetadata(providerSetup.aiRun, providerResponse.ai_run);
+  const sourceBatches = chunk(sourcePackets, resolveSourceBatchSize(options));
+  const providerResponses = [];
+  const descriptors = [];
+  for (const batch of sourceBatches) {
+    const providerResponse = await provider({
+      matter,
+      sources: batch,
+      schema: SOURCE_INDEX_OUTPUT_SCHEMA,
+    });
+    providerResponses.push({
+      source_count: batch.length,
+      ai_run: providerResponse.ai_run,
+    });
+    descriptors.push(...validateAndSortDescriptors(providerResponse, batch));
+  }
+  const aiRun = options.aiRun || mergeSourceDescriptorAiRunMetadata(providerSetup.aiRun, providerResponses);
   const generatedAt = options.generatedAt || new Date().toISOString();
   const artifact = {
     schema_version: SOURCE_INDEX_SCHEMA_VERSION,
@@ -93,11 +103,66 @@ export async function runSourceDescriptors(options = {}) {
       `> workbench.run /describe_sources${dryRun ? " (dry-run)" : ""}`,
       `[source-index] read ${records.length} extraction record(s)`,
       `[source-index] built ${sourcePackets.length} bounded source packet(s)`,
+      sourceBatches.length > 1 ? `[source-index] described sources in ${sourceBatches.length} batch(es)` : "",
       dryRun
         ? `[source-index] dry run only. Re-run with apply to write ${SOURCE_INDEX_FILENAME}.`
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
-    ],
+    ].filter(Boolean),
   };
+}
+
+function resolveSourceBatchSize(options = {}) {
+  const env = options.env || process.env;
+  const raw = options.sourceBatchSize ?? options.batchSize ?? env.SOURCE_DESCRIPTOR_BATCH_SIZE;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE;
+}
+
+function chunk(items, size) {
+  const batches = [];
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size));
+  }
+  return batches;
+}
+
+function mergeSourceDescriptorAiRunMetadata(baseAiRun, providerResponses) {
+  if (providerResponses.length === 1) {
+    return mergeAiRunMetadata(baseAiRun, providerResponses[0]?.ai_run);
+  }
+  const batchRuns = providerResponses.map((response, index) => ({
+    batch: index + 1,
+    sourceCount: response.source_count,
+    ...(response.ai_run && typeof response.ai_run === "object" ? response.ai_run : {}),
+  }));
+  const merged = {
+    ...baseAiRun,
+    batchCount: providerResponses.length,
+    batches: batchRuns,
+  };
+  const usage = sumUsage(batchRuns.map((run) => run.usage));
+  if (usage) merged.usage = usage;
+  const returnedModels = uniqueStrings(batchRuns.map((run) => run.returnedModel));
+  const returnedProviders = uniqueStrings(batchRuns.map((run) => run.returnedProvider));
+  if (returnedModels.length === 1) merged.returnedModel = returnedModels[0];
+  if (returnedProviders.length === 1) merged.returnedProvider = returnedProviders[0];
+  return merged;
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))];
+}
+
+function sumUsage(usages) {
+  const totals = {};
+  for (const usage of usages) {
+    if (!usage || typeof usage !== "object" || Array.isArray(usage)) continue;
+    for (const key of ["promptTokens", "completionTokens", "totalTokens", "cost"]) {
+      const value = usage[key];
+      if (typeof value === "number" && Number.isFinite(value)) totals[key] = (totals[key] || 0) + value;
+    }
+  }
+  return Object.keys(totals).length ? totals : null;
 }
 
 async function readMatterJson(matterRoot) {

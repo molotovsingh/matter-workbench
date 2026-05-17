@@ -18,6 +18,7 @@ const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
   "If source text says the document is blurred, unclear, or low confidence, do not use a filename date as the document_date; use null, date_basis unknown, needs_review true, and lower confidence.",
   "For unknown party string fields, return an empty string, not None, unknown, or N/A.",
   "Do not include FILE-NNNN identifiers in display_label or short_label; those identifiers belong only in file_id, evidence citations, and audit fields.",
+  "The backend owns source identity fields such as hashes and paths; use file_id only to attach your labels and evidence to the supplied source packet.",
   "Return JSON only in the requested schema.",
   "Use only the supplied source packets.",
 ];
@@ -161,8 +162,9 @@ function buildOpenRouterSourceDescriptorRequest({
           contract_summary: {
             artifact: SOURCE_INDEX_RELATIVE,
             schema_version: SOURCE_INDEX_SCHEMA_VERSION,
-            descriptor_key: ["file_id", "sha256"],
+            descriptor_key: ["file_id"],
             evidence_required: true,
+            source_identity_owned_by_backend: true,
             display_label_should_include_reliable_document_date: true,
             raw_citations_remain_canonical: true,
             source_text_beats_filename_for_date_basis: true,

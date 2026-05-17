@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { readFile, stat, writeFile } from "node:fs/promises";
+import http from "node:http";
+import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -194,15 +196,53 @@ function summarizeStepResult(name, result) {
 }
 
 async function getJson(baseUrl, pathWithQuery) {
-  return fetchJson(`${baseUrl}${pathWithQuery}`, { method: "GET", timeoutMs: 5 * 60 * 1000 });
+  return requestJson(`${baseUrl}${pathWithQuery}`, { method: "GET", timeoutMs: 10 * 60 * 1000 });
 }
 
 async function postJson(baseUrl, route, body) {
-  return fetchJson(`${baseUrl}${route}`, {
+  return requestJson(`${baseUrl}${route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-    timeoutMs: 10 * 60 * 1000,
+    timeoutMs: 20 * 60 * 1000,
+  });
+}
+
+async function requestJson(url, { timeoutMs = 300000, method = "GET", headers = {}, body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const client = parsed.protocol === "https:" ? https : http;
+    const requestBody = body === null || body === undefined ? null : Buffer.from(String(body));
+    const request = client.request(parsed, {
+      method,
+      headers: {
+        ...headers,
+        ...(requestBody ? { "content-length": requestBody.length } : {}),
+      },
+    }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      response.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        let parsedBody = null;
+        try {
+          parsedBody = text ? JSON.parse(text) : null;
+        } catch {
+          parsedBody = { raw: text.slice(0, 1000) };
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(parsedBody?.error || parsedBody?.message || `HTTP ${response.statusCode}`));
+          return;
+        }
+        resolve(parsedBody);
+      });
+    });
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    });
+    request.on("error", reject);
+    if (requestBody) request.write(requestBody);
+    request.end();
   });
 }
 

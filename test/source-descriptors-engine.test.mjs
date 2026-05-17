@@ -142,6 +142,59 @@ test("source descriptors preserve file_id, sha256, and source_path from extracti
   }
 });
 
+test("source descriptors can describe sources in bounded batches", async () => {
+  const root = await makeMatterRoot();
+  const calls = [];
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    sourceBatchSize: 2,
+    provider: async ({ sources }) => {
+      calls.push(sources.map((source) => source.file_id));
+      return {
+        sources: validDescriptors(sources),
+        ai_run: {
+          returnedModel: "batch-model",
+          returnedProvider: "batch-provider",
+          usage: {
+            promptTokens: sources.length * 10,
+            completionTokens: sources.length * 2,
+            totalTokens: sources.length * 12,
+            cost: sources.length * 0.01,
+          },
+        },
+      };
+    },
+  });
+
+  assert.deepEqual(calls, [["FILE-0001", "FILE-0002"], ["FILE-0003"]]);
+  assert.equal(result.counts.descriptors, 3);
+  assert.equal(result.aiRun.batchCount, 2);
+  assert.equal(result.aiRun.returnedModel, "batch-model");
+  assert.equal(result.aiRun.returnedProvider, "batch-provider");
+  assert.deepEqual(result.aiRun.usage, {
+    promptTokens: 30,
+    completionTokens: 6,
+    totalTokens: 36,
+    cost: 0.03,
+  });
+  assert.equal(result.aiRun.batches.length, 2);
+});
+
+test("source descriptors treat model-copied sha256 and source_path as server-owned", () => {
+  const packets = buildSourcePackets(extractionRecords());
+  const descriptors = validDescriptors(packets);
+  descriptors[1].sha256 = "1111111111111111111111111111111111111111111111111111111111111111";
+  descriptors[1].source_path = "00_Inbox/wrong-file.pdf";
+
+  const sources = validateAndSortDescriptors({ sources: descriptors }, packets);
+  const order = sources.find((source) => source.file_id === "FILE-0002");
+
+  assert.equal(order.sha256, packets[1].sha256);
+  assert.equal(order.content_hash, packets[1].sha256);
+  assert.equal(order.source_path, packets[1].source_path);
+});
+
 test("source descriptor provider output cannot cite evidence from another file", () => {
   const packets = buildSourcePackets(extractionRecords());
   const descriptors = validDescriptors(packets);
