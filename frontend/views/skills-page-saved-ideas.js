@@ -42,7 +42,7 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
     `- Problem / job to be done: ${packetValue(brief.problem)}`,
     `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
     `- Expected output artifact: ${packetValue(brief.expectedOutputArtifact)}`,
-    `- Target lane: ${packetValue(brief.targetLane)}`,
+    `- Target workspace area: ${packetValue(brief.targetLane)}`,
     `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
     `- Risk level: ${packetValue(brief.riskLevel)}`,
     "",
@@ -181,14 +181,14 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
           <div class="skill-idea-brief-grid">
             ${renderSelectField({
               name: "targetLane",
-              label: "Target lane",
+              label: "Workspace area",
               value: brief.targetLane,
               options: [
                 ["", "Not chosen"],
-                ["10_Library", "10_Library - Analysis Library"],
-                ["20_Workshop", "20_Workshop - Strategy Workshop"],
-                ["30_Drafts", "30_Drafts - Drafts"],
-                ["40_Dispatch", "40_Dispatch - Dispatch"],
+                ["10_Library", "Source Record (10_Library)"],
+                ["20_Workshop", "Case Analysis (20_Workshop)"],
+                ["30_Drafts", "Drafts (30_Drafts)"],
+                ["40_Dispatch", "Ready to Send (40_Dispatch)"],
               ],
             }, escape)}
             ${renderSelectField({
@@ -287,14 +287,14 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
             <div class="skill-idea-brief-grid">
               ${renderSelectField({
                 name: "targetLane",
-                label: "Target lane",
+                label: "Workspace area",
                 value: brief.targetLane,
                 options: [
                   ["", "Not chosen"],
-                  ["10_Library", "10_Library - Analysis Library"],
-                  ["20_Workshop", "20_Workshop - Strategy Workshop"],
-                  ["30_Drafts", "30_Drafts - Drafts"],
-                  ["40_Dispatch", "40_Dispatch - Dispatch"],
+                  ["10_Library", "Source Record (10_Library)"],
+                  ["20_Workshop", "Case Analysis (20_Workshop)"],
+                  ["30_Drafts", "Drafts (30_Drafts)"],
+                  ["40_Dispatch", "Ready to Send (40_Dispatch)"],
                 ],
               }, escape)}
               ${renderSelectField({
@@ -397,7 +397,7 @@ function normalizeReadinessForView(readiness, brief) {
     ["problem", "Problem/job present"],
     ["expectedInputs", "Expected inputs present"],
     ["expectedOutputArtifact", "Expected output artifact present"],
-    ["targetLane", "Target lane selected"],
+    ["targetLane", "Workspace area selected"],
     ["paidPosture", "Paid/free posture selected"],
     ["riskLevel", "Risk level selected"],
     ["notes", "Notes or acceptance criteria present"],
@@ -438,7 +438,7 @@ function buildSkillIdeaOpenQuestions({ brief, readiness }) {
     .map((item) => `Complete readiness item: ${item.label}.`);
   if (brief.paidPosture === "unknown") questions.push("Confirm whether this should be free/local or paid/provider-backed.");
   if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output artifact, if any.");
-  if (!brief.targetLane) questions.push("Confirm the target workspace lane.");
+  if (!brief.targetLane) questions.push("Confirm the target workspace area.");
   return questions.length ? questions : ["None from the readiness checklist."];
 }
 

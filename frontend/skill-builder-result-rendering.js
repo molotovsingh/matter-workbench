@@ -18,7 +18,7 @@ export function renderSkillReadyHtml(skill = {}) {
         <dl class="skill-card-meta">
           <div><dt>Status</dt><dd>${escapeHtml(skill.status || "active")}</dd></div>
           <div><dt>Output</dt><dd><code>${escapeHtml(skill.outputArtifact || "")}</code></dd></div>
-          <div><dt>Lane</dt><dd><code>${escapeHtml(skill.targetLane || "")}</code></dd></div>
+          <div><dt>Workspace area</dt><dd><code>${escapeHtml(skill.targetLane || "")}</code></dd></div>
           <div><dt>Version</dt><dd>${escapeHtml(String(skill.version || 1))}</dd></div>
         </dl>
         <p class="muted">Running the skill writes only its configured matter artifact after explicit command execution.</p>

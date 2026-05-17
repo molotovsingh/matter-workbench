@@ -68,7 +68,7 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
       ready: true,
       passedCount: 8,
       totalCount: 8,
-      items: [{ label: "Target lane selected", passed: true }],
+      items: [{ label: "Workspace area selected", passed: true }],
     },
   }, {
     skills: [{ slash: "/create_listofdates" }],

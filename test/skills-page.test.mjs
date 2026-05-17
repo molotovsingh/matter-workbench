@@ -134,7 +134,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
               { key: "problem", label: "Problem/job present", passed: true },
               { key: "expectedInputs", label: "Expected inputs present", passed: true },
               { key: "expectedOutputArtifact", label: "Expected output artifact present", passed: true },
-              { key: "targetLane", label: "Target lane selected", passed: true },
+              { key: "targetLane", label: "Workspace area selected", passed: true },
               { key: "paidPosture", label: "Paid/free posture selected", passed: true },
               { key: "riskLevel", label: "Risk level selected", passed: true },
               { key: "notes", label: "Notes or acceptance criteria present", passed: true },
@@ -686,7 +686,7 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.match(packet, /- Title: Client Update Email/);
   assert.match(packet, /- Proposed slash command: \/client_update_email/);
   assert.match(packet, /- Output artifact: 30_Drafts\/Client Update Email\.md/);
-  assert.match(packet, /- Target lane: 30_Drafts/);
+  assert.match(packet, /- Target workspace area: 30_Drafts/);
   assert.match(packet, /Client-facing draft; lawyer must review before sending/);
   assert.match(packet, /do not expose raw FILE-NNNN pX\.bY citations/i);
   assert.match(packet, /## Acceptance Tests/);
@@ -822,7 +822,7 @@ test("skill idea review packet includes governance fields without source text or
         { key: "problem", label: "Problem/job present", passed: true },
         { key: "expectedInputs", label: "Expected inputs present", passed: true },
         { key: "expectedOutputArtifact", label: "Expected output artifact present", passed: true },
-        { key: "targetLane", label: "Target lane selected", passed: true },
+        { key: "targetLane", label: "Workspace area selected", passed: true },
         { key: "paidPosture", label: "Paid/free posture selected", passed: true },
         { key: "riskLevel", label: "Risk level selected", passed: true },
         { key: "notes", label: "Notes or acceptance criteria present", passed: true },
@@ -839,7 +839,7 @@ test("skill idea review packet includes governance fields without source text or
   assert.match(packet, /- Matter folder: Mehta vs Skyline/);
   assert.match(packet, /## Original User Text/);
   assert.match(packet, /can list of dates also flag limitation issues/);
-  assert.match(packet, /- Target lane: 10_Library/);
+  assert.match(packet, /- Target workspace area: 10_Library/);
   assert.match(packet, /- Expected output artifact: 10_Library\/List of Dates\.md/);
   assert.match(packet, /- Risk level: medium/);
   assert.match(packet, /Target skill: \/create_listofdates/);

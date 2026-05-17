@@ -182,7 +182,7 @@ export function renderSavedSkillIdeaSessionHtml({
           <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
           <div><dt>Checklist</dt><dd>${escapeHtml(checklistText)}</dd></div>
           <div><dt>Output</dt><dd>${escapeHtml(brief.expectedOutputArtifact || "Not specified")}</dd></div>
-          <div><dt>Lane</dt><dd>${escapeHtml(brief.targetLane || "Not specified")}</dd></div>
+          <div><dt>Workspace area</dt><dd>${escapeHtml(brief.targetLane || "Not specified")}</dd></div>
           <div><dt>Risk</dt><dd>${escapeHtml(brief.riskLevel || "Not assessed")}</dd></div>
         </dl>
         <details class="skill-idea-brief" open>
