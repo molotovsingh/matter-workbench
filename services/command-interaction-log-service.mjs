@@ -1,4 +1,4 @@
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
@@ -6,6 +6,7 @@ export const COMMAND_INTERACTION_LOG_SCHEMA_VERSION = "command-interaction-log/v
 
 const MAX_TEXT_LENGTH = 1200;
 const MAX_TERMINAL_LINES = 8;
+const DEFAULT_RECENT_INTERACTION_LIMIT = 200;
 
 export function createCommandInteractionLogService({
   appDir,
@@ -33,9 +34,24 @@ export function createCommandInteractionLogService({
     return result;
   }
 
+  async function readRecentInteractions({ limit = DEFAULT_RECENT_INTERACTION_LIMIT } = {}) {
+    let text = "";
+    try {
+      text = await readFile(storePath, "utf8");
+    } catch {
+      return [];
+    }
+    return text
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .flatMap(parseInteractionLine)
+      .slice(-normalizeLimit(limit, DEFAULT_RECENT_INTERACTION_LIMIT));
+  }
+
   return {
     appendInteraction,
     logPath: storePath,
+    readRecentInteractions,
   };
 }
 
@@ -116,6 +132,20 @@ function normalizeTerminalLines(lines) {
     .map((line) => truncate(line, 800))
     .filter(Boolean)
     .slice(-MAX_TERMINAL_LINES);
+}
+
+function normalizeLimit(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+  return Math.floor(number);
+}
+
+function parseInteractionLine(line) {
+  try {
+    return [JSON.parse(line)];
+  } catch {
+    return [];
+  }
 }
 
 function truncate(value, maxLength = MAX_TEXT_LENGTH) {

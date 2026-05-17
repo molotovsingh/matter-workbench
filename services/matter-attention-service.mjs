@@ -465,9 +465,8 @@ export function createMatterAttentionService({
   }
 
   async function collectCommandFailureAttention({ matterName, items }) {
-    const logPath = commandInteractionLogService?.logPath;
-    if (!logPath) return;
-    const interactions = await readCommandInteractions(logPath);
+    if (!commandInteractionLogService) return;
+    const interactions = await readCommandInteractions(commandInteractionLogService);
     const failureKeys = new Set();
     const matterInteractions = interactions
       .filter((entry) => commandBelongsToMatter(entry, matterName))
@@ -489,13 +488,18 @@ export function createMatterAttentionService({
         title: `Command failed: ${entry.matched_command || entry.typed_input || "unknown command"}`,
         detail,
         action: "Use the command interaction log to reproduce the route/UI failure.",
-        evidence: [evidence(toPosix(path.relative(path.dirname(path.dirname(logPath)), logPath)))],
+        evidence: [commandLogEvidence(commandInteractionLogService)],
         occurredAt: entry.timestamp || "",
       });
     }
   }
 
-  async function readCommandInteractions(logPath) {
+  async function readCommandInteractions(logService) {
+    if (typeof logService.readRecentInteractions === "function") {
+      return logService.readRecentInteractions({ limit: COMMAND_LOG_LIMIT });
+    }
+    const logPath = logService.logPath;
+    if (!logPath) return [];
     let text = "";
     try {
       text = await readFile(logPath, "utf8");
@@ -513,6 +517,12 @@ export function createMatterAttentionService({
       }
     }
     return entries;
+  }
+
+  function commandLogEvidence(logService) {
+    const logPath = logService.logPath;
+    if (!logPath) return evidence("command-interactions.jsonl");
+    return evidence(toPosix(path.relative(path.dirname(path.dirname(logPath)), logPath)));
   }
 
   return { readMatterAttention };

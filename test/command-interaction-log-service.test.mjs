@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -107,6 +107,24 @@ test("command interaction log serializes concurrent appends", async () => {
     records.map((record) => record.typed_input),
     Array.from({ length: 20 }, (_, index) => `command ${index}`),
   );
+});
+
+test("command interaction log reads recent valid entries and skips corrupt lines", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "command-log-service-read-"));
+  const logPath = path.join(appDir, ".local", "command-interactions.jsonl");
+  const service = createCommandInteractionLogService({
+    appDir,
+    logPath,
+    now: () => new Date("2026-05-12T10:00:00.000Z"),
+  });
+
+  await service.appendInteraction({ typed_input: "first", status: "ran" });
+  await service.appendInteraction({ typed_input: "second", status: "failed" });
+  await service.appendInteraction({ typed_input: "third", status: "ran" });
+  await writeFile(logPath, `${await readFile(logPath, "utf8")}{bad-json\n`, "utf8");
+
+  const recent = await service.readRecentInteractions({ limit: 2 });
+  assert.deepEqual(recent.map((record) => record.typed_input), ["second", "third"]);
 });
 
 test("command interaction normalization redacts secrets inside retained fields", () => {
