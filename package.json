@@ -7,6 +7,8 @@
     "extract:dry-run": "node extract-engine.mjs",
     "extract": "node extract-engine.mjs --apply",
     "matter-attention:report": "node scripts/matter-attention-report.mjs",
+    "v1-beta:mode-a-reset": "node scripts/v1-beta-mode-a-reset.mjs",
+    "v1-beta:mode-a-acceptance": "node scripts/v1-beta-mode-a-acceptance.mjs",
     "create-listofdates:dry-run": "node create-listofdates-engine.mjs",
     "create-listofdates": "node create-listofdates-engine.mjs --apply"
   },
