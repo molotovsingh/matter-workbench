@@ -23,6 +23,9 @@ custom skill demand and AI spend, see
 For the shared legal-output prompt contract that keeps source, citation,
 visibility, and model-risk rules stable across providers, see
 [docs/future-design-decisions/legal-workbench-policy-prompt.md](docs/future-design-decisions/legal-workbench-policy-prompt.md).
+For the parked future distinction between matter-level diagnostics and
+app-wide readiness, see
+[docs/future-design-decisions/system-health-surface.md](docs/future-design-decisions/system-health-surface.md).
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
@@ -186,7 +189,7 @@ MATTER_ROOT=/absolute/path/to/matter npm run create-listofdates
 npm run matter-attention:report -- --only-problems
 ```
 
-The active matter overview also renders a read-only Developer attention card from `/api/matter-attention`, so blocker and warning counts are visible without opening the terminal report first.
+The active matter overview also renders a read-only Developer attention card from `/api/matter-attention`, so blocker and warning counts are visible without opening the terminal report first. A separate app-wide System Health surface is parked as a future feature in [docs/future-design-decisions/system-health-surface.md](docs/future-design-decisions/system-health-surface.md).
 
 ## Files
 

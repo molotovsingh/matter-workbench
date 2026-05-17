@@ -280,6 +280,7 @@ The implementation lives in:
 - `services/command-interaction-log-service.mjs`
 - `scripts/matter-attention-report.mjs`
 - `docs/future-design-decisions/matter-developer-attention-surface.md`
+- `docs/future-design-decisions/system-health-surface.md` - parked future app-wide health surface, separate from matter-level attention.
 
 ## Current Provider Posture
 

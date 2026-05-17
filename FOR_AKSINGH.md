@@ -125,6 +125,13 @@ This is a read-only diagnostic view over all matters in the configured matters h
 
 The app now uses the same idea in the active matter overview. The **Developer attention** card is a compact matter health board: blocker count, warning count, and a bounded list of evidence-backed items. It is deliberately diagnostic, not a polished lawyer-facing alarm. That distinction matters because developers need paths, source ids, run ids, and log clues; lawyers need calmer readiness language.
 
+The important product boundary is now written down: **Matter Attention** is not
+**System Health**. Matter Attention asks, "what is broken in this matter?"
+System Health, parked as a future feature, asks, "is the app configured,
+connected, writable, and operational?" Keeping those separate prevents a
+provider-key failure, unreadable matters home, or global route problem from
+masquerading as a defect in one matter's lifecycle.
+
 ## Important Local Config
 
 Copy `.env.example` to `.env` and fill only the keys you intend to use.

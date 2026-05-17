@@ -13,6 +13,11 @@ The product needs a matter-level view of:
 - which existing artifact proves it;
 - whether the issue blocks the workflow or is only a warning.
 
+This is intentionally not the system-level health surface. App-wide readiness,
+provider configuration, matters-home permissions, and repeated cross-matter
+runtime failures are parked separately in
+[System Health Surface](system-health-surface.md).
+
 ## First Implementation Contract
 
 The first slice is read-only.
@@ -142,3 +147,19 @@ Commands:
 This keeps observability close to the matter lifecycle without creating a second logging system. The app already has trace artifacts. The missing layer was a deliberate reader that says: “for this matter, here is what deserves developer attention.” Command interaction JSONL is owned by `services/command-interaction-log-service.mjs`, including serialized appends and recent-entry reads; the attention service consumes that boundary rather than owning command-log parsing.
 
 That is also why this is not a polished lawyer-facing health score. The wording, severity, and evidence paths are meant for developers and operators. The current matter overview card is deliberately diagnostic; a later lawyer-facing health surface can decide which parts should become softer warnings, readiness hints, or admin-only details.
+
+## Boundary With System Health
+
+Matter Attention stays matter-scoped.
+
+It may expose symptoms that suggest a system issue, but it should not own the
+system diagnosis.
+
+Examples:
+
+- one matter has a failed extraction row: Matter Attention;
+- matters home is not writable: System Health;
+- one matter is missing `Source Index.json`: Matter Attention;
+- all source-label runs fail because provider auth is broken: System Health;
+- one custom-skill run warning exists: Matter Attention;
+- every provider-backed command fails after a config change: System Health.
