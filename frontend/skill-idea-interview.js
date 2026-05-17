@@ -100,7 +100,7 @@ function buildAdjacentInterview({ originalText, ideaText, adjacent }) {
     designBrief: {
       intendedUser: "Legal team",
       problem: `Explore whether ${adjacent.title} should ${changeText || "change its output or review behavior"}.`,
-      expectedInputs: `Existing ${adjacent.title} inputs and source-backed matter artifacts.`,
+      expectedInputs: `Existing ${adjacent.title} inputs and source-backed matter files.`,
       expectedOutputArtifact: adjacent.outputArtifact,
       targetLane: adjacent.targetLane,
       paidPosture: "unknown",
@@ -120,8 +120,8 @@ function buildAdjacentInterview({ originalText, ideaText, adjacent }) {
       },
       {
         id: "artifact",
-        label: "Modify existing artifact or create a separate review artifact?",
-        examples: ["separate 20_Workshop/Limitation Review.md first"],
+        label: "Modify existing output or create a separate review document?",
+        examples: ["create 20_Workshop/Limitation Review.md first"],
       },
     ],
   };
@@ -249,7 +249,7 @@ function inferSimpleOutput(text) {
   return match || {
     targetLane: "20_Workshop",
     outputArtifact: "20_Workshop/Skill Idea Notes.md",
-    expectedInputs: "Source-backed matter records and selected library artifacts.",
+    expectedInputs: "Source-backed matter records and selected Library files.",
     riskLevel: "medium",
   };
 }

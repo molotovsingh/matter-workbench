@@ -58,7 +58,7 @@ export function formatSkillIdeaImplementationBriefMarkdown(idea = {}, registry =
   const lines = [
     "# Skill Idea Implementation Brief",
     "",
-    "This is a non-running implementation brief. It does not create a skill, prompt, route, schema, provider call, activation, or matter artifact.",
+    "This is a non-running implementation brief. It does not create a skill, prompt, route, schema, provider call, activation, or matter file.",
     "",
     "## Proposal",
     "",
@@ -92,7 +92,7 @@ export function formatSkillIdeaImplementationBriefMarkdown(idea = {}, registry =
     "",
     "## Output",
     "",
-    `- Output artifact: ${packetValue(brief.outputArtifact)}`,
+    `- Output document: ${packetValue(brief.outputArtifact)}`,
     `- Target workspace area: ${packetValue(brief.targetLane)}`,
     `- Output posture: ${packetValue(brief.outputPosture)}`,
     "",
@@ -210,22 +210,22 @@ function buildNewSkillBrief({ idea, brief, specialty }) {
       `Skills tab: built-in card after implementation`,
       "Output appears in the target workspace area after a confirmed run.",
     ],
-    rerunBehavior: "Use a paid-rerun confirmation when the output artifact already exists and upstream inputs are current. Do not overwrite a lawyer-reviewed draft without confirmation.",
+    rerunBehavior: "Use a paid-rerun confirmation when the output document already exists and upstream inputs are current. Do not overwrite a lawyer-reviewed draft without confirmation.",
     runtimeConfirmations: defaults.runtimeConfirmations || [
-      "Confirm the output artifact path before first run.",
+      "Confirm the output document path before first run.",
       "Confirm whether the result is internal-only, client-facing, or court-facing.",
       "Confirm rerun/overwrite when a current draft already exists.",
     ],
     acceptanceTests: defaults.acceptanceTests || [
       "Given a saved idea, the runtime stays unavailable until a separate implementation PR adds it.",
       `When the skill runs in a future PR, it writes only ${outputArtifact}.`,
-      "The output clearly identifies itself as a draft or review artifact as applicable.",
+      "The output clearly identifies itself as a draft or review document as applicable.",
       "The run records provider/model metadata if a provider is used.",
     ],
     nonGoals: defaults.nonGoals || standardNonGoals(),
     openQuestions: defaults.openQuestions || buildOpenQuestions(brief, [
       "Confirm the exact output structure before runtime implementation.",
-      "Confirm whether source citations should appear in the final artifact or stay internal.",
+      "Confirm whether source citations should appear in the final output or stay internal.",
     ]),
     implementationNotes: defaults.implementationNotes || [
       `Add a built-in skill stub for ${proposedSlash} only in the runtime PR.`,
@@ -243,7 +243,7 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     ? [
       "Add limitation-aware review signals to the lawyer-facing chronology experience.",
       "Surface dates or events that may affect limitation, while marking uncertain legal conclusions for lawyer review.",
-      "Decide whether limitation appears as a separate review artifact or a clearly labelled mode/profile.",
+      "Decide whether limitation appears as a separate review document or a clearly labelled mode/profile.",
     ]
     : [
       brief.problem || idea.text || `Improve ${targetTitle} as described by the saved idea.`,
@@ -251,7 +251,7 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     ];
   const outputArtifact = brief.expectedOutputArtifact || (limitationRelated
     ? "20_Workshop/Limitation Review.md"
-    : "Separate review artifact unless the implementation brief justifies changing the existing output.");
+    : "Separate review document unless the implementation brief justifies changing the existing output.");
   return {
     proposalType: "modify_existing_skill",
     title: limitationRelated ? "List of Dates Limitation Flags" : `Improve ${targetTitle}`,
@@ -261,22 +261,22 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     userFacingPurpose: brief.problem || idea.text || `Improve ${targetTitle}.`,
     intendedUser: brief.intendedUser || "Lawyer reviewing an existing matter output",
     problem: brief.problem || idea.text || `The current ${targetTitle} workflow needs a narrowly defined improvement.`,
-    expectedInputs: splitInputs(brief.expectedInputs || "Existing skill inputs and current output artifacts."),
+    expectedInputs: splitInputs(brief.expectedInputs || "Existing skill inputs and current output documents."),
     outputArtifact,
     targetLane: brief.targetLane || (limitationRelated ? "20_Workshop" : "10_Library"),
-    outputPosture: "Review artifact or explicit mode; not a silent change to current output.",
+    outputPosture: "Review document or explicit mode; not a silent change to current output.",
     providerModelPosture: providerPostureFor({ paidPosture: brief.paidPosture || "paid", risk: brief.riskLevel || "high" }),
     riskLevel: brief.riskLevel || (limitationRelated ? "high" : "medium"),
     sourceCitationDiscipline: "Every new factual flag, date, or legal-risk note must preserve readable source labels plus raw FILE-NNNN pX.bY citations. Do not turn uncertain legal analysis into final conclusions.",
     uiEntryPoints: [
       `Existing skill surface: ${targetSkillId}`,
       "Skills tab: improvement proposal stays non-runnable until separately implemented.",
-      "If implemented as a separate review artifact, show it in the target workspace area.",
+      "If implemented as a separate review document, show it in the target workspace area.",
     ],
-    rerunBehavior: "Do not change existing rerun behavior silently. If a new artifact is introduced, add the same current-artifact confirmation pattern before overwriting it.",
+    rerunBehavior: "Do not change existing rerun behavior silently. If a new output document is introduced, add the same current-output confirmation pattern before overwriting it.",
     changeShape: limitationRelated
-      ? "Likely separate review artifact that reads List of Dates, unless later review approves a List of Dates mode/profile."
-      : "To be decided: mode/profile, output change, or separate review artifact.",
+      ? "Likely separate review document that reads List of Dates, unless later review approves a List of Dates mode/profile."
+      : "To be decided: mode/profile, output change, or separate review document.",
     whatChanges,
     whatMustStayUnchanged: [
       `${targetTitle} must preserve its current accepted output contract unless the runtime PR explicitly changes it.`,
@@ -285,9 +285,9 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
       "No automatic provider fallback or silent model change should be introduced as part of this proposal.",
     ],
     compatibilityRisks: [
-      "Existing users may rely on the current artifact shape and row wording.",
+      "Existing users may rely on the current output shape and row wording.",
       "Adding legal-risk notes can overstate conclusions unless uncertainty is clearly marked.",
-      "If folded into the existing artifact, regression risk is higher than a separate review artifact.",
+      "If folded into the existing output, regression risk is higher than a separate review document.",
     ],
     regressionTests: [
       `Existing tests for ${targetSkillId} still pass unchanged unless the PR explicitly updates the contract.`,
@@ -297,9 +297,9 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     ],
     acceptanceTests: [
       "Proposal remains non-runnable until a separate runtime PR.",
-      "Implementation decision is explicit: mode/profile, existing output change, or separate review artifact.",
+      "Implementation decision is explicit: mode/profile, existing output change, or separate review document.",
       "Every new legal-risk note is source-backed or marked for lawyer review.",
-      "Existing target-skill artifacts are not overwritten without confirmation.",
+      "Existing target-skill outputs are not overwritten without confirmation.",
     ],
     nonGoals: [
       "Do not replace the existing target skill output silently.",
@@ -308,12 +308,12 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
       "Do not mutate built-in skill stubs in the governance-only PR.",
     ],
     openQuestions: buildOpenQuestions(brief, [
-      "Should this be a new mode/profile of the existing skill, an output change, or a separate review artifact?",
+      "Should this be a new mode/profile of the existing skill, an output change, or a separate review document?",
       "What old behavior must be protected by regression tests?",
     ]),
     implementationNotes: [
       "Start with a design/runtime contract PR before changing the existing skill.",
-      "Prefer a separate review artifact when legal analysis would clutter or destabilize the existing output.",
+      "Prefer a separate review document when legal analysis would clutter or destabilize the existing output.",
       "Use the matter context packet and current source-label contracts; do not read raw matter files directly.",
     ],
   };
@@ -361,7 +361,7 @@ function specialtyDefaults(specialty) {
       ],
       implementationNotes: [
         "Implement as a hand-built built-in skill only after this governance brief is accepted.",
-        "Reuse the matter context packet and List of Dates artifact; do not read raw source files directly.",
+        "Reuse the matter context packet and List of Dates output; do not read raw source files directly.",
         "Render clearly as Draft - lawyer review required.",
       ],
     };
@@ -376,14 +376,14 @@ function specialtyDefaults(specialty) {
       expectedInputs: "Matter metadata, extraction records, Source Index, pleadings, correspondence, invoices, notices, contracts, and orders represented through source-backed context.",
       outputArtifact: "20_Workshop/Party and Officer Map.md",
       targetLane: "20_Workshop",
-      outputPosture: "Internal review artifact; source-backed identity map.",
+      outputPosture: "Internal review document; source-backed identity map.",
       providerModelPosture: "Use a source-backed analysis policy with strict citation requirements. Strong model preferred because identity resolution errors are costly.",
       riskLevel: "high",
       sourceCitationDiscipline: "Every formal name, officer, alias, role, and relationship must cite readable source labels plus raw FILE-NNNN pX.bY citations. Uncertain identities must be marked uncertain.",
       runtimeConfirmations: [
         "Confirm whether to include only parties or also officers, agents, aliases, and related entities.",
         "Confirm whether uncertain matches should be grouped or left separate.",
-        "Confirm overwrite before replacing an existing Party and Officer Map.md artifact.",
+        "Confirm overwrite before replacing an existing Party and Officer Map.md output.",
       ],
       acceptanceTests: [
         "A party/officer-name idea is classified as a new skill, not a List of Dates modification.",
@@ -402,7 +402,7 @@ function specialtyDefaults(specialty) {
         "Should it include external corporate-registry checks later, or stay matter-only in V0?",
       ],
       implementationNotes: [
-        "Treat this as a bounded source-backed review artifact.",
+        "Treat this as a bounded source-backed review document.",
         "Prefer tables: entity, role, aliases, related people/entities, source support, uncertainty.",
         "Use context packet boundaries and avoid raw-file reads.",
       ],
@@ -506,7 +506,7 @@ function splitInputs(value) {
 
 function buildOpenQuestions(brief, defaults) {
   const questions = [];
-  if (!brief.expectedOutputArtifact) questions.push("Confirm the exact output artifact path.");
+  if (!brief.expectedOutputArtifact) questions.push("Confirm the exact output document path.");
   if (!brief.targetLane) questions.push("Confirm the target workspace area.");
   if (!brief.paidPosture || brief.paidPosture === "unknown") questions.push("Confirm whether the future runtime should be free/local or paid/provider-backed.");
   if (!brief.riskLevel) questions.push("Confirm the risk level before implementation.");
@@ -515,13 +515,13 @@ function buildOpenQuestions(brief, defaults) {
 
 function providerPostureFor({ paidPosture, risk }) {
   if (paidPosture === "free") return "Prefer deterministic/local execution. If a provider becomes necessary later, require a separate model-policy review.";
-  if (risk === "high") return "Use a strong task-specific model policy with fail-closed behavior, provider metadata, and human review before the artifact is relied on.";
+  if (risk === "high") return "Use a strong task-specific model policy with fail-closed behavior, provider metadata, and human review before the output is relied on.";
   return "Use the future skill's own task policy. Do not expose model choice to the lawyer during idea capture.";
 }
 
 function defaultCitationDiscipline(outputPosture) {
   if (/\bclient-facing|court-facing/i.test(outputPosture)) {
-    return "Use source-backed reasoning internally. Show citations in the final artifact only when the lawyer explicitly asks for them.";
+    return "Use source-backed reasoning internally. Show citations in the final output only when the lawyer explicitly asks for them.";
   }
   return "Every factual assertion should preserve readable source labels plus raw FILE-NNNN pX.bY citations.";
 }
@@ -529,7 +529,7 @@ function defaultCitationDiscipline(outputPosture) {
 function outputPostureFromText(text) {
   if (/\b(client|email|dispatch|send)\b/i.test(text)) return "Client-facing draft; lawyer review required.";
   if (/\b(court|pleading|application|affidavit)\b/i.test(text)) return "Court-facing draft; lawyer review required.";
-  return "Internal review artifact.";
+  return "Internal review document.";
 }
 
 function titleFromArtifact(artifact) {

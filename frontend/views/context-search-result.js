@@ -42,7 +42,7 @@ export function renderContextSearchResultHtml(result, escapeHtml) {
 
   return `
     <h1>Context Search</h1>
-    <p>Searches the bounded matter context packet only. It does not read raw files, call an AI provider, or write artifacts.</p>
+    <p>Searches the bounded matter context packet only. It does not read raw files, call an AI provider, or write output files.</p>
     <dl class="skill-contract">
       <div>
         <dt>Matter</dt>

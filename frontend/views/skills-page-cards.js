@@ -180,7 +180,7 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
       </div>
       ${artifacts.length ? `
         <div class="skill-output-list">
-          <strong>Current artifacts</strong>
+          <strong>Current outputs</strong>
           ${artifacts.slice(0, 5).map((artifact) => `<span title="${escape(artifact)}">${escape(lawyerArtifactLabel(artifact))}</span>`).join("")}
           ${artifacts.length > 5 ? `<span class="muted">+${artifacts.length - 5} more</span>` : ""}
         </div>

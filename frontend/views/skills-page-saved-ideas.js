@@ -41,7 +41,7 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
     `- Intended user: ${packetValue(brief.intendedUser)}`,
     `- Problem / job to be done: ${packetValue(brief.problem)}`,
     `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
-    `- Expected output artifact: ${packetValue(brief.expectedOutputArtifact)}`,
+    `- Expected output document: ${packetValue(brief.expectedOutputArtifact)}`,
     `- Target workspace area: ${packetValue(brief.targetLane)}`,
     `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
     `- Risk level: ${packetValue(brief.riskLevel)}`,
@@ -159,7 +159,7 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
       <details class="skill-idea-brief">
         <summary>Design brief <span class="muted">Not runnable yet</span></summary>
         <p class="muted">
-          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, runnable skills, or matter artifacts.
+          Capture the intended shape of this possible future skill. Saving this brief does not generate prompts, code, draft skills, provider calls, runnable skills, or matter files.
         </p>
         <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
           <label>
@@ -175,7 +175,7 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
             <textarea name="expectedInputs">${escape(brief.expectedInputs)}</textarea>
           </label>
           <label>
-            <span>Expected output artifact</span>
+            <span>Expected output document</span>
             <input type="text" name="expectedOutputArtifact" value="${escape(brief.expectedOutputArtifact)}" autocomplete="off" />
           </label>
           <div class="skill-idea-brief-grid">
@@ -264,7 +264,7 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
           Review details
           <span class="pipeline-state ${escape(progress.className)}">${escape(progress.label)}</span>
         </summary>
-        <p class="muted">This idea is not runnable. Reviewing it here does not create a slash command, call a provider, or write a matter artifact.</p>
+        <p class="muted">This idea is not runnable. Reviewing it here does not create a slash command, call a provider, or write a matter file.</p>
         <details class="skill-idea-brief">
           <summary>Design brief <span class="muted">Not runnable yet</span></summary>
           <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
@@ -281,7 +281,7 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
               <textarea name="expectedInputs">${escape(brief.expectedInputs)}</textarea>
             </label>
             <label>
-              <span>Expected output artifact</span>
+              <span>Expected output document</span>
               <input type="text" name="expectedOutputArtifact" value="${escape(brief.expectedOutputArtifact)}" autocomplete="off" />
             </label>
             <div class="skill-idea-brief-grid">
@@ -396,7 +396,7 @@ function normalizeReadinessForView(readiness, brief) {
     ["intendedUser", "Intended user present"],
     ["problem", "Problem/job present"],
     ["expectedInputs", "Expected inputs present"],
-    ["expectedOutputArtifact", "Expected output artifact present"],
+    ["expectedOutputArtifact", "Expected output document present"],
     ["targetLane", "Workspace area selected"],
     ["paidPosture", "Paid/free posture selected"],
     ["riskLevel", "Risk level selected"],
@@ -437,7 +437,7 @@ function buildSkillIdeaOpenQuestions({ brief, readiness }) {
     .filter((item) => !item.passed)
     .map((item) => `Complete readiness item: ${item.label}.`);
   if (brief.paidPosture === "unknown") questions.push("Confirm whether this should be free/local or paid/provider-backed.");
-  if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output artifact, if any.");
+  if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output document, if any.");
   if (!brief.targetLane) questions.push("Confirm the target workspace area.");
   return questions.length ? questions : ["None from the readiness checklist."];
 }

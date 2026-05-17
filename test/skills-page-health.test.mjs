@@ -56,7 +56,7 @@ test("skills page health report excludes repair or runtime claims", () => {
   assert.match(report, /Stored custom skill records: 3/);
   assert.match(report, /Stored active versions: 1/);
   assert.match(report, /This is a read-only health report/);
-  assert.doesNotMatch(report, /repair stores, call providers, generate skills, run skills, or write matter artifacts\.\n\n.+generated Markdown/s);
+  assert.doesNotMatch(report, /repair stores, call providers, generate skills, run skills, or write matter files\.\n\n.+generated Markdown/s);
 });
 
 test("skills page health report redacts secrets in copied issue text", () => {

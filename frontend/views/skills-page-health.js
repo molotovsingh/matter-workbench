@@ -28,7 +28,7 @@ export function formatSkillFactoryHealthReport(health = {}) {
     "",
     "## Boundary",
     "",
-    "This is a read-only health report. It does not repair stores, call providers, generate skills, run skills, or write matter artifacts.",
+    "This is a read-only health report. It does not repair stores, call providers, generate skills, run skills, or write matter files.",
   ];
   return `${lines.join("\n")}\n`;
 }

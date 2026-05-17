@@ -449,7 +449,7 @@ export function createSkillIdeaSessionController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Review packet copied</strong><br />No provider call, prompt generation, or matter artifact write occurred.",
+        card: "<strong>Review packet copied</strong><br />No provider call or prompt generation occurred, and no matter file was written.",
         bar: "Skill Idea Packet Copied",
         terminal: `[skill-ideas] copied review packet for ${idea.id || "proposal"}`,
       });
@@ -492,7 +492,7 @@ export function createSkillIdeaSessionController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Marked ready for review</strong><br />Still not runnable. No provider call or matter artifact was created.",
+        card: "<strong>Marked ready for review</strong><br />Still not runnable. No provider call or matter file was created.",
         bar: "Ready for Review",
         terminal: `[skill-ideas] marked ready ${session.savedIdea.id || idea.id}`,
       });

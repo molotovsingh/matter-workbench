@@ -22,7 +22,7 @@ export function renderSkillReadyHtml(skill = {}) {
           <div><dt>Version</dt><dd>${escapeHtml(String(skill.version || 1))}</dd></div>
         </dl>
         ${skill.slash ? `<details class="skill-output-list"><summary><strong>Command</strong></summary><code>${escapeHtml(skill.slash)}</code></details>` : ""}
-        <p class="muted">Running the skill writes only its configured matter artifact after explicit command execution.</p>
+        <p class="muted">Running the skill writes only its configured matter output file after explicit command execution.</p>
       </section>
     `;
 }
@@ -61,7 +61,7 @@ export function renderSkillSampleOutputHtml(sample, { version, approved, sampleR
         : "Awaiting review";
   return `
       <h1>Sample Output</h1>
-      <p class="muted">Review sample only. This did not create a runnable skill, prompt, code, slash command, or matter artifact.</p>
+      <p class="muted">Review sample only. This did not create a runnable skill, prompt, code, slash command, or matter output file.</p>
       <section class="skill-router-result">
         <h2>Sample v${Number(version || getSampleVersion(sample, 1))}${sampleApproved ? " - approved" : ""}</h2>
         <dl class="skill-card-meta">

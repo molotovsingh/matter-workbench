@@ -24,7 +24,7 @@ export async function confirmCurrentArtifactRerun({
   breadcrumbs.textContent = title;
   const statusMessage = advice.state === "unknown"
     ? "Rerun status could not be checked."
-    : `${escapeHtml(advice.skill || skill)} already has a current artifact.`;
+    : `${escapeHtml(advice.skill || skill)} already has a current output document.`;
   ctx.setStatus({
     mood: "idle",
     card: `<strong>Review before regenerating</strong><br />${statusMessage}`,
@@ -69,7 +69,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
   const details = [
     ["Skill", skill, true],
-    ["Artifact", advice.artifactPath || "Unknown", true],
+    ["Output document", advice.artifactPath || "Unknown", true],
     ["Last run", advice.lastRunAt || "Unknown", false],
     ["Provider / model", providerModel || "Unknown", false],
     ["State", advice.state || "current", false],
@@ -85,7 +85,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
           <li><strong>${escapeHtml(label)}:</strong> ${code ? `<code>${escapeHtml(value)}</code>` : escapeHtml(value)}</li>
         `).join("")}
       </ul>
-      <p>Regenerating can start a paid AI provider call and may replace the output document. Keeping current leaves the existing artifact unchanged.</p>
+      <p>Regenerating can start a paid AI provider call and may replace the output document. Keeping current leaves the existing output unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="rerunConfirmCancel">${escapeHtml(cancelLabel)}</button>
         ${extraActions.map((action) => `
@@ -101,7 +101,7 @@ export function fallbackRerunMessage(advice) {
   const lines = [
     `${advice.skill || "This skill"} already has a current work product.`,
   ];
-  if (advice.artifactPath) lines.push(`Artifact: ${advice.artifactPath}`);
+  if (advice.artifactPath) lines.push(`Output document: ${advice.artifactPath}`);
   if (advice.lastRunAt) lines.push(`Last run: ${advice.lastRunAt}`);
   if (advice.model || advice.provider) {
     lines.push(`Provider/model: ${[advice.provider, advice.model].filter(Boolean).join(" / ")}`);

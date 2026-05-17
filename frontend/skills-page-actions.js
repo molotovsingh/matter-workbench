@@ -66,7 +66,7 @@ function wireConfigurableSkillRunActions({ configurableSkillRuns = null, ctx, ed
         await writeClipboardText(formatConfigurableSkillRunReport(run));
         ctx.setStatus({
           mood: "idle",
-          card: "<strong>Run report copied</strong><br />Metadata only. No provider call or matter artifact write occurred.",
+          card: "<strong>Run report copied</strong><br />Metadata only. No provider call occurred and no matter file was written.",
           bar: "Run Report Copied",
           terminal: `[skills] copied run report for ${run.slash || run.id}`,
         });
@@ -107,7 +107,7 @@ function wireSkillFactoryHealthActions({ ctx, editorContent, skillFactoryHealth 
       setArtifactActionStatus(status, "Health report copied.");
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Health report copied</strong><br />Read-only. No provider call, skill run, repair, or matter artifact write occurred.",
+        card: "<strong>Health report copied</strong><br />Read-only. No provider call, skill run, repair, or matter file was written.",
         bar: "Skill Factory Health Copied",
         terminal: "[skills] copied skill factory health report",
       });
@@ -152,7 +152,7 @@ function wireSkillIdeaActions({ ctx, editorContent, ideas = [], registry = {}, r
         setArtifactActionStatus(status, "Review packet copied.");
         ctx.setStatus({
           mood: "idle",
-          card: "<strong>Review packet copied</strong><br />No provider call, prompt generation, or matter artifact write occurred.",
+          card: "<strong>Review packet copied</strong><br />No provider call or prompt generation occurred, and no matter file was written.",
           bar: "Skill Idea Packet Copied",
           terminal: `[skill-ideas] copied review packet for ${id}`,
         });
@@ -186,7 +186,7 @@ function wireSkillIdeaActions({ ctx, editorContent, ideas = [], registry = {}, r
         setArtifactActionStatus(status, "Implementation brief copied.");
         ctx.setStatus({
           mood: "idle",
-          card: "<strong>Implementation brief copied</strong><br />Governance-only. No skill, prompt, provider call, or matter artifact was created.",
+          card: "<strong>Implementation brief copied</strong><br />Governance-only. No skill, prompt, provider call, or matter file was created.",
           bar: "Implementation Brief Copied",
           terminal: `[skill-ideas] copied implementation brief for ${id}`,
         });
@@ -224,7 +224,7 @@ function wireSkillIdeaActions({ ctx, editorContent, ideas = [], registry = {}, r
         setArtifactActionStatus(status, "Sample copied.");
         ctx.setStatus({
           mood: "idle",
-          card: "<strong>Sample copied</strong><br />This is review output only; no skill or matter artifact was created.",
+          card: "<strong>Sample copied</strong><br />This is review output only; no skill or matter file was created.",
           bar: "Sample Copied",
           terminal: `[skill-ideas] copied sample ${sampleId}`,
         });
@@ -269,7 +269,7 @@ function wireSkillIdeaActions({ ctx, editorContent, ideas = [], registry = {}, r
         });
         ctx.setStatus({
           mood: "idle",
-          card: "<strong>Design brief saved</strong><br />Still not runnable. No provider call or matter artifact was created.",
+          card: "<strong>Design brief saved</strong><br />Still not runnable. No provider call or matter file was created.",
           bar: "Skill Idea Saved",
           terminal: `[skill-ideas] saved design brief for ${id}`,
         });

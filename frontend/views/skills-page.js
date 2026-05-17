@@ -37,8 +37,8 @@ export function renderSkillsPageHtml({
 } = {}, escapeHtml) {
   const summary = skillsPageSummary(registry, matterStatus, configurableSkills);
   const matterNote = activeMatter?.folderName
-    ? `Status is derived from existing artifacts in <code>${escapeHtml(activeMatter.folderName)}</code>.`
-    : "No matter is selected. Showing built-in contracts in planning mode; artifact status appears after you pick a matter.";
+    ? `Status is derived from existing outputs in <code>${escapeHtml(activeMatter.folderName)}</code>.`
+    : "No matter is selected. Showing built-in contracts in planning mode; output status appears after you pick a matter.";
   const registryError = loadError
     ? `<p class="form-error">Skills unavailable: ${escapeHtml(loadError)}</p>`
     : "";

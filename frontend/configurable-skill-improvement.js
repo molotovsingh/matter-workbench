@@ -12,7 +12,7 @@ export function buildConfigurableSkillImprovementBrief({
     intendedUser: "Lawyer improving an active custom skill",
     problem: `Improve ${title || slash} based on real use: ${changeText}`,
     expectedInputs: `Existing active skill ${slash}; selected matter context; current output ${artifactPath || "from the skill"}.`,
-    expectedOutputArtifact: artifactPath || "Use the existing skill output artifact unless the reviewer changes it.",
+    expectedOutputArtifact: artifactPath || "Use the existing skill output document unless the reviewer changes it.",
     targetLane,
     paidPosture: "paid",
     riskLevel: "medium",

@@ -165,7 +165,7 @@ export function createCommandRouterCheckController({
         <form class="ai-command-override-form" data-command-router-override hidden>
           <label>
             <span>Why should this be a separate custom skill?</span>
-            <textarea data-command-router-override-input spellcheck="true" placeholder="Example: This has a different output artifact, audience, workflow stage, or legal setting.">${escapeHtml(overrideJustification || "")}</textarea>
+            <textarea data-command-router-override-input spellcheck="true" placeholder="Example: This has a different output document, audience, workflow stage, or legal setting.">${escapeHtml(overrideJustification || "")}</textarea>
           </label>
           <div class="command-interview-actions">
             <button type="submit">Re-check</button>

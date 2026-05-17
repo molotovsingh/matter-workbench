@@ -165,7 +165,7 @@ export function createConfigurableSkillRunController({
       });
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Skill complete</strong><br />Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "configured artifact")}</code>.`,
+        card: `<strong>Skill complete</strong><br />Wrote <code>${escapeHtml(result.outputPaths?.markdown || result.outputPath || "configured output document")}</code>.`,
         bar: "Skill Complete",
         terminal: `[configurable-skill] wrote ${result.outputPaths?.markdown || result.outputPath || slash}`,
       });

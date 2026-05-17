@@ -87,7 +87,7 @@ export function renderConfigurableSkillExistingOutputSheetHtml(result = {}, pend
         <p class="muted">This skill has already created an output document for this matter. Running again can replace that document only. This does not replace or edit the skill version.</p>
         <dl class="skill-card-meta">
           <div><dt>Skill</dt><dd>${escapeHtml(skillName)}</dd></div>
-          <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured artifact")}</code></dd></div>
+          <div><dt>Output</dt><dd><code>${escapeHtml(artifactPath || "Configured output document")}</code></dd></div>
         </dl>
         ${slash ? `<details class="skill-output-list"><summary><strong>Command</strong></summary><code>${escapeHtml(slash)}</code></details>` : ""}
         <div class="command-interview-actions">

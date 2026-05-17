@@ -46,7 +46,7 @@ export function renderContextPreviewResultHtml(result, escapeHtml) {
         <td>${escapeHtml(artifact.summary || "")}</td>
       </tr>
     `).join("")
-    : '<tr><td colspan="3">No selected library artifacts found.</td></tr>';
+    : '<tr><td colspan="3">No selected library files found.</td></tr>';
 
   const warningList = warnings.length
     ? `<ul>${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>`
@@ -73,7 +73,7 @@ export function renderContextPreviewResultHtml(result, escapeHtml) {
         <dd>${counts.evidence_blocks_included || 0} included${counts.evidence_blocks_omitted ? `, ${counts.evidence_blocks_omitted} omitted` : ""}</dd>
       </div>
       <div>
-        <dt>Library artifacts</dt>
+        <dt>Library files</dt>
         <dd>${counts.library_artifacts || 0}</dd>
       </div>
       <div>
@@ -108,7 +108,7 @@ export function renderContextPreviewResultHtml(result, escapeHtml) {
         <tbody>${sourceRows}</tbody>
       </table>
     </div>
-    <h2>Library Artifacts</h2>
+    <h2>Library Files</h2>
     <div class="table-scroll">
       <table class="extract-table context-preview-artifacts-table">
         <thead>
@@ -146,7 +146,7 @@ export function formatContextReport(result = {}) {
     `- Evidence blocks: ${counts.evidence_blocks_included || 0} included, ${counts.evidence_blocks_omitted || 0} omitted`,
     `- Source Labels: ${sourceIndexPresent ? "present" : "missing"}`,
     `- Block cap: ${limits.max_blocks ?? ""}`,
-    `- Library artifacts: ${counts.library_artifacts || 0}`,
+    `- Library files: ${counts.library_artifacts || 0}`,
   ];
 
   if (warnings.length) {
@@ -166,7 +166,7 @@ export function formatContextReport(result = {}) {
   }
 
   if (libraryArtifacts.length) {
-    lines.push("", "## Library Artifacts", "");
+    lines.push("", "## Library Files", "");
     for (const artifact of libraryArtifacts) {
       lines.push(`- ${redactSensitiveText(artifact.path)}: ${redactSensitiveText(artifact.summary || artifact.kind || "")}`);
     }

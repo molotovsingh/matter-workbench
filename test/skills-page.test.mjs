@@ -133,7 +133,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
               { key: "intendedUser", label: "Intended user present", passed: true },
               { key: "problem", label: "Problem/job present", passed: true },
               { key: "expectedInputs", label: "Expected inputs present", passed: true },
-              { key: "expectedOutputArtifact", label: "Expected output artifact present", passed: true },
+              { key: "expectedOutputArtifact", label: "Expected output document present", passed: true },
               { key: "targetLane", label: "Workspace area selected", passed: true },
               { key: "paidPosture", label: "Paid/free posture selected", passed: true },
               { key: "riskLevel", label: "Risk level selected", passed: true },
@@ -685,7 +685,7 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.match(packet, /- Proposal type: New skill/);
   assert.match(packet, /- Title: Client Update Email/);
   assert.match(packet, /- Proposed slash command: \/client_update_email/);
-  assert.match(packet, /- Output artifact: 30_Drafts\/Client Update Email\.md/);
+  assert.match(packet, /- Output document: 30_Drafts\/Client Update Email\.md/);
   assert.match(packet, /- Target workspace area: 30_Drafts/);
   assert.match(packet, /Client-facing draft; lawyer must review before sending/);
   assert.match(packet, /do not expose raw FILE-NNNN pX\.bY citations/i);
@@ -783,7 +783,7 @@ test("skill idea implementation brief classifies limitation flags as a list-of-d
   assert.match(packet, /Implementation decision is explicit/);
   assert.match(packet, /## Non-Goals/);
   assert.match(packet, /Do not replace the existing target skill output silently/);
-  assert.match(packet, /separate review artifact/i);
+  assert.match(packet, /separate review document/i);
 });
 
 test("skill idea review packet includes governance fields without source text or secrets", () => {
@@ -800,7 +800,7 @@ test("skill idea review packet includes governance fields without source text or
     designBrief: {
       intendedUser: "Litigation associate",
       problem: "Explore whether Create List of Dates should flag limitation issues.",
-      expectedInputs: "Existing Create List of Dates inputs and source-backed matter artifacts.",
+      expectedInputs: "Existing Create List of Dates inputs and source-backed matter files.",
       expectedOutputArtifact: "10_Library/List of Dates.md",
       targetLane: "10_Library",
       paidPosture: "unknown",
@@ -821,7 +821,7 @@ test("skill idea review packet includes governance fields without source text or
         { key: "intendedUser", label: "Intended user present", passed: true },
         { key: "problem", label: "Problem/job present", passed: true },
         { key: "expectedInputs", label: "Expected inputs present", passed: true },
-        { key: "expectedOutputArtifact", label: "Expected output artifact present", passed: true },
+        { key: "expectedOutputArtifact", label: "Expected output document present", passed: true },
         { key: "targetLane", label: "Workspace area selected", passed: true },
         { key: "paidPosture", label: "Paid/free posture selected", passed: true },
         { key: "riskLevel", label: "Risk level selected", passed: true },
@@ -840,7 +840,7 @@ test("skill idea review packet includes governance fields without source text or
   assert.match(packet, /## Original User Text/);
   assert.match(packet, /can list of dates also flag limitation issues/);
   assert.match(packet, /- Target workspace area: 10_Library/);
-  assert.match(packet, /- Expected output artifact: 10_Library\/List of Dates\.md/);
+  assert.match(packet, /- Expected output document: 10_Library\/List of Dates\.md/);
   assert.match(packet, /- Risk level: medium/);
   assert.match(packet, /Target skill: \/create_listofdates/);
   assert.match(packet, /- \[x\] Intended user present/);
@@ -862,7 +862,7 @@ test("skill idea review packet does not treat background mentions as modificatio
       targetLane: "20_Workshop",
       paidPosture: "unknown",
       riskLevel: "medium",
-      notes: "Use List of Dates as optional background context, but create a separate review artifact.",
+      notes: "Use List of Dates as optional background context, but create a separate review document.",
     },
   }, registryFixture());
 

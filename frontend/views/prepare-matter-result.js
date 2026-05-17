@@ -56,7 +56,7 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
         <li><strong>Status:</strong> ${escapeHtml(stageStateLabel(stage || { state: advice.state || "missing" }))}</li>
         <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
       </ul>
-      <p>Cancel leaves existing artifacts unchanged.</p>
+      <p>Cancel leaves existing files unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="preparePaidCancel">Keep current</button>
         <button type="button" class="secondary" id="preparePaidRun">Run ${escapeHtml(lawyerActionLabel(stage, "Label sources"))}</button>
