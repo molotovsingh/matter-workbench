@@ -13,6 +13,8 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
+Current release checkpoint: [Matter Workbench v1.0.0-beta.1](docs/releases/v1.0.0-beta.1.md).
+
 For the current tester-facing workflow, Command rail commands, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
