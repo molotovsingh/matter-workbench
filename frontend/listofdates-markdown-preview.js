@@ -123,7 +123,10 @@ function renderChronologyEntry(entry, escape) {
 function renderSourceFragments(source = "", escape) {
   const fragments = splitSourceFragments(source);
   if (!fragments.length) return '<span class="muted">No source</span>';
-  return fragments.map((fragment) => `<span>${escape(fragment)}</span>`).join("");
+  return fragments
+    .map(lawyerFacingSourceFragment)
+    .map((fragment) => `<span>${escape(fragment)}</span>`)
+    .join("");
 }
 
 function relevanceTone(relevance = "") {
@@ -203,6 +206,17 @@ function splitSourceFragments(source = "") {
     if (/^S\d+(,\s*S\d+)*$/i.test(fragment)) return fragment.split(/\s*,\s*/);
     return [fragment];
   }).filter(Boolean);
+}
+
+function lawyerFacingSourceFragment(fragment = "") {
+  const visible = String(fragment || "")
+    .replace(/\s*\([^)]*\bFILE-\d{4}\b[^)]*\)/gi, "")
+    .replace(/\bFILE-\d{4}(?:\s+p\d+(?:\.b\d+)?)?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/^[\s,.;:()/-]+|[\s,.;:()/-]+$/g, "")
+    .trim();
+  return visible || "Source label unavailable";
 }
 
 function stripExtension(name = "") {
