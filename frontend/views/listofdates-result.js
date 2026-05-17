@@ -1,3 +1,4 @@
+import { lawyerArtifactLabel } from "../lawyer-labels.js";
 import { lawyerFacingSourceLabel } from "../source-citation-display.js";
 
 export function listOfDatesSummary(result) {
@@ -27,33 +28,13 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
     : `<tr><td colspan="5">No cited date events were accepted from the AI response.</td></tr>`;
 
   return `
-    <h1>/create_listofdates result</h1>
+    <h1>List of Dates created</h1>
     <p>
-      Generated from extraction records.
+      Generated from extracted documents and source labels. Review before relying on this chronology.
     </p>
     <dl class="skill-contract">
       <div>
-        <dt>Records read</dt>
-        <dd>${counts.recordsRead || 0}</dd>
-      </div>
-      <div>
-        <dt>Source blocks</dt>
-        <dd>${counts.blocksSent || 0}</dd>
-      </div>
-      <div>
-        <dt>Filtered blocks</dt>
-        <dd>${counts.blocksFiltered || 0}</dd>
-      </div>
-      <div>
-        <dt>AI requests</dt>
-        <dd>${counts.aiRequests || 0}</dd>
-      </div>
-      <div>
-        <dt>Candidates</dt>
-        <dd>${counts.candidateEntries || 0}</dd>
-      </div>
-      <div>
-        <dt>Accepted events</dt>
+        <dt>Chronology entries</dt>
         <dd>${counts.acceptedEntries ?? counts.entries ?? 0}</dd>
       </div>
       <div>
@@ -61,11 +42,11 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
         <dd>${counts.entries || 0}</dd>
       </div>
       <div>
-        <dt>Clustered events</dt>
+        <dt>Merged related events</dt>
         <dd>${counts.clusteredEntries || 0}</dd>
       </div>
       <div>
-        <dt>Rejected</dt>
+        <dt>Omitted candidates</dt>
         <dd>${counts.rejectedEntries || 0}</dd>
       </div>
     </dl>
@@ -87,6 +68,17 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <details class="skill-output-list">
+      <summary><strong>Run details</strong></summary>
+      <dl class="skill-card-meta compact">
+        <div><dt>Records read</dt><dd>${counts.recordsRead || 0}</dd></div>
+        <div><dt>Source blocks reviewed</dt><dd>${counts.blocksSent || 0}</dd></div>
+        <div><dt>Blocks filtered out</dt><dd>${counts.blocksFiltered || 0}</dd></div>
+        <div><dt>AI requests</dt><dd>${counts.aiRequests || 0}</dd></div>
+        <div><dt>Candidate events</dt><dd>${counts.candidateEntries || 0}</dd></div>
+        <div><dt>Rejected candidates</dt><dd>${counts.rejectedEntries || 0}</dd></div>
+      </dl>
+    </details>
   `;
 }
 
@@ -97,9 +89,9 @@ function renderOutputPaths(outputPaths, escapeHtml) {
 
   return `
     <p>
-      ${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : ""}
-      ${outputPaths.csv ? `<br /><code>${escapeHtml(outputPaths.csv)}</code>` : ""}
-      ${outputPaths.markdown ? `<br /><code>${escapeHtml(outputPaths.markdown)}</code>` : ""}
+      ${outputPaths.markdown ? `<span title="${escapeHtml(outputPaths.markdown)}">${escapeHtml(lawyerArtifactLabel(outputPaths.markdown))}</span>` : ""}
+      ${outputPaths.csv ? `<br /><span title="${escapeHtml(outputPaths.csv)}">${escapeHtml(lawyerArtifactLabel(outputPaths.csv))}</span>` : ""}
+      ${outputPaths.json ? `<br /><span title="${escapeHtml(outputPaths.json)}">${escapeHtml(lawyerArtifactLabel(outputPaths.json))}</span>` : ""}
     </p>
   `;
 }

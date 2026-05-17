@@ -45,7 +45,9 @@ test("source descriptors result view renders provider and warning summary", () =
   assert.equal(summary.needsReviewCount, 1);
 
   const html = renderSourceDescriptorsResultHtml(result, escapeHtml);
-  assert.match(html, /Sources described/);
+  assert.match(html, /Source Labels created/);
+  assert.match(html, /Sources labeled/);
+  assert.match(html, /Source Labels record/);
   assert.match(html, /10_Library\/Source Index\.json/);
   assert.match(html, /openrouter/);
   assert.match(html, /akashml\/fp8/);

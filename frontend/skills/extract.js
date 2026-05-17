@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 import { extractSummary, renderExtractResultHtml } from "../views/extract-result.js";
 
 export function createExtractSkill(ctx) {
@@ -10,7 +11,7 @@ export function createExtractSkill(ctx) {
 
     ctx.setStatus({
       mood: counts.failed ? "idle" : "success",
-      card: `<strong>extract complete</strong><br />${counts.extracted || 0} extracted, ${counts.cached || 0} cached, ${totalSkipped} skipped.`,
+      card: `<strong>${lawyerActionCompleteLabel("/extract")}</strong><br />${counts.extracted || 0} extracted, ${counts.cached || 0} reused, ${totalSkipped} skipped.`,
       bar: counts.failed ? "Extract Finished With Failures" : "Extract Complete",
       terminal: result.outputLines || [],
     });
@@ -23,7 +24,7 @@ export function createExtractSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /extract.",
+        card: `<strong>No matter loaded</strong><br />Pick a matter from Home before running ${lawyerActionLabel("/extract")}.`,
         bar: "No Matter",
         terminal: "[extract] no active matter",
       });
@@ -31,17 +32,17 @@ export function createExtractSkill(ctx) {
     }
 
     ctx.setActivityActive("explorer");
-    breadcrumbs.textContent = `${activeMatter.folderName} > /extract`;
+    breadcrumbs.textContent = `${activeMatter.folderName} > ${lawyerActionLabel("/extract")}`;
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Running /extract</strong><br />Generating extraction records...",
+      card: `<strong>${lawyerActionRunningLabel("/extract")}</strong><br />Reading supported files and preparing searchable text...`,
       bar: "Extract Running",
       terminal: [
         `> workbench.run ${command}`,
         "[extract] running deterministic local extraction...",
       ],
     });
-    editorContent.innerHTML = `<h1>/extract — ${escapeHtml(activeMatter.folderName)}</h1><p>Extracting...</p>`;
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/extract")} — ${escapeHtml(activeMatter.folderName)}</h1><p>Reading documents...</p>`;
 
     try {
       const payload = await postJson("/api/extract", { dryRun: false });
@@ -55,7 +56,7 @@ export function createExtractSkill(ctx) {
         terminal: `[extract] failed: ${error.message}`,
       });
       editorContent.innerHTML = `
-        <h1>/extract — ${escapeHtml(activeMatter.folderName)}</h1>
+        <h1>${lawyerActionLabel("/extract")} — ${escapeHtml(activeMatter.folderName)}</h1>
         <p class="form-error">Extraction failed: ${escapeHtml(error.message)}</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button" id="runExtractRetry">Try again</button>

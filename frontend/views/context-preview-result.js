@@ -77,7 +77,7 @@ export function renderContextPreviewResultHtml(result, escapeHtml) {
         <dd>${counts.library_artifacts || 0}</dd>
       </div>
       <div>
-        <dt>Source Index</dt>
+        <dt>Source Labels</dt>
         <dd>${sourceIndexPresent ? "Present" : "Missing"}</dd>
       </div>
       <div>
@@ -144,7 +144,7 @@ export function formatContextReport(result = {}) {
     `- Generated: ${redactSensitiveText(generatedAt || "Not reported")}`,
     `- Sources: ${counts.sources || 0}`,
     `- Evidence blocks: ${counts.evidence_blocks_included || 0} included, ${counts.evidence_blocks_omitted || 0} omitted`,
-    `- Source Index: ${sourceIndexPresent ? "present" : "missing"}`,
+    `- Source Labels: ${sourceIndexPresent ? "present" : "missing"}`,
     `- Block cap: ${limits.max_blocks ?? ""}`,
     `- Library artifacts: ${counts.library_artifacts || 0}`,
   ];

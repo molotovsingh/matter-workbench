@@ -1,3 +1,5 @@
+import { lawyerActionLabel, lawyerActionPill, lawyerArtifactLabel } from "../lawyer-labels.js";
+
 export function renderPrepareMatterHtml(plan, escapeHtml = defaultEscapeHtml) {
   const stages = Array.isArray(plan?.stages) ? plan.stages : [];
   const matterName = plan?.matter?.name || "No matter selected";
@@ -10,7 +12,7 @@ export function renderPrepareMatterHtml(plan, escapeHtml = defaultEscapeHtml) {
     <h1>Prepare matter</h1>
     <p>
       A guided preparation plan for <strong>${escapeHtml(matterName)}</strong>.
-      It reads existing artifacts first, skips current stages, and asks before paid source labeling.
+      It checks saved work first, skips completed steps, and asks before paid source labeling.
     </p>
     <section class="matter-pipeline-card prepare-matter-card">
       <h2>Next safe step</h2>
@@ -45,19 +47,19 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
     <div class="form-warning" role="alertdialog" aria-labelledby="preparePaidConfirmTitle">
       <h2 id="preparePaidConfirmTitle">Label sources may use a paid AI provider</h2>
       <p>
-        Prepare Matter is ready to run <strong>${escapeHtml(stage?.label || "Label sources")}</strong>.
-        This writes <code>10_Library/Source Index.json</code> using the existing source-labeling skill.
+        Prepare Matter is ready to run <strong>${escapeHtml(lawyerActionLabel(stage?.slash, stage?.label || "Label sources"))}</strong>.
+        This updates the matter's source labels for downstream List of Dates work.
       </p>
       <ul class="overlap-list">
-        <li><strong>Stage:</strong> ${escapeHtml(stage?.slash || "/describe_sources")}</li>
-        <li><strong>Artifact:</strong> <code>${escapeHtml(advice.artifactPath || "10_Library/Source Index.json")}</code></li>
+        <li><strong>Step:</strong> ${escapeHtml(lawyerActionLabel(stage?.slash, stage?.label || "Label sources"))}</li>
+        <li><strong>Saved record:</strong> ${escapeHtml(lawyerArtifactLabel(advice.artifactPath || "10_Library/Source Index.json"))}</li>
         <li><strong>Status:</strong> ${escapeHtml(stageStateLabel(stage || { state: advice.state || "missing" }))}</li>
         <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
       </ul>
       <p>Cancel leaves existing artifacts unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="preparePaidCancel">Keep current</button>
-        <button type="button" class="secondary" id="preparePaidRun">Run Label sources</button>
+        <button type="button" class="secondary" id="preparePaidRun">Run ${escapeHtml(lawyerActionLabel(stage?.slash, "Label sources"))}</button>
       </div>
     </div>
   `;
@@ -77,8 +79,8 @@ function renderPrepareStage(stage, escapeHtml) {
     <div class="pipeline-stage ${stateClass(stage.state)}">
       <div class="pipeline-stage-main">
         <div>
-          <strong>${escapeHtml(stage.label || stage.slash || "")}</strong>
-          <span class="pipeline-stage-label">${escapeHtml(stage.slash || "")}</span>
+          <strong>${escapeHtml(lawyerActionLabel(stage.slash, stage.label || stage.slash || ""))}</strong>
+          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash))}</span>
         </div>
         <span class="pipeline-state ${stateClass(stage.state)}">${escapeHtml(stageStateLabel(stage))}</span>
       </div>
@@ -94,8 +96,8 @@ function renderListOfDatesRecommendation(stage, escapeHtml) {
     <div class="pipeline-stage ${stateClass(stage.state)}">
       <div class="pipeline-stage-main">
         <div>
-          <strong>${escapeHtml(stage.label || "Create list of dates")}</strong>
-          <span class="pipeline-stage-label">${escapeHtml(stage.slash || "/create_listofdates")}</span>
+          <strong>${escapeHtml(lawyerActionLabel(stage.slash, stage.label || "Create list of dates"))}</strong>
+          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash || "/create_listofdates"))}</span>
         </div>
         <span class="pipeline-state ${stateClass(stage.state)}">Recommended separately</span>
       </div>
@@ -106,10 +108,10 @@ function renderListOfDatesRecommendation(stage, escapeHtml) {
 }
 
 function renderArtifacts(artifacts, escapeHtml) {
-  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No output document found.</div>';
+  if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No saved output found.</div>';
   return `
     <div class="pipeline-artifacts">
-      ${artifacts.slice(0, 4).map((artifact) => `<code>${escapeHtml(artifact)}</code>`).join("")}
+      ${artifacts.slice(0, 4).map((artifact) => `<span title="${escapeHtml(artifact)}">${escapeHtml(lawyerArtifactLabel(artifact))}</span>`).join("")}
       ${artifacts.length > 4 ? `<span class="muted">+${artifacts.length - 4} more</span>` : ""}
     </div>
   `;

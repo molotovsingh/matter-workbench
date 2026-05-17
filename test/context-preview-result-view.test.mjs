@@ -87,7 +87,7 @@ test("context preview copied report redacts secrets from diagnostic fields", () 
   assert.match(report, /Bearer \[redacted-secret\]/);
 });
 
-test("context preview surfaces missing Source Index warning", () => {
+test("context preview surfaces missing source labels warning", () => {
   const result = {
     matter: {
       folder_name: "No Source Index Matter",
@@ -105,7 +105,7 @@ test("context preview surfaces missing Source Index warning", () => {
   };
 
   const html = renderContextPreviewResultHtml(result, escapeHtml);
-  assert.match(html, /Source Index/);
+  assert.match(html, /Source Labels/);
   assert.match(html, /Missing/);
   assert.match(html, /source labels may be blank/);
 });

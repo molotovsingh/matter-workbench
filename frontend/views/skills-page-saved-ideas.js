@@ -193,12 +193,12 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
             }, escape)}
             ${renderSelectField({
               name: "paidPosture",
-              label: "Paid/free posture",
+              label: "AI cost posture",
               value: brief.paidPosture,
               options: [
                 ["", "Not chosen"],
-                ["free", "Free/local"],
-                ["paid", "Paid/provider-backed"],
+                ["free", "Local / no paid AI"],
+                ["paid", "Uses paid AI"],
                 ["unknown", "Unknown"],
               ],
             }, escape)}
@@ -299,12 +299,12 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
               }, escape)}
               ${renderSelectField({
                 name: "paidPosture",
-                label: "Paid/free posture",
+                label: "AI cost posture",
                 value: brief.paidPosture,
                 options: [
                   ["", "Not chosen"],
-                  ["free", "Free/local"],
-                  ["paid", "Paid/provider-backed"],
+                  ["free", "Local / no paid AI"],
+                  ["paid", "Uses paid AI"],
                   ["unknown", "Unknown"],
                 ],
               }, escape)}

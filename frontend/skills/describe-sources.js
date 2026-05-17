@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import {
   renderSourceDescriptorsResultHtml,
@@ -15,8 +16,8 @@ export function createDescribeSourcesSkill(ctx) {
 
     ctx.setStatus({
       mood: warningsCount || needsReviewCount ? "idle" : "success",
-      card: `<strong>source descriptors complete</strong><br />${described} source descriptors written${warningsCount ? `; ${warningsCount} warning(s).` : "."}`,
-      bar: "Source Descriptors Complete",
+      card: `<strong>${lawyerActionCompleteLabel("/describe_sources")}</strong><br />${described} source label${described === 1 ? "" : "s"} written${warningsCount ? `; ${warningsCount} warning(s).` : "."}`,
+      bar: "Source Labels Complete",
       terminal: result.outputLines || [],
     });
 
@@ -28,7 +29,7 @@ export function createDescribeSourcesSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /describe_sources.",
+        card: `<strong>No matter loaded</strong><br />Pick a matter from Home before running ${lawyerActionLabel("/describe_sources")}.`,
         bar: "No Matter",
         terminal: "[source-index] no active matter",
       });
@@ -45,13 +46,13 @@ export function createDescribeSourcesSkill(ctx) {
     })) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>Run cancelled</strong><br />Existing Source Index artifact was left unchanged.",
-        bar: "Source Descriptors Cancelled",
+        card: "<strong>Run cancelled</strong><br />Existing source labels were left unchanged.",
+        bar: "Source Labels Cancelled",
         terminal: "[source-index] rerun cancelled by user",
       });
       editorContent.innerHTML = `
-        <h1>/describe_sources — ${escapeHtml(activeMatter.folderName)}</h1>
-        <p>Run cancelled. Existing <code>10_Library/Source Index.json</code> was left unchanged.</p>
+        <h1>${lawyerActionLabel("/describe_sources")} — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p>Run cancelled. Existing source labels were left unchanged.</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button secondary" id="runDescribeSourcesBack">Back to overview</button>
         </div>
@@ -62,18 +63,18 @@ export function createDescribeSourcesSkill(ctx) {
     }
 
     ctx.setActivityActive("explorer");
-    breadcrumbs.textContent = `${activeMatter.folderName} > /describe_sources`;
+    breadcrumbs.textContent = `${activeMatter.folderName} > ${lawyerActionLabel("/describe_sources")}`;
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Running /describe_sources</strong><br />Generating source labels from extraction records...",
-      bar: "Source Descriptors Running",
+      card: `<strong>${lawyerActionRunningLabel("/describe_sources")}</strong><br />Reading extracted documents and preparing source labels...`,
+      bar: "Source Labels Running",
       terminal: [
         `> workbench.run ${command}`,
         "[source-index] reading extraction records...",
         "[source-index] calling AI provider...",
       ],
     });
-    editorContent.innerHTML = `<h1>/describe_sources — ${escapeHtml(activeMatter.folderName)}</h1><p>Generating source index...</p>`;
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/describe_sources")} — ${escapeHtml(activeMatter.folderName)}</h1><p>Preparing source labels...</p>`;
 
     try {
       const payload = await postJson("/api/describe-sources", { dryRun: false });
@@ -82,13 +83,13 @@ export function createDescribeSourcesSkill(ctx) {
     } catch (error) {
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Source descriptors failed</strong><br />${escapeHtml(error.message)}`,
-        bar: "Source Descriptors Failed",
+        card: `<strong>Source labels failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Source Labels Failed",
         terminal: `[source-index] failed: ${error.message}`,
       });
       editorContent.innerHTML = `
-        <h1>/describe_sources — ${escapeHtml(activeMatter.folderName)}</h1>
-        <p class="form-error">Source descriptors failed: ${escapeHtml(error.message)}</p>
+        <h1>${lawyerActionLabel("/describe_sources")} — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p class="form-error">Source labels failed: ${escapeHtml(error.message)}</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button" id="runDescribeSourcesRetry">Try again</button>
           <button type="button" class="run-skill-button secondary" id="runDescribeSourcesBack">Back to overview</button>

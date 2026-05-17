@@ -1,5 +1,6 @@
 import { getJson } from "../api-client.js";
 import { escapeHtml, validateMetadata } from "../dom-utils.js";
+import { lawyerActionLabel, lawyerActionPill } from "../lawyer-labels.js";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import {
   renderMatterAttentionLoading,
@@ -46,12 +47,12 @@ export function createMatterOverview(ctx, skills) {
       </section>
 
       <div class="form-actions matter-run-actions">
-        <button type="button" class="run-skill-button" id="runPrepareMatterButton">Prepare matter <span>/prepare_matter</span></button>
-        <button type="button" class="run-skill-button" id="runMatterInitButton" ${missing.length ? "disabled" : ""}>Set up matter <span>/matter-init</span></button>
-        <button type="button" class="run-skill-button secondary" id="runExtractButton">Extract documents <span>/extract</span></button>
-        <button type="button" class="run-skill-button secondary" id="runDescribeSourcesButton">Label sources <span>/describe_sources</span></button>
-        <button type="button" class="run-skill-button secondary" id="runListOfDatesButton">Create list of dates <span>/create_listofdates</span></button>
-        <button type="button" class="run-skill-button secondary" id="runDoctorButton">Check matter <span>/doctor</span></button>
+        ${renderMatterActionButton("runPrepareMatterButton", "/prepare_matter")}
+        ${renderMatterActionButton("runMatterInitButton", "/matter-init", { disabled: Boolean(missing.length) })}
+        ${renderMatterActionButton("runExtractButton", "/extract", { secondary: true })}
+        ${renderMatterActionButton("runDescribeSourcesButton", "/describe_sources", { secondary: true })}
+        ${renderMatterActionButton("runListOfDatesButton", "/create_listofdates", { secondary: true })}
+        ${renderMatterActionButton("runDoctorButton", "/doctor", { secondary: true })}
       </div>
     `;
 
@@ -132,7 +133,7 @@ export function renderMatterPipelineStatus(status, escape) {
         <div class="pipeline-stage-main">
           <div>
             <strong>${escape(stageDisplayLabel(stage))}</strong>
-            ${stage.slash ? `<span class="pipeline-stage-label">${escape(stage.slash)}</span>` : ""}
+            ${stage.slash ? `<span class="pipeline-stage-label">${escape(lawyerActionPill(stage.slash, { paidProviderCall: stage.paidProviderCall }))}</span>` : ""}
           </div>
           <span class="pipeline-state ${stage.present ? "present" : "not-run"}">${stage.present ? "Done" : "Not started"}</span>
         </div>
@@ -244,18 +245,14 @@ function rerunStateLabel(state) {
 }
 
 function stageDisplayLabel(stage) {
-  const bySlash = {
-    "/matter-init": "Set up matter",
-    "/extract": "Extract documents",
-    "/describe_sources": "Label sources",
-    "/context_preview": "Preview matter context",
-    "/context_search": "Find in matter",
-    "/create_listofdates": "Create list of dates",
-    "/doctor": "Check matter",
-    "/prepare_matter": "Prepare matter",
-  };
-  if (bySlash[stage?.slash]) return bySlash[stage.slash];
+  if (stage?.slash) return lawyerActionLabel(stage.slash, stage.label || stage.slash);
   return stage?.label || stage?.slash || "";
+}
+
+function renderMatterActionButton(id, command, { secondary = false, disabled = false } = {}) {
+  const classes = ["run-skill-button"];
+  if (secondary) classes.push("secondary");
+  return `<button type="button" class="${classes.join(" ")}" id="${id}"${disabled ? " disabled" : ""}>${lawyerActionLabel(command)} <span>${lawyerActionPill(command)}</span></button>`;
 }
 
 function rerunStateClass(state) {

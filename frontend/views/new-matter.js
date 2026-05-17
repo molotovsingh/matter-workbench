@@ -7,6 +7,7 @@ import {
   hashCollectedFiles,
 } from "../file-collection.js";
 import { updateCollectedFileListElement } from "../file-list-view.js";
+import { lawyerActionLabel } from "../lawyer-labels.js";
 
 export function renderNewMatterForm(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -230,7 +231,7 @@ export function renderNewMatterForm(ctx) {
       submitButton.textContent = "Creating...";
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Creating matter</strong><br />Uploading ${pendingFiles.length} file(s) and running /matter-init...`,
+        card: `<strong>Creating matter</strong><br />Uploading ${pendingFiles.length} file(s) and running ${lawyerActionLabel("/matter-init")}...`,
         bar: "Creating Matter",
         terminal: [
           `[new-matter] uploading ${pendingFiles.length} files`,

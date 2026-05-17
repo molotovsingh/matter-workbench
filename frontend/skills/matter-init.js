@@ -5,11 +5,12 @@ import {
   escapeHtml,
   validateMetadata,
 } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 
 export function createMatterInitSkill(ctx) {
   const { editorContent } = ctx.elements;
 
-  function renderMatterInitResult(result, modeLabel) {
+  function renderMatterInitResult(result) {
     const activeMatter = ctx.getActiveMatter();
     const matterJson = result.matterJson || buildMatterJson(activeMatter);
     const counts = result.counts || {
@@ -27,14 +28,14 @@ export function createMatterInitSkill(ctx) {
 
     ctx.setStatus({
       mood: "success",
-      card: `<strong>matter-init ${escapeHtml(modeLabel)} complete</strong><br />${counts.scannedFiles} files scanned, ${counts.duplicateFiles} exact duplicates identified.`,
-      bar: "Skill Complete",
+      card: `<strong>${lawyerActionCompleteLabel("/matter-init")}</strong><br />${counts.scannedFiles} files scanned, ${counts.duplicateFiles} exact duplicates identified.`,
+      bar: "Matter Setup Complete",
       terminal: result.outputLines || buildPreviewResultLines(activeMatter, "/matter-init"),
     });
     editorContent.innerHTML = `
-      <h1>/matter-init result</h1>
+      <h1>${lawyerActionCompleteLabel("/matter-init")}</h1>
       <p>
-        The intake slash skill completed the deterministic copy-only pass for
+        The setup pass copied and arranged working files for
         ${escapeHtml(activeMatter.metadata.matterName)} while keeping source material untouched.
       </p>
       <dl class="skill-contract">
@@ -59,11 +60,11 @@ export function createMatterInitSkill(ctx) {
           <dd>Working copies grouped under <code>${escapeHtml(paths.byTypeDir)}</code> by file type</dd>
         </div>
         <div>
-          <dt>Reported</dt>
+          <dt>Recorded</dt>
           <dd><code>${escapeHtml(paths.intakeLogPath)}</code> and <code>${escapeHtml(paths.fileRegisterPath)}</code></dd>
         </div>
       </dl>
-      <h2>matter.json</h2>
+      <h2>Matter metadata</h2>
       <pre class="json-preview">${escapeHtml(JSON.stringify(matterJson, null, 2))}</pre>
     `;
   }
@@ -84,30 +85,31 @@ export function createMatterInitSkill(ctx) {
       editorContent.innerHTML = `
         <h1>${escapeHtml(activeMatter.metadata.matterName || activeMatter.folderName || "Matter")}</h1>
         <div class="run-failure-card">
-          <strong>matter-init can't run yet</strong>
+          <strong>${lawyerActionLabel("/matter-init")} can't run yet</strong>
           Missing required metadata: ${escapeHtml(missingMetadata.join(", "))}.<br />
-          Edit <code>matter.json</code> on disk and click Refresh, or recreate this matter via <code>Add new matter</code>.
+          Edit the matter metadata and click Refresh, or recreate this matter via <code>Add new matter</code>.
         </div>
       `;
       return;
     }
 
     ctx.setStatus({
-      bar: "Running Skill",
+      bar: "Matter Setup Running",
       terminal: [
         `> workbench.run ${command}`,
         "[matter-init] running deterministic local intake...",
       ],
     });
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/matter-init")} — ${escapeHtml(activeMatter.folderName || activeMatter.metadata.matterName || "Matter")}</h1><p>${lawyerActionRunningLabel("/matter-init")}...</p>`;
 
     try {
       const result = await postJson("/api/matter-init", { metadata: activeMatter.metadata });
       ctx.mergeActiveMatterState({ fileCount: result.counts.scannedFiles });
-      renderMatterInitResult(result, "write");
+      renderMatterInitResult(result);
       await ctx.refreshWorkspace({ silent: true, preserveStatus: true, preserveEditor: true });
     } catch (error) {
       ctx.setStatus({
-        bar: "Run Failed",
+        bar: "Matter Setup Failed",
         terminal: [
           `[matter-init] aborted: ${error.message}`,
           "[matter-init] no files were written",
@@ -116,7 +118,7 @@ export function createMatterInitSkill(ctx) {
       editorContent.innerHTML = `
         <h1>${escapeHtml(activeMatter.metadata.matterName || activeMatter.folderName || "Matter")}</h1>
         <div class="run-failure-card">
-          <strong>matter-init failed</strong>
+          <strong>${lawyerActionLabel("/matter-init")} failed</strong>
           ${escapeHtml(error.message)}<br />
           No files were written. Check that the local server is running, then try again.
         </div>

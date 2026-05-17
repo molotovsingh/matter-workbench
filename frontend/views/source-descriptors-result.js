@@ -1,3 +1,5 @@
+import { lawyerArtifactLabel } from "../lawyer-labels.js";
+
 export function sourceDescriptorsSummary(result) {
   const counts = result.counts || {};
   const sources = Array.isArray(result.sources) ? result.sources : [];
@@ -30,22 +32,22 @@ export function renderSourceDescriptorsResultHtml(result, escapeHtml) {
   const sourceRows = sources.length
     ? sources.slice(0, 12).map((source) => `
       <tr>
-        <td><code>${escapeHtml(source.file_id || "")}</code></td>
         <td>${escapeHtml(source.short_label || source.display_label || "")}</td>
         <td>${escapeHtml(source.document_type || "")}</td>
         <td>${source.needs_review ? "Yes" : "No"}</td>
         <td>${Array.isArray(source.warnings) ? source.warnings.length : 0}</td>
+        <td><code>${escapeHtml(source.file_id || "")}</code></td>
       </tr>
     `).join("")
-    : `<tr><td colspan="5">No source descriptors were written.</td></tr>`;
+    : `<tr><td colspan="5">No source labels were written.</td></tr>`;
   const moreSources = sources.length > 12
-    ? `<p class="muted">Showing 12 of ${sources.length} source descriptors.</p>`
+    ? `<p class="muted">Showing 12 of ${sources.length} source labels.</p>`
     : "";
 
   return `
-    <h1>Source Labels / Document Index result</h1>
+    <h1>Source Labels created</h1>
     <p>
-      Source labels were generated from extraction records and written as the source record for downstream List of Dates work.
+      Source labels were generated from extracted documents and saved for downstream List of Dates work.
     </p>
     <dl class="skill-contract">
       <div>
@@ -53,16 +55,8 @@ export function renderSourceDescriptorsResultHtml(result, escapeHtml) {
         <dd>${counts.recordsRead || 0}</dd>
       </div>
       <div>
-        <dt>Sources described</dt>
+        <dt>Sources labeled</dt>
         <dd>${counts.descriptors || sources.length || 0}</dd>
-      </div>
-      <div>
-        <dt>Provider</dt>
-        <dd>${escapeHtml(provider)}${providerDetail ? `<br /><span class="muted">${escapeHtml(providerDetail)}</span>` : ""}</dd>
-      </div>
-      <div>
-        <dt>Model</dt>
-        <dd>${model ? `<code>${escapeHtml(model)}</code>` : '<span class="muted">Not reported</span>'}</dd>
       </div>
       <div>
         <dt>Warnings</dt>
@@ -73,23 +67,31 @@ export function renderSourceDescriptorsResultHtml(result, escapeHtml) {
         <dd>${needsReviewCount}</dd>
       </div>
     </dl>
-    <h2>Output</h2>
-    <p>${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : "No Source Index written."}</p>
+    <h2>Saved record</h2>
+    <p>${outputPaths.json ? `<span title="${escapeHtml(outputPaths.json)}">${escapeHtml(lawyerArtifactLabel(outputPaths.json))}</span>` : "No source labels record was written."}</p>
     <h2>Sources</h2>
     ${moreSources}
     <div class="table-scroll">
       <table class="extract-table source-descriptors-table">
         <thead>
           <tr>
-            <th>File</th>
             <th>Label</th>
             <th>Type</th>
             <th>Review</th>
             <th>Warnings</th>
+            <th>Internal ID</th>
           </tr>
         </thead>
         <tbody>${sourceRows}</tbody>
       </table>
     </div>
+    <details class="skill-output-list">
+      <summary><strong>Run details</strong></summary>
+      <dl class="skill-card-meta compact">
+        <div><dt>Provider</dt><dd>${escapeHtml(provider)}${providerDetail ? `<br /><span class="muted">${escapeHtml(providerDetail)}</span>` : ""}</dd></div>
+        <div><dt>Model</dt><dd>${model ? `<code>${escapeHtml(model)}</code>` : '<span class="muted">Not reported</span>'}</dd></div>
+        <div><dt>Record path</dt><dd>${outputPaths.json ? `<code>${escapeHtml(outputPaths.json)}</code>` : '<span class="muted">Not written</span>'}</dd></div>
+      </dl>
+    </details>
   `;
 }

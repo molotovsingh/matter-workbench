@@ -163,7 +163,7 @@ function isTechnicalTreeEntry(node, markdownBasenames = new Set()) {
 
 function displayFileName(node = {}) {
   const name = String(node.name || "");
-  if (/^Source Index\.json$/i.test(name)) return "Source Index";
+  if (/^Source Index\.json$/i.test(name)) return "Source Labels";
   const ext = extensionOf(name);
   if ([".md", ".json", ".csv"].includes(ext)) return baseNameWithoutExtension(name);
   return name;

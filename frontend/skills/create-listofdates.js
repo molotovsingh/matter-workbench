@@ -1,6 +1,7 @@
 import { postJson } from "../api-client.js";
 import { writeClipboardText } from "../clipboard.js";
 import { escapeHtml } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
@@ -17,7 +18,7 @@ export function createListOfDatesSkill(ctx) {
 
     ctx.setStatus({
       mood: "success",
-      card: `<strong>list of dates complete</strong><br />${rendered} chronology rows from ${accepted} accepted events${clustered ? `; ${clustered} clustered.` : "."}`,
+      card: `<strong>${lawyerActionCompleteLabel("/create_listofdates")}</strong><br />${rendered} chronology rows from ${accepted} accepted events${clustered ? `; ${clustered} merged.` : "."}`,
       bar: "List of Dates Complete",
       terminal: result.outputLines || [],
     });
@@ -53,7 +54,7 @@ export function createListOfDatesSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /create_listofdates.",
+        card: `<strong>No matter loaded</strong><br />Pick a matter from Home before running ${lawyerActionLabel("/create_listofdates")}.`,
         bar: "No Matter",
         terminal: "[listofdates] no active matter",
       });
@@ -82,8 +83,8 @@ export function createListOfDatesSkill(ctx) {
         terminal: "[listofdates] rerun cancelled by user",
       });
       editorContent.innerHTML = `
-        <h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1>
-        <p>Run cancelled. Existing <code>10_Library/List of Dates.md</code> and <code>10_Library/List of Dates.json</code> were left unchanged.</p>
+        <h1>${lawyerActionLabel("/create_listofdates")} — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p>Run cancelled. Existing List of Dates files were left unchanged.</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button secondary" id="runListOfDatesBack">Back to overview</button>
         </div>
@@ -99,10 +100,10 @@ export function createListOfDatesSkill(ctx) {
     }
 
     ctx.setActivityActive("explorer");
-    breadcrumbs.textContent = `${activeMatter.folderName} > /create_listofdates`;
+    breadcrumbs.textContent = `${activeMatter.folderName} > ${lawyerActionLabel("/create_listofdates")}`;
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Running /create_listofdates</strong><br />Generating AI chronology from extraction records...",
+      card: `<strong>${lawyerActionRunningLabel("/create_listofdates")}</strong><br />Generating a source-backed chronology from extracted documents...`,
       bar: "List of Dates Running",
       terminal: [
         `> workbench.run ${command}`,
@@ -110,7 +111,7 @@ export function createListOfDatesSkill(ctx) {
         "[listofdates] calling AI provider...",
       ],
     });
-    editorContent.innerHTML = `<h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1><p>Generating list of dates...</p>`;
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/create_listofdates")} — ${escapeHtml(activeMatter.folderName)}</h1><p>Generating List of Dates...</p>`;
 
     try {
       const payload = await postJson("/api/create-listofdates", { dryRun: false });
@@ -124,8 +125,8 @@ export function createListOfDatesSkill(ctx) {
         terminal: `[listofdates] failed: ${error.message}`,
       });
       editorContent.innerHTML = `
-        <h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1>
-        <p class="form-error">List of dates failed: ${escapeHtml(error.message)}</p>
+        <h1>${lawyerActionLabel("/create_listofdates")} — ${escapeHtml(activeMatter.folderName)}</h1>
+        <p class="form-error">List of Dates failed: ${escapeHtml(error.message)}</p>
         <div class="form-actions">
           <button type="button" class="run-skill-button" id="runListOfDatesRetry">Try again</button>
           <button type="button" class="run-skill-button secondary" id="runListOfDatesBack">Back to overview</button>
@@ -140,7 +141,7 @@ export function createListOfDatesSkill(ctx) {
 
   async function refreshListOfDatesLabels(command, activeMatter) {
     ctx.setActivityActive("explorer");
-    breadcrumbs.textContent = `${activeMatter.folderName} > /create_listofdates label refresh`;
+    breadcrumbs.textContent = `${activeMatter.folderName} > List of Dates label refresh`;
     ctx.setStatus({
       mood: "idle",
       card: "<strong>Refreshing List of Dates labels</strong><br />Updating source labels without calling an AI provider...",
@@ -151,7 +152,7 @@ export function createListOfDatesSkill(ctx) {
         "[listofdates] refreshing markdown labels...",
       ],
     });
-    editorContent.innerHTML = `<h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1><p>Refreshing List of Dates labels...</p>`;
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/create_listofdates")} — ${escapeHtml(activeMatter.folderName)}</h1><p>Refreshing List of Dates labels...</p>`;
 
     try {
       const payload = await postJson("/api/create-listofdates/refresh-labels", { dryRun: false });
@@ -165,7 +166,7 @@ export function createListOfDatesSkill(ctx) {
         terminal: `[listofdates] label refresh failed: ${error.message}`,
       });
       editorContent.innerHTML = `
-        <h1>/create_listofdates — ${escapeHtml(activeMatter.folderName)}</h1>
+        <h1>${lawyerActionLabel("/create_listofdates")} — ${escapeHtml(activeMatter.folderName)}</h1>
         <p class="form-error">Label refresh failed: ${escapeHtml(error.message)}</p>
         <p>Regenerate the List of Dates if source documents, dates, types, or OCR state changed.</p>
         <div class="form-actions">

@@ -2,6 +2,13 @@ import {
   formatConfigurableSkillDisplayName,
   formatConfigurableSkillVersionLabel,
 } from "../configurable-skill-version-labels.js";
+import {
+  lawyerActionLabel,
+  lawyerActionPill,
+  lawyerAiPostureLabel,
+  lawyerArtifactLabel,
+  lawyerModeLabel,
+} from "../lawyer-labels.js";
 import { customSkillGroupingKey } from "./skills-page-summary.js";
 import {
   extractTargetSkill,
@@ -80,19 +87,20 @@ function renderBuiltinSkillRow(skill, escape) {
       ? "Present"
       : "Not run"
     : skill.matter_required
-      ? "No artifact status"
-      : "Workspace-level";
+      ? "Not checked"
+      : "Workspace action";
   const stateClass = status?.present ? "present" : "not-run";
   const surfaceLabel = builtinSurfaceLabel(skill);
   return `
     <article class="builtin-skill-row">
       <div>
-        <h3>${escape(skill.title || skill.id || skill.slash || "Skill")}</h3>
+        <h3>${escape(lawyerActionLabel(skill.slash, skill.title || skill.id || "Skill"))}</h3>
         <p>${escape(skill.purpose || "No description provided.")}</p>
       </div>
       <div class="builtin-skill-command">
-        <code>${escape(skill.slash || "")}</code>
         ${surfaceLabel ? `<span>${escape(surfaceLabel)}</span>` : ""}
+        ${skill.slash ? `<span>${escape(lawyerActionPill(skill.slash, { paidProviderCall: skill.paid_provider_call }))}</span>` : ""}
+        ${skill.slash ? `<details><summary>Command</summary><code>${escape(skill.slash)}</code></details>` : ""}
       </div>
       <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
     </article>
@@ -118,50 +126,56 @@ function renderSkillCard(skill, escape, { improvementIdeas = [], configurableSki
       ? "Present"
       : "Not run"
     : skill.matter_required
-      ? "No artifact status"
-      : "Workspace-level";
+      ? "Not checked"
+      : "Workspace action";
   const stateClass = skill.configurable ? customSkillDisplayStatusClass(skill) : status?.present ? "present" : "not-run";
   const outputs = Array.isArray(skill.outputs) && skill.outputs.length
     ? skill.outputs
     : ["No durable output declared"];
   const upstream = Array.isArray(skill.upstream) && skill.upstream.length
-    ? skill.upstream.join(", ")
+    ? skill.upstream.map((entry) => lawyerActionLabel(entry, entry)).join(", ")
     : "None";
-  const provider = skill.paid_provider_call ? "Paid/provider-backed" : "Deterministic/local";
-  const rerun = skill.rerun_guarded ? "Rerun guarded" : "No rerun guard";
+  const provider = lawyerAiPostureLabel(skill.paid_provider_call);
+  const rerun = skill.rerun_guarded ? "Asks before replacing output" : "No replacement warning";
   const artifacts = Array.isArray(status?.artifacts) ? status.artifacts : [];
 
   return `
     <article class="skill-card">
       <div class="skill-card-header">
         <div>
-          <div class="skill-slash"><code>${escape(skill.slash || "")}</code></div>
-          <h3>${escape(skill.configurable ? customSkillDisplayName(skill) : skill.title || skill.id || skill.slash || "Skill")}</h3>
+          <div class="skill-slash">${skill.configurable ? `<code>${escape(skill.slash || "")}</code>` : escape(lawyerActionPill(skill.slash, { paidProviderCall: skill.paid_provider_call }))}</div>
+          <h3>${escape(skill.configurable ? customSkillDisplayName(skill) : lawyerActionLabel(skill.slash, skill.title || skill.id || "Skill"))}</h3>
         </div>
         <span class="pipeline-state ${escape(stateClass)}">${escape(state)}</span>
       </div>
       <p>${escape(skill.purpose || "No description provided.")}</p>
       <dl class="skill-card-meta">
-        <div><dt>Mode</dt><dd>${escape(skill.mode || "")}</dd></div>
+        <div><dt>Mode</dt><dd>${escape(lawyerModeLabel(skill.mode))}</dd></div>
         <div><dt>Provider</dt><dd>${escape(provider)}</dd></div>
         <div><dt>Matter</dt><dd>${skill.matter_required ? "Required" : "Not required"}</dd></div>
         <div><dt>Rerun</dt><dd>${escape(rerun)}</dd></div>
-        <div><dt>Lane</dt><dd>${skill.default_lane ? `<code>${escape(skill.default_lane)}</code>` : '<span class="muted">None</span>'}</dd></div>
-        <div><dt>Runner</dt><dd><code>${escape(skill.runner_key || "")}</code></dd></div>
+        <div><dt>Workspace area</dt><dd>${skill.default_lane ? `<code>${escape(skill.default_lane)}</code>` : '<span class="muted">None</span>'}</dd></div>
         <div><dt>Upstream</dt><dd>${escape(upstream)}</dd></div>
         ${skill.configurable ? `<div><dt>Version</dt><dd>${escape(customSkillVersionLabel(skill))}</dd></div>` : ""}
         ${skill.configurable && skill.previous_skill_id ? `<div><dt>Previous</dt><dd>${escape(customSkillLinkedVersionLabel(skill.previous_skill_id, allCustomSkills))}</dd></div>` : ""}
         ${skill.configurable && skill.replaced_by_skill_id ? `<div><dt>Replaced by</dt><dd>${escape(customSkillLinkedVersionLabel(skill.replaced_by_skill_id, allCustomSkills))}</dd></div>` : ""}
       </dl>
+      ${!skill.configurable && (skill.slash || skill.runner_key) ? `
+        <details class="skill-output-list">
+          <summary><strong>Technical details</strong></summary>
+          ${skill.slash ? `<code>${escape(skill.slash)}</code>` : ""}
+          ${skill.runner_key && skill.runner_key !== skill.slash ? `<code>${escape(skill.runner_key)}</code>` : ""}
+        </details>
+      ` : ""}
       <div class="skill-output-list">
         <strong>Outputs</strong>
-        ${outputs.slice(0, 5).map((output) => `<code>${escape(output)}</code>`).join("")}
+        ${outputs.slice(0, 5).map((output) => `<span title="${escape(output)}">${escape(lawyerArtifactLabel(output))}</span>`).join("")}
         ${outputs.length > 5 ? `<span class="muted">+${outputs.length - 5} more</span>` : ""}
       </div>
       ${artifacts.length ? `
         <div class="skill-output-list">
           <strong>Current artifacts</strong>
-          ${artifacts.slice(0, 5).map((artifact) => `<code>${escape(artifact)}</code>`).join("")}
+          ${artifacts.slice(0, 5).map((artifact) => `<span title="${escape(artifact)}">${escape(lawyerArtifactLabel(artifact))}</span>`).join("")}
           ${artifacts.length > 5 ? `<span class="muted">+${artifacts.length - 5} more</span>` : ""}
         </div>
       ` : ""}

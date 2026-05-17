@@ -1,5 +1,6 @@
 import { getJson, postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 import {
   renderPrepareMatterHtml,
   renderPreparePaidConfirmationHtml,
@@ -14,7 +15,7 @@ export function createPrepareMatterSkill(ctx) {
     breadcrumbs.textContent = "Prepare matter";
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Preparing matter</strong><br />Reading existing matter artifacts...",
+      card: "<strong>Preparing matter</strong><br />Checking saved matter work...",
       bar: "Prepare Matter",
       terminal: [
         `> workbench.run ${command}`,
@@ -68,9 +69,10 @@ export function createPrepareMatterSkill(ctx) {
         return;
       }
       if (stage.action === "blocked") {
+        const stageLabel = lawyerActionLabel(stage.slash, stage.label);
         ctx.setStatus({
           mood: "idle",
-          card: `<strong>${escapeHtml(stage.label)} blocked</strong><br />${escapeHtml(stage.reason || "Resolve this before continuing.")}`,
+          card: `<strong>${escapeHtml(stageLabel)} blocked</strong><br />${escapeHtml(stage.reason || "Resolve this before continuing.")}`,
           bar: "Prepare Matter Blocked",
           terminal: `[prepare] blocked: ${stage.slash}`,
         });
@@ -101,10 +103,11 @@ export function createPrepareMatterSkill(ctx) {
   }
 
   async function runStage(stage) {
+    const stageLabel = lawyerActionLabel(stage.slash, stage.label);
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Running ${escapeHtml(stage.label)}</strong><br />Using the existing ${escapeHtml(stage.slash)} stage.`,
-      bar: `${stage.label} Running`,
+      card: `<strong>${escapeHtml(lawyerActionRunningLabel(stage.slash, `Running ${stageLabel}`))}</strong><br />Using the existing preparation step.`,
+      bar: `${stageLabel} Running`,
       terminal: [
         `> workbench.run ${stage.slash}`,
         `[prepare] running child stage: ${stage.slash}`,
@@ -124,28 +127,28 @@ export function createPrepareMatterSkill(ctx) {
       }
       ctx.setStatus({
         mood: "success",
-        card: `<strong>${escapeHtml(stage.label)} complete</strong><br />Preparation will recompute the next stage from disk.`,
-        bar: `${stage.label} Complete`,
+        card: `<strong>${escapeHtml(lawyerActionCompleteLabel(stage.slash, `${stageLabel} complete`))}</strong><br />Preparation will recompute the next step from saved files.`,
+        bar: `${stageLabel} Complete`,
         terminal: `[prepare] complete: ${stage.slash}`,
       });
       return true;
     } catch (error) {
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>${escapeHtml(stage.label)} failed</strong><br />${escapeHtml(error.message)}`,
+        card: `<strong>${escapeHtml(stageLabel)} failed</strong><br />${escapeHtml(error.message)}`,
         bar: "Prepare Matter Failed",
         terminal: [
           `[prepare] failed: ${stage.slash}`,
           `[prepare] ${error.message}`,
-          "[prepare] downstream stages were not run",
+          "[prepare] downstream preparation steps were not run",
         ],
       });
       editorContent.innerHTML = `
         <h1>Prepare Matter</h1>
         <div class="run-failure-card">
-          <strong>${escapeHtml(stage.label)} failed</strong>
+          <strong>${escapeHtml(stageLabel)} failed</strong>
           ${escapeHtml(error.message)}<br />
-          Downstream preparation stages were not run. Fix the issue, then run Prepare Matter again to resume from disk.
+          Downstream preparation steps were not run. Fix the issue, then run Prepare Matter again to resume from saved files.
         </div>
         <div class="form-actions">
           <button type="button" class="run-skill-button" id="prepareMatterRetry">Refresh plan</button>

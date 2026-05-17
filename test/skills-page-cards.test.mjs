@@ -24,9 +24,11 @@ test("skills page cards render built-in skill metadata and escape artifacts", ()
     },
   ], escapeHtml);
 
-  assert.match(html, /Extract &lt;Docs&gt;/);
+  assert.match(html, /Extract Documents/);
+  assert.doesNotMatch(html, /Extract &lt;Docs&gt;/);
   assert.match(html, /Present/);
-  assert.match(html, /Deterministic\/local/);
+  assert.match(html, /Local/);
+  assert.match(html, /Set Up Matter/);
   assert.match(html, /00_Inbox\/&lt;bad&gt;\.md/);
 });
 

@@ -200,7 +200,7 @@ test("workspace tree hides technical files by default and exposes them when requ
   };
   const html = renderTreeNode(tree);
 
-  assert.match(html, /Source Index <span class="tree-canonical-name">Source Index\.json/);
+  assert.match(html, /Source Labels <span class="tree-canonical-name">Source Index\.json/);
   assert.match(html, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
   assert.doesNotMatch(html, /Technical files/);
   assert.doesNotMatch(html, /File Register\.csv/);
@@ -211,7 +211,7 @@ test("workspace tree hides technical files by default and exposes them when requ
 
   const technicalHtml = renderTreeNode(tree, 0, { showTechnical: true });
 
-  assert.match(technicalHtml, /Source Index <span class="tree-canonical-name">Source Index\.json/);
+  assert.match(technicalHtml, /Source Labels <span class="tree-canonical-name">Source Index\.json/);
   assert.match(technicalHtml, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
   assert.match(technicalHtml, /Technical files[\s\S]*Technical files are used by the app/);
   assert.match(technicalHtml, /Technical files[\s\S]*File Register\.csv/);

@@ -42,7 +42,10 @@ test("prepare matter result uses lawyer-facing status labels", () => {
   assert.match(html, /Already done/);
   assert.match(html, /Needs approval/);
   assert.match(html, /Needs attention/);
-  assert.match(html, /No output document found/);
+  assert.match(html, /No saved output found/);
+  assert.match(html, /Set Up Matter/);
+  assert.match(html, /Label Sources/);
+  assert.doesNotMatch(html, /\/describe_sources/);
   assert.doesNotMatch(html, /Current - skipped/);
   assert.doesNotMatch(html, />Stale</);
   assert.doesNotMatch(html, /Needs rerun/);
@@ -63,6 +66,8 @@ test("prepare matter paid confirmation uses friendly status wording", () => {
   });
 
   assert.match(html, /Status:<\/strong> Needs approval/);
+  assert.match(html, /Saved record:<\/strong> Source Labels record/);
   assert.match(html, /Provider \/ model:<\/strong> openai-direct \/ gpt-5\.4/);
   assert.doesNotMatch(html, /State:<\/strong>/);
+  assert.doesNotMatch(html, /Stage:<\/strong>/);
 });

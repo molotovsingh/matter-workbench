@@ -1,5 +1,6 @@
 import { postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
+import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
 
 export function createDoctorSkill(ctx) {
   const { breadcrumbs, editorContent } = ctx.elements;
@@ -9,32 +10,32 @@ export function createDoctorSkill(ctx) {
     if (!activeMatter.folderName) {
       ctx.setStatus({
         mood: "idle",
-        card: "<strong>No matter loaded</strong><br />Pick a matter from Home before running /doctor.",
+        card: `<strong>No matter loaded</strong><br />Pick a matter from Home before running ${lawyerActionLabel("/doctor")}.`,
         bar: "No Matter",
         terminal: "[doctor] no active matter",
       });
       return;
     }
     ctx.setActivityActive("explorer");
-    breadcrumbs.textContent = `${activeMatter.folderName} > /doctor`;
+    breadcrumbs.textContent = `${activeMatter.folderName} > ${lawyerActionLabel("/doctor")}`;
     ctx.setStatus({
       mood: "idle",
-      card: "<strong>Running /doctor</strong><br />Scanning matter for issues...",
-      bar: "Doctor Scanning",
+      card: `<strong>${lawyerActionRunningLabel("/doctor")}</strong><br />Scanning matter setup and saved artifacts for issues...`,
+      bar: "Matter Check Running",
       terminal: `[doctor] scanning ${activeMatter.folderName}`,
     });
-    editorContent.innerHTML = `<h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1><p>Scanning...</p>`;
+    editorContent.innerHTML = `<h1>${lawyerActionLabel("/doctor")} — ${escapeHtml(activeMatter.folderName)}</h1><p>Checking matter...</p>`;
     try {
       const payload = await postJson("/api/doctor/scan");
       renderDoctorScan(payload.issues || []);
     } catch (error) {
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Doctor scan failed</strong><br />${escapeHtml(error.message)}`,
-        bar: "Doctor Failed",
+        card: `<strong>Matter check failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Matter Check Failed",
         terminal: `[doctor] scan failed: ${error.message}`,
       });
-      editorContent.innerHTML = `<h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1><p class="form-error">Scan failed: ${escapeHtml(error.message)}</p>`;
+      editorContent.innerHTML = `<h1>${lawyerActionLabel("/doctor")} — ${escapeHtml(activeMatter.folderName)}</h1><p class="form-error">Check failed: ${escapeHtml(error.message)}</p>`;
     }
   }
 
@@ -44,11 +45,11 @@ export function createDoctorSkill(ctx) {
       ctx.setStatus({
         mood: "success",
         card: "<strong>All clear</strong><br />No issues detected.",
-        bar: "Doctor Clean",
+        bar: "Matter Check Clear",
         terminal: "[doctor] no issues found",
       });
       editorContent.innerHTML = `
-        <h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1>
+        <h1>${lawyerActionLabel("/doctor")} — ${escapeHtml(activeMatter.folderName)}</h1>
         <p>No issues detected. The matter's structure matches the current schema.</p>
       `;
       return;
@@ -56,7 +57,7 @@ export function createDoctorSkill(ctx) {
     ctx.setStatus({
       mood: "idle",
       card: `<strong>${issues.length} issue${issues.length === 1 ? "" : "s"} found</strong><br />Review and choose which to fix.`,
-      bar: "Doctor Issues",
+      bar: "Matter Check Issues",
       terminal: [`[doctor] ${issues.length} issue(s) found`, ...issues.map((i) => `[doctor] - ${i.id} (${i.severity}): ${i.title}`)],
     });
     const cards = issues.map((issue) => `
@@ -71,18 +72,18 @@ export function createDoctorSkill(ctx) {
         <div class="doctor-issue-body">
           <p>${escapeHtml(issue.description)}</p>
           ${issue.autoFixable
-            ? `<p class="doctor-fix-description"><strong>Auto-fix:</strong> ${escapeHtml(issue.fixDescription || "")}</p>`
+            ? `<p class="doctor-fix-description"><strong>Suggested fix:</strong> ${escapeHtml(issue.fixDescription || "")}</p>`
             : `<p class="doctor-fix-description"><em>No automatic fix; manual cleanup required.</em></p>`}
         </div>
       </div>
     `).join("");
     editorContent.innerHTML = `
-      <h1>/doctor — ${escapeHtml(activeMatter.folderName)}</h1>
+      <h1>${lawyerActionLabel("/doctor")} — ${escapeHtml(activeMatter.folderName)}</h1>
       <p>${issues.length} issue${issues.length === 1 ? "" : "s"} found. Backups go to <code>.doctor-backups/&lt;timestamp&gt;/</code> before any fix runs.</p>
       <div class="doctor-issues">${cards}</div>
       <div class="form-actions">
         <button type="button" id="doctorFixSelected">Fix selected</button>
-        <button type="button" class="secondary" id="doctorFixAll">Fix all auto-fixable</button>
+        <button type="button" class="secondary" id="doctorFixAll">Fix all automatically fixable</button>
         <button type="button" class="secondary" id="doctorCancel">Cancel</button>
       </div>
       <div id="doctorError" class="form-error" hidden></div>
@@ -112,8 +113,8 @@ export function createDoctorSkill(ctx) {
     }
     ctx.setStatus({
       mood: "idle",
-      card: `<strong>Applying ${fixIds.length} fix${fixIds.length === 1 ? "" : "es"}</strong><br />Backing up and migrating...`,
-      bar: "Doctor Fixing",
+      card: `<strong>Applying ${fixIds.length} fix${fixIds.length === 1 ? "" : "es"}</strong><br />Creating a backup first...`,
+      bar: "Matter Check Fixing",
       terminal: `[doctor] applying ${fixIds.length} fix(es): ${fixIds.join(", ")}`,
     });
     try {
@@ -127,8 +128,8 @@ export function createDoctorSkill(ctx) {
       }
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Doctor fix failed</strong><br />${escapeHtml(error.message)}`,
-        bar: "Doctor Failed",
+        card: `<strong>Matter check fix failed</strong><br />${escapeHtml(error.message)}`,
+        bar: "Matter Check Failed",
         terminal: `[doctor] fix failed: ${error.message}`,
       });
     }
@@ -145,8 +146,8 @@ export function createDoctorSkill(ctx) {
       mood: failed.length ? "idle" : "success",
       card: failed.length
         ? `<strong>Partial fix</strong><br />${appliedCount} applied, ${failed.length} failed.`
-        : `<strong>Doctor done</strong><br />${appliedCount} fix${appliedCount === 1 ? "" : "es"} applied.`,
-      bar: failed.length ? "Doctor Partial" : "Doctor Done",
+        : `<strong>${lawyerActionCompleteLabel("/doctor")}</strong><br />${appliedCount} fix${appliedCount === 1 ? "" : "es"} applied.`,
+      bar: failed.length ? "Matter Check Partial" : "Matter Check Complete",
       terminal: [
         `[doctor] applied ${appliedCount} fix(es)`,
         ...allLogs.map((l) => `[doctor]   ${l}`),
@@ -171,7 +172,7 @@ export function createDoctorSkill(ctx) {
       ? `<h2>Remaining issues</h2><div class="doctor-issues">${remaining.map((i) => `<div class="doctor-issue"><span class="doctor-issue-badge doctor-severity-${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span> <strong>${escapeHtml(i.title)}</strong><p>${escapeHtml(i.description)}</p></div>`).join("")}</div>`
       : "";
     editorContent.innerHTML = `
-      <h1>/doctor result — ${escapeHtml(activeMatter.folderName)}</h1>
+      <h1>${lawyerActionCompleteLabel("/doctor")} — ${escapeHtml(activeMatter.folderName)}</h1>
       ${appliedCount ? `<h2>Applied</h2><div class="doctor-issues">${appliedHtml}</div>` : ""}
       ${failed.length ? `<h2>Failed</h2><div class="doctor-issues">${failedHtml}</div>` : ""}
       ${remainingHtml}
