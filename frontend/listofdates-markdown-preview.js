@@ -209,14 +209,33 @@ function splitSourceFragments(source = "") {
 }
 
 function lawyerFacingSourceFragment(fragment = "") {
-  const visible = String(fragment || "")
+  const raw = String(fragment || "");
+  const pageNumbers = uniqueValues(
+    Array.from(raw.matchAll(/\bFILE-\d{4}\s+p(\d+)(?:\.b\d+)?/gi))
+      .map((match) => match[1])
+      .filter(Boolean),
+  );
+  const pageLabel = formatPageLabel(pageNumbers);
+  const visible = raw
     .replace(/\s*\([^)]*\bFILE-\d{4}\b[^)]*\)/gi, "")
     .replace(/\bFILE-\d{4}(?:\s+p\d+(?:\.b\d+)?)?/gi, "")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;:])/g, "$1")
     .replace(/^[\s,.;:()/-]+|[\s,.;:()/-]+$/g, "")
     .trim();
-  return visible || "Source label unavailable";
+  const label = visible || "Source label unavailable";
+  return pageLabel ? `${label} (${pageLabel})` : label;
+}
+
+function uniqueValues(values = []) {
+  return [...new Set(values)];
+}
+
+function formatPageLabel(pages = []) {
+  if (!pages.length) return "";
+  if (pages.length === 1) return `page ${pages[0]}`;
+  if (pages.length === 2) return `pages ${pages[0]} and ${pages[1]}`;
+  return `pages ${pages.slice(0, -1).join(", ")}, and ${pages[pages.length - 1]}`;
 }
 
 function stripExtension(name = "") {
