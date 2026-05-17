@@ -75,6 +75,42 @@ Without re-uploading files or creating new intakes, the failed backend steps wer
 | Mehta vs Skyline | 10 sources, 2 batches | 26 entries | Model-copied identity mismatch fixed. |
 | Techbeliever Vs GST | 14 sources, 2 batches | 227 entries | Source Labels fixed; chronology is long-running but artifacts are produced. |
 
+## Final Clean Acceptance Run
+
+After the targeted recovery, a fresh Mode A reset was run again from source files and matter metadata.
+
+Final reset manifest:
+
+```text
+/Users/aksingh/matter-workbench-backups/v1-beta-mode-a-20260517T101038Z/reset-manifest.json
+```
+
+Final acceptance report:
+
+```text
+/Users/aksingh/matter-workbench-backups/v1-beta-mode-a-20260517T101038Z/acceptance-report-final.json
+```
+
+Final result:
+
+```text
+6/6 passed, 0 failed
+```
+
+| Matter | Result | Source Labels | List of Dates | Developer Attention |
+|---|---:|---:|---:|---:|
+| Atlas Constuction vs Diptishree | Passed | 9 sources | 52 entries | 1 item |
+| Ayesha Vs Japan Airlines | Passed | 18 sources | 49 entries | 5 items |
+| Bharat Nagpal Vs Gionee India | Passed | 14 sources | 87 entries | 3 items |
+| Kamran vs NCT | Passed | 8 sources | 10 entries | 4 items |
+| Mehta vs Skyline | Passed | 10 sources | 28 entries | 3 items |
+| Techbeliever Vs GST | Passed | 14 sources | 217 entries | 3 items |
+
+Additional hardening added before this final run:
+
+- Source Labels retries transient provider failures per batch before failing the whole matter.
+- OpenRouter Source Labels failures now preserve upstream/provider error detail instead of collapsing to a generic provider error.
+
 ## Current Matter Attention State
 
 All six real matters now have both:
@@ -93,6 +129,8 @@ Remaining attention items are warnings, not blockers:
 
 These are useful beta diagnostics. They do not mean the Mode A runtime path is broken.
 
+The only blocker in the full problem-only attention report is still an out-of-scope dummy matter, not one of the six real Mode A matters.
+
 ## Verification
 
 Targeted regression:
@@ -104,7 +142,7 @@ node --test test/source-descriptors-engine.test.mjs
 Result:
 
 ```text
-19/19 passed
+21/21 passed
 ```
 
 Full suite:
@@ -116,11 +154,11 @@ npm test --silent
 Result:
 
 ```text
-461/461 passed
+463/463 passed
 ```
 
 ## Residual App Risk
 
-The largest matter, Techbeliever, showed that List of Dates can run longer than the default Node fetch header timeout used by test scripts. The app produced the artifacts, but the harness originally reported `fetch failed`. The harness has been hardened, but a future fresh Mode A run should confirm the full clean run with the new JSON client.
+The largest matter, Techbeliever, showed that List of Dates can run longer than the default Node fetch header timeout used by test scripts. The harness has been hardened and the final clean Mode A run passed, but the product still needs clearer long-running progress semantics for very large native skills.
 
-The next technical focus should not be more UI. It should be reliability around long native-skill calls: progress reporting, long-call timeout policy, and whether very large chronology jobs should be split further or run as background jobs with receipts.
+The next technical focus should not be more broad UI. It should be reliability around long native-skill calls: progress reporting, long-call timeout policy, and whether very large chronology jobs should be split further or run as background jobs with receipts.

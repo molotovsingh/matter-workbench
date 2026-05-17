@@ -181,6 +181,30 @@ test("source descriptors can describe sources in bounded batches", async () => {
   assert.equal(result.aiRun.batches.length, 2);
 });
 
+test("source descriptors retry transient provider failures per batch", async () => {
+  const root = await makeMatterRoot();
+  const attemptsByBatch = new Map();
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    sourceBatchSize: 2,
+    provider: async ({ sources }) => {
+      const key = sources.map((source) => source.file_id).join(",");
+      attemptsByBatch.set(key, (attemptsByBatch.get(key) || 0) + 1);
+      if (key === "FILE-0001,FILE-0002" && attemptsByBatch.get(key) === 1) {
+        const error = new Error("temporary upstream failure");
+        error.statusCode = 503;
+        throw error;
+      }
+      return { sources: validDescriptors(sources) };
+    },
+  });
+
+  assert.equal(result.counts.descriptors, 3);
+  assert.equal(attemptsByBatch.get("FILE-0001,FILE-0002"), 2);
+  assert.equal(attemptsByBatch.get("FILE-0003"), 1);
+});
+
 test("source descriptors treat model-copied sha256 and source_path as server-owned", () => {
   const packets = buildSourcePackets(extractionRecords());
   const descriptors = validDescriptors(packets);
@@ -444,6 +468,42 @@ test("source descriptors default OpenRouter provider maps malformed JSON to prov
     (error) => {
       assert.equal(error.statusCode, 502);
       assert.match(error.message, /OpenRouter response did not include valid JSON message content/);
+      return true;
+    },
+  );
+});
+
+test("source descriptors default OpenRouter provider includes upstream error details", async () => {
+  const root = await makeMatterRoot();
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      },
+      fetchImpl: async () => ({
+        ok: false,
+        status: 503,
+        async json() {
+          return {
+            error: {
+              message: "Provider returned error",
+              metadata: {
+                provider_name: "test-provider",
+                raw: JSON.stringify({ error: { message: "upstream overloaded" } }),
+              },
+            },
+          };
+        },
+      }),
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.match(error.message, /Provider returned error/);
+      assert.match(error.message, /provider: test-provider/);
+      assert.match(error.message, /upstream: upstream overloaded/);
       return true;
     },
   );

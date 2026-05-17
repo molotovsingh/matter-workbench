@@ -16,12 +16,14 @@ import {
   SOURCE_INDEX_OUTPUT_SCHEMA,
   validateAndSortDescriptors,
 } from "./source-descriptors-validation.mjs";
-import { toPosix } from "./shared/safe-paths.mjs";
+import { makeHttpError, toPosix } from "./shared/safe-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
 const DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE = 8;
+const DEFAULT_SOURCE_DESCRIPTOR_MAX_ATTEMPTS = 2;
+const SOURCE_DESCRIPTOR_RETRY_STATUS_CODES = new Set([503, 504]);
 
 export { createOpenRouterSourceDescriptorProvider } from "./source-descriptors-provider.mjs";
 export { buildSourcePackets } from "./source-descriptors-packets.mjs";
@@ -49,13 +51,18 @@ export async function runSourceDescriptors(options = {}) {
 
   const matter = matterSummary(matterJson);
   const sourceBatches = chunk(sourcePackets, resolveSourceBatchSize(options));
+  const maxAttempts = resolveSourceMaxAttempts(options);
   const providerResponses = [];
   const descriptors = [];
-  for (const batch of sourceBatches) {
-    const providerResponse = await provider({
+  for (const [index, batch] of sourceBatches.entries()) {
+    const providerResponse = await describeSourceBatchWithRetry({
+      provider,
       matter,
-      sources: batch,
       schema: SOURCE_INDEX_OUTPUT_SCHEMA,
+      batch,
+      batchIndex: index + 1,
+      batchCount: sourceBatches.length,
+      maxAttempts,
     });
     providerResponses.push({
       source_count: batch.length,
@@ -116,6 +123,56 @@ function resolveSourceBatchSize(options = {}) {
   const raw = options.sourceBatchSize ?? options.batchSize ?? env.SOURCE_DESCRIPTOR_BATCH_SIZE;
   const value = Number(raw);
   return Number.isInteger(value) && value > 0 ? value : DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE;
+}
+
+function resolveSourceMaxAttempts(options = {}) {
+  const env = options.env || process.env;
+  const raw = options.sourceMaxAttempts ?? options.maxAttempts ?? env.SOURCE_DESCRIPTOR_MAX_ATTEMPTS;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_SOURCE_DESCRIPTOR_MAX_ATTEMPTS;
+}
+
+async function describeSourceBatchWithRetry({
+  provider,
+  matter,
+  schema,
+  batch,
+  batchIndex,
+  batchCount,
+  maxAttempts,
+}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await provider({
+        matter,
+        sources: batch,
+        schema,
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts || !isRetryableSourceDescriptorError(error)) {
+        throw sourceDescriptorBatchError({ error, batchIndex, batchCount, attempt, maxAttempts });
+      }
+    }
+  }
+  throw sourceDescriptorBatchError({ error: lastError, batchIndex, batchCount, attempt: maxAttempts, maxAttempts });
+}
+
+function isRetryableSourceDescriptorError(error) {
+  if (!error?.statusCode) return true;
+  return SOURCE_DESCRIPTOR_RETRY_STATUS_CODES.has(error.statusCode);
+}
+
+function sourceDescriptorBatchError({ error, batchIndex, batchCount, attempt, maxAttempts }) {
+  const message = [
+    `Source descriptor batch ${batchIndex}/${batchCount} failed`,
+    `after ${attempt}/${maxAttempts} attempt(s)`,
+    error?.message || String(error || "unknown error"),
+  ].join(": ");
+  const wrapped = makeHttpError(message, error?.statusCode || 502);
+  wrapped.cause = error;
+  return wrapped;
 }
 
 function chunk(items, size) {

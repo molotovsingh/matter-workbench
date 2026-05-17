@@ -142,7 +142,10 @@ matter path again as a beta user would. The detailed report is here:
 docs/v1-beta-mode-a-acceptance-2026-05-17.md
 ```
 
-That test found three useful engineering lessons.
+That test found four useful engineering lessons. After the first fixes, we ran a
+fresh clean Mode A pass again and all six real matters passed: `6/6 passed, 0
+failed`. That matters because we did not only repair the visible artifacts; we
+proved the beta-user path from source files and matter metadata.
 
 First, old artifacts can make the app look healthier than it is. A rerun over
 existing `10_Library` files is not the same as a first-run import. Clean-slate
@@ -159,6 +162,13 @@ large List of Dates, but the test harness hit Node fetch's default header
 timeout before the app responded. The artifact was present on disk; the harness
 was impatient. That is why long native-skill acceptance now uses an explicit
 `http.request` path instead of relying on default fetch behavior.
+
+Fourth, provider failures need two kinds of precision: retry only where it is
+safe, and preserve the real upstream error when it is not. Source Labels now
+retries transient per-batch failures, but it still fails closed instead of
+quietly pretending another model completed the work. When OpenRouter returns an
+upstream provider error, the app keeps enough detail for a developer to diagnose
+the real failure class.
 
 ## Important Local Config
 

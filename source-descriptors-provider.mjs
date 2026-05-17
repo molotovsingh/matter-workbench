@@ -5,7 +5,10 @@ import {
 } from "./shared/legal-workbench-policy-prompt.mjs";
 import { SOURCE_INDEX_RELATIVE } from "./shared/matter-artifacts.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
-import { parseOpenRouterJsonContent } from "./shared/openrouter-response.mjs";
+import {
+  createOpenRouterProviderError,
+  parseOpenRouterJsonContent,
+} from "./shared/openrouter-response.mjs";
 import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
 
 const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
@@ -78,6 +81,7 @@ export function createOpenRouterSourceDescriptorProvider({
       },
       timeoutMessage: `OpenRouter source description request timed out after ${timeoutMs}ms`,
       isErrorPayload: ({ response }) => !response.ok,
+      mapProviderError: createOpenRouterProviderError,
       body,
     });
 
