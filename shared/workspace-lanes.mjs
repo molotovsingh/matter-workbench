@@ -32,8 +32,8 @@ export const MATTER_WORKSPACE_GROUPS = [
   {
     id: "case_record",
     label: "Case Record",
-    purpose: "Original files and the app's indexed source record.",
-    lanes: ["00_Inbox", "10_Library"],
+    purpose: "Original client, court, and other-side material.",
+    lanes: ["00_Inbox"],
   },
 ];
 

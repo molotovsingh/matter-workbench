@@ -1130,13 +1130,14 @@ strong {
 }
 
 .tree-root ul {
-  margin-top: 3px;
-  padding-left: 16px;
+  border-left: 1px solid var(--border-subtle);
+  margin: 2px 0 2px 11px;
+  padding-left: 12px;
 }
 
 .tree-root li,
 .pipeline-list li {
-  margin: 4px 0;
+  margin: 1px 0;
   color: var(--muted-strong);
   list-style: none;
 }
@@ -1175,15 +1176,25 @@ strong {
 
 .tree-node {
   min-width: 0;
+  position: relative;
+}
+
+.tree-root ul > .tree-node::before {
+  border-top: 1px solid var(--border-subtle);
+  content: "";
+  left: -12px;
+  position: absolute;
+  top: 15px;
+  width: 9px;
 }
 
 .tree-root summary {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   border-radius: 4px;
-  padding: 4px 4px;
+  padding: 5px 6px;
 }
 
 .tree-root summary:hover {
@@ -1200,6 +1211,14 @@ strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tree-name-wrap {
+  align-items: baseline;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tree-canonical-name {
@@ -1223,14 +1242,11 @@ strong {
 }
 
 .tree-lane-group {
-  margin-top: 12px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border-subtle);
+  margin-top: 2px;
 }
 
 .tree-lane-group:first-child {
-  border-top: 0;
-  padding-top: 0;
+  margin-top: 0;
 }
 
 .tree-technical-group {
@@ -1251,6 +1267,115 @@ strong {
   white-space: nowrap;
 }
 
+.tree-lane-pill {
+  background: var(--chip-bg);
+  border-radius: 3px;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  margin-left: 6px;
+  padding: 1px 6px;
+}
+
+.tree-icon {
+  flex: 0 0 16px;
+  height: 16px;
+  position: relative;
+  width: 16px;
+}
+
+.tree-icon-folder::before {
+  background: #c4a96a;
+  border-radius: 2px;
+  content: "";
+  height: 10px;
+  left: 1px;
+  opacity: 0.82;
+  position: absolute;
+  top: 4px;
+  width: 14px;
+}
+
+.tree-icon-folder::after {
+  background: #c4a96a;
+  border-radius: 2px 2px 0 0;
+  content: "";
+  height: 4px;
+  left: 2px;
+  opacity: 0.82;
+  position: absolute;
+  top: 2px;
+  width: 7px;
+}
+
+.tree-icon-root::before {
+  border: 1px solid #c4a96a;
+  border-radius: 2px;
+  content: "";
+  height: 9px;
+  left: 2px;
+  position: absolute;
+  top: 5px;
+  width: 12px;
+}
+
+.tree-icon-root::after {
+  border: 1px solid #c4a96a;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  content: "";
+  height: 4px;
+  left: 5px;
+  position: absolute;
+  top: 2px;
+  width: 6px;
+}
+
+.tree-icon-file {
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  opacity: 0.78;
+}
+
+.tree-icon-file::before {
+  border-bottom: 1px solid var(--muted);
+  border-left: 1px solid var(--muted);
+  content: "";
+  height: 4px;
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 4px;
+}
+
+.tree-icon-file-md::after,
+.tree-icon-file-txt::after,
+.tree-icon-file-csv::after {
+  background: var(--muted);
+  box-shadow: 0 3px 0 var(--muted), 0 6px 0 var(--muted);
+  content: "";
+  height: 1px;
+  left: 4px;
+  opacity: 0.8;
+  position: absolute;
+  top: 7px;
+  width: 7px;
+}
+
+.tree-icon-file-json::after {
+  color: var(--muted);
+  content: "{}";
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 6px;
+  font-weight: 700;
+  left: 3px;
+  position: absolute;
+  top: 5px;
+}
+
 .tree-file-button {
   width: 100%;
   border: 0;
@@ -1262,7 +1387,7 @@ strong {
   gap: 8px;
   min-width: 0;
   border-radius: 4px;
-  padding: 4px 4px 4px 18px;
+  padding: 5px 6px;
   text-align: left;
 }
 

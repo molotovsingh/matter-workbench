@@ -16,7 +16,9 @@ export function renderTreeNode(node, depth = 0, options = {}) {
     const previewable = node.previewable ? "true" : "false";
     const previewKind = node.previewKind || "";
     const displayName = displayFileName(node);
-    const canonicalName = displayName !== node.name ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
+    const canonicalName = options.showTechnical && displayName !== node.name
+      ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>`
+      : "";
     const meta = shouldShowFileSize(node) ? `<span class="tree-meta">${formatBytes(node.size)}</span>` : "";
     const activeClass = normalizedPath(node.path) === normalizedPath(options.activeFilePath) ? " active" : "";
     const activeAria = activeClass ? ' aria-current="true"' : "";
@@ -30,7 +32,10 @@ export function renderTreeNode(node, depth = 0, options = {}) {
           data-preview-kind="${escapeHtml(previewKind)}"
           ${activeAria}
         >
-          <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
+          ${renderTreeIcon(node)}
+          <span class="tree-name-wrap">
+            <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
+          </span>
           ${meta}
         </button>
       </li>
@@ -46,16 +51,23 @@ export function renderTreeNode(node, depth = 0, options = {}) {
   const truncated = node.truncated ? `<li class="tree-truncated">Directory output truncated</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
   const displayName = workspaceLaneLabel(node.path, node.name);
-  const canonicalName = displayName !== node.name ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>` : "";
-  const folderSuffix = depth === 0 || canonicalName ? "" : "/";
+  const canonicalName = options.showTechnical && displayName !== node.name
+    ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>`
+    : "";
   const lane = MATTER_WORKSPACE_LANES.find((candidate) => candidate.path === node.path);
-  const purpose = lane?.purpose ? `<span class="tree-purpose">${escapeHtml(lane.purpose)}</span>` : "";
+  const purpose = lane?.purpose ? ` title="${escapeHtml(lane.purpose)}"` : "";
+  const laneBadge = renderLaneBadgeForPath(node.path);
+  const rootClass = depth === 0 && !node.path ? " tree-root-matter" : "";
 
   return `
-    <li class="tree-node tree-directory">
+    <li class="tree-node tree-directory${rootClass}">
       <details${open} data-directory-path="${escapeHtml(node.path || "")}">
-        <summary>
-          <span class="tree-name">${escapeHtml(displayName)}${folderSuffix}${canonicalName}${purpose}</span>
+        <summary${purpose}>
+          ${renderTreeIcon(node, { root: depth === 0 && !node.path })}
+          <span class="tree-name-wrap">
+            <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
+          </span>
+          ${laneBadge}
           ${childCount}
         </summary>
         <ul>${childItems}${truncated}</ul>
@@ -90,8 +102,12 @@ function renderWorkspaceGroup(group, byPath, options = {}) {
   return `
     <li class="tree-node tree-directory tree-lane-group">
       <details open data-workspace-group="${escapeHtml(group.id || "")}">
-        <summary>
-          <span class="tree-name">${escapeHtml(group.label || "Workspace Group")}<span class="tree-purpose">${escapeHtml(group.purpose || "")}</span></span>
+        <summary title="${escapeHtml(group.purpose || "")}">
+          ${renderTreeIcon({ kind: "directory" })}
+          <span class="tree-name-wrap">
+            <span class="tree-name">${escapeHtml(group.label || "Workspace Group")}</span>
+          </span>
+          ${group.lanes?.length === 1 ? renderLaneBadgeForPath(group.lanes[0]) : ""}
           ${childCount ? `<span class="tree-meta">${childCount}</span>` : ""}
         </summary>
         <ul>${lanes.map((lane) => renderTreeNode(lane, 1, options)).join("")}</ul>
@@ -117,7 +133,11 @@ function renderTechnicalGroup(children = [], depth = 0, options = {}) {
     <li class="tree-node tree-directory tree-technical-group">
       <details open>
         <summary>
-          <span class="tree-name">Technical files<span class="tree-purpose">Logs, registers, extraction records, and machine-readable sidecars.</span></span>
+          ${renderTreeIcon({ kind: "directory" })}
+          <span class="tree-name-wrap">
+            <span class="tree-name">Technical files</span>
+          </span>
+          <span class="tree-lane-pill">Audit</span>
           <span class="tree-meta">${children.length}</span>
         </summary>
         <p class="tree-technical-warning">Technical files are used by the app. Do not edit them unless you know what you are doing.</p>
@@ -167,6 +187,25 @@ function displayFileName(node = {}) {
   const ext = extensionOf(name);
   if ([".md", ".json", ".csv"].includes(ext)) return baseNameWithoutExtension(name);
   return name;
+}
+
+function renderTreeIcon(node = {}, { root = false } = {}) {
+  if (root) return '<span class="tree-icon tree-icon-root" aria-hidden="true"></span>';
+  if (node.kind !== "file") return '<span class="tree-icon tree-icon-folder" aria-hidden="true"></span>';
+  const ext = extensionOf(node.name).replace(".", "") || "file";
+  const safeExt = /^[a-z0-9]+$/i.test(ext) ? ext.toLowerCase() : "file";
+  return `<span class="tree-icon tree-icon-file tree-icon-file-${safeExt}" aria-hidden="true"></span>`;
+}
+
+function renderLaneBadgeForPath(pathValue = "") {
+  const label = ({
+    "00_Inbox": "Inbox",
+    "10_Library": "Library",
+    "20_Workshop": "Workshop",
+    "30_Drafts": "Drafts",
+    "40_Dispatch": "Dispatch",
+  })[String(pathValue || "").replace(/\\/g, "/")];
+  return label ? `<span class="tree-lane-pill">${escapeHtml(label)}</span>` : "";
 }
 
 function shouldShowFileSize(node = {}) {
