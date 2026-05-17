@@ -18,6 +18,7 @@ test("matter status derives pipeline state from existing artifacts", async () =>
       provider: "openrouter",
       model: "meta-llama/llama-3.3-70b-instruct",
       returnedProvider: "akashml/fp8",
+      policyPromptVersion: "legal-workbench-policy/v1",
     },
   })}\n`);
   await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
@@ -29,6 +30,7 @@ test("matter status derives pipeline state from existing artifacts", async () =>
       provider: "openrouter",
       model: "openai/gpt-4.1",
       returnedProvider: "Friendli",
+      policyPromptVersion: "legal-workbench-policy/v1",
     },
   })}\n`);
 
@@ -51,12 +53,16 @@ test("matter status derives pipeline state from existing artifacts", async () =>
   const sourceStage = status.stages.find((stage) => stage.slash === "/describe_sources");
   const listStage = status.stages.find((stage) => stage.slash === "/create_listofdates");
   assert.equal(sourceStage.aiRun.returnedProvider, "akashml/fp8");
+  assert.equal(sourceStage.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(sourceStage.rerunAdvice.state, "current");
   assert.equal(sourceStage.rerunAdvice.shouldConfirm, true);
+  assert.equal(sourceStage.rerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(listStage.aiRun.model, "openai/gpt-4.1");
+  assert.equal(listStage.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(listStage.metrics.rows, 36);
   assert.equal(listStage.rerunAdvice.state, "current");
   assert.equal(listStage.rerunAdvice.shouldConfirm, true);
+  assert.equal(listStage.rerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
 });
 
 test("matter status treats missing artifacts as not run", async () => {

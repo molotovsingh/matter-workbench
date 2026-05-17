@@ -99,6 +99,7 @@ function sanitizeAiRun(aiRun = {}) {
   const sanitized = {};
   for (const key of [
     "policyVersion",
+    "policyPromptVersion",
     "task",
     "tier",
     "provider",

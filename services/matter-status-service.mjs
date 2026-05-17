@@ -164,7 +164,7 @@ async function readJsonIfPossible(filePath) {
 function normalizeAiRun(aiRun) {
   if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) return null;
   const normalized = {};
-  for (const key of ["provider", "model", "returnedModel", "returnedProvider"]) {
+  for (const key of ["provider", "model", "returnedModel", "returnedProvider", "policyPromptVersion"]) {
     const value = normalizeText(aiRun[key]);
     if (value) normalized[key] = value;
   }

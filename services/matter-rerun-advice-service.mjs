@@ -182,6 +182,7 @@ function baseRerunAdvice({
     lastRunAt,
     provider: aiRun?.returnedProvider || aiRun?.provider || "",
     model: aiRun?.returnedModel || aiRun?.model || "",
+    policyPromptVersion: aiRun?.policyPromptVersion || "",
     reason,
     dependencyState,
     newestInputPath,
@@ -313,7 +314,7 @@ function normalizeSkillName(skill) {
 function normalizeAiRun(aiRun) {
   if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) return null;
   const normalized = {};
-  for (const key of ["provider", "model", "returnedModel", "returnedProvider"]) {
+  for (const key of ["provider", "model", "returnedModel", "returnedProvider", "policyPromptVersion"]) {
     const value = normalizeText(aiRun[key]);
     if (value) normalized[key] = value;
   }

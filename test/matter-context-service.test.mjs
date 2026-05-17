@@ -109,6 +109,7 @@ async function writeSourceIndex(root, sources) {
         provider: "openrouter",
         model: "meta-llama/llama-3.3-70b-instruct",
         returnedProvider: "akashml/fp8",
+        policyPromptVersion: "legal-workbench-policy/v1",
       },
     }, null, 2)}\n`,
   );
@@ -131,6 +132,7 @@ async function writeListOfDates(root) {
         provider: "openrouter",
         model: "openai/gpt-4.1",
         returnedProvider: "Friendli",
+        policyPromptVersion: "legal-workbench-policy/v1",
         usage: {
           totalTokens: 1200,
           cost: 0.012,
@@ -203,7 +205,9 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(packet.evidence_blocks[0].source_label, "Confirmed Legal Notice dated 20 April 2026");
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.json"));
   assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.md"));
+  assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "source_index").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
+  assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
 
   const summary = summarizeMatterContextPacket(packet);
   assert.equal(summary.schema_version, "matter-context-preview/v1");
