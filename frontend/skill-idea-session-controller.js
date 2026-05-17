@@ -6,6 +6,11 @@ import {
 } from "./skill-idea-interview.js";
 import { classifySkillIdeaSessionInput } from "./skill-idea-session-commands.js";
 import {
+  answerCurrentSkillIdeaQuestion,
+  buildSkillIdeaPlannerTerminal,
+  createInitialSkillIdeaSession,
+} from "./skill-idea-session-state.js";
+import {
   describeInterviewPlanner,
   renderActiveSkillIdeaQuestionHtml,
   renderReadySkillIdeaSessionHtml,
@@ -117,12 +122,7 @@ export function createSkillIdeaSessionController({
       plannerFallbackMessage = error.message || "planner unavailable";
       interview = buildSkillIdeaInterview(skillIdea, userRequest);
     }
-    currentSkillIdeaInterview = {
-      interview,
-      answers: {},
-      questionIndex: 0,
-      ready: !Array.isArray(interview?.questions) || interview.questions.length === 0,
-    };
+    currentSkillIdeaInterview = createInitialSkillIdeaSession(interview);
     const plannerInfo = describeInterviewPlanner(interview);
     startReport({
       typedInput: userRequest,
@@ -145,14 +145,11 @@ export function createSkillIdeaSessionController({
       ? "Generate sample, Edit answers, or Cancel"
       : "Answer the current question";
     aiCommandSubmit.textContent = currentSkillIdeaInterview.ready ? "→" : "Answer";
-    const plannerTerminal = plannerInfo.source === "model"
-      ? `[skill-ideas] model-planned interview opened: ${userRequest}`
-      : plannerInfo.source === "deterministic fallback"
-        ? [
-          `[skill-ideas] planner fallback: ${plannerInfo.fallbackReason || plannerFallbackMessage || "deterministic fallback"}`,
-          `[skill-ideas] interview opened: ${userRequest}`,
-        ]
-        : `[skill-ideas] interview opened: ${userRequest}`;
+    const plannerTerminal = buildSkillIdeaPlannerTerminal({
+      plannerInfo,
+      plannerFallbackMessage,
+      userRequest,
+    });
     ctx.setStatus(currentSkillIdeaInterview.ready
       ? {
           mood: "idle",
@@ -279,14 +276,11 @@ export function createSkillIdeaSessionController({
       return;
     }
 
-    const question = session.interview.questions[session.questionIndex];
-    if (!question) {
-      session.ready = true;
+    const answerResult = answerCurrentSkillIdeaQuestion(session, userRequest);
+    if (!answerResult.question) {
       renderSkillIdeaSession();
       return;
     }
-    session.answers[question.id] = userRequest.trim();
-    session.questionIndex += 1;
     recordCommandInteraction({
       typedInput: userRequest.trim(),
       renderedState: "skill_idea/question",
@@ -294,8 +288,7 @@ export function createSkillIdeaSessionController({
       providerRunInvoked: false,
     });
     clearCommandInput();
-    if (session.questionIndex >= session.interview.questions.length) {
-      session.ready = true;
+    if (answerResult.ready) {
       aiCommandInput.placeholder = "Generate sample, Edit answers, or Cancel";
       aiCommandSubmit.textContent = "→";
       ctx.setStatus({
@@ -307,12 +300,11 @@ export function createSkillIdeaSessionController({
     } else {
       aiCommandInput.placeholder = "Answer the current question";
       aiCommandSubmit.textContent = "Answer";
-      const nextIndex = session.questionIndex + 1;
       ctx.setStatus({
         mood: "idle",
-        card: `<strong>Skill idea interview</strong><br />Question ${nextIndex}.`,
-        bar: `Question ${nextIndex}`,
-        terminal: `[skill-ideas] question ${nextIndex}`,
+        card: `<strong>Skill idea interview</strong><br />Question ${answerResult.nextQuestionNumber}.`,
+        bar: `Question ${answerResult.nextQuestionNumber}`,
+        terminal: `[skill-ideas] question ${answerResult.nextQuestionNumber}`,
       });
     }
     renderSkillIdeaSession();
