@@ -189,6 +189,16 @@ prompt version in their model/run metadata. A custom skill can change the task
 instructions, but it should not erase which app-level legal policy governed the
 provider request.
 
+AI-run metadata should be normalized through:
+
+```text
+shared/ai-run-metadata.mjs
+```
+
+That keeps matter status, rerun advice, context packets, generated sample
+ledgers, and configurable-skill run receipts from drifting into separate
+field whitelists.
+
 ## First Consumers
 
 The first implementation covers the surfaces already producing lawyer-visible
