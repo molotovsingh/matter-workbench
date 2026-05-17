@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, open } from "node:fs/promises";
 import path from "node:path";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
@@ -7,11 +7,13 @@ export const COMMAND_INTERACTION_LOG_SCHEMA_VERSION = "command-interaction-log/v
 const MAX_TEXT_LENGTH = 1200;
 const MAX_TERMINAL_LINES = 8;
 const DEFAULT_RECENT_INTERACTION_LIMIT = 200;
+const DEFAULT_RECENT_READ_MAX_BYTES = 256 * 1024;
 
 export function createCommandInteractionLogService({
   appDir,
   logPath,
   now = () => new Date(),
+  recentReadMaxBytes = DEFAULT_RECENT_READ_MAX_BYTES,
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = logPath || path.join(root, ".local", "command-interactions.jsonl");
@@ -37,7 +39,7 @@ export function createCommandInteractionLogService({
   async function readRecentInteractions({ limit = DEFAULT_RECENT_INTERACTION_LIMIT } = {}) {
     let text = "";
     try {
-      text = await readFile(storePath, "utf8");
+      text = await readTextTail(storePath, recentReadMaxBytes);
     } catch {
       return [];
     }
@@ -145,6 +147,24 @@ function parseInteractionLine(line) {
     return [JSON.parse(line)];
   } catch {
     return [];
+  }
+}
+
+async function readTextTail(filePath, maxBytes) {
+  const file = await open(filePath, "r");
+  try {
+    const info = await file.stat();
+    if (!info.size) return "";
+    const readSize = Math.min(info.size, normalizeLimit(maxBytes, DEFAULT_RECENT_READ_MAX_BYTES));
+    const start = info.size - readSize;
+    const buffer = Buffer.alloc(readSize);
+    await file.read(buffer, 0, readSize, start);
+    const text = buffer.toString("utf8");
+    if (start === 0) return text;
+    const firstNewline = text.indexOf("\n");
+    return firstNewline === -1 ? "" : text.slice(firstNewline + 1);
+  } finally {
+    await file.close();
   }
 }
 

@@ -127,6 +127,25 @@ test("command interaction log reads recent valid entries and skips corrupt lines
   assert.deepEqual(recent.map((record) => record.typed_input), ["second", "third"]);
 });
 
+test("command interaction log reads from a bounded tail of large logs", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "command-log-service-tail-"));
+  const logPath = path.join(appDir, ".local", "command-interactions.jsonl");
+  const service = createCommandInteractionLogService({
+    appDir,
+    logPath,
+    now: () => new Date("2026-05-12T10:00:00.000Z"),
+    recentReadMaxBytes: 2400,
+  });
+
+  await Promise.all(Array.from({ length: 50 }, (_, index) => service.appendInteraction({
+    typed_input: `command ${index}`,
+    status: "ran",
+  })));
+
+  const recent = await service.readRecentInteractions({ limit: 3 });
+  assert.deepEqual(recent.map((record) => record.typed_input), ["command 47", "command 48", "command 49"]);
+});
+
 test("command interaction normalization redacts secrets inside retained fields", () => {
   const record = normalizeInteraction({
     typed_input: "set OPENAI_API_KEY=sk-typed-secret",
