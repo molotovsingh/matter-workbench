@@ -28,6 +28,14 @@ type Action =
   | { type: 'SET_COMMAND_COPY'; payload: string }
   | { type: 'SET_COMMAND_RUNNING'; payload: boolean };
 
+function readStoredTheme(): 'light' | 'dark' {
+  try {
+    return localStorage.getItem('matter-workbench-theme') === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 const initialState: AppState = {
   config: null,
   activeMatter: null,
@@ -36,7 +44,7 @@ const initialState: AppState = {
   activeTab: 'home',
   activeView: 'home',
   filePreview: null,
-  theme: (localStorage.getItem('matter-workbench-theme') as 'light' | 'dark') || 'light',
+  theme: readStoredTheme(),
   matterSearchQuery: '',
   showTechnicalFiles: false,
   activeFilePath: null,
@@ -111,7 +119,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((theme: 'light' | 'dark') => {
     document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
-    localStorage.setItem('matter-workbench-theme', theme);
+    try {
+      localStorage.setItem('matter-workbench-theme', theme);
+    } catch {
+      // Browser storage can be unavailable in restricted contexts; theme still applies in-memory.
+    }
     dispatch({ type: 'SET_THEME', payload: theme });
   }, []);
 
