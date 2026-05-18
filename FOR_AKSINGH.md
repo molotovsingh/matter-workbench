@@ -1238,6 +1238,8 @@ The supporting helpers moved into `react-ui/src/lib/skillIdeaSession.ts`. That i
 
 The same helper now owns React-side review packet and sample-copy formatting for the command-session flow. This closes a small "I typed the supported command but got redirected elsewhere" problem: `copy review packet` and `copy sample v2` are real local copy actions in React, not vague instructions to leave the conversation and open another screen. That matters because the skill factory is already a delicate workflow. A user should not have to remember which surface owns a saved idea while they are reviewing whether the sample is good enough.
 
+React now also has its own small `secretRedaction` helper, tested against the shared backend redaction policy. That may sound like plumbing, but it is the kind of boring guardrail that matters in a legal AI product: copied review packets, sample packets, and future diagnostics should be useful to a developer without accidentally carrying `OPENAI_API_KEY`, bearer tokens, or provider-style `sk-...` keys into chat, email, or screenshots.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

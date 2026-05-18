@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { SKILL_IDEA_STATUS } from './skillIdeaStatuses';
 import { normalizeSkillSampleState, SKILL_SAMPLE_STATE, type SkillSampleState } from './skillSampleStates';
+import { redactSensitiveText } from './secretRedaction';
 
 export interface InterviewQuestion {
   id: string;
@@ -291,11 +292,4 @@ function packetValue(value: unknown): string {
 function packetBlock(value: unknown): string {
   const text = redactSensitiveText(String(value || '').trim());
   return text || '_Not specified_';
-}
-
-function redactSensitiveText(value: string): string {
-  return String(value || '')
-    .replace(/\bOPENAI_API_KEY\s*=\s*[^\s`'"]+/gi, 'OPENAI_API_KEY=[redacted-secret]')
-    .replace(/\bBearer\s+[A-Za-z0-9._-]+/g, 'Bearer [redacted-secret]')
-    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, '[redacted-secret]');
 }
