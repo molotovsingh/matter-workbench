@@ -28,6 +28,7 @@ test("React skill idea session keeps samples tied to the saved design brief and 
   assert.match(source, /ignored sample result after matter changed/);
   assert.match(source, /planSkillIdeaInterview\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
   assert.match(source, /createSkillIdea\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
+  assert.match(source, /api\.checkIntent\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
 });
 
 test("React API client types skill idea status updates as idea responses", async () => {

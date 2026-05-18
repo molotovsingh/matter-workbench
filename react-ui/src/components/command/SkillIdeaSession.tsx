@@ -312,7 +312,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     if (!session.savedIdea) return true;
     const userRequest = buildSkillCreationOverlapRequest(session.savedIdea, session.designBrief || session.savedIdea.designBrief);
     if (!userRequest.trim()) return true;
-    const decision = await api.checkIntent({ userRequest, overrideJustification: overlapOverrideJustification });
+    const decision = await api.checkIntent({
+      userRequest,
+      matterName: state.activeMatter?.name,
+      overrideJustification: overlapOverrideJustification,
+    });
     if (!isBlockingSkillOverlapDecision(decision, overlapOverrideJustification)) return true;
     safeSetSession((s) => ({
       ...s,
