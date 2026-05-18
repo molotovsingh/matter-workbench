@@ -1248,6 +1248,8 @@ The next React parity bug was even more concrete: the Activity page could naviga
 
 React matter switching now also clears matter-scoped preview state. Before this, the shell could keep `activeView: file-preview` and a stale `filePreview` payload while the active matter changed. That is the kind of migration bug that looks small in code but feels serious in a legal workspace: a lawyer could believe they are looking inside one matter while the preview is still from another. The fix is not a feature; it is state ownership discipline.
 
+The Prepare Matter React view also stopped using the rerun guard as a generic paid-action confirmation. That mattered because the rerun guard is allowed to auto-run when no previous artifact exists; that is correct for rerun safety, but wrong for a stage whose backend action says `confirm_paid_run`. Paid-provider confirmation is now a plain explicit confirmation card in the Prepare Matter view. The lesson is that similar-looking dialogs can have different contracts: "is it safe to replace an existing artifact?" is not the same question as "may I start a paid AI call?"
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

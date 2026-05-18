@@ -4,7 +4,6 @@ import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lookupString } from '../../lib/lookup';
 import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
-import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { PreparationPlan, PreparationStage } from '../../types';
 
 const STAGE_STATE_CLASSES = {
@@ -175,14 +174,23 @@ export default function PrepareMatterResult() {
 
       {confirmingPaid && plan?.nextStep?.slash && (
         <div style={{ marginTop: 20 }}>
-          <RerunConfirmDialog
-            skill={plan.nextStep.slash}
-            title={`Confirm paid AI action — ${plan.nextStep.label}`}
-            confirmLabel={`Run ${plan.nextStep.label}`}
-            cancelLabel="Skip this step"
-            onConfirm={executeRunNext}
-            onCancel={() => setConfirmingPaid(false)}
-          />
+          <div className="form-warning" role="alertdialog">
+            <h2>Confirm paid step: {plan.nextStep.label}</h2>
+            <p>
+              This step uses a paid AI provider. Running it may incur costs.
+            </p>
+            <ul className="overlap-list">
+              <li><strong>Skill:</strong> <code>{plan.nextStep.slash}</code></li>
+            </ul>
+            <div className="warning-actions">
+              <button type="button" onClick={() => setConfirmingPaid(false)}>
+                Skip this step
+              </button>
+              <button type="button" className="secondary" onClick={executeRunNext}>
+                Run {plan.nextStep.label}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
