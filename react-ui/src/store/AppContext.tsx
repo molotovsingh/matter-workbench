@@ -261,7 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!state.activeMatter) return null;
     if (reason) appendTerminal([reason]);
     try {
-      const workspace = await api.getWorkspace();
+      const workspace = await api.getWorkspace(expectedMatterName);
       if (!workspaceMatchesMatter(workspace, expectedMatterName)) {
         appendTerminal(['[workspace] refresh skipped - active matter changed']);
         return null;

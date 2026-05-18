@@ -75,7 +75,7 @@ export default function ActivityPage() {
     const outputPath = run.outputPaths?.markdown;
     if (!outputPath) return;
     try {
-      const preview = await loadTextFilePreview(outputPath, api.getFile);
+      const preview = await loadTextFilePreview(outputPath, (path) => api.getFile(path, matterName));
       if (activeMatterNameRef.current !== matterName) return;
       dispatch({ type: 'SET_ACTIVE_FILE', payload: outputPath });
       dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(outputPath) });

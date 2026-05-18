@@ -33,7 +33,7 @@ test("React file preview helper loads text content before rendering preview", as
 
 test("React Activity output action fetches preview content before opening file view", async () => {
   const source = await readFile(reactActivityPagePath, "utf8");
-  assert.match(source, /const preview = await loadTextFilePreview\(outputPath,\s*api\.getFile\)/);
+  assert.match(source, /const preview = await loadTextFilePreview\(outputPath,\s*\(path\) => api\.getFile\(path, matterName\)\)/);
   assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*dispatch\(\{ type: 'SET_ACTIVE_FILE'/);
   assert.match(source, /payload: preview/);
   assert.doesNotMatch(source, /SET_FILE_PREVIEW', payload: \{ path: outputPath, type: 'text' \}/);
@@ -44,7 +44,8 @@ test("React Workspace tree ignores late text previews after matter changes", asy
 
   assert.match(source, /const activeMatterNameRef = useLatestValue\(state\.activeMatter\?\.name \?\? null\)/);
   assert.match(source, /const matterName = state\.activeMatter\?\.name \?\? null/);
-  assert.match(source, /const preview = await loadTextFilePreview\(path,\s*api\.getFile\)/);
+  assert.match(source, /api\.getFileRawUrl\(path, matterName \?\? undefined\)/);
+  assert.match(source, /const preview = await loadTextFilePreview\(path,\s*\(filePath\) => api\.getFile\(filePath, matterName \?\? undefined\)\)/);
   assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*dispatch\(\{ type: 'SET_FILE_PREVIEW', payload: preview \}\)/);
   assert.match(source, /catch \(e\) \{\s*if \(activeMatterNameRef\.current !== matterName\) return;/);
 });

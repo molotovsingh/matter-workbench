@@ -187,9 +187,9 @@ export const api = {
   clearActiveMatter: () => postJson('/api/active-matter/clear'),
 
   // ─── Workspace ───────────────────────────
-  getWorkspace: () => getJson<WorkspaceApiResponse>('/api/workspace'),
-  getFile: (path: string) => getJson<{ content: string; ext: string }>(`/api/file?path=${encodeURIComponent(path)}`),
-  getFileRawUrl: (path: string) => `/api/file-raw?path=${encodeURIComponent(path)}`,
+  getWorkspace: (matterName?: string) => getJson<WorkspaceApiResponse>(withQuery('/api/workspace', { matter: matterName })),
+  getFile: (path: string, matterName?: string) => getJson<{ content: string; ext: string }>(withQuery('/api/file', { path, matter: matterName })),
+  getFileRawUrl: (path: string, matterName?: string) => withQuery('/api/file-raw', { path, matter: matterName }),
 
   // ─── AI Settings ─────────────────────────
   getAiSettings: () => getJson<AiSettings>('/api/ai-settings'),

@@ -240,6 +240,8 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(inactiveDoctorScan.issues[0].id, "legacy-layout");
     const inactiveMatterStatus = await getJson(baseUrl, `/api/matter-status?matter=${encodeURIComponent("Inactive Legacy Matter")}`);
     assert.equal(inactiveMatterStatus.matterName, "Inactive Legacy Matter");
+    const inactiveWorkspace = await getJson(baseUrl, `/api/workspace?matter=${encodeURIComponent("Inactive Legacy Matter")}`);
+    assert.equal(inactiveWorkspace.metadata.matterName, "Inactive Legacy Matter");
     const activeAfterInactiveScan = await getJson(baseUrl, "/api/workspace");
     assert.equal(activeAfterInactiveScan.metadata.matterName, "Smoke Matter");
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });

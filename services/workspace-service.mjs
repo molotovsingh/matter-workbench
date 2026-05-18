@@ -54,8 +54,7 @@ const rawContentTypes = new Map([
 export function createWorkspaceService({ matterStore } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
-  function resolveMatterPath(relativePath = "") {
-    const root = matterStore.ensureMatterRoot();
+  function resolveMatterPath(relativePath = "", root = matterStore.ensureMatterRoot()) {
     const resolved = path.resolve(root, relativePath || ".");
     const safePath = assertInsideRoot(root, resolved, "Requested path is outside the matter root");
     const matterRelative = toPosix(path.relative(root, safePath));
@@ -65,8 +64,8 @@ export function createWorkspaceService({ matterStore } = {}) {
     return safePath;
   }
 
-  function toMatterRelative(filePath) {
-    return toPosix(path.relative(matterStore.ensureMatterRoot(), filePath));
+  function toMatterRelative(filePath, root = matterStore.ensureMatterRoot()) {
+    return toPosix(path.relative(root, filePath));
   }
 
   function isVisibleMatterEntry(entry, depth, scanContext = {}) {
@@ -104,8 +103,9 @@ export function createWorkspaceService({ matterStore } = {}) {
     return names;
   }
 
-  async function scanMatterTree(root, depth = 0, scanContext = {}) {
-    const directoryEntries = await readdir(root, { withFileTypes: true });
+  async function scanMatterTree(directoryPath, depth = 0, scanContext = {}) {
+    const matterRoot = scanContext.matterRoot || directoryPath;
+    const directoryEntries = await readdir(directoryPath, { withFileTypes: true });
     const visibleEntries = directoryEntries
       .filter((entry) => isVisibleMatterEntry(entry, depth, scanContext))
       .sort((a, b) => {
@@ -118,8 +118,8 @@ export function createWorkspaceService({ matterStore } = {}) {
     let directoryCount = 0;
 
     for (const entry of visibleEntries.slice(0, maxChildrenPerDirectory)) {
-      const absolutePath = path.join(root, entry.name);
-      const relativePath = toMatterRelative(absolutePath);
+      const absolutePath = path.join(directoryPath, entry.name);
+      const relativePath = toMatterRelative(absolutePath, matterRoot);
 
       if (entry.isDirectory()) {
         directoryCount += 1;
@@ -165,12 +165,12 @@ export function createWorkspaceService({ matterStore } = {}) {
     };
   }
 
-  async function readWorkspace() {
-    const root = matterStore.ensureMatterRoot();
+  async function readWorkspace(root = matterStore.ensureMatterRoot()) {
     const metadata = await matterStore.readMatterMetadata(root);
     const intake = await matterStore.readPrimaryIntake(root);
     const stagedSourceFileNames = intake ? await readStagedSourceFileNames(root, intake) : new Set();
     const treeScan = await scanMatterTree(root, 0, {
+      matterRoot: root,
       hideStagedRootSourceFiles: Boolean(intake),
       stagedSourceFileNames,
     });
@@ -191,8 +191,8 @@ export function createWorkspaceService({ matterStore } = {}) {
     };
   }
 
-  async function readFilePreview(relativePath) {
-    const filePath = resolveMatterPath(relativePath);
+  async function readFilePreview(relativePath, root = matterStore.ensureMatterRoot()) {
+    const filePath = resolveMatterPath(relativePath, root);
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
 
@@ -201,14 +201,14 @@ export function createWorkspaceService({ matterStore } = {}) {
     if (fileStat.size > maxPreviewBytes) throw makeHttpError("File is too large to preview", 413);
 
     return {
-      path: toMatterRelative(filePath),
+      path: toMatterRelative(filePath, root),
       name: path.basename(filePath),
       content: await readFile(filePath, "utf8"),
     };
   }
 
-  async function getRawFile(relativePath) {
-    const filePath = resolveMatterPath(relativePath);
+  async function getRawFile(relativePath, root = matterStore.ensureMatterRoot()) {
+    const filePath = resolveMatterPath(relativePath, root);
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
     if (fileStat.size > maxRawBytes) throw makeHttpError("File is too large to display inline", 413);

@@ -33,13 +33,13 @@ function TreeNode({ file }: TreeNodeProps) {
     const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext?.toLowerCase() ?? '');
 
     if (isPdf || isImage) {
-      const rawUrl = api.getFileRawUrl(path);
+      const rawUrl = api.getFileRawUrl(path, matterName ?? undefined);
       dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(path)}` });
       dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: isPdf ? 'pdf' : 'image', url: rawUrl } });
       dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
     } else {
       try {
-        const preview = await loadTextFilePreview(path, api.getFile);
+        const preview = await loadTextFilePreview(path, (filePath) => api.getFile(filePath, matterName ?? undefined));
         if (activeMatterNameRef.current !== matterName) return;
         dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
         dispatch({ type: 'SET_VIEW', payload: 'file-preview' });

@@ -104,13 +104,16 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, { warnings });
       }),
       exactRoute("GET", "/api/workspace", async () => {
-        sendJson(response, 200, await workspaceService.readWorkspace());
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await workspaceService.readWorkspace(root));
       }),
       exactRoute("GET", "/api/file", async () => {
-        sendJson(response, 200, await workspaceService.readFilePreview(requestUrl.searchParams.get("path") || ""));
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await workspaceService.readFilePreview(requestUrl.searchParams.get("path") || "", root));
       }),
       exactRoute("GET", "/api/file-raw", async () => {
-        const raw = await workspaceService.getRawFile(requestUrl.searchParams.get("path") || "");
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        const raw = await workspaceService.getRawFile(requestUrl.searchParams.get("path") || "", root);
         response.writeHead(200, {
           "content-type": raw.contentType,
           "content-length": raw.fileSize,
@@ -121,4 +124,11 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+async function matterRootForQuery(matterStore, requestUrl) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (!matterName) return matterStore.ensureMatterRoot();
+  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+  return matterPath;
 }
