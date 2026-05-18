@@ -538,7 +538,7 @@ function formatEvidence(entry: string | Record<string, unknown>): string {
       entry.detail,
       entry.value,
       entry.notes,
-    ] as unknown[]
+    ]
   )
     .map((v) => String(v ?? '').trim())
     .filter(Boolean)

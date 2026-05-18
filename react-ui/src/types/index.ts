@@ -139,15 +139,51 @@ export interface SkillIdea {
   sampleCount?: number;
 }
 
+export type SkillIdeaTargetLane = '10_Library' | '20_Workshop' | '30_Drafts' | '40_Dispatch';
+export type SkillIdeaPaidPosture = 'free' | 'paid' | 'unknown';
+export type SkillIdeaRiskLevel = 'low' | 'medium' | 'high';
+
 export interface SkillIdeaDesignBrief {
   intendedUser?: string;
   problem?: string;
   expectedInputs?: string;
   expectedOutputArtifact?: string;
-  targetLane?: string;
-  paidPosture?: string;
-  riskLevel?: string;
+  targetLane?: SkillIdeaTargetLane;
+  paidPosture?: SkillIdeaPaidPosture;
+  riskLevel?: SkillIdeaRiskLevel;
   notes?: string;
+}
+
+export interface SkillInterviewQuestion {
+  id: string;
+  label: string;
+  help: string;
+  examples: string[];
+}
+
+export interface SkillInterviewPlan {
+  mode: 'new_skill' | 'adjacent_improvement' | 'modification_candidate' | string;
+  target_skill: string;
+  understood_summary: string;
+  inferred_design_brief: SkillIdeaDesignBrief;
+  default_assumptions: string[];
+  questions: SkillInterviewQuestion[];
+  open_questions: string[];
+  risk_flags: string[];
+}
+
+export interface SkillInterviewPlanResponse {
+  schema_version?: string;
+  planner: {
+    enabled: boolean;
+    used: boolean;
+    provider?: string;
+    model?: string;
+    fallback?: string;
+    policyPromptVersion?: string;
+    reason?: string;
+  };
+  plan: SkillInterviewPlan | null;
 }
 
 export interface SkillIdeaSample {
