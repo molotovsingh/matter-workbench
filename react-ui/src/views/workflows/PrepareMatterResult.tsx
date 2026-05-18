@@ -71,9 +71,7 @@ export default function PrepareMatterResult() {
     appendTerminal([`[prepare] running: ${plan.nextStep.slash}`]);
     try {
       const slash = plan.nextStep.slash;
-      if (slash === '/matter-init') await api.runMatterInit({ matterName: state.activeMatter?.name });
-      else if (slash === '/extract') await api.runExtract({ matterName: state.activeMatter?.name });
-      else if (slash === '/describe_sources') await api.runDescribeSources({ matterName: state.activeMatter?.name });
+      await runPreparationStage(slash, state.activeMatter?.name);
       appendTerminal([`[prepare] ${slash} complete`]);
       await loadPlan();
     } catch (e) {
@@ -100,10 +98,9 @@ export default function PrepareMatterResult() {
       }
       appendTerminal([`[prepare] running child stage: ${stage.slash}`]);
       try {
+        if (!stage.slash) throw new Error(`Preparation stage has no runnable slash: ${stage.label}`);
         const slash = stage.slash;
-        if (slash === '/matter-init') await api.runMatterInit({ matterName: state.activeMatter?.name });
-        else if (slash === '/extract') await api.runExtract({ matterName: state.activeMatter?.name });
-        else if (slash === '/describe_sources') await api.runDescribeSources({ matterName: state.activeMatter?.name });
+        await runPreparationStage(slash, state.activeMatter?.name);
         appendTerminal([`[prepare] ${slash} done`]);
       } catch (e) {
         appendTerminal([`[prepare] ${stage.slash} failed: ${getErrorMessage(e)}`]);
@@ -263,6 +260,14 @@ export default function PrepareMatterResult() {
       )}
     </div>
   );
+}
+
+async function runPreparationStage(slash: string, matterName?: string) {
+  const body = { matterName };
+  if (slash === '/matter-init') return api.runMatterInit(body);
+  if (slash === '/extract') return api.runExtract(body);
+  if (slash === '/describe_sources') return api.runDescribeSources(body);
+  throw new Error(`No React runner is wired for preparation stage ${slash}`);
 }
 
 function stageStateClass(state: string): string {
