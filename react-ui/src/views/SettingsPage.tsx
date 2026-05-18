@@ -91,7 +91,7 @@ export default function SettingsPage() {
         apiKey: formApiKey || undefined,
         model: formModel || undefined,
       });
-      setTestResult(result as typeof testResult);
+      setTestResult(result);
     } catch (err) {
       setTestResult({ ok: false, error: (err as Error).message });
     } finally {

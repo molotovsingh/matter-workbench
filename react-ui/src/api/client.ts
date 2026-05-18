@@ -1,15 +1,24 @@
 import type {
   AiSettings,
+  AiSettingsSaveRequest,
+  AiSettingsTestRequest,
+  AiSettingsTestResponse,
   AppConfig,
+  CheckOverlapRequest,
   CheckOverlapResponse,
   ConfigurableSkill,
+  ConfigurableSkillCancelRequest,
   ConfigurableSkillCreateResponse,
+  ConfigurableSkillRunRequest,
   ConfigurableSkillRunResult,
+  CommandInteractionRequest,
   DescribeSourcesResult,
+  DoctorFixRequest,
   DoctorFixResult,
   DoctorScanResult,
   ExtractRunResult,
   ListOfDatesRunResult,
+  MatterSkillRunRequest,
   MatterContextPreview,
   MatterContextSearchResponse,
   MatterAttention,
@@ -17,11 +26,16 @@ import type {
   PreparationPlan,
   SkillFactoryHealth,
   SkillIdea,
+  SkillIdeaCreateRequest,
   SkillIdeaCreateResponse,
+  SkillIdeaDesignBriefUpdateRequest,
+  SkillIdeaStatusUpdateRequest,
+  SkillInterviewPlanRequest,
   SkillInterviewPlanResponse,
   SkillIdeaSample,
   SkillIdeaSampleApprovalResponse,
   SkillRouterDecision,
+  SkillSampleOutputRequest,
   SkillSampleOutputResponse,
   SkillRegistry,
   SkillRun,
@@ -126,7 +140,7 @@ export const api = {
   getMatters: () => getJson<{ matters: Array<{ name: string }> }>('/api/matters'),
   newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData('/api/matters/add-files', formData),
-  checkOverlap: (body: unknown) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
+  checkOverlap: (body: CheckOverlapRequest) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
   switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),
 
@@ -137,8 +151,8 @@ export const api = {
 
   // ─── AI Settings ─────────────────────────
   getAiSettings: () => getJson<AiSettings>('/api/ai-settings'),
-  saveAiSettings: (body: unknown) => postJson('/api/ai-settings', body),
-  testAiSettings: (body: unknown) => postJson<{ ok: boolean; error?: string }>('/api/ai-settings/test', body),
+  saveAiSettings: (body: AiSettingsSaveRequest) => postJson('/api/ai-settings', body),
+  testAiSettings: (body: AiSettingsTestRequest) => postJson<AiSettingsTestResponse>('/api/ai-settings/test', body),
 
   // ─── Skills ──────────────────────────────
   getSkills: () => getJson<SkillRegistry>('/api/skills'),
@@ -149,10 +163,10 @@ export const api = {
   getMatterStatus: () => getJson<MatterStatus>('/api/matter-status'),
   getMatterAttention: () => getJson<MatterAttention>('/api/matter-attention'),
   getPrepareMatter: () => getJson<PreparationPlan>('/api/prepare-matter'),
-  runMatterInit: (body: unknown) => postJson('/api/matter-init', body),
-  runExtract: (body: unknown) => postJson<ExtractRunResult>('/api/extract', body),
-  runDescribeSources: (body: unknown) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
-  runCreateListOfDates: (body: unknown) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
+  runMatterInit: (body: MatterSkillRunRequest) => postJson('/api/matter-init', body),
+  runExtract: (body: MatterSkillRunRequest) => postJson<ExtractRunResult>('/api/extract', body),
+  runDescribeSources: (body: MatterSkillRunRequest) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
+  runCreateListOfDates: (body: MatterSkillRunRequest) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
   getRerunAdvice: (skill: string) => getJson<{
     skill: string;
     state: string;
@@ -164,30 +178,30 @@ export const api = {
     message?: string;
     dependencyState?: string;
   }>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
-  runDoctorScan: (body: unknown) => postJson<DoctorScanResult>('/api/doctor/scan', body),
-  runDoctorFix: (body: unknown) => postJson<DoctorFixResult>('/api/doctor/fix', body),
+  runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
+  runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
   getMatterContext: () => getJson<MatterContextPreview>('/api/matter-context'),
   searchMatterContext: (query: string) => getJson<MatterContextSearchResponse>(`/api/matter-context/search?q=${encodeURIComponent(query)}`),
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),
-  runConfigurableSkill: (body: unknown) => postJson<ConfigurableSkillRunResult>('/api/configurable-skills/run', body),
+  runConfigurableSkill: (body: ConfigurableSkillRunRequest) => postJson<ConfigurableSkillRunResult>('/api/configurable-skills/run', body),
   getSkillRuns: (limit = 100) => getJson<{ schema_version?: string; runs: SkillRun[] }>(`/api/configurable-skills/runs?limit=${limit}`),
-  cancelSkillRun: (body: unknown) => postJson('/api/configurable-skills/runs/cancelled', body),
+  cancelSkillRun: (body: ConfigurableSkillCancelRequest) => postJson('/api/configurable-skills/runs/cancelled', body),
 
   // ─── Skill factory ────────────────────────
   getSkillFactoryHealth: () => getJson<SkillFactoryHealth>('/api/skill-factory-health'),
   getSkillIdeas: () => getJson<{ schema_version?: string; ideas: SkillIdea[] }>('/api/skill-ideas'),
-  createSkillIdea: (body: unknown) => postJson<SkillIdeaCreateResponse>('/api/skill-ideas', body),
-  planSkillIdeaInterview: (body: unknown) => postJson<SkillInterviewPlanResponse>('/api/skill-ideas/plan-interview', body),
-  generateSampleOutput: (body: unknown) => postJson<SkillSampleOutputResponse>('/api/skill-ideas/sample-output', body),
+  createSkillIdea: (body: SkillIdeaCreateRequest) => postJson<SkillIdeaCreateResponse>('/api/skill-ideas', body),
+  planSkillIdeaInterview: (body: SkillInterviewPlanRequest) => postJson<SkillInterviewPlanResponse>('/api/skill-ideas/plan-interview', body),
+  generateSampleOutput: (body: SkillSampleOutputRequest) => postJson<SkillSampleOutputResponse>('/api/skill-ideas/sample-output', body),
   getSkillIdeaSamples: (ideaId: string) => getJson<{ schema_version?: string; samples: SkillIdeaSample[] }>(`/api/skill-ideas/${ideaId}/samples`),
-  updateSkillIdeaBrief: (ideaId: string, body: unknown) => postJson(`/api/skill-ideas/${ideaId}/design-brief`, body),
-  updateSkillIdeaStatus: (ideaId: string, body: unknown) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
+  updateSkillIdeaBrief: (ideaId: string, body: SkillIdeaDesignBriefUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/design-brief`, body),
+  updateSkillIdeaStatus: (ideaId: string, body: SkillIdeaStatusUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
     postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
   createSkillFromIdea: (ideaId: string) => postJson<ConfigurableSkillCreateResponse>(`/api/skill-ideas/${ideaId}/create-skill`),
 
   // ─── Logging ─────────────────────────────
-  logCommandInteraction: (body: unknown) => postJson('/api/command-interactions', body),
+  logCommandInteraction: (body: CommandInteractionRequest) => postJson('/api/command-interactions', body),
 };

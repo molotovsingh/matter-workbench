@@ -228,6 +228,12 @@ export interface SkillIdeaCreateResponse {
   idea: SkillIdea;
 }
 
+export interface SkillIdeaCreateRequest {
+  text: string;
+  designBrief?: SkillIdeaDesignBrief;
+  matterName?: string;
+}
+
 export interface SkillSampleOutputResponse {
   schema_version?: string;
   sample_id: string;
@@ -238,6 +244,20 @@ export interface SkillSampleOutputResponse {
   sample_markdown: string;
   warnings?: string[];
   storedSample?: SkillIdeaSample;
+}
+
+export interface SkillSampleOutputRequest {
+  idea: SkillIdea;
+  feedback?: string;
+  previousSample?: string;
+}
+
+export interface SkillIdeaDesignBriefUpdateRequest {
+  designBrief: SkillIdeaDesignBrief;
+}
+
+export interface SkillIdeaStatusUpdateRequest {
+  status: SkillIdea['status'];
 }
 
 export interface SkillIdeaSampleApprovalResponse {
@@ -260,6 +280,11 @@ export interface OverlapWarning {
 
 export interface CheckOverlapResponse {
   warnings: OverlapWarning[];
+}
+
+export interface CheckOverlapRequest {
+  hashes: string[];
+  proposedName?: string;
 }
 
 export interface PipelineStageAiRun {
@@ -372,6 +397,24 @@ export interface AiSettings {
   aiTasks?: AiTask[];
 }
 
+export interface AiSettingsSaveRequest {
+  provider?: string | null;
+  apiKey?: string;
+  model?: string;
+  maxOutputTokens?: number;
+}
+
+export interface AiSettingsTestRequest {
+  provider?: string | null;
+  apiKey?: string;
+  model?: string;
+}
+
+export interface AiSettingsTestResponse {
+  ok: boolean;
+  error?: string;
+}
+
 export interface SkillFactoryHealth {
   schema_version?: string;
   checkedAt?: string;
@@ -399,6 +442,38 @@ export interface ConfigurableSkillRunResult {
   runId?: string;
   runRecord?: SkillRun;
   warnings?: string[];
+}
+
+export interface MatterSkillRunRequest {
+  matterName?: string;
+}
+
+export interface DoctorFixRequest extends MatterSkillRunRequest {
+  issueIds: string[];
+}
+
+export interface ConfigurableSkillRunRequest {
+  slash: string;
+  overwrite?: boolean;
+}
+
+export interface ConfigurableSkillCancelRequest {
+  runId?: string;
+  skillId?: string;
+  slash?: string;
+  matterName?: string;
+  reason?: string;
+}
+
+export interface SkillInterviewPlanRequest {
+  skillIdea?: Partial<SkillIdea>;
+  userRequest?: string;
+  designBrief?: SkillIdeaDesignBrief;
+}
+
+export interface CommandInteractionRequest {
+  command: string;
+  matterName?: string;
 }
 
 export interface ExtractFileResult {
