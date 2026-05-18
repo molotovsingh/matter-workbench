@@ -1242,6 +1242,8 @@ React now also has its own small `secretRedaction` helper, tested against the sh
 
 The copied React review packet now carries the same basic governance shape as the vanilla Skills page packet: status, readiness checklist, suggested classification, open questions, and the "not runnable yet" boundary. That avoids a subtle trap where two frontends both support `copy review packet`, but one gives the implementation reviewer less context than the other.
 
+React Activity now uses a dedicated custom-skill run report helper instead of building a tiny ad hoc clipboard string in the component. The helper mirrors the vanilla report boundary: metadata only, redacted secrets, no generated work product body. Activity also refuses to open a run output unless the active matter is the same matter that owns the run. That guard matters because run output paths are matter-relative; opening `20_Workshop/Party Map.md` while another matter is active can show the wrong file or fail in a confusing way.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

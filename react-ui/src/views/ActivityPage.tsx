@@ -2,8 +2,14 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { writeClipboardText } from '../lib/clipboard';
+import {
+  canOpenSkillRunOutputForMatter,
+  formatConfigurableRunOutputDocumentState,
+  formatConfigurableSkillRunReport,
+  humanizeRunOutputPath,
+} from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
-import type { SkillRun } from '../types';
+import type { ActiveMatter, SkillRun } from '../types';
 
 interface DayGroup {
   label: string;
@@ -39,18 +45,8 @@ export default function ActivityPage() {
   const dayGroups = groupRunsByDay(workCompleted);
 
   async function handleCopyReport(run: SkillRun) {
-    const outputPath = run.outputPaths?.markdown;
-    const lines = [
-      `Skill: ${run.slash || run.title || 'unknown'}`,
-      `Matter: ${run.matterName || '—'}`,
-      `Status: ${run.status}`,
-      outputPath ? `Output: ${outputPath}` : '',
-      `Started: ${run.startedAt}`,
-      run.finishedAt ? `Finished: ${run.finishedAt}` : '',
-      run.errorMessage ? `Error: ${run.errorMessage}` : '',
-    ].filter(Boolean).join('\n');
     try {
-      await writeClipboardText(lines);
+      await writeClipboardText(formatConfigurableSkillRunReport(run));
       appendTerminal([`[activity] copied run report: ${run.slash || run.title || run.id}`]);
     } catch (e) {
       appendTerminal([`[activity] copy failed: ${getErrorMessage(e)}`]);
@@ -58,8 +54,14 @@ export default function ActivityPage() {
   }
 
   function handleOpenOutput(run: SkillRun) {
-    if (!run.outputPaths?.markdown) return;
-    dispatch({ type: 'SET_FILE_PREVIEW', payload: { path: run.outputPaths.markdown, type: 'text' } });
+    if (!canOpenSkillRunOutputForMatter(run, state.activeMatter)) {
+      appendTerminal([`[activity] output is in another matter: ${run.matterFolder || run.matterName || 'unknown matter'}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Switch to the run matter before opening that output.' });
+      return;
+    }
+    const outputPath = run.outputPaths?.markdown;
+    if (!outputPath) return;
+    dispatch({ type: 'SET_FILE_PREVIEW', payload: { path: outputPath, type: 'text' } });
     dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
   }
 
@@ -96,7 +98,7 @@ export default function ActivityPage() {
           <h2>Needs Attention</h2>
           <div className="activity-day-list attention">
             {needsAttention.map((run) => (
-              <RunCard key={run.id} run={run} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
+              <RunCard key={run.id} run={run} activeMatter={state.activeMatter} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
             ))}
           </div>
         </section>
@@ -116,7 +118,7 @@ export default function ActivityPage() {
               </summary>
               <div className="activity-day-list">
                 {group.runs.map((run) => (
-                  <RunCard key={run.id} run={run} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
+                  <RunCard key={run.id} run={run} activeMatter={state.activeMatter} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
                 ))}
               </div>
             </details>
@@ -132,7 +134,7 @@ export default function ActivityPage() {
             </summary>
             <div className="activity-day-list quiet">
               {cancelled.map((run) => (
-                <RunCard key={run.id} run={run} compact onCopy={handleCopyReport} onOpen={handleOpenOutput} />
+                <RunCard key={run.id} run={run} activeMatter={state.activeMatter} compact onCopy={handleCopyReport} onOpen={handleOpenOutput} />
               ))}
             </div>
           </details>
@@ -165,11 +167,13 @@ export default function ActivityPage() {
 
 function RunCard({
   run,
+  activeMatter,
   compact = false,
   onCopy,
   onOpen,
 }: {
   run: SkillRun;
+  activeMatter: ActiveMatter | null;
   compact?: boolean;
   onCopy: (run: SkillRun) => void;
   onOpen: (run: SkillRun) => void;
@@ -180,7 +184,7 @@ function RunCard({
   const finishedTime = run.finishedAt ? formatTime(run.finishedAt) : null;
   const startedTime = formatTime(run.startedAt);
   const outputPath = run.outputPaths?.markdown;
-  const canOpen = run.status === 'succeeded' && outputPath;
+  const canOpen = canOpenSkillRunOutputForMatter(run, activeMatter);
 
   return (
     <article className={`activity-card${compact ? ' compact' : ''} ${statusClass}`}>
@@ -192,7 +196,7 @@ function RunCard({
           </div>
           <div className="activity-run-line">
             {run.matterName && <span>{run.matterName}</span>}
-            {outputPath && <span>{humanizeOutputPath(outputPath)}</span>}
+            {outputPath && <span>{humanizeRunOutputPath(outputPath)}</span>}
           </div>
         </div>
         <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
@@ -213,7 +217,8 @@ function RunCard({
             <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>Details</summary>
             <dl className="skill-card-meta">
               <div><dt>Matter</dt><dd>{run.matterName || run.matterFolder || '—'}</dd></div>
-              {outputPath && <div><dt>Output</dt><dd>{humanizeOutputPath(outputPath)}</dd></div>}
+              {outputPath && <div><dt>Output</dt><dd>{humanizeRunOutputPath(outputPath)}</dd></div>}
+              <div><dt>Output document</dt><dd>{formatConfigurableRunOutputDocumentState(run.overwrite)}</dd></div>
               {run.aiRun?.provider && <div><dt>Provider</dt><dd>{run.aiRun.provider}{run.aiRun.model ? ` / ${run.aiRun.model}` : ''}</dd></div>}
               <div><dt>Started</dt><dd>{new Date(run.startedAt).toLocaleString()}</dd></div>
               {run.finishedAt && <div><dt>Finished</dt><dd>{new Date(run.finishedAt).toLocaleString()}</dd></div>}
@@ -256,12 +261,4 @@ function dayLabel(key: string): string {
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-}
-
-function humanizeOutputPath(path: string): string {
-  if (/source.*index/i.test(path)) return 'Source Record';
-  if (/list.*of.*dates/i.test(path)) return 'Case Chronology';
-  if (/file.*register/i.test(path)) return 'File Register';
-  if (/extraction.*log/i.test(path)) return 'Extraction Log';
-  return path.split('/').pop() || path;
 }
