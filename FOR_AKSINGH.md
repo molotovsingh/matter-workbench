@@ -482,7 +482,7 @@ The current safe arrangement is:
 
 - `/` serves the existing stable plain-JS v1 app.
 - `react-ui/` contains the React source for the next frontend track.
-- `PORT=4191 npm start` is the usual backend command for React UI work in this repo.
+- `PORT=4191 npm start` is the usual backend command for React UI work in this repo; keep it running in one terminal.
 - `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the backend.
 - `npm run ui:build` type-checks and builds the React app.
 - `npm run ui:smoke` checks that the React UI and the live backend still agree on the basic API shapes.

@@ -173,8 +173,15 @@ separate prototype repo is no longer required as a source of truth.
 
 For iterative frontend work against the local backend:
 
+Terminal 1:
+
 ```bash
 PORT=4191 npm start
+```
+
+Terminal 2:
+
+```bash
 npm run ui:dev
 ```
 
