@@ -1232,6 +1232,10 @@ This sounds small, but it prevents a real governance bug. Without it, an old sam
 
 The backend already protects this with design-brief hashes in the sample ledger. The frontend now respects the same rule instead of creating duplicate ideas or silently carrying forward an obsolete sample. The product lesson is simple: in a sample-first skill factory, the sample is the trust moment, so it must always be current with the brief being approved.
 
+The React flow also now keeps the sample tied to a real test matter. If no matter is selected, it does not save the idea and then discover the problem through a failed sample-generation call. It stops at the UI boundary and says to pick a test matter first. That mirrors the older browser shell and avoids a subtle cost/trust issue: sample generation is the first expensive proof step, so the app should not enter it without the context that makes the sample meaningful.
+
+The supporting helpers moved into `react-ui/src/lib/skillIdeaSession.ts`. That is a small architectural cleanup with a practical purpose. The component still owns the conversation UI, but pure things like "is there a selected test matter?", "how do we normalize a planned interview?", and "how do we build the design brief from answers?" now live in one testable place. Good refactors often look like this: no new feature parade, just fewer reasons for one component to know everything.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

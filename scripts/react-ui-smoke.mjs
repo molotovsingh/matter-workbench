@@ -34,6 +34,7 @@ const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparatio
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 const reactSkillIdeaInputPath = new URL("../react-ui/src/lib/skillIdeaInput.ts", import.meta.url);
+const reactSkillIdeaSessionPath = new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url);
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 const reactSkillIdeaStatusesPath = new URL("../react-ui/src/lib/skillIdeaStatuses.ts", import.meta.url);
 const reactSkillSampleStatesPath = new URL("../react-ui/src/lib/skillSampleStates.ts", import.meta.url);
@@ -177,6 +178,17 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-idea session command contract is readable", error.message);
+  }
+
+  try {
+    const sessionHelpers = await readReactSkillIdeaSessionHelpers();
+    assert(
+      sessionHelpers.matterGuardUsesFolderName,
+      "React skill-idea sample gate requires a selected matter",
+      sessionHelpers.matterGuardUsesFolderName ? "folderName guard present" : "missing folderName guard",
+    );
+  } catch (error) {
+    fail("React skill-idea session helper contract is readable", error.message);
   }
 
   try {
@@ -465,6 +477,13 @@ async function readReactSkillIdeaSessionCommandSets() {
     entry[1],
     [...entry[2].matchAll(/['"]([^'"]+)['"]/g)].map((value) => value[1]).sort(),
   ]));
+}
+
+async function readReactSkillIdeaSessionHelpers() {
+  const source = await readFile(reactSkillIdeaSessionPath, "utf8");
+  return {
+    matterGuardUsesFolderName: /function\s+hasSkillIdeaTestMatter[\s\S]*activeMatter\?\.folderName/.test(source),
+  };
 }
 
 async function readReactSkillIdeaStatuses() {

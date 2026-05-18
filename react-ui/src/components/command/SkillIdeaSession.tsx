@@ -11,15 +11,17 @@ import {
 import { classifySkillIdeaSessionInput } from '../../lib/skillIdeaSessionCommands';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import { SKILL_IDEA_STATUS } from '../../lib/skillIdeaStatuses';
+import {
+  buildSkillIdeaDesignBrief,
+  formatSkillIdeaDesignBrief,
+  formatSkillIdeaPlannerTerminalLine,
+  hasSkillIdeaTestMatter,
+  normalizePlannedSkillIdeaInterview,
+  overlapMatchedLabel,
+  SIMPLE_SKILL_IDEA_QUESTIONS,
+  type InterviewQuestion,
+} from '../../lib/skillIdeaSession';
 import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
-
-interface InterviewQuestion {
-  id: string;
-  label: string;
-  help?: string;
-  examples?: string[];
-  placeholder?: string;
-}
 
 interface SessionState {
   phase: 'planning' | 'interviewing' | 'ready' | 'saving' | 'saved' | 'sampling' | 'sampled' | 'creating' | 'created';
@@ -43,30 +45,6 @@ interface SessionState {
   error: string | null;
 }
 
-const SIMPLE_QUESTIONS: InterviewQuestion[] = [
-  {
-    id: 'output',
-    label: 'What should this skill produce?',
-    help: 'Describe the output document or artifact.',
-    examples: ['A summary table of key dates', 'A limitations letter draft', 'A comparison chart of terms'],
-    placeholder: 'e.g. a timeline with key events and sources',
-  },
-  {
-    id: 'input',
-    label: 'What inputs does it need?',
-    help: 'Describe what source documents or data it reads.',
-    examples: ['The extracted documents', 'Source labels and metadata', 'All matter files'],
-    placeholder: 'e.g. the extracted documents and source labels',
-  },
-  {
-    id: 'rules',
-    label: 'Any special rules or format requirements?',
-    help: 'Optional — constraints, sorting, structure, tone.',
-    examples: ['Sort chronologically', 'Use formal legal language', 'Include page references'],
-    placeholder: 'e.g. sort by date, include source file names',
-  },
-];
-
 interface Props {
   initialInput: string;
   onClose: () => void;
@@ -77,6 +55,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   const { state, appendTerminal, dispatch } = useApp();
   const ideaText = parseSkillIdeaText(initialInput) ?? initialInput;
   const planningStarted = useRef(false);
+  const hasMatter = hasSkillIdeaTestMatter(state.activeMatter);
 
   const [session, setSession] = useState<SessionState>({
     phase: 'planning',
@@ -111,7 +90,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           userRequest: initialInput,
           skillIdea: { text: ideaText },
         });
-        const planned = normalizePlannedInterview(result, ideaText);
+        const planned = normalizePlannedSkillIdeaInterview(result, ideaText);
         setSession((s) => ({
           ...s,
           phase: planned.questions.length ? 'interviewing' : 'ready',
@@ -123,12 +102,12 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           planner: result.planner,
           error: null,
         }));
-        appendTerminal([formatPlannerTerminalLine(result)]);
+        appendTerminal([formatSkillIdeaPlannerTerminalLine(result)]);
       } catch (e) {
         setSession((s) => ({
           ...s,
           phase: 'interviewing',
-          questions: SIMPLE_QUESTIONS,
+          questions: SIMPLE_SKILL_IDEA_QUESTIONS,
           planner: null,
           error: `Planner unavailable; using a basic interview. ${getErrorMessage(e)}`,
         }));
@@ -150,7 +129,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   async function persistCurrentIdea() {
     const updatingExistingIdea = Boolean(session.savedIdeaId);
-    const brief = buildDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
+    const brief = buildSkillIdeaDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
     const result = updatingExistingIdea && session.savedIdeaId
       ? await api.updateSkillIdeaBrief(session.savedIdeaId, { designBrief: brief })
       : await api.createSkillIdea({
@@ -192,6 +171,16 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   }
 
   async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
+    if (!hasSkillIdeaTestMatter(state.activeMatter)) {
+      setSession((s) => ({
+        ...s,
+        phase: s.savedIdeaId ? 'saved' : 'ready',
+        notice: 'Pick a test matter before generating sample output.',
+        error: null,
+      }));
+      appendTerminal(['[skill-idea] sample requested without active matter']);
+      return;
+    }
     const hadSavedIdea = Boolean(session.savedIdeaId && session.savedIdea);
     setSession((s) => ({ ...s, phase: 'sampling', overlapGate: null, overlapJustification: '', notice: null, error: null }));
     try {
@@ -509,11 +498,17 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           {session.designBrief && (
             <details className="skill-idea-brief">
               <summary>Design brief</summary>
-              <pre>{formatDesignBrief(session.designBrief)}</pre>
+              <pre>{formatSkillIdeaDesignBrief(session.designBrief)}</pre>
             </details>
           )}
           <div className="skill-idea-actions">
-            <button type="button" onClick={() => { void handleGenerateSample(); }}>Generate sample</button>
+            <button
+              type="button"
+              disabled={!hasMatter}
+              onClick={() => { void handleGenerateSample(); }}
+            >
+              {hasMatter ? 'Generate sample' : 'Pick matter to test this skill'}
+            </button>
             <button type="button" className="secondary" onClick={handleEditAnswers}>Edit answers</button>
           </div>
         </div>
@@ -545,7 +540,14 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           )}
           <div className="skill-idea-actions">
             <button type="button" onClick={() => { void handleApproveSample(); }}>Looks useful - try creating skill</button>
-            <button type="button" className="secondary" onClick={() => { void handleGenerateSample('Regenerate the sample with the current design brief.', session.sample?.output || ''); }}>Regenerate sample</button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={!hasMatter}
+              onClick={() => { void handleGenerateSample('Regenerate the sample with the current design brief.', session.sample?.output || ''); }}
+            >
+              {hasMatter ? 'Regenerate sample' : 'Pick matter to regenerate'}
+            </button>
           </div>
           {session.overlapGate && (
             <div className="skill-idea-overlap-gate">
@@ -621,90 +623,4 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       )}
     </div>
   );
-}
-
-function buildDesignBrief(
-  ideaText: string,
-  answers: Record<string, string>,
-  plannedBrief: SkillIdeaDesignBrief | null,
-  questions: InterviewQuestion[],
-): SkillIdeaDesignBrief {
-  const answerNotes = formatAnswerNotes(answers, questions);
-  const notes = [
-    plannedBrief?.notes,
-    answerNotes,
-  ].filter(Boolean).join('\n');
-  return {
-    intendedUser: plannedBrief?.intendedUser || 'Lawyer',
-    problem: plannedBrief?.problem || ideaText,
-    expectedInputs: answers.input || plannedBrief?.expectedInputs || 'Selected matter documents and source labels',
-    expectedOutputArtifact: answers.output || plannedBrief?.expectedOutputArtifact || 'Internal matter review note',
-    targetLane: plannedBrief?.targetLane || '20_Workshop',
-    paidPosture: plannedBrief?.paidPosture || 'paid',
-    riskLevel: plannedBrief?.riskLevel || 'medium',
-    notes: notes || 'No extra format rules supplied.',
-  };
-}
-
-function formatDesignBrief(brief: SkillIdeaDesignBrief): string {
-  return [
-    `Problem: ${brief.problem || ''}`,
-    `Expected inputs: ${brief.expectedInputs || ''}`,
-    `Expected output: ${brief.expectedOutputArtifact || ''}`,
-    `Target lane: ${brief.targetLane || ''}`,
-    `Paid posture: ${brief.paidPosture || ''}`,
-    `Risk: ${brief.riskLevel || ''}`,
-    `Notes: ${brief.notes || ''}`,
-  ].join('\n');
-}
-
-function normalizePlannedInterview(result: SkillInterviewPlanResponse, fallbackIdeaText: string) {
-  const plan = result.plan;
-  if (!plan) {
-    return {
-      understoodText: fallbackIdeaText,
-      questions: SIMPLE_QUESTIONS,
-      designBrief: null,
-      defaultAssumptions: [],
-      riskFlags: [],
-    };
-  }
-  const questions = Array.isArray(plan.questions)
-    ? plan.questions
-      .filter((question) => question?.id && question?.label)
-      .map((question) => ({
-        id: question.id,
-        label: question.label,
-        help: question.help,
-        examples: Array.isArray(question.examples) ? question.examples : [],
-      }))
-    : [];
-  return {
-    understoodText: plan.understood_summary || fallbackIdeaText,
-    questions,
-    designBrief: plan.inferred_design_brief || null,
-    defaultAssumptions: Array.isArray(plan.default_assumptions) ? plan.default_assumptions : [],
-    riskFlags: Array.isArray(plan.risk_flags) ? plan.risk_flags : [],
-  };
-}
-
-function formatPlannerTerminalLine(result: SkillInterviewPlanResponse): string {
-  if (result.planner?.used) {
-    return `[skill-idea] model-planned interview ready: ${result.planner.provider || 'provider'} ${result.planner.model || ''}`.trim();
-  }
-  return `[skill-idea] basic interview ready${result.planner?.reason ? `: ${result.planner.reason}` : ''}`;
-}
-
-function formatAnswerNotes(answers: Record<string, string>, questions: InterviewQuestion[]): string {
-  const byId = new Map(questions.map((question) => [question.id, question.label]));
-  return Object.entries(answers)
-    .filter(([, value]) => value.trim())
-    .map(([id, value]) => `${byId.get(id) || id}: ${value.trim()}`)
-    .join('\n');
-}
-
-function overlapMatchedLabel(decision: SkillRouterDecision): string {
-  const matched = decision.matched_skill || '';
-  const title = decision.matched_skill_card?.title || decision.matched_skill_card?.display?.action || matched;
-  return [title, matched && matched !== title ? matched : ''].filter(Boolean).join(' ');
 }
