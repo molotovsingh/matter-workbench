@@ -1,5 +1,30 @@
 import path from "node:path";
 
+export async function readMatterSummary(matterStore, { matterName } = {}) {
+  const requestedMatterName = String(matterName || "").trim();
+  if (!requestedMatterName) return readActiveMatterSummary(matterStore);
+
+  try {
+    const { matterPath } = await matterStore.resolveExistingMatter(requestedMatterName);
+    const folderName = path.basename(matterPath);
+    let metadata = {};
+    try {
+      metadata = await matterStore.readMatterMetadata(matterPath);
+    } catch {
+      metadata = {};
+    }
+    return {
+      folderName,
+      matterName: metadata.matterName || folderName,
+    };
+  } catch {
+    return {
+      folderName: requestedMatterName,
+      matterName: requestedMatterName,
+    };
+  }
+}
+
 export async function readActiveMatterSummary(matterStore) {
   const root = matterStore.getMatterRoot?.();
   if (!root) return null;

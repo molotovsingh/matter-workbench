@@ -1,5 +1,5 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
-import { readActiveMatterSummary } from "./active-matter-summary.mjs";
+import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
 
 export async function handleAppShellApiRequest({ request, requestUrl, response, services }) {
@@ -31,7 +31,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         const body = await readRequestJson(request);
         sendJson(response, 200, await commandInteractionLogService.appendInteraction({
           ...body,
-          matter: await readActiveMatterSummary(matterStore),
+          matter: await readMatterSummary(matterStore, { matterName: body.matterName }),
         }));
       }),
       exactRoute("GET", "/api/config", async () => {

@@ -1,5 +1,5 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
-import { readActiveMatterSummary } from "./active-matter-summary.mjs";
+import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import {
@@ -45,7 +45,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
         sendJson(response, 200, await skillIdeasService.createIdea({
           text: body.text,
           designBrief: body.designBrief || {},
-          matter: await readActiveMatterSummary(matterStore),
+          matter: await readMatterSummary(matterStore, { matterName: body.matterName }),
         }));
       }),
       exactRoute("GET", "/api/skill-factory-health", async () => {

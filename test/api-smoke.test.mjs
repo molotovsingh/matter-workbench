@@ -299,6 +299,11 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(initialSkillFactoryHealth.schema_version, "skill-factory-health/v1");
     assert.equal(initialSkillFactoryHealth.state, "ok");
     assert.equal(initialSkillFactoryHealth.summary.ideas, 0);
+    const inactiveMatterIdea = await postJson(baseUrl, "/api/skill-ideas", {
+      text: "Create a diagnostic skill idea tied to the inactive matter.",
+      matterName: "Inactive Legacy Matter",
+    });
+    assert.equal(inactiveMatterIdea.idea.matter.matterName, "Inactive Legacy Matter");
     const plannedInterview = await postJson(baseUrl, "/api/skill-ideas/plan-interview", {
       userRequest: "draft a warm client update email",
       skillIdea: {
@@ -515,6 +520,7 @@ test("server API smoke test keeps public routes stable", async () => {
       matched_command: "router/check",
       rendered_state: "router/check",
       status: "router_checked",
+      matterName: "Inactive Legacy Matter",
       provider_run_invoked: true,
       router_decision: skillIntent,
       terminal_lines: ["[ai-command] needs_user_approval -> /create_listofdates"],
@@ -525,8 +531,8 @@ test("server API smoke test keeps public routes stable", async () => {
     const commandLog = await readFile(commandInteractionLogPath, "utf8");
     const commandLogRecord = JSON.parse(commandLog.trim());
     assert.equal(commandLogRecord.schema_version, "command-interaction-log/v1");
-    assert.equal(commandLogRecord.matter.matter_name, "Smoke Matter");
-    assert.equal(commandLogRecord.matter.folder_name, "Smoke Matter");
+    assert.equal(commandLogRecord.matter.matter_name, "Inactive Legacy Matter");
+    assert.equal(commandLogRecord.matter.folder_name, "Inactive Legacy Matter");
     assert.equal(commandLogRecord.matched_command, "router/check");
     assert.equal(commandLogRecord.router_decision.matched_skill, "/create_listofdates");
     assert.equal(commandLogRecord.provider_run_invoked, true);
