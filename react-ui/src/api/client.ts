@@ -220,7 +220,8 @@ export const api = {
   planSkillIdeaInterview: (body: SkillInterviewPlanRequest) => postJson<SkillInterviewPlanResponse>('/api/skill-ideas/plan-interview', body),
   generateSampleOutput: (body: SkillSampleOutputRequest) => postJson<SkillSampleOutputResponse>('/api/skill-ideas/sample-output', body),
   getSkillIdeaSamples: (ideaId: string) => getJson<{ schema_version?: string; samples: SkillIdeaSample[] }>(`/api/skill-ideas/${ideaId}/samples`),
-  updateSkillIdeaBrief: (ideaId: string, body: SkillIdeaDesignBriefUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/design-brief`, body),
+  updateSkillIdeaBrief: (ideaId: string, body: SkillIdeaDesignBriefUpdateRequest) =>
+    postJson<SkillIdeaCreateResponse>(`/api/skill-ideas/${ideaId}/design-brief`, body),
   updateSkillIdeaStatus: (ideaId: string, body: SkillIdeaStatusUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
     postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),

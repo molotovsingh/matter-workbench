@@ -31,6 +31,7 @@ interface SessionState {
   overlapGate: { decision: SkillRouterDecision; userRequest: string } | null;
   overlapJustification: string;
   createdSkill: { slash?: string; name?: string } | null;
+  notice: string | null;
   error: string | null;
 }
 
@@ -105,6 +106,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     overlapGate: null,
     overlapJustification: '',
     createdSkill: null,
+    notice: null,
     error: null,
   });
 
@@ -167,15 +169,19 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   }, [session.phase, handleAnswer, onInputOverride]);
 
   async function handleSave() {
-    setSession((s) => ({ ...s, phase: 'saving', error: null }));
+    const updatingExistingIdea = Boolean(session.savedIdeaId);
+    const hadSample = Boolean(session.sample);
+    setSession((s) => ({ ...s, phase: 'saving', notice: null, error: null }));
     appendTerminal(['[skill-idea] saving idea…']);
     try {
       const brief = buildDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
-      const result = await api.createSkillIdea({
-        text: session.ideaText,
-        designBrief: brief,
-        matterName: state.activeMatter?.name,
-      });
+      const result = updatingExistingIdea && session.savedIdeaId
+        ? await api.updateSkillIdeaBrief(session.savedIdeaId, { designBrief: brief })
+        : await api.createSkillIdea({
+          text: session.ideaText,
+          designBrief: brief,
+          matterName: state.activeMatter?.name,
+        });
       const savedIdea = result.idea;
       setSession((s) => ({
         ...s,
@@ -183,8 +189,15 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         savedIdeaId: savedIdea.id,
         savedIdea,
         designBrief: brief,
+        sample: updatingExistingIdea ? null : s.sample,
+        overlapGate: null,
+        overlapJustification: '',
+        createdSkill: updatingExistingIdea ? null : s.createdSkill,
+        notice: updatingExistingIdea && hadSample
+          ? 'Answers changed. Generate a fresh sample before creating the skill.'
+          : null,
       }));
-      appendTerminal([`[skill-idea] saved — id: ${savedIdea.id}`]);
+      appendTerminal([`[skill-idea] ${updatingExistingIdea ? 'updated' : 'saved'} — id: ${savedIdea.id}`]);
     } catch (e) {
       setSession((s) => ({ ...s, phase: 'ready', error: getErrorMessage(e) }));
     }
@@ -192,7 +205,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   async function handleGenerateSample() {
     if (!session.savedIdeaId || !session.savedIdea) return;
-    setSession((s) => ({ ...s, phase: 'sampling', error: null }));
+    setSession((s) => ({ ...s, phase: 'sampling', overlapGate: null, overlapJustification: '', notice: null, error: null }));
     appendTerminal(['[skill-idea] generating sample output…']);
     try {
       const result = await api.generateSampleOutput({
@@ -206,6 +219,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         sample: sampleId && output
           ? { id: sampleId, output, warnings: result.warnings || result.storedSample?.warnings }
           : null,
+        notice: null,
       }));
       appendTerminal(['[skill-idea] sample ready']);
     } catch (e) {
@@ -275,6 +289,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       ...s,
       phase: s.questions.length ? 'interviewing' : 'ready',
       questionIndex: 0,
+      notice: s.sample ? 'Editing answers will require a fresh sample before creating the skill.' : s.notice,
       error: null,
     }));
   }
@@ -315,6 +330,10 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         <ul className="skill-idea-sample-warnings">
           {session.riskFlags.map((flag) => <li key={flag}>{flag}</li>)}
         </ul>
+      )}
+
+      {session.notice && (
+        <div className="skill-idea-notice">{session.notice}</div>
       )}
 
       {/* Answered questions */}

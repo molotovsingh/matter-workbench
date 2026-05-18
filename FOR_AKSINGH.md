@@ -1201,3 +1201,11 @@ The policy boundary is now explicit:
 - A source-label second pass can improve model-suggested labels, but only a lawyer action can make a label confirmed.
 
 That last point is important. Good source labels from a strong model can remove a lot of busywork, but they should not be confused with lawyer confirmation. A second pass can polish `suggested_label` and mark uncertainty; it should not pretend the lawyer reviewed the source.
+
+## React Port Lesson: Keep The Sample Tied To The Brief
+
+The React skill-idea flow now follows the same contract as the older browser shell: a generated sample belongs to the design brief that created it. If the user edits the interview answers after a sample exists, the app updates the saved idea in place and asks for a fresh sample before skill creation.
+
+This sounds small, but it prevents a real governance bug. Without it, an old sample could remain on screen after the user changed the requested output, lane, inputs, or risk posture. The lawyer would be reviewing one thing while the stored design brief says another. That is exactly how custom-skill systems become confusing: the visible proof and the stored instruction drift apart.
+
+The backend already protects this with design-brief hashes in the sample ledger. The frontend now respects the same rule instead of creating duplicate ideas or silently carrying forward an obsolete sample. The product lesson is simple: in a sample-first skill factory, the sample is the trust moment, so it must always be current with the brief being approved.

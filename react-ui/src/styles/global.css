@@ -788,6 +788,7 @@ code { color: var(--code-text); }
 .skill-idea-kicker { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .skill-idea-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; line-height: 1; }
 .skill-idea-understood { background: var(--subtle-bg); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
+.skill-idea-notice { background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: 4px; color: var(--muted-strong); font-size: 12px; line-height: 1.45; margin-bottom: 12px; padding: 8px 12px; }
 .skill-idea-answers { margin-bottom: 12px; }
 .skill-idea-answer-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
 .skill-idea-answer-label { color: var(--muted); font-weight: 600; }
