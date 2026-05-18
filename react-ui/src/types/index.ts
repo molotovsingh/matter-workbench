@@ -153,9 +153,77 @@ export interface SkillIdeaDesignBrief {
 export interface SkillIdeaSample {
   id: string;
   ideaId: string;
-  output: string;
-  state: 'pending' | 'approved_current' | 'approved_stale' | 'stale';
+  version?: number;
   createdAt: string;
+  updatedAt?: string;
+  approved?: boolean;
+  approvedAt?: string;
+  current?: boolean;
+  sampleMarkdown?: string;
+  output?: string;
+  state: 'current' | 'approved_current' | 'approved_stale' | 'stale' | 'pending';
+  warnings?: string[];
+}
+
+export interface SkillRouterDecision {
+  decision: 'run_existing_skill'
+    | 'modify_existing_skill'
+    | 'create_or_modify_tuning'
+    | 'adjacent_skill'
+    | 'new_skill'
+    | 'needs_user_approval'
+    | 'override_requested'
+    | string;
+  recommended_action?: string;
+  matched_skill?: string;
+  matched_skill_card?: Skill | null;
+  confidence?: number;
+  reason?: string;
+  user_gate_required?: boolean;
+  user_gate_choices?: string[];
+  suggested_next_action?: string;
+  mece_violation?: boolean;
+  legal_setting?: Record<string, string>;
+  override_requires?: string[];
+}
+
+export interface SkillIdeaCreateResponse {
+  schema_version?: string;
+  idea: SkillIdea;
+}
+
+export interface SkillSampleOutputResponse {
+  schema_version?: string;
+  sample_id: string;
+  generated_at?: string;
+  matter?: Record<string, unknown>;
+  idea?: SkillIdea;
+  feedback?: string;
+  sample_markdown: string;
+  warnings?: string[];
+  storedSample?: SkillIdeaSample;
+}
+
+export interface SkillIdeaSampleApprovalResponse {
+  schema_version?: string;
+  sample: SkillIdeaSample;
+}
+
+export interface ConfigurableSkillCreateResponse {
+  schema_version?: string;
+  skill: ConfigurableSkill;
+}
+
+export interface OverlapWarning {
+  matterName: string;
+  overlapCount: number;
+  totalIncoming: number;
+  matterTotalFiles?: number;
+  overlapPercent: number;
+}
+
+export interface CheckOverlapResponse {
+  warnings: OverlapWarning[];
 }
 
 export interface PipelineStageAiRun {

@@ -1,7 +1,9 @@
 import type {
   AiSettings,
   AppConfig,
+  CheckOverlapResponse,
   ConfigurableSkill,
+  ConfigurableSkillCreateResponse,
   ConfigurableSkillRunResult,
   DescribeSourcesResult,
   DoctorFixResult,
@@ -15,6 +17,11 @@ import type {
   PreparationPlan,
   SkillFactoryHealth,
   SkillIdea,
+  SkillIdeaCreateResponse,
+  SkillIdeaSample,
+  SkillIdeaSampleApprovalResponse,
+  SkillRouterDecision,
+  SkillSampleOutputResponse,
   SkillRegistry,
   SkillRun,
   WorkspaceApiNode,
@@ -118,7 +125,7 @@ export const api = {
   getMatters: () => getJson<{ matters: Array<{ name: string }> }>('/api/matters'),
   newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData('/api/matters/add-files', formData),
-  checkOverlap: (body: unknown) => postJson('/api/matters/check-overlap', body),
+  checkOverlap: (body: unknown) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
   switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),
 
@@ -135,7 +142,7 @@ export const api = {
   // ─── Skills ──────────────────────────────
   getSkills: () => getJson<SkillRegistry>('/api/skills'),
   checkIntent: (body: { userRequest: string; matterName?: string }) =>
-    postJson<{ intent: string; skillName?: string; suggestion?: string }>('/api/skills/check-intent', body),
+    postJson<SkillRouterDecision>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
   getMatterStatus: () => getJson<MatterStatus>('/api/matter-status'),
@@ -170,15 +177,15 @@ export const api = {
   // ─── Skill factory ────────────────────────
   getSkillFactoryHealth: () => getJson<SkillFactoryHealth>('/api/skill-factory-health'),
   getSkillIdeas: () => getJson<{ schema_version?: string; ideas: SkillIdea[] }>('/api/skill-ideas'),
-  createSkillIdea: (body: unknown) => postJson<{ id: string }>('/api/skill-ideas', body),
+  createSkillIdea: (body: unknown) => postJson<SkillIdeaCreateResponse>('/api/skill-ideas', body),
   planSkillIdeaInterview: (body: unknown) => postJson<unknown>('/api/skill-ideas/plan-interview', body),
-  generateSampleOutput: (body: unknown) => postJson<unknown>('/api/skill-ideas/sample-output', body),
-  getSkillIdeaSamples: (ideaId: string) => getJson<{ samples: unknown[] }>(`/api/skill-ideas/${ideaId}/samples`),
+  generateSampleOutput: (body: unknown) => postJson<SkillSampleOutputResponse>('/api/skill-ideas/sample-output', body),
+  getSkillIdeaSamples: (ideaId: string) => getJson<{ schema_version?: string; samples: SkillIdeaSample[] }>(`/api/skill-ideas/${ideaId}/samples`),
   updateSkillIdeaBrief: (ideaId: string, body: unknown) => postJson(`/api/skill-ideas/${ideaId}/design-brief`, body),
   updateSkillIdeaStatus: (ideaId: string, body: unknown) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
-    postJson(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
-  createSkillFromIdea: (ideaId: string) => postJson(`/api/skill-ideas/${ideaId}/create-skill`),
+    postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
+  createSkillFromIdea: (ideaId: string) => postJson<ConfigurableSkillCreateResponse>(`/api/skill-ideas/${ideaId}/create-skill`),
 
   // ─── Logging ─────────────────────────────
   logCommandInteraction: (body: unknown) => postJson('/api/command-interactions', body),

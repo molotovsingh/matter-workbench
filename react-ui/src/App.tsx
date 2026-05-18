@@ -79,13 +79,12 @@ function AppShell() {
     appendTerminal([`[cmd] "${cmd}"`]);
     try {
       const result = await api.checkIntent({ userRequest: cmd, matterName: state.activeMatter?.name });
-      const r = result as { decision?: string; matched_skill?: string; suggested_next_action?: string };
-      if (r.decision === 'run_existing_skill' && r.matched_skill) {
-        const view = viewMap[r.matched_skill] ?? r.matched_skill;
+      if (result.decision === 'run_existing_skill' && result.matched_skill) {
+        const view = viewMap[result.matched_skill] ?? result.matched_skill;
         setActiveView(view);
-        dispatch({ type: 'SET_BREADCRUMBS', payload: r.matched_skill });
-      } else if (r.suggested_next_action) {
-        dispatch({ type: 'SET_COMMAND_COPY', payload: r.suggested_next_action });
+        dispatch({ type: 'SET_BREADCRUMBS', payload: result.matched_skill });
+      } else if (result.suggested_next_action) {
+        dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
       }
     } catch {
       appendTerminal([`[cmd] no match for "${cmd}"`]);

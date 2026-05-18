@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import type { SkillIdea, SkillIdeaDesignBrief } from '../../types';
 
 interface InterviewQuestion {
   id: string;
@@ -17,8 +18,9 @@ interface SessionState {
   answers: Record<string, string>;
   questionIndex: number;
   savedIdeaId: string | null;
-  designBrief: string | null;
-  sample: { id: string; output: string } | null;
+  savedIdea: SkillIdea | null;
+  designBrief: SkillIdeaDesignBrief | null;
+  sample: { id: string; output: string; warnings?: string[] } | null;
   createdSkill: { slash?: string; name?: string } | null;
   error: string | null;
 }
@@ -82,6 +84,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     answers: {},
     questionIndex: 0,
     savedIdeaId: null,
+    savedIdea: null,
     designBrief: null,
     sample: null,
     createdSkill: null,
@@ -114,35 +117,40 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     try {
       const brief = buildDesignBrief(session.ideaText, session.answers);
       const result = await api.createSkillIdea({
-        description: session.ideaText,
+        text: session.ideaText,
         designBrief: brief,
         matterName: state.activeMatter?.name,
       });
+      const savedIdea = result.idea;
       setSession((s) => ({
         ...s,
         phase: 'saved',
-        savedIdeaId: result.id,
+        savedIdeaId: savedIdea.id,
+        savedIdea,
         designBrief: brief,
       }));
-      appendTerminal([`[skill-idea] saved — id: ${result.id}`]);
+      appendTerminal([`[skill-idea] saved — id: ${savedIdea.id}`]);
     } catch (e) {
       setSession((s) => ({ ...s, phase: 'ready', error: (e as Error).message }));
     }
   }
 
   async function handleGenerateSample() {
-    if (!session.savedIdeaId) return;
+    if (!session.savedIdeaId || !session.savedIdea) return;
     setSession((s) => ({ ...s, phase: 'sampling', error: null }));
     appendTerminal(['[skill-idea] generating sample output…']);
     try {
       const result = await api.generateSampleOutput({
-        ideaId: session.savedIdeaId,
-        matterName: state.activeMatter?.name,
-      }) as { sample?: { id: string; output: string } };
+        idea: session.savedIdea,
+      });
+      const sampleId = result.sample_id || result.storedSample?.id || '';
+      const output = result.sample_markdown || result.storedSample?.sampleMarkdown || '';
       setSession((s) => ({
         ...s,
         phase: 'sampled',
-        sample: result.sample ?? null,
+        sample: sampleId && output
+          ? { id: sampleId, output, warnings: result.warnings || result.storedSample?.warnings }
+          : null,
       }));
       appendTerminal(['[skill-idea] sample ready']);
     } catch (e) {
@@ -156,15 +164,13 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     appendTerminal(['[skill-idea] approving sample & creating skill…']);
     try {
       await api.approveSkillIdeaSample(session.savedIdeaId, session.sample.id);
-      const result = await api.createSkillFromIdea(session.savedIdeaId) as {
-        skill?: { slash?: string; name?: string };
-      };
+      const result = await api.createSkillFromIdea(session.savedIdeaId);
       setSession((s) => ({
         ...s,
         phase: 'created',
-        createdSkill: result.skill ?? { name: 'New skill' },
+        createdSkill: result.skill ? { slash: result.skill.slash, name: result.skill.title } : { name: 'New skill' },
       }));
-      appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.name}`]);
+      appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.title}`]);
       dispatch({ type: 'SET_TAB', payload: 'skills' });
     } catch (e) {
       setSession((s) => ({ ...s, phase: 'sampled', error: (e as Error).message }));
@@ -258,7 +264,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           {session.designBrief && (
             <details className="skill-idea-brief">
               <summary>Design brief</summary>
-              <pre>{session.designBrief}</pre>
+              <pre>{formatDesignBrief(session.designBrief)}</pre>
             </details>
           )}
           <div className="skill-idea-actions">
@@ -287,6 +293,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
             </button>
           </div>
           <pre className="skill-idea-sample-output">{session.sample.output}</pre>
+          {session.sample.warnings && session.sample.warnings.length > 0 && (
+            <ul className="skill-idea-sample-warnings">
+              {session.sample.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          )}
           <div className="skill-idea-actions">
             <button type="button" onClick={handleApproveSample}>Approve & create skill</button>
             <button type="button" className="secondary" onClick={handleGenerateSample}>Regenerate sample</button>
@@ -318,10 +329,27 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   );
 }
 
-function buildDesignBrief(ideaText: string, answers: Record<string, string>): string {
-  const lines = [`Idea: ${ideaText}`];
-  if (answers.output) lines.push(`Output: ${answers.output}`);
-  if (answers.input) lines.push(`Input: ${answers.input}`);
-  if (answers.rules) lines.push(`Rules: ${answers.rules}`);
-  return lines.join('\n');
+function buildDesignBrief(ideaText: string, answers: Record<string, string>): SkillIdeaDesignBrief {
+  return {
+    intendedUser: 'Lawyer',
+    problem: ideaText,
+    expectedInputs: answers.input || 'Selected matter documents and source labels',
+    expectedOutputArtifact: answers.output || 'Internal matter review note',
+    targetLane: '20_Workshop',
+    paidPosture: 'paid',
+    riskLevel: 'medium',
+    notes: answers.rules || 'No extra format rules supplied.',
+  };
+}
+
+function formatDesignBrief(brief: SkillIdeaDesignBrief): string {
+  return [
+    `Problem: ${brief.problem || ''}`,
+    `Expected inputs: ${brief.expectedInputs || ''}`,
+    `Expected output: ${brief.expectedOutputArtifact || ''}`,
+    `Target lane: ${brief.targetLane || ''}`,
+    `Paid posture: ${brief.paidPosture || ''}`,
+    `Risk: ${brief.riskLevel || ''}`,
+    `Notes: ${brief.notes || ''}`,
+  ].join('\n');
 }

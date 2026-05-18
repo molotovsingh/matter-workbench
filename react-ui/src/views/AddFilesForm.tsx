@@ -1,17 +1,11 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import type { OverlapWarning } from '../types';
 
 interface CollectedFile {
   file: File;
   relativePath: string;
-}
-
-interface OverlapWarning {
-  matterName: string;
-  overlapCount: number;
-  totalIncoming: number;
-  overlapPercent: number;
 }
 
 interface Props {
@@ -87,7 +81,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         const checkResult = await api.checkOverlap({
           hashes,
           proposedName: state.activeMatter.name,
-        }) as { warnings?: OverlapWarning[] };
+        });
 
         const warnings = checkResult.warnings ?? [];
         const self = warnings.find((w) => w.matterName === state.activeMatter!.name);
