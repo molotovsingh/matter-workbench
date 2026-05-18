@@ -2,8 +2,25 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { lookupString } from '../../lib/lookup';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { PreparationPlan, PreparationStage } from '../../types';
+
+const STAGE_STATE_CLASSES = {
+  present: 'present',
+  ready: 'warning',
+  blocked: 'failed',
+  stale: 'warning',
+  'not-run': 'not-run',
+} as const;
+
+const STAGE_STATE_LABELS = {
+  present: 'Done',
+  ready: 'Ready to run',
+  blocked: 'Blocked',
+  stale: 'Needs update',
+  'not-run': 'Not started',
+} as const;
 
 export default function PrepareMatterResult() {
   const { state, dispatch, appendTerminal } = useApp();
@@ -249,21 +266,9 @@ export default function PrepareMatterResult() {
 }
 
 function stageStateClass(state: string): string {
-  return ({
-    present: 'present',
-    ready: 'warning',
-    blocked: 'failed',
-    stale: 'warning',
-    'not-run': 'not-run',
-  } as Record<string, string>)[state] || 'not-run';
+  return lookupString(STAGE_STATE_CLASSES, state, 'not-run');
 }
 
 function stageStateLabel(state: string): string {
-  return ({
-    present: 'Done',
-    ready: 'Ready to run',
-    blocked: 'Blocked',
-    stale: 'Needs update',
-    'not-run': 'Not started',
-  } as Record<string, string>)[state] || state;
+  return lookupString(STAGE_STATE_LABELS, state, state);
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { lookupString } from '../lib/lookup';
 import type {
   PipelineStage,
   RerunAdvice,
@@ -383,6 +384,46 @@ const LAWYER_LABELS: Record<string, string> = {
   '/context_preview': 'Preview context',
 };
 
+const RERUN_STATE_LABELS = {
+  current: 'Up to date',
+  stale: 'Needs update',
+  missing: 'Not started',
+  failed: 'Needs attention',
+  missing_upstream: 'Waiting on earlier step',
+} as const;
+
+const RERUN_STATE_CLASSES = {
+  current: 'current',
+  stale: 'stale',
+  missing: 'missing',
+  failed: 'failed',
+  missing_upstream: 'missing-upstream',
+} as const;
+
+const ATTENTION_STATE_CLASSES = {
+  blocked: 'failed',
+  attention_needed: 'warning',
+  clear: 'present',
+} as const;
+
+const ATTENTION_SEVERITY_LABELS = {
+  blocker: 'Blocker',
+  warning: 'Warning',
+  info: 'Info',
+} as const;
+
+const ATTENTION_SEVERITY_STATE_CLASSES = {
+  blocker: 'failed',
+  warning: 'warning',
+  info: 'not-run',
+} as const;
+
+const ATTENTION_SEVERITY_CLASSES = {
+  blocker: 'blocker',
+  warning: 'warning',
+  info: 'info',
+} as const;
+
 function cleanCommandLabel(command: string): string {
   if (LAWYER_LABELS[command]) return LAWYER_LABELS[command];
   return (command || 'Action')
@@ -400,27 +441,11 @@ function commandPill(command: string): string {
 }
 
 function rerunStateLabel(state: string): string {
-  return (
-    ({
-      current: 'Up to date',
-      stale: 'Needs update',
-      missing: 'Not started',
-      failed: 'Needs attention',
-      missing_upstream: 'Waiting on earlier step',
-    } as Record<string, string>)[state] || 'Status unknown'
-  );
+  return lookupString(RERUN_STATE_LABELS, state, 'Status unknown');
 }
 
 function rerunStateClass(state: string): string {
-  return (
-    ({
-      current: 'current',
-      stale: 'stale',
-      missing: 'missing',
-      failed: 'failed',
-      missing_upstream: 'missing-upstream',
-    } as Record<string, string>)[state] || 'unknown'
-  );
+  return lookupString(RERUN_STATE_CLASSES, state, 'unknown');
 }
 
 function rerunHintText(advice: RerunAdvice): string {
@@ -485,43 +510,19 @@ function attentionStateLabel(summary: AttentionSummary): string {
 }
 
 function attentionStateClass(state: string): string {
-  return (
-    ({
-      blocked: 'failed',
-      attention_needed: 'warning',
-      clear: 'present',
-    } as Record<string, string>)[state] || 'not-run'
-  );
+  return lookupString(ATTENTION_STATE_CLASSES, state, 'not-run');
 }
 
 function attentionSeverityLabel(severity: string): string {
-  return (
-    ({
-      blocker: 'Blocker',
-      warning: 'Warning',
-      info: 'Info',
-    } as Record<string, string>)[severity] || 'Warning'
-  );
+  return lookupString(ATTENTION_SEVERITY_LABELS, severity, 'Warning');
 }
 
 function attentionSeverityStateClass(severity: string): string {
-  return (
-    ({
-      blocker: 'failed',
-      warning: 'warning',
-      info: 'not-run',
-    } as Record<string, string>)[severity] || 'warning'
-  );
+  return lookupString(ATTENTION_SEVERITY_STATE_CLASSES, severity, 'warning');
 }
 
 function attentionSeverityClass(severity: string): string {
-  return (
-    ({
-      blocker: 'blocker',
-      warning: 'warning',
-      info: 'info',
-    } as Record<string, string>)[severity] || 'warning'
-  );
+  return lookupString(ATTENTION_SEVERITY_CLASSES, severity, 'warning');
 }
 
 function formatEvidence(entry: string | Record<string, unknown>): string {
