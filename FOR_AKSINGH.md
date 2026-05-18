@@ -485,7 +485,7 @@ The current safe arrangement is:
 - `PORT=4191 npm start` is the usual backend command for React UI work in this repo; keep it running in one terminal.
 - `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the backend.
 - `npm run ui:build` type-checks and builds the React app.
-- `npm run ui:smoke` checks that the React UI and the live backend still agree on the basic API shapes.
+- `npm run ui:smoke` checks that the React UI and the live backend still agree on the API shapes React renders.
 - `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
 - `react-dist/` is generated output and is ignored by git.
 - `/react/` can serve the compiled React build from the same backend.
@@ -523,6 +523,11 @@ They were contract fixes:
   architecture change; it is a useful tripwire. If someone adds a backend
   native skill and forgets to route it in React, the acceptance check should
   fail before the mismatch reaches a user.
+- The same smoke now also checks read-only matter surfaces that React depends
+  on: workspace tree, matter readiness, matter attention, context preview,
+  context search, doctor scan, and text file preview. This is the boring but
+  valuable migration work: a route rename or response-shape drift should break
+  the acceptance check before it breaks the React screen.
 - the React shell no longer treats infrastructure failures as ordinary empty
   outcomes: command router failures say the command check failed, context
   search API failures show an error instead of "No results found," and rerun

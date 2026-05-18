@@ -41,6 +41,7 @@ const reactSkillSampleStatesPath = new URL("../react-ui/src/lib/skillSampleState
 
 const checks = [];
 let configPayload = null;
+let workspacePayload = null;
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
@@ -79,6 +80,26 @@ async function fetchJson(pathname) {
     throw new Error(`${pathname} returned ${response.status}: ${text.slice(0, 240)}`);
   }
   return body;
+}
+
+async function postJson(pathname, body = {}) {
+  const url = `${backendBase}${pathname}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch (error) {
+    throw new Error(`${pathname} returned non-JSON (${response.status}): ${text.slice(0, 240)}`);
+  }
+  if (!response.ok) {
+    throw new Error(`${pathname} returned ${response.status}: ${text.slice(0, 240)}`);
+  }
+  return parsed;
 }
 
 async function run() {
@@ -349,6 +370,7 @@ async function run() {
   if (configPayload?.hasActiveMatter) {
     try {
       const workspace = await fetchJson("/api/workspace");
+      workspacePayload = workspace;
       assert(typeof workspace.folderName === "string", "Workspace API exposes folder name", workspace.folderName);
       assert(workspace.tree && workspace.tree.kind === "directory", "Workspace API exposes a directory tree");
       assert(Array.isArray(workspace.tree?.children), "Workspace API exposes tree children", `${workspace.tree?.children?.length ?? 0} root nodes`);
@@ -361,6 +383,24 @@ async function run() {
 
   if (configPayload?.hasActiveMatter) {
     try {
+      const matterStatus = await fetchJson("/api/matter-status");
+      const stages = Array.isArray(matterStatus.stages) ? matterStatus.stages : [];
+      assert(typeof matterStatus.matterName === "string", "Matter Status API exposes matter name", matterStatus.matterName);
+      assert(typeof matterStatus.matterRoot === "string", "Matter Status API exposes matter root");
+      assert(Array.isArray(matterStatus.stages), "Matter Status API exposes stage rows", `${stages.length} stages`);
+      assert(
+        stages.every((stage) => typeof stage?.label === "string" && typeof stage?.present === "boolean" && typeof stage?.state === "string"),
+        "Matter Status stage rows expose label, presence, and state",
+      );
+    } catch (error) {
+      fail("Matter Status API contract", error.message);
+    }
+  } else {
+    pass("Matter Status API skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
       const attention = await fetchJson("/api/matter-attention");
       assert(Array.isArray(attention.items), "Matter attention API exposes items array", `${attention.items?.length ?? 0} items`);
     } catch (error) {
@@ -368,6 +408,61 @@ async function run() {
     }
   } else {
     pass("Matter attention API skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
+      const context = await fetchJson("/api/matter-context");
+      assert(typeof context === "object" && context !== null, "Matter Context API returns an object");
+      assert(context.counts && typeof context.counts === "object", "Matter Context API exposes counts");
+      assert(Array.isArray(context.top_sources), "Matter Context API exposes top sources", `${context.top_sources?.length ?? 0} sources`);
+      assert(Array.isArray(context.library_artifacts), "Matter Context API exposes library artifacts", `${context.library_artifacts?.length ?? 0} artifacts`);
+    } catch (error) {
+      fail("Matter Context API contract", error.message);
+    }
+
+    try {
+      const search = await fetchJson("/api/matter-context/search?q=matter");
+      assert(typeof search === "object" && search !== null, "Matter Context Search API returns an object");
+      assert(Array.isArray(search.results), "Matter Context Search API exposes results array", `${search.results?.length ?? 0} results`);
+      assert(
+        search.results.every((result) => typeof result?.snippet === "string"),
+        "Matter Context Search result rows expose snippets",
+      );
+    } catch (error) {
+      fail("Matter Context Search API contract", error.message);
+    }
+  } else {
+    pass("Matter Context APIs skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
+      const scan = await postJson("/api/doctor/scan", {});
+      assert(Array.isArray(scan.issues), "Doctor scan API exposes issues array", `${scan.issues?.length ?? 0} issues`);
+    } catch (error) {
+      fail("Doctor scan API contract", error.message);
+    }
+  } else {
+    pass("Doctor scan API skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter && workspacePayload?.tree) {
+    const textNode = findFirstWorkspaceNode(workspacePayload.tree, (node) => node.kind === "file" && node.previewKind === "text");
+    if (textNode?.path) {
+      try {
+        const preview = await fetchJson(`/api/file?path=${encodeURIComponent(textNode.path)}`);
+        assert(typeof preview.path === "string", "File preview API exposes path", preview.path);
+        assert(typeof preview.name === "string", "File preview API exposes name", preview.name);
+        assert(typeof preview.content === "string", "File preview API exposes text content", `${preview.content.length} chars`);
+      } catch (error) {
+        fail("File preview API contract", error.message);
+      }
+    } else {
+      pass("File preview API skipped without a previewable text file");
+    }
+  } else if (!configPayload?.hasActiveMatter) {
+    pass("File preview API skipped without an active matter");
   }
 
   if (configPayload?.hasActiveMatter) {
@@ -429,6 +524,17 @@ run().catch((error) => {
   console.error(error.stack || error.message);
   process.exit(1);
 });
+
+function findFirstWorkspaceNode(node, predicate) {
+  if (!node || typeof node !== "object") return null;
+  if (predicate(node)) return node;
+  const children = Array.isArray(node.children) ? node.children : [];
+  for (const child of children) {
+    const found = findFirstWorkspaceNode(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
 
 async function readReactNativeCommands() {
   const source = await readFile(reactNativeCommandsPath, "utf8");

@@ -208,8 +208,9 @@ npm run ui:accept
 `ui:smoke` expects the backend at `http://127.0.0.1:4191` and the React UI at
 `http://127.0.0.1:5173/react/`. Override those with `MWB_BACKEND_URL` and
 `MWB_UI_URL` when testing another local port. If no matter is active, the smoke
-check skips matter-specific workspace, matter attention, and rerun-advice
-checks and still validates the shared app contract.
+check skips matter-specific workspace, readiness, attention, context, file
+preview, doctor-scan, and rerun-advice checks and still validates the shared app
+contract.
 
 ## Switching matters
 
