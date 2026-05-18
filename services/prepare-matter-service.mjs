@@ -32,8 +32,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
   if (!matterStore) throw new Error("matterStore is required");
   if (!matterStatusService) throw new Error("matterStatusService is required");
 
-  async function readPrepareMatterPlan() {
-    const root = matterStore.getMatterRoot?.();
+  async function readPrepareMatterPlan(root = matterStore.getMatterRoot?.()) {
     if (!root) return noActiveMatterPlan();
 
     const status = await matterStatusService.readMatterStatus(root);

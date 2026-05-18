@@ -23,7 +23,7 @@ export default function ContextSearch() {
     setDone(false);
     setError('');
     try {
-      const res = await api.searchMatterContext(query);
+      const res = await api.searchMatterContext(query, matterName);
       if (activeMatterNameRef.current !== matterName) return;
       setResults(res.results ?? []);
       setDone(true);

@@ -8,6 +8,7 @@ import type { RerunAdvice, RerunAdviceAction } from '../types';
 interface Props {
   skill: string;
   title: string;
+  matterName?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   extraActions?: RerunAdviceAction[] | ((advice: RerunAdvice) => RerunAdviceAction[]);
@@ -19,6 +20,7 @@ interface Props {
 export default function RerunConfirmDialog({
   skill,
   title,
+  matterName,
   confirmLabel = 'Regenerate anyway',
   cancelLabel = 'Keep current',
   extraActions = [],
@@ -33,7 +35,7 @@ export default function RerunConfirmDialog({
 
   useEffect(() => {
     let cancelled = false;
-    api.getRerunAdvice(skill).then((a) => {
+    api.getRerunAdvice(skill, matterName).then((a) => {
       if (cancelled) return;
       if (!a.shouldConfirm) {
         onConfirmRef.current();
@@ -48,7 +50,7 @@ export default function RerunConfirmDialog({
       }
     });
     return () => { cancelled = true; };
-  }, [skill, onConfirmRef]);
+  }, [skill, matterName, onConfirmRef]);
 
   useEffect(() => {
     if (advice && cancelRef.current) cancelRef.current.focus();
@@ -95,9 +97,9 @@ export default function RerunConfirmDialog({
   );
 }
 
-export async function checkRerunAdvice(skill: string): Promise<RerunAdvice | null> {
+export async function checkRerunAdvice(skill: string, matterName?: string): Promise<RerunAdvice | null> {
   try {
-    const advice = await api.getRerunAdvice(skill);
+    const advice = await api.getRerunAdvice(skill, matterName);
     return advice.shouldConfirm ? advice : null;
   } catch (error) {
     return rerunAdviceUnavailable(skill, error);

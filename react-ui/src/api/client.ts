@@ -116,6 +116,15 @@ function formatApiErrorMessage(payload: unknown, res: Response, url: string): st
   return `${url} returned ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
 }
 
+function withQuery(path: string, query: Record<string, string | undefined | null>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value === 'string' && value.trim()) params.set(key, value.trim());
+  }
+  const text = params.toString();
+  return text ? `${path}?${text}` : path;
+}
+
 const LANE_LABELS: Record<string, string> = {
   '00_Inbox': 'Original Documents',
   '10_Library': 'Source Record',
@@ -193,19 +202,19 @@ export const api = {
     postJson<SkillRouterDecision>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
-  getMatterStatus: () => getJson<MatterStatus>('/api/matter-status'),
-  getMatterAttention: () => getJson<MatterAttention>('/api/matter-attention'),
-  getPrepareMatter: () => getJson<PreparationPlan>('/api/prepare-matter'),
+  getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
+  getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
+  getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),
   runMatterInit: (body: MatterSkillRunRequest) => postJson('/api/matter-init', body),
   runExtract: (body: MatterSkillRunRequest) => postJson<ExtractRunResult>('/api/extract', body),
   runDescribeSources: (body: MatterSkillRunRequest) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
   runCreateListOfDates: (body: MatterSkillRunRequest) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
   refreshListOfDatesLabels: (body: MatterSkillRunRequest & { dryRun?: boolean }) => postJson<ListOfDatesRunResult>('/api/create-listofdates/refresh-labels', body),
-  getRerunAdvice: (skill: string) => getJson<RerunAdvice>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
+  getRerunAdvice: (skill: string, matterName?: string) => getJson<RerunAdvice>(withQuery('/api/rerun-advice', { skill, matter: matterName })),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
-  getMatterContext: () => getJson<MatterContextPreview>('/api/matter-context'),
-  searchMatterContext: (query: string) => getJson<MatterContextSearchResponse>(`/api/matter-context/search?q=${encodeURIComponent(query)}`),
+  getMatterContext: (matterName?: string) => getJson<MatterContextPreview>(withQuery('/api/matter-context', { matter: matterName })),
+  searchMatterContext: (query: string, matterName?: string) => getJson<MatterContextSearchResponse>(withQuery('/api/matter-context/search', { q: query, matter: matterName })),
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),

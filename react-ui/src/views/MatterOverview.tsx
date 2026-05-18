@@ -98,7 +98,7 @@ function PipelineCard({ matterName }: { matterName: string }) {
     setStages(null);
     setError(null);
     api
-      .getMatterStatus()
+      .getMatterStatus(matterName)
       .then((s) => {
         if (cancelled) return;
         setStages(Array.isArray(s.stages) ? s.stages : []);
@@ -220,7 +220,7 @@ function AttentionCard({ matterName }: { matterName: string }) {
     setData(null);
     setError(null);
     api
-      .getMatterAttention()
+      .getMatterAttention(matterName)
       .then((payload) => {
         if (cancelled) return;
         setData(payload);

@@ -82,3 +82,22 @@ test("React label refresh and custom skill runs send the selected matter explici
   assert.match(skillsPageSource, /activeMatterNameRef\.current !== matterName/);
   assert.match(typesSource, /export interface ConfigurableSkillRunRequest \{[\s\S]*matterName\?: string;/);
 });
+
+test("React read-side matter APIs pass the selected matter explicitly", async () => {
+  const apiClientSource = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
+  const overviewSource = await readFile(new URL("../react-ui/src/views/MatterOverview.tsx", import.meta.url), "utf8");
+  const prepareSource = await readFile(new URL("../react-ui/src/views/workflows/PrepareMatterResult.tsx", import.meta.url), "utf8");
+  const contextPreviewSource = await readFile(new URL("../react-ui/src/views/workflows/ContextPreview.tsx", import.meta.url), "utf8");
+  const contextSearchSource = await readFile(new URL("../react-ui/src/views/workflows/ContextSearch.tsx", import.meta.url), "utf8");
+  const rerunDialogSource = await readFile(new URL("../react-ui/src/components/RerunConfirmDialog.tsx", import.meta.url), "utf8");
+  const listOfDatesSource = await readFile(new URL("../react-ui/src/views/workflows/ListOfDatesResult.tsx", import.meta.url), "utf8");
+
+  assert.match(apiClientSource, /function withQuery\(path: string, query: Record<string, string \| undefined \| null>\): string/);
+  assert.match(overviewSource, /\.getMatterStatus\(matterName\)/);
+  assert.match(overviewSource, /\.getMatterAttention\(matterName\)/);
+  assert.match(prepareSource, /api\.getPrepareMatter\(matterName\)/);
+  assert.match(contextPreviewSource, /api\.getMatterContext\(matterName\)/);
+  assert.match(contextSearchSource, /api\.searchMatterContext\(query, matterName\)/);
+  assert.match(rerunDialogSource, /api\.getRerunAdvice\(skill, matterName\)/);
+  assert.match(listOfDatesSource, /matterName=\{state\.activeMatter\?\.name\}/);
+});

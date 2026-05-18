@@ -12,14 +12,14 @@ export default function ContextPreview() {
   const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
 
-  const loadContext = useCallback(async ({ isStale = () => false }: { isStale?: () => boolean } = {}) => {
+  const loadContext = useCallback(async ({ matterName, isStale = () => false }: { matterName?: string; isStale?: () => boolean } = {}) => {
     if (!state.activeMatter) return;
     setLoading(true);
     setError('');
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Running' });
     appendTerminal(['[context] loading preview…']);
     try {
-      const data = await api.getMatterContext();
+      const data = await api.getMatterContext(matterName);
       if (isStale()) return;
       setData(data);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Ready' });
@@ -40,11 +40,12 @@ export default function ContextPreview() {
 
   useEffect(() => {
     let cancelled = false;
-    void loadContext({ isStale: () => cancelled });
+    const matterName = state.activeMatter?.name;
+    void loadContext({ matterName, isStale: () => cancelled });
     return () => {
       cancelled = true;
     };
-  }, [loadContext]);
+  }, [loadContext, state.activeMatter?.name]);
 
   async function handleCopy() {
     if (!data) return;

@@ -99,6 +99,7 @@ export default function ListOfDatesResult() {
           <RerunConfirmDialog
             skill="/create_listofdates"
             title={`Review List of Dates before regenerating — ${state.activeMatter?.name}`}
+            matterName={state.activeMatter?.name}
             confirmLabel="Regenerate List of Dates"
             cancelLabel="Keep current List of Dates"
             extraActions={(advice) => advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED

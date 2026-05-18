@@ -46,11 +46,11 @@ export default function PrepareMatterResult() {
   } | null>(null);
   const [error, setError] = useState('');
 
-  const loadPlan = useCallback(async ({ isStale = () => false }: { isStale?: () => boolean } = {}) => {
+  const loadPlan = useCallback(async ({ matterName, isStale = () => false }: { matterName?: string; isStale?: () => boolean } = {}) => {
     setLoading(true);
     setError('');
     try {
-      const result = await api.getPrepareMatter();
+      const result = await api.getPrepareMatter(matterName);
       if (isStale()) return;
       setPlan(result);
       appendTerminal(['[prepare] plan ready']);
@@ -66,7 +66,8 @@ export default function PrepareMatterResult() {
   useEffect(() => {
     let cancelled = false;
     if (state.activeMatter) {
-      void loadPlan({ isStale: () => cancelled });
+      const matterName = state.activeMatter.name;
+      void loadPlan({ matterName, isStale: () => cancelled });
     } else {
       setPlan(null);
     }
@@ -103,7 +104,10 @@ export default function PrepareMatterResult() {
         expectedMatterName: matterName,
         failurePrefix: '[workspace] refresh failed after preparation update',
       });
-      await loadPlan();
+      await loadPlan({
+        matterName,
+        isStale: () => activeMatterNameRef.current !== matterName,
+      });
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
@@ -148,7 +152,10 @@ export default function PrepareMatterResult() {
       expectedMatterName: matterName,
       failurePrefix: '[workspace] refresh failed after preparation update',
     });
-    await loadPlan();
+    await loadPlan({
+      matterName,
+      isStale: () => activeMatterNameRef.current !== matterName,
+    });
     setRunning(false);
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Prepare Matter Complete' });
   }
@@ -189,7 +196,13 @@ export default function PrepareMatterResult() {
           <button
             className="run-skill-button secondary"
             type="button"
-            onClick={() => { void loadPlan(); }}
+            onClick={() => {
+              const matterName = state.activeMatter?.name;
+              void loadPlan({
+                matterName,
+                isStale: () => Boolean(matterName && activeMatterNameRef.current !== matterName),
+              });
+            }}
             disabled={loading || running}
           >
             Refresh plan

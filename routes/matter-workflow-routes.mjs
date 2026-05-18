@@ -96,7 +96,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runDoctorFix(root, fixIds));
       }),
       exactRoute("GET", "/api/matter-status", async () => {
-        sendJson(response, 200, await matterStatusService.readMatterStatus());
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await matterStatusService.readMatterStatus(root));
       }),
       exactRoute("GET", "/api/matter-attention", async () => {
         const matterName = requestUrl.searchParams.get("matter") || "";
@@ -108,18 +109,23 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await matterAttentionService.readMatterAttention());
       }),
       exactRoute("GET", "/api/prepare-matter", async () => {
-        sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan());
+        const root = await matterRootForQuery(matterStore, requestUrl, { allowMissingActive: true });
+        sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan(root));
       }),
       exactRoute("GET", "/api/matter-context/search", async () => {
+        const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterContextService.searchMatterContext({
+          root,
           query: requestUrl.searchParams.get("q") || "",
         }));
       }),
       exactRoute("GET", "/api/matter-context", async () => {
-        sendJson(response, 200, await matterContextService.readMatterContextPreview());
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await matterContextService.readMatterContextPreview(root));
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
-        sendJson(response, 200, await matterStatusService.readRerunAdvice(requestUrl.searchParams.get("skill") || ""));
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await matterStatusService.readRerunAdvice(requestUrl.searchParams.get("skill") || "", root));
       }),
     ],
   });
@@ -128,6 +134,16 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
 async function matterRootForBody(matterStore, body = {}) {
   const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
   if (!matterName) return matterStore.ensureMatterRoot();
+  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+  return matterPath;
+}
+
+async function matterRootForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (!matterName) {
+    if (allowMissingActive) return matterStore.getMatterRoot?.() || null;
+    return matterStore.ensureMatterRoot();
+  }
   const { matterPath } = await matterStore.resolveExistingMatter(matterName);
   return matterPath;
 }
