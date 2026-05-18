@@ -10,6 +10,7 @@ test("React Add Files keeps overlap and upload responses scoped to the starting 
   assert.match(source, /useLatestValue\(state\.activeMatter\?\.name \?\? null\)/);
   assert.match(source, /const matterName = state\.activeMatter\?\.name/);
   assert.match(source, /proposedName: matterName/);
+  assert.match(source, /fd\.append\('matterName', matterName\)/);
   assert.match(source, /activeMatterNameRef\.current !== matterName/);
   assert.match(source, /activeMatterNameRef\.current === matterName/);
 });

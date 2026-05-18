@@ -103,6 +103,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
 
       appendTerminal([`[add-files] uploading ${collected.length} file(s)…`]);
       const fd = new FormData();
+      fd.append('matterName', matterName);
       if (label.trim()) fd.append('label', label.trim());
       fd.append('paths', JSON.stringify(collected.map((c) => c.relativePath)));
       collected.forEach((c) => fd.append('files', c.file, c.relativePath));

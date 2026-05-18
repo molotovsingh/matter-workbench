@@ -20,6 +20,13 @@ async function postMultipartRaw(baseUrl, pathName, form) {
   return { response, payload };
 }
 
+async function getJson(baseUrl, pathName) {
+  const response = await fetch(`${baseUrl}${pathName}`);
+  const payload = await response.json();
+  assert.equal(response.ok, true, payload.error);
+  return payload;
+}
+
 function appendTextFile(form, fieldName, filename, text) {
   form.append(fieldName, new Blob([text], { type: "text/plain" }), filename);
 }
@@ -90,6 +97,37 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
     assert.equal(updated.intakeAdded.duplicatesOfPrior, 0);
     assert.match(updated.intakeAdded.receivedDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(updated.intakeAdded.intakeDirName, /Follow Up/);
+  });
+});
+
+test("multipart add-files honors explicit matter without switching active matter", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const firstForm = new FormData();
+    firstForm.set("name", "First Upload Matter");
+    firstForm.set("metadata", JSON.stringify({ matterName: "First Upload Matter" }));
+    firstForm.set("paths", JSON.stringify(["first.txt"]));
+    appendTextFile(firstForm, "files", "first.txt", "First matter file.");
+    await postMultipart(baseUrl, "/api/matters/new", firstForm);
+
+    const secondForm = new FormData();
+    secondForm.set("name", "Second Upload Matter");
+    secondForm.set("metadata", JSON.stringify({ matterName: "Second Upload Matter" }));
+    secondForm.set("paths", JSON.stringify(["second.txt"]));
+    appendTextFile(secondForm, "files", "second.txt", "Second matter file.");
+    await postMultipart(baseUrl, "/api/matters/new", secondForm);
+
+    const addForm = new FormData();
+    addForm.set("matterName", "First Upload Matter");
+    addForm.set("label", "Targeted Follow Up");
+    addForm.set("paths", JSON.stringify(["targeted.txt"]));
+    appendTextFile(addForm, "files", "targeted.txt", "Added to the first matter explicitly.");
+
+    const updated = await postMultipart(baseUrl, "/api/matters/add-files", addForm);
+    assert.equal(updated.folderName, "First Upload Matter");
+    assert.equal(updated.intakeAdded.intakeId, "INTAKE-02");
+
+    const activeWorkspace = await getJson(baseUrl, "/api/workspace");
+    assert.equal(activeWorkspace.folderName, "Second Upload Matter");
   });
 });
 

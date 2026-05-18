@@ -54,9 +54,9 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
   }
 
   async function addFilesToMatter(request) {
-    const root = matterStore.ensureMatterRoot();
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
+      const root = await resolveMatterRootForFields(fields);
       const label = validateIntakeLabel(fields.label);
       const relativePaths = validateUploadPathList(fields, files);
       if (!files.length) throw makeHttpError("No files attached", 400);
@@ -86,7 +86,7 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
         priorHashes,
       });
 
-      const workspace = await workspaceService.readWorkspace();
+      const workspace = await workspaceService.readWorkspace(root);
       return {
         ...workspace,
         intakeAdded: {
@@ -103,6 +103,13 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  async function resolveMatterRootForFields(fields = {}) {
+    const matterName = String(fields.matterName || fields.matter || "").trim();
+    if (!matterName) return matterStore.ensureMatterRoot();
+    const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+    return matterPath;
   }
 
   return {
