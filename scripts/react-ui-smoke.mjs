@@ -177,6 +177,26 @@ async function run() {
     pass("Matter attention API skipped without an active matter");
   }
 
+  if (configPayload?.hasActiveMatter) {
+    try {
+      const rerunAdvice = await fetchJson(`/api/rerun-advice?skill=${encodeURIComponent("/describe_sources")}`);
+      assert(typeof rerunAdvice.state === "string", "Rerun advice exposes state", rerunAdvice.state);
+      assert(typeof rerunAdvice.shouldConfirm === "boolean", "Rerun advice exposes confirmation flag");
+      assert(
+        !rerunAdvice.artifactPath || typeof rerunAdvice.artifactPath === "string",
+        "Rerun advice artifact path is optional text",
+      );
+      assert(
+        !rerunAdvice.dependencyState || typeof rerunAdvice.dependencyState === "string",
+        "Rerun advice dependency state is optional text",
+      );
+    } catch (error) {
+      fail("Rerun advice API contract", error.message);
+    }
+  } else {
+    pass("Rerun advice API skipped without an active matter");
+  }
+
   const failed = checks.filter((check) => !check.ok);
   for (const check of checks) {
     const marker = check.ok ? "OK" : "FAIL";
