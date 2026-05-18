@@ -5,7 +5,7 @@ import { getErrorMessage } from '../../lib/errors';
 import type { DoctorIssue } from '../../types';
 
 export default function DoctorResult() {
-  const { state, appendTerminal } = useApp();
+  const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [issues, setIssues] = useState<DoctorIssue[]>([]);
   const [scanning, setScanning] = useState(false);
   const [fixing, setFixing] = useState(false);
@@ -42,6 +42,7 @@ export default function DoctorResult() {
       await api.runDoctorFix({ matterName: state.activeMatter.name, issueIds: selected });
       setFixDone(true);
       appendTerminal(['[doctor] fixes applied']);
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Doctor fixes' });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {

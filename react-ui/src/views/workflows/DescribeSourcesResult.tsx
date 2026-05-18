@@ -6,7 +6,7 @@ import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { DescribeSourcesResult as DescribeResult } from '../../types';
 
 export default function DescribeSourcesResult() {
-  const { state, dispatch, appendTerminal } = useApp();
+  const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [result, setResult] = useState<DescribeResult | null>(null);
   const [running, setRunning] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -32,6 +32,7 @@ export default function DescribeSourcesResult() {
       setResult(raw);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
       appendTerminal(['[source-index] complete']);
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Source Labels update' });
     } catch (e) {
       setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Failed' });

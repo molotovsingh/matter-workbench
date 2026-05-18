@@ -6,7 +6,7 @@ import { readableSourcePath } from '../../lib/sourceLabels';
 import type { ExtractFileResult } from '../../types';
 
 export default function ExtractResult() {
-  const { state, appendTerminal } = useApp();
+  const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [rows, setRows] = useState<ExtractFileResult[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -23,6 +23,7 @@ export default function ExtractResult() {
       setRows(result.fileResults ?? []);
       setDone(true);
       appendTerminal(['[extract] complete']);
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Extract update' });
     } catch (e) {
       setError(getErrorMessage(e));
       appendTerminal([`[extract] error: ${getErrorMessage(e)}`]);

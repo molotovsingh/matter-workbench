@@ -33,7 +33,7 @@ const STAGE_STATE_LABELS = {
 } as const;
 
 export default function PrepareMatterResult() {
-  const { state, dispatch, appendTerminal } = useApp();
+  const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [plan, setPlan] = useState<PreparationPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
@@ -86,6 +86,7 @@ export default function PrepareMatterResult() {
       const slash = plan.nextStep.slash;
       await runPreparationStage(slash, state.activeMatter?.name);
       appendTerminal([`[prepare] ${slash} complete`]);
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after preparation update' });
       await loadPlan();
     } catch (e) {
       appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
@@ -121,6 +122,7 @@ export default function PrepareMatterResult() {
       }
     }
     setPendingPaidConfirm(null);
+    await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after preparation update' });
     await loadPlan();
     setRunning(false);
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Prepare Matter Complete' });

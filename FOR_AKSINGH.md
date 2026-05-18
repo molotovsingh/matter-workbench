@@ -1250,6 +1250,8 @@ React matter switching now also clears matter-scoped preview state. Before this,
 
 The Prepare Matter React view also stopped using the rerun guard as a generic paid-action confirmation. That mattered because the rerun guard is allowed to auto-run when no previous artifact exists; that is correct for rerun safety, but wrong for a stage whose backend action says `confirm_paid_run`. Paid-provider confirmation is now a plain explicit confirmation card in the Prepare Matter view. The lesson is that similar-looking dialogs can have different contracts: "is it safe to replace an existing artifact?" is not the same question as "may I start a paid AI call?"
 
+Artifact-writing React workflows now refresh the active matter workspace through the same context owner after successful writes. Extract, Source Labels, Prepare Matter, and Doctor fixes can all change the files or generated records underneath the shell. If the UI keeps showing the old file tree after that, the backend may be correct but the lawyer still sees stale workspace state. This is the React migration theme in miniature: every write path needs an explicit state-refresh story.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:
