@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lookupString } from '../../lib/lookup';
+import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { PreparationPlan, PreparationStage } from '../../types';
 
@@ -68,7 +69,7 @@ export default function PrepareMatterResult() {
     if (!plan?.nextStep?.slash) return;
     const matchedStage = findNextPreparationStage(plan);
     if (!matchedStage || !isRunnablePreparationStage(matchedStage)) return;
-    if (matchedStage.action === 'confirm_paid_run') {
+    if (matchedStage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
       setConfirmingPaid(true);
     } else {
       executeRunNext();
@@ -100,7 +101,7 @@ export default function PrepareMatterResult() {
     setRunning(true);
     const runnableStages = plan.stages.filter(isRunnablePreparationStage);
     for (const stage of runnableStages) {
-      if (stage.action === 'confirm_paid_run') {
+      if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
         const skipPaid = await new Promise<boolean>((resolve) => {
           setPendingPaidConfirm({ stage, resolve });
         });
@@ -295,7 +296,7 @@ function stageStateLabel(state: string): string {
 }
 
 function isRunnablePreparationStage(stage?: PreparationStage | null): stage is PreparationStage {
-  return stage?.action === 'run' || stage?.action === 'confirm_paid_run';
+  return stage?.action === PREPARATION_STAGE_ACTIONS.RUN || stage?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN;
 }
 
 function hasRunnablePreparationStage(plan?: PreparationPlan | null): boolean {

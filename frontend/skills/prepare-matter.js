@@ -1,6 +1,7 @@
 import { getJson, postJson } from "../api-client.js";
 import { escapeHtml } from "../dom-utils.js";
 import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
+import { PREPARATION_STAGE_ACTIONS } from "../../shared/preparation-stage-actions.mjs";
 import {
   renderPrepareMatterHtml,
   renderPreparePaidConfirmationHtml,
@@ -68,7 +69,7 @@ export function createPrepareMatterSkill(ctx) {
         });
         return;
       }
-      if (stage.action === "blocked") {
+      if (stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) {
         const stageLabel = lawyerActionLabel(stage, stage.label);
         ctx.setStatus({
           mood: "idle",
@@ -78,7 +79,7 @@ export function createPrepareMatterSkill(ctx) {
         });
         return;
       }
-      if (stage.action === "confirm_paid_run") {
+      if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
         const confirmed = await confirmPaidSourceLabeling(stage);
         if (!confirmed) {
           await loadAndRenderPlan();
@@ -185,7 +186,7 @@ export function createPrepareMatterSkill(ctx) {
 
 function nextActionableStage(plan) {
   const stages = Array.isArray(plan?.stages) ? plan.stages : [];
-  return stages.find((stage) => stage.action === "run" || stage.action === "confirm_paid_run")
-    || stages.find((stage) => stage.action === "blocked")
+  return stages.find((stage) => stage.action === PREPARATION_STAGE_ACTIONS.RUN || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN)
+    || stages.find((stage) => stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED)
     || null;
 }

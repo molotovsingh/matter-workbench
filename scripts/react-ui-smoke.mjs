@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import {
   SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS,
@@ -14,6 +15,7 @@ const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
+const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparationStageActions.ts", import.meta.url);
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 
@@ -91,6 +93,17 @@ async function run() {
     );
   } catch (error) {
     fail("React rerun advice states are readable", error.message);
+  }
+
+  try {
+    const reactActions = await readReactPreparationStageActions();
+    assert(
+      sameObjectEntries(reactActions, PREPARATION_STAGE_ACTIONS),
+      "React preparation stage actions match shared contract",
+      objectDiffDetail(reactActions, PREPARATION_STAGE_ACTIONS),
+    );
+  } catch (error) {
+    fail("React preparation stage actions are readable", error.message);
   }
 
   try {
@@ -324,6 +337,11 @@ async function readReactListOfDatesDependencyStates() {
 
 async function readReactRerunAdviceStates() {
   const source = await readFile(reactRerunAdviceStatePath, "utf8");
+  return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+}
+
+async function readReactPreparationStageActions() {
+  const source = await readFile(reactPreparationStageActionsPath, "utf8");
   return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
 }
 

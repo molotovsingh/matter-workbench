@@ -1,5 +1,6 @@
 import path from "node:path";
 import { REQUIRED_METADATA } from "../shared/matter-contract.mjs";
+import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 
 const PREPARE_SCHEMA_VERSION = "prepare-matter-plan/v1";
 
@@ -115,7 +116,7 @@ function noActiveMatterPlan() {
         slash: "/create_listofdates",
         label: "Create list of dates",
         state: "not_selected",
-        action: "blocked",
+        action: PREPARATION_STAGE_ACTIONS.BLOCKED,
         reason: "Pick or create a matter first.",
         artifacts: [],
       },
@@ -137,7 +138,7 @@ function buildSetupStage(stage, missingMetadata) {
     return {
       ...base,
       state: "current",
-      action: "skip_current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
       reason: "Matter setup artifacts are already present.",
     };
   }
@@ -145,14 +146,14 @@ function buildSetupStage(stage, missingMetadata) {
     return {
       ...base,
       state: "blocked",
-      action: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: `Required metadata is missing: ${missingMetadata.join(", ")}.`,
     };
   }
   return {
     ...base,
     state: "ready_to_run",
-    action: "run",
+    action: PREPARATION_STAGE_ACTIONS.RUN,
     reason: "Matter setup has not run yet.",
   };
 }
@@ -164,14 +165,14 @@ function buildExtractionStage(stage, setupStage) {
       return {
         ...base,
         state: "blocked",
-        action: "blocked",
+        action: PREPARATION_STAGE_ACTIONS.BLOCKED,
         reason: "Extraction has run, but no usable extraction records were found. Review the Extraction Log before labeling sources.",
       };
     }
     return {
       ...base,
       state: "current",
-      action: "skip_current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
       reason: "Extraction records or logs are already present.",
     };
   }
@@ -179,14 +180,14 @@ function buildExtractionStage(stage, setupStage) {
     return {
       ...base,
       state: "blocked",
-      action: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: "Set up the matter before extracting documents.",
     };
   }
   return {
     ...base,
     state: "ready_to_run",
-    action: "run",
+    action: PREPARATION_STAGE_ACTIONS.RUN,
     reason: "Extraction records are missing.",
   };
 }
@@ -205,7 +206,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
     return {
       ...base,
       state: "current",
-      action: "skip_current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
       reason: "Source labels are current.",
       rerunAdvice: advice,
     };
@@ -214,7 +215,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
     return {
       ...base,
       state: "blocked",
-      action: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: "Extract documents before labeling sources.",
       rerunAdvice: advice,
     };
@@ -223,7 +224,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
     return {
       ...base,
       state: "blocked",
-      action: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: "Extraction inputs are missing.",
       rerunAdvice: advice,
     };
@@ -231,7 +232,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
   return {
     ...base,
     state: adviceState === "stale" ? "stale" : adviceState === "failed" ? "failed" : "missing",
-    action: "confirm_paid_run",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
     reason: sourceLabelReason(adviceState),
     rerunAdvice: advice,
   };
@@ -252,7 +253,7 @@ function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
     return {
       ...base,
       state: "current",
-      action: "recommend_review",
+      action: PREPARATION_STAGE_ACTIONS.RECOMMEND_REVIEW,
       reason: "List of Dates already exists and appears current.",
     };
   }
@@ -260,14 +261,14 @@ function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
     return {
       ...base,
       state: "blocked",
-      action: "recommend_after_prepare",
+      action: PREPARATION_STAGE_ACTIONS.RECOMMEND_AFTER_PREPARE,
       reason: "Label sources before creating the List of Dates.",
     };
   }
   return {
     ...base,
     state: adviceState === "stale" ? "stale" : "missing",
-    action: "recommend_separate_skill",
+    action: PREPARATION_STAGE_ACTIONS.RECOMMEND_SEPARATE_SKILL,
     reason: "Run Create list of dates separately after preparation.",
   };
 }
@@ -288,13 +289,13 @@ function stageBase(slash, statusStage) {
 }
 
 function firstActionableStage(stages) {
-  return stages.find((stage) => stage.action === "run" || stage.action === "confirm_paid_run")
-    || stages.find((stage) => stage.action === "blocked")
+  return stages.find((stage) => stage.action === PREPARATION_STAGE_ACTIONS.RUN || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN)
+    || stages.find((stage) => stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED)
     || null;
 }
 
 function nextStepSummary(stage) {
-  if (stage.action === "run") {
+  if (stage.action === PREPARATION_STAGE_ACTIONS.RUN) {
     return {
       state: stage.state,
       label: stage.label,
@@ -303,7 +304,7 @@ function nextStepSummary(stage) {
       slash: stage.slash,
     };
   }
-  if (stage.action === "confirm_paid_run") {
+  if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
     return {
       state: stage.state,
       label: stage.label,
@@ -332,10 +333,10 @@ function warningsForPlan({ missingMetadata, stages, listOfDates }) {
   if (missingMetadata.length) {
     warnings.push(`Missing metadata: ${missingMetadata.join(", ")}`);
   }
-  if (stages.some((stage) => stage.action === "confirm_paid_run")) {
+  if (stages.some((stage) => stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN)) {
     warnings.push("Label sources may make a paid AI provider call.");
   }
-  if (listOfDates?.action === "recommend_separate_skill") {
+  if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RECOMMEND_SEPARATE_SKILL) {
     warnings.push("List of Dates is not part of preparation V0; run it separately after source labels are ready.");
   }
   return warnings;
