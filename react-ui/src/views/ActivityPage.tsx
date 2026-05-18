@@ -9,6 +9,7 @@ import {
   humanizeRunOutputPath,
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
+import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import type { ActiveMatter, SkillRun } from '../types';
 
 interface DayGroup {
@@ -53,7 +54,7 @@ export default function ActivityPage() {
     }
   }
 
-  function handleOpenOutput(run: SkillRun) {
+  async function handleOpenOutput(run: SkillRun) {
     if (!canOpenSkillRunOutputForMatter(run, state.activeMatter)) {
       appendTerminal([`[activity] output is in another matter: ${run.matterFolder || run.matterName || 'unknown matter'}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Switch to the run matter before opening that output.' });
@@ -61,8 +62,17 @@ export default function ActivityPage() {
     }
     const outputPath = run.outputPaths?.markdown;
     if (!outputPath) return;
-    dispatch({ type: 'SET_FILE_PREVIEW', payload: { path: outputPath, type: 'text' } });
-    dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+    dispatch({ type: 'SET_ACTIVE_FILE', payload: outputPath });
+    dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(outputPath) });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(outputPath)}` });
+    try {
+      dispatch({ type: 'SET_FILE_PREVIEW', payload: await loadTextFilePreview(outputPath, api.getFile) });
+      dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[activity] output preview failed for ${outputPath}: ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Could not open output: ${message}` });
+    }
   }
 
   return (

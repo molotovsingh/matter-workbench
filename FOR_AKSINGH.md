@@ -1244,6 +1244,8 @@ The copied React review packet now carries the same basic governance shape as th
 
 React Activity now uses a dedicated custom-skill run report helper instead of building a tiny ad hoc clipboard string in the component. The helper mirrors the vanilla report boundary: metadata only, redacted secrets, no generated work product body. Activity also refuses to open a run output unless the active matter is the same matter that owns the run. That guard matters because run output paths are matter-relative; opening `20_Workshop/Party Map.md` while another matter is active can show the wrong file or fail in a confusing way.
 
+The next React parity bug was even more concrete: the Activity page could navigate to an output preview shell without loading the file content, so the lawyer saw a title and an empty body. React now has a small `filePreview` helper that the Workspace tree and Activity page both use. The lesson is simple but important: navigation state and data state are different. A UI can point at the right file and still be wrong if it never reads the file.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

@@ -1,6 +1,7 @@
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { filePreviewTitle, loadTextFilePreview } from '../../lib/filePreview';
 import type { WorkspaceFile } from '../../types';
 
 interface TreeNodeProps {
@@ -23,20 +24,19 @@ function TreeNode({ file }: TreeNodeProps) {
 
   async function handleFileClick(path: string, ext?: string) {
     dispatch({ type: 'SET_ACTIVE_FILE', payload: path });
-    dispatch({ type: 'SET_BREADCRUMBS', payload: path.split('/').pop() ?? path });
+    dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(path) });
 
     const isPdf = ext?.toLowerCase() === 'pdf';
     const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext?.toLowerCase() ?? '');
 
     if (isPdf || isImage) {
       const rawUrl = api.getFileRawUrl(path);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${path.split('/').pop()}` });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(path)}` });
       dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: isPdf ? 'pdf' : 'image', url: rawUrl } });
       dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
     } else {
       try {
-        const result = await api.getFile(path);
-        dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: 'text', content: result.content, ext: result.ext } });
+        dispatch({ type: 'SET_FILE_PREVIEW', payload: await loadTextFilePreview(path, api.getFile) });
         dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
       } catch (e) {
         appendTerminal([`[file] error reading ${path}: ${getErrorMessage(e)}`]);
