@@ -2,6 +2,16 @@
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
+const reactRoutedBuiltins = [
+  "/matter-init",
+  "/prepare_matter",
+  "/extract",
+  "/describe_sources",
+  "/context_preview",
+  "/context_search",
+  "/create_listofdates",
+  "/doctor",
+];
 
 const checks = [];
 let configPayload = null;
@@ -85,6 +95,12 @@ async function run() {
     const slashes = new Set(skillList.map((skill) => skill?.slash).filter(Boolean));
     assert(Array.isArray(skills.skills), "Skills API returns flat skills array", `${skillList.length} skills`);
     assert(skillList.every((skill) => typeof skill?.slash === "string" && typeof skill?.title === "string"), "Skill cards expose slash and title");
+    const missingReactBuiltins = reactRoutedBuiltins.filter((slash) => !slashes.has(slash));
+    assert(
+      missingReactBuiltins.length === 0,
+      "Skills API includes React-routed native commands",
+      missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${reactRoutedBuiltins.length} commands`,
+    );
     assert(slashes.has("/describe_sources"), "Source Labels native skill is present");
     assert(slashes.has("/create_listofdates"), "List of Dates native skill is present");
   } catch (error) {
