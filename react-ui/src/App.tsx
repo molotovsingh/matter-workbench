@@ -85,8 +85,10 @@ function AppShell() {
       } else if (result.suggested_next_action) {
         dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
       }
-    } catch {
-      appendTerminal([`[cmd] no match for "${cmd}"`]);
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[cmd] check failed for "${cmd}": ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Could not check that command. Try again, or use a listed action.' });
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
