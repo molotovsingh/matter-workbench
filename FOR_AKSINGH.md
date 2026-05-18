@@ -563,6 +563,11 @@ They were contract fixes:
   `regenerate sample`, `copy sample`, `looks useful`, `mark ready`, and
   `open skills` are interpreted as session actions instead of leaking into the
   global command router.
+- React Skill Factory also mirrors the backend readiness gate before marking an
+  idea ready for review. If the design brief is incomplete, React now explains
+  that locally instead of sending a doomed status update and surfacing a raw API
+  rejection. When the backend accepts the status change, React keeps the
+  normalized idea record returned by the server.
 - React and vanilla now recognize explicit skill-idea phrasing from the same
   pattern contract. That matters for the messy real inputs people type:
   `new skill to...`, `build a skill which...`, and even the common typo

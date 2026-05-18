@@ -344,13 +344,17 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   async function handleMarkReady() {
     if (!session.savedIdeaId) return;
+    if (!session.savedIdea?.readiness?.ready) {
+      showSessionGuidance('Complete every readiness item before marking ready for review.');
+      return;
+    }
     setSession((s) => ({ ...s, notice: null, error: null }));
     try {
-      await api.updateSkillIdeaStatus(session.savedIdeaId, { status: SKILL_IDEA_STATUS.READY_FOR_REVIEW });
+      const payload = await api.updateSkillIdeaStatus(session.savedIdeaId, { status: SKILL_IDEA_STATUS.READY_FOR_REVIEW });
       appendTerminal([`[skill-idea] marked ready for review — id: ${session.savedIdeaId}`]);
       setSession((s) => ({
         ...s,
-        savedIdea: s.savedIdea ? { ...s.savedIdea, status: SKILL_IDEA_STATUS.READY_FOR_REVIEW } : s.savedIdea,
+        savedIdea: payload.idea || (s.savedIdea ? { ...s.savedIdea, status: SKILL_IDEA_STATUS.READY_FOR_REVIEW } : s.savedIdea),
         notice: 'Marked ready for review. Open Skills to review the saved idea.',
       }));
     } catch (e) {

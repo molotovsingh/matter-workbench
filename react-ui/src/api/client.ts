@@ -222,7 +222,8 @@ export const api = {
   getSkillIdeaSamples: (ideaId: string) => getJson<{ schema_version?: string; samples: SkillIdeaSample[] }>(`/api/skill-ideas/${ideaId}/samples`),
   updateSkillIdeaBrief: (ideaId: string, body: SkillIdeaDesignBriefUpdateRequest) =>
     postJson<SkillIdeaCreateResponse>(`/api/skill-ideas/${ideaId}/design-brief`, body),
-  updateSkillIdeaStatus: (ideaId: string, body: SkillIdeaStatusUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
+  updateSkillIdeaStatus: (ideaId: string, body: SkillIdeaStatusUpdateRequest) =>
+    postJson<SkillIdeaCreateResponse>(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
     postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
   createSkillFromIdea: (ideaId: string, body?: { overlapOverrideJustification?: string }) =>
