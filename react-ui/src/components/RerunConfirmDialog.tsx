@@ -60,7 +60,7 @@ export default function RerunConfirmDialog({
   return (
     <div className="form-warning" role="alertdialog" aria-labelledby="rerunConfirmTitle">
       <h2 id="rerunConfirmTitle">{heading}</h2>
-      {advice.message && <p>{advice.message}</p>}
+      {advice.message && <p style={{ whiteSpace: 'pre-line' }}>{advice.message}</p>}
       <ul className="overlap-list">
         <li><strong>Skill:</strong> <code>{skill}</code></li>
         {advice.artifactPath && <li><strong>Artifact:</strong> {advice.artifactPath}</li>}
