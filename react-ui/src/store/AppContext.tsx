@@ -6,7 +6,15 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { AppState, ActiveMatter, Matter, ActiveTab, ActiveView, FilePreview } from '../types';
+import type {
+  AppState,
+  ActiveMatter,
+  Matter,
+  ActiveTab,
+  ActiveView,
+  FilePreview,
+  WorkspaceApiResponse,
+} from '../types';
 import { api } from '../api/client';
 import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { getErrorMessage } from '../lib/errors';
@@ -109,6 +117,7 @@ interface AppContextValue {
   toggleTheme: () => void;
   setActiveMatter: (matter: ActiveMatter | null) => void;
   clearActiveMatter: () => void;
+  switchActiveMatter: (name: string, opts?: SwitchActiveMatterOptions) => Promise<ActiveMatter>;
   refreshActiveMatterWorkspace: (opts?: { reason?: string; successMessage?: string; failurePrefix?: string }) => Promise<ActiveMatter | null>;
   appendTerminal: (lines: string[]) => void;
   setStatus: (opts: { bar?: string; terminal?: string[] }) => void;
@@ -116,6 +125,18 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+type SwitchActiveMatterSummary = {
+  name: string;
+  activeMatter: ActiveMatter;
+  workspace: WorkspaceApiResponse;
+};
+
+type SwitchActiveMatterOptions = {
+  startMessage?: string | false;
+  successMessage?: string | false | ((summary: SwitchActiveMatterSummary) => string);
+  failureMessage?: false | ((error: unknown) => string);
+};
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -157,6 +178,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'APPEND_TERMINAL', payload: lines });
   }, []);
 
+  const switchActiveMatter = useCallback(async (
+    name: string,
+    {
+      startMessage = `[matter] switching to "${name}"…`,
+      successMessage,
+      failureMessage,
+    }: SwitchActiveMatterOptions = {},
+  ) => {
+    if (startMessage !== false) appendTerminal([startMessage]);
+    try {
+      const workspace = await api.switchMatter(name);
+      const activeMatter = activeMatterFromWorkspace(workspace, name);
+      setActiveMatter(activeMatter);
+      const summary = { name, activeMatter, workspace };
+      const resolvedSuccessMessage = typeof successMessage === 'function'
+        ? successMessage(summary)
+        : successMessage;
+      if (resolvedSuccessMessage !== false) {
+        appendTerminal([
+          resolvedSuccessMessage
+            || `[matter] loaded "${name}" — ${workspace.fileCount} files, ${workspace.directoryCount} folders`,
+        ]);
+      }
+      return activeMatter;
+    } catch (error) {
+      const resolvedFailureMessage = typeof failureMessage === 'function'
+        ? failureMessage(error)
+        : failureMessage;
+      if (resolvedFailureMessage !== false) {
+        appendTerminal([resolvedFailureMessage || `[matter] error: ${getErrorMessage(error)}`]);
+      }
+      throw error;
+    }
+  }, [appendTerminal, setActiveMatter]);
+
   const refreshActiveMatterWorkspace = useCallback(async ({
     reason = '',
     successMessage = '',
@@ -188,6 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTheme,
     setActiveMatter,
     clearActiveMatter,
+    switchActiveMatter,
     refreshActiveMatterWorkspace,
     appendTerminal,
     setStatus,

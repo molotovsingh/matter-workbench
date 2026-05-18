@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
-import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { getErrorMessage } from '../lib/errors';
 
 interface Props {
@@ -10,7 +9,7 @@ interface Props {
 }
 
 export default function NewMatterForm({ onCancel, onCreated }: Props) {
-  const { setActiveMatter, appendTerminal } = useApp();
+  const { switchActiveMatter, appendTerminal } = useApp();
   const [name, setName] = useState('');
   const [clientName, setClientName] = useState('');
   const [matterType, setMatterType] = useState('');
@@ -51,8 +50,11 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
 
       await api.newMatter(fd);
       appendTerminal([`[new-matter] created "${name}"`]);
-      const ws = await api.switchMatter(name.trim());
-      setActiveMatter(activeMatterFromWorkspace(ws, name.trim()));
+      await switchActiveMatter(name.trim(), {
+        startMessage: false,
+        successMessage: false,
+        failureMessage: (err) => `[new-matter] switch error: ${getErrorMessage(err)}`,
+      });
       onCreated(name.trim());
     } catch (err) {
       setError(getErrorMessage(err));

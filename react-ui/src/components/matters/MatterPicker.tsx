@@ -1,15 +1,12 @@
 import { useMemo } from 'react';
 import { useApp } from '../../store/AppContext';
-import { api } from '../../api/client';
-import { activeMatterFromWorkspace } from '../../lib/activeMatter';
-import { getErrorMessage } from '../../lib/errors';
 
 interface Props {
   onNewMatter: () => void;
 }
 
 export default function MatterPicker({ onNewMatter }: Props) {
-  const { state, dispatch, setActiveMatter, appendTerminal } = useApp();
+  const { state, dispatch, switchActiveMatter } = useApp();
   const { matters, matterSearchQuery, activeMatter } = state;
 
   const filtered = useMemo(() => {
@@ -20,14 +17,11 @@ export default function MatterPicker({ onNewMatter }: Props) {
 
   async function handleSelectMatter(name: string) {
     if ((activeMatter?.folderName || activeMatter?.name) === name) return;
-    appendTerminal([`[matter] switching to "${name}"…`]);
     try {
-      const ws = await api.switchMatter(name);
-      setActiveMatter(activeMatterFromWorkspace(ws, name));
+      await switchActiveMatter(name);
       dispatch({ type: 'SET_TAB', payload: 'home' });
-      appendTerminal([`[matter] loaded "${name}" — ${ws.fileCount} files, ${ws.directoryCount} folders`]);
-    } catch (e) {
-      appendTerminal([`[matter] error: ${getErrorMessage(e)}`]);
+    } catch {
+      // switchActiveMatter already reports the matter-specific error in the activity strip.
     }
   }
 

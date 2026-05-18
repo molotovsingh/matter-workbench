@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../store/AppContext';
-import { api } from '../api/client';
-import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { getErrorMessage } from '../lib/errors';
 import type { Matter } from '../types';
 import MatterOverview from './MatterOverview';
@@ -21,7 +19,7 @@ interface Props {
 }
 
 export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatters, onCommand }: Props) {
-  const { state, dispatch, setActiveMatter, appendTerminal } = useApp();
+  const { state, dispatch, switchActiveMatter } = useApp();
   const { matters, resumeMatterName, activeMatter } = state;
   const [loading, setLoading] = useState(false);
 
@@ -33,14 +31,15 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
   async function handleOpenMatter(name: string) {
     if (loading) return;
     setLoading(true);
-    appendTerminal([`[matter] switching to "${name}"…`]);
     try {
-      const ws = await api.switchMatter(name);
-      setActiveMatter(activeMatterFromWorkspace(ws, name));
+      await switchActiveMatter(name, {
+        successMessage: false,
+        failureMessage: (e) => `[error] ${getErrorMessage(e)}`,
+      });
       dispatch({ type: 'SET_RESUME_MATTER', payload: name });
       onOpenMatter(name);
-    } catch (e) {
-      appendTerminal([`[error] ${getErrorMessage(e)}`]);
+    } catch {
+      // switchActiveMatter already reports the error in the activity strip.
     } finally {
       setLoading(false);
     }
