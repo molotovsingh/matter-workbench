@@ -174,11 +174,15 @@ separate prototype repo is no longer required as a source of truth.
 For iterative frontend work against the local backend:
 
 ```bash
+PORT=4191 npm start
 npm run ui:dev
 ```
 
-This serves the React UI at `http://127.0.0.1:5173/` and proxies `/api` to the
-Matter Workbench backend. To build the React UI inside the main repo:
+This starts the backend on `http://127.0.0.1:4191`, then serves the React UI at
+`http://127.0.0.1:5173/` and proxies `/api` to that backend. If you run the
+backend on a different port, set `VITE_API_TARGET` before `npm run ui:dev`.
+
+To build the React UI inside the main repo:
 
 ```bash
 npm run ui:build
@@ -197,8 +201,8 @@ npm run ui:accept
 `ui:smoke` expects the backend at `http://127.0.0.1:4191` and the React UI at
 `http://127.0.0.1:5173/react/`. Override those with `MWB_BACKEND_URL` and
 `MWB_UI_URL` when testing another local port. If no matter is active, the smoke
-check skips matter-specific workspace checks and still validates the shared app
-contract.
+check skips matter-specific workspace, matter attention, and rerun-advice
+checks and still validates the shared app contract.
 
 ## Switching matters
 
