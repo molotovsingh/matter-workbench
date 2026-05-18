@@ -2,9 +2,13 @@ import type {
   AiSettings,
   AppConfig,
   ConfigurableSkill,
+  ConfigurableSkillRunResult,
   MatterAttention,
   MatterStatus,
+  SkillFactoryHealth,
+  SkillIdea,
   SkillRegistry,
+  SkillRun,
   WorkspaceApiNode,
   WorkspaceApiResponse,
 } from '../types';
@@ -151,13 +155,13 @@ export const api = {
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),
-  runConfigurableSkill: (body: unknown) => postJson('/api/configurable-skills/run', body),
-  getSkillRuns: (limit = 100) => getJson<{ runs: unknown[] }>(`/api/configurable-skills/runs?limit=${limit}`),
+  runConfigurableSkill: (body: unknown) => postJson<ConfigurableSkillRunResult>('/api/configurable-skills/run', body),
+  getSkillRuns: (limit = 100) => getJson<{ schema_version?: string; runs: SkillRun[] }>(`/api/configurable-skills/runs?limit=${limit}`),
   cancelSkillRun: (body: unknown) => postJson('/api/configurable-skills/runs/cancelled', body),
 
   // ─── Skill factory ────────────────────────
-  getSkillFactoryHealth: () => getJson<unknown>('/api/skill-factory-health'),
-  getSkillIdeas: () => getJson<{ ideas: unknown[] }>('/api/skill-ideas'),
+  getSkillFactoryHealth: () => getJson<SkillFactoryHealth>('/api/skill-factory-health'),
+  getSkillIdeas: () => getJson<{ schema_version?: string; ideas: SkillIdea[] }>('/api/skill-ideas'),
   createSkillIdea: (body: unknown) => postJson<{ id: string }>('/api/skill-ideas', body),
   planSkillIdeaInterview: (body: unknown) => postJson<unknown>('/api/skill-ideas/plan-interview', body),
   generateSampleOutput: (body: unknown) => postJson<unknown>('/api/skill-ideas/sample-output', body),

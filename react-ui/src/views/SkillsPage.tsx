@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
-import type { ConfigurableSkill, Skill } from '../types';
-
-interface SkillIdea { id: string; description: string; status: string; createdAt: string; sampleCount?: number }
+import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
 export default function SkillsPage() {
   const { state, appendTerminal } = useApp();
   const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
   const [customSkills, setCustomSkills] = useState<ConfigurableSkill[]>([]);
   const [ideas, setIdeas] = useState<SkillIdea[]>([]);
-  const [health, setHealth] = useState<{ status: string; message?: string } | null>(null);
+  const [health, setHealth] = useState<SkillFactoryHealth | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,8 +16,8 @@ export default function SkillsPage() {
       setRegistrySkills(r.skills ?? []);
     }).catch(() => null);
     api.getConfigurableSkills().then((r) => setCustomSkills(r.skills || [])).catch(() => null);
-    api.getSkillIdeas().then((r) => setIdeas((r.ideas as SkillIdea[]) || [])).catch(() => null);
-    api.getSkillFactoryHealth().then((r) => setHealth(r as typeof health)).catch(() => null);
+    api.getSkillIdeas().then((r) => setIdeas(r.ideas || [])).catch(() => null);
+    api.getSkillFactoryHealth().then(setHealth).catch(() => null);
   }, []);
 
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
@@ -30,7 +28,7 @@ export default function SkillsPage() {
     setLoadingRun(skill.id);
     appendTerminal([`[skill] running ${skill.slash} on ${state.activeMatter.name}…`]);
     try {
-      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false }) as { state?: string; artifactPath?: string };
+      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false });
       if (result.state === 'requires_overwrite') {
         appendTerminal([`[skill] ${skill.slash} artifact exists at ${result.artifactPath ?? '?'} — overwrite not confirmed`]);
       } else {
@@ -43,8 +41,8 @@ export default function SkillsPage() {
     }
   }
 
-  const activeIdeas = ideas.filter((i) => i.status !== 'dismissed' && i.status !== 'archived');
-  const dismissedIdeas = ideas.filter((i) => i.status === 'dismissed' || i.status === 'archived');
+  const activeIdeas = ideas.filter((i) => i.status !== 'dismissed');
+  const dismissedIdeas = ideas.filter((i) => i.status === 'dismissed');
 
   return (
     <div className="skills-page">
@@ -55,8 +53,8 @@ export default function SkillsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {health && (
-            <span className={`pipeline-state ${health.status === 'ready' ? 'present' : 'warning'}`}>
-              Factory: {health.status}
+            <span className={`pipeline-state ${health.state === 'ok' ? 'present' : 'warning'}`}>
+              Factory: {health.state}
             </span>
           )}
         </div>
@@ -131,7 +129,7 @@ export default function SkillsPage() {
               <div key={idea.id} className="skill-idea-row">
                 <div className="skill-idea-row-main">
                   <div>
-                    <p>{idea.description}</p>
+                    <p>{idea.text}</p>
                     <div className="skill-idea-row-meta">
                       <span>{idea.status}</span>
                       <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
@@ -143,7 +141,7 @@ export default function SkillsPage() {
             ))}
             {dismissedIdeas.length > 0 && (
               <details className="skill-ideas-dismissed">
-                <summary>{dismissedIdeas.length} dismissed / archived</summary>
+                <summary>{dismissedIdeas.length} dismissed</summary>
               </details>
             )}
           </div>

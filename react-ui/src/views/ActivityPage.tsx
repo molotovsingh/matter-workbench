@@ -1,23 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
-
-interface SkillRun {
-  id: string;
-  skillId?: string;
-  title?: string;
-  slash?: string;
-  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
-  startedAt: string;
-  finishedAt?: string;
-  matterName?: string;
-  matterFolder?: string;
-  outputPaths?: { markdown?: string; json?: string };
-  aiRun?: { provider?: string; model?: string; task?: string };
-  warnings?: string[];
-  overwrite?: string;
-  errorMessage?: string;
-}
+import type { SkillRun } from '../types';
 
 interface DayGroup {
   label: string;
@@ -32,7 +16,7 @@ export default function ActivityPage() {
   useEffect(() => {
     setLoading(true);
     api.getSkillRuns(100)
-      .then((r) => setRuns((r.runs as SkillRun[]) || []))
+      .then((r) => setRuns(r.runs || []))
       .catch(() => null)
       .finally(() => setLoading(false));
   }, []);

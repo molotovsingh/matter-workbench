@@ -102,25 +102,52 @@ export interface ConfigurableSkill {
 }
 
 export interface SkillRun {
+  schema_version?: string;
   id: string;
-  skillId: string;
-  skillName?: string;
-  command?: string;
-  status: 'succeeded' | 'failed' | 'running' | 'cancelled';
+  skillId?: string;
+  slash?: string;
+  title?: string;
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: string;
   finishedAt?: string;
   matterName?: string;
-  summary?: string;
+  matterFolder?: string;
+  matterRoot?: string;
+  outputPaths?: { markdown?: string; json?: string };
+  aiRun?: { provider?: string; model?: string; task?: string };
+  warnings?: string[];
+  overwrite?: 'not_needed' | 'prompted' | 'approved' | 'cancelled' | string;
+  errorMessage?: string;
 }
 
 export interface SkillIdea {
   id: string;
-  description: string;
-  status: 'active' | 'archived' | 'dismissed' | 'created';
+  text: string;
+  status: 'incomplete' | 'ready_for_review' | 'parked' | 'dismissed';
   createdAt: string;
-  designBrief?: string;
+  updatedAt?: string;
+  designBrief?: SkillIdeaDesignBrief;
+  matter?: { matterName?: string; folderName?: string };
+  readiness?: {
+    state: string;
+    ready: boolean;
+    passedCount: number;
+    totalCount: number;
+    items?: Array<{ key: string; label: string; passed: boolean }>;
+  };
   samples?: SkillIdeaSample[];
   sampleCount?: number;
+}
+
+export interface SkillIdeaDesignBrief {
+  intendedUser?: string;
+  problem?: string;
+  expectedInputs?: string;
+  expectedOutputArtifact?: string;
+  targetLane?: string;
+  paidPosture?: string;
+  riskLevel?: string;
+  notes?: string;
 }
 
 export interface SkillIdeaSample {
@@ -239,6 +266,35 @@ export interface AiSettings {
   maxOutputTokens?: number;
   envPath?: string;
   aiTasks?: AiTask[];
+}
+
+export interface SkillFactoryHealth {
+  schema_version?: string;
+  checkedAt?: string;
+  state: 'ok' | 'warning' | 'error' | string;
+  summary?: {
+    ideas?: number;
+    samples?: number;
+    configurableSkills?: number;
+    activeSkills?: number;
+    errors?: number;
+    warnings?: number;
+  };
+  checks?: Array<{ id: string; label: string; state: 'ok' | 'error' | 'warning' | string }>;
+  issues?: Array<{ severity: 'error' | 'warning' | string; code: string; message: string }>;
+  storePaths?: Record<string, string>;
+}
+
+export interface ConfigurableSkillRunResult {
+  schema_version?: string;
+  state: 'requires_overwrite' | 'written' | 'cancelled' | string;
+  skill?: ConfigurableSkill;
+  artifactPath?: string;
+  markdown?: string;
+  outputPaths?: { markdown?: string; json?: string };
+  runId?: string;
+  runRecord?: SkillRun;
+  warnings?: string[];
 }
 
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
