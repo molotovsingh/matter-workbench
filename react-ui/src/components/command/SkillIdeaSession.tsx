@@ -3,7 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
 import { getErrorMessage } from '../../lib/errors';
-import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse } from '../../types';
+import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
 
 interface InterviewQuestion {
   id: string;
@@ -27,7 +27,9 @@ interface SessionState {
   savedIdeaId: string | null;
   savedIdea: SkillIdea | null;
   designBrief: SkillIdeaDesignBrief | null;
-  sample: { id: string; output: string; warnings?: string[] } | null;
+  sample: { id: string; output: string; warnings?: string[]; approved?: boolean } | null;
+  overlapGate: { decision: SkillRouterDecision; userRequest: string } | null;
+  overlapJustification: string;
   createdSkill: { slash?: string; name?: string } | null;
   error: string | null;
 }
@@ -100,6 +102,8 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     savedIdea: null,
     designBrief: null,
     sample: null,
+    overlapGate: null,
+    overlapJustification: '',
     createdSkill: null,
     error: null,
   });
@@ -209,16 +213,24 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     }
   }
 
-  async function handleApproveSample() {
+  async function handleApproveSample(overlapOverrideJustification = '') {
     if (!session.savedIdeaId || !session.sample) return;
     setSession((s) => ({ ...s, phase: 'creating', error: null }));
-    appendTerminal(['[skill-idea] approving sample & creating skill…']);
+    appendTerminal(['[skill-idea] approving sample and checking skill overlap…']);
     try {
-      await api.approveSkillIdeaSample(session.savedIdeaId, session.sample.id);
-      const result = await api.createSkillFromIdea(session.savedIdeaId);
+      if (!session.sample.approved) {
+        await api.approveSkillIdeaSample(session.savedIdeaId, session.sample.id);
+      }
+      const overlapCleared = await ensureSkillOverlapCleared(overlapOverrideJustification);
+      if (!overlapCleared) return;
+      appendTerminal(['[skill-idea] creating skill from approved sample…']);
+      const result = await api.createSkillFromIdea(session.savedIdeaId, { overlapOverrideJustification });
       setSession((s) => ({
         ...s,
         phase: 'created',
+        overlapGate: null,
+        overlapJustification: '',
+        sample: s.sample ? { ...s.sample, approved: true } : s.sample,
         createdSkill: result.skill ? { slash: result.skill.slash, name: result.skill.title } : { name: 'New skill' },
       }));
       appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.title}`]);
@@ -226,6 +238,23 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     } catch (e) {
       setSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));
     }
+  }
+
+  async function ensureSkillOverlapCleared(overlapOverrideJustification = '') {
+    if (!session.savedIdea) return true;
+    const userRequest = buildSkillCreationOverlapRequest(session.savedIdea, session.designBrief || session.savedIdea.designBrief);
+    if (!userRequest.trim()) return true;
+    const decision = await api.checkIntent({ userRequest, overrideJustification: overlapOverrideJustification });
+    if (!isBlockingSkillOverlapDecision(decision, overlapOverrideJustification)) return true;
+    setSession((s) => ({
+      ...s,
+      phase: 'sampled',
+      sample: s.sample ? { ...s.sample, approved: true } : s.sample,
+      overlapGate: { decision, userRequest },
+      error: null,
+    }));
+    appendTerminal([`[skill-idea] existing skill review needed${decision.matched_skill ? `: ${decision.matched_skill}` : ''}`]);
+    return false;
   }
 
   async function handleCopySample() {
@@ -386,9 +415,58 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
             </ul>
           )}
           <div className="skill-idea-actions">
-            <button type="button" onClick={handleApproveSample}>Approve & create skill</button>
+            <button type="button" onClick={() => { void handleApproveSample(); }}>Looks useful - try creating skill</button>
             <button type="button" className="secondary" onClick={handleGenerateSample}>Regenerate sample</button>
           </div>
+          {session.overlapGate && (
+            <div className="skill-idea-overlap-gate">
+              <h4>This may already be covered</h4>
+              <p>
+                The idea and approved sample are saved. Review whether this should use or improve an existing skill before creating another one.
+              </p>
+              <dl className="skill-card-meta">
+                <div>
+                  <dt>Closest match</dt>
+                  <dd>{overlapMatchedLabel(session.overlapGate.decision)}</dd>
+                </div>
+                <div>
+                  <dt>Suggested path</dt>
+                  <dd>{session.overlapGate.decision.suggested_next_action || 'Use or improve the existing skill unless this needs a different output, audience, or workflow stage.'}</dd>
+                </div>
+                {session.overlapGate.decision.reason && (
+                  <div>
+                    <dt>Reason</dt>
+                    <dd>{session.overlapGate.decision.reason}</dd>
+                  </div>
+                )}
+              </dl>
+              <label className="skill-idea-overlap-label">
+                <span>Why should this be a separate custom skill?</span>
+                <textarea
+                  value={session.overlapJustification}
+                  onChange={(e) => setSession((s) => ({ ...s, overlapJustification: e.target.value }))}
+                  placeholder="Example: This creates a separate workshop issue review, not a Library chronology."
+                  rows={3}
+                />
+              </label>
+              <div className="skill-idea-actions">
+                <button
+                  type="button"
+                  disabled={!hasSkillCreationOverlapOverride(session.overlapJustification)}
+                  onClick={() => { void handleApproveSample(session.overlapJustification); }}
+                >
+                  Create separate skill
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setSession((s) => ({ ...s, overlapGate: null, overlapJustification: '', error: null }))}
+                >
+                  Park for later
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -494,4 +572,35 @@ function formatAnswerNotes(answers: Record<string, string>, questions: Interview
     .filter(([, value]) => value.trim())
     .map(([id, value]) => `${byId.get(id) || id}: ${value.trim()}`)
     .join('\n');
+}
+
+function buildSkillCreationOverlapRequest(idea: SkillIdea, brief: SkillIdeaDesignBrief | undefined): string {
+  return [
+    idea.text,
+    brief?.problem ? `Problem: ${brief.problem}` : '',
+    brief?.expectedInputs ? `Inputs: ${brief.expectedInputs}` : '',
+    brief?.expectedOutputArtifact ? `Output: ${brief.expectedOutputArtifact}` : '',
+    brief?.targetLane ? `Lane: ${brief.targetLane}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function isBlockingSkillOverlapDecision(decision: SkillRouterDecision, overlapOverrideJustification = ''): boolean {
+  if (hasSkillCreationOverlapOverride(overlapOverrideJustification)) return false;
+  return Boolean(
+    decision.user_gate_required
+    || decision.mece_violation
+    || decision.decision === 'needs_user_approval'
+    || decision.recommended_action === 'modify_existing_skill'
+    || (decision.matched_skill && decision.recommended_action === 'run_existing_skill'),
+  );
+}
+
+function hasSkillCreationOverlapOverride(overlapOverrideJustification = ''): boolean {
+  return overlapOverrideJustification.replace(/\s+/g, ' ').trim().length >= 12;
+}
+
+function overlapMatchedLabel(decision: SkillRouterDecision): string {
+  const matched = decision.matched_skill || '';
+  const title = decision.matched_skill_card?.title || decision.matched_skill_card?.display?.action || matched;
+  return [title, matched && matched !== title ? matched : ''].filter(Boolean).join(' ');
 }

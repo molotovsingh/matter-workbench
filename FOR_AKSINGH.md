@@ -548,6 +548,11 @@ They were contract fixes:
   move toward sample review without being forced through the same generic
   three-question script, and model-planned interviews can carry inferred design
   brief fields into the saved idea.
+- React skill creation now checks for overlap with existing skills before
+  activating a new custom skill from an approved sample. If the router says the
+  idea may already be covered, React shows the same governance moment as the
+  vanilla app: the sample stays saved, no runnable skill is created, and a
+  separate skill needs a short justification.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 

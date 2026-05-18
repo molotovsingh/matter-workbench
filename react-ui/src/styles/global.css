@@ -810,5 +810,10 @@ code { color: var(--code-text); }
 .skill-idea-sample-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .skill-idea-sample-header strong { font-size: 13px; }
 .skill-idea-sample-output { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--border-subtle); border-radius: 4px; font-size: 12px; max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.skill-idea-overlap-gate { margin-top: 12px; padding: 12px; border: 1px solid var(--warning-border); border-radius: 5px; background: var(--warning-bg); }
+.skill-idea-overlap-gate h4 { margin: 0 0 6px; font-size: 13px; }
+.skill-idea-overlap-gate p { color: var(--muted-strong); line-height: 1.45; margin: 0 0 8px; }
+.skill-idea-overlap-label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 10px; }
+.skill-idea-overlap-label textarea { min-height: 76px; resize: vertical; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); font: inherit; font-size: 12px; line-height: 1.45; padding: 8px 10px; }
 .skill-idea-created { background: rgba(67, 109, 77, 0.08); border: 1px solid var(--success); border-radius: 4px; padding: 10px 12px; font-size: 13px; }
 .skill-idea-ready, .skill-idea-saved, .skill-idea-sample { margin-top: 8px; font-size: 13px; }

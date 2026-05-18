@@ -189,7 +189,7 @@ export const api = {
 
   // ─── Skills ──────────────────────────────
   getSkills: () => getJson<SkillRegistry>('/api/skills'),
-  checkIntent: (body: { userRequest: string; matterName?: string }) =>
+  checkIntent: (body: { userRequest: string; matterName?: string; overrideJustification?: string }) =>
     postJson<SkillRouterDecision>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
@@ -224,7 +224,8 @@ export const api = {
   updateSkillIdeaStatus: (ideaId: string, body: SkillIdeaStatusUpdateRequest) => postJson(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
     postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
-  createSkillFromIdea: (ideaId: string) => postJson<ConfigurableSkillCreateResponse>(`/api/skill-ideas/${ideaId}/create-skill`),
+  createSkillFromIdea: (ideaId: string, body?: { overlapOverrideJustification?: string }) =>
+    postJson<ConfigurableSkillCreateResponse>(`/api/skill-ideas/${ideaId}/create-skill`, body || {}),
 
   // ─── Logging ─────────────────────────────
   logCommandInteraction: (body: CommandInteractionRequest) => postJson('/api/command-interactions', body),
