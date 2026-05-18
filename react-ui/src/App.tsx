@@ -7,8 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
-import { getNativeCommandAlias } from './lib/nativeCommandAliases';
-import { getNativeCommandView } from './lib/nativeCommands';
+import { resolveNativeCommand } from './lib/nativeCommands';
 import { activeMatterFromWorkspace } from './lib/activeMatter';
 import type { ActiveView } from './types';
 
@@ -49,21 +48,15 @@ function AppShell() {
 
     // Native skills open their workflow views directly; each view owns its
     // own API calls, rerun guards, and overwrite confirmation.
-    const nativeView = getNativeCommandView(lower);
+    const nativeResolution = resolveNativeCommand(lower);
 
-    if (nativeView) {
-      appendTerminal([`[cmd] ${lower}`]);
-      setActiveView(nativeView);
-      dispatch({ type: 'SET_BREADCRUMBS', payload: lower });
-      return;
-    }
-
-    const aliasCommand = getNativeCommandAlias(lower);
-    const aliasView = aliasCommand ? getNativeCommandView(aliasCommand) : null;
-    if (aliasCommand && aliasView) {
-      appendTerminal([`[cmd] ${lower} → ${aliasCommand}`]);
-      setActiveView(aliasView);
-      dispatch({ type: 'SET_BREADCRUMBS', payload: aliasCommand });
+    if (nativeResolution) {
+      const terminalLine = nativeResolution.command === lower
+        ? `[cmd] ${lower}`
+        : `[cmd] ${lower} → ${nativeResolution.command}`;
+      appendTerminal([terminalLine]);
+      setActiveView(nativeResolution.view);
+      dispatch({ type: 'SET_BREADCRUMBS', payload: nativeResolution.command });
       return;
     }
 
@@ -86,10 +79,10 @@ function AppShell() {
     try {
       const result = await api.checkIntent({ userRequest: cmd, matterName: state.activeMatter?.name });
       if (result.decision === 'run_existing_skill' && result.matched_skill) {
-        const view = getNativeCommandView(result.matched_skill);
-        if (view) {
-          setActiveView(view);
-          dispatch({ type: 'SET_BREADCRUMBS', payload: result.matched_skill });
+        const matchedResolution = resolveNativeCommand(result.matched_skill);
+        if (matchedResolution) {
+          setActiveView(matchedResolution.view);
+          dispatch({ type: 'SET_BREADCRUMBS', payload: matchedResolution.command });
         } else {
           dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action || `Run ${result.matched_skill}` });
         }

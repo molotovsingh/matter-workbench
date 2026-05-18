@@ -1,4 +1,5 @@
 import type { ActiveView } from '../types';
+import { getNativeCommandAlias } from './nativeCommandAliases';
 
 export interface NativeCommandDefinition {
   command: string;
@@ -111,6 +112,23 @@ export const COMMAND_PANEL_NATIVE_SUGGESTIONS = NATIVE_COMMANDS
 
 export function getNativeCommandView(command: string): ActiveView | null {
   return COMMANDS_BY_SLASH[normalizeCommand(command)]?.view ?? null;
+}
+
+export interface NativeCommandResolution {
+  command: string;
+  view: ActiveView;
+}
+
+export function resolveNativeCommand(input: string): NativeCommandResolution | null {
+  const normalized = normalizeCommand(input);
+  const exactView = getNativeCommandView(normalized);
+  if (exactView) return { command: normalized, view: exactView };
+
+  const aliasCommand = getNativeCommandAlias(normalized);
+  const aliasView = aliasCommand ? getNativeCommandView(aliasCommand) : null;
+  if (aliasCommand && aliasView) return { command: aliasCommand, view: aliasView };
+
+  return null;
 }
 
 export function cleanCommandLabel(command: string): string {
