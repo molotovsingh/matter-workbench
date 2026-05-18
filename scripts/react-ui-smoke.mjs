@@ -13,6 +13,7 @@ import {
   SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS,
   SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS,
 } from "../shared/skill-creation-overlap-policy.mjs";
+import { SKILL_IDEA_SESSION_COMMAND_SETS } from "../shared/skill-idea-session-commands.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
@@ -22,6 +23,7 @@ const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfD
 const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparationStageActions.ts", import.meta.url);
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
+const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -140,6 +142,17 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-overlap policy is readable", error.message);
+  }
+
+  try {
+    const commandSets = await readReactSkillIdeaSessionCommandSets();
+    assert(
+      sameObjectArrays(commandSets, SKILL_IDEA_SESSION_COMMAND_SETS),
+      "React skill-idea session commands match shared contract",
+      objectArrayDiffDetail(commandSets, SKILL_IDEA_SESSION_COMMAND_SETS),
+    );
+  } catch (error) {
+    fail("React skill-idea session command contract is readable", error.message);
   }
 
   try {
@@ -376,6 +389,16 @@ async function readReactSkillCreationOverlapPolicy() {
   };
 }
 
+async function readReactSkillIdeaSessionCommandSets() {
+  const source = await readFile(reactSkillIdeaSessionCommandsPath, "utf8");
+  const match = source.match(/SKILL_IDEA_SESSION_COMMAND_SETS\s*=\s*\{([\s\S]*?)\}\s*as const/);
+  const body = match?.[1] || "";
+  return Object.fromEntries([...body.matchAll(/\b(\w+):\s*\[([^\]]*)\]/g)].map((entry) => [
+    entry[1],
+    [...entry[2].matchAll(/['"]([^'"]+)['"]/g)].map((value) => value[1]).sort(),
+  ]));
+}
+
 function readStringArray(source, exportName) {
   const start = source.indexOf(exportName);
   if (start < 0) return [];
@@ -409,6 +432,26 @@ function sameObjectEntries(left, right) {
   const leftEntries = Object.entries(left).sort();
   const rightEntries = Object.entries(right).sort();
   return JSON.stringify(leftEntries) === JSON.stringify(rightEntries);
+}
+
+function sameObjectArrays(left, right) {
+  return JSON.stringify(sortObjectArrays(left)) === JSON.stringify(sortObjectArrays(right));
+}
+
+function sortObjectArrays(value) {
+  return Object.fromEntries(Object.entries(value).sort().map(([key, entries]) => [
+    key,
+    [...entries].sort(),
+  ]));
+}
+
+function objectArrayDiffDetail(left, right) {
+  const normalizedLeft = sortObjectArrays(left);
+  const normalizedRight = sortObjectArrays(right);
+  if (JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight)) {
+    return `${Object.keys(normalizedRight).length} command sets`;
+  }
+  return `React=${JSON.stringify(normalizedLeft)} shared=${JSON.stringify(normalizedRight)}`;
 }
 
 function sameTupleEntries(left, right) {

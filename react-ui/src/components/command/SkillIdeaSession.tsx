@@ -8,6 +8,7 @@ import {
   hasSkillCreationOverlapOverride,
   isBlockingSkillOverlapDecision,
 } from '../../lib/skillCreationOverlap';
+import { classifySkillIdeaSessionInput } from '../../lib/skillIdeaSessionCommands';
 import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
 
 interface InterviewQuestion {
@@ -163,31 +164,29 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     });
   }, []);
 
-  useEffect(() => {
-    onInputOverride((input: string) => {
-      if (session.phase === 'interviewing') {
-        handleAnswer(input);
-        return true;
-      }
-      return false;
-    });
-  }, [session.phase, handleAnswer, onInputOverride]);
+  async function persistCurrentIdea() {
+    const updatingExistingIdea = Boolean(session.savedIdeaId);
+    const brief = buildDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
+    const result = updatingExistingIdea && session.savedIdeaId
+      ? await api.updateSkillIdeaBrief(session.savedIdeaId, { designBrief: brief })
+      : await api.createSkillIdea({
+        text: session.ideaText,
+        designBrief: brief,
+        matterName: state.activeMatter?.name,
+      });
+    return {
+      brief,
+      savedIdea: result.idea,
+      updatingExistingIdea,
+    };
+  }
 
   async function handleSave() {
-    const updatingExistingIdea = Boolean(session.savedIdeaId);
     const hadSample = Boolean(session.sample);
     setSession((s) => ({ ...s, phase: 'saving', notice: null, error: null }));
     appendTerminal(['[skill-idea] saving idea…']);
     try {
-      const brief = buildDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
-      const result = updatingExistingIdea && session.savedIdeaId
-        ? await api.updateSkillIdeaBrief(session.savedIdeaId, { designBrief: brief })
-        : await api.createSkillIdea({
-          text: session.ideaText,
-          designBrief: brief,
-          matterName: state.activeMatter?.name,
-        });
-      const savedIdea = result.idea;
+      const { brief, savedIdea, updatingExistingIdea } = await persistCurrentIdea();
       setSession((s) => ({
         ...s,
         phase: 'saved',
@@ -208,19 +207,32 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     }
   }
 
-  async function handleGenerateSample() {
-    if (!session.savedIdeaId || !session.savedIdea) return;
+  async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
+    const hadSavedIdea = Boolean(session.savedIdeaId && session.savedIdea);
     setSession((s) => ({ ...s, phase: 'sampling', overlapGate: null, overlapJustification: '', notice: null, error: null }));
-    appendTerminal(['[skill-idea] generating sample output…']);
     try {
+      let savedIdea = session.savedIdea;
+      let savedIdeaId = session.savedIdeaId;
+      if (!savedIdea || !savedIdeaId) {
+        appendTerminal(['[skill-idea] saving idea before sample…']);
+        const saved = await persistCurrentIdea();
+        savedIdea = saved.savedIdea;
+        savedIdeaId = saved.savedIdea.id;
+      }
+      appendTerminal([feedback ? '[skill-idea] regenerating sample output…' : '[skill-idea] generating sample output…']);
       const result = await api.generateSampleOutput({
-        idea: session.savedIdea,
+        idea: savedIdea,
+        feedback,
+        previousSample,
       });
       const sampleId = result.sample_id || result.storedSample?.id || '';
       const output = result.sample_markdown || result.storedSample?.sampleMarkdown || '';
       setSession((s) => ({
         ...s,
         phase: 'sampled',
+        savedIdeaId,
+        savedIdea,
+        designBrief: savedIdea?.designBrief || s.designBrief,
         sample: sampleId && output
           ? { id: sampleId, output, warnings: result.warnings || result.storedSample?.warnings }
           : null,
@@ -228,7 +240,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       }));
       appendTerminal(['[skill-idea] sample ready']);
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'saved', error: getErrorMessage(e) }));
+      setSession((s) => ({ ...s, phase: hadSavedIdea ? 'saved' : 'ready', error: getErrorMessage(e) }));
     }
   }
 
@@ -298,6 +310,115 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       error: null,
     }));
   }
+
+  async function handleMarkReady() {
+    if (!session.savedIdeaId) return;
+    setSession((s) => ({ ...s, notice: null, error: null }));
+    try {
+      await api.updateSkillIdeaStatus(session.savedIdeaId, { status: 'ready_for_review' });
+      appendTerminal([`[skill-idea] marked ready for review — id: ${session.savedIdeaId}`]);
+      setSession((s) => ({
+        ...s,
+        savedIdea: s.savedIdea ? { ...s.savedIdea, status: 'ready_for_review' } : s.savedIdea,
+        notice: 'Marked ready for review. Open Skills to review the saved idea.',
+      }));
+    } catch (e) {
+      setSession((s) => ({ ...s, error: getErrorMessage(e) }));
+    }
+  }
+
+  function showSessionGuidance(message: string) {
+    setSession((s) => ({ ...s, notice: message, error: null }));
+  }
+
+  function handleSessionCommand(input: string): boolean {
+    const ready = session.phase !== 'planning' && session.phase !== 'interviewing'
+      && session.phase !== 'saving' && session.phase !== 'sampling' && session.phase !== 'creating';
+    const command = classifySkillIdeaSessionInput(input, {
+      ready,
+      hasSavedIdea: Boolean(session.savedIdeaId),
+      hasActiveSample: Boolean(session.sample),
+      sampleApproved: Boolean(session.sample?.approved),
+    });
+
+    if (command.action === 'cancel') {
+      onInputOverride(null);
+      onClose();
+      return true;
+    }
+    if (command.action === 'blank') {
+      showSessionGuidance(ready ? 'Use Save idea, Generate sample, Edit answers, Open Skills, or Cancel.' : 'Answer the current question, or choose Cancel.');
+      return true;
+    }
+    if (command.action === 'answer_question') {
+      if (session.phase === 'interviewing') {
+        handleAnswer(input);
+        return true;
+      }
+      return false;
+    }
+    if (!ready) {
+      showSessionGuidance('This skill idea step is still running. Wait for it to finish, or choose Cancel.');
+      return true;
+    }
+
+    if (command.action === 'save') {
+      void handleSave();
+      return true;
+    }
+    if (command.action === 'generate_sample') {
+      void handleGenerateSample(command.feedback);
+      return true;
+    }
+    if (command.action === 'sample_feedback') {
+      void handleGenerateSample(command.feedback, session.sample?.output || '');
+      return true;
+    }
+    if (command.action === 'copy_sample') {
+      void handleCopySample();
+      return true;
+    }
+    if (command.action === 'approve_sample' || command.action === 'create_skill') {
+      if (!session.sample) {
+        showSessionGuidance('Generate a sample before creating the skill.');
+        return true;
+      }
+      void handleApproveSample();
+      return true;
+    }
+    if (command.action === 'edit_answers') {
+      handleEditAnswers();
+      return true;
+    }
+    if (command.action === 'mark_ready') {
+      if (!session.savedIdeaId) {
+        showSessionGuidance('Save the idea before marking it ready for review.');
+        return true;
+      }
+      void handleMarkReady();
+      return true;
+    }
+    if (command.action === 'open_skills') {
+      dispatch({ type: 'SET_TAB', payload: 'skills' });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });
+      return true;
+    }
+    if (command.action === 'start_another') {
+      onInputOverride(null);
+      onClose();
+      return true;
+    }
+    if (command.action === 'copy_sample_version' || command.action === 'copy_review_packet') {
+      showSessionGuidance('Open Skills for versioned sample history and review packets.');
+      return true;
+    }
+    return false;
+  }
+
+  useEffect(() => {
+    onInputOverride(handleSessionCommand);
+    return () => onInputOverride(null);
+  });
 
   const currentQ = session.phase === 'interviewing' && session.questionIndex < session.questions.length
     ? session.questions[session.questionIndex]
@@ -408,7 +529,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
             </details>
           )}
           <div className="skill-idea-actions">
-            <button type="button" onClick={handleGenerateSample}>Generate sample</button>
+            <button type="button" onClick={() => { void handleGenerateSample(); }}>Generate sample</button>
             <button type="button" className="secondary" onClick={handleEditAnswers}>Edit answers</button>
           </div>
         </div>
@@ -440,7 +561,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           )}
           <div className="skill-idea-actions">
             <button type="button" onClick={() => { void handleApproveSample(); }}>Looks useful - try creating skill</button>
-            <button type="button" className="secondary" onClick={handleGenerateSample}>Regenerate sample</button>
+            <button type="button" className="secondary" onClick={() => { void handleGenerateSample('Regenerate the sample with the current design brief.', session.sample?.output || ''); }}>Regenerate sample</button>
           </div>
           {session.overlapGate && (
             <div className="skill-idea-overlap-gate">

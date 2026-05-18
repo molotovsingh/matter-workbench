@@ -553,6 +553,11 @@ They were contract fixes:
   idea may already be covered, React shows the same governance moment as the
   vanilla app: the sample stays saved, no runnable skill is created, and a
   separate skill needs a short justification.
+- React Skill Factory command handling now stays inside the active skill-idea
+  session after the questions are answered. Commands such as `generate sample`,
+  `regenerate sample`, `copy sample`, `looks useful`, `mark ready`, and
+  `open skills` are interpreted as session actions instead of leaking into the
+  global command router.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
@@ -1143,6 +1148,8 @@ Prepare Matter action names are now treated the same way. The backend plan emits
 Native command aliases now follow the same discipline. Vanilla already knew that `prepare matter`, `source labels`, and `chronology` should route directly to `/prepare_matter`, `/describe_sources`, and `/create_listofdates`; React had the visible suggestions but could fall back to intent checking if the user typed the plain-English alias and pressed Enter. The alias list now lives in `shared/builtin-skill-commands.mjs`, React has a checked mirror, and the smoke test compares them. That means obvious lawyer phrases remain fast, deterministic commands instead of accidental AI routing.
 
 React now resolves native commands through one helper, `resolveNativeCommand()`, before it asks the model-powered intent checker. Exact slashes and plain-English aliases go through the same path, and the unit test asserts that the resolver checks aliases. The principle is simple: deterministic product commands should stay deterministic, especially when the visible UI teaches the lawyer to type phrases like `prepare matter`.
+
+Skill-idea session commands now follow the same rule. Vanilla uses the shared `shared/skill-idea-session-commands.mjs` classifier, React has a typed mirror, and the smoke test compares the command sets. This closes a small but nasty UX trap: once a user is inside "new skill" mode, phrases like `generate sample` should advance that conversation, not get reinterpreted as a fresh global request.
 
 The canonical Library artifact paths now live in `shared/matter-artifacts.mjs`. That means status cards, context packets, and rerun advice all agree on `10_Library/Source Index.json` and the List of Dates artifacts from one source of truth.
 

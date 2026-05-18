@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifySkillIdeaSessionInput } from "../frontend/skill-idea-session-commands.js";
+import { classifySkillIdeaSessionInput } from "../shared/skill-idea-session-commands.mjs";
 
 test("skill idea session command classifier handles global and question states", () => {
   assert.deepEqual(classifySkillIdeaSessionInput("cancel", { ready: true }), { action: "cancel" });
