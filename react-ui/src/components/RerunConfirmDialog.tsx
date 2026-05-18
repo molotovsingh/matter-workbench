@@ -1,17 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
-
-interface RerunAdvice {
-  skill: string;
-  state: string;
-  shouldConfirm: boolean;
-  artifactPath?: string;
-  lastRunAt?: string;
-  provider?: string;
-  model?: string;
-  message?: string;
-  dependencyState?: string;
-}
+import type { RerunAdvice } from '../types';
 
 interface Props {
   skill: string;

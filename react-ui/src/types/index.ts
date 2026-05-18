@@ -295,12 +295,15 @@ export interface PipelineStageAiRun {
 }
 
 export interface RerunAdvice {
+  skill?: string;
   state: 'current' | 'stale' | 'missing' | 'failed' | 'missing_upstream' | string;
   reason?: string;
   shouldConfirm?: boolean;
+  artifactPath?: string;
   lastRunAt?: string;
   provider?: string;
   model?: string;
+  message?: string;
   newestInputPath?: string;
   dependencyState?: string;
 }

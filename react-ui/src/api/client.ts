@@ -24,6 +24,7 @@ import type {
   MatterAttention,
   MatterStatus,
   PreparationPlan,
+  RerunAdvice,
   SkillFactoryHealth,
   SkillIdea,
   SkillIdeaCreateRequest,
@@ -199,17 +200,7 @@ export const api = {
   runExtract: (body: MatterSkillRunRequest) => postJson<ExtractRunResult>('/api/extract', body),
   runDescribeSources: (body: MatterSkillRunRequest) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
   runCreateListOfDates: (body: MatterSkillRunRequest) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
-  getRerunAdvice: (skill: string) => getJson<{
-    skill: string;
-    state: string;
-    shouldConfirm: boolean;
-    artifactPath?: string;
-    lastRunAt?: string;
-    provider?: string;
-    model?: string;
-    message?: string;
-    dependencyState?: string;
-  }>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
+  getRerunAdvice: (skill: string) => getJson<RerunAdvice>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
   getMatterContext: () => getJson<MatterContextPreview>('/api/matter-context'),
