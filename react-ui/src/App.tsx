@@ -101,7 +101,13 @@ function AppShell() {
   function handleMatterCreated(name: string) {
     dispatch({ type: 'SET_RESUME_MATTER', payload: name });
     setActiveView('home');
-    api.getMatters().then((r) => dispatch({ type: 'SET_MATTERS', payload: r.matters ?? [] })).catch(() => null);
+    api.getMatters()
+      .then((r) => dispatch({ type: 'SET_MATTERS', payload: r.matters ?? [] }))
+      .catch((e) => {
+        const message = getErrorMessage(e);
+        appendTerminal([`[matter] list refresh failed after creating "${name}": ${message}`]);
+        dispatch({ type: 'SET_COMMAND_COPY', payload: 'Matter was created, but the matter list could not refresh. Use Refresh or reload if it is missing.' });
+      });
   }
 
   function handleOpenMatter(name: string) {

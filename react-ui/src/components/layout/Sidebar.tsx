@@ -38,7 +38,11 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
   }
 
   async function handleClearMatter() {
-    await api.clearActiveMatter().catch(() => null);
+    try {
+      await api.clearActiveMatter();
+    } catch (e) {
+      appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(e)}`]);
+    }
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: null });
     dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
