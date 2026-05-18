@@ -53,11 +53,7 @@ class ApiError extends Error {
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(text, res.status);
-  }
-  return res.json() as Promise<T>;
+  return parseJsonResponse<T>(res, url);
 }
 
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
@@ -66,21 +62,57 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  return parseJsonResponse<T>(res, url);
+}
+
+async function postFormData<T>(url: string, formData: FormData): Promise<T> {
+  const res = await fetch(url, { method: 'POST', body: formData });
+  return parseJsonResponse<T>(res, url);
+}
+
+async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(text, res.status);
+    throw await createApiError(res, url);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
-async function postFormData<T>(url: string, formData: FormData): Promise<T> {
-  const res = await fetch(url, { method: 'POST', body: formData });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(text, res.status);
+async function createApiError(res: Response, url: string): Promise<ApiError> {
+  const payload = await readErrorPayload(res);
+  return new ApiError(formatApiErrorMessage(payload, res, url), res.status);
+}
+
+async function readErrorPayload(res: Response): Promise<unknown> {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
   }
-  return res.json() as Promise<T>;
+
+  const text = await res.text().catch(() => '');
+  if (!text.trim()) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function formatApiErrorMessage(payload: unknown, res: Response, url: string): string {
+  if (typeof payload === 'string' && payload.trim()) return payload.trim();
+
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    if (typeof record.error === 'string' && record.error.trim()) return record.error.trim();
+    if (typeof record.message === 'string' && record.message.trim()) return record.message.trim();
+  }
+
+  return `${url} returned ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
 }
 
 const LANE_LABELS: Record<string, string> = {
