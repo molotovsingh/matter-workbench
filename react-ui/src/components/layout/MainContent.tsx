@@ -15,6 +15,14 @@ import DescribeSourcesResult from '../../views/workflows/DescribeSourcesResult';
 import ContextPreview from '../../views/workflows/ContextPreview';
 import TitleBar from './TitleBar';
 import StatusBar from './StatusBar';
+import {
+  isListOfDatesMarkdownPath,
+  lawyerFacingListOfDatesSourceFragment,
+  listOfDatesRelevanceTone,
+  parseListOfDatesMarkdown,
+  sourceFragmentsForListOfDates,
+} from '../../lib/filePreview';
+import { writeClipboardText } from '../../lib/clipboard';
 
 interface Props {
   onNewMatter: () => void;
@@ -28,20 +36,44 @@ interface Props {
 
 function FilePreview({ preview }: { preview: { path: string; type: string; url?: string; content?: string; ext?: string } }) {
   const filename = preview.path.split('/').pop() ?? preview.path;
+  const isListOfDatesMarkdown = preview.type === 'text' && isListOfDatesMarkdownPath(preview.path);
+  const listOfDates = isListOfDatesMarkdown ? parseListOfDatesMarkdown(preview.content || '') : null;
+
+  async function copyMarkdown() {
+    await writeClipboardText(preview.content || '');
+  }
+
   return (
     <div className="document-preview">
       <div className="document-preview-header">
         <div>
-          <h1 className="document-preview-header h1" style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>
-            {filename}
+          <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>
+            {listOfDates?.title || filename}
           </h1>
           <p className="document-path">{preview.path}</p>
+          {listOfDates && (
+            <p className="document-note">
+              {[listOfDates.matter ? `Matter: ${listOfDates.matter}` : '', listOfDates.generated].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
-        {preview.url && (
+        {preview.url && !isListOfDatesMarkdown && (
           <div className="document-actions">
             <a href={preview.url} download={filename} className="run-skill-button secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
               Download
             </a>
+          </div>
+        )}
+        {isListOfDatesMarkdown && (
+          <div className="document-actions">
+            <button type="button" className="run-skill-button secondary" onClick={() => { void copyMarkdown(); }}>
+              Copy Markdown
+            </button>
+            {preview.url && (
+              <a href={preview.url} download={filename} className="run-skill-button secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                Download
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -51,7 +83,10 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
       {preview.type === 'image' && preview.url && (
         <img className="file-image" src={preview.url} alt={filename} />
       )}
-      {preview.type === 'text' && (
+      {listOfDates && listOfDates.entries.length > 0 && (
+        <ListOfDatesMarkdownPreview parsed={listOfDates} />
+      )}
+      {preview.type === 'text' && (!listOfDates || listOfDates.entries.length === 0) && (
         <pre style={{
           margin: '12px 0', padding: '14px', border: '1px solid var(--border)',
           background: 'var(--code-bg)', color: 'var(--text)',
@@ -62,6 +97,38 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
         </pre>
       )}
     </div>
+  );
+}
+
+function ListOfDatesMarkdownPreview({ parsed }: { parsed: NonNullable<ReturnType<typeof parseListOfDatesMarkdown>> }) {
+  return (
+    <>
+      <section className="chronology-table" aria-label="List of Dates chronology">
+        <div className="chronology-header">
+          <span>Date</span><span>Event</span><span>Relevance</span><span>Source</span>
+        </div>
+        {parsed.entries.map((entry, index) => {
+          const tone = listOfDatesRelevanceTone(entry.relevance);
+          return (
+            <article key={`${entry.date}-${index}`} className={`chronology-row ${tone === 'attention' ? 'important' : ''}`}>
+              <time dateTime={entry.date}>{entry.date}</time>
+              <p>{entry.event}</p>
+              <span className={`chronology-relevance ${tone}`}>{entry.relevance}</span>
+              <div className="chronology-source">
+                {sourceFragmentsForListOfDates(entry.source).map((fragment) => (
+                  <span key={fragment}>{lawyerFacingListOfDatesSourceFragment(fragment)}</span>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+      <div className="chronology-summary">
+        <span>{parsed.entries.length} {parsed.entries.length === 1 ? 'entry' : 'entries'}</span>
+        <span>{parsed.sourceCount} {parsed.sourceCount === 1 ? 'source' : 'sources'} cited</span>
+        <span>{parsed.dateRange || 'No date range'}</span>
+      </div>
+    </>
   );
 }
 

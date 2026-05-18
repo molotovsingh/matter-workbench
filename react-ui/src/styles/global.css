@@ -737,6 +737,8 @@ code { color: var(--code-text); }
 .run-failure-card strong { color: var(--error-strong-text); display: block; margin-bottom: 6px; }
 
 /* ─── File preview ──────────────────────────────────────── */
+.document-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.document-note { color: var(--muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 8px 0 0; }
 .file-pdf-frame { display: block; width: 100%; height: 75vh; border: 1px solid var(--input-border); background: var(--code-bg); margin-top: 12px; }
 .file-image { display: block; max-width: 100%; max-height: 75vh; margin-top: 12px; border: 1px solid var(--input-border); background: var(--code-bg); }
 
@@ -755,10 +757,15 @@ code { color: var(--code-text); }
 .chronology-header, .chronology-row { display: grid; gap: 14px; grid-template-columns: 112px minmax(260px,1fr) minmax(132px,0.34fr) minmax(110px,0.26fr); }
 .chronology-header { background: var(--subtle-bg); border-bottom: 1px solid var(--border-subtle); color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; padding: 10px 16px; text-transform: uppercase; }
 .chronology-row { align-items: baseline; border-bottom: 1px solid var(--border-subtle); padding: 12px 16px; }
+.chronology-row.important { background: var(--error-soft-bg); }
 .chronology-row:last-child { border-bottom: 0; }
 .chronology-row time { color: var(--text); font-size: var(--font-size-ui); font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .chronology-row p { color: var(--muted-strong); font-size: var(--font-size-ui); line-height: 1.55; margin: 0; max-width: none; }
 .chronology-source { color: var(--muted); display: grid; gap: 3px; font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: var(--font-size-xs); line-height: 1.35; min-width: 0; }
+.chronology-relevance { color: var(--muted); font-size: var(--font-size-xs); line-height: 1.35; }
+.chronology-relevance.attention { color: var(--danger); font-weight: 700; }
+.chronology-relevance.official { color: var(--success); font-weight: 600; }
+.chronology-relevance.record, .chronology-relevance.neutral { color: var(--muted); }
 
 /* ─── Attention card ────────────────────────────────────── */
 .matter-attention-list { display: grid; gap: 8px; margin-top: 14px; }
