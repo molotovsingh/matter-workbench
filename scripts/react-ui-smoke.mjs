@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
-import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+import {
+  BUILTIN_SKILL_COMMAND_ALIASES,
+  BUILTIN_SKILL_COMMANDS,
+} from "../shared/builtin-skill-commands.mjs";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
@@ -14,6 +17,7 @@ import {
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
+const reactNativeCommandAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
 const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
 const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparationStageActions.ts", import.meta.url);
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
@@ -71,6 +75,17 @@ async function run() {
     );
   } catch (error) {
     fail("React native command registry is readable", error.message);
+  }
+
+  try {
+    const reactAliases = await readReactNativeCommandAliases();
+    assert(
+      sameTupleEntries(reactAliases, BUILTIN_SKILL_COMMAND_ALIASES),
+      "React native command aliases match shared backend aliases",
+      tupleDiffDetail(reactAliases, BUILTIN_SKILL_COMMAND_ALIASES),
+    );
+  } catch (error) {
+    fail("React native command aliases are readable", error.message);
   }
 
   try {
@@ -330,6 +345,13 @@ async function readReactNativeCommands() {
   return [...new Set(commands)].sort();
 }
 
+async function readReactNativeCommandAliases() {
+  const source = await readFile(reactNativeCommandAliasesPath, "utf8");
+  return [...source.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)]
+    .map((match) => [match[1], match[2]])
+    .sort(([leftAlias], [rightAlias]) => leftAlias.localeCompare(rightAlias));
+}
+
 async function readReactListOfDatesDependencyStates() {
   const source = await readFile(reactListOfDatesDependencyStatePath, "utf8");
   return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
@@ -387,6 +409,27 @@ function sameObjectEntries(left, right) {
   const leftEntries = Object.entries(left).sort();
   const rightEntries = Object.entries(right).sort();
   return JSON.stringify(leftEntries) === JSON.stringify(rightEntries);
+}
+
+function sameTupleEntries(left, right) {
+  const leftEntries = left.map(([alias, command]) => [alias, command]).sort();
+  const rightEntries = right.map(([alias, command]) => [alias, command]).sort();
+  return JSON.stringify(leftEntries) === JSON.stringify(rightEntries);
+}
+
+function tupleDiffDetail(left, right) {
+  const format = (entry) => `${entry[0]}=>${entry[1]}`;
+  const leftSet = new Set(left.map(format));
+  const rightSet = new Set(right.map(format));
+  const missingFromReact = right.map(format).filter((value) => !leftSet.has(value));
+  const extraInReact = left.map(format).filter((value) => !rightSet.has(value));
+  if (missingFromReact.length || extraInReact.length) {
+    return [
+      missingFromReact.length ? `missing in React: ${missingFromReact.join(", ")}` : "",
+      extraInReact.length ? `extra in React: ${extraInReact.join(", ")}` : "",
+    ].filter(Boolean).join("; ");
+  }
+  return `${right.length} aliases`;
 }
 
 function objectDiffDetail(left, right) {

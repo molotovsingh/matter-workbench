@@ -1,24 +1,9 @@
 import {
+  BUILTIN_SKILL_COMMAND_ALIAS_MAP,
   BUILTIN_SKILL_COMMAND_SET,
   BUILTIN_SKILL_SUGGESTIONS,
   PROVIDER_BACKED_BUILTIN_SKILL_COMMAND_SET,
 } from "../shared/builtin-skill-commands.mjs";
-
-const COMMAND_ALIASES = new Map([
-  ["prepare matter", "/prepare_matter"],
-  ["prepare this matter", "/prepare_matter"],
-  ["matter prep", "/prepare_matter"],
-  ["setup matter", "/prepare_matter"],
-  ["extract", "/extract"],
-  ["describe sources", "/describe_sources"],
-  ["source labels", "/describe_sources"],
-  ["context", "/context_preview"],
-  ["show context", "/context_preview"],
-  ["list of dates", "/create_listofdates"],
-  ["create list of dates", "/create_listofdates"],
-  ["chronology", "/create_listofdates"],
-  ["doctor", "/doctor"],
-]);
 
 const LANE_COMMANDS = new Map([
   ["open inbox", "00_Inbox"],
@@ -52,7 +37,7 @@ export function parseDeterministicCommand(input) {
   const lanePath = LANE_COMMANDS.get(normalized);
   if (lanePath) return { type: "lane", input: normalized, lanePath };
   if (BUILTIN_SKILL_COMMAND_SET.has(normalized)) return { type: "skill", command: normalized };
-  const aliasCommand = COMMAND_ALIASES.get(normalized);
+  const aliasCommand = BUILTIN_SKILL_COMMAND_ALIAS_MAP.get(normalized);
   if (aliasCommand) return { type: "skill", command: aliasCommand };
   return null;
 }

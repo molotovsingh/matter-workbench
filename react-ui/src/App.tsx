@@ -7,6 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
+import { getNativeCommandAlias } from './lib/nativeCommandAliases';
 import { getNativeCommandView } from './lib/nativeCommands';
 import { activeMatterFromWorkspace } from './lib/activeMatter';
 import type { ActiveView } from './types';
@@ -54,6 +55,15 @@ function AppShell() {
       appendTerminal([`[cmd] ${lower}`]);
       setActiveView(nativeView);
       dispatch({ type: 'SET_BREADCRUMBS', payload: lower });
+      return;
+    }
+
+    const aliasCommand = getNativeCommandAlias(lower);
+    const aliasView = aliasCommand ? getNativeCommandView(aliasCommand) : null;
+    if (aliasCommand && aliasView) {
+      appendTerminal([`[cmd] ${lower} → ${aliasCommand}`]);
+      setActiveView(aliasView);
+      dispatch({ type: 'SET_BREADCRUMBS', payload: aliasCommand });
       return;
     }
 

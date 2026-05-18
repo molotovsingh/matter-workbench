@@ -49,5 +49,22 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
   },
 ]);
 
+export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
+  ["prepare matter", "/prepare_matter"],
+  ["prepare this matter", "/prepare_matter"],
+  ["matter prep", "/prepare_matter"],
+  ["setup matter", "/prepare_matter"],
+  ["extract", "/extract"],
+  ["describe sources", "/describe_sources"],
+  ["source labels", "/describe_sources"],
+  ["context", "/context_preview"],
+  ["show context", "/context_preview"],
+  ["list of dates", "/create_listofdates"],
+  ["create list of dates", "/create_listofdates"],
+  ["chronology", "/create_listofdates"],
+  ["doctor", "/doctor"],
+]);
+
 export const BUILTIN_SKILL_COMMAND_SET = new Set(BUILTIN_SKILL_COMMANDS);
+export const BUILTIN_SKILL_COMMAND_ALIAS_MAP = new Map(BUILTIN_SKILL_COMMAND_ALIASES);
 export const PROVIDER_BACKED_BUILTIN_SKILL_COMMAND_SET = new Set(PROVIDER_BACKED_BUILTIN_SKILL_COMMANDS);
