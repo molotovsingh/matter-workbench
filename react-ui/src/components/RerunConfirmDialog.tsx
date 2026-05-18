@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type { RerunAdvice } from '../types';
 
 interface Props {
@@ -33,8 +34,11 @@ export default function RerunConfirmDialog({
       }
       setAdvice(a);
       setLoading(false);
-    }).catch(() => {
-      if (!cancelled) onConfirm();
+    }).catch((error) => {
+      if (!cancelled) {
+        setAdvice(rerunAdviceUnavailable(skill, error));
+        setLoading(false);
+      }
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,10 +55,11 @@ export default function RerunConfirmDialog({
     ? new Date(advice.lastRunAt).toLocaleString()
     : '—';
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ') || '—';
+  const heading = advice.state === 'unknown' ? 'Could not verify current output' : title;
 
   return (
     <div className="form-warning" role="alertdialog" aria-labelledby="rerunConfirmTitle">
-      <h2 id="rerunConfirmTitle">{title}</h2>
+      <h2 id="rerunConfirmTitle">{heading}</h2>
       {advice.message && <p>{advice.message}</p>}
       <ul className="overlap-list">
         <li><strong>Skill:</strong> <code>{skill}</code></li>
@@ -76,7 +81,22 @@ export async function checkRerunAdvice(skill: string): Promise<RerunAdvice | nul
   try {
     const advice = await api.getRerunAdvice(skill);
     return advice.shouldConfirm ? advice : null;
-  } catch {
-    return null;
+  } catch (error) {
+    return rerunAdviceUnavailable(skill, error);
   }
+}
+
+function rerunAdviceUnavailable(skill: string, error: unknown): RerunAdvice {
+  const message = getErrorMessage(error);
+  return {
+    skill,
+    state: 'unknown',
+    shouldConfirm: true,
+    artifactPath: '',
+    message: [
+      `Could not confirm whether ${skill} has a current work product.`,
+      `The rerun check failed: ${message}`,
+      'Keep current unless you deliberately want to regenerate.',
+    ].join('\n'),
+  };
 }
