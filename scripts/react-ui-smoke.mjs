@@ -20,6 +20,10 @@ import {
   SKILL_IDEA_STATUS,
   SKILL_IDEA_STATUS_VALUES,
 } from "../shared/skill-idea-statuses.mjs";
+import {
+  SKILL_SAMPLE_STATE,
+  SKILL_SAMPLE_STATE_VALUES,
+} from "../shared/skill-sample-states.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
@@ -32,6 +36,7 @@ const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreation
 const reactSkillIdeaInputPath = new URL("../react-ui/src/lib/skillIdeaInput.ts", import.meta.url);
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 const reactSkillIdeaStatusesPath = new URL("../react-ui/src/lib/skillIdeaStatuses.ts", import.meta.url);
+const reactSkillSampleStatesPath = new URL("../react-ui/src/lib/skillSampleStates.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -193,6 +198,22 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-idea status contract is readable", error.message);
+  }
+
+  try {
+    const sampleStates = await readReactSkillSampleStates();
+    assert(
+      sameObjectEntries(sampleStates.state, SKILL_SAMPLE_STATE),
+      "React skill sample states match shared contract",
+      objectDiffDetail(sampleStates.state, SKILL_SAMPLE_STATE),
+    );
+    assert(
+      sameStringSet(sampleStates.values, SKILL_SAMPLE_STATE_VALUES),
+      "React skill sample state values match shared contract",
+      commandSetDiffDetail(sampleStates.values, SKILL_SAMPLE_STATE_VALUES),
+    );
+  } catch (error) {
+    fail("React skill sample state contract is readable", error.message);
   }
 
   try {
@@ -458,6 +479,16 @@ async function readReactSkillIdeaStatuses() {
       match[1],
       SKILL_IDEA_STATUS[match[2]],
     ])),
+  };
+}
+
+async function readReactSkillSampleStates() {
+  const source = await readFile(reactSkillSampleStatesPath, "utf8");
+  const stateMatch = source.match(/SKILL_SAMPLE_STATE\s*=\s*\{([\s\S]*?)\}\s*as const/);
+  const state = Object.fromEntries([...String(stateMatch?.[1] || "").matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+  return {
+    state,
+    values: Object.values(state).sort(),
   };
 }
 

@@ -1,4 +1,5 @@
 import type { SkillIdeaStatus } from '../lib/skillIdeaStatuses';
+import type { SkillSampleState } from '../lib/skillSampleStates';
 
 export interface Matter {
   name: string;
@@ -199,7 +200,7 @@ export interface SkillIdeaSample {
   current?: boolean;
   sampleMarkdown?: string;
   output?: string;
-  state: 'current' | 'approved_current' | 'approved_stale' | 'stale' | 'pending';
+  state: SkillSampleState;
   warnings?: string[];
 }
 

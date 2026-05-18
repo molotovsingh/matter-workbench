@@ -7,6 +7,7 @@ import {
   getSampleState,
   getSampleVersion,
   getSampleWarnings,
+  SKILL_SAMPLE_STATE,
   normalizeUiSample,
 } from "../skill-sample-review.js";
 import { redactSensitiveText } from "../secret-redaction.js";
@@ -483,8 +484,8 @@ function ideaProgress({ status, readiness, latestSample } = {}) {
   if (status === SKILL_IDEA_STATUS.PARKED) return { label: "Parked", className: "not-run" };
   if (latestSample) {
     const sampleState = getSampleState(latestSample);
-    if (sampleState === "approved_current") return { label: "Sample approved", className: "present" };
-    if (sampleState === "approved_stale" || sampleState === "stale") return { label: "Sample stale", className: "warning" };
+    if (sampleState === SKILL_SAMPLE_STATE.APPROVED_CURRENT) return { label: "Sample approved", className: "present" };
+    if (sampleState === SKILL_SAMPLE_STATE.APPROVED_STALE || sampleState === SKILL_SAMPLE_STATE.STALE) return { label: "Sample stale", className: "warning" };
     return { label: "Sample generated", className: "present" };
   }
   if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return { label: "Ready to review", className: "present" };
@@ -554,7 +555,7 @@ function renderIdeaSampleSummary(idea, sample, escape) {
 
 function sampleMetaText(sample) {
   const state = getSampleState(sample);
-  if (state === "approved_current") return `Sample v${getSampleVersion(sample, 1)} approved`;
-  if (state === "approved_stale" || state === "stale") return `Sample v${getSampleVersion(sample, 1)} stale`;
+  if (state === SKILL_SAMPLE_STATE.APPROVED_CURRENT) return `Sample v${getSampleVersion(sample, 1)} approved`;
+  if (state === SKILL_SAMPLE_STATE.APPROVED_STALE || state === SKILL_SAMPLE_STATE.STALE) return `Sample v${getSampleVersion(sample, 1)} stale`;
   return `Sample v${getSampleVersion(sample, 1)} generated`;
 }

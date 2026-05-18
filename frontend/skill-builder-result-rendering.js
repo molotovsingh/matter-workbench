@@ -6,6 +6,7 @@ import {
   getSampleState,
   getSampleVersion,
   getSampleWarnings,
+  SKILL_SAMPLE_STATE,
   renderSampleLedger,
 } from "./skill-sample-review.js";
 
@@ -50,9 +51,9 @@ export function renderCreatedSkillCommandRailHtml(skill = {}) {
 export function renderSkillSampleOutputHtml(sample, { version, approved, sampleReview = {} } = {}) {
   const sampleState = getSampleState(sample);
   const warnings = getSampleWarnings(sample);
-  const sampleApproved = approved || sampleState === "approved_current";
-  const sampleStale = sampleState === "stale" || sampleState === "approved_stale";
-  const statusText = sampleState === "approved_stale"
+  const sampleApproved = approved || sampleState === SKILL_SAMPLE_STATE.APPROVED_CURRENT;
+  const sampleStale = sampleState === SKILL_SAMPLE_STATE.STALE || sampleState === SKILL_SAMPLE_STATE.APPROVED_STALE;
+  const statusText = sampleState === SKILL_SAMPLE_STATE.APPROVED_STALE
     ? "Approved earlier, now stale. Regenerate before creating a skill."
     : sampleApproved
       ? "Sample approved. Creation and validation required before the skill is runnable."

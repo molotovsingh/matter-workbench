@@ -7,6 +7,7 @@ import {
   getSampleState,
   getSampleVersion,
   normalizeUiSample,
+  SKILL_SAMPLE_STATE,
 } from "./skill-sample-review.js";
 import {
   formatConfigurableSkillRunReport,
@@ -219,7 +220,7 @@ function wireSkillIdeaActions({ ctx, editorContent, ideas = [], registry = {}, r
       try {
         await writeClipboardText(formatSkillSampleCopy(sample, {
           version: getSampleVersion(sample, 1),
-          approved: getSampleState(sample) === "approved_current",
+          approved: getSampleState(sample) === SKILL_SAMPLE_STATE.APPROVED_CURRENT,
         }));
         setArtifactActionStatus(status, "Sample copied.");
         ctx.setStatus({

@@ -11,6 +11,7 @@ import {
   getSampleState,
   getSampleVersion,
   normalizeUiSample,
+  SKILL_SAMPLE_STATE,
 } from "./skill-sample-review.js";
 import { renderSkillSampleOutputHtml } from "./skill-builder-result-rendering.js";
 
@@ -163,7 +164,7 @@ export function createSkillIdeaSampleActions({
         ...sampleReview.activeSample,
         approved: true,
         approved_at: approvedSample.approvedAt || approvedSample.approved_at || "",
-        state: "approved_current",
+        state: SKILL_SAMPLE_STATE.APPROVED_CURRENT,
       });
       sampleReview.approved = true;
       sampleReview.stale = false;
@@ -243,7 +244,7 @@ export function createSkillIdeaSampleActions({
     }
     await copySkillIdeaSample(sample, {
       version: getSampleVersion(sample, version),
-      approved: getSampleState(sample) === "approved_current",
+      approved: getSampleState(sample) === SKILL_SAMPLE_STATE.APPROVED_CURRENT,
     });
   }
 
@@ -253,7 +254,7 @@ export function createSkillIdeaSampleActions({
     if (!sample) return;
     await copySkillIdeaSample(sample, {
       version: getSampleVersion(sample, 1),
-      approved: getSampleState(sample) === "approved_current",
+      approved: getSampleState(sample) === SKILL_SAMPLE_STATE.APPROVED_CURRENT,
     });
   }
 

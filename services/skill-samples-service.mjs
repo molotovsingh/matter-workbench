@@ -4,6 +4,7 @@ import path from "node:path";
 import { AI_RUN_LEDGER_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { SKILL_SAMPLE_STATE } from "../shared/skill-sample-states.mjs";
 
 export const SKILL_SAMPLES_SCHEMA_VERSION = "skill-samples/v1";
 
@@ -212,8 +213,8 @@ function normalizeAiRun(aiRun = {}) {
 function decorateSampleWithState(sample, currentHash) {
   const current = sample.designBriefHash === currentHash;
   const state = sample.approved
-    ? current ? "approved_current" : "approved_stale"
-    : current ? "current" : "stale";
+    ? current ? SKILL_SAMPLE_STATE.APPROVED_CURRENT : SKILL_SAMPLE_STATE.APPROVED_STALE
+    : current ? SKILL_SAMPLE_STATE.CURRENT : SKILL_SAMPLE_STATE.STALE;
   return {
     ...sample,
     current,

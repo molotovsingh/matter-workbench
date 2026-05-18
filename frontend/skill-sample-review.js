@@ -1,14 +1,21 @@
 import { escapeHtml } from "./dom-utils.js";
 import { redactSensitiveText } from "./secret-redaction.js";
+import {
+  SKILL_SAMPLE_STATE,
+  isSkillSampleStaleState,
+  normalizeSkillSampleState,
+} from "../shared/skill-sample-states.mjs";
+
+export { SKILL_SAMPLE_STATE } from "../shared/skill-sample-states.mjs";
 
 export function formatSkillSampleCopy(sample, { version, approved } = {}) {
   const state = getSampleState(sample);
   const warnings = getSampleWarnings(sample);
-  const statusText = state === "approved_stale"
+  const statusText = state === SKILL_SAMPLE_STATE.APPROVED_STALE
     ? "Approved earlier, now stale. Regenerate before creating a skill."
     : approved
       ? "Sample approved. Creation and validation required before the skill is runnable."
-      : state === "stale"
+      : state === SKILL_SAMPLE_STATE.STALE
         ? "Stale after design brief changes. Regenerate before approval."
         : "Awaiting review";
   const lines = [
@@ -22,7 +29,7 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     `- Feedback: ${redactSensitiveText(getSampleFeedback(sample) || "None")}`,
     `- Warnings: ${redactSensitiveText(warnings.length ? warnings.join("; ") : "None")}`,
     "",
-    approved && state !== "approved_stale"
+    approved && state !== SKILL_SAMPLE_STATE.APPROVED_STALE
       ? "This sample is approved, but it is not a runnable skill until creation and validation succeed."
       : "This is not a runnable skill. No prompt, code, slash command, provider runtime, or activation has been generated.",
     "",
@@ -74,7 +81,7 @@ export function renderSampleLedger(sampleReview = {}, { central = false } = {}) 
             `;
           }).join("")}
         </ul>
-        ${ordered.some((sample) => getSampleState(sample) === "approved_stale")
+        ${ordered.some((sample) => getSampleState(sample) === SKILL_SAMPLE_STATE.APPROVED_STALE)
           ? '<p class="muted">An approved stale sample is kept for review history, but it cannot create a skill. Regenerate and approve a current sample.</p>'
           : ""}
       </section>
@@ -98,11 +105,11 @@ export function applyActiveSampleState(sampleReview, sample) {
   const active = normalizeUiSample(sample);
   sampleReview.activeSample = active;
   const state = getSampleState(active);
-  sampleReview.approved = state === "approved_current";
-  sampleReview.stale = state === "stale" || state === "approved_stale";
-  sampleReview.staleReason = state === "approved_stale"
+  sampleReview.approved = state === SKILL_SAMPLE_STATE.APPROVED_CURRENT;
+  sampleReview.stale = isSkillSampleStaleState(state);
+  sampleReview.staleReason = state === SKILL_SAMPLE_STATE.APPROVED_STALE
     ? "This sample was approved earlier, but the design brief changed. Regenerate and approve a current sample before creating a skill."
-    : state === "stale"
+    : state === SKILL_SAMPLE_STATE.STALE
       ? "Design brief changed after this sample was generated. Regenerate the sample before approving it."
       : "";
   return sampleReview;
@@ -136,7 +143,7 @@ export function markSampleReviewStale(session = {}, reason = "") {
   sampleReview.staleReason = reason || "Design brief changed after this sample was generated. Regenerate the sample before approving it.";
   sampleReview.activeSample = {
     ...sampleReview.activeSample,
-    state: sampleReview.activeSample.approved ? "approved_stale" : "stale",
+    state: sampleReview.activeSample.approved ? SKILL_SAMPLE_STATE.APPROVED_STALE : SKILL_SAMPLE_STATE.STALE,
     current: false,
   };
   sampleReview.ledger = getLedgerSamples(sampleReview).map((sample) => getSampleId(sample) === getSampleId(sampleReview.activeSample)
@@ -222,17 +229,12 @@ export function formatSampleProvider(sample = {}) {
 }
 
 export function getSampleState(sample = {}) {
-  const state = String(sample?.state || "").trim();
-  if (["current", "stale", "approved_current", "approved_stale"].includes(state)) return state;
-  if (sample?.approved && sample?.current === false) return "approved_stale";
-  if (sample?.approved) return "approved_current";
-  if (sample?.current === false) return "stale";
-  return "current";
+  return normalizeSkillSampleState(sample);
 }
 
 export function isSampleStale(sample = {}) {
   const state = getSampleState(sample);
-  return state === "stale" || state === "approved_stale";
+  return isSkillSampleStaleState(state);
 }
 
 export function findSampleByVersion(sampleReview = {}, version) {
@@ -249,9 +251,9 @@ function getSampleCreatedAt(sample = {}) {
 }
 
 export function formatSampleStateLabel(state) {
-  if (state === "approved_current") return "Approved current";
-  if (state === "approved_stale") return "Approved stale";
-  if (state === "stale") return "Stale";
+  if (state === SKILL_SAMPLE_STATE.APPROVED_CURRENT) return "Approved current";
+  if (state === SKILL_SAMPLE_STATE.APPROVED_STALE) return "Approved stale";
+  if (state === SKILL_SAMPLE_STATE.STALE) return "Stale";
   return "Current";
 }
 
