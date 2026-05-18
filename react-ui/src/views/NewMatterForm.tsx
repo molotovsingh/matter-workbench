@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
-import { api, adaptTree } from '../api/client';
+import { api } from '../api/client';
+import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { getErrorMessage } from '../lib/errors';
 
 interface Props {
@@ -51,17 +52,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       await api.newMatter(fd);
       appendTerminal([`[new-matter] created "${name}"`]);
       const ws = await api.switchMatter(name.trim());
-      setActiveMatter({
-        name: ws.metadata?.matterName || ws.folderName || name.trim(),
-        folderName: ws.folderName || name.trim(),
-        folderPath: ws.inputLabel || '',
-        clientName: ws.metadata?.clientName,
-        matterType: ws.metadata?.matterType,
-        workspace: adaptTree(ws.tree),
-        metadata: ws.metadata,
-        fileCount: ws.fileCount,
-        directoryCount: ws.directoryCount,
-      });
+      setActiveMatter(activeMatterFromWorkspace(ws, name.trim()));
       onCreated(name.trim());
     } catch (err) {
       setError(getErrorMessage(err));

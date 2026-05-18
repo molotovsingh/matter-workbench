@@ -533,6 +533,10 @@ They were contract fixes:
 - React's rerun confirmation dialog can now expose safe optional actions. For
   List of Dates, this means `label_refresh_needed` can offer "Refresh labels
   only" instead of forcing a paid chronology regeneration.
+- React active-matter state now has one mapper from workspace API responses to
+  UI state. Opening a matter, creating a matter, refreshing the file tree, and
+  updating List of Dates all use the same conversion path; Add Files also
+  refreshes the workspace after upload instead of only saying it will.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { api, adaptTree } from '../../api/client';
+import { api } from '../../api/client';
+import { activeMatterFromWorkspace } from '../../lib/activeMatter';
 import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
@@ -68,12 +69,7 @@ export default function ListOfDatesResult() {
     if (!state.activeMatter) return;
     try {
       const workspace = await api.getWorkspace();
-      setActiveMatter({
-        ...state.activeMatter,
-        fileCount: workspace.fileCount,
-        directoryCount: workspace.directoryCount,
-        workspace: adaptTree(workspace.tree),
-      });
+      setActiveMatter(activeMatterFromWorkspace(workspace, state.activeMatter.name));
     } catch (e) {
       appendTerminal([`[workspace] refresh failed after List of Dates update: ${getErrorMessage(e)}`]);
     }

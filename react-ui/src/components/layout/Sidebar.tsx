@@ -1,7 +1,8 @@
 import { useApp } from '../../store/AppContext';
 import MatterPicker from '../matters/MatterPicker';
 import WorkspaceTree from '../workspace/WorkspaceTree';
-import { api, adaptTree } from '../../api/client';
+import { api } from '../../api/client';
+import { activeMatterFromWorkspace } from '../../lib/activeMatter';
 import { getErrorMessage } from '../../lib/errors';
 import { SIDEBAR_NATIVE_COMMANDS } from '../../lib/nativeCommands';
 
@@ -25,12 +26,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
     appendTerminal(['[workspace] refreshing…']);
     try {
       const ws = await api.getWorkspace();
-      setActiveMatter({
-        ...activeMatter,
-        fileCount: ws.fileCount,
-        directoryCount: ws.directoryCount,
-        workspace: adaptTree(ws.tree),
-      });
+      setActiveMatter(activeMatterFromWorkspace(ws, activeMatter.name));
       appendTerminal(['[workspace] refreshed']);
     } catch (e) {
       appendTerminal([`[workspace] error: ${getErrorMessage(e)}`]);

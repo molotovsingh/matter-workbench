@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../store/AppContext';
-import { api, adaptTree } from '../api/client';
+import { api } from '../api/client';
+import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { getErrorMessage } from '../lib/errors';
 import type { Matter } from '../types';
 import MatterOverview from './MatterOverview';
@@ -35,17 +36,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
     appendTerminal([`[matter] switching to "${name}"…`]);
     try {
       const ws = await api.switchMatter(name);
-      setActiveMatter({
-        name: ws.metadata?.matterName || ws.folderName || name,
-        folderName: ws.folderName || name,
-        folderPath: ws.inputLabel || '',
-        clientName: ws.metadata?.clientName,
-        matterType: ws.metadata?.matterType,
-        workspace: adaptTree(ws.tree),
-        metadata: ws.metadata,
-        fileCount: ws.fileCount,
-        directoryCount: ws.directoryCount,
-      });
+      setActiveMatter(activeMatterFromWorkspace(ws, name));
       dispatch({ type: 'SET_RESUME_MATTER', payload: name });
       onOpenMatter(name);
     } catch (e) {

@@ -8,10 +8,11 @@ import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
 import { getNativeCommandView } from './lib/nativeCommands';
+import { activeMatterFromWorkspace } from './lib/activeMatter';
 import type { ActiveView } from './types';
 
 function AppShell() {
-  const { state, dispatch, setTheme, appendTerminal } = useApp();
+  const { state, dispatch, setTheme, appendTerminal, setActiveMatter } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
@@ -128,6 +129,18 @@ function AppShell() {
     }
   }
 
+  async function refreshActiveMatterWorkspace(reason: string) {
+    if (!state.activeMatter) return;
+    appendTerminal([reason]);
+    try {
+      const workspace = await api.getWorkspace();
+      setActiveMatter(activeMatterFromWorkspace(workspace, state.activeMatter.name));
+      appendTerminal([`[workspace] refreshed — ${workspace.fileCount} files, ${workspace.directoryCount} folders`]);
+    } catch (e) {
+      appendTerminal([`[workspace] refresh failed: ${getErrorMessage(e)}`]);
+    }
+  }
+
   const isHomeModeClass = !state.activeMatter ? 'home-mode' : '';
 
   return (
@@ -143,7 +156,10 @@ function AppShell() {
         onMatterCreated={handleMatterCreated}
         onViewAllMatters={() => { setActiveView('home'); dispatch({ type: 'SET_TAB', payload: 'home' }); }}
         onOpenMatter={handleOpenMatter}
-        onAddFilesDone={() => { setActiveView('home'); appendTerminal(['[add-files] files added — refreshing workspace']); }}
+        onAddFilesDone={() => {
+          setActiveView('home');
+          void refreshActiveMatterWorkspace('[add-files] files added — refreshing workspace');
+        }}
         onCommand={handleCommand}
         commandPanel={
           <CommandPanel
