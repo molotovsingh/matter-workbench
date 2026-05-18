@@ -10,6 +10,7 @@ import {
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
+import { useLatestValue } from '../hooks/useLatestValue';
 import type { ActiveMatter, SkillRun } from '../types';
 
 interface DayGroup {
@@ -19,6 +20,7 @@ interface DayGroup {
 
 export default function ActivityPage() {
   const { state, dispatch, appendTerminal } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [runs, setRuns] = useState<SkillRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -55,20 +57,24 @@ export default function ActivityPage() {
   }
 
   async function handleOpenOutput(run: SkillRun) {
-    if (!canOpenSkillRunOutputForMatter(run, state.activeMatter)) {
+    const matterName = state.activeMatter?.name ?? null;
+    if (!canOpenSkillRunOutputForMatter(run, state.activeMatter) || !matterName) {
       appendTerminal([`[activity] output is in another matter: ${run.matterFolder || run.matterName || 'unknown matter'}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Switch to the run matter before opening that output.' });
       return;
     }
     const outputPath = run.outputPaths?.markdown;
     if (!outputPath) return;
-    dispatch({ type: 'SET_ACTIVE_FILE', payload: outputPath });
-    dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(outputPath) });
-    dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(outputPath)}` });
     try {
-      dispatch({ type: 'SET_FILE_PREVIEW', payload: await loadTextFilePreview(outputPath, api.getFile) });
+      const preview = await loadTextFilePreview(outputPath, api.getFile);
+      if (activeMatterNameRef.current !== matterName) return;
+      dispatch({ type: 'SET_ACTIVE_FILE', payload: outputPath });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(outputPath) });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(outputPath)}` });
+      dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
       dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       appendTerminal([`[activity] output preview failed for ${outputPath}: ${message}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: `Could not open output: ${message}` });

@@ -1273,6 +1273,8 @@ That refresh owner now also checks the expected matter before applying async res
 
 The workflow views now apply the same idea to their own result panels. Extract, Source Labels, List of Dates, Prepare Matter, Doctor, and context search keep a ref to the latest active matter name and ignore late responses from a matter that is no longer active. This is defensive React work, not a new feature. It prevents an old request from filling the current screen with the previous matter's rows, warnings, or generated chronology after a fast matter switch.
 
+The same guard now covers Add Files and Activity output previews. Add Files captures the matter that started duplicate checking/upload and ignores overlap or upload responses if the active matter changes. Activity waits for the file preview payload before changing the file-preview state, then checks that the same matter is still active. That preserves a simple rule: a visible matter page should only be updated by responses that still belong to that matter.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { useLatestValue } from '../hooks/useLatestValue';
 import type { OverlapWarning } from '../types';
 
 interface CollectedFile {
@@ -22,6 +23,7 @@ async function hashFile(file: File): Promise<string> {
 
 export default function AddFilesForm({ onCancel, onDone }: Props) {
   const { state, appendTerminal } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [collected, setCollected] = useState<CollectedFile[]>([]);
   const [label, setLabel] = useState('');
   const [dragover, setDragover] = useState(false);
@@ -71,7 +73,8 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (collected.length === 0) { setError('Select at least one file.'); return; }
-    if (!state.activeMatter) return;
+    const matterName = state.activeMatter?.name;
+    if (!matterName) return;
     setSubmitting(true);
     setError('');
 
@@ -79,14 +82,16 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       if (!bypassOverlap) {
         appendTerminal(['[add-files] checking for duplicates…']);
         const hashes = await Promise.all(collected.map((c) => hashFile(c.file)));
+        if (activeMatterNameRef.current !== matterName) return;
         const checkResult = await api.checkOverlap({
           hashes,
-          proposedName: state.activeMatter.name,
+          proposedName: matterName,
         });
+        if (activeMatterNameRef.current !== matterName) return;
 
         const warnings = checkResult.warnings ?? [];
-        const self = warnings.find((w) => w.matterName === state.activeMatter!.name);
-        const others = warnings.filter((w) => w.matterName !== state.activeMatter!.name);
+        const self = warnings.find((w) => w.matterName === matterName);
+        const others = warnings.filter((w) => w.matterName !== matterName);
 
         if (self || others.length > 0) {
           setSelfOverlap(self ?? null);
@@ -103,13 +108,15 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       collected.forEach((c) => fd.append('files', c.file, c.relativePath));
 
       await api.addFiles(fd);
+      if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[add-files] ${collected.length} file(s) added`]);
       onDone();
     } catch (err) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(err));
       appendTerminal([`[add-files] error: ${getErrorMessage(err)}`]);
     } finally {
-      setSubmitting(false);
+      if (activeMatterNameRef.current === matterName) setSubmitting(false);
     }
   }
 
