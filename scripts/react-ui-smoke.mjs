@@ -104,6 +104,55 @@ async function run() {
     fail("AI settings API contract", error.message);
   }
 
+  try {
+    const customSkills = await fetchJson("/api/configurable-skills");
+    const skillList = Array.isArray(customSkills.skills) ? customSkills.skills : [];
+    assert(Array.isArray(customSkills.skills), "Custom skills API exposes skills array", `${skillList.length} custom skills`);
+    assert(
+      skillList.every((skill) => typeof skill?.slash === "string" && typeof skill?.title === "string" && typeof skill?.status === "string"),
+      "Custom skill cards expose slash, title, and status",
+    );
+  } catch (error) {
+    fail("Custom skills API contract", error.message);
+  }
+
+  try {
+    const ideas = await fetchJson("/api/skill-ideas");
+    const ideaList = Array.isArray(ideas.ideas) ? ideas.ideas : [];
+    assert(Array.isArray(ideas.ideas), "Skill ideas API exposes ideas array", `${ideaList.length} ideas`);
+    assert(
+      ideaList.every((idea) => typeof idea?.id === "string" && typeof idea?.text === "string" && typeof idea?.status === "string"),
+      "Skill idea cards expose id, text, and status",
+    );
+  } catch (error) {
+    fail("Skill ideas API contract", error.message);
+  }
+
+  try {
+    const health = await fetchJson("/api/skill-factory-health");
+    const checks = Array.isArray(health.checks) ? health.checks : [];
+    assert(typeof health.state === "string", "Skill factory health exposes state", health.state);
+    assert(
+      checks.every((check) => typeof check?.id === "string" && typeof check?.label === "string" && typeof check?.state === "string"),
+      "Skill factory health exposes check rows",
+      `${checks.length} checks`,
+    );
+  } catch (error) {
+    fail("Skill factory health API contract", error.message);
+  }
+
+  try {
+    const runs = await fetchJson("/api/configurable-skills/runs?limit=5");
+    const runList = Array.isArray(runs.runs) ? runs.runs : [];
+    assert(Array.isArray(runs.runs), "Custom skill runs API exposes runs array", `${runList.length} runs`);
+    assert(
+      runList.every((run) => typeof run?.id === "string" && typeof run?.status === "string"),
+      "Custom skill run rows expose id and status",
+    );
+  } catch (error) {
+    fail("Custom skill runs API contract", error.message);
+  }
+
   if (configPayload?.hasActiveMatter) {
     try {
       const workspace = await fetchJson("/api/workspace");
