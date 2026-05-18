@@ -87,7 +87,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_STATUS_BAR':
       return { ...state, statusBar: action.payload };
     case 'APPEND_TERMINAL':
-      return { ...state, terminalLines: [...state.terminalLines.slice(-50), ...action.payload] };
+      return { ...state, terminalLines: [...state.terminalLines, ...action.payload].slice(-50) };
     case 'CLEAR_TERMINAL':
       return { ...state, terminalLines: [] };
     case 'SET_COMMAND_COPY':
