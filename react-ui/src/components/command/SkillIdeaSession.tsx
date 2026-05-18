@@ -42,7 +42,7 @@ interface SessionState {
   savedIdeaId: string | null;
   savedIdea: SkillIdea | null;
   designBrief: SkillIdeaDesignBrief | null;
-  sample: { id: string; output: string; warnings?: string[]; approved?: boolean; version?: number; state?: string } | null;
+  sample: { id: string; output: string; warnings?: string[]; approved?: boolean; version?: number; state?: string; matterFolder?: string } | null;
   answersDirtySinceSave: boolean;
   overlapGate: { decision: SkillRouterDecision; userRequest: string } | null;
   overlapJustification: string;
@@ -102,12 +102,23 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     void planInterview();
     async function planInterview() {
       appendTerminal(['[skill-idea] planning interview…']);
+      const startingMatterName = activeMatterRef.current?.name || '';
       try {
         const result = await api.planSkillIdeaInterview({
           userRequest: initialInput,
           skillIdea: { text: ideaText },
-          matterName: state.activeMatter?.name,
+          matterName: startingMatterName || undefined,
         });
+        if (!isCurrentMatterName(startingMatterName)) {
+          safeSetSession((s) => ({
+            ...s,
+            phase: 'ready',
+            notice: 'Matter changed while planning. Start the skill idea again from the matter you want to use.',
+            error: null,
+          }));
+          appendTerminal(['[skill-idea] ignored interview plan after matter changed']);
+          return;
+        }
         const planned = normalizePlannedSkillIdeaInterview(result, ideaText);
         safeSetSession((s) => ({
           ...s,
@@ -132,7 +143,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         appendTerminal([`[skill-idea] planner unavailable; using basic interview: ${getErrorMessage(e)}`]);
       }
     }
-  }, [appendTerminal, ideaText, initialInput, safeSetSession]);
+  }, [activeMatterRef, appendTerminal, ideaText, initialInput, safeSetSession]);
 
   const handleAnswer = useCallback((answer: string) => {
     safeSetSession((s) => {
@@ -156,7 +167,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     });
   }, [safeSetSession]);
 
-  async function persistCurrentIdea() {
+  async function persistCurrentIdea(matterName = activeMatterRef.current?.name || '') {
     const updatingExistingIdea = Boolean(session.savedIdeaId);
     const brief = buildSkillIdeaDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
     const result = updatingExistingIdea && session.savedIdeaId
@@ -164,7 +175,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       : await api.createSkillIdea({
         text: session.ideaText,
         designBrief: brief,
-        matterName: state.activeMatter?.name,
+        matterName: matterName || undefined,
       });
     return {
       brief,
@@ -175,10 +186,21 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   async function handleSave() {
     const hadSample = Boolean(session.sample);
+    const startingMatterName = activeMatterRef.current?.name || '';
     safeSetSession((s) => ({ ...s, phase: 'saving', notice: null, error: null }));
     appendTerminal(['[skill-idea] saving idea…']);
     try {
-      const { brief, savedIdea, updatingExistingIdea } = await persistCurrentIdea();
+      const { brief, savedIdea, updatingExistingIdea } = await persistCurrentIdea(startingMatterName);
+      if (!isCurrentMatterName(startingMatterName)) {
+        safeSetSession((s) => ({
+          ...s,
+          phase: s.savedIdeaId ? 'saved' : 'ready',
+          notice: 'Matter changed while saving. Reopen the skill idea from the matter you want to use.',
+          error: null,
+        }));
+        appendTerminal(['[skill-idea] ignored saved idea after matter changed']);
+        return;
+      }
       safeSetSession((s) => ({
         ...s,
         phase: 'saved',
@@ -203,6 +225,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
     const startingMatter = state.activeMatter;
     const startingMatterFolder = startingMatter?.folderName || '';
+    const startingMatterName = startingMatter?.name || '';
     if (!hasSkillIdeaTestMatter(startingMatter)) {
       safeSetSession((s) => ({
         ...s,
@@ -220,7 +243,17 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       let savedIdeaId = session.savedIdeaId;
       if (!savedIdea || !savedIdeaId || session.answersDirtySinceSave) {
         appendTerminal([session.answersDirtySinceSave ? '[skill-idea] saving updated idea before sample…' : '[skill-idea] saving idea before sample…']);
-        const saved = await persistCurrentIdea();
+        const saved = await persistCurrentIdea(startingMatterName);
+        if (!isCurrentMatterName(startingMatterName)) {
+          safeSetSession((s) => ({
+            ...s,
+            phase: session.savedIdeaId ? 'saved' : 'ready',
+            notice: 'Matter changed while saving. Pick the test matter again before generating a sample.',
+            error: null,
+          }));
+          appendTerminal(['[skill-idea] ignored saved idea before sample after matter changed']);
+          return;
+        }
         savedIdea = saved.savedIdea;
         savedIdeaId = saved.savedIdea.id;
       }
@@ -263,6 +296,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
               version: result.storedSample?.version,
               approved: result.storedSample?.approved,
               state: result.storedSample?.state || SKILL_SAMPLE_STATE.CURRENT,
+              matterFolder: resultMatterFolder || startingMatterFolder,
             }
           : null,
         notice: null,
@@ -283,13 +317,18 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       showSessionGuidance('Regenerate the sample after the design brief changes before creating the skill.');
       return;
     }
+    if (sampleMatterChanged(session.sample)) {
+      showSessionGuidance('Pick the sample matter again before creating the skill.');
+      return;
+    }
+    const startingMatterName = activeMatterRef.current?.name || '';
     safeSetSession((s) => ({ ...s, phase: 'creating', error: null }));
     appendTerminal(['[skill-idea] approving sample and checking skill overlap…']);
     try {
       if (!session.sample.approved) {
         await api.approveSkillIdeaSample(session.savedIdeaId, session.sample.id);
       }
-      const overlapCleared = await ensureSkillOverlapCleared(overlapOverrideJustification);
+      const overlapCleared = await ensureSkillOverlapCleared(overlapOverrideJustification, startingMatterName);
       if (!overlapCleared) return;
       appendTerminal(['[skill-idea] creating skill from approved sample…']);
       const result = await api.createSkillFromIdea(session.savedIdeaId, { overlapOverrideJustification });
@@ -308,15 +347,25 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     }
   }
 
-  async function ensureSkillOverlapCleared(overlapOverrideJustification = '') {
+  async function ensureSkillOverlapCleared(overlapOverrideJustification = '', matterName = activeMatterRef.current?.name || '') {
     if (!session.savedIdea) return true;
     const userRequest = buildSkillCreationOverlapRequest(session.savedIdea, session.designBrief || session.savedIdea.designBrief);
     if (!userRequest.trim()) return true;
     const decision = await api.checkIntent({
       userRequest,
-      matterName: state.activeMatter?.name,
+      matterName: matterName || undefined,
       overrideJustification: overlapOverrideJustification,
     });
+    if (!isCurrentMatterName(matterName)) {
+      safeSetSession((s) => ({
+        ...s,
+        phase: 'sampled',
+        notice: 'Matter changed while checking overlap. Pick the sample matter again before creating the skill.',
+        error: null,
+      }));
+      appendTerminal(['[skill-idea] ignored overlap check after matter changed']);
+      return false;
+    }
     if (!isBlockingSkillOverlapDecision(decision, overlapOverrideJustification)) return true;
     safeSetSession((s) => ({
       ...s,
@@ -422,6 +471,15 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   function showSessionGuidance(message: string) {
     safeSetSession((s) => ({ ...s, notice: message, error: null }));
+  }
+
+  function isCurrentMatterName(matterName: string) {
+    return (activeMatterRef.current?.name || '') === matterName;
+  }
+
+  function sampleMatterChanged(sample: SessionState['sample']) {
+    if (!sample?.matterFolder) return false;
+    return (activeMatterRef.current?.folderName || '') !== sample.matterFolder;
   }
 
   function handleSessionCommand(input: string): boolean {

@@ -26,9 +26,13 @@ test("React skill idea session keeps samples tied to the saved design brief and 
   assert.match(source, /Regenerate the sample after the design brief changes before creating the skill\./);
   assert.match(source, /generatedSampleMatterFolder\(result\)/);
   assert.match(source, /ignored sample result after matter changed/);
-  assert.match(source, /planSkillIdeaInterview\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
-  assert.match(source, /createSkillIdea\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
-  assert.match(source, /api\.checkIntent\(\{[\s\S]*matterName: state\.activeMatter\?\.name/);
+  assert.match(source, /ignored interview plan after matter changed/);
+  assert.match(source, /ignored saved idea after matter changed/);
+  assert.match(source, /ignored overlap check after matter changed/);
+  assert.match(source, /sampleMatterChanged\(session\.sample\)/);
+  assert.match(source, /planSkillIdeaInterview\(\{[\s\S]*matterName: startingMatterName \|\| undefined/);
+  assert.match(source, /createSkillIdea\(\{[\s\S]*matterName: matterName \|\| undefined/);
+  assert.match(source, /api\.checkIntent\(\{[\s\S]*matterName: matterName \|\| undefined/);
 });
 
 test("React API client types skill idea status updates as idea responses", async () => {
