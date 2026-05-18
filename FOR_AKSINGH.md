@@ -518,6 +518,10 @@ They were contract fixes:
   technical slash command to a lawyer-facing label like "Label sources," the
   sidebar, command box, and matter overview should not drift into three
   slightly different vocabularies.
+- the React shell no longer treats infrastructure failures as ordinary empty
+  outcomes: command router failures say the command check failed, context
+  search API failures show an error instead of "No results found," and rerun
+  advice failures ask before regenerating instead of auto-running.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
