@@ -3,12 +3,9 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { activeMatterFromWorkspace } from '../../lib/activeMatter';
 import { getErrorMessage } from '../../lib/errors';
+import { LIST_OF_DATES_DEPENDENCY_STATES } from '../../lib/listOfDatesDependencyState';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
-
-const LIST_OF_DATES_DEPENDENCY_STATES = {
-  LABEL_REFRESH_NEEDED: 'label_refresh_needed',
-} as const;
 
 export default function ListOfDatesResult() {
   const { state, appendTerminal, setActiveMatter } = useApp();

@@ -2,10 +2,12 @@
 
 import { readFile } from "node:fs/promises";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
+const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -59,6 +61,17 @@ async function run() {
     );
   } catch (error) {
     fail("React native command registry is readable", error.message);
+  }
+
+  try {
+    const reactStates = await readReactListOfDatesDependencyStates();
+    assert(
+      sameObjectEntries(reactStates, LIST_OF_DATES_DEPENDENCY_STATES),
+      "React List of Dates dependency states match shared contract",
+      objectDiffDetail(reactStates, LIST_OF_DATES_DEPENDENCY_STATES),
+    );
+  } catch (error) {
+    fail("React List of Dates dependency states are readable", error.message);
   }
 
   try {
@@ -264,6 +277,11 @@ async function readReactNativeCommands() {
   return [...new Set(commands)].sort();
 }
 
+async function readReactListOfDatesDependencyStates() {
+  const source = await readFile(reactListOfDatesDependencyStatePath, "utf8");
+  return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+}
+
 function sameStringSet(left, right) {
   if (left.length !== right.length) return false;
   const rightSet = new Set(right);
@@ -282,4 +300,18 @@ function commandSetDiffDetail(left, right) {
     ].filter(Boolean).join("; ");
   }
   return `${right.length} commands`;
+}
+
+function sameObjectEntries(left, right) {
+  const leftEntries = Object.entries(left).sort();
+  const rightEntries = Object.entries(right).sort();
+  return JSON.stringify(leftEntries) === JSON.stringify(rightEntries);
+}
+
+function objectDiffDetail(left, right) {
+  const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
+  const diffs = keys
+    .filter((key) => left[key] !== right[key])
+    .map((key) => `${key}: React=${left[key] || "missing"} shared=${right[key] || "missing"}`);
+  return diffs.length ? diffs.join("; ") : `${keys.length} states`;
 }

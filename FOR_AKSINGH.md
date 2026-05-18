@@ -1209,3 +1209,13 @@ The React skill-idea flow now follows the same contract as the older browser she
 This sounds small, but it prevents a real governance bug. Without it, an old sample could remain on screen after the user changed the requested output, lane, inputs, or risk posture. The lawyer would be reviewing one thing while the stored design brief says another. That is exactly how custom-skill systems become confusing: the visible proof and the stored instruction drift apart.
 
 The backend already protects this with design-brief hashes in the sample ledger. The frontend now respects the same rule instead of creating duplicate ideas or silently carrying forward an obsolete sample. The product lesson is simple: in a sample-first skill factory, the sample is the trust moment, so it must always be current with the brief being approved.
+
+## Contract Lesson: State Names Are Architecture Too
+
+The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:
+
+- `label_refresh_needed` means a cheap re-render can update lawyer-facing source labels.
+- `chronology_review_needed` means source metadata changed enough to ask for legal review.
+- `chronology_regeneration_needed` means the source set or source content changed enough to rebuild the chronology.
+
+Before this cleanup, the backend, vanilla frontend, and React frontend each carried local copies of those strings. That is exactly the sort of small duplication that causes expensive UI mistakes later: one surface offers "Refresh labels only" while another says the chronology must be regenerated. The React smoke test now checks its typed constants against the shared backend contract, so drift is caught during acceptance instead of by a lawyer seeing contradictory advice.

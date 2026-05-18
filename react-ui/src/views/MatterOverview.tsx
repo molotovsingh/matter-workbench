@@ -3,6 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
+import { LIST_OF_DATES_DEPENDENCY_STATES } from '../lib/listOfDatesDependencyState';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
 import type {
   PipelineStage,
@@ -11,11 +12,6 @@ import type {
   AttentionItem,
   AttentionSummary,
 } from '../types';
-
-const LIST_OF_DATES_DEPENDENCY_STATES = {
-  LABEL_REFRESH_NEEDED: 'label_refresh_needed',
-  CHRONOLOGY_REVIEW_NEEDED: 'chronology_review_needed',
-};
 
 interface Props {
   onCommand: (command: string) => void;
