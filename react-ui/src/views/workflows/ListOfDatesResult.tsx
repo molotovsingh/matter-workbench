@@ -25,15 +25,19 @@ export default function ListOfDatesResult() {
 
   async function executeRun() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setConfirming(false);
     setRunning(true); setError(''); setDone(false);
     appendTerminal(['[list-of-dates] generating…']);
     try {
-      const result = await api.runCreateListOfDates({ matterName: state.activeMatter.name });
+      const result = await api.runCreateListOfDates({ matterName });
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after List of Dates update' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after List of Dates update',
+      });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -43,6 +47,7 @@ export default function ListOfDatesResult() {
 
   async function executeLabelRefresh() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setConfirming(false);
     setRunning(true);
     setError('');
@@ -52,7 +57,10 @@ export default function ListOfDatesResult() {
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] refreshed labels for ${result.entries?.length ?? 0} entries`]);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after List of Dates update' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after List of Dates update',
+      });
     } catch (e) {
       const message = getErrorMessage(e);
       setError(message);

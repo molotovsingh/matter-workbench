@@ -121,7 +121,12 @@ interface AppContextValue {
   setActiveMatter: (matter: ActiveMatter | null) => void;
   clearActiveMatter: () => void;
   switchActiveMatter: (name: string, opts?: SwitchActiveMatterOptions) => Promise<ActiveMatter>;
-  refreshActiveMatterWorkspace: (opts?: { reason?: string; successMessage?: string; failurePrefix?: string }) => Promise<ActiveMatter | null>;
+  refreshActiveMatterWorkspace: (opts?: {
+    reason?: string;
+    successMessage?: string;
+    failurePrefix?: string;
+    expectedMatterName?: string;
+  }) => Promise<ActiveMatter | null>;
   appendTerminal: (lines: string[]) => void;
   setStatus: (opts: { bar?: string; terminal?: string[] }) => void;
   commandPanelRef: React.RefObject<HTMLInputElement | null>;
@@ -221,11 +226,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     reason = '',
     successMessage = '',
     failurePrefix = '[workspace] refresh failed',
-  }: { reason?: string; successMessage?: string; failurePrefix?: string } = {}) => {
+    expectedMatterName = state.activeMatter?.name,
+  }: { reason?: string; successMessage?: string; failurePrefix?: string; expectedMatterName?: string } = {}) => {
     if (!state.activeMatter) return null;
     if (reason) appendTerminal([reason]);
     try {
       const workspace = await api.getWorkspace();
+      if (!workspaceMatchesMatter(workspace, expectedMatterName)) {
+        appendTerminal(['[workspace] refresh skipped - active matter changed']);
+        return null;
+      }
       const refreshed = activeMatterFromWorkspace(workspace, state.activeMatter.name);
       setActiveMatter(refreshed);
       appendTerminal([successMessage || `[workspace] refreshed — ${workspace.fileCount} files, ${workspace.directoryCount} folders`]);
@@ -262,4 +272,12 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
+}
+
+function workspaceMatchesMatter(workspace: WorkspaceApiResponse, expectedMatterName?: string): boolean {
+  const expected = expectedMatterName?.trim();
+  if (!expected) return true;
+  return [workspace.folderName, workspace.metadata?.matterName]
+    .filter(Boolean)
+    .some((name) => name === expected);
 }

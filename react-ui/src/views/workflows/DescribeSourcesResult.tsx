@@ -22,17 +22,21 @@ export default function DescribeSourcesResult() {
 
   async function executeRun() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setConfirming(false);
     setRunning(true);
     setError('');
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Running' });
     appendTerminal(['[source-index] calling AI provider…']);
     try {
-      const raw = await api.runDescribeSources({ matterName: state.activeMatter.name });
+      const raw = await api.runDescribeSources({ matterName });
       setResult(raw);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
       appendTerminal(['[source-index] complete']);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Source Labels update' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after Source Labels update',
+      });
     } catch (e) {
       setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Failed' });

@@ -1252,6 +1252,8 @@ The Prepare Matter React view also stopped using the rerun guard as a generic pa
 
 Artifact-writing React workflows now refresh the active matter workspace through the same context owner after successful writes. Extract, Source Labels, Prepare Matter, and Doctor fixes can all change the files or generated records underneath the shell. If the UI keeps showing the old file tree after that, the backend may be correct but the lawyer still sees stale workspace state. This is the React migration theme in miniature: every write path needs an explicit state-refresh story.
 
+That refresh owner now also checks the expected matter before applying async results. A workflow can start against one matter and finish after the user has switched to another; without a guard, the old task could ask the shell to refresh whichever matter is currently active. The fix is to pass the matter name captured at run start and skip the refresh if the workspace returned by the backend no longer matches. It is a small defensive pattern, but it protects the most important invariant in this app: the UI must never casually mix matter identities.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

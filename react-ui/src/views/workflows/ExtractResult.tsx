@@ -14,16 +14,20 @@ export default function ExtractResult() {
 
   async function handleRun() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setRunning(true);
     setError('');
     setDone(false);
     appendTerminal(['[extract] running…']);
     try {
-      const result = await api.runExtract({ matterName: state.activeMatter.name });
+      const result = await api.runExtract({ matterName });
       setRows(result.fileResults ?? []);
       setDone(true);
       appendTerminal(['[extract] complete']);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Extract update' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after Extract update',
+      });
     } catch (e) {
       setError(getErrorMessage(e));
       appendTerminal([`[extract] error: ${getErrorMessage(e)}`]);

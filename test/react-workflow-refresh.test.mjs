@@ -7,25 +7,31 @@ const workflowFiles = [
     name: "Extract",
     path: "../react-ui/src/views/workflows/ExtractResult.tsx",
     runPattern: /api\.runExtract/,
-    refreshPattern: /refreshActiveMatterWorkspace\(\{ failurePrefix: '\[workspace\] refresh failed after Extract update' \}\)/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after Extract update'/,
   },
   {
     name: "Source Labels",
     path: "../react-ui/src/views/workflows/DescribeSourcesResult.tsx",
     runPattern: /api\.runDescribeSources/,
-    refreshPattern: /refreshActiveMatterWorkspace\(\{ failurePrefix: '\[workspace\] refresh failed after Source Labels update' \}\)/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after Source Labels update'/,
+  },
+  {
+    name: "List of Dates",
+    path: "../react-ui/src/views/workflows/ListOfDatesResult.tsx",
+    runPattern: /api\.runCreateListOfDates/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after List of Dates update'/,
   },
   {
     name: "Prepare Matter",
     path: "../react-ui/src/views/workflows/PrepareMatterResult.tsx",
     runPattern: /runPreparationStage/,
-    refreshPattern: /refreshActiveMatterWorkspace\(\{ failurePrefix: '\[workspace\] refresh failed after preparation update' \}\)/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after preparation update'/,
   },
   {
     name: "Doctor fixes",
     path: "../react-ui/src/views/workflows/DoctorResult.tsx",
     runPattern: /api\.runDoctorFix/,
-    refreshPattern: /refreshActiveMatterWorkspace\(\{ failurePrefix: '\[workspace\] refresh failed after Doctor fixes' \}\)/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after Doctor fixes'/,
   },
 ];
 
@@ -36,4 +42,14 @@ test("React artifact-writing workflows refresh active matter workspace after wri
     assert.match(source, workflow.runPattern, `${workflow.name} should still call its artifact-writing API`);
     assert.match(source, workflow.refreshPattern, `${workflow.name} should refresh after successful writes`);
   }
+});
+
+test("React workspace refresh skips stale async results after matter changes", async () => {
+  const source = await readFile(new URL("../react-ui/src/store/AppContext.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /expectedMatterName = state\.activeMatter\?\.name/);
+  assert.match(source, /workspaceMatchesMatter\(workspace, expectedMatterName\)/);
+  assert.match(source, /\[workspace\] refresh skipped - active matter changed/);
+  assert.match(source, /function workspaceMatchesMatter\(workspace: WorkspaceApiResponse, expectedMatterName\?: string\): boolean/);
+  assert.match(source, /workspace\.folderName, workspace\.metadata\?\.matterName/);
 });

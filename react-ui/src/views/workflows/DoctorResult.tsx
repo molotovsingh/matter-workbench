@@ -34,15 +34,19 @@ export default function DoctorResult() {
 
   async function handleFix() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     const selected = issues.filter((i) => i.selected).map((i) => i.id);
     if (selected.length === 0) return;
     setFixing(true);
     appendTerminal([`[doctor] fixing ${selected.length} issue(s)…`]);
     try {
-      await api.runDoctorFix({ matterName: state.activeMatter.name, issueIds: selected });
+      await api.runDoctorFix({ matterName, issueIds: selected });
       setFixDone(true);
       appendTerminal(['[doctor] fixes applied']);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after Doctor fixes' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after Doctor fixes',
+      });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {

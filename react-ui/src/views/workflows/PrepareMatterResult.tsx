@@ -76,7 +76,8 @@ export default function PrepareMatterResult() {
   }
 
   async function executeRunNext() {
-    if (!plan?.nextStep?.slash) return;
+    if (!plan?.nextStep?.slash || !state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     const matchedStage = findNextPreparationStage(plan);
     if (!matchedStage || !isRunnablePreparationStage(matchedStage)) return;
     setConfirmingPaid(false);
@@ -84,9 +85,12 @@ export default function PrepareMatterResult() {
     appendTerminal([`[prepare] running: ${plan.nextStep.slash}`]);
     try {
       const slash = plan.nextStep.slash;
-      await runPreparationStage(slash, state.activeMatter?.name);
+      await runPreparationStage(slash, matterName);
       appendTerminal([`[prepare] ${slash} complete`]);
-      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after preparation update' });
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after preparation update',
+      });
       await loadPlan();
     } catch (e) {
       appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
@@ -97,7 +101,8 @@ export default function PrepareMatterResult() {
   }
 
   async function handleRunAll() {
-    if (!plan?.stages) return;
+    if (!plan?.stages || !state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setRunning(true);
     const runnableStages = plan.stages.filter(isRunnablePreparationStage);
     for (const stage of runnableStages) {
@@ -114,7 +119,7 @@ export default function PrepareMatterResult() {
       try {
         if (!stage.slash) throw new Error(`Preparation stage has no runnable slash: ${stage.label}`);
         const slash = stage.slash;
-        await runPreparationStage(slash, state.activeMatter?.name);
+        await runPreparationStage(slash, matterName);
         appendTerminal([`[prepare] ${slash} done`]);
       } catch (e) {
         appendTerminal([`[prepare] ${stage.slash} failed: ${getErrorMessage(e)}`]);
@@ -122,7 +127,10 @@ export default function PrepareMatterResult() {
       }
     }
     setPendingPaidConfirm(null);
-    await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after preparation update' });
+    await refreshActiveMatterWorkspace({
+      expectedMatterName: matterName,
+      failurePrefix: '[workspace] refresh failed after preparation update',
+    });
     await loadPlan();
     setRunning(false);
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Prepare Matter Complete' });
