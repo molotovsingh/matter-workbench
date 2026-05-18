@@ -1,25 +1,35 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import type { MatterContextSearchResult } from '../../types';
 
 export default function ContextSearch() {
-  const { state } = useApp();
+  const { state, appendTerminal } = useApp();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MatterContextSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
     setSearching(true);
     setDone(false);
+    setError('');
     try {
       const res = await api.searchMatterContext(query);
       setResults(res.results ?? []);
       setDone(true);
-    } catch { setDone(true); } finally { setSearching(false); }
+    } catch (e) {
+      const message = getErrorMessage(e);
+      setResults([]);
+      setError(message);
+      appendTerminal([`[context-search] error: ${message}`]);
+    } finally {
+      setSearching(false);
+    }
   }
 
   return (
@@ -43,7 +53,8 @@ export default function ContextSearch() {
           {searching ? 'Searching…' : 'Search'}
         </button>
       </form>
-      {done && results.length === 0 && <p className="muted">No results found.</p>}
+      {error && <p className="form-error">{error}</p>}
+      {done && !error && results.length === 0 && <p className="muted">No results found.</p>}
       {results.map((r, i) => (
         <div key={i} style={{ marginBottom: 16, padding: '14px 16px', border: '1px solid var(--border)', background: 'var(--panel)' }}>
           <div style={{ color: 'var(--muted-strong)', lineHeight: 1.55, fontSize: 14, marginBottom: 8 }}>{r.snippet}</div>
