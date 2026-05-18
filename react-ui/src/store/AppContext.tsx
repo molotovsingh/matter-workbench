@@ -146,9 +146,22 @@ type SwitchActiveMatterOptions = {
   failureMessage?: false | ((error: unknown) => string);
 };
 
+class MatterSwitchSupersededError extends Error {
+  constructor(name: string) {
+    super(`Matter switch superseded: ${name}`);
+    this.name = 'MatterSwitchSupersededError';
+  }
+}
+
+export function isMatterSwitchSupersededError(error: unknown): boolean {
+  return error instanceof MatterSwitchSupersededError;
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const commandPanelRef = useRef<HTMLInputElement | null>(null);
+  const matterSwitchSeqRef = useRef(0);
+  const matterSwitchChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const setTheme = useCallback((theme: 'light' | 'dark') => {
     document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
@@ -194,32 +207,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
       failureMessage,
     }: SwitchActiveMatterOptions = {},
   ) => {
-    if (startMessage !== false) appendTerminal([startMessage]);
-    try {
-      const workspace = await api.switchMatter(name);
-      const activeMatter = activeMatterFromWorkspace(workspace, name);
-      setActiveMatter(activeMatter);
-      dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
-      const summary = { name, activeMatter, workspace };
-      const resolvedSuccessMessage = typeof successMessage === 'function'
-        ? successMessage(summary)
-        : successMessage;
-      if (resolvedSuccessMessage !== false) {
-        appendTerminal([
-          resolvedSuccessMessage
-            || `[matter] loaded "${name}" — ${workspace.fileCount} files, ${workspace.directoryCount} folders`,
-        ]);
+    const switchSeq = matterSwitchSeqRef.current + 1;
+    matterSwitchSeqRef.current = switchSeq;
+
+    const task = matterSwitchChainRef.current.catch(() => undefined).then(async () => {
+      if (matterSwitchSeqRef.current !== switchSeq) {
+        throw new MatterSwitchSupersededError(name);
       }
-      return activeMatter;
-    } catch (error) {
-      const resolvedFailureMessage = typeof failureMessage === 'function'
-        ? failureMessage(error)
-        : failureMessage;
-      if (resolvedFailureMessage !== false) {
-        appendTerminal([resolvedFailureMessage || `[matter] error: ${getErrorMessage(error)}`]);
+      if (startMessage !== false) appendTerminal([startMessage]);
+      try {
+        const workspace = await api.switchMatter(name);
+        if (matterSwitchSeqRef.current !== switchSeq) {
+          throw new MatterSwitchSupersededError(name);
+        }
+        const activeMatter = activeMatterFromWorkspace(workspace, name);
+        setActiveMatter(activeMatter);
+        dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
+        const summary = { name, activeMatter, workspace };
+        const resolvedSuccessMessage = typeof successMessage === 'function'
+          ? successMessage(summary)
+          : successMessage;
+        if (resolvedSuccessMessage !== false) {
+          appendTerminal([
+            resolvedSuccessMessage
+              || `[matter] loaded "${name}" — ${workspace.fileCount} files, ${workspace.directoryCount} folders`,
+          ]);
+        }
+        return activeMatter;
+      } catch (error) {
+        if (isMatterSwitchSupersededError(error)) {
+          throw error;
+        }
+        const resolvedFailureMessage = typeof failureMessage === 'function'
+          ? failureMessage(error)
+          : failureMessage;
+        if (resolvedFailureMessage !== false) {
+          appendTerminal([resolvedFailureMessage || `[matter] error: ${getErrorMessage(error)}`]);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
+
+    matterSwitchChainRef.current = task.catch(() => undefined);
+    return task;
   }, [appendTerminal, setActiveMatter]);
 
   const refreshActiveMatterWorkspace = useCallback(async ({

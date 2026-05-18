@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useApp } from '../store/AppContext';
+import { isMatterSwitchSupersededError, useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 
@@ -57,6 +57,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       });
       onCreated(name.trim());
     } catch (err) {
+      if (isMatterSwitchSupersededError(err)) return;
       setError(getErrorMessage(err));
       appendTerminal([`[new-matter] error: ${getErrorMessage(err)}`]);
     } finally {
