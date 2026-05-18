@@ -12,7 +12,7 @@ export default function ContextPreview() {
   const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
 
-  async function loadContext() {
+  async function loadContext({ isStale = () => false }: { isStale?: () => boolean } = {}) {
     if (!state.activeMatter) return;
     setLoading(true);
     setError('');
@@ -20,6 +20,7 @@ export default function ContextPreview() {
     appendTerminal(['[context] loading preview…']);
     try {
       const data = await api.getMatterContext();
+      if (isStale()) return;
       setData(data);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Ready' });
       appendTerminal([
@@ -28,16 +29,21 @@ export default function ContextPreview() {
         '[context] provider calls: none',
       ]);
     } catch (e) {
+      if (isStale()) return;
       setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Failed' });
       appendTerminal([`[context] error: ${getErrorMessage(e)}`]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadContext();
+    let cancelled = false;
+    void loadContext({ isStale: () => cancelled });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeMatter?.name]);
 

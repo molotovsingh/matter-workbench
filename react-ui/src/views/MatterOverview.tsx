@@ -94,12 +94,22 @@ function PipelineCard({ matterName }: { matterName: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setStages(null);
     setError(null);
     api
       .getMatterStatus()
-      .then((s) => setStages(Array.isArray(s.stages) ? s.stages : []))
-      .catch((e) => setError(getErrorMessage(e)));
+      .then((s) => {
+        if (cancelled) return;
+        setStages(Array.isArray(s.stages) ? s.stages : []);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(getErrorMessage(e));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [matterName]);
 
   return (
@@ -206,12 +216,22 @@ function AttentionCard({ matterName }: { matterName: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setData(null);
     setError(null);
     api
       .getMatterAttention()
-      .then(setData)
-      .catch((e) => setError(getErrorMessage(e)));
+      .then((payload) => {
+        if (cancelled) return;
+        setData(payload);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(getErrorMessage(e));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [matterName]);
 
   const summary = data?.summary ?? { state: 'clear', blocker: 0, warning: 0, info: 0 };

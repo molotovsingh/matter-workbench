@@ -528,6 +528,9 @@ They were contract fixes:
   context search, doctor scan, and text file preview. This is the boring but
   valuable migration work: a route rename or response-shape drift should break
   the acceptance check before it breaks the React screen.
+- React TypeScript types are being corrected against live backend shapes as we
+  find drift. For example, `MatterStatus` is a stage-based readiness payload; it
+  does not promise aggregate completion fields that the backend never sends.
 - the React shell no longer treats infrastructure failures as ordinary empty
   outcomes: command router failures say the command check failed, context
   search API failures show an error instead of "No results found," and rerun
@@ -547,6 +550,10 @@ They were contract fixes:
   UI state. Opening a matter, creating a matter, refreshing the file tree, and
   updating List of Dates all use the same conversion path; Add Files also
   refreshes the workspace after upload instead of only saying it will.
+- React matter-scoped read views now ignore stale async responses after a matter
+  switch. That protects Matter readiness, Developer attention, Context Preview,
+  and Prepare Matter from painting an old matter's response into the new matter
+  screen if a request finishes late.
 - React Skill Factory now asks the backend interview planner for the question
   shape before falling back to the basic local interview. This keeps the React
   port closer to the governed vanilla flow: detailed skill specifications can

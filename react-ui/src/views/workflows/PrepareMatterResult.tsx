@@ -44,23 +44,33 @@ export default function PrepareMatterResult() {
   } | null>(null);
   const [error, setError] = useState('');
 
-  async function loadPlan() {
+  async function loadPlan({ isStale = () => false }: { isStale?: () => boolean } = {}) {
     setLoading(true);
     setError('');
     try {
       const result = await api.getPrepareMatter();
+      if (isStale()) return;
       setPlan(result);
       appendTerminal(['[prepare] plan ready']);
     } catch (e) {
+      if (isStale()) return;
       setError(getErrorMessage(e));
       appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (state.activeMatter) loadPlan();
+    let cancelled = false;
+    if (state.activeMatter) {
+      void loadPlan({ isStale: () => cancelled });
+    } else {
+      setPlan(null);
+    }
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeMatter?.name]);
 
@@ -172,7 +182,7 @@ export default function PrepareMatterResult() {
           <button
             className="run-skill-button secondary"
             type="button"
-            onClick={loadPlan}
+            onClick={() => { void loadPlan(); }}
             disabled={loading || running}
           >
             Refresh plan

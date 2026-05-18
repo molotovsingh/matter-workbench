@@ -331,8 +331,7 @@ export interface PipelineStage {
 
 export interface MatterStatus {
   matterName: string;
-  extractionComplete: boolean;
-  completionPct: number;
+  matterRoot?: string;
   stages: PipelineStage[];
 }
 
