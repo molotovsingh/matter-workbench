@@ -179,6 +179,19 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     }
   }
 
+  async function handleCopySample() {
+    if (!session.sample) return;
+    try {
+      await writeClipboardText(session.sample.output);
+      appendTerminal(['[skill-idea] sample copied']);
+      setSession((s) => ({ ...s, error: null }));
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[skill-idea] sample copy failed: ${message}`]);
+      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+    }
+  }
+
   function handleEditAnswers() {
     setSession((s) => ({
       ...s,
@@ -289,7 +302,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
             <button
               type="button"
               className="secondary"
-              onClick={() => writeClipboardText(session.sample!.output).catch(() => null)}
+              onClick={handleCopySample}
             >
               Copy
             </button>

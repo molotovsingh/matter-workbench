@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { writeClipboardText } from '../lib/clipboard';
+import { getErrorMessage } from '../lib/errors';
 import type { SkillRun } from '../types';
 
 interface DayGroup {
@@ -10,7 +11,7 @@ interface DayGroup {
 }
 
 export default function ActivityPage() {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, appendTerminal } = useApp();
   const [runs, setRuns] = useState<SkillRun[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +31,7 @@ export default function ActivityPage() {
   const workCompleted = succeeded;
   const dayGroups = groupRunsByDay(workCompleted);
 
-  function handleCopyReport(run: SkillRun) {
+  async function handleCopyReport(run: SkillRun) {
     const outputPath = run.outputPaths?.markdown;
     const lines = [
       `Skill: ${run.slash || run.title || 'unknown'}`,
@@ -41,7 +42,12 @@ export default function ActivityPage() {
       run.finishedAt ? `Finished: ${run.finishedAt}` : '',
       run.errorMessage ? `Error: ${run.errorMessage}` : '',
     ].filter(Boolean).join('\n');
-    writeClipboardText(lines).catch(() => null);
+    try {
+      await writeClipboardText(lines);
+      appendTerminal([`[activity] copied run report: ${run.slash || run.title || run.id}`]);
+    } catch (e) {
+      appendTerminal([`[activity] copy failed: ${getErrorMessage(e)}`]);
+    }
   }
 
   function handleOpenOutput(run: SkillRun) {

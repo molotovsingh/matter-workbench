@@ -47,9 +47,12 @@ export default function ContextPreview() {
     const report = buildContextReport(data);
     try {
       await writeClipboardText(report);
+      setError('');
       appendTerminal(['[context] report copied']);
-    } catch {
-      appendTerminal(['[context] copy failed']);
+    } catch (e) {
+      const message = getErrorMessage(e);
+      setError(`Copy failed: ${message}`);
+      appendTerminal([`[context] copy failed: ${message}`]);
     } finally {
       setCopying(false);
     }

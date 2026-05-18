@@ -109,9 +109,17 @@ function AppShell() {
     dispatch({ type: 'SET_BREADCRUMBS', payload: name });
   }
 
-  function handleCopyReport() {
-    if (reportText) writeClipboardText(reportText).catch(() => null);
-    setReportText(null);
+  async function handleCopyReport() {
+    if (!reportText) return;
+    try {
+      await writeClipboardText(reportText);
+      appendTerminal(['[report] copied']);
+      setReportText(null);
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[report] copy failed: ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Could not copy report: ${message}` });
+    }
   }
 
   const isHomeModeClass = !state.activeMatter ? 'home-mode' : '';
