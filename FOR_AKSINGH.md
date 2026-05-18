@@ -485,6 +485,7 @@ The current safe arrangement is:
 - `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the main backend.
 - `npm run ui:build` type-checks and builds the React app.
 - `npm run ui:smoke` checks that the React UI and the live backend still agree on the basic API shapes.
+- `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
 - `react-dist/` is generated output and is ignored by git.
 - `/react/` can serve the compiled React build from the same backend.
 

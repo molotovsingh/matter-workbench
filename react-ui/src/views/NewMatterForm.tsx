@@ -56,7 +56,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         folderPath: ws.inputLabel || '',
         clientName: ws.metadata?.clientName,
         matterType: ws.metadata?.matterType,
-        workspace: adaptTree(ws.tree as never),
+        workspace: adaptTree(ws.tree),
         metadata: ws.metadata,
         fileCount: ws.fileCount,
         directoryCount: ws.directoryCount,

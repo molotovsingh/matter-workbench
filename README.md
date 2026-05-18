@@ -191,8 +191,7 @@ plain-JS v1 UI until we deliberately switch defaults.
 Before accepting changes from a frontend experiment repo, run:
 
 ```bash
-npm run ui:build
-npm run ui:smoke
+npm run ui:accept
 ```
 
 `ui:smoke` expects the backend at `http://127.0.0.1:4191` and the React UI at

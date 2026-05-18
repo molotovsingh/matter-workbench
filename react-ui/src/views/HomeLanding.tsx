@@ -40,7 +40,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
         folderPath: ws.inputLabel || '',
         clientName: ws.metadata?.clientName,
         matterType: ws.metadata?.matterType,
-        workspace: adaptTree(ws.tree as never),
+        workspace: adaptTree(ws.tree),
         metadata: ws.metadata,
         fileCount: ws.fileCount,
         directoryCount: ws.directoryCount,
@@ -126,4 +126,3 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
     </section>
   );
 }
-

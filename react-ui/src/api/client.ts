@@ -2,6 +2,8 @@ import type {
   AiSettings,
   AppConfig,
   ConfigurableSkill,
+  MatterAttention,
+  MatterStatus,
   SkillRegistry,
   WorkspaceApiNode,
   WorkspaceApiResponse,
@@ -124,8 +126,8 @@ export const api = {
     postJson<{ intent: string; skillName?: string; suggestion?: string }>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
-  getMatterStatus: () => getJson<unknown>('/api/matter-status'),
-  getMatterAttention: () => getJson<{ items: unknown[] }>('/api/matter-attention'),
+  getMatterStatus: () => getJson<MatterStatus>('/api/matter-status'),
+  getMatterAttention: () => getJson<MatterAttention>('/api/matter-attention'),
   getPrepareMatter: () => getJson<unknown>('/api/prepare-matter'),
   runMatterInit: (body: unknown) => postJson('/api/matter-init', body),
   runExtract: (body: unknown) => postJson('/api/extract', body),

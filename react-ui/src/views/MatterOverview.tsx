@@ -99,10 +99,7 @@ function PipelineCard({ matterName }: { matterName: string }) {
     setError(null);
     api
       .getMatterStatus()
-      .then((s) => {
-        const data = s as { stages?: PipelineStage[] };
-        setStages(Array.isArray(data?.stages) ? data.stages : []);
-      })
+      .then((s) => setStages(Array.isArray(s.stages) ? s.stages : []))
       .catch((e) => setError((e as Error).message));
   }, [matterName]);
 
@@ -214,7 +211,7 @@ function AttentionCard({ matterName }: { matterName: string }) {
     setError(null);
     api
       .getMatterAttention()
-      .then((raw) => setData(raw as MatterAttention))
+      .then(setData)
       .catch((e) => setError((e as Error).message));
   }, [matterName]);
 
