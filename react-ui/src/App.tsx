@@ -8,11 +8,13 @@ import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
+import { useLatestValue } from './hooks/useLatestValue';
 import type { ActiveView } from './types';
 
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
@@ -81,10 +83,12 @@ function AppShell() {
     }
 
     // Fall back to intent check
+    const matterName = state.activeMatter?.name ?? null;
     dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     appendTerminal([`[cmd] "${cmd}"`]);
     try {
-      const result = await api.checkIntent({ userRequest: cmd, matterName: state.activeMatter?.name });
+      const result = await api.checkIntent({ userRequest: cmd, matterName: matterName ?? undefined });
+      if (activeMatterNameRef.current !== matterName) return;
       if (result.decision === 'run_existing_skill' && result.matched_skill) {
         const matchedResolution = resolveNativeCommand(result.matched_skill);
         if (matchedResolution) {
@@ -97,13 +101,14 @@ function AppShell() {
         dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
       }
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       appendTerminal([`[cmd] check failed for "${cmd}": ${message}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Could not check that command. Try again, or use a listed action.' });
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, dispatch, appendTerminal, setActiveView]);
+  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView]);
 
   function handleSlashSkill(command: string) {
     handleCommand(command);
