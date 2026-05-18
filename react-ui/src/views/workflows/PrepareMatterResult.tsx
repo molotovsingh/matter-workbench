@@ -132,7 +132,7 @@ export default function PrepareMatterResult() {
       <div className="document-preview-header">
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            Skill · /prepare_matter
+            Preparation plan
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
             Prepare matter

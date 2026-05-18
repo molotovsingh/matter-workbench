@@ -59,7 +59,7 @@ export default function DescribeSourcesResult() {
       <div className="document-preview-header">
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            Skill · /describe_sources
+            Library workflow
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
             {result ? 'Source Labels created' : 'Source Labels'}
@@ -137,7 +137,6 @@ export default function DescribeSourcesResult() {
                     <th>Type</th>
                     <th>Review</th>
                     <th>Warnings</th>
-                    <th>File ID</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -147,7 +146,6 @@ export default function DescribeSourcesResult() {
                       <td>{row.document_type || '—'}</td>
                       <td>{row.needs_review ? 'Yes' : 'No'}</td>
                       <td>{Array.isArray(row.warnings) ? row.warnings.length : row.warnings ?? 0}</td>
-                      <td><code>{row.file_id || '—'}</code></td>
                     </tr>
                   ))}
                 </tbody>

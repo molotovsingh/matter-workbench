@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../../lib/listOfDatesDependencyState';
+import { lawyerFacingSourceLabel, readableSourcePath } from '../../lib/sourceLabels';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
 
@@ -66,7 +67,7 @@ export default function ListOfDatesResult() {
       <div className="document-preview-header" style={{ marginBottom: 24 }}>
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            Skill · /create_listofdates
+            Library workflow
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Create list of dates</h1>
           <p className="document-path">{state.activeMatter?.name}</p>
@@ -133,7 +134,15 @@ export default function ListOfDatesResult() {
 function sourceLabels(entry: ChronologyEntry): string[] {
   const sources = entry.supporting_sources?.length ? entry.supporting_sources : [entry];
   const labels = sources
-    .map((source) => source.source_short_label || source.source_label || source.source_path || source.citation || '')
+    .map((source) => lawyerFacingSourceLabel({
+      label: source.source_short_label
+        || source.source_label
+        || source.original_name
+        || readableSourcePath(source.source_path)
+        || '',
+      citation: source.citation,
+      fallback: 'Unlabelled source',
+    }))
     .filter(Boolean);
   return [...new Set(labels)].slice(0, 3);
 }

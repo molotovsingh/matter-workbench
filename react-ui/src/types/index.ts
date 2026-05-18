@@ -545,6 +545,7 @@ export interface ChronologyEntry {
   relevance?: string;
   source_label?: string;
   source_short_label?: string;
+  original_name?: string;
   source_path?: string;
   citation?: string;
   cluster_type?: string;

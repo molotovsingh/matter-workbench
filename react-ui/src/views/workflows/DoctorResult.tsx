@@ -60,7 +60,7 @@ export default function DoctorResult() {
       <div className="document-preview-header">
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            Skill · /doctor
+            Matter diagnostics
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
             Check matter
@@ -70,7 +70,7 @@ export default function DoctorResult() {
         <div className="document-actions">
           <button className="run-skill-button" type="button" onClick={handleScan} disabled={scanning || !state.activeMatter}>
             {scanning ? 'Scanning…' : done ? 'Re-scan' : 'Scan matter'}
-            <span>/doctor</span>
+            <span>Local</span>
           </button>
         </div>
       </div>

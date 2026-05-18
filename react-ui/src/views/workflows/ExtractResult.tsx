@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { readableSourcePath } from '../../lib/sourceLabels';
 import type { ExtractFileResult } from '../../types';
 
 export default function ExtractResult() {
@@ -35,7 +36,7 @@ export default function ExtractResult() {
       <div className="document-preview-header">
         <div>
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            Skill · /extract
+            Document reading
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
             Extract documents
@@ -50,7 +51,7 @@ export default function ExtractResult() {
             disabled={running || !state.activeMatter}
           >
             {running ? 'Extracting…' : done ? 'Re-run' : 'Run extract'}
-            <span>/extract</span>
+            <span>Local</span>
           </button>
         </div>
       </div>
@@ -63,7 +64,6 @@ export default function ExtractResult() {
             <thead>
               <tr>
                 <th>Source</th>
-                <th>File ID</th>
                 <th>Status</th>
                 <th>Note</th>
               </tr>
@@ -71,8 +71,7 @@ export default function ExtractResult() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td><code>{row.original_name || row.source_path || row.file_id}</code></td>
-                  <td><code>{row.file_id || ''}</code></td>
+                  <td><code>{row.original_name || readableSourcePath(row.source_path) || 'Source record'}</code></td>
                   <td>{row.status}</td>
                   <td>{row.notes ?? ''}</td>
                 </tr>
@@ -88,7 +87,7 @@ export default function ExtractResult() {
 
       {!done && !running && (
         <p style={{ color: 'var(--muted-strong)', fontSize: 14, marginTop: 16 }}>
-          Extract organises files from the inbox into structured matter folders, using AI to identify document types and assign canonical names.
+          Extract reads supported source files and creates structured text records for later review.
         </p>
       )}
     </div>

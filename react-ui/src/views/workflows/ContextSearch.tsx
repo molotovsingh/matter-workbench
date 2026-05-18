@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { lawyerFacingSourceLabel, readableSourcePath } from '../../lib/sourceLabels';
 import type { MatterContextSearchResult } from '../../types';
 
 export default function ContextSearch() {
@@ -36,7 +37,7 @@ export default function ContextSearch() {
     <div style={{ maxWidth: 860 }}>
       <div style={{ marginBottom: 28 }}>
         <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-          Skill · /context_search
+          Matter search
         </div>
         <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Find in matter</h1>
         <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>{state.activeMatter?.name}</p>
@@ -67,10 +68,12 @@ export default function ContextSearch() {
 }
 
 function sourceLabel(result: MatterContextSearchResult): string {
-  return result.source_short_label
-    || result.source_label
-    || result.citation
-    || result.source_path
-    || result.file_id
-    || 'Unlabelled source';
+  return lawyerFacingSourceLabel({
+    label: result.source_short_label
+      || result.source_label
+      || readableSourcePath(result.source_path)
+      || '',
+    citation: result.citation,
+    fallback: 'Unlabelled source',
+  });
 }

@@ -7,7 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
-import { resolveNativeCommand } from './lib/nativeCommands';
+import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import type { ActiveView } from './types';
 
 function AppShell() {
@@ -50,12 +50,13 @@ function AppShell() {
     const nativeResolution = resolveNativeCommand(lower);
 
     if (nativeResolution) {
+      const commandLabel = cleanCommandLabel(nativeResolution.command);
       const terminalLine = nativeResolution.command === lower
-        ? `[cmd] ${lower}`
-        : `[cmd] ${lower} → ${nativeResolution.command}`;
+        ? `[cmd] ${commandLabel}`
+        : `[cmd] ${lower} → ${commandLabel}`;
       appendTerminal([terminalLine]);
       setActiveView(nativeResolution.view);
-      dispatch({ type: 'SET_BREADCRUMBS', payload: nativeResolution.command });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: commandLabel });
       return;
     }
 
@@ -81,7 +82,7 @@ function AppShell() {
         const matchedResolution = resolveNativeCommand(result.matched_skill);
         if (matchedResolution) {
           setActiveView(matchedResolution.view);
-          dispatch({ type: 'SET_BREADCRUMBS', payload: matchedResolution.command });
+          dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(matchedResolution.command) });
         } else {
           dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action || `Run ${result.matched_skill}` });
         }
