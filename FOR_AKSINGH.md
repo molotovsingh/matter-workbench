@@ -542,6 +542,12 @@ They were contract fixes:
   UI state. Opening a matter, creating a matter, refreshing the file tree, and
   updating List of Dates all use the same conversion path; Add Files also
   refreshes the workspace after upload instead of only saying it will.
+- React Skill Factory now asks the backend interview planner for the question
+  shape before falling back to the basic local interview. This keeps the React
+  port closer to the governed vanilla flow: detailed skill specifications can
+  move toward sample review without being forced through the same generic
+  three-question script, and model-planned interviews can carry inferred design
+  brief fields into the saved idea.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 

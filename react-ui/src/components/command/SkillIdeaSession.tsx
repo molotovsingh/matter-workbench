@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
 import { getErrorMessage } from '../../lib/errors';
-import type { SkillIdea, SkillIdeaDesignBrief } from '../../types';
+import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse } from '../../types';
 
 interface InterviewQuestion {
   id: string;
@@ -14,11 +14,16 @@ interface InterviewQuestion {
 }
 
 interface SessionState {
-  phase: 'interviewing' | 'ready' | 'saving' | 'saved' | 'sampling' | 'sampled' | 'creating' | 'created';
+  phase: 'planning' | 'interviewing' | 'ready' | 'saving' | 'saved' | 'sampling' | 'sampled' | 'creating' | 'created';
   ideaText: string;
+  understoodText: string;
   questions: InterviewQuestion[];
   answers: Record<string, string>;
   questionIndex: number;
+  planner: SkillInterviewPlanResponse['planner'] | null;
+  plannedBrief: SkillIdeaDesignBrief | null;
+  defaultAssumptions: string[];
+  riskFlags: string[];
   savedIdeaId: string | null;
   savedIdea: SkillIdea | null;
   designBrief: SkillIdeaDesignBrief | null;
@@ -78,13 +83,19 @@ export { parseSkillIdeaText };
 export default function SkillIdeaSession({ initialInput, onClose, onInputOverride }: Props) {
   const { state, appendTerminal, dispatch } = useApp();
   const ideaText = parseSkillIdeaText(initialInput) ?? initialInput;
+  const planningStarted = useRef(false);
 
   const [session, setSession] = useState<SessionState>({
-    phase: 'interviewing',
+    phase: 'planning',
     ideaText,
-    questions: SIMPLE_QUESTIONS,
+    understoodText: ideaText,
+    questions: [],
     answers: {},
     questionIndex: 0,
+    planner: null,
+    plannedBrief: null,
+    defaultAssumptions: [],
+    riskFlags: [],
     savedIdeaId: null,
     savedIdea: null,
     designBrief: null,
@@ -93,9 +104,47 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     error: null,
   });
 
+  useEffect(() => {
+    if (planningStarted.current) return;
+    planningStarted.current = true;
+    void planInterview();
+    async function planInterview() {
+      appendTerminal(['[skill-idea] planning interview…']);
+      try {
+        const result = await api.planSkillIdeaInterview({
+          userRequest: initialInput,
+          skillIdea: { text: ideaText },
+        });
+        const planned = normalizePlannedInterview(result, ideaText);
+        setSession((s) => ({
+          ...s,
+          phase: planned.questions.length ? 'interviewing' : 'ready',
+          understoodText: planned.understoodText,
+          questions: planned.questions,
+          plannedBrief: planned.designBrief,
+          defaultAssumptions: planned.defaultAssumptions,
+          riskFlags: planned.riskFlags,
+          planner: result.planner,
+          error: null,
+        }));
+        appendTerminal([formatPlannerTerminalLine(result)]);
+      } catch (e) {
+        setSession((s) => ({
+          ...s,
+          phase: 'interviewing',
+          questions: SIMPLE_QUESTIONS,
+          planner: null,
+          error: `Planner unavailable; using a basic interview. ${getErrorMessage(e)}`,
+        }));
+        appendTerminal([`[skill-idea] planner unavailable; using basic interview: ${getErrorMessage(e)}`]);
+      }
+    }
+  }, [appendTerminal, ideaText, initialInput]);
+
   const handleAnswer = useCallback((answer: string) => {
     setSession((s) => {
       const q = s.questions[s.questionIndex];
+      if (!q) return { ...s, phase: 'ready' };
       const newAnswers = { ...s.answers, [q.id]: answer };
       const nextIndex = s.questionIndex + 1;
       const allDone = nextIndex >= s.questions.length;
@@ -117,7 +166,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     setSession((s) => ({ ...s, phase: 'saving', error: null }));
     appendTerminal(['[skill-idea] saving idea…']);
     try {
-      const brief = buildDesignBrief(session.ideaText, session.answers);
+      const brief = buildDesignBrief(session.ideaText, session.answers, session.plannedBrief, session.questions);
       const result = await api.createSkillIdea({
         text: session.ideaText,
         designBrief: brief,
@@ -195,7 +244,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   function handleEditAnswers() {
     setSession((s) => ({
       ...s,
-      phase: 'interviewing',
+      phase: s.questions.length ? 'interviewing' : 'ready',
       questionIndex: 0,
       error: null,
     }));
@@ -217,8 +266,26 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
       {session.ideaText && (
         <div className="skill-idea-understood">
-          <strong>What I understood:</strong> {session.ideaText}
+          <strong>What I understood:</strong> {session.understoodText || session.ideaText}
         </div>
+      )}
+
+      {session.phase === 'planning' && (
+        <p className="skill-idea-status">Planning the right questions…</p>
+      )}
+
+      {session.planner && (
+        <p className="skill-idea-q-help">
+          {session.planner.used
+            ? `Interview planned by ${session.planner.provider || 'configured provider'}${session.planner.model ? ` / ${session.planner.model}` : ''}.`
+            : 'Using the safe deterministic interview path.'}
+        </p>
+      )}
+
+      {session.riskFlags.length > 0 && (
+        <ul className="skill-idea-sample-warnings">
+          {session.riskFlags.map((flag) => <li key={flag}>{flag}</li>)}
+        </ul>
       )}
 
       {/* Answered questions */}
@@ -260,6 +327,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       {session.phase === 'ready' && (
         <div className="skill-idea-ready">
           <p>All questions answered. Save this idea to generate a sample output.</p>
+          {session.defaultAssumptions.length > 0 && (
+            <ul className="skill-idea-sample-warnings">
+              {session.defaultAssumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
+            </ul>
+          )}
           <div className="skill-idea-actions">
             <button type="button" onClick={handleSave}>Save idea</button>
             <button type="button" className="secondary" onClick={handleEditAnswers}>Edit answers</button>
@@ -344,16 +416,26 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   );
 }
 
-function buildDesignBrief(ideaText: string, answers: Record<string, string>): SkillIdeaDesignBrief {
+function buildDesignBrief(
+  ideaText: string,
+  answers: Record<string, string>,
+  plannedBrief: SkillIdeaDesignBrief | null,
+  questions: InterviewQuestion[],
+): SkillIdeaDesignBrief {
+  const answerNotes = formatAnswerNotes(answers, questions);
+  const notes = [
+    plannedBrief?.notes,
+    answerNotes,
+  ].filter(Boolean).join('\n');
   return {
-    intendedUser: 'Lawyer',
-    problem: ideaText,
-    expectedInputs: answers.input || 'Selected matter documents and source labels',
-    expectedOutputArtifact: answers.output || 'Internal matter review note',
-    targetLane: '20_Workshop',
-    paidPosture: 'paid',
-    riskLevel: 'medium',
-    notes: answers.rules || 'No extra format rules supplied.',
+    intendedUser: plannedBrief?.intendedUser || 'Lawyer',
+    problem: plannedBrief?.problem || ideaText,
+    expectedInputs: answers.input || plannedBrief?.expectedInputs || 'Selected matter documents and source labels',
+    expectedOutputArtifact: answers.output || plannedBrief?.expectedOutputArtifact || 'Internal matter review note',
+    targetLane: plannedBrief?.targetLane || '20_Workshop',
+    paidPosture: plannedBrief?.paidPosture || 'paid',
+    riskLevel: plannedBrief?.riskLevel || 'medium',
+    notes: notes || 'No extra format rules supplied.',
   };
 }
 
@@ -367,4 +449,49 @@ function formatDesignBrief(brief: SkillIdeaDesignBrief): string {
     `Risk: ${brief.riskLevel || ''}`,
     `Notes: ${brief.notes || ''}`,
   ].join('\n');
+}
+
+function normalizePlannedInterview(result: SkillInterviewPlanResponse, fallbackIdeaText: string) {
+  const plan = result.plan;
+  if (!plan) {
+    return {
+      understoodText: fallbackIdeaText,
+      questions: SIMPLE_QUESTIONS,
+      designBrief: null,
+      defaultAssumptions: [],
+      riskFlags: [],
+    };
+  }
+  const questions = Array.isArray(plan.questions)
+    ? plan.questions
+      .filter((question) => question?.id && question?.label)
+      .map((question) => ({
+        id: question.id,
+        label: question.label,
+        help: question.help,
+        examples: Array.isArray(question.examples) ? question.examples : [],
+      }))
+    : [];
+  return {
+    understoodText: plan.understood_summary || fallbackIdeaText,
+    questions,
+    designBrief: plan.inferred_design_brief || null,
+    defaultAssumptions: Array.isArray(plan.default_assumptions) ? plan.default_assumptions : [],
+    riskFlags: Array.isArray(plan.risk_flags) ? plan.risk_flags : [],
+  };
+}
+
+function formatPlannerTerminalLine(result: SkillInterviewPlanResponse): string {
+  if (result.planner?.used) {
+    return `[skill-idea] model-planned interview ready: ${result.planner.provider || 'provider'} ${result.planner.model || ''}`.trim();
+  }
+  return `[skill-idea] basic interview ready${result.planner?.reason ? `: ${result.planner.reason}` : ''}`;
+}
+
+function formatAnswerNotes(answers: Record<string, string>, questions: InterviewQuestion[]): string {
+  const byId = new Map(questions.map((question) => [question.id, question.label]));
+  return Object.entries(answers)
+    .filter(([, value]) => value.trim())
+    .map(([id, value]) => `${byId.get(id) || id}: ${value.trim()}`)
+    .join('\n');
 }
