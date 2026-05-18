@@ -2,6 +2,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../../lib/filePreview';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { WorkspaceFile } from '../../types';
 
 interface TreeNodeProps {
@@ -21,8 +22,10 @@ function getFileIconClass(ext?: string) {
 
 function TreeNode({ file }: TreeNodeProps) {
   const { state, dispatch, appendTerminal } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
 
   async function handleFileClick(path: string, ext?: string) {
+    const matterName = state.activeMatter?.name ?? null;
     dispatch({ type: 'SET_ACTIVE_FILE', payload: path });
     dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(path) });
 
@@ -36,9 +39,12 @@ function TreeNode({ file }: TreeNodeProps) {
       dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
     } else {
       try {
-        dispatch({ type: 'SET_FILE_PREVIEW', payload: await loadTextFilePreview(path, api.getFile) });
+        const preview = await loadTextFilePreview(path, api.getFile);
+        if (activeMatterNameRef.current !== matterName) return;
+        dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
         dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
       } catch (e) {
+        if (activeMatterNameRef.current !== matterName) return;
         appendTerminal([`[file] error reading ${path}: ${getErrorMessage(e)}`]);
       }
     }

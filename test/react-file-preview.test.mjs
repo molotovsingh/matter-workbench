@@ -5,6 +5,7 @@ import ts from "typescript";
 
 const reactFilePreviewPath = new URL("../react-ui/src/lib/filePreview.ts", import.meta.url);
 const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
+const reactWorkspaceTreePath = new URL("../react-ui/src/components/workspace/WorkspaceTree.tsx", import.meta.url);
 
 async function importReactFilePreviewModule() {
   const source = await readFile(reactFilePreviewPath, "utf8");
@@ -36,4 +37,14 @@ test("React Activity output action fetches preview content before opening file v
   assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*dispatch\(\{ type: 'SET_ACTIVE_FILE'/);
   assert.match(source, /payload: preview/);
   assert.doesNotMatch(source, /SET_FILE_PREVIEW', payload: \{ path: outputPath, type: 'text' \}/);
+});
+
+test("React Workspace tree ignores late text previews after matter changes", async () => {
+  const source = await readFile(reactWorkspaceTreePath, "utf8");
+
+  assert.match(source, /const activeMatterNameRef = useLatestValue\(state\.activeMatter\?\.name \?\? null\)/);
+  assert.match(source, /const matterName = state\.activeMatter\?\.name \?\? null/);
+  assert.match(source, /const preview = await loadTextFilePreview\(path,\s*api\.getFile\)/);
+  assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*dispatch\(\{ type: 'SET_FILE_PREVIEW', payload: preview \}\)/);
+  assert.match(source, /catch \(e\) \{\s*if \(activeMatterNameRef\.current !== matterName\) return;/);
 });

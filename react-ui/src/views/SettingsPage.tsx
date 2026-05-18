@@ -27,31 +27,43 @@ export default function SettingsPage() {
   const [skillsError, setSkillsError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     api.getConfig().then((c) => {
+      if (cancelled) return;
       if (c.mattersHome) {
         setMattersHome(c.mattersHome);
         setMattersHomeEdit(c.mattersHome);
       }
     }).catch((e) => {
+      if (cancelled) return;
       const message = getErrorMessage(e);
       setMattersHomeError(message);
       appendTerminal([`[settings] config load failed: ${message}`]);
     });
 
     api.getAiSettings().then((s) => {
+      if (cancelled) return;
       setSettings(s);
       if (s.provider) setFormProvider(s.provider);
       if (s.model) setFormModel(s.model);
     }).catch((e) => {
+      if (cancelled) return;
       const message = getErrorMessage(e);
       setAiLoadError(message);
       appendTerminal([`[settings] AI settings load failed: ${message}`]);
     });
 
     api.getSkills().then((s) => {
+      if (cancelled) return;
       setSkills(s.skills ?? []);
-    }).catch((e) => setSkillsError(getErrorMessage(e)));
-  }, []);
+    }).catch((e) => {
+      if (cancelled) return;
+      setSkillsError(getErrorMessage(e));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [appendTerminal]);
 
   async function handleSaveMattersHome(e: React.FormEvent) {
     e.preventDefault();
