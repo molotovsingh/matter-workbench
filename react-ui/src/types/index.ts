@@ -647,9 +647,10 @@ export interface PreparationStage {
   label: string;
   slash?: string;
   state: string;
+  action?: 'run' | 'confirm_paid_run' | 'blocked' | 'skip_current' | 'recommend_review' | 'recommend_after_prepare' | 'recommend_separate_skill' | string;
+  reason?: string;
   description?: string;
   artifacts?: string[];
-  actionable?: boolean;
   paidProviderCall?: boolean;
 }
 

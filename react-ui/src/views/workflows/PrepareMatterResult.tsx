@@ -8,18 +8,28 @@ import type { PreparationPlan, PreparationStage } from '../../types';
 
 const STAGE_STATE_CLASSES = {
   present: 'present',
+  current: 'present',
   ready: 'warning',
+  ready_to_run: 'warning',
   blocked: 'failed',
   stale: 'warning',
+  failed: 'failed',
+  missing: 'not-run',
   'not-run': 'not-run',
+  not_selected: 'not-run',
 } as const;
 
 const STAGE_STATE_LABELS = {
   present: 'Done',
+  current: 'Done',
   ready: 'Ready to run',
+  ready_to_run: 'Ready to run',
   blocked: 'Blocked',
   stale: 'Needs update',
+  failed: 'Failed',
+  missing: 'Missing',
   'not-run': 'Not started',
+  not_selected: 'Not selected',
 } as const;
 
 export default function PrepareMatterResult() {
@@ -56,8 +66,9 @@ export default function PrepareMatterResult() {
 
   function handleRunNextClick() {
     if (!plan?.nextStep?.slash) return;
-    const matchedStage = plan.stages?.find(s => s.slash === plan.nextStep?.slash);
-    if (matchedStage?.paidProviderCall) {
+    const matchedStage = findNextPreparationStage(plan);
+    if (!matchedStage || !isRunnablePreparationStage(matchedStage)) return;
+    if (matchedStage.action === 'confirm_paid_run') {
       setConfirmingPaid(true);
     } else {
       executeRunNext();
@@ -66,6 +77,8 @@ export default function PrepareMatterResult() {
 
   async function executeRunNext() {
     if (!plan?.nextStep?.slash) return;
+    const matchedStage = findNextPreparationStage(plan);
+    if (!matchedStage || !isRunnablePreparationStage(matchedStage)) return;
     setConfirmingPaid(false);
     setRunning(true);
     appendTerminal([`[prepare] running: ${plan.nextStep.slash}`]);
@@ -85,9 +98,9 @@ export default function PrepareMatterResult() {
   async function handleRunAll() {
     if (!plan?.stages) return;
     setRunning(true);
-    const actionable = plan.stages.filter((s) => s.actionable);
-    for (const stage of actionable) {
-      if (stage.paidProviderCall) {
+    const runnableStages = plan.stages.filter(isRunnablePreparationStage);
+    for (const stage of runnableStages) {
+      if (stage.action === 'confirm_paid_run') {
         const skipPaid = await new Promise<boolean>((resolve) => {
           setPendingPaidConfirm({ stage, resolve });
         });
@@ -132,11 +145,11 @@ export default function PrepareMatterResult() {
             className="run-skill-button"
             type="button"
             onClick={handleRunAll}
-            disabled={running || loading || !plan}
+            disabled={running || loading || !hasRunnablePreparationStage(plan)}
           >
             {running ? 'Running…' : 'Run preparation'}
           </button>
-          {plan?.nextStep && (
+          {plan?.nextStep && isRunnablePreparationStage(findNextPreparationStage(plan)) && (
             <button
               className="run-skill-button secondary"
               type="button"
@@ -198,7 +211,7 @@ export default function PrepareMatterResult() {
       {plan?.nextStep && (
         <section className="matter-pipeline-card" style={{ marginTop: 24 }}>
           <h2>Next safe step</h2>
-          <div className="pipeline-stage present">
+          <div className={`pipeline-stage ${stageStateClass(plan.nextStep.state)}`}>
             <div className="pipeline-stage-main">
               <div>
                 <strong>{plan.nextStep.label}</strong>
@@ -225,7 +238,7 @@ export default function PrepareMatterResult() {
           <h2>Preparation steps</h2>
           <div className="pipeline-stage-list">
             {plan.stages.map((stage) => (
-              <div key={stage.slash ?? stage.label} className={`pipeline-stage ${stage.state === 'present' ? 'present' : 'not-run'}`}>
+              <div key={stage.slash ?? stage.label} className={`pipeline-stage ${stageStateClass(stage.state)}`}>
                 <div className="pipeline-stage-main">
                   <div>
                     <strong>{stage.label}</strong>
@@ -239,6 +252,9 @@ export default function PrepareMatterResult() {
                 </div>
                 {stage.description && (
                   <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>{stage.description}</p>
+                )}
+                {stage.reason && (
+                  <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>{stage.reason}</p>
                 )}
                 {stage.artifacts && stage.artifacts.length > 0 && (
                   <div className="pipeline-artifacts">
@@ -276,4 +292,20 @@ function stageStateClass(state: string): string {
 
 function stageStateLabel(state: string): string {
   return lookupString(STAGE_STATE_LABELS, state, state);
+}
+
+function isRunnablePreparationStage(stage?: PreparationStage | null): stage is PreparationStage {
+  return stage?.action === 'run' || stage?.action === 'confirm_paid_run';
+}
+
+function hasRunnablePreparationStage(plan?: PreparationPlan | null): boolean {
+  return Boolean(plan?.stages?.some(isRunnablePreparationStage));
+}
+
+function findNextPreparationStage(plan: PreparationPlan): PreparationStage | null {
+  if (!plan.nextStep) return null;
+  return plan.stages.find((stage) => (
+    (plan.nextStep?.slash && stage.slash === plan.nextStep.slash)
+    || (plan.nextStep?.stage && stage.id === plan.nextStep.stage)
+  )) ?? null;
 }

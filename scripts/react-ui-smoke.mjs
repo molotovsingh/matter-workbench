@@ -195,6 +195,26 @@ async function run() {
 
   if (configPayload?.hasActiveMatter) {
     try {
+      const prepareMatter = await fetchJson("/api/prepare-matter");
+      const stages = Array.isArray(prepareMatter.stages) ? prepareMatter.stages : [];
+      assert(Array.isArray(prepareMatter.stages), "Prepare Matter API exposes stage rows", `${stages.length} stages`);
+      assert(
+        stages.every((stage) => typeof stage?.state === "string" && typeof stage?.action === "string"),
+        "Prepare Matter stages expose state and action",
+      );
+      assert(
+        !prepareMatter.nextStep || typeof prepareMatter.nextStep.state === "string",
+        "Prepare Matter next step exposes state when present",
+      );
+    } catch (error) {
+      fail("Prepare Matter API contract", error.message);
+    }
+  } else {
+    pass("Prepare Matter API skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
       const rerunAdvice = await fetchJson(`/api/rerun-advice?skill=${encodeURIComponent("/describe_sources")}`);
       assert(typeof rerunAdvice.state === "string", "Rerun advice exposes state", rerunAdvice.state);
       assert(typeof rerunAdvice.shouldConfirm === "boolean", "Rerun advice exposes confirmation flag");

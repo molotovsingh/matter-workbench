@@ -526,6 +526,10 @@ They were contract fixes:
   Skills, Activity, and Settings show load failures instead of looking empty;
   report/sample/context copy failures stay on screen or in the activity strip
   instead of disappearing silently.
+- React Prepare Matter now consumes the backend `action` contract directly.
+  This matters because a stage can have a slash command and still be blocked;
+  the UI must not infer runnability from "has a slash." It should run only
+  stages whose backend action is `run` or `confirm_paid_run`.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
