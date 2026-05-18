@@ -13,8 +13,11 @@ import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import { SKILL_IDEA_STATUS } from '../../lib/skillIdeaStatuses';
 import {
   buildSkillIdeaDesignBrief,
+  findSkillIdeaSampleByVersion,
   formatSkillIdeaDesignBrief,
   formatSkillIdeaPlannerTerminalLine,
+  formatSkillIdeaReviewPacket,
+  formatSkillIdeaSampleCopy,
   hasSkillIdeaTestMatter,
   normalizePlannedSkillIdeaInterview,
   overlapMatchedLabel,
@@ -37,7 +40,7 @@ interface SessionState {
   savedIdeaId: string | null;
   savedIdea: SkillIdea | null;
   designBrief: SkillIdeaDesignBrief | null;
-  sample: { id: string; output: string; warnings?: string[]; approved?: boolean } | null;
+  sample: { id: string; output: string; warnings?: string[]; approved?: boolean; version?: number; state?: string } | null;
   overlapGate: { decision: SkillRouterDecision; userRequest: string } | null;
   overlapJustification: string;
   createdSkill: { slash?: string; name?: string } | null;
@@ -207,7 +210,14 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         savedIdea,
         designBrief: savedIdea?.designBrief || s.designBrief,
         sample: sampleId && output
-          ? { id: sampleId, output, warnings: result.warnings || result.storedSample?.warnings }
+          ? {
+              id: sampleId,
+              output,
+              warnings: result.warnings || result.storedSample?.warnings,
+              version: result.storedSample?.version,
+              approved: result.storedSample?.approved,
+              state: result.storedSample?.state,
+            }
           : null,
         notice: null,
       }));
@@ -264,12 +274,56 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   async function handleCopySample() {
     if (!session.sample) return;
     try {
-      await writeClipboardText(session.sample.output);
+      await writeClipboardText(formatSkillIdeaSampleCopy(session.sample, {
+        version: session.sample.version || 1,
+        approved: session.sample.approved,
+      }));
       appendTerminal(['[skill-idea] sample copied']);
       setSession((s) => ({ ...s, error: null }));
     } catch (e) {
       const message = getErrorMessage(e);
       appendTerminal([`[skill-idea] sample copy failed: ${message}`]);
+      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+    }
+  }
+
+  async function handleCopySampleVersion(version: number) {
+    if (!session.savedIdeaId) {
+      showSessionGuidance('Save the idea before copying sample versions.');
+      return;
+    }
+    try {
+      const payload = await api.getSkillIdeaSamples(session.savedIdeaId);
+      const sample = findSkillIdeaSampleByVersion(payload.samples || [], version);
+      if (!sample) {
+        showSessionGuidance(`Sample v${Number(version || 0) || '?'} is not available in the ledger.`);
+        return;
+      }
+      await writeClipboardText(formatSkillIdeaSampleCopy(sample, {
+        version,
+        approved: sample.approved,
+      }));
+      appendTerminal([`[skill-idea] copied sample v${version}`]);
+      setSession((s) => ({ ...s, error: null }));
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[skill-idea] sample version copy failed: ${message}`]);
+      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+    }
+  }
+
+  async function handleCopyReviewPacket() {
+    if (!session.savedIdea) {
+      showSessionGuidance('Save the idea before copying a review packet.');
+      return;
+    }
+    try {
+      await writeClipboardText(formatSkillIdeaReviewPacket(session.savedIdea));
+      appendTerminal([`[skill-idea] copied review packet for ${session.savedIdea.id}`]);
+      setSession((s) => ({ ...s, error: null }));
+    } catch (e) {
+      const message = getErrorMessage(e);
+      appendTerminal([`[skill-idea] review packet copy failed: ${message}`]);
       setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
     }
   }
@@ -381,8 +435,12 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       onClose();
       return true;
     }
-    if (command.action === 'copy_sample_version' || command.action === 'copy_review_packet') {
-      showSessionGuidance('Open Skills for versioned sample history and review packets.');
+    if (command.action === 'copy_sample_version') {
+      void handleCopySampleVersion(command.version);
+      return true;
+    }
+    if (command.action === 'copy_review_packet') {
+      void handleCopyReviewPacket();
       return true;
     }
     return false;

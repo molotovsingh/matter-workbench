@@ -1236,6 +1236,8 @@ The React flow also now keeps the sample tied to a real test matter. If no matte
 
 The supporting helpers moved into `react-ui/src/lib/skillIdeaSession.ts`. That is a small architectural cleanup with a practical purpose. The component still owns the conversation UI, but pure things like "is there a selected test matter?", "how do we normalize a planned interview?", and "how do we build the design brief from answers?" now live in one testable place. Good refactors often look like this: no new feature parade, just fewer reasons for one component to know everything.
 
+The same helper now owns React-side review packet and sample-copy formatting for the command-session flow. This closes a small "I typed the supported command but got redirected elsewhere" problem: `copy review packet` and `copy sample v2` are real local copy actions in React, not vague instructions to leave the conversation and open another screen. That matters because the skill factory is already a delicate workflow. A user should not have to remember which surface owns a saved idea while they are reviewing whether the sample is good enough.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:
