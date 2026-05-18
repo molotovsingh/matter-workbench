@@ -17,16 +17,20 @@ function AppShell() {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
 
-  // Bootstrap: load theme, config, matters
   useEffect(() => {
     setTheme(state.theme);
+  }, [setTheme, state.theme]);
 
+  // Bootstrap: load config and matter list once on app start.
+  useEffect(() => {
+    let cancelled = false;
     async function bootstrap() {
       try {
         const [config, mattersResult] = await Promise.all([
           api.getConfig(),
           api.getMatters(),
         ]);
+        if (cancelled) return;
         dispatch({ type: 'SET_CONFIG', payload: { config } });
         dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
         if (config.activeMatterName) {
@@ -35,12 +39,15 @@ function AppShell() {
         }
         appendTerminal([`[boot] ${mattersResult.matters?.length ?? 0} matter(s) loaded`]);
       } catch (e) {
+        if (cancelled) return;
         appendTerminal([`[boot] server not reachable — ${getErrorMessage(e)}`]);
       }
     }
-    bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [appendTerminal, dispatch]);
 
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();

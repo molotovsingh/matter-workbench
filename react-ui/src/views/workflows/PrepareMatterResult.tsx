@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
@@ -46,7 +46,7 @@ export default function PrepareMatterResult() {
   } | null>(null);
   const [error, setError] = useState('');
 
-  async function loadPlan({ isStale = () => false }: { isStale?: () => boolean } = {}) {
+  const loadPlan = useCallback(async ({ isStale = () => false }: { isStale?: () => boolean } = {}) => {
     setLoading(true);
     setError('');
     try {
@@ -61,7 +61,7 @@ export default function PrepareMatterResult() {
     } finally {
       if (!isStale()) setLoading(false);
     }
-  }
+  }, [appendTerminal]);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,8 +73,7 @@ export default function PrepareMatterResult() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeMatter?.name]);
+  }, [loadPlan, state.activeMatter]);
 
   function handleRunNextClick() {
     if (!plan?.nextStep?.slash) return;

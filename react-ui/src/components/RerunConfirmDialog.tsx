@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
+import { useLatestValue } from '../hooks/useLatestValue';
 import type { RerunAdvice, RerunAdviceAction } from '../types';
 
 interface Props {
@@ -28,13 +29,14 @@ export default function RerunConfirmDialog({
   const [advice, setAdvice] = useState<RerunAdvice | null>(null);
   const [loading, setLoading] = useState(true);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const onConfirmRef = useLatestValue(onConfirm);
 
   useEffect(() => {
     let cancelled = false;
     api.getRerunAdvice(skill).then((a) => {
       if (cancelled) return;
       if (!a.shouldConfirm) {
-        onConfirm();
+        onConfirmRef.current();
         return;
       }
       setAdvice(a);
@@ -46,8 +48,7 @@ export default function RerunConfirmDialog({
       }
     });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skill]);
+  }, [skill, onConfirmRef]);
 
   useEffect(() => {
     if (advice && cancelRef.current) cancelRef.current.focus();

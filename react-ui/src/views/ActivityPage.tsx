@@ -26,18 +26,27 @@ export default function ActivityPage() {
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setLoadError('');
     api.getSkillRuns(100)
-      .then((r) => setRuns(r.runs || []))
+      .then((r) => {
+        if (cancelled) return;
+        setRuns(r.runs || []);
+      })
       .catch((e) => {
+        if (cancelled) return;
         const message = getErrorMessage(e);
         setLoadError(message);
         appendTerminal([`[activity] load failed: ${message}`]);
       })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appendTerminal]);
 
   const succeeded = runs.filter((r) => r.status === 'succeeded');
   const failed = runs.filter((r) => r.status === 'failed');

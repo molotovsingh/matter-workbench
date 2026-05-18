@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
@@ -12,7 +12,7 @@ export default function ContextPreview() {
   const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
 
-  async function loadContext({ isStale = () => false }: { isStale?: () => boolean } = {}) {
+  const loadContext = useCallback(async ({ isStale = () => false }: { isStale?: () => boolean } = {}) => {
     if (!state.activeMatter) return;
     setLoading(true);
     setError('');
@@ -36,7 +36,7 @@ export default function ContextPreview() {
     } finally {
       if (!isStale()) setLoading(false);
     }
-  }
+  }, [appendTerminal, dispatch, state.activeMatter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +44,7 @@ export default function ContextPreview() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeMatter?.name]);
+  }, [loadContext]);
 
   async function handleCopy() {
     if (!data) return;

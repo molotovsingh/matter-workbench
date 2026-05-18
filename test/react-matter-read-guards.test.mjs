@@ -18,7 +18,7 @@ test("React matter overview ignores stale readiness and attention responses", as
 test("React context preview ignores stale matter responses", async () => {
   const source = await readFile(contextPreviewPath, "utf8");
 
-  assert.match(source, /async function loadContext\(\{ isStale = \(\) => false \}/);
+  assert.match(source, /const loadContext = useCallback\(async \(\{ isStale = \(\) => false \}/);
   assert.match(source, /const data = await api\.getMatterContext\(\);\s*if \(isStale\(\)\) return;/);
   assert.match(source, /finally \{\s*if \(!isStale\(\)\) setLoading\(false\);/);
   assert.match(source, /void loadContext\(\{ isStale: \(\) => cancelled \}\)/);
@@ -27,7 +27,7 @@ test("React context preview ignores stale matter responses", async () => {
 test("React Prepare Matter ignores stale plan responses", async () => {
   const source = await readFile(prepareMatterPath, "utf8");
 
-  assert.match(source, /async function loadPlan\(\{ isStale = \(\) => false \}/);
+  assert.match(source, /const loadPlan = useCallback\(async \(\{ isStale = \(\) => false \}/);
   assert.match(source, /const result = await api\.getPrepareMatter\(\);\s*if \(isStale\(\)\) return;/);
   assert.match(source, /finally \{\s*if \(!isStale\(\)\) setLoading\(false\);/);
   assert.match(source, /void loadPlan\(\{ isStale: \(\) => cancelled \}\)/);

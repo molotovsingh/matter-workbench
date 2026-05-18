@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
@@ -14,21 +14,34 @@ export default function SkillsPage() {
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    api.getSkills().then((r) => {
-      setRegistrySkills(r.skills ?? []);
-    }).catch((e) => recordLoadError('built-in skills', e));
-    api.getConfigurableSkills().then((r) => setCustomSkills(r.skills || [])).catch((e) => recordLoadError('custom skills', e));
-    api.getSkillIdeas().then((r) => setIdeas(r.ideas || [])).catch((e) => recordLoadError('skill ideas', e));
-    api.getSkillFactoryHealth().then(setHealth).catch((e) => recordLoadError('skill factory health', e));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function recordLoadError(label: string, error: unknown) {
+  const recordLoadError = useCallback((label: string, error: unknown) => {
     const message = `${label}: ${getErrorMessage(error)}`;
     setLoadError((current) => current ? `${current}\n${message}` : message);
     appendTerminal([`[skills] load failed — ${message}`]);
-  }
+  }, [appendTerminal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getSkills().then((r) => {
+      if (cancelled) return;
+      setRegistrySkills(r.skills ?? []);
+    }).catch((e) => { if (!cancelled) recordLoadError('built-in skills', e); });
+    api.getConfigurableSkills().then((r) => {
+      if (cancelled) return;
+      setCustomSkills(r.skills || []);
+    }).catch((e) => { if (!cancelled) recordLoadError('custom skills', e); });
+    api.getSkillIdeas().then((r) => {
+      if (cancelled) return;
+      setIdeas(r.ideas || []);
+    }).catch((e) => { if (!cancelled) recordLoadError('skill ideas', e); });
+    api.getSkillFactoryHealth().then((payload) => {
+      if (cancelled) return;
+      setHealth(payload);
+    }).catch((e) => { if (!cancelled) recordLoadError('skill factory health', e); });
+    return () => {
+      cancelled = true;
+    };
+  }, [recordLoadError]);
 
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
     if (!state.activeMatter) {
