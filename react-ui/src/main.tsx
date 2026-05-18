@@ -3,7 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './styles/global.css'
 import App from './App'
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Matter Workbench React mount point #root was not found.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>,
