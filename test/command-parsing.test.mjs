@@ -92,6 +92,8 @@ test("skill idea parser detects explicit proposal phrases only", () => {
     ["I want a new skil for limitation review", "limitation review"],
     ["can we make a skill for filing bundles", "filing bundles"],
     ["create a new skil for checking if limitatation is for or against the client", "checking if limitatation is for or against the client"],
+    ["build a skill which reviews missing annexures", "reviews missing annexures"],
+    ["new skill to compare pleadings", "compare pleadings"],
   ];
   for (const [input, idea] of cases) {
     assert.deepEqual(parseSkillIdeaInput(input), {

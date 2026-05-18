@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-import SkillIdeaSession, { parseSkillIdeaText } from './SkillIdeaSession';
+import SkillIdeaSession from './SkillIdeaSession';
+import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
 
 interface CommandSuggestion {

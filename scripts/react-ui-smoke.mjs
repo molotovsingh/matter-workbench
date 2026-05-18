@@ -13,6 +13,7 @@ import {
   SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS,
   SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS,
 } from "../shared/skill-creation-overlap-policy.mjs";
+import { SKILL_IDEA_INPUT_PATTERNS } from "../shared/skill-idea-input.mjs";
 import { SKILL_IDEA_SESSION_COMMAND_SETS } from "../shared/skill-idea-session-commands.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
@@ -23,6 +24,7 @@ const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfD
 const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparationStageActions.ts", import.meta.url);
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
+const reactSkillIdeaInputPath = new URL("../react-ui/src/lib/skillIdeaInput.ts", import.meta.url);
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 
 const checks = [];
@@ -142,6 +144,17 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-overlap policy is readable", error.message);
+  }
+
+  try {
+    const patterns = await readReactSkillIdeaInputPatterns();
+    assert(
+      sameStringSet(patterns, SKILL_IDEA_INPUT_PATTERNS),
+      "React skill-idea input patterns match shared contract",
+      commandSetDiffDetail(patterns, SKILL_IDEA_INPUT_PATTERNS),
+    );
+  } catch (error) {
+    fail("React skill-idea input contract is readable", error.message);
   }
 
   try {
@@ -387,6 +400,13 @@ async function readReactSkillCreationOverlapPolicy() {
     blockingDecisions: readStringArray(source, "SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS"),
     blockingRecommendedActions: readStringArray(source, "SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS"),
   };
+}
+
+async function readReactSkillIdeaInputPatterns() {
+  const source = await readFile(reactSkillIdeaInputPath, "utf8");
+  const match = source.match(/SKILL_IDEA_INPUT_PATTERNS\s*=\s*\[([\s\S]*?)\]\s*as const/);
+  const body = match?.[1] || "";
+  return [...body.matchAll(/['"]([^'"]+)['"]/g)].map((value) => value[1]).sort();
 }
 
 async function readReactSkillIdeaSessionCommandSets() {

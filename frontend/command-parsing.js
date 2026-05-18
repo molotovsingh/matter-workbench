@@ -4,6 +4,7 @@ import {
   BUILTIN_SKILL_SUGGESTIONS,
   PROVIDER_BACKED_BUILTIN_SKILL_COMMAND_SET,
 } from "../shared/builtin-skill-commands.mjs";
+import { parseSkillIdeaInput as parseSharedSkillIdeaInput } from "../shared/skill-idea-input.mjs";
 
 const LANE_COMMANDS = new Map([
   ["open inbox", "00_Inbox"],
@@ -60,30 +61,7 @@ export function listSlashCommandSuggestions(input, extraSuggestions = []) {
 }
 
 export function parseSkillIdeaInput(input) {
-  const raw = String(input || "").trim();
-  if (!raw) return null;
-  const normalized = normalizeCommandInput(raw);
-  const patterns = [
-    /^create (?:a )?new skil{1,2} (?:for|to|that) (.+)$/,
-    /^create (?:a )?skil{1,2} (?:for|to|that) (.+)$/,
-    /^make (?:a )?new skil{1,2} (?:for|to|that) (.+)$/,
-    /^make (?:a )?skil{1,2} (?:for|to|that) (.+)$/,
-    /^new skil{1,2} (.+)$/,
-    /^i need a skil{1,2} that (.+)$/,
-    /^i want a (?:new )?skil{1,2} (?:for|to|that) (.+)$/,
-    /^can we make a skil{1,2} for (.+)$/,
-  ];
-  for (const pattern of patterns) {
-    const match = normalized.match(pattern);
-    if (match?.[1]?.trim()) {
-      return {
-        type: "skill_idea",
-        text: raw.replace(/\s+/g, " "),
-        idea: match[1].trim(),
-      };
-    }
-  }
-  return null;
+  return parseSharedSkillIdeaInput(input);
 }
 
 export function normalizeCommandInput(input) {

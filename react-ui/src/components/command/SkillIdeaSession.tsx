@@ -9,6 +9,7 @@ import {
   isBlockingSkillOverlapDecision,
 } from '../../lib/skillCreationOverlap';
 import { classifySkillIdeaSessionInput } from '../../lib/skillIdeaSessionCommands';
+import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
 
 interface InterviewQuestion {
@@ -65,29 +66,11 @@ const SIMPLE_QUESTIONS: InterviewQuestion[] = [
   },
 ];
 
-function parseSkillIdeaText(input: string): string | null {
-  const patterns = [
-    /^create\s+(?:a\s+)?skill\s+(?:to|that|for|which)\s+(.+)/i,
-    /^new\s+skill\s+(?:to|that|for|which)\s+(.+)/i,
-    /^make\s+(?:a\s+)?skill\s+(?:to|that|for|which)\s+(.+)/i,
-    /^build\s+(?:a\s+)?skill\s+(?:to|that|for|which)\s+(.+)/i,
-    /^I\s+want\s+(?:a\s+)?skill\s+(?:to|that|for|which)\s+(.+)/i,
-  ];
-  for (const p of patterns) {
-    const m = input.match(p);
-    if (m) return m[1].trim();
-  }
-  if (/^(?:new skill|create skill)\s*$/i.test(input.trim())) return '';
-  return null;
-}
-
 interface Props {
   initialInput: string;
   onClose: () => void;
   onInputOverride: (handler: ((input: string) => boolean) | null) => void;
 }
-
-export { parseSkillIdeaText };
 
 export default function SkillIdeaSession({ initialInput, onClose, onInputOverride }: Props) {
   const { state, appendTerminal, dispatch } = useApp();

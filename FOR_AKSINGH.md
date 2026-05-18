@@ -558,6 +558,11 @@ They were contract fixes:
   `regenerate sample`, `copy sample`, `looks useful`, `mark ready`, and
   `open skills` are interpreted as session actions instead of leaking into the
   global command router.
+- React and vanilla now recognize explicit skill-idea phrasing from the same
+  pattern contract. That matters for the messy real inputs people type:
+  `new skill to...`, `build a skill which...`, and even the common typo
+  `skil` should enter the skill-idea workflow instead of getting pushed through
+  unrelated command routing.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
@@ -1150,6 +1155,8 @@ Native command aliases now follow the same discipline. Vanilla already knew that
 React now resolves native commands through one helper, `resolveNativeCommand()`, before it asks the model-powered intent checker. Exact slashes and plain-English aliases go through the same path, and the unit test asserts that the resolver checks aliases. The principle is simple: deterministic product commands should stay deterministic, especially when the visible UI teaches the lawyer to type phrases like `prepare matter`.
 
 Skill-idea session commands now follow the same rule. Vanilla uses the shared `shared/skill-idea-session-commands.mjs` classifier, React has a typed mirror, and the smoke test compares the command sets. This closes a small but nasty UX trap: once a user is inside "new skill" mode, phrases like `generate sample` should advance that conversation, not get reinterpreted as a fresh global request.
+
+The entry point into that workflow also has a shared contract now. `shared/skill-idea-input.mjs` owns the explicit "I want a skill..." patterns, and React mirrors them under smoke-test protection. The practical lesson is that command parsing is product behavior. If one shell accepts `new skil for limitation review` and another does not, users experience it as the app being moody, not as an implementation detail.
 
 The canonical Library artifact paths now live in `shared/matter-artifacts.mjs`. That means status cards, context packets, and rerun advice all agree on `10_Library/Source Index.json` and the List of Dates artifacts from one source of truth.
 
