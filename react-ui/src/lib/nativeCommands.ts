@@ -8,6 +8,7 @@ export interface NativeCommandDefinition {
   pill: 'Local' | 'Uses AI';
   showInSidebar: boolean;
   showInCommandPanel: boolean;
+  overviewPlacement?: 'primary' | 'secondary';
 }
 
 export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
@@ -19,6 +20,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Local',
     showInSidebar: true,
     showInCommandPanel: false,
+    overviewPlacement: 'primary',
   },
   {
     command: '/prepare_matter',
@@ -28,6 +30,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Local',
     showInSidebar: true,
     showInCommandPanel: true,
+    overviewPlacement: 'primary',
   },
   {
     command: '/extract',
@@ -37,6 +40,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Local',
     showInSidebar: true,
     showInCommandPanel: true,
+    overviewPlacement: 'secondary',
   },
   {
     command: '/describe_sources',
@@ -46,6 +50,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Uses AI',
     showInSidebar: true,
     showInCommandPanel: true,
+    overviewPlacement: 'secondary',
   },
   {
     command: '/context_preview',
@@ -73,6 +78,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Uses AI',
     showInSidebar: true,
     showInCommandPanel: true,
+    overviewPlacement: 'secondary',
   },
   {
     command: '/doctor',
@@ -82,6 +88,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     pill: 'Local',
     showInSidebar: true,
     showInCommandPanel: false,
+    overviewPlacement: 'secondary',
   },
 ];
 
@@ -91,6 +98,8 @@ const COMMANDS_BY_SLASH = NATIVE_COMMANDS.reduce<Record<string, NativeCommandDef
 }, {});
 
 export const SIDEBAR_NATIVE_COMMANDS = NATIVE_COMMANDS.filter((command) => command.showInSidebar);
+
+export const OVERVIEW_NATIVE_COMMANDS = NATIVE_COMMANDS.filter((command) => command.overviewPlacement);
 
 export const COMMAND_PANEL_NATIVE_SUGGESTIONS = NATIVE_COMMANDS
   .filter((command) => command.showInCommandPanel)

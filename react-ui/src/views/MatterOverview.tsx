@@ -3,7 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
-import { cleanCommandLabel, commandPill } from '../lib/nativeCommands';
+import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
 import type {
   PipelineStage,
   RerunAdvice,
@@ -67,16 +67,15 @@ export default function MatterOverview({ onCommand }: Props) {
       <PipelineCard matterName={matter.name} />
 
       <div className="form-actions matter-run-actions">
-        <SkillButton command="/prepare_matter" onClick={onCommand} />
-        <SkillButton
-          command="/matter-init"
-          onClick={onCommand}
-          disabled={missingFields.length > 0}
-        />
-        <SkillButton command="/extract" onClick={onCommand} secondary />
-        <SkillButton command="/describe_sources" onClick={onCommand} secondary />
-        <SkillButton command="/create_listofdates" onClick={onCommand} secondary />
-        <SkillButton command="/doctor" onClick={onCommand} secondary />
+        {OVERVIEW_NATIVE_COMMANDS.map((command) => (
+          <SkillButton
+            key={command.command}
+            command={command.command}
+            onClick={onCommand}
+            disabled={command.command === '/matter-init' && missingFields.length > 0}
+            secondary={command.overviewPlacement === 'secondary'}
+          />
+        ))}
       </div>
 
       <details style={{ marginTop: 28 }}>
