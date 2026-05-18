@@ -530,6 +530,9 @@ They were contract fixes:
   This matters because a stage can have a slash command and still be blocked;
   the UI must not infer runnability from "has a slash." It should run only
   stages whose backend action is `run` or `confirm_paid_run`.
+- React's rerun confirmation dialog can now expose safe optional actions. For
+  List of Dates, this means `label_refresh_needed` can offer "Refresh labels
+  only" instead of forcing a paid chronology regeneration.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 

@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { api } from '../../api/client';
+import { api, adaptTree } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
 
+const LIST_OF_DATES_DEPENDENCY_STATES = {
+  LABEL_REFRESH_NEEDED: 'label_refresh_needed',
+} as const;
+
 export default function ListOfDatesResult() {
-  const { state, appendTerminal } = useApp();
+  const { state, appendTerminal, setActiveMatter } = useApp();
   const [entries, setEntries] = useState<ChronologyEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -31,10 +35,47 @@ export default function ListOfDatesResult() {
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
+      await refreshMatterWorkspace();
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function executeLabelRefresh() {
+    if (!state.activeMatter) return;
+    setConfirming(false);
+    setRunning(true);
+    setError('');
+    appendTerminal(['[list-of-dates] refreshing labels without AI…']);
+    try {
+      const result = await api.refreshListOfDatesLabels({ dryRun: false });
+      setEntries(result.entries ?? []);
+      setDone(true);
+      appendTerminal([`[list-of-dates] refreshed labels for ${result.entries?.length ?? 0} entries`]);
+      await refreshMatterWorkspace();
+    } catch (e) {
+      const message = getErrorMessage(e);
+      setError(message);
+      appendTerminal([`[list-of-dates] label refresh failed: ${message}`]);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function refreshMatterWorkspace() {
+    if (!state.activeMatter) return;
+    try {
+      const workspace = await api.getWorkspace();
+      setActiveMatter({
+        ...state.activeMatter,
+        fileCount: workspace.fileCount,
+        directoryCount: workspace.directoryCount,
+        workspace: adaptTree(workspace.tree),
+      });
+    } catch (e) {
+      appendTerminal([`[workspace] refresh failed after List of Dates update: ${getErrorMessage(e)}`]);
     }
   }
 
@@ -63,8 +104,14 @@ export default function ListOfDatesResult() {
             title={`Review List of Dates before regenerating — ${state.activeMatter?.name}`}
             confirmLabel="Regenerate List of Dates"
             cancelLabel="Keep current List of Dates"
+            extraActions={(advice) => advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED
+              ? [{ id: 'refresh-labels', label: 'Refresh labels only' }]
+              : []}
             onConfirm={executeRun}
             onCancel={() => setConfirming(false)}
+            onAction={(actionId) => {
+              if (actionId === 'refresh-labels') executeLabelRefresh();
+            }}
           />
         </div>
       )}

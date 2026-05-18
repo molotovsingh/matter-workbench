@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
-import type { RerunAdvice } from '../types';
+import type { RerunAdvice, RerunAdviceAction } from '../types';
 
 interface Props {
   skill: string;
   title: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  extraActions?: RerunAdviceAction[] | ((advice: RerunAdvice) => RerunAdviceAction[]);
   onConfirm: () => void;
   onCancel: () => void;
+  onAction?: (actionId: string) => void;
 }
 
 export default function RerunConfirmDialog({
@@ -17,8 +19,10 @@ export default function RerunConfirmDialog({
   title,
   confirmLabel = 'Regenerate anyway',
   cancelLabel = 'Keep current',
+  extraActions = [],
   onConfirm,
   onCancel,
+  onAction,
 }: Props) {
   const [advice, setAdvice] = useState<RerunAdvice | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +60,8 @@ export default function RerunConfirmDialog({
     : '—';
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ') || '—';
   const heading = advice.state === 'unknown' ? 'Could not verify current output' : title;
+  const actions = typeof extraActions === 'function' ? extraActions(advice) : extraActions;
+  const normalizedActions = Array.isArray(actions) ? actions : [];
 
   return (
     <div className="form-warning" role="alertdialog" aria-labelledby="rerunConfirmTitle">
@@ -71,6 +77,16 @@ export default function RerunConfirmDialog({
       <p>Regenerating can start a paid AI provider call and may replace the output document.</p>
       <div className="warning-actions">
         <button type="button" ref={cancelRef} onClick={onCancel}>{cancelLabel}</button>
+        {normalizedActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            className="secondary"
+            onClick={() => onAction?.(action.id)}
+          >
+            {action.label}
+          </button>
+        ))}
         <button type="button" className="secondary" onClick={onConfirm}>{confirmLabel}</button>
       </div>
     </div>

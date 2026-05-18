@@ -200,6 +200,7 @@ export const api = {
   runExtract: (body: MatterSkillRunRequest) => postJson<ExtractRunResult>('/api/extract', body),
   runDescribeSources: (body: MatterSkillRunRequest) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
   runCreateListOfDates: (body: MatterSkillRunRequest) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
+  refreshListOfDatesLabels: (body: { dryRun?: boolean }) => postJson<ListOfDatesRunResult>('/api/create-listofdates/refresh-labels', body),
   getRerunAdvice: (skill: string) => getJson<RerunAdvice>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),

@@ -308,6 +308,11 @@ export interface RerunAdvice {
   dependencyState?: string;
 }
 
+export interface RerunAdviceAction {
+  id: string;
+  label: string;
+}
+
 export interface PipelineStage {
   name?: string;
   label: string;
