@@ -188,6 +188,19 @@ The build output goes to ignored `react-dist/`. The backend can serve that
 compiled UI at `/react/`, while `/` continues to serve the current stable
 plain-JS v1 UI until we deliberately switch defaults.
 
+Before accepting changes from a frontend experiment repo, run:
+
+```bash
+npm run ui:build
+npm run ui:smoke
+```
+
+`ui:smoke` expects the backend at `http://127.0.0.1:4191` and the React UI at
+`http://127.0.0.1:5173/react/`. Override those with `MWB_BACKEND_URL` and
+`MWB_UI_URL` when testing another local port. If no matter is active, the smoke
+check skips matter-specific workspace checks and still validates the shared app
+contract.
+
 ## Switching matters
 
 The sidebar shows every matter under your matters home. Click any entry in the

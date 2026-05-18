@@ -58,6 +58,22 @@ interface RawTreeNode {
   previewKind?: string;
 }
 
+interface RawWorkspace {
+  folderName: string;
+  inputLabel: string;
+  metadata: {
+    clientName?: string;
+    matterName?: string;
+    oppositeParty?: string;
+    matterType?: string;
+    jurisdiction?: string;
+    briefDescription?: string;
+  };
+  fileCount: number;
+  directoryCount: number;
+  tree: RawTreeNode;
+}
+
 export interface AdaptedFile {
   name: string;
   path: string;
@@ -106,25 +122,11 @@ export const api = {
   newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData('/api/matters/add-files', formData),
   checkOverlap: (body: unknown) => postJson('/api/matters/check-overlap', body),
-  switchMatter: (name: string) => postJson<{
-    folderName: string;
-    inputLabel: string;
-    metadata: {
-      clientName?: string;
-      matterName?: string;
-      oppositeParty?: string;
-      matterType?: string;
-      jurisdiction?: string;
-      briefDescription?: string;
-    };
-    fileCount: number;
-    directoryCount: number;
-    tree: { name: string; kind: string; path: string; children: unknown[] };
-  }>('/api/switch-matter', { name }),
+  switchMatter: (name: string) => postJson<RawWorkspace>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),
 
   // ─── Workspace ───────────────────────────
-  getWorkspace: () => getJson<{ name: string; path: string; children: unknown[] }>('/api/workspace'),
+  getWorkspace: () => getJson<RawWorkspace>('/api/workspace'),
   getFile: (path: string) => getJson<{ content: string; ext: string }>(`/api/file?path=${encodeURIComponent(path)}`),
   getFileRawUrl: (path: string) => `/api/file-raw?path=${encodeURIComponent(path)}`,
 

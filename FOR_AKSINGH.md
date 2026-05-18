@@ -484,6 +484,7 @@ The current safe arrangement is:
 - `react-ui/` contains the React source for the next frontend track.
 - `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the main backend.
 - `npm run ui:build` type-checks and builds the React app.
+- `npm run ui:smoke` checks that the React UI and the live backend still agree on the basic API shapes.
 - `react-dist/` is generated output and is ignored by git.
 - `/react/` can serve the compiled React build from the same backend.
 
@@ -522,6 +523,7 @@ Important files:
 - `react-ui/src/views/MatterOverview.tsx` - React matter overview and readiness surface;
 - `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
 - `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
+- `scripts/react-ui-smoke.mjs` - small live acceptance check before we promote frontend experiments into the main repo.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
 

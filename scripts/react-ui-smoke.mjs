@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+
+const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
+const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
+
+const checks = [];
+let configPayload = null;
+
+function normalizeBaseUrl(value) {
+  return value.replace(/\/+$/, "");
+}
+
+function pass(label, detail = "") {
+  checks.push({ ok: true, label, detail });
+}
+
+function fail(label, detail) {
+  checks.push({ ok: false, label, detail });
+}
+
+function assert(condition, label, detail) {
+  if (condition) pass(label, detail);
+  else fail(label, detail);
+}
+
+async function fetchText(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  return { response, text };
+}
+
+async function fetchJson(pathname) {
+  const url = `${backendBase}${pathname}`;
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const text = await response.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (error) {
+    throw new Error(`${pathname} returned non-JSON (${response.status}): ${text.slice(0, 240)}`);
+  }
+  if (!response.ok) {
+    throw new Error(`${pathname} returned ${response.status}: ${text.slice(0, 240)}`);
+  }
+  return body;
+}
+
+async function run() {
+  try {
+    const { response, text } = await fetchText(uiUrl);
+    assert(response.ok, "React UI HTML is reachable", `${response.status} ${response.headers.get("content-type") || ""}`);
+    assert(text.includes("<title>Matter Workbench</title>"), "React UI serves Matter Workbench HTML");
+    assert(
+      text.includes('id="root"') && (text.includes("/react/src/main.tsx") || text.includes("/react/assets/")),
+      "React UI has a mount point and script",
+    );
+  } catch (error) {
+    fail("React UI is reachable", error.message);
+  }
+
+  try {
+    const config = await fetchJson("/api/config");
+    configPayload = config;
+    assert(typeof config === "object" && config !== null, "Config API returns an object");
+    assert(typeof config.mattersHome === "string" && config.mattersHome.length > 0, "Config exposes matters home");
+    assert(typeof config.hasActiveMatter === "boolean", "Config exposes active-matter state");
+  } catch (error) {
+    fail("Config API contract", error.message);
+  }
+
+  try {
+    const matters = await fetchJson("/api/matters");
+    assert(Array.isArray(matters.matters), "Matters API returns matters array", `${matters.matters?.length ?? 0} matters`);
+    assert(
+      matters.matters.every((matter) => matter && typeof matter.name === "string"),
+      "Matters API entries expose names",
+    );
+  } catch (error) {
+    fail("Matters API contract", error.message);
+  }
+
+  try {
+    const skills = await fetchJson("/api/skills");
+    const skillList = Array.isArray(skills.skills) ? skills.skills : [];
+    const slashes = new Set(skillList.map((skill) => skill?.slash).filter(Boolean));
+    assert(Array.isArray(skills.skills), "Skills API returns flat skills array", `${skillList.length} skills`);
+    assert(skillList.every((skill) => typeof skill?.slash === "string" && typeof skill?.title === "string"), "Skill cards expose slash and title");
+    assert(slashes.has("/describe_sources"), "Source Labels native skill is present");
+    assert(slashes.has("/create_listofdates"), "List of Dates native skill is present");
+  } catch (error) {
+    fail("Skills API contract", error.message);
+  }
+
+  try {
+    const aiSettings = await fetchJson("/api/ai-settings");
+    const tasks = Array.isArray(aiSettings.aiTasks) ? aiSettings.aiTasks : [];
+    assert(typeof aiSettings.apiKeyConfigured === "boolean", "AI settings expose API-key readiness");
+    assert(Array.isArray(aiSettings.aiTasks), "AI settings expose aiTasks array", `${tasks.length} tasks`);
+    assert(
+      tasks.every((task) => typeof task?.label === "string" && typeof task?.provider === "string" && typeof task?.ready === "boolean"),
+      "AI task rows expose label, provider, and readiness",
+    );
+  } catch (error) {
+    fail("AI settings API contract", error.message);
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
+      const workspace = await fetchJson("/api/workspace");
+      assert(typeof workspace.folderName === "string", "Workspace API exposes folder name", workspace.folderName);
+      assert(workspace.tree && workspace.tree.kind === "directory", "Workspace API exposes a directory tree");
+      assert(Array.isArray(workspace.tree?.children), "Workspace API exposes tree children", `${workspace.tree?.children?.length ?? 0} root nodes`);
+    } catch (error) {
+      fail("Workspace API contract", error.message);
+    }
+  } else {
+    pass("Workspace API skipped without an active matter");
+  }
+
+  if (configPayload?.hasActiveMatter) {
+    try {
+      const attention = await fetchJson("/api/matter-attention");
+      assert(Array.isArray(attention.items), "Matter attention API exposes items array", `${attention.items?.length ?? 0} items`);
+    } catch (error) {
+      fail("Matter attention API contract", error.message);
+    }
+  } else {
+    pass("Matter attention API skipped without an active matter");
+  }
+
+  const failed = checks.filter((check) => !check.ok);
+  for (const check of checks) {
+    const marker = check.ok ? "OK" : "FAIL";
+    const detail = check.detail ? ` — ${check.detail}` : "";
+    console.log(`${marker} ${check.label}${detail}`);
+  }
+
+  if (failed.length > 0) {
+    console.error(`\nReact UI smoke failed: ${failed.length}/${checks.length} checks failed.`);
+    process.exit(1);
+  }
+
+  console.log(`\nReact UI smoke passed: ${checks.length}/${checks.length} checks passed.`);
+}
+
+run().catch((error) => {
+  console.error(error.stack || error.message);
+  process.exit(1);
+});

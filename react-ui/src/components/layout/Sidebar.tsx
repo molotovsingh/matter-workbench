@@ -34,7 +34,12 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
     appendTerminal(['[workspace] refreshing…']);
     try {
       const ws = await api.getWorkspace();
-      setActiveMatter({ ...activeMatter, workspace: adaptTree(ws as never) });
+      setActiveMatter({
+        ...activeMatter,
+        fileCount: ws.fileCount,
+        directoryCount: ws.directoryCount,
+        workspace: adaptTree(ws.tree),
+      });
       appendTerminal(['[workspace] refreshed']);
     } catch (e) {
       appendTerminal([`[workspace] error: ${(e as Error).message}`]);
