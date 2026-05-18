@@ -162,6 +162,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const commandPanelRef = useRef<HTMLInputElement | null>(null);
   const matterSwitchSeqRef = useRef(0);
   const matterSwitchChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const activeMatterNameRef = useRef<string | null>(null);
 
   const setTheme = useCallback((theme: 'light' | 'dark') => {
     document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
@@ -179,6 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.theme, setTheme]);
 
   const setActiveMatter = useCallback((matter: ActiveMatter | null) => {
+    activeMatterNameRef.current = matter?.name ?? null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: matter });
     if (matter) {
       dispatch({ type: 'SET_TITLE', payload: matter.name });
@@ -188,6 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearActiveMatter = useCallback(() => {
+    activeMatterNameRef.current = null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: null });
     dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
@@ -262,6 +265,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (reason) appendTerminal([reason]);
     try {
       const workspace = await api.getWorkspace(expectedMatterName);
+      if (expectedMatterName && activeMatterNameRef.current !== expectedMatterName) {
+        appendTerminal(['[workspace] refresh skipped - active matter changed']);
+        return null;
+      }
       if (!workspaceMatchesMatter(workspace, expectedMatterName)) {
         appendTerminal(['[workspace] refresh skipped - active matter changed']);
         return null;

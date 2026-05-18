@@ -48,6 +48,10 @@ test("React workspace refresh skips stale async results after matter changes", a
   const source = await readFile(new URL("../react-ui/src/store/AppContext.tsx", import.meta.url), "utf8");
 
   assert.match(source, /expectedMatterName = state\.activeMatter\?\.name/);
+  assert.match(source, /const activeMatterNameRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /activeMatterNameRef\.current = matter\?\.name \?\? null/);
+  assert.match(source, /activeMatterNameRef\.current = null/);
+  assert.match(source, /if \(expectedMatterName && activeMatterNameRef\.current !== expectedMatterName\) \{/);
   assert.match(source, /workspaceMatchesMatter\(workspace, expectedMatterName\)/);
   assert.match(source, /\[workspace\] refresh skipped - active matter changed/);
   assert.match(source, /function workspaceMatchesMatter\(workspace: WorkspaceApiResponse, expectedMatterName\?: string\): boolean/);
