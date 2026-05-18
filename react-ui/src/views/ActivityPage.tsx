@@ -14,13 +14,20 @@ export default function ActivityPage() {
   const { state, dispatch, appendTerminal } = useApp();
   const [runs, setRuns] = useState<SkillRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     setLoading(true);
+    setLoadError('');
     api.getSkillRuns(100)
       .then((r) => setRuns(r.runs || []))
-      .catch(() => null)
+      .catch((e) => {
+        const message = getErrorMessage(e);
+        setLoadError(message);
+        appendTerminal([`[activity] load failed: ${message}`]);
+      })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const succeeded = runs.filter((r) => r.status === 'succeeded');
@@ -78,8 +85,13 @@ export default function ActivityPage() {
       )}
 
       {loading && <p className="muted">Loading activity…</p>}
+      {loadError && (
+        <div className="run-failure-card" style={{ marginBottom: 18 }}>
+          <strong>Activity could not be loaded</strong>{loadError}
+        </div>
+      )}
 
-      {!loading && needsAttention.length > 0 && (
+      {!loading && !loadError && needsAttention.length > 0 && (
         <section className="activity-section">
           <h2>Needs Attention</h2>
           <div className="activity-day-list attention">
@@ -90,7 +102,7 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && dayGroups.length > 0 && (
+      {!loading && !loadError && dayGroups.length > 0 && (
         <section className="activity-section">
           <h2>Work Completed</h2>
           <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
@@ -112,7 +124,7 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && cancelled.length > 0 && (
+      {!loading && !loadError && cancelled.length > 0 && (
         <section className="activity-section">
           <details className="activity-cancelled-runs">
             <summary>

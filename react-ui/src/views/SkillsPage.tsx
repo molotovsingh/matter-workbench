@@ -11,15 +11,23 @@ export default function SkillsPage() {
   const [ideas, setIdeas] = useState<SkillIdea[]>([]);
   const [health, setHealth] = useState<SkillFactoryHealth | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     api.getSkills().then((r) => {
       setRegistrySkills(r.skills ?? []);
-    }).catch(() => null);
-    api.getConfigurableSkills().then((r) => setCustomSkills(r.skills || [])).catch(() => null);
-    api.getSkillIdeas().then((r) => setIdeas(r.ideas || [])).catch(() => null);
-    api.getSkillFactoryHealth().then(setHealth).catch(() => null);
+    }).catch((e) => recordLoadError('built-in skills', e));
+    api.getConfigurableSkills().then((r) => setCustomSkills(r.skills || [])).catch((e) => recordLoadError('custom skills', e));
+    api.getSkillIdeas().then((r) => setIdeas(r.ideas || [])).catch((e) => recordLoadError('skill ideas', e));
+    api.getSkillFactoryHealth().then(setHealth).catch((e) => recordLoadError('skill factory health', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function recordLoadError(label: string, error: unknown) {
+    const message = `${label}: ${getErrorMessage(error)}`;
+    setLoadError((current) => current ? `${current}\n${message}` : message);
+    appendTerminal([`[skills] load failed — ${message}`]);
+  }
 
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
     if (!state.activeMatter) {
@@ -60,6 +68,13 @@ export default function SkillsPage() {
           )}
         </div>
       </div>
+
+      {loadError && (
+        <div className="run-failure-card" style={{ marginBottom: 18 }}>
+          <strong>Some skill data could not be loaded</strong>
+          <p style={{ whiteSpace: 'pre-line' }}>{loadError}</p>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="skills-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
