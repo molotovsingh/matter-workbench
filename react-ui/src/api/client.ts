@@ -1,3 +1,12 @@
+import type {
+  AiSettings,
+  AppConfig,
+  ConfigurableSkill,
+  SkillRegistry,
+  WorkspaceApiNode,
+  WorkspaceApiResponse,
+} from '../types';
+
 class ApiError extends Error {
   statusCode: number;
   constructor(message: string, statusCode: number) {
@@ -48,32 +57,6 @@ const LANE_LABELS: Record<string, string> = {
 
 const TECHNICAL_PREFIXES = ['01_Admin', '02_Extracts', '99_'];
 
-interface RawTreeNode {
-  name: string;
-  kind: 'directory' | 'file';
-  path: string;
-  children?: RawTreeNode[];
-  size?: number;
-  previewable?: boolean;
-  previewKind?: string;
-}
-
-interface RawWorkspace {
-  folderName: string;
-  inputLabel: string;
-  metadata: {
-    clientName?: string;
-    matterName?: string;
-    oppositeParty?: string;
-    matterType?: string;
-    jurisdiction?: string;
-    briefDescription?: string;
-  };
-  fileCount: number;
-  directoryCount: number;
-  tree: RawTreeNode;
-}
-
 export interface AdaptedFile {
   name: string;
   path: string;
@@ -86,7 +69,7 @@ export interface AdaptedFile {
   size?: number;
 }
 
-function adaptTreeNode(node: RawTreeNode, depth = 0): AdaptedFile {
+function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
   const isDir = node.kind === 'directory';
   const ext = isDir ? undefined : node.name.split('.').pop()?.toLowerCase();
   const laneLabel = depth === 0 && isDir ? LANE_LABELS[node.name] : undefined;
@@ -104,7 +87,7 @@ function adaptTreeNode(node: RawTreeNode, depth = 0): AdaptedFile {
   };
 }
 
-export function adaptTree(raw: RawTreeNode): { name: string; path: string; children: AdaptedFile[] } {
+export function adaptTree(raw: WorkspaceApiNode): { name: string; path: string; children: AdaptedFile[] } {
   return {
     name: raw.name,
     path: raw.path,
@@ -114,7 +97,7 @@ export function adaptTree(raw: RawTreeNode): { name: string; path: string; child
 
 export const api = {
   // ─── Config ──────────────────────────────
-  getConfig: () => getJson<{ mattersHome?: string; activeMatterName?: string }>('/api/config'),
+  getConfig: () => getJson<AppConfig>('/api/config'),
   setConfig: (body: { mattersHome: string }) => postJson('/api/config', body),
 
   // ─── Matters ─────────────────────────────
@@ -122,21 +105,21 @@ export const api = {
   newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData('/api/matters/add-files', formData),
   checkOverlap: (body: unknown) => postJson('/api/matters/check-overlap', body),
-  switchMatter: (name: string) => postJson<RawWorkspace>('/api/switch-matter', { name }),
+  switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),
 
   // ─── Workspace ───────────────────────────
-  getWorkspace: () => getJson<RawWorkspace>('/api/workspace'),
+  getWorkspace: () => getJson<WorkspaceApiResponse>('/api/workspace'),
   getFile: (path: string) => getJson<{ content: string; ext: string }>(`/api/file?path=${encodeURIComponent(path)}`),
   getFileRawUrl: (path: string) => `/api/file-raw?path=${encodeURIComponent(path)}`,
 
   // ─── AI Settings ─────────────────────────
-  getAiSettings: () => getJson<{ provider: string | null; model?: string; apiKeyConfigured: boolean; aiTasks?: unknown[] }>('/api/ai-settings'),
+  getAiSettings: () => getJson<AiSettings>('/api/ai-settings'),
   saveAiSettings: (body: unknown) => postJson('/api/ai-settings', body),
   testAiSettings: (body: unknown) => postJson<{ ok: boolean; error?: string }>('/api/ai-settings/test', body),
 
   // ─── Skills ──────────────────────────────
-  getSkills: () => getJson<{ skills: unknown[] }>('/api/skills'),
+  getSkills: () => getJson<SkillRegistry>('/api/skills'),
   checkIntent: (body: { userRequest: string; matterName?: string }) =>
     postJson<{ intent: string; skillName?: string; suggestion?: string }>('/api/skills/check-intent', body),
 
@@ -165,7 +148,7 @@ export const api = {
   searchMatterContext: (query: string) => getJson<unknown>(`/api/matter-context/search?q=${encodeURIComponent(query)}`),
 
   // ─── Configurable skills ─────────────────
-  getConfigurableSkills: () => getJson<{ skills: unknown[] }>('/api/configurable-skills'),
+  getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),
   runConfigurableSkill: (body: unknown) => postJson('/api/configurable-skills/run', body),
   getSkillRuns: (limit = 100) => getJson<{ runs: unknown[] }>(`/api/configurable-skills/runs?limit=${limit}`),
   cancelSkillRun: (body: unknown) => postJson('/api/configurable-skills/runs/cancelled', body),

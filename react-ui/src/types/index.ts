@@ -27,33 +27,76 @@ export interface WorkspaceTree {
 
 export interface AppConfig {
   mattersHome?: string;
+  defaultMattersHome?: string;
+  hasActiveMatter?: boolean;
   activeMatterName?: string;
   theme?: 'light' | 'dark';
 }
 
-export interface Skill {
+export interface WorkspaceApiNode {
   name: string;
-  description: string;
-  command?: string;
-  group?: string;
+  kind: 'directory' | 'file';
+  path: string;
+  children?: WorkspaceApiNode[];
+  size?: number;
+  previewable?: boolean;
+  previewKind?: string;
+}
+
+export interface WorkspaceApiResponse {
+  folderName: string;
+  inputLabel: string;
+  metadata: MatterMetadata;
+  fileCount: number;
+  directoryCount: number;
+  tree: WorkspaceApiNode;
+}
+
+export interface Skill {
+  schema_version?: string;
+  id: string;
+  slash: string;
+  title: string;
+  category: string;
+  product_surface?: string;
+  purpose?: string;
+  mode?: string;
+  display?: {
+    action?: string;
+    artifact?: string;
+    running?: string;
+    complete?: string;
+    pill?: string;
+  };
+  paid_provider_call?: boolean;
+  matter_required?: boolean;
+  rerun_guarded?: boolean;
+  source_backed?: string;
+  legal_setting_scope?: string;
+  markdown_first?: boolean;
   outputs?: string[];
   inputs?: string[];
+  upstream?: string[];
+  downstream?: string[];
+  default_lane?: string;
+  runner_key?: string;
+  version?: number;
 }
 
 export interface SkillRegistry {
-  groups: Array<{
-    name: string;
-    description: string;
-    skills: Skill[];
-  }>;
+  schema_version?: string;
+  categories?: string[];
+  principles?: Record<string, boolean>;
+  skills: Skill[];
 }
 
 export interface ConfigurableSkill {
   id: string;
-  name: string;
+  title: string;
   description: string;
-  command: string;
-  createdAt: string;
+  slash: string;
+  status?: string;
+  createdAt?: string;
   lastRunAt?: string;
   runCount?: number;
 }
@@ -174,11 +217,28 @@ export interface ActivityLogEntry {
   status?: 'completed' | 'failed' | 'running';
 }
 
-export interface AiSettings {
-  provider: 'openrouter' | 'openai-direct' | null;
-  apiKey?: string;
+export interface AiTask {
+  task: string;
+  label?: string;
+  surface?: string;
+  provider?: string;
   model?: string;
-  isReady: boolean;
+  maxOutputTokens?: number;
+  timeoutMs?: number | null;
+  fallback?: string;
+  apiKeyConfigured?: boolean;
+  modelConfigured?: boolean;
+  ready: boolean;
+  note?: string;
+}
+
+export interface AiSettings {
+  provider: string | null;
+  model?: string;
+  apiKeyConfigured: boolean;
+  maxOutputTokens?: number;
+  envPath?: string;
+  aiTasks?: AiTask[];
 }
 
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';

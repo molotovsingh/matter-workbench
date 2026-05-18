@@ -1,30 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
-
-interface AiSettings {
-  provider: string | null;
-  model?: string;
-  apiKeyConfigured: boolean;
-  maxOutputTokens?: number;
-  envPath?: string;
-  aiTasks?: AiTask[];
-}
-
-interface AiTask {
-  task: string;
-  label?: string;
-  surface?: string;
-  provider?: string;
-  model?: string;
-  maxOutputTokens?: number;
-  timeoutMs?: number | null;
-  fallback?: string;
-  apiKeyConfigured?: boolean;
-  modelConfigured?: boolean;
-  ready?: boolean;
-  note?: string;
-}
+import type { AiSettings, Skill } from '../types';
 
 export default function SettingsPage() {
   const { dispatch, appendTerminal } = useApp();
@@ -43,7 +20,7 @@ export default function SettingsPage() {
   const [mattersHomeSaving, setMattersHomeSaving] = useState(false);
   const [mattersHomeError, setMattersHomeError] = useState('');
 
-  const [skills, setSkills] = useState<Array<{ slash?: string; category?: string; mode?: string; purpose?: string }>>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsError, setSkillsError] = useState('');
 
   useEffect(() => {
@@ -55,15 +32,13 @@ export default function SettingsPage() {
     }).catch(() => null);
 
     api.getAiSettings().then((s) => {
-      const settings = s as AiSettings;
-      setSettings(settings);
+      setSettings(s);
       if (s.provider) setFormProvider(s.provider);
       if (s.model) setFormModel(s.model);
     }).catch(() => null);
 
     api.getSkills().then((s) => {
-      const raw = s as { skills?: Array<{ slash?: string; category?: string; mode?: string; purpose?: string }> };
-      setSkills(raw.skills ?? []);
+      setSkills(s.skills ?? []);
     }).catch((e) => setSkillsError((e as Error).message));
   }, []);
 
@@ -96,7 +71,7 @@ export default function SettingsPage() {
         maxOutputTokens: formMaxTokens ? Number(formMaxTokens) : undefined,
       });
       const updated = await api.getAiSettings();
-      setSettings(updated as AiSettings);
+      setSettings(updated);
       setEditing(false);
       setFormApiKey('');
       appendTerminal(['[settings] AI settings saved']);

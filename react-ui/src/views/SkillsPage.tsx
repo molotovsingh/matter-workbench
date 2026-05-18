@@ -1,22 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import type { ConfigurableSkill, Skill } from '../types';
 
-interface RegistrySkill {
-  slash: string;
-  id: string;
-  title: string;
-  category: string;
-  display?: { action?: string; artifact?: string; pill?: string };
-  paid_provider_call?: boolean;
-  matter_required?: boolean;
-}
-interface ConfigurableSkill { id: string; title: string; description: string; slash: string; status?: string; lastRunAt?: string; runCount?: number }
 interface SkillIdea { id: string; description: string; status: string; createdAt: string; sampleCount?: number }
 
 export default function SkillsPage() {
   const { state, appendTerminal } = useApp();
-  const [registrySkills, setRegistrySkills] = useState<RegistrySkill[]>([]);
+  const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
   const [customSkills, setCustomSkills] = useState<ConfigurableSkill[]>([]);
   const [ideas, setIdeas] = useState<SkillIdea[]>([]);
   const [health, setHealth] = useState<{ status: string; message?: string } | null>(null);
@@ -24,10 +15,9 @@ export default function SkillsPage() {
 
   useEffect(() => {
     api.getSkills().then((r) => {
-      const raw = r as { skills?: RegistrySkill[] };
-      setRegistrySkills(raw.skills ?? []);
+      setRegistrySkills(r.skills ?? []);
     }).catch(() => null);
-    api.getConfigurableSkills().then((r) => setCustomSkills((r.skills as ConfigurableSkill[]) || [])).catch(() => null);
+    api.getConfigurableSkills().then((r) => setCustomSkills(r.skills || [])).catch(() => null);
     api.getSkillIdeas().then((r) => setIdeas((r.ideas as SkillIdea[]) || [])).catch(() => null);
     api.getSkillFactoryHealth().then((r) => setHealth(r as typeof health)).catch(() => null);
   }, []);
@@ -189,8 +179,8 @@ export default function SkillsPage() {
   );
 }
 
-function groupByCategory(skills: RegistrySkill[]): Record<string, RegistrySkill[]> {
-  const map: Record<string, RegistrySkill[]> = {};
+function groupByCategory(skills: Skill[]): Record<string, Skill[]> {
+  const map: Record<string, Skill[]> = {};
   for (const s of skills) {
     const cat = s.category || 'Other';
     (map[cat] ??= []).push(s);
