@@ -3,6 +3,11 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
 import { getErrorMessage } from '../../lib/errors';
+import {
+  buildSkillCreationOverlapRequest,
+  hasSkillCreationOverlapOverride,
+  isBlockingSkillOverlapDecision,
+} from '../../lib/skillCreationOverlap';
 import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
 
 interface InterviewQuestion {
@@ -591,31 +596,6 @@ function formatAnswerNotes(answers: Record<string, string>, questions: Interview
     .filter(([, value]) => value.trim())
     .map(([id, value]) => `${byId.get(id) || id}: ${value.trim()}`)
     .join('\n');
-}
-
-function buildSkillCreationOverlapRequest(idea: SkillIdea, brief: SkillIdeaDesignBrief | undefined): string {
-  return [
-    idea.text,
-    brief?.problem ? `Problem: ${brief.problem}` : '',
-    brief?.expectedInputs ? `Inputs: ${brief.expectedInputs}` : '',
-    brief?.expectedOutputArtifact ? `Output: ${brief.expectedOutputArtifact}` : '',
-    brief?.targetLane ? `Lane: ${brief.targetLane}` : '',
-  ].filter(Boolean).join('\n');
-}
-
-function isBlockingSkillOverlapDecision(decision: SkillRouterDecision, overlapOverrideJustification = ''): boolean {
-  if (hasSkillCreationOverlapOverride(overlapOverrideJustification)) return false;
-  return Boolean(
-    decision.user_gate_required
-    || decision.mece_violation
-    || decision.decision === 'needs_user_approval'
-    || decision.recommended_action === 'modify_existing_skill'
-    || (decision.matched_skill && decision.recommended_action === 'run_existing_skill'),
-  );
-}
-
-function hasSkillCreationOverlapOverride(overlapOverrideJustification = ''): boolean {
-  return overlapOverrideJustification.replace(/\s+/g, ' ').trim().length >= 12;
 }
 
 function overlapMatchedLabel(decision: SkillRouterDecision): string {

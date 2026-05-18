@@ -3,11 +3,17 @@
 import { readFile } from "node:fs/promises";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import {
+  SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS,
+  SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS,
+  SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS,
+} from "../shared/skill-creation-overlap-policy.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
+const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -72,6 +78,27 @@ async function run() {
     );
   } catch (error) {
     fail("React List of Dates dependency states are readable", error.message);
+  }
+
+  try {
+    const overlapPolicy = await readReactSkillCreationOverlapPolicy();
+    assert(
+      overlapPolicy.overrideMinChars === SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS,
+      "React skill-overlap override threshold matches shared contract",
+      `React=${overlapPolicy.overrideMinChars} shared=${SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS}`,
+    );
+    assert(
+      sameStringSet(overlapPolicy.blockingDecisions, SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS),
+      "React skill-overlap blocking decisions match shared contract",
+      commandSetDiffDetail(overlapPolicy.blockingDecisions, SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS),
+    );
+    assert(
+      sameStringSet(overlapPolicy.blockingRecommendedActions, SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS),
+      "React skill-overlap blocking actions match shared contract",
+      commandSetDiffDetail(overlapPolicy.blockingRecommendedActions, SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS),
+    );
+  } catch (error) {
+    fail("React skill-overlap policy is readable", error.message);
   }
 
   try {
@@ -280,6 +307,24 @@ async function readReactNativeCommands() {
 async function readReactListOfDatesDependencyStates() {
   const source = await readFile(reactListOfDatesDependencyStatePath, "utf8");
   return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+}
+
+async function readReactSkillCreationOverlapPolicy() {
+  const source = await readFile(reactSkillCreationOverlapPath, "utf8");
+  return {
+    overrideMinChars: Number(source.match(/SKILL_CREATION_OVERLAP_OVERRIDE_MIN_CHARS\s*=\s*(\d+)/)?.[1] || NaN),
+    blockingDecisions: readStringArray(source, "SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS"),
+    blockingRecommendedActions: readStringArray(source, "SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS"),
+  };
+}
+
+function readStringArray(source, exportName) {
+  const start = source.indexOf(exportName);
+  if (start < 0) return [];
+  const open = source.indexOf("[", start);
+  const close = source.indexOf("]", open);
+  const body = open >= 0 && close > open ? source.slice(open + 1, close) : "";
+  return [...body.matchAll(/['"]([^'"]+)['"]/g)].map((match) => match[1]).sort();
 }
 
 function sameStringSet(left, right) {

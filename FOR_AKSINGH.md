@@ -1219,3 +1219,7 @@ The List of Dates freshness states now have a shared home in `shared/listofdates
 - `chronology_regeneration_needed` means the source set or source content changed enough to rebuild the chronology.
 
 Before this cleanup, the backend, vanilla frontend, and React frontend each carried local copies of those strings. That is exactly the sort of small duplication that causes expensive UI mistakes later: one surface offers "Refresh labels only" while another says the chronology must be regenerated. The React smoke test now checks its typed constants against the shared backend contract, so drift is caught during acceptance instead of by a lawyer seeing contradictory advice.
+
+The same pattern now protects the custom-skill overlap gate. The backend owns the minimum override length and the router decisions/actions that block duplicate skill creation. React has a small typed helper for the UI, but `scripts/react-ui-smoke.mjs` compares those helper constants against `shared/skill-creation-overlap-policy.mjs`.
+
+This is a good example of accepting a small amount of duplication for a practical reason. The React app cannot naturally consume every server-side module without dragging bundling concerns into the browser build. But the contract values can still be treated as shared truth and checked at acceptance time. That gives us most of the safety without turning the build system into the main project.
