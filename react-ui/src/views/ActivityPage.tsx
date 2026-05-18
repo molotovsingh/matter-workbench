@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import { writeClipboardText } from '../lib/clipboard';
 import type { SkillRun } from '../types';
 
 interface DayGroup {
@@ -40,7 +41,7 @@ export default function ActivityPage() {
       run.finishedAt ? `Finished: ${run.finishedAt}` : '',
       run.errorMessage ? `Error: ${run.errorMessage}` : '',
     ].filter(Boolean).join('\n');
-    navigator.clipboard.writeText(lines).catch(() => null);
+    writeClipboardText(lines).catch(() => null);
   }
 
   function handleOpenOutput(run: SkillRun) {

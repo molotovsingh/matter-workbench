@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { writeClipboardText } from '../../lib/clipboard';
 import type { MatterContextPreview } from '../../types';
 
 export default function ContextPreview() {
@@ -44,7 +45,7 @@ export default function ContextPreview() {
     setCopying(true);
     const report = buildContextReport(data);
     try {
-      await navigator.clipboard.writeText(report);
+      await writeClipboardText(report);
       appendTerminal(['[context] report copied']);
     } catch {
       appendTerminal(['[context] copy failed']);

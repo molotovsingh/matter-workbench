@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { writeClipboardText } from '../../lib/clipboard';
 import type { SkillIdea, SkillIdeaDesignBrief } from '../../types';
 
 interface InterviewQuestion {
@@ -287,7 +288,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
             <button
               type="button"
               className="secondary"
-              onClick={() => navigator.clipboard.writeText(session.sample!.output).catch(() => null)}
+              onClick={() => writeClipboardText(session.sample!.output).catch(() => null)}
             >
               Copy
             </button>

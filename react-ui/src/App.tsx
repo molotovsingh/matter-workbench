@@ -5,6 +5,7 @@ import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
 import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
+import { writeClipboardText } from './lib/clipboard';
 
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal } = useApp();
@@ -109,7 +110,7 @@ function AppShell() {
   }
 
   function handleCopyReport() {
-    if (reportText) navigator.clipboard.writeText(reportText).catch(() => null);
+    if (reportText) writeClipboardText(reportText).catch(() => null);
     setReportText(null);
   }
 
