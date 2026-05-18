@@ -134,6 +134,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
         sendJson(response, 200, await configurableSkillsService.runSkill({
           slash: body.slash,
           overwrite: Boolean(body.overwrite),
+          matterName: body.matterName,
         }));
       }),
       exactRoute("POST", "/api/configurable-skills/runs/cancelled", async () => {
@@ -141,6 +142,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
         sendJson(response, 200, await configurableSkillsService.recordCancelledRun({
           slash: body.slash,
           artifactPath: body.artifactPath,
+          matterName: body.matterName,
         }));
       }),
     ],

@@ -23,8 +23,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     response,
     routes: [
       exactRoute("POST", "/api/matter-init", async () => {
-        const root = matterStore.ensureMatterRoot();
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runMatterInit({
           matterRoot: root,
           metadata: body.metadata || {},
@@ -32,8 +32,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/extract", async () => {
-        const root = matterStore.ensureMatterRoot();
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runExtract({
           matterRoot: root,
           dryRun: Boolean(body.dryRun),
@@ -43,8 +43,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/describe-sources", async () => {
-        const root = matterStore.ensureMatterRoot();
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runSourceDescriptors({
           matterRoot: root,
           dryRun: Boolean(body.dryRun),
@@ -53,8 +53,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/create-listofdates", async () => {
-        const root = matterStore.ensureMatterRoot();
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         const env = services.env || {};
         const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
         const options = {
@@ -73,25 +73,27 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runCreateListOfDates(options));
       }),
       exactRoute("POST", "/api/create-listofdates/refresh-labels", async () => {
-        const root = matterStore.ensureMatterRoot();
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await refreshListOfDatesSourceLabels({
           matterRoot: root,
           dryRun: Boolean(body.dryRun),
         }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
-        sendJson(response, 200, await runDoctorScan(matterStore.ensureMatterRoot()));
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await runDoctorScan(await matterRootForBody(matterStore, body)));
       }),
       exactRoute("POST", "/api/doctor/fix", async () => {
         const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
         const fixIds = Array.isArray(body.fixIds) ? body.fixIds.filter((id) => typeof id === "string") : [];
         if (!fixIds.length) {
           const error = new Error("No fixes selected");
           error.statusCode = 400;
           throw error;
         }
-        sendJson(response, 200, await runDoctorFix(matterStore.ensureMatterRoot(), fixIds));
+        sendJson(response, 200, await runDoctorFix(root, fixIds));
       }),
       exactRoute("GET", "/api/matter-status", async () => {
         sendJson(response, 200, await matterStatusService.readMatterStatus());
@@ -121,4 +123,11 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
     ],
   });
+}
+
+async function matterRootForBody(matterStore, body = {}) {
+  const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
+  if (!matterName) return matterStore.ensureMatterRoot();
+  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+  return matterPath;
 }

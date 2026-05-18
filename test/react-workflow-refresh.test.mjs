@@ -71,3 +71,14 @@ test("React context search ignores stale matter search responses", async () => {
   assert.match(source, /activeMatterNameRef\.current !== matterName/);
   assert.match(source, /activeMatterNameRef\.current === matterName/);
 });
+
+test("React label refresh and custom skill runs send the selected matter explicitly", async () => {
+  const listOfDatesSource = await readFile(new URL("../react-ui/src/views/workflows/ListOfDatesResult.tsx", import.meta.url), "utf8");
+  const skillsPageSource = await readFile(new URL("../react-ui/src/views/SkillsPage.tsx", import.meta.url), "utf8");
+  const typesSource = await readFile(new URL("../react-ui/src/types/index.ts", import.meta.url), "utf8");
+
+  assert.match(listOfDatesSource, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
+  assert.match(skillsPageSource, /api\.runConfigurableSkill\(\{ slash: skill\.slash, overwrite: false, matterName \}\)/);
+  assert.match(skillsPageSource, /activeMatterNameRef\.current !== matterName/);
+  assert.match(typesSource, /export interface ConfigurableSkillRunRequest \{[\s\S]*matterName\?: string;/);
+});

@@ -3,10 +3,12 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus } from '../lib/skillIdeaStatuses';
+import { useLatestValue } from '../hooks/useLatestValue';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
 export default function SkillsPage() {
   const { state, appendTerminal } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
   const [customSkills, setCustomSkills] = useState<ConfigurableSkill[]>([]);
   const [ideas, setIdeas] = useState<SkillIdea[]>([]);
@@ -48,19 +50,22 @@ export default function SkillsPage() {
       appendTerminal(['[skill] select a matter first']);
       return;
     }
+    const matterName = state.activeMatter.name;
     setLoadingRun(skill.id);
-    appendTerminal([`[skill] running ${skill.slash} on ${state.activeMatter.name}…`]);
+    appendTerminal([`[skill] running ${skill.slash} on ${matterName}…`]);
     try {
-      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false });
+      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false, matterName });
+      if (activeMatterNameRef.current !== matterName) return;
       if (result.state === 'requires_overwrite') {
         appendTerminal([`[skill] ${skill.slash} artifact exists at ${result.artifactPath ?? '?'} — overwrite not confirmed`]);
       } else {
         appendTerminal([`[skill] ${skill.title} completed`]);
       }
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[skill] error: ${getErrorMessage(e)}`]);
     } finally {
-      setLoadingRun(null);
+      if (activeMatterNameRef.current === matterName) setLoadingRun(null);
     }
   }
 

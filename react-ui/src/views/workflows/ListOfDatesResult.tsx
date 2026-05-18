@@ -57,7 +57,7 @@ export default function ListOfDatesResult() {
     setError('');
     appendTerminal(['[list-of-dates] refreshing labels without AI…']);
     try {
-      const result = await api.refreshListOfDatesLabels({ dryRun: false });
+      const result = await api.refreshListOfDatesLabels({ matterName, dryRun: false });
       if (activeMatterNameRef.current !== matterName) return;
       setEntries(result.entries ?? []);
       setDone(true);

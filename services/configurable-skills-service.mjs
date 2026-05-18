@@ -180,12 +180,12 @@ export function createConfigurableSkillsService({
     return result;
   }
 
-  async function runSkill({ slash, overwrite = false } = {}) {
+  async function runSkill({ slash, overwrite = false, matterName = "" } = {}) {
     const normalizedSlash = normalizeSlash(slash);
     const store = await readStore();
     const skill = store.skills.find((candidate) => candidate.slash === normalizedSlash && candidate.status === "active");
     if (!skill) throw makeHttpError(`No active configurable skill for ${normalizedSlash}`, 404);
-    const matterRoot = matterStore.ensureMatterRoot();
+    const matterRoot = await matterRootForName(matterName);
     const { outputPaths, filePaths } = resolveConfigurableSkillRunArtifacts({ matterRoot, skill });
     if (!overwrite && await exists(filePaths.markdown)) {
       return {
@@ -270,12 +270,12 @@ export function createConfigurableSkillsService({
     }
   }
 
-  async function recordCancelledRun({ slash, artifactPath = "" } = {}) {
+  async function recordCancelledRun({ slash, artifactPath = "", matterName = "" } = {}) {
     const normalizedSlash = normalizeSlash(slash);
     const store = await readStore();
     const skill = store.skills.find((candidate) => candidate.slash === normalizedSlash && candidate.status === "active");
     if (!skill) throw makeHttpError(`No active configurable skill for ${normalizedSlash}`, 404);
-    const matterRoot = matterStore.ensureMatterRoot();
+    const matterRoot = await matterRootForName(matterName);
     const outputArtifact = normalizeText(artifactPath) || normalizeArtifactPath(skill.outputArtifact, skill.targetLane);
     const outputJson = outputArtifact.endsWith(".md")
       ? outputArtifact.replace(/\.md$/i, ".json")
@@ -311,6 +311,13 @@ export function createConfigurableSkillsService({
     runSkill,
     storePath,
   };
+
+  async function matterRootForName(rawMatterName = "") {
+    const matterName = normalizeText(rawMatterName);
+    if (!matterName) return matterStore.ensureMatterRoot();
+    const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+    return matterPath;
+  }
 }
 
 function extractTargetSkillSlash(idea = {}) {

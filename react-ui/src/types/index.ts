@@ -465,6 +465,7 @@ export interface DoctorFixRequest extends MatterSkillRunRequest {
 export interface ConfigurableSkillRunRequest {
   slash: string;
   overwrite?: boolean;
+  matterName?: string;
 }
 
 export interface ConfigurableSkillCancelRequest {

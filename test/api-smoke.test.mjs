@@ -230,6 +230,16 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(switched.folderName, "Smoke Matter");
     const workspace = await getJson(baseUrl, "/api/workspace");
     assert.equal(workspace.metadata.matterName, "Smoke Matter");
+    const inactiveLegacyMatter = path.join(mattersHome, "Inactive Legacy Matter");
+    const inactiveLegacyDir = path.join(inactiveLegacyMatter, "00_Inbox", "Load_01_Initial");
+    await mkdir(path.join(inactiveLegacyDir, "Evidence Files"), { recursive: true });
+    await writeFile(path.join(inactiveLegacyMatter, "matter.json"), JSON.stringify({
+      matter_name: "Inactive Legacy Matter",
+    }, null, 2));
+    const inactiveDoctorScan = await postJson(baseUrl, "/api/doctor/scan", { matterName: "Inactive Legacy Matter" });
+    assert.equal(inactiveDoctorScan.issues[0].id, "legacy-layout");
+    const activeAfterInactiveScan = await getJson(baseUrl, "/api/workspace");
+    assert.equal(activeAfterInactiveScan.metadata.matterName, "Smoke Matter");
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
     const sourceDescriptors = await postJson(baseUrl, "/api/describe-sources", { dryRun: false });
