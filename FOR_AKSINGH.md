@@ -1271,6 +1271,8 @@ Artifact-writing React workflows now refresh the active matter workspace through
 
 That refresh owner now also checks the expected matter before applying async results. A workflow can start against one matter and finish after the user has switched to another; without a guard, the old task could ask the shell to refresh whichever matter is currently active. The fix is to pass the matter name captured at run start and skip the refresh if the workspace returned by the backend no longer matches. It is a small defensive pattern, but it protects the most important invariant in this app: the UI must never casually mix matter identities.
 
+The workflow views now apply the same idea to their own result panels. Extract, Source Labels, List of Dates, Prepare Matter, Doctor, and context search keep a ref to the latest active matter name and ignore late responses from a matter that is no longer active. This is defensive React work, not a new feature. It prevents an old request from filling the current screen with the previous matter's rows, warnings, or generated chronology after a fast matter switch.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

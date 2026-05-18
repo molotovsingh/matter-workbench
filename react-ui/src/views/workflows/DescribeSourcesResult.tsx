@@ -3,10 +3,12 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { DescribeSourcesResult as DescribeResult } from '../../types';
 
 export default function DescribeSourcesResult() {
   const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [result, setResult] = useState<DescribeResult | null>(null);
   const [running, setRunning] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -30,6 +32,7 @@ export default function DescribeSourcesResult() {
     appendTerminal(['[source-index] calling AI provider…']);
     try {
       const raw = await api.runDescribeSources({ matterName });
+      if (activeMatterNameRef.current !== matterName) return;
       setResult(raw);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
       appendTerminal(['[source-index] complete']);
@@ -38,11 +41,12 @@ export default function DescribeSourcesResult() {
         failurePrefix: '[workspace] refresh failed after Source Labels update',
       });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Failed' });
       appendTerminal([`[source-index] error: ${getErrorMessage(e)}`]);
     } finally {
-      setRunning(false);
+      if (activeMatterNameRef.current === matterName) setRunning(false);
     }
   }
 

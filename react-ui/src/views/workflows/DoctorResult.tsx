@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { DoctorIssue } from '../../types';
 
 export default function DoctorResult() {
   const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [issues, setIssues] = useState<DoctorIssue[]>([]);
   const [scanning, setScanning] = useState(false);
   const [fixing, setFixing] = useState(false);
@@ -15,20 +17,23 @@ export default function DoctorResult() {
 
   async function handleScan() {
     if (!state.activeMatter) return;
+    const matterName = state.activeMatter.name;
     setScanning(true);
     setError('');
     setDone(false);
     setFixDone(false);
     appendTerminal(['[doctor] scanning…']);
     try {
-      const result = await api.runDoctorScan({ matterName: state.activeMatter.name });
+      const result = await api.runDoctorScan({ matterName });
+      if (activeMatterNameRef.current !== matterName) return;
       setIssues((result.issues ?? []).map((i) => ({ ...i, selected: i.severity !== 'info' })));
       setDone(true);
       appendTerminal([`[doctor] found ${result.issues?.length ?? 0} issue(s)`]);
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
     } finally {
-      setScanning(false);
+      if (activeMatterNameRef.current === matterName) setScanning(false);
     }
   }
 
@@ -41,6 +46,7 @@ export default function DoctorResult() {
     appendTerminal([`[doctor] fixing ${selected.length} issue(s)…`]);
     try {
       await api.runDoctorFix({ matterName, issueIds: selected });
+      if (activeMatterNameRef.current !== matterName) return;
       setFixDone(true);
       appendTerminal(['[doctor] fixes applied']);
       await refreshActiveMatterWorkspace({
@@ -48,9 +54,10 @@ export default function DoctorResult() {
         failurePrefix: '[workspace] refresh failed after Doctor fixes',
       });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
     } finally {
-      setFixing(false);
+      if (activeMatterNameRef.current === matterName) setFixing(false);
     }
   }
 

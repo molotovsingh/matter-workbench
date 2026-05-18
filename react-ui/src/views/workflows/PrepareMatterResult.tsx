@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lookupString } from '../../lib/lookup';
 import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { PreparationPlan, PreparationStage } from '../../types';
 
 const STAGE_STATE_CLASSES = {
@@ -34,6 +35,7 @@ const STAGE_STATE_LABELS = {
 
 export default function PrepareMatterResult() {
   const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [plan, setPlan] = useState<PreparationPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
@@ -96,6 +98,7 @@ export default function PrepareMatterResult() {
     try {
       const slash = plan.nextStep.slash;
       await runPreparationStage(slash, matterName);
+      if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[prepare] ${slash} complete`]);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
@@ -103,10 +106,11 @@ export default function PrepareMatterResult() {
       });
       await loadPlan();
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
       setError(getErrorMessage(e));
     } finally {
-      setRunning(false);
+      if (activeMatterNameRef.current === matterName) setRunning(false);
     }
   }
 
@@ -127,15 +131,19 @@ export default function PrepareMatterResult() {
       }
       appendTerminal([`[prepare] running child stage: ${stage.slash}`]);
       try {
+        if (activeMatterNameRef.current !== matterName) break;
         if (!stage.slash) throw new Error(`Preparation stage has no runnable slash: ${stage.label}`);
         const slash = stage.slash;
         await runPreparationStage(slash, matterName);
+        if (activeMatterNameRef.current !== matterName) break;
         appendTerminal([`[prepare] ${slash} done`]);
       } catch (e) {
+        if (activeMatterNameRef.current !== matterName) break;
         appendTerminal([`[prepare] ${stage.slash} failed: ${getErrorMessage(e)}`]);
         break;
       }
     }
+    if (activeMatterNameRef.current !== matterName) return;
     setPendingPaidConfirm(null);
     await refreshActiveMatterWorkspace({
       expectedMatterName: matterName,

@@ -3,10 +3,12 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { readableSourcePath } from '../../lib/sourceLabels';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { ExtractFileResult } from '../../types';
 
 export default function ExtractResult() {
   const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [rows, setRows] = useState<ExtractFileResult[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -21,6 +23,7 @@ export default function ExtractResult() {
     appendTerminal(['[extract] running…']);
     try {
       const result = await api.runExtract({ matterName });
+      if (activeMatterNameRef.current !== matterName) return;
       setRows(result.fileResults ?? []);
       setDone(true);
       appendTerminal(['[extract] complete']);
@@ -29,10 +32,11 @@ export default function ExtractResult() {
         failurePrefix: '[workspace] refresh failed after Extract update',
       });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
       appendTerminal([`[extract] error: ${getErrorMessage(e)}`]);
     } finally {
-      setRunning(false);
+      if (activeMatterNameRef.current === matterName) setRunning(false);
     }
   }
 

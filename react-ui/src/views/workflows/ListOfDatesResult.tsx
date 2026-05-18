@@ -5,10 +5,12 @@ import { getErrorMessage } from '../../lib/errors';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../../lib/listOfDatesDependencyState';
 import { lawyerFacingSourceLabel, readableSourcePath } from '../../lib/sourceLabels';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { ChronologyEntry } from '../../types';
 
 export default function ListOfDatesResult() {
   const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [entries, setEntries] = useState<ChronologyEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -31,6 +33,7 @@ export default function ListOfDatesResult() {
     appendTerminal(['[list-of-dates] generating…']);
     try {
       const result = await api.runCreateListOfDates({ matterName });
+      if (activeMatterNameRef.current !== matterName) return;
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
@@ -39,9 +42,10 @@ export default function ListOfDatesResult() {
         failurePrefix: '[workspace] refresh failed after List of Dates update',
       });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
     } finally {
-      setRunning(false);
+      if (activeMatterNameRef.current === matterName) setRunning(false);
     }
   }
 
@@ -54,6 +58,7 @@ export default function ListOfDatesResult() {
     appendTerminal(['[list-of-dates] refreshing labels without AI…']);
     try {
       const result = await api.refreshListOfDatesLabels({ dryRun: false });
+      if (activeMatterNameRef.current !== matterName) return;
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] refreshed labels for ${result.entries?.length ?? 0} entries`]);
@@ -62,11 +67,12 @@ export default function ListOfDatesResult() {
         failurePrefix: '[workspace] refresh failed after List of Dates update',
       });
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       setError(message);
       appendTerminal([`[list-of-dates] label refresh failed: ${message}`]);
     } finally {
-      setRunning(false);
+      if (activeMatterNameRef.current === matterName) setRunning(false);
     }
   }
 

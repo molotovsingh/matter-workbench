@@ -53,3 +53,21 @@ test("React workspace refresh skips stale async results after matter changes", a
   assert.match(source, /function workspaceMatchesMatter\(workspace: WorkspaceApiResponse, expectedMatterName\?: string\): boolean/);
   assert.match(source, /workspace\.folderName, workspace\.metadata\?\.matterName/);
 });
+
+test("React workflow run results are scoped to the matter that started the run", async () => {
+  for (const workflow of workflowFiles) {
+    const source = await readFile(new URL(workflow.path, import.meta.url), "utf8");
+    assert.match(source, /useLatestValue\(state\.activeMatter\?\.name \?\? null\)/, `${workflow.name} should track the latest active matter`);
+    assert.match(source, /activeMatterNameRef\.current !== matterName/, `${workflow.name} should ignore stale matter responses`);
+    assert.match(source, /activeMatterNameRef\.current === matterName/, `${workflow.name} should only clear loading state for the current matter`);
+  }
+});
+
+test("React context search ignores stale matter search responses", async () => {
+  const source = await readFile(new URL("../react-ui/src/views/workflows/ContextSearch.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /useLatestValue\(state\.activeMatter\?\.name \?\? null\)/);
+  assert.match(source, /const matterName = state\.activeMatter\?\.name/);
+  assert.match(source, /activeMatterNameRef\.current !== matterName/);
+  assert.match(source, /activeMatterNameRef\.current === matterName/);
+});

@@ -3,10 +3,12 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lawyerFacingSourceLabel, readableSourcePath } from '../../lib/sourceLabels';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import type { MatterContextSearchResult } from '../../types';
 
 export default function ContextSearch() {
   const { state, appendTerminal } = useApp();
+  const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MatterContextSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -15,21 +17,24 @@ export default function ContextSearch() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!query.trim()) return;
+    const matterName = state.activeMatter?.name;
+    if (!query.trim() || !matterName) return;
     setSearching(true);
     setDone(false);
     setError('');
     try {
       const res = await api.searchMatterContext(query);
+      if (activeMatterNameRef.current !== matterName) return;
       setResults(res.results ?? []);
       setDone(true);
     } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       setResults([]);
       setError(message);
       appendTerminal([`[context-search] error: ${message}`]);
     } finally {
-      setSearching(false);
+      if (activeMatterNameRef.current === matterName) setSearching(false);
     }
   }
 
