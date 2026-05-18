@@ -522,6 +522,10 @@ They were contract fixes:
   outcomes: command router failures say the command check failed, context
   search API failures show an error instead of "No results found," and rerun
   advice failures ask before regenerating instead of auto-running.
+- page-level data loads and copy actions now fail visibly in the React track.
+  Skills, Activity, and Settings show load failures instead of looking empty;
+  report/sample/context copy failures stay on screen or in the activity strip
+  instead of disappearing silently.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
