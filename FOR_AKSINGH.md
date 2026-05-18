@@ -1246,6 +1246,8 @@ React Activity now uses a dedicated custom-skill run report helper instead of bu
 
 The next React parity bug was even more concrete: the Activity page could navigate to an output preview shell without loading the file content, so the lawyer saw a title and an empty body. React now has a small `filePreview` helper that the Workspace tree and Activity page both use. The lesson is simple but important: navigation state and data state are different. A UI can point at the right file and still be wrong if it never reads the file.
 
+React matter switching now also clears matter-scoped preview state. Before this, the shell could keep `activeView: file-preview` and a stale `filePreview` payload while the active matter changed. That is the kind of migration bug that looks small in code but feels serious in a legal workspace: a lawyer could believe they are looking inside one matter while the preview is still from another. The fix is not a feature; it is state ownership discipline.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

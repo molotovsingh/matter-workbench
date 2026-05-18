@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const appContextPath = new URL("../react-ui/src/store/AppContext.tsx", import.meta.url);
+
+test("React matter changes clear matter-scoped preview state", async () => {
+  const source = await readFile(appContextPath, "utf8");
+
+  assert.match(source, /RESET_MATTER_TRANSIENT_VIEW/);
+  assert.match(
+    source,
+    /case 'RESET_MATTER_TRANSIENT_VIEW':\s*return \{ \.\.\.state, activeView: 'home', filePreview: null, activeFilePath: null \};/,
+  );
+  assert.match(
+    source,
+    /const clearActiveMatter = useCallback[\s\S]*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
+  );
+  assert.match(
+    source,
+    /const switchActiveMatter = useCallback[\s\S]*setActiveMatter\(activeMatter\);\s*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
+  );
+});

@@ -31,6 +31,7 @@ type Action =
   | { type: 'SET_MATTER_SEARCH'; payload: string }
   | { type: 'SET_SHOW_TECHNICAL'; payload: boolean }
   | { type: 'SET_ACTIVE_FILE'; payload: string | null }
+  | { type: 'RESET_MATTER_TRANSIENT_VIEW' }
   | { type: 'SET_BREADCRUMBS'; payload: string }
   | { type: 'SET_TITLE'; payload: string }
   | { type: 'SET_STATUS_BAR'; payload: string }
@@ -91,6 +92,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, showTechnicalFiles: action.payload };
     case 'SET_ACTIVE_FILE':
       return { ...state, activeFilePath: action.payload };
+    case 'RESET_MATTER_TRANSIENT_VIEW':
+      return { ...state, activeView: 'home', filePreview: null, activeFilePath: null };
     case 'SET_BREADCRUMBS':
       return { ...state, breadcrumbs: action.payload };
     case 'SET_TITLE':
@@ -171,7 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Pick a matter to begin' });
-    dispatch({ type: 'SET_ACTIVE_FILE', payload: null });
+    dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
   }, []);
 
   const appendTerminal = useCallback((lines: string[]) => {
@@ -191,6 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const workspace = await api.switchMatter(name);
       const activeMatter = activeMatterFromWorkspace(workspace, name);
       setActiveMatter(activeMatter);
+      dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
       const summary = { name, activeMatter, workspace };
       const resolvedSuccessMessage = typeof successMessage === 'function'
         ? successMessage(summary)
