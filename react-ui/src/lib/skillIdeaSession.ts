@@ -4,6 +4,7 @@ import type {
   SkillIdeaDesignBrief,
   SkillIdeaSample,
   SkillInterviewPlanResponse,
+  SkillRegistry,
   SkillRouterDecision,
 } from '../types';
 import { SKILL_IDEA_STATUS } from './skillIdeaStatuses';
@@ -17,6 +18,17 @@ export interface InterviewQuestion {
   examples?: string[];
   placeholder?: string;
 }
+
+type PacketDesignBrief = {
+  intendedUser: string;
+  problem: string;
+  expectedInputs: string;
+  expectedOutputArtifact: string;
+  targetLane: string;
+  paidPosture: string;
+  riskLevel: string;
+  notes: string;
+};
 
 export const SIMPLE_SKILL_IDEA_QUESTIONS: InterviewQuestion[] = [
   {
@@ -191,34 +203,24 @@ export function formatSkillIdeaSampleCopy(
   ].join('\n');
 }
 
-export function formatSkillIdeaReviewPacket(idea: SkillIdea): string {
-  const brief = idea.designBrief || {};
-  const readiness = idea.readiness;
+export function formatSkillIdeaReviewPacket(idea: SkillIdea, registry?: SkillRegistry | null): string {
+  const status = idea.status || SKILL_IDEA_STATUS.INCOMPLETE;
+  const brief = normalizeDesignBriefForPacket(idea.designBrief);
+  const readiness = normalizeReadinessForPacket(idea.readiness, brief);
   const matter = idea.matter || {};
-  const readinessReady = Boolean(readiness?.ready);
-  const passedCount = Number(readiness?.passedCount || 0);
-  const totalCount = Number(readiness?.totalCount || 0);
-  const statusText = idea.status === SKILL_IDEA_STATUS.READY_FOR_REVIEW
-    ? 'Ready to review'
-    : readinessReady
-      ? 'Draft complete'
-      : idea.status === SKILL_IDEA_STATUS.PARKED
-        ? 'Parked'
-        : idea.status === SKILL_IDEA_STATUS.DISMISSED
-          ? 'Dismissed'
-          : 'Incomplete';
-  const checklistText = readinessReady
+  const classification = classifySkillIdeaForPacket(idea, registry);
+  const openQuestions = buildSkillIdeaOpenQuestions({ brief, readiness });
+  const statusText = reviewPacketStatusText(status, readiness.ready);
+  const checklistText = readiness.ready
     ? 'Complete'
-    : `Incomplete ${passedCount}/${totalCount}`;
-  const checklist = Array.isArray(readiness?.items) && readiness.items.length
-    ? readiness.items.map((item) => `- ${item.passed ? '[x]' : '[ ]'} ${item.label}`)
-    : ['- [ ] Review the design brief before implementation'];
+    : `Incomplete ${readiness.passedCount}/${readiness.totalCount}`;
   return [
     '# Skill Idea Review Packet',
     '',
     `- Idea id: ${packetValue(idea.id)}`,
     `- Status: ${statusText}`,
     `- Checklist: ${checklistText}`,
+    `- Suggested classification: ${classification}`,
     `- Matter: ${packetValue(matter.matterName || matter.folderName)}`,
     `- Matter folder: ${packetValue(matter.folderName)}`,
     '',
@@ -242,13 +244,111 @@ export function formatSkillIdeaReviewPacket(idea: SkillIdea): string {
     '',
     '## Readiness Checklist',
     '',
-    ...checklist,
+    ...readiness.items.map((item) => `- ${item.passed ? '[x]' : '[ ]'} ${item.label}`),
+    '',
+    '## Open Questions',
+    '',
+    ...openQuestions.map((question) => `- ${question}`),
     '',
     '## Boundary',
     '',
     'This is not a runnable skill. No prompt, code, or provider call has been generated.',
     '',
   ].join('\n');
+}
+
+function reviewPacketStatusText(status: string, readinessReady: boolean): string {
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return 'Ready for review';
+  if (status === SKILL_IDEA_STATUS.PARKED) return 'Parked';
+  if (status === SKILL_IDEA_STATUS.DISMISSED) return 'Dismissed';
+  if (status === SKILL_IDEA_STATUS.INCOMPLETE && readinessReady) return 'Draft complete - ready to mark for review';
+  return 'Incomplete';
+}
+
+function normalizeDesignBriefForPacket(brief: SkillIdeaDesignBrief | undefined): PacketDesignBrief {
+  return {
+    intendedUser: brief?.intendedUser || '',
+    problem: brief?.problem || '',
+    expectedInputs: brief?.expectedInputs || '',
+    expectedOutputArtifact: brief?.expectedOutputArtifact || '',
+    targetLane: brief?.targetLane || '',
+    paidPosture: brief?.paidPosture || '',
+    riskLevel: brief?.riskLevel || '',
+    notes: brief?.notes || '',
+  };
+}
+
+function normalizeReadinessForPacket(
+  readiness: SkillIdea['readiness'] | undefined,
+  brief: PacketDesignBrief,
+): { ready: boolean; passedCount: number; totalCount: number; items: Array<{ label: string; passed: boolean }> } {
+  if (readiness && Array.isArray(readiness.items)) {
+    return {
+      ready: Boolean(readiness.ready),
+      passedCount: Number(readiness.passedCount || 0),
+      totalCount: Number(readiness.totalCount || readiness.items.length),
+      items: readiness.items.map((item) => ({
+        label: item.label || item.key || 'Readiness item',
+        passed: Boolean(item.passed),
+      })),
+    };
+  }
+  const items = [
+    ['intendedUser', 'Intended user present'],
+    ['problem', 'Problem/job present'],
+    ['expectedInputs', 'Expected inputs present'],
+    ['expectedOutputArtifact', 'Expected output document present'],
+    ['targetLane', 'Workspace area selected'],
+    ['paidPosture', 'Paid/free posture selected'],
+    ['riskLevel', 'Risk level selected'],
+    ['notes', 'Notes or acceptance criteria present'],
+  ].map(([key, label]) => ({
+    label,
+    passed: Boolean(brief[key as keyof PacketDesignBrief]),
+  }));
+  const passedCount = items.filter((item) => item.passed).length;
+  return {
+    ready: passedCount === items.length,
+    passedCount,
+    totalCount: items.length,
+    items,
+  };
+}
+
+function classifySkillIdeaForPacket(idea: SkillIdea, registry?: SkillRegistry | null): string {
+  const primaryText = `${idea.text || ''}\n${idea.designBrief?.problem || ''}\n${idea.designBrief?.expectedOutputArtifact || ''}`;
+  const notes = String(idea.designBrief?.notes || '');
+  const targetSkill = extractTargetSkill(notes) || extractTargetSkill(primaryText);
+  const knownSlashes = new Set((Array.isArray(registry?.skills) ? registry.skills : [])
+    .map((skill) => skill.slash)
+    .filter(Boolean));
+  if (targetSkill && knownSlashes.has(targetSkill)) return `modification candidate (${targetSkill})`;
+  if (targetSkill) return `adjacent skill improvement (${targetSkill})`;
+  if (/\b(list\s+of\s+dates|chronolog|timeline|describe\s+sources|source\s+labels?|context\s+search|find|search)\b/i.test(primaryText)) {
+    return 'adjacent skill improvement';
+  }
+  return 'new skill idea';
+}
+
+function extractTargetSkill(text: string): string {
+  const match = String(text || '').match(/\bTarget skill:\s*(\/[a-z0-9_-]+)/i);
+  return match?.[1] || '';
+}
+
+function buildSkillIdeaOpenQuestions({
+  brief,
+  readiness,
+}: {
+  brief: PacketDesignBrief;
+  readiness: { items: Array<{ label: string; passed: boolean }> };
+}): string[] {
+  const questions = readiness.items
+    .filter((item) => !item.passed)
+    .map((item) => `Complete readiness item: ${item.label}.`);
+  if (!brief.paidPosture || brief.paidPosture === 'unknown') questions.push('Confirm whether this should be free/local or paid/provider-backed.');
+  if (!brief.expectedOutputArtifact) questions.push('Confirm the durable output document, if any.');
+  if (!brief.targetLane) questions.push('Confirm the target workspace area.');
+  return questions.length ? questions : ['None from the readiness checklist.'];
 }
 
 function sampleVersion(sample: SkillIdeaSampleCopy, fallback: number): number {

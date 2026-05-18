@@ -187,6 +187,11 @@ async function run() {
       "React skill-idea sample gate requires a selected matter",
       sessionHelpers.matterGuardUsesFolderName ? "folderName guard present" : "missing folderName guard",
     );
+    assert(
+      sessionHelpers.reviewPacketIncludesGovernance,
+      "React skill-idea review packet keeps governance fields",
+      sessionHelpers.reviewPacketIncludesGovernance ? "classification and open questions present" : "missing review packet governance",
+    );
   } catch (error) {
     fail("React skill-idea session helper contract is readable", error.message);
   }
@@ -483,6 +488,9 @@ async function readReactSkillIdeaSessionHelpers() {
   const source = await readFile(reactSkillIdeaSessionPath, "utf8");
   return {
     matterGuardUsesFolderName: /function\s+hasSkillIdeaTestMatter[\s\S]*activeMatter\?\.folderName/.test(source),
+    reviewPacketIncludesGovernance: source.includes('Suggested classification')
+      && source.includes('## Open Questions')
+      && /function\s+classifySkillIdeaForPacket/.test(source),
   };
 }
 

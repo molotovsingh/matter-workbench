@@ -318,7 +318,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       return;
     }
     try {
-      await writeClipboardText(formatSkillIdeaReviewPacket(session.savedIdea));
+      const registry = await api.getSkills().catch((error) => {
+        appendTerminal([`[skill-idea] copied review packet without registry classification: ${getErrorMessage(error)}`]);
+        return null;
+      });
+      await writeClipboardText(formatSkillIdeaReviewPacket(session.savedIdea, registry));
       appendTerminal([`[skill-idea] copied review packet for ${session.savedIdea.id}`]);
       setSession((s) => ({ ...s, error: null }));
     } catch (e) {

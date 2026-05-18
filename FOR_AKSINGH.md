@@ -1240,6 +1240,8 @@ The same helper now owns React-side review packet and sample-copy formatting for
 
 React now also has its own small `secretRedaction` helper, tested against the shared backend redaction policy. That may sound like plumbing, but it is the kind of boring guardrail that matters in a legal AI product: copied review packets, sample packets, and future diagnostics should be useful to a developer without accidentally carrying `OPENAI_API_KEY`, bearer tokens, or provider-style `sk-...` keys into chat, email, or screenshots.
 
+The copied React review packet now carries the same basic governance shape as the vanilla Skills page packet: status, readiness checklist, suggested classification, open questions, and the "not runnable yet" boundary. That avoids a subtle trap where two frontends both support `copy review packet`, but one gives the implementation reviewer less context than the other.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:
