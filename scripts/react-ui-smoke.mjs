@@ -15,6 +15,11 @@ import {
 } from "../shared/skill-creation-overlap-policy.mjs";
 import { SKILL_IDEA_INPUT_PATTERNS } from "../shared/skill-idea-input.mjs";
 import { SKILL_IDEA_SESSION_COMMAND_SETS } from "../shared/skill-idea-session-commands.mjs";
+import {
+  LEGACY_SKILL_IDEA_STATUS_MAP,
+  SKILL_IDEA_STATUS,
+  SKILL_IDEA_STATUS_VALUES,
+} from "../shared/skill-idea-statuses.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
@@ -26,6 +31,7 @@ const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 const reactSkillIdeaInputPath = new URL("../react-ui/src/lib/skillIdeaInput.ts", import.meta.url);
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
+const reactSkillIdeaStatusesPath = new URL("../react-ui/src/lib/skillIdeaStatuses.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -166,6 +172,27 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-idea session command contract is readable", error.message);
+  }
+
+  try {
+    const statuses = await readReactSkillIdeaStatuses();
+    assert(
+      sameObjectEntries(statuses.status, SKILL_IDEA_STATUS),
+      "React skill-idea statuses match shared contract",
+      objectDiffDetail(statuses.status, SKILL_IDEA_STATUS),
+    );
+    assert(
+      sameStringSet(statuses.values, SKILL_IDEA_STATUS_VALUES),
+      "React skill-idea status values match shared contract",
+      commandSetDiffDetail(statuses.values, SKILL_IDEA_STATUS_VALUES),
+    );
+    assert(
+      sameObjectEntries(statuses.legacyMap, LEGACY_SKILL_IDEA_STATUS_MAP),
+      "React legacy skill-idea statuses match shared contract",
+      objectDiffDetail(statuses.legacyMap, LEGACY_SKILL_IDEA_STATUS_MAP),
+    );
+  } catch (error) {
+    fail("React skill-idea status contract is readable", error.message);
   }
 
   try {
@@ -417,6 +444,21 @@ async function readReactSkillIdeaSessionCommandSets() {
     entry[1],
     [...entry[2].matchAll(/['"]([^'"]+)['"]/g)].map((value) => value[1]).sort(),
   ]));
+}
+
+async function readReactSkillIdeaStatuses() {
+  const source = await readFile(reactSkillIdeaStatusesPath, "utf8");
+  const statusMatch = source.match(/SKILL_IDEA_STATUS\s*=\s*\{([\s\S]*?)\}\s*as const/);
+  const legacyMatch = source.match(/LEGACY_SKILL_IDEA_STATUS_MAP\s*=\s*\{([\s\S]*?)\}\s*as const/);
+  const status = Object.fromEntries([...String(statusMatch?.[1] || "").matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+  return {
+    status,
+    values: Object.values(status).sort(),
+    legacyMap: Object.fromEntries([...String(legacyMatch?.[1] || "").matchAll(/\b([a-z_]+):\s*SKILL_IDEA_STATUS\.([A-Z_]+)/g)].map((match) => [
+      match[1],
+      SKILL_IDEA_STATUS[match[2]],
+    ])),
+  };
 }
 
 function readStringArray(source, exportName) {

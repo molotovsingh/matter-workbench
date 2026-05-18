@@ -8,6 +8,10 @@ import {
   isSampleStale,
   renderSampleLedger,
 } from "./skill-sample-review.js";
+import {
+  SKILL_IDEA_STATUS,
+  normalizeSkillIdeaStatus,
+} from "../shared/skill-idea-statuses.mjs";
 
 export function describeInterviewPlanner(interview) {
   const planner = interview?.planner || null;
@@ -163,9 +167,9 @@ export function renderSavedSkillIdeaSessionHtml({
 } = {}) {
   const brief = idea.designBrief || {};
   const readiness = idea.readiness || {};
-  const status = String(idea.status || "incomplete");
+  const status = normalizeSkillIdeaStatus(idea.status);
   const checklistReady = Boolean(readiness.ready);
-  const statusText = status === "ready_for_review"
+  const statusText = status === SKILL_IDEA_STATUS.READY_FOR_REVIEW
     ? "Ready to review"
     : checklistReady
       ? "Draft complete"
@@ -202,7 +206,7 @@ export function renderSavedSkillIdeaSessionHtml({
         <div class="command-interview-actions">
           ${renderSampleReviewButtonsHtml({ sampleReview, createdSkill, activeMatter })}
           <button type="button" data-skill-interview-action="copy-packet">Copy Review Packet</button>
-          <button type="button" class="secondary" data-skill-interview-action="mark-ready"${checklistReady && status !== "ready_for_review" ? "" : " disabled"}>Mark ready for review</button>
+          <button type="button" class="secondary" data-skill-interview-action="mark-ready"${checklistReady && status !== SKILL_IDEA_STATUS.READY_FOR_REVIEW ? "" : " disabled"}>Mark ready for review</button>
           <button type="button" class="secondary" data-skill-interview-action="edit">Edit answers</button>
           <button type="button" class="secondary" data-skill-interview-action="open-skills">Open in Skills</button>
           <button type="button" class="secondary" data-skill-interview-action="start-another">Start another idea</button>

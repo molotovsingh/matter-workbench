@@ -1244,4 +1244,6 @@ Before this cleanup, the backend, vanilla frontend, and React frontend each carr
 
 The same pattern now protects the custom-skill overlap gate. The backend owns the minimum override length and the router decisions/actions that block duplicate skill creation. React has a small typed helper for the UI, but `scripts/react-ui-smoke.mjs` compares those helper constants against `shared/skill-creation-overlap-policy.mjs`.
 
+The skill-idea inbox now follows the same rule. `shared/skill-idea-statuses.mjs` owns the four real states: incomplete, ready for review, parked, and dismissed, plus the old legacy names that may still exist in older JSON. React keeps a typed mirror, and the smoke test compares that mirror against the shared contract. This is deliberately boring engineering, but it prevents a very human bug: one screen telling a lawyer an idea is "ready" while another screen treats the same record as an incomplete draft.
+
 This is a good example of accepting a small amount of duplication for a practical reason. The React app cannot naturally consume every server-side module without dragging bundling concerns into the browser build. But the contract values can still be treated as shared truth and checked at acceptance time. That gives us most of the safety without turning the build system into the main project.

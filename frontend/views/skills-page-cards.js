@@ -16,6 +16,7 @@ import {
   statusClass,
   statusLabel,
 } from "./skills-page-saved-ideas.js";
+import { SKILL_IDEA_STATUS } from "../../shared/skill-idea-statuses.mjs";
 
 export function renderSkillCards(skills, escape, { improvementIdeas = [], configurableSkillRuns = [], allCustomSkills = null, variant = "cards" } = {}) {
   if (!skills.length) return '<p class="muted">No skills in this section.</p>';
@@ -245,7 +246,7 @@ function renderCustomSkillVersionItem(skill, ideas, runs, escape) {
 
 function renderCustomSkillImprovementIdeas(skill, ideas, escape) {
   const linkedIdeas = findLinkedImprovementIdeas(skill, ideas)
-    .filter((idea) => normalizeIdeaStatusForView(idea.status) !== "dismissed")
+    .filter((idea) => normalizeIdeaStatusForView(idea.status) !== SKILL_IDEA_STATUS.DISMISSED)
     .slice(0, 3);
   if (!linkedIdeas.length) {
     return `
@@ -370,7 +371,7 @@ function renderCustomSkillImprovementIdea(skill, idea, escape) {
       <div class="form-actions">
         <a class="button secondary" href="#skill-idea-${escape(idea.id || "")}">Open idea</a>
         <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy review packet</button>
-        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.DISMISSED}"${status === SKILL_IDEA_STATUS.DISMISSED ? " disabled" : ""}>Dismiss</button>
       </div>
     </div>
   `;

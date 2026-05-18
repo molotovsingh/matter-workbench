@@ -1,3 +1,5 @@
+import type { SkillIdeaStatus } from '../lib/skillIdeaStatuses';
+
 export interface Matter {
   name: string;
   folderPath?: string;
@@ -123,7 +125,7 @@ export interface SkillRun {
 export interface SkillIdea {
   id: string;
   text: string;
-  status: 'incomplete' | 'ready_for_review' | 'parked' | 'dismissed';
+  status: SkillIdeaStatus;
   createdAt: string;
   updatedAt?: string;
   designBrief?: SkillIdeaDesignBrief;

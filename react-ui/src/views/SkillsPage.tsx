@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus } from '../lib/skillIdeaStatuses';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
 export default function SkillsPage() {
@@ -50,8 +51,8 @@ export default function SkillsPage() {
     }
   }
 
-  const activeIdeas = ideas.filter((i) => i.status !== 'dismissed');
-  const dismissedIdeas = ideas.filter((i) => i.status === 'dismissed');
+  const activeIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) !== SKILL_IDEA_STATUS.DISMISSED);
+  const dismissedIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) === SKILL_IDEA_STATUS.DISMISSED);
 
   return (
     <div className="skills-page">

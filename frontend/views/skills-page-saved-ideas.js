@@ -10,6 +10,10 @@ import {
   normalizeUiSample,
 } from "../skill-sample-review.js";
 import { redactSensitiveText } from "../secret-redaction.js";
+import {
+  SKILL_IDEA_STATUS,
+  normalizeSkillIdeaStatus,
+} from "../../shared/skill-idea-statuses.mjs";
 
 export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
@@ -82,8 +86,8 @@ export function renderSavedIdeas(ideas, escape, { compact = false, samplesByIdea
 }
 
 function renderCompactSavedIdeas(ideas, escape, { samplesByIdea = {} } = {}) {
-  const activeIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) !== "dismissed");
-  const dismissedIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) === "dismissed");
+  const activeIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) !== SKILL_IDEA_STATUS.DISMISSED);
+  const dismissedIdeas = ideas.filter((idea) => normalizeIdeaStatusForView(idea.status) === SKILL_IDEA_STATUS.DISMISSED);
   return `
     <section class="skills-section">
       <h2>Ideas</h2>
@@ -106,23 +110,20 @@ function renderCompactSavedIdeas(ideas, escape, { samplesByIdea = {} } = {}) {
 }
 
 export function statusLabel(status) {
-  if (status === "ready_for_review") return "Ready for review";
-  if (status === "parked") return "Parked";
-  if (status === "dismissed") return "Dismissed";
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return "Ready for review";
+  if (status === SKILL_IDEA_STATUS.PARKED) return "Parked";
+  if (status === SKILL_IDEA_STATUS.DISMISSED) return "Dismissed";
   return "Incomplete";
 }
 
 export function statusClass(status) {
-  if (status === "dismissed") return "not-run";
-  if (status === "ready_for_review") return "present";
+  if (status === SKILL_IDEA_STATUS.DISMISSED) return "not-run";
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return "present";
   return "pending";
 }
 
 export function normalizeIdeaStatusForView(status) {
-  if (status === "proposed") return "incomplete";
-  if (status === "marked_for_future") return "parked";
-  if (["incomplete", "ready_for_review", "parked", "dismissed"].includes(status)) return status;
-  return "incomplete";
+  return normalizeSkillIdeaStatus(status);
 }
 
 export function extractTargetSkill(text) {
@@ -138,7 +139,7 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
   const readiness = normalizeReadinessForView(idea.readiness, brief);
   const latestSample = latestSampleForIdea(idea, samplesByIdea);
   const progress = ideaProgress({ status, readiness, latestSample });
-  const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
+  const canMarkReady = readiness.ready && status !== SKILL_IDEA_STATUS.READY_FOR_REVIEW && status !== SKILL_IDEA_STATUS.DISMISSED;
   return `
     <article class="skill-card skill-idea-card" id="skill-idea-${escape(idea.id || "")}">
       <div class="skill-card-header">
@@ -228,9 +229,9 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
       <div class="form-actions">
         <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
         <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
-        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
-        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
-        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+        <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.READY_FOR_REVIEW}"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.PARKED}"${status === SKILL_IDEA_STATUS.PARKED || status === SKILL_IDEA_STATUS.DISMISSED ? " disabled" : ""}>Park idea</button>
+        <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.DISMISSED}"${status === SKILL_IDEA_STATUS.DISMISSED ? " disabled" : ""}>Dismiss</button>
         <span class="artifact-action-status muted" data-skill-idea-copy-status="${escape(idea.id || "")}"></span>
       </div>
     </article>
@@ -245,7 +246,7 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
   const readiness = normalizeReadinessForView(idea.readiness, brief);
   const latestSample = latestSampleForIdea(idea, samplesByIdea);
   const progress = ideaProgress({ status, readiness, latestSample });
-  const canMarkReady = readiness.ready && status !== "ready_for_review" && status !== "dismissed";
+  const canMarkReady = readiness.ready && status !== SKILL_IDEA_STATUS.READY_FOR_REVIEW && status !== SKILL_IDEA_STATUS.DISMISSED;
   return `
     <article class="skill-idea-row" id="skill-idea-${escape(idea.id || "")}">
       <div class="skill-idea-row-main">
@@ -334,9 +335,9 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
         <div class="form-actions">
           <button type="button" class="secondary" data-skill-idea-copy-packet data-skill-idea-id="${escape(idea.id || "")}">Copy Review Packet</button>
           <button type="button" class="secondary" data-skill-idea-copy-implementation-brief data-skill-idea-id="${escape(idea.id || "")}">Copy Implementation Brief</button>
-          <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="ready_for_review"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
-          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="parked"${status === "parked" || status === "dismissed" ? " disabled" : ""}>Park idea</button>
-          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="dismissed"${status === "dismissed" ? " disabled" : ""}>Dismiss</button>
+          <button type="button" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.READY_FOR_REVIEW}"${canMarkReady ? "" : " disabled"} title="${readiness.ready ? "Mark this design brief ready for human review." : "Complete every readiness item before marking ready."}">Mark ready for review</button>
+          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.PARKED}"${status === SKILL_IDEA_STATUS.PARKED || status === SKILL_IDEA_STATUS.DISMISSED ? " disabled" : ""}>Park idea</button>
+          <button type="button" class="secondary" data-skill-idea-id="${escape(idea.id || "")}" data-skill-idea-status="${SKILL_IDEA_STATUS.DISMISSED}"${status === SKILL_IDEA_STATUS.DISMISSED ? " disabled" : ""}>Dismiss</button>
           <span class="artifact-action-status muted" data-skill-idea-copy-status="${escape(idea.id || "")}"></span>
         </div>
       </details>
@@ -346,7 +347,7 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
 
 function reviewPacketStatusText(status, readiness) {
   const label = statusLabel(status);
-  if (status === "incomplete" && readiness.ready) {
+  if (status === SKILL_IDEA_STATUS.INCOMPLETE && readiness.ready) {
     return "Draft complete - ready to mark for review";
   }
   return label;
@@ -381,7 +382,7 @@ function renderSelectField({ name, label, value, options }, escape) {
 function normalizeReadinessForView(readiness, brief) {
   if (readiness && Array.isArray(readiness.items)) {
     return {
-      state: readiness.state || (readiness.ready ? "ready_for_review" : "incomplete"),
+      state: readiness.state || (readiness.ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE),
       ready: Boolean(readiness.ready),
       passedCount: Number(readiness.passedCount || 0),
       totalCount: Number(readiness.totalCount || readiness.items.length),
@@ -409,7 +410,7 @@ function normalizeReadinessForView(readiness, brief) {
   const passedCount = items.filter((item) => item.passed).length;
   const ready = passedCount === items.length;
   return {
-    state: ready ? "ready_for_review" : "incomplete",
+    state: ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE,
     ready,
     passedCount,
     totalCount: items.length,
@@ -478,15 +479,15 @@ function renderReadinessChecklist(readiness, escape) {
 }
 
 function ideaProgress({ status, readiness, latestSample } = {}) {
-  if (status === "dismissed") return { label: "Dismissed", className: "not-run" };
-  if (status === "parked") return { label: "Parked", className: "not-run" };
+  if (status === SKILL_IDEA_STATUS.DISMISSED) return { label: "Dismissed", className: "not-run" };
+  if (status === SKILL_IDEA_STATUS.PARKED) return { label: "Parked", className: "not-run" };
   if (latestSample) {
     const sampleState = getSampleState(latestSample);
     if (sampleState === "approved_current") return { label: "Sample approved", className: "present" };
     if (sampleState === "approved_stale" || sampleState === "stale") return { label: "Sample stale", className: "warning" };
     return { label: "Sample generated", className: "present" };
   }
-  if (status === "ready_for_review") return { label: "Ready to review", className: "present" };
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return { label: "Ready to review", className: "present" };
   if (readiness?.ready) return { label: "Draft complete", className: "present" };
   return { label: "Draft saved", className: "pending" };
 }

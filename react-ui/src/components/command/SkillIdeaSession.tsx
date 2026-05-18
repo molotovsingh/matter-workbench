@@ -10,6 +10,7 @@ import {
 } from '../../lib/skillCreationOverlap';
 import { classifySkillIdeaSessionInput } from '../../lib/skillIdeaSessionCommands';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
+import { SKILL_IDEA_STATUS } from '../../lib/skillIdeaStatuses';
 import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
 
 interface InterviewQuestion {
@@ -298,11 +299,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     if (!session.savedIdeaId) return;
     setSession((s) => ({ ...s, notice: null, error: null }));
     try {
-      await api.updateSkillIdeaStatus(session.savedIdeaId, { status: 'ready_for_review' });
+      await api.updateSkillIdeaStatus(session.savedIdeaId, { status: SKILL_IDEA_STATUS.READY_FOR_REVIEW });
       appendTerminal([`[skill-idea] marked ready for review — id: ${session.savedIdeaId}`]);
       setSession((s) => ({
         ...s,
-        savedIdea: s.savedIdea ? { ...s.savedIdea, status: 'ready_for_review' } : s.savedIdea,
+        savedIdea: s.savedIdea ? { ...s.savedIdea, status: SKILL_IDEA_STATUS.READY_FOR_REVIEW } : s.savedIdea,
         notice: 'Marked ready for review. Open Skills to review the saved idea.',
       }));
     } catch (e) {

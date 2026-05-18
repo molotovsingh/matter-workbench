@@ -1,4 +1,8 @@
 import { redactSensitiveText } from "./secret-redaction.js";
+import {
+  SKILL_IDEA_STATUS,
+  normalizeSkillIdeaStatus,
+} from "../shared/skill-idea-statuses.mjs";
 
 const KNOWN_TARGETS = [
   {
@@ -482,16 +486,13 @@ function normalizeReadiness(readiness, brief) {
 }
 
 function normalizeStatus(status) {
-  if (status === "proposed") return "incomplete";
-  if (status === "marked_for_future") return "parked";
-  if (["incomplete", "ready_for_review", "parked", "dismissed"].includes(status)) return status;
-  return "incomplete";
+  return normalizeSkillIdeaStatus(status);
 }
 
 function statusLabel(status) {
-  if (status === "ready_for_review") return "Ready for review";
-  if (status === "parked") return "Parked";
-  if (status === "dismissed") return "Dismissed";
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return "Ready for review";
+  if (status === SKILL_IDEA_STATUS.PARKED) return "Parked";
+  if (status === SKILL_IDEA_STATUS.DISMISSED) return "Dismissed";
   return "Incomplete";
 }
 

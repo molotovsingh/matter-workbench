@@ -27,6 +27,7 @@ import {
 } from "./skill-sample-review.js";
 import { createSkillIdeaSampleActions } from "./skill-idea-sample-actions.js";
 import { formatSkillIdeaReviewPacket } from "./views/skills-page.js";
+import { SKILL_IDEA_STATUS } from "../shared/skill-idea-statuses.mjs";
 
 export function createSkillIdeaSessionController({
   aiCommandInput,
@@ -481,12 +482,12 @@ export function createSkillIdeaSessionController({
       return;
     }
     try {
-      const payload = await updateSkillIdeaStatus(idea.id, "ready_for_review");
-      session.savedIdea = payload.idea || { ...idea, status: "ready_for_review" };
-      updateReport({ status: "ready_for_review", skillIdeaId: session.savedIdea.id || "" });
+      const payload = await updateSkillIdeaStatus(idea.id, SKILL_IDEA_STATUS.READY_FOR_REVIEW);
+      session.savedIdea = payload.idea || { ...idea, status: SKILL_IDEA_STATUS.READY_FOR_REVIEW };
+      updateReport({ status: SKILL_IDEA_STATUS.READY_FOR_REVIEW, skillIdeaId: session.savedIdea.id || "" });
       recordCommandInteraction({
         renderedState: "skill_idea/ready",
-        status: "ready_for_review",
+        status: SKILL_IDEA_STATUS.READY_FOR_REVIEW,
         skillIdeaId: session.savedIdea.id || "",
         providerRunInvoked: false,
       });

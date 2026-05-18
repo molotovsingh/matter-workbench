@@ -3,9 +3,14 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import {
+  SKILL_IDEA_STATUS,
+  SKILL_IDEA_STATUS_VALUES,
+  normalizeSkillIdeaStatus,
+} from "../shared/skill-idea-statuses.mjs";
 
 export const SKILL_IDEAS_SCHEMA_VERSION = "skill-ideas/v1";
-export const SKILL_IDEA_STATUSES = new Set(["incomplete", "ready_for_review", "parked", "dismissed"]);
+export const SKILL_IDEA_STATUSES = new Set(SKILL_IDEA_STATUS_VALUES);
 export const SKILL_IDEA_TARGET_LANES = new Set(["", "10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
 export const SKILL_IDEA_PAID_POSTURES = new Set(["", "free", "paid", "unknown"]);
 export const SKILL_IDEA_RISK_LEVELS = new Set(["", "low", "medium", "high"]);
@@ -22,10 +27,6 @@ const EMPTY_DESIGN_BRIEF = Object.freeze({
   riskLevel: "",
   notes: "",
 });
-const LEGACY_STATUS_MAP = new Map([
-  ["proposed", "incomplete"],
-  ["marked_for_future", "parked"],
-]);
 const READINESS_CHECKS = Object.freeze([
   ["intendedUser", "Intended user present"],
   ["problem", "Problem/job present"],
@@ -77,7 +78,7 @@ export function createSkillIdeasService({
         text: normalizedText,
         createdAt: timestamp,
         updatedAt: timestamp,
-        status: "incomplete",
+        status: SKILL_IDEA_STATUS.INCOMPLETE,
         matter: normalizeMatterSummary(matter),
         designBrief: normalizeDesignBrief(designBrief),
       };
@@ -99,8 +100,8 @@ export function createSkillIdeasService({
       const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
       if (!idea) throw makeHttpError("Skill idea not found", 404);
       idea.designBrief = normalizeDesignBrief(designBrief);
-      if (idea.status === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
-        idea.status = "incomplete";
+      if (idea.status === SKILL_IDEA_STATUS.READY_FOR_REVIEW && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+        idea.status = SKILL_IDEA_STATUS.INCOMPLETE;
       }
       idea.updatedAt = now().toISOString();
       const normalizedIdea = normalizeStoredIdea(idea);
@@ -124,7 +125,7 @@ export function createSkillIdeasService({
       const store = await readStore();
       const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
       if (!idea) throw makeHttpError("Skill idea not found", 404);
-      if (normalizedStatus === "ready_for_review" && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
+      if (normalizedStatus === SKILL_IDEA_STATUS.READY_FOR_REVIEW && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
         throw makeHttpError("Skill idea is not ready for review", 400);
       }
       idea.status = normalizedStatus;
@@ -207,9 +208,9 @@ function normalizeMatterSummary(matter) {
 function normalizeStoredIdea(idea) {
   const designBrief = normalizeDesignBrief(idea?.designBrief);
   const readiness = calculateSkillIdeaReadiness(designBrief);
-  let status = normalizeIdeaStatus(idea?.status);
-  if (status === "ready_for_review" && !readiness.ready) {
-    status = "incomplete";
+  let status = normalizeSkillIdeaStatus(idea?.status);
+  if (status === SKILL_IDEA_STATUS.READY_FOR_REVIEW && !readiness.ready) {
+    status = SKILL_IDEA_STATUS.INCOMPLETE;
   }
   return {
     id: String(idea?.id || "").trim(),
@@ -232,18 +233,12 @@ export function calculateSkillIdeaReadiness(designBrief = {}) {
   }));
   const ready = items.every((item) => item.passed);
   return {
-    state: ready ? "ready_for_review" : "incomplete",
+    state: ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE,
     ready,
     passedCount: items.filter((item) => item.passed).length,
     totalCount: items.length,
     items,
   };
-}
-
-function normalizeIdeaStatus(status) {
-  const normalized = String(status || "").trim();
-  const mapped = LEGACY_STATUS_MAP.get(normalized) || normalized;
-  return SKILL_IDEA_STATUSES.has(mapped) ? mapped : "incomplete";
 }
 
 function normalizeDesignBrief(designBrief) {
