@@ -3,6 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
+import { cleanCommandLabel, commandPill } from '../lib/nativeCommands';
 import type {
   PipelineStage,
   RerunAdvice,
@@ -373,17 +374,6 @@ function stagePill(stage: PipelineStage): string {
   return '';
 }
 
-const LAWYER_LABELS: Record<string, string> = {
-  '/prepare_matter': 'Prepare matter',
-  '/matter-init': 'Set up matter',
-  '/extract': 'Extract documents',
-  '/describe_sources': 'Label sources',
-  '/create_listofdates': 'Create list of dates',
-  '/doctor': 'Run diagnostics',
-  '/context_search': 'Search matter context',
-  '/context_preview': 'Preview context',
-};
-
 const RERUN_STATE_LABELS = {
   current: 'Up to date',
   stale: 'Needs update',
@@ -423,22 +413,6 @@ const ATTENTION_SEVERITY_CLASSES = {
   warning: 'warning',
   info: 'info',
 } as const;
-
-function cleanCommandLabel(command: string): string {
-  if (LAWYER_LABELS[command]) return LAWYER_LABELS[command];
-  return (command || 'Action')
-    .replace(/^\/+/, '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase()) || 'Action';
-}
-
-function commandPill(command: string): string {
-  const local = ['/prepare_matter', '/matter-init', '/extract', '/doctor', '/context_search', '/context_preview'];
-  if (local.includes(command)) return 'Local';
-  return 'Uses AI';
-}
 
 function rerunStateLabel(state: string): string {
   return lookupString(RERUN_STATE_LABELS, state, 'Status unknown');

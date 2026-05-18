@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import SkillIdeaSession, { parseSkillIdeaText } from './SkillIdeaSession';
+import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
 
 interface CommandSuggestion {
   label: string;
@@ -12,10 +13,7 @@ interface CommandSuggestion {
 const STATIC_SUGGESTIONS: CommandSuggestion[] = [
   { label: 'New skill', description: 'Create a custom AI skill', command: 'new skill' },
   { label: 'Find a matter', description: 'Open matter picker', command: 'find a matter' },
-  { label: 'Prepare matter', description: 'Run the /prepare_matter workflow', command: '/prepare_matter' },
-  { label: 'Extract documents', description: 'Run the /extract workflow', command: '/extract' },
-  { label: 'Label sources', description: 'Run /describe_sources', command: '/describe_sources' },
-  { label: 'Create list of dates', description: 'Run /create_listofdates', command: '/create_listofdates' },
+  ...COMMAND_PANEL_NATIVE_SUGGESTIONS,
 ];
 
 interface Props {

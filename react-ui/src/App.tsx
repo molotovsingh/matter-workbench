@@ -7,6 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
+import { getNativeCommandView } from './lib/nativeCommands';
 import type { ActiveView } from './types';
 
 function AppShell() {
@@ -44,22 +45,13 @@ function AppShell() {
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
 
-    // Native skills open their workflow views directly — each view handles
-    // its own API calls, rerun guards, and overwrite confirmation.
-    const viewMap: Record<string, ActiveView> = {
-      '/doctor': 'doctor',
-      '/context_search': 'context-search',
-      '/context_preview': 'context-preview',
-      '/prepare_matter': 'prepare-matter',
-      '/extract': 'extract',
-      '/matter-init': 'prepare-matter',
-      '/describe_sources': 'describe-sources',
-      '/create_listofdates': 'list-of-dates',
-    };
+    // Native skills open their workflow views directly; each view owns its
+    // own API calls, rerun guards, and overwrite confirmation.
+    const nativeView = getNativeCommandView(lower);
 
-    if (viewMap[lower]) {
+    if (nativeView) {
       appendTerminal([`[cmd] ${lower}`]);
-      setActiveView(viewMap[lower]);
+      setActiveView(nativeView);
       dispatch({ type: 'SET_BREADCRUMBS', payload: lower });
       return;
     }
@@ -83,7 +75,7 @@ function AppShell() {
     try {
       const result = await api.checkIntent({ userRequest: cmd, matterName: state.activeMatter?.name });
       if (result.decision === 'run_existing_skill' && result.matched_skill) {
-        const view = viewMap[result.matched_skill];
+        const view = getNativeCommandView(result.matched_skill);
         if (view) {
           setActiveView(view);
           dispatch({ type: 'SET_BREADCRUMBS', payload: result.matched_skill });

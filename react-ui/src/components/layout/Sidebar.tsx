@@ -3,17 +3,7 @@ import MatterPicker from '../matters/MatterPicker';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api, adaptTree } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
-
-const SLASH_SKILLS = [
-  { label: 'Set up matter', command: '/matter-init' },
-  { label: 'Prepare matter', command: '/prepare_matter' },
-  { label: 'Extract documents', command: '/extract' },
-  { label: 'Label sources', command: '/describe_sources' },
-  { label: 'Preview matter context', command: '/context_preview' },
-  { label: 'Find in matter', command: '/context_search' },
-  { label: 'Create list of dates', command: '/create_listofdates' },
-  { label: 'Check matter', command: '/doctor' },
-];
+import { SIDEBAR_NATIVE_COMMANDS } from '../../lib/nativeCommands';
 
 interface Props {
   onNewMatter: () => void;
@@ -69,10 +59,10 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
           <details className="slash-section matter-actions-section">
             <summary className="matter-actions-summary">
               <span className="tree-heading">Matter Actions</span>
-              <span className="matter-actions-count">{SLASH_SKILLS.length} actions</span>
+              <span className="matter-actions-count">{SIDEBAR_NATIVE_COMMANDS.length} actions</span>
             </summary>
             <div className="matter-actions-list">
-              {SLASH_SKILLS.map((s) => (
+              {SIDEBAR_NATIVE_COMMANDS.map((s) => (
                 <button
                   key={s.command}
                   className="slash-skill"

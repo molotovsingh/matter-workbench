@@ -512,6 +512,12 @@ They were contract fixes:
   inline casts.
 - the rerun-confirmation API shape is shared from `react-ui/src/types/index.ts`
   instead of being duplicated in the dialog and API client.
+- React native-command labels, sidebar actions, command suggestions, and
+  workflow routing now come from `react-ui/src/lib/nativeCommands.ts`. That is
+  deliberately boring but important: if we rename `/describe_sources` from a
+  technical slash command to a lawyer-facing label like "Label sources," the
+  sidebar, command box, and matter overview should not drift into three
+  slightly different vocabularies.
 - terminal history is bounded, theme storage is fail-safe, clipboard writes
   have a browser fallback, and AI settings save failures show inline errors.
 
@@ -547,6 +553,7 @@ Important files:
 - `frontend/status.js` - status output.
 - `react-ui/src/App.tsx` - React shell composition for the imported UI track;
 - `react-ui/src/api/client.ts` - React UI API adapter against the same backend contract;
+- `react-ui/src/lib/nativeCommands.ts` - one source of truth for native command labels, routing views, sidebar actions, command suggestions, and local-vs-AI badges;
 - `react-ui/src/components/command/CommandPanel.tsx` - React version of the command rail;
 - `react-ui/src/components/RerunConfirmDialog.tsx` - React rerun confirmation dialog;
 - `react-ui/src/views/MatterOverview.tsx` - React matter overview and readiness surface;
