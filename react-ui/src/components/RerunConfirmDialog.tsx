@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import type { RerunAdvice, RerunAdviceAction } from '../types';
 
 interface Props {
@@ -59,7 +60,7 @@ export default function RerunConfirmDialog({
     ? new Date(advice.lastRunAt).toLocaleString()
     : '—';
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ') || '—';
-  const heading = advice.state === 'unknown' ? 'Could not verify current output' : title;
+  const heading = advice.state === RERUN_ADVICE_STATES.UNKNOWN ? 'Could not verify current output' : title;
   const actions = typeof extraActions === 'function' ? extraActions(advice) : extraActions;
   const normalizedActions = Array.isArray(actions) ? actions : [];
 
@@ -106,7 +107,7 @@ function rerunAdviceUnavailable(skill: string, error: unknown): RerunAdvice {
   const message = getErrorMessage(error);
   return {
     skill,
-    state: 'unknown',
+    state: RERUN_ADVICE_STATES.UNKNOWN,
     shouldConfirm: true,
     artifactPath: '',
     message: [

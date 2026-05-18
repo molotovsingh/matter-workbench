@@ -1136,6 +1136,8 @@ The freshness logic now lives in `services/matter-rerun-advice-service.mjs`, sep
 
 The browser has a matching constants module at `frontend/listofdates-dependency-state.js`, so UI affordances like `Refresh labels only` do not depend on hand-typed strings scattered across different views.
 
+The same rule now applies to rerun-advice states. The backend emits `current`, `stale`, `missing`, `failed`, `missing_upstream`, or `unknown` from `shared/rerun-advice-states.mjs`; React keeps a typed mirror, and the React smoke test compares both lists. This is not ceremony. These tiny strings decide whether the lawyer sees "up to date", "needs update", "waiting on earlier step", or a warning dialog before a paid run. If one UI invents a seventh state or misspells one, the app can become confident in the wrong moment.
+
 The canonical Library artifact paths now live in `shared/matter-artifacts.mjs`. That means status cards, context packets, and rerun advice all agree on `10_Library/Source Index.json` and the List of Dates artifacts from one source of truth.
 
 The source-label rules themselves now live in `shared/source-labels.mjs`. That is a small but important foundation: Source Index readers, List of Dates generation, label refresh, and context packets all resolve labels the same way. A confirmed or overridden lawyer label wins; unsafe labels containing `FILE-0001` style identifiers are not promoted into lawyer-facing fields. This is how you prevent one surface from being polished while another leaks internal names.

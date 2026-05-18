@@ -5,6 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../lib/listOfDatesDependencyState';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
+import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import type {
   PipelineStage,
   RerunAdvice,
@@ -178,7 +179,7 @@ function StageAiRun({ aiRun }: { aiRun?: PipelineStage['aiRun'] }) {
 
 function StageRerunHint({ stage }: { stage: PipelineStage }) {
   const advice = stage.rerunAdvice!;
-  const state = advice.state || 'unknown';
+  const state = advice.state || RERUN_ADVICE_STATES.UNKNOWN;
   const stateLabel = rerunStateLabel(state);
   const hint = rerunHintText(advice);
   const meta = rerunHintMeta(stage, advice);
@@ -370,19 +371,19 @@ function stagePill(stage: PipelineStage): string {
 }
 
 const RERUN_STATE_LABELS = {
-  current: 'Up to date',
-  stale: 'Needs update',
-  missing: 'Not started',
-  failed: 'Needs attention',
-  missing_upstream: 'Waiting on earlier step',
+  [RERUN_ADVICE_STATES.CURRENT]: 'Up to date',
+  [RERUN_ADVICE_STATES.STALE]: 'Needs update',
+  [RERUN_ADVICE_STATES.MISSING]: 'Not started',
+  [RERUN_ADVICE_STATES.FAILED]: 'Needs attention',
+  [RERUN_ADVICE_STATES.MISSING_UPSTREAM]: 'Waiting on earlier step',
 } as const;
 
 const RERUN_STATE_CLASSES = {
-  current: 'current',
-  stale: 'stale',
-  missing: 'missing',
-  failed: 'failed',
-  missing_upstream: 'missing-upstream',
+  [RERUN_ADVICE_STATES.CURRENT]: 'current',
+  [RERUN_ADVICE_STATES.STALE]: 'stale',
+  [RERUN_ADVICE_STATES.MISSING]: 'missing',
+  [RERUN_ADVICE_STATES.FAILED]: 'failed',
+  [RERUN_ADVICE_STATES.MISSING_UPSTREAM]: 'missing-upstream',
 } as const;
 
 const ATTENTION_STATE_CLASSES = {
@@ -418,7 +419,7 @@ function rerunStateClass(state: string): string {
 }
 
 function rerunHintText(advice: RerunAdvice): string {
-  if (advice.state === 'stale') {
+  if (advice.state === RERUN_ADVICE_STATES.STALE) {
     if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return 'Source labels changed after this chronology was rendered. A label refresh should be enough; AI chronology regeneration is not required unless the legal facts changed.';
     }
@@ -431,13 +432,13 @@ function rerunHintText(advice: RerunAdvice): string {
   if (advice.shouldConfirm) {
     return 'An output document already exists. The app will ask before replacing it or starting a paid AI action.';
   }
-  if (advice.state === 'missing') {
+  if (advice.state === RERUN_ADVICE_STATES.MISSING) {
     return 'No output document exists yet; the next run will create one.';
   }
-  if (advice.state === 'failed') {
+  if (advice.state === RERUN_ADVICE_STATES.FAILED) {
     return 'The existing output metadata could not be read. Review the current file before regenerating.';
   }
-  if (advice.state === 'missing_upstream') {
+  if (advice.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) {
     return 'Required source material is missing. Complete the earlier step before creating this work product.';
   }
   return advice.reason || 'Review the existing output document before regenerating.';

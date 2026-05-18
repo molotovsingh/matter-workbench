@@ -1,4 +1,5 @@
 import { getJson } from "./api-client.js";
+import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 
 export async function confirmCurrentArtifactRerun({
   ctx,
@@ -22,7 +23,7 @@ export async function confirmCurrentArtifactRerun({
   const { breadcrumbs, editorContent } = ctx.elements;
   ctx.setActivityActive("explorer");
   breadcrumbs.textContent = title;
-  const statusMessage = advice.state === "unknown"
+  const statusMessage = advice.state === RERUN_ADVICE_STATES.UNKNOWN
     ? "Rerun status could not be checked."
     : `${escapeHtml(advice.skill || skill)} already has a current output document.`;
   ctx.setStatus({
@@ -64,7 +65,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
     cancelLabel = "Keep current",
     extraActions = [],
   } = options;
-  const heading = advice.state === "unknown" ? "Could not verify current output" : "Review current output before regenerating";
+  const heading = advice.state === RERUN_ADVICE_STATES.UNKNOWN ? "Could not verify current output" : "Review current output before regenerating";
   const skill = advice.skill || "This skill";
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
   const details = [
@@ -72,7 +73,7 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
     ["Output document", advice.artifactPath || "Unknown", true],
     ["Last run", advice.lastRunAt || "Unknown", false],
     ["Provider / model", providerModel || "Unknown", false],
-    ["State", advice.state || "current", false],
+    ["State", advice.state || RERUN_ADVICE_STATES.CURRENT, false],
   ];
 
   return `
@@ -113,7 +114,7 @@ export function fallbackRerunMessage(advice) {
 function rerunAdviceUnavailable(skill, error) {
   return {
     skill,
-    state: "unknown",
+    state: RERUN_ADVICE_STATES.UNKNOWN,
     shouldConfirm: true,
     artifactPath: "",
     message: [

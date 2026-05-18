@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import {
   SKILL_CREATION_OVERLAP_BLOCKING_DECISIONS,
   SKILL_CREATION_OVERLAP_BLOCKING_RECOMMENDED_ACTIONS,
@@ -13,6 +14,7 @@ const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
+const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 
 const checks = [];
@@ -78,6 +80,17 @@ async function run() {
     );
   } catch (error) {
     fail("React List of Dates dependency states are readable", error.message);
+  }
+
+  try {
+    const reactStates = await readReactRerunAdviceStates();
+    assert(
+      sameObjectEntries(reactStates, RERUN_ADVICE_STATES),
+      "React rerun advice states match shared contract",
+      objectDiffDetail(reactStates, RERUN_ADVICE_STATES),
+    );
+  } catch (error) {
+    fail("React rerun advice states are readable", error.message);
   }
 
   try {
@@ -306,6 +319,11 @@ async function readReactNativeCommands() {
 
 async function readReactListOfDatesDependencyStates() {
   const source = await readFile(reactListOfDatesDependencyStatePath, "utf8");
+  return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
+}
+
+async function readReactRerunAdviceStates() {
+  const source = await readFile(reactRerunAdviceStatePath, "utf8");
   return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
 }
 

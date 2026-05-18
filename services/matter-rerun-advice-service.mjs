@@ -11,6 +11,7 @@ import {
   classifyListOfDatesDependencyState,
   LIST_OF_DATES_DEPENDENCY_STATES,
 } from "./listofdates-dependency-state.mjs";
+import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 
 export {
   LIST_OF_DATES_JSON_RELATIVE,
@@ -81,13 +82,13 @@ function buildRerunAdvice({
   classifyStaleDependency = null,
 }) {
   if (!target.exists) {
-    return baseRerunAdvice({ skill, label, state: "missing", shouldConfirm: false });
+    return baseRerunAdvice({ skill, label, state: RERUN_ADVICE_STATES.MISSING, shouldConfirm: false });
   }
   if (!target.valid) {
     return baseRerunAdvice({
       skill,
       label,
-      state: "failed",
+      state: RERUN_ADVICE_STATES.FAILED,
       shouldConfirm: false,
       artifactPath: target.relativePath,
     });
@@ -96,7 +97,7 @@ function buildRerunAdvice({
     return baseRerunAdvice({
       skill,
       label,
-      state: "missing_upstream",
+      state: RERUN_ADVICE_STATES.MISSING_UPSTREAM,
       shouldConfirm: false,
       artifactPath: target.relativePath,
       lastRunAt: artifactRunTime(target),
@@ -116,7 +117,7 @@ function buildRerunAdvice({
     const advice = baseRerunAdvice({
       skill,
       label,
-      state: "stale",
+      state: RERUN_ADVICE_STATES.STALE,
       shouldConfirm: labelRefreshOnly,
       artifactPath: target.relativePath,
       lastRunAt: artifactRunTime(target),
@@ -137,7 +138,7 @@ function buildRerunAdvice({
   const advice = baseRerunAdvice({
     skill,
     label,
-    state: "current",
+    state: RERUN_ADVICE_STATES.CURRENT,
     shouldConfirm: true,
     artifactPath: target.relativePath,
     lastRunAt,
