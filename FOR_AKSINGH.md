@@ -493,6 +493,33 @@ This means the separate `matter-workbench-react-ui-claude` repo is no longer a
 source of truth. Keep it only as a temporary backup until we are comfortable
 deleting it.
 
+The React track has also been hardened against the exact kind of drift that
+usually makes frontend ports painful. The important fixes were not cosmetic.
+They were contract fixes:
+
+- API response shapes now match the real backend instead of the prototype's
+  imagined shapes.
+- React API errors are parsed in one place, so `{ error: "..." }`,
+  `{ message: "..." }`, plain-text failures, and empty responses all become
+  readable UI errors.
+- thrown values are normalized through `react-ui/src/lib/errors.ts` instead of
+  assuming every failure is a normal JavaScript `Error`.
+- active views are now a typed union instead of arbitrary strings, which caught
+  a real dead route: `/matter-init` was pointing at a nonexistent React view.
+  It now opens the preparation workflow, where setup belongs.
+- status and severity labels use typed lookup helpers instead of scattered
+  inline casts.
+- the rerun-confirmation API shape is shared from `react-ui/src/types/index.ts`
+  instead of being duplicated in the dialog and API client.
+- terminal history is bounded, theme storage is fail-safe, clipboard writes
+  have a browser fallback, and AI settings save failures show inline errors.
+
+The engineering lesson is simple: a React port is not "ready" because it
+renders. It is ready only when it speaks the backend contract faithfully, fails
+readably, and has acceptance checks that catch drift before a lawyer clicks
+through a broken workflow. That is why `npm run ui:accept` exists. It builds,
+type-checks, and smoke-tests the React app against the live backend shape.
+
 Important files:
 
 - `index.html` - app shell;
