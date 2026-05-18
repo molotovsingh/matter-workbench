@@ -1277,6 +1277,8 @@ The same guard now covers Add Files and Activity output previews. Add Files capt
 
 The React port also no longer suppresses hook dependency checks in source. Where a component intentionally needs "latest callback, but do not restart this request," it now uses a ref; where a request should cancel on unmount or matter change, the effect owns a cancellation flag. This is less about lint neatness and more about making async behavior explicit before React becomes the primary shell.
 
+React Skill Factory now has the same explicit boundary around edited skill ideas. A generated sample belongs to the saved design brief and the selected test matter. If the user edits answers after saving, React marks the old sample path as dirty, saves the updated brief before generating the next sample, and refuses to create a skill from a stale sample. It also ignores a late sample response if the active matter changed while the provider call was running. The lesson is that "Looks useful" is not just a button click; it is a contract between a specific brief, a specific sample, and a specific matter context.
+
 ## Contract Lesson: State Names Are Architecture Too
 
 The List of Dates freshness states now have a shared home in `shared/listofdates-dependency-states.mjs`. These values look like tiny strings, but they carry a real product distinction:

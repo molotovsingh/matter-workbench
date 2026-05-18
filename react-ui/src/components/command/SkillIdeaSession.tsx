@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type SetStateAction } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { useLatestValue } from '../../hooks/useLatestValue';
 import { writeClipboardText } from '../../lib/clipboard';
 import { getErrorMessage } from '../../lib/errors';
 import {
@@ -11,6 +12,7 @@ import {
 import { classifySkillIdeaSessionInput } from '../../lib/skillIdeaSessionCommands';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import { SKILL_IDEA_STATUS } from '../../lib/skillIdeaStatuses';
+import { isSkillSampleStaleState, SKILL_SAMPLE_STATE } from '../../lib/skillSampleStates';
 import {
   buildSkillIdeaDesignBrief,
   findSkillIdeaSampleByVersion,
@@ -24,7 +26,7 @@ import {
   SIMPLE_SKILL_IDEA_QUESTIONS,
   type InterviewQuestion,
 } from '../../lib/skillIdeaSession';
-import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision } from '../../types';
+import type { SkillIdea, SkillIdeaDesignBrief, SkillInterviewPlanResponse, SkillRouterDecision, SkillSampleOutputResponse } from '../../types';
 
 interface SessionState {
   phase: 'planning' | 'interviewing' | 'ready' | 'saving' | 'saved' | 'sampling' | 'sampled' | 'creating' | 'created';
@@ -41,6 +43,7 @@ interface SessionState {
   savedIdea: SkillIdea | null;
   designBrief: SkillIdeaDesignBrief | null;
   sample: { id: string; output: string; warnings?: string[]; approved?: boolean; version?: number; state?: string } | null;
+  answersDirtySinceSave: boolean;
   overlapGate: { decision: SkillRouterDecision; userRequest: string } | null;
   overlapJustification: string;
   createdSkill: { slash?: string; name?: string } | null;
@@ -58,6 +61,8 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
   const { state, appendTerminal, dispatch } = useApp();
   const ideaText = parseSkillIdeaText(initialInput) ?? initialInput;
   const planningStarted = useRef(false);
+  const mountedRef = useRef(true);
+  const activeMatterRef = useLatestValue(state.activeMatter);
   const hasMatter = hasSkillIdeaTestMatter(state.activeMatter);
 
   const [session, setSession] = useState<SessionState>({
@@ -75,12 +80,21 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     savedIdea: null,
     designBrief: null,
     sample: null,
+    answersDirtySinceSave: false,
     overlapGate: null,
     overlapJustification: '',
     createdSkill: null,
     notice: null,
     error: null,
   });
+
+  const safeSetSession = useCallback((updater: SetStateAction<SessionState>) => {
+    if (mountedRef.current) setSession(updater);
+  }, []);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   useEffect(() => {
     if (planningStarted.current) return;
@@ -94,7 +108,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           skillIdea: { text: ideaText },
         });
         const planned = normalizePlannedSkillIdeaInterview(result, ideaText);
-        setSession((s) => ({
+        safeSetSession((s) => ({
           ...s,
           phase: planned.questions.length ? 'interviewing' : 'ready',
           understoodText: planned.understoodText,
@@ -107,7 +121,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         }));
         appendTerminal([formatSkillIdeaPlannerTerminalLine(result)]);
       } catch (e) {
-        setSession((s) => ({
+        safeSetSession((s) => ({
           ...s,
           phase: 'interviewing',
           questions: SIMPLE_SKILL_IDEA_QUESTIONS,
@@ -117,18 +131,29 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         appendTerminal([`[skill-idea] planner unavailable; using basic interview: ${getErrorMessage(e)}`]);
       }
     }
-  }, [appendTerminal, ideaText, initialInput]);
+  }, [appendTerminal, ideaText, initialInput, safeSetSession]);
 
   const handleAnswer = useCallback((answer: string) => {
-    setSession((s) => {
+    safeSetSession((s) => {
       const q = s.questions[s.questionIndex];
       if (!q) return { ...s, phase: 'ready' };
       const newAnswers = { ...s.answers, [q.id]: answer };
       const nextIndex = s.questionIndex + 1;
       const allDone = nextIndex >= s.questions.length;
-      return { ...s, answers: newAnswers, questionIndex: nextIndex, phase: allDone ? 'ready' : 'interviewing' };
+      const editingSavedIdea = Boolean(s.savedIdeaId);
+      return {
+        ...s,
+        answers: newAnswers,
+        questionIndex: nextIndex,
+        phase: allDone ? 'ready' : 'interviewing',
+        answersDirtySinceSave: editingSavedIdea || s.answersDirtySinceSave,
+        sample: editingSavedIdea ? markSkillIdeaSampleStale(s.sample) : s.sample,
+        createdSkill: editingSavedIdea ? null : s.createdSkill,
+        overlapGate: editingSavedIdea ? null : s.overlapGate,
+        overlapJustification: editingSavedIdea ? '' : s.overlapJustification,
+      };
     });
-  }, []);
+  }, [safeSetSession]);
 
   async function persistCurrentIdea() {
     const updatingExistingIdea = Boolean(session.savedIdeaId);
@@ -149,17 +174,18 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
   async function handleSave() {
     const hadSample = Boolean(session.sample);
-    setSession((s) => ({ ...s, phase: 'saving', notice: null, error: null }));
+    safeSetSession((s) => ({ ...s, phase: 'saving', notice: null, error: null }));
     appendTerminal(['[skill-idea] saving idea…']);
     try {
       const { brief, savedIdea, updatingExistingIdea } = await persistCurrentIdea();
-      setSession((s) => ({
+      safeSetSession((s) => ({
         ...s,
         phase: 'saved',
         savedIdeaId: savedIdea.id,
         savedIdea,
         designBrief: brief,
         sample: updatingExistingIdea ? null : s.sample,
+        answersDirtySinceSave: false,
         overlapGate: null,
         overlapJustification: '',
         createdSkill: updatingExistingIdea ? null : s.createdSkill,
@@ -169,13 +195,15 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       }));
       appendTerminal([`[skill-idea] ${updatingExistingIdea ? 'updated' : 'saved'} — id: ${savedIdea.id}`]);
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'ready', error: getErrorMessage(e) }));
+      safeSetSession((s) => ({ ...s, phase: 'ready', error: getErrorMessage(e) }));
     }
   }
 
   async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
-    if (!hasSkillIdeaTestMatter(state.activeMatter)) {
-      setSession((s) => ({
+    const startingMatter = state.activeMatter;
+    const startingMatterFolder = startingMatter?.folderName || '';
+    if (!hasSkillIdeaTestMatter(startingMatter)) {
+      safeSetSession((s) => ({
         ...s,
         phase: s.savedIdeaId ? 'saved' : 'ready',
         notice: 'Pick a test matter before generating sample output.',
@@ -185,12 +213,12 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       return;
     }
     const hadSavedIdea = Boolean(session.savedIdeaId && session.savedIdea);
-    setSession((s) => ({ ...s, phase: 'sampling', overlapGate: null, overlapJustification: '', notice: null, error: null }));
+    safeSetSession((s) => ({ ...s, phase: 'sampling', overlapGate: null, overlapJustification: '', notice: null, error: null }));
     try {
       let savedIdea = session.savedIdea;
       let savedIdeaId = session.savedIdeaId;
-      if (!savedIdea || !savedIdeaId) {
-        appendTerminal(['[skill-idea] saving idea before sample…']);
+      if (!savedIdea || !savedIdeaId || session.answersDirtySinceSave) {
+        appendTerminal([session.answersDirtySinceSave ? '[skill-idea] saving updated idea before sample…' : '[skill-idea] saving idea before sample…']);
         const saved = await persistCurrentIdea();
         savedIdea = saved.savedIdea;
         savedIdeaId = saved.savedIdea.id;
@@ -201,14 +229,31 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         feedback,
         previousSample,
       });
+      const latestMatterFolder = activeMatterRef.current?.folderName || '';
+      const resultMatterFolder = generatedSampleMatterFolder(result);
+      if (latestMatterFolder !== startingMatterFolder || (resultMatterFolder && resultMatterFolder !== startingMatterFolder)) {
+        safeSetSession((s) => ({
+          ...s,
+          phase: savedIdeaId ? 'saved' : 'ready',
+          savedIdeaId,
+          savedIdea,
+          designBrief: savedIdea?.designBrief || s.designBrief,
+          answersDirtySinceSave: false,
+          notice: 'Sample finished for a different matter context. Pick the test matter again and regenerate before creating the skill.',
+          error: null,
+        }));
+        appendTerminal(['[skill-idea] ignored sample result after matter changed']);
+        return;
+      }
       const sampleId = result.sample_id || result.storedSample?.id || '';
       const output = result.sample_markdown || result.storedSample?.sampleMarkdown || '';
-      setSession((s) => ({
+      safeSetSession((s) => ({
         ...s,
         phase: 'sampled',
         savedIdeaId,
         savedIdea,
         designBrief: savedIdea?.designBrief || s.designBrief,
+        answersDirtySinceSave: false,
         sample: sampleId && output
           ? {
               id: sampleId,
@@ -216,20 +261,28 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
               warnings: result.warnings || result.storedSample?.warnings,
               version: result.storedSample?.version,
               approved: result.storedSample?.approved,
-              state: result.storedSample?.state,
+              state: result.storedSample?.state || SKILL_SAMPLE_STATE.CURRENT,
             }
           : null,
         notice: null,
       }));
       appendTerminal(['[skill-idea] sample ready']);
     } catch (e) {
-      setSession((s) => ({ ...s, phase: hadSavedIdea ? 'saved' : 'ready', error: getErrorMessage(e) }));
+      safeSetSession((s) => ({ ...s, phase: hadSavedIdea ? 'saved' : 'ready', error: getErrorMessage(e) }));
     }
   }
 
   async function handleApproveSample(overlapOverrideJustification = '') {
     if (!session.savedIdeaId || !session.sample) return;
-    setSession((s) => ({ ...s, phase: 'creating', error: null }));
+    if (session.answersDirtySinceSave) {
+      showSessionGuidance('Save updates and generate a fresh sample before creating the skill.');
+      return;
+    }
+    if (isSkillSampleStaleState(session.sample.state)) {
+      showSessionGuidance('Regenerate the sample after the design brief changes before creating the skill.');
+      return;
+    }
+    safeSetSession((s) => ({ ...s, phase: 'creating', error: null }));
     appendTerminal(['[skill-idea] approving sample and checking skill overlap…']);
     try {
       if (!session.sample.approved) {
@@ -239,7 +292,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       if (!overlapCleared) return;
       appendTerminal(['[skill-idea] creating skill from approved sample…']);
       const result = await api.createSkillFromIdea(session.savedIdeaId, { overlapOverrideJustification });
-      setSession((s) => ({
+      safeSetSession((s) => ({
         ...s,
         phase: 'created',
         overlapGate: null,
@@ -250,7 +303,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.title}`]);
       dispatch({ type: 'SET_TAB', payload: 'skills' });
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));
+      safeSetSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));
     }
   }
 
@@ -260,7 +313,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     if (!userRequest.trim()) return true;
     const decision = await api.checkIntent({ userRequest, overrideJustification: overlapOverrideJustification });
     if (!isBlockingSkillOverlapDecision(decision, overlapOverrideJustification)) return true;
-    setSession((s) => ({
+    safeSetSession((s) => ({
       ...s,
       phase: 'sampled',
       sample: s.sample ? { ...s.sample, approved: true } : s.sample,
@@ -279,11 +332,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         approved: session.sample.approved,
       }));
       appendTerminal(['[skill-idea] sample copied']);
-      setSession((s) => ({ ...s, error: null }));
+      safeSetSession((s) => ({ ...s, error: null }));
     } catch (e) {
       const message = getErrorMessage(e);
       appendTerminal([`[skill-idea] sample copy failed: ${message}`]);
-      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+      safeSetSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
     }
   }
 
@@ -304,11 +357,11 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         approved: sample.approved,
       }));
       appendTerminal([`[skill-idea] copied sample v${version}`]);
-      setSession((s) => ({ ...s, error: null }));
+      safeSetSession((s) => ({ ...s, error: null }));
     } catch (e) {
       const message = getErrorMessage(e);
       appendTerminal([`[skill-idea] sample version copy failed: ${message}`]);
-      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+      safeSetSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
     }
   }
 
@@ -324,16 +377,16 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       });
       await writeClipboardText(formatSkillIdeaReviewPacket(session.savedIdea, registry));
       appendTerminal([`[skill-idea] copied review packet for ${session.savedIdea.id}`]);
-      setSession((s) => ({ ...s, error: null }));
+      safeSetSession((s) => ({ ...s, error: null }));
     } catch (e) {
       const message = getErrorMessage(e);
       appendTerminal([`[skill-idea] review packet copy failed: ${message}`]);
-      setSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
+      safeSetSession((s) => ({ ...s, error: `Copy failed: ${message}` }));
     }
   }
 
   function handleEditAnswers() {
-    setSession((s) => ({
+    safeSetSession((s) => ({
       ...s,
       phase: s.questions.length ? 'interviewing' : 'ready',
       questionIndex: 0,
@@ -348,32 +401,33 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       showSessionGuidance('Complete every readiness item before marking ready for review.');
       return;
     }
-    setSession((s) => ({ ...s, notice: null, error: null }));
+    safeSetSession((s) => ({ ...s, notice: null, error: null }));
     try {
       const payload = await api.updateSkillIdeaStatus(session.savedIdeaId, { status: SKILL_IDEA_STATUS.READY_FOR_REVIEW });
       appendTerminal([`[skill-idea] marked ready for review — id: ${session.savedIdeaId}`]);
-      setSession((s) => ({
+      safeSetSession((s) => ({
         ...s,
         savedIdea: payload.idea || (s.savedIdea ? { ...s.savedIdea, status: SKILL_IDEA_STATUS.READY_FOR_REVIEW } : s.savedIdea),
         notice: 'Marked ready for review. Open Skills to review the saved idea.',
       }));
     } catch (e) {
-      setSession((s) => ({ ...s, error: getErrorMessage(e) }));
+      safeSetSession((s) => ({ ...s, error: getErrorMessage(e) }));
     }
   }
 
   function showSessionGuidance(message: string) {
-    setSession((s) => ({ ...s, notice: message, error: null }));
+    safeSetSession((s) => ({ ...s, notice: message, error: null }));
   }
 
   function handleSessionCommand(input: string): boolean {
+    const sampleIsCurrent = Boolean(session.sample && !session.answersDirtySinceSave && !isSkillSampleStaleState(session.sample.state));
     const ready = session.phase !== 'planning' && session.phase !== 'interviewing'
       && session.phase !== 'saving' && session.phase !== 'sampling' && session.phase !== 'creating';
     const command = classifySkillIdeaSessionInput(input, {
       ready,
       hasSavedIdea: Boolean(session.savedIdeaId),
       hasActiveSample: Boolean(session.sample),
-      sampleApproved: Boolean(session.sample?.approved),
+      sampleApproved: Boolean(session.sample?.approved && sampleIsCurrent),
     });
 
     if (command.action === 'cancel') {
@@ -641,7 +695,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
                 <span>Why should this be a separate custom skill?</span>
                 <textarea
                   value={session.overlapJustification}
-                  onChange={(e) => setSession((s) => ({ ...s, overlapJustification: e.target.value }))}
+                  onChange={(e) => safeSetSession((s) => ({ ...s, overlapJustification: e.target.value }))}
                   placeholder="Example: This creates a separate workshop issue review, not a Library chronology."
                   rows={3}
                 />
@@ -657,7 +711,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
                 <button
                   type="button"
                   className="secondary"
-                  onClick={() => setSession((s) => ({ ...s, overlapGate: null, overlapJustification: '', error: null }))}
+                  onClick={() => safeSetSession((s) => ({ ...s, overlapGate: null, overlapJustification: '', error: null }))}
                 >
                   Park for later
                 </button>
@@ -689,4 +743,19 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       )}
     </div>
   );
+}
+
+function markSkillIdeaSampleStale(sample: SessionState['sample']): SessionState['sample'] {
+  if (!sample) return null;
+  return {
+    ...sample,
+    approved: false,
+    state: sample.approved ? SKILL_SAMPLE_STATE.APPROVED_STALE : SKILL_SAMPLE_STATE.STALE,
+  };
+}
+
+function generatedSampleMatterFolder(result: SkillSampleOutputResponse): string {
+  const storedSample = result.storedSample as { matter?: Record<string, unknown> } | undefined;
+  const matter = result.matter || storedSample?.matter || {};
+  return String(matter.folder_name || matter.folderName || '').trim();
 }

@@ -14,6 +14,20 @@ test("React skill idea session gates ready-for-review on backend readiness", asy
   assert.match(source, /savedIdea: payload\.idea \|\|/);
 });
 
+test("React skill idea session keeps samples tied to the saved design brief and matter", async () => {
+  const source = await readFile(skillIdeaSessionPath, "utf8");
+
+  assert.match(source, /answersDirtySinceSave: boolean/);
+  assert.match(source, /answersDirtySinceSave: editingSavedIdea \|\| s\.answersDirtySinceSave/);
+  assert.match(source, /markSkillIdeaSampleStale\(s\.sample\)/);
+  assert.match(source, /if \(!savedIdea \|\| !savedIdeaId \|\| session\.answersDirtySinceSave\) \{/);
+  assert.match(source, /saving updated idea before sample/);
+  assert.match(source, /Save updates and generate a fresh sample before creating the skill\./);
+  assert.match(source, /Regenerate the sample after the design brief changes before creating the skill\./);
+  assert.match(source, /generatedSampleMatterFolder\(result\)/);
+  assert.match(source, /ignored sample result after matter changed/);
+});
+
 test("React API client types skill idea status updates as idea responses", async () => {
   const source = await readFile(apiClientPath, "utf8");
 
