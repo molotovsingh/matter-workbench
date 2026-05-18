@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [formModel, setFormModel] = useState('');
   const [formMaxTokens, setFormMaxTokens] = useState('3000');
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string; model?: string; latency?: number } | null>(null);
+  const [aiSaveError, setAiSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -63,6 +64,7 @@ export default function SettingsPage() {
   async function handleSaveAi(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setAiSaveError('');
     try {
       await api.saveAiSettings({
         provider: formProvider,
@@ -76,7 +78,7 @@ export default function SettingsPage() {
       setFormApiKey('');
       appendTerminal(['[settings] AI settings saved']);
     } catch (err) {
-      alert(`Save failed: ${(err as Error).message}`);
+      setAiSaveError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -240,6 +242,8 @@ export default function SettingsPage() {
                     : testResult.error}
                 </div>
               )}
+
+              {aiSaveError && <div className="form-warning">{aiSaveError}</div>}
 
               <div className="form-actions">
                 <button type="submit" disabled={saving}>
