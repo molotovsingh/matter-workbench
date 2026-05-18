@@ -7,6 +7,9 @@ import {
   type ReactNode,
 } from 'react';
 import type { AppState, ActiveMatter, Matter, ActiveTab, ActiveView, FilePreview } from '../types';
+import { api } from '../api/client';
+import { activeMatterFromWorkspace } from '../lib/activeMatter';
+import { getErrorMessage } from '../lib/errors';
 
 type Action =
   | { type: 'SET_CONFIG'; payload: Partial<AppState> }
@@ -106,6 +109,7 @@ interface AppContextValue {
   toggleTheme: () => void;
   setActiveMatter: (matter: ActiveMatter | null) => void;
   clearActiveMatter: () => void;
+  refreshActiveMatterWorkspace: (opts?: { reason?: string; successMessage?: string; failurePrefix?: string }) => Promise<ActiveMatter | null>;
   appendTerminal: (lines: string[]) => void;
   setStatus: (opts: { bar?: string; terminal?: string[] }) => void;
   commandPanelRef: React.RefObject<HTMLInputElement | null>;
@@ -153,6 +157,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'APPEND_TERMINAL', payload: lines });
   }, []);
 
+  const refreshActiveMatterWorkspace = useCallback(async ({
+    reason = '',
+    successMessage = '',
+    failurePrefix = '[workspace] refresh failed',
+  }: { reason?: string; successMessage?: string; failurePrefix?: string } = {}) => {
+    if (!state.activeMatter) return null;
+    if (reason) appendTerminal([reason]);
+    try {
+      const workspace = await api.getWorkspace();
+      const refreshed = activeMatterFromWorkspace(workspace, state.activeMatter.name);
+      setActiveMatter(refreshed);
+      appendTerminal([successMessage || `[workspace] refreshed — ${workspace.fileCount} files, ${workspace.directoryCount} folders`]);
+      return refreshed;
+    } catch (e) {
+      appendTerminal([`${failurePrefix}: ${getErrorMessage(e)}`]);
+      return null;
+    }
+  }, [appendTerminal, setActiveMatter, state.activeMatter]);
+
   const setStatus = useCallback((opts: { bar?: string; terminal?: string[] }) => {
     if (opts.bar) dispatch({ type: 'SET_STATUS_BAR', payload: opts.bar });
     if (opts.terminal) dispatch({ type: 'APPEND_TERMINAL', payload: opts.terminal });
@@ -165,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleTheme,
     setActiveMatter,
     clearActiveMatter,
+    refreshActiveMatterWorkspace,
     appendTerminal,
     setStatus,
     commandPanelRef,

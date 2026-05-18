@@ -2,7 +2,6 @@ import { useApp } from '../../store/AppContext';
 import MatterPicker from '../matters/MatterPicker';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api } from '../../api/client';
-import { activeMatterFromWorkspace } from '../../lib/activeMatter';
 import { getErrorMessage } from '../../lib/errors';
 import { SIDEBAR_NATIVE_COMMANDS } from '../../lib/nativeCommands';
 
@@ -13,7 +12,7 @@ interface Props {
 }
 
 export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props) {
-  const { state, dispatch, setActiveMatter, appendTerminal } = useApp();
+  const { state, clearActiveMatter, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const { activeTab, activeMatter } = state;
 
   let title = 'Home';
@@ -23,14 +22,11 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
 
   async function handleRefresh() {
     if (!activeMatter) return;
-    appendTerminal(['[workspace] refreshing…']);
-    try {
-      const ws = await api.getWorkspace();
-      setActiveMatter(activeMatterFromWorkspace(ws, activeMatter.name));
-      appendTerminal(['[workspace] refreshed']);
-    } catch (e) {
-      appendTerminal([`[workspace] error: ${getErrorMessage(e)}`]);
-    }
+    await refreshActiveMatterWorkspace({
+      reason: '[workspace] refreshing…',
+      successMessage: '[workspace] refreshed',
+      failurePrefix: '[workspace] error',
+    });
   }
 
   async function handleClearMatter() {
@@ -39,11 +35,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
     } catch (e) {
       appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(e)}`]);
     }
-    dispatch({ type: 'SET_ACTIVE_MATTER', payload: null });
-    dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
-    dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
-    dispatch({ type: 'SET_STATUS_BAR', payload: 'Pick a matter to begin' });
-    dispatch({ type: 'SET_ACTIVE_FILE', payload: null });
+    clearActiveMatter();
   }
 
   return (

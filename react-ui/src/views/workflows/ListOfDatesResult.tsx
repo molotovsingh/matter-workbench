@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-import { activeMatterFromWorkspace } from '../../lib/activeMatter';
 import { getErrorMessage } from '../../lib/errors';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../../lib/listOfDatesDependencyState';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
 
 export default function ListOfDatesResult() {
-  const { state, appendTerminal, setActiveMatter } = useApp();
+  const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [entries, setEntries] = useState<ChronologyEntry[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
@@ -33,7 +32,7 @@ export default function ListOfDatesResult() {
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
-      await refreshMatterWorkspace();
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after List of Dates update' });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -52,23 +51,13 @@ export default function ListOfDatesResult() {
       setEntries(result.entries ?? []);
       setDone(true);
       appendTerminal([`[list-of-dates] refreshed labels for ${result.entries?.length ?? 0} entries`]);
-      await refreshMatterWorkspace();
+      await refreshActiveMatterWorkspace({ failurePrefix: '[workspace] refresh failed after List of Dates update' });
     } catch (e) {
       const message = getErrorMessage(e);
       setError(message);
       appendTerminal([`[list-of-dates] label refresh failed: ${message}`]);
     } finally {
       setRunning(false);
-    }
-  }
-
-  async function refreshMatterWorkspace() {
-    if (!state.activeMatter) return;
-    try {
-      const workspace = await api.getWorkspace();
-      setActiveMatter(activeMatterFromWorkspace(workspace, state.activeMatter.name));
-    } catch (e) {
-      appendTerminal([`[workspace] refresh failed after List of Dates update: ${getErrorMessage(e)}`]);
     }
   }
 
