@@ -33,6 +33,7 @@ export async function createWorkbenchServer(options = {}) {
   const env = options.env || (await loadLocalEnv({ appDir, override: true })).env;
   const host = options.host || "127.0.0.1";
   const port = Number(options.port ?? env.PORT ?? 4173);
+  const uiShell = options.uiShell || (env.MWB_UI_SHELL === "react" ? "react" : "legacy");
 
   const configService = createConfigService({ appDir, env });
   await configService.load();
@@ -147,7 +148,7 @@ export async function createWorkbenchServer(options = {}) {
       if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
       if (request.method === "GET") {
-        await serveStatic({ appDir, request, response });
+        await serveStatic({ appDir, request, response, uiShell });
         return;
       }
 
@@ -166,6 +167,7 @@ export async function createWorkbenchServer(options = {}) {
     host,
     port,
     server,
+    uiShell,
     services,
   };
 }

@@ -15,7 +15,7 @@ const contentTypes = new Map([
   [".jpeg", "image/jpeg"],
 ]);
 
-export function resolveStaticPath(appDir, urlPath) {
+export function resolveStaticPath(appDir, urlPath, options = {}) {
   let cleanPath;
   try {
     cleanPath = decodeURIComponent(urlPath.split("?")[0]);
@@ -23,11 +23,17 @@ export function resolveStaticPath(appDir, urlPath) {
     return null;
   }
 
+  const uiShell = options.uiShell === "react" ? "react" : "legacy";
+  const reactRoot = path.resolve(appDir, "react-dist");
+
+  if (uiShell === "react" && cleanPath === "/") {
+    return path.join(reactRoot, "index.html");
+  }
+
   if (cleanPath === "/react" || cleanPath === "/react/" || cleanPath.startsWith("/react/")) {
     const reactRelativePath = cleanPath === "/react" || cleanPath === "/react/"
       ? "index.html"
       : cleanPath.replace(/^\/react\/+/, "");
-    const reactRoot = path.resolve(appDir, "react-dist");
     const reactPath = path.resolve(reactRoot, reactRelativePath);
     if (!isInsideRoot(reactRoot, reactPath)) return null;
     return reactPath;
@@ -39,8 +45,8 @@ export function resolveStaticPath(appDir, urlPath) {
   return absolutePath;
 }
 
-export async function serveStatic({ appDir, request, response }) {
-  const filePath = resolveStaticPath(appDir, request.url || "/");
+export async function serveStatic({ appDir, request, response, uiShell = "legacy" }) {
+  const filePath = resolveStaticPath(appDir, request.url || "/", { uiShell });
   if (!filePath) {
     response.writeHead(403);
     response.end("Forbidden");

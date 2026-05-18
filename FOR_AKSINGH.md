@@ -489,10 +489,16 @@ The current safe arrangement is:
 - `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
 - `react-dist/` is generated output and is ignored by git.
 - `/react/` can serve the compiled React build from the same backend.
+- `MWB_UI_SHELL=react npm start` is the opt-in cutover test path: `/` serves the compiled React build while the default remains the plain-JS app.
 
 This means the separate `matter-workbench-react-ui-claude` repo is no longer a
 source of truth. Keep it only as a temporary backup until we are comfortable
 deleting it.
+
+That last shell flag is deliberately not a product change. It is a release
+valve. The eventual decision to make React the default should be a controlled
+switch with acceptance evidence, not a route rewrite mixed into unrelated
+frontend work.
 
 The React track has also been hardened against the exact kind of drift that
 usually makes frontend ports painful. The important fixes were not cosmetic.
