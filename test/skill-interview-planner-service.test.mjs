@@ -30,7 +30,19 @@ function fakeMatterStore() {
   return {
     getMatterRoot: () => "/tmp/matter",
     activeMatterNameWithinHome: () => "Demo Matter",
-    async readMatterMetadata() {
+    async resolveExistingMatter(name) {
+      return { matterPath: `/tmp/${name.replaceAll(" ", "-")}` };
+    },
+    async readMatterMetadata(root = "/tmp/matter") {
+      if (root.endsWith("Other-Matter")) {
+        return {
+          matterName: "Other Matter",
+          matterType: "Arbitration",
+          jurisdiction: "Delhi",
+          clientName: "Other Client",
+          oppositeParty: "Other Opponent",
+        };
+      }
       return {
         matterName: "Demo Matter",
         matterType: "Civil recovery",
@@ -64,6 +76,46 @@ test("skill interview planner returns deterministic fallback when disabled", asy
   assert.equal(result.schema_version, "skill-interview-plan/v1");
   assert.equal(result.planner.used, false);
   assert.equal(result.plan, null);
+});
+
+test("skill interview planner can use an explicit matter without active-matter drift", async () => {
+  let received = null;
+  const service = createSkillInterviewPlannerService({
+    registryService: fakeRegistryService(),
+    matterStore: fakeMatterStore(),
+    env: {
+      SKILL_INTERVIEW_PLANNER_ENABLED: "1",
+      SKILL_INTERVIEW_PLANNER_PROVIDER: "openrouter",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL: "openai/gpt-4.1",
+    },
+    plannerProvider: async (payload) => {
+      received = payload;
+      return {
+        mode: "new_skill",
+        target_skill: "",
+        understood_summary: "You want a matter-specific skill.",
+        inferred_design_brief: {},
+        default_assumptions: [],
+        questions: [],
+        open_questions: [],
+        risk_flags: [],
+      };
+    },
+  });
+
+  await service.planInterview({
+    userRequest: "create a skill for this matter",
+    skillIdea: { text: "create a skill for this matter" },
+    matterName: "Other Matter",
+  });
+
+  assert.deepEqual(received.activeMatter, {
+    matterName: "Other Matter",
+    matterType: "Arbitration",
+    jurisdiction: "Delhi",
+    client: "Other Client",
+    oppositeParty: "Other Opponent",
+  });
 });
 
 test("skill interview planner sends only idea, matter metadata, and skill summaries", async () => {

@@ -480,6 +480,7 @@ export interface SkillInterviewPlanRequest {
   skillIdea?: Partial<SkillIdea>;
   userRequest?: string;
   designBrief?: SkillIdeaDesignBrief;
+  matterName?: string;
 }
 
 export interface CommandInteractionRequest {

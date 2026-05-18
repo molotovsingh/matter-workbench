@@ -113,7 +113,7 @@ export function createSkillInterviewPlannerService({
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
 
-  async function planInterview({ skillIdea = {}, userRequest = "", designBrief = {} } = {}) {
+  async function planInterview({ skillIdea = {}, userRequest = "", designBrief = {}, matterName = "" } = {}) {
     const requestText = normalizeText(userRequest || skillIdea.text || skillIdea.idea);
     if (!requestText) {
       const error = new Error("userRequest is required");
@@ -138,7 +138,7 @@ export function createSkillInterviewPlannerService({
     }
 
     const registry = await registryService.readRegistry();
-    const activeMatter = await readPlannerMatterSummary(matterStore);
+    const activeMatter = await readPlannerMatterSummary(matterStore, { matterName });
     const provider = plannerProvider || createDefaultSkillInterviewPlannerProvider({
       providerConfig,
       env,
@@ -189,8 +189,17 @@ function disabledPlan(reason) {
   };
 }
 
-async function readPlannerMatterSummary(matterStore) {
-  const root = matterStore?.getMatterRoot?.();
+async function readPlannerMatterSummary(matterStore, { matterName } = {}) {
+  const requestedMatterName = normalizeText(matterName);
+  let root = matterStore?.getMatterRoot?.();
+  if (requestedMatterName && matterStore?.resolveExistingMatter) {
+    try {
+      const resolved = await matterStore.resolveExistingMatter(requestedMatterName);
+      root = resolved.matterPath;
+    } catch {
+      return sanitizeMatterSummary({ matterName: requestedMatterName });
+    }
+  }
   if (!root) return null;
   let metadata = {};
   try {

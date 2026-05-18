@@ -57,6 +57,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           skillIdea: body.skillIdea || {},
           userRequest: body.userRequest,
           designBrief: body.designBrief || {},
+          matterName: body.matterName,
         }));
       }),
       exactRoute("POST", "/api/skill-ideas/sample-output", async () => {

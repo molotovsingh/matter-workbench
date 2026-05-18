@@ -106,6 +106,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         const result = await api.planSkillIdeaInterview({
           userRequest: initialInput,
           skillIdea: { text: ideaText },
+          matterName: state.activeMatter?.name,
         });
         const planned = normalizePlannedSkillIdeaInterview(result, ideaText);
         safeSetSession((s) => ({
