@@ -662,19 +662,18 @@ export interface PreparationPlan {
 }
 
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
-export type ViewName =
-  | 'home-landing'
-  | 'matter-overview'
-  | 'file-preview'
-  | 'matter-init-result'
-  | 'extract-result'
-  | 'describe-sources-result'
-  | 'list-of-dates-result'
-  | 'context-preview-result'
-  | 'context-search-result'
-  | 'prepare-matter-result'
+export type ActiveView =
+  | 'home'
   | 'new-matter'
-  | 'add-files';
+  | 'add-files'
+  | 'file-preview'
+  | 'extract'
+  | 'doctor'
+  | 'context-search'
+  | 'list-of-dates'
+  | 'prepare-matter'
+  | 'describe-sources'
+  | 'context-preview';
 
 export interface ActiveMatter {
   name: string;
@@ -702,7 +701,7 @@ export interface AppState {
   matters: Matter[];
   resumeMatterName: string | null;
   activeTab: ActiveTab;
-  activeView: string;
+  activeView: ActiveView;
   filePreview: FilePreview | null;
   theme: 'light' | 'dark';
   matterSearchQuery: string;

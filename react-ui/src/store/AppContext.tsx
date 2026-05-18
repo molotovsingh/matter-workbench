@@ -6,7 +6,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { AppState, ActiveMatter, Matter, ActiveTab, FilePreview } from '../types';
+import type { AppState, ActiveMatter, Matter, ActiveTab, ActiveView, FilePreview } from '../types';
 
 type Action =
   | { type: 'SET_CONFIG'; payload: Partial<AppState> }
@@ -14,7 +14,7 @@ type Action =
   | { type: 'SET_ACTIVE_MATTER'; payload: ActiveMatter | null }
   | { type: 'SET_RESUME_MATTER'; payload: string | null }
   | { type: 'SET_TAB'; payload: ActiveTab }
-  | { type: 'SET_VIEW'; payload: string }
+  | { type: 'SET_VIEW'; payload: ActiveView }
   | { type: 'SET_FILE_PREVIEW'; payload: FilePreview | null }
   | { type: 'SET_THEME'; payload: 'light' | 'dark' }
   | { type: 'SET_MATTER_SEARCH'; payload: string }

@@ -7,11 +7,12 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
+import type { ActiveView } from './types';
 
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
-  const setActiveView = useCallback((view: string) => {
+  const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
 
@@ -45,13 +46,13 @@ function AppShell() {
 
     // Native skills open their workflow views directly — each view handles
     // its own API calls, rerun guards, and overwrite confirmation.
-    const viewMap: Record<string, string> = {
+    const viewMap: Record<string, ActiveView> = {
       '/doctor': 'doctor',
       '/context_search': 'context-search',
       '/context_preview': 'context-preview',
       '/prepare_matter': 'prepare-matter',
       '/extract': 'extract',
-      '/matter-init': 'matter-init',
+      '/matter-init': 'prepare-matter',
       '/describe_sources': 'describe-sources',
       '/create_listofdates': 'list-of-dates',
     };
@@ -82,9 +83,13 @@ function AppShell() {
     try {
       const result = await api.checkIntent({ userRequest: cmd, matterName: state.activeMatter?.name });
       if (result.decision === 'run_existing_skill' && result.matched_skill) {
-        const view = viewMap[result.matched_skill] ?? result.matched_skill;
-        setActiveView(view);
-        dispatch({ type: 'SET_BREADCRUMBS', payload: result.matched_skill });
+        const view = viewMap[result.matched_skill];
+        if (view) {
+          setActiveView(view);
+          dispatch({ type: 'SET_BREADCRUMBS', payload: result.matched_skill });
+        } else {
+          dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action || `Run ${result.matched_skill}` });
+        }
       } else if (result.suggested_next_action) {
         dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
       }
