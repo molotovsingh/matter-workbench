@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
+import { getErrorMessage } from '../../lib/errors';
 import type { MatterContextPreview } from '../../types';
 
 export default function ContextPreview() {
@@ -27,9 +28,9 @@ export default function ContextPreview() {
         '[context] provider calls: none',
       ]);
     } catch (e) {
-      setError((e as Error).message);
+      setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Failed' });
-      appendTerminal([`[context] error: ${(e as Error).message}`]);
+      appendTerminal([`[context] error: ${getErrorMessage(e)}`]);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type {
   PipelineStage,
   RerunAdvice,
@@ -100,7 +101,7 @@ function PipelineCard({ matterName }: { matterName: string }) {
     api
       .getMatterStatus()
       .then((s) => setStages(Array.isArray(s.stages) ? s.stages : []))
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(getErrorMessage(e)));
   }, [matterName]);
 
   return (
@@ -212,7 +213,7 @@ function AttentionCard({ matterName }: { matterName: string }) {
     api
       .getMatterAttention()
       .then(setData)
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(getErrorMessage(e)));
   }, [matterName]);
 
   const summary = data?.summary ?? { state: 'clear', blocker: 0, warning: 0, info: 0 };

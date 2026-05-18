@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import type { DoctorIssue } from '../../types';
 
 export default function DoctorResult() {
@@ -25,7 +26,7 @@ export default function DoctorResult() {
       setDone(true);
       appendTerminal([`[doctor] found ${result.issues?.length ?? 0} issue(s)`]);
     } catch (e) {
-      setError((e as Error).message);
+      setError(getErrorMessage(e));
     } finally {
       setScanning(false);
     }
@@ -42,7 +43,7 @@ export default function DoctorResult() {
       setFixDone(true);
       appendTerminal(['[doctor] fixes applied']);
     } catch (e) {
-      setError((e as Error).message);
+      setError(getErrorMessage(e));
     } finally {
       setFixing(false);
     }

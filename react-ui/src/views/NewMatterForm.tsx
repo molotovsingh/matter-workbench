@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api, adaptTree } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 
 interface Props {
   onCancel: () => void;
@@ -63,8 +64,8 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       });
       onCreated(name.trim());
     } catch (err) {
-      setError((err as Error).message);
-      appendTerminal([`[new-matter] error: ${(err as Error).message}`]);
+      setError(getErrorMessage(err));
+      appendTerminal([`[new-matter] error: ${getErrorMessage(err)}`]);
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { ChronologyEntry } from '../../types';
 
@@ -31,7 +32,7 @@ export default function ListOfDatesResult() {
       setDone(true);
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
     } catch (e) {
-      setError((e as Error).message);
+      setError(getErrorMessage(e));
     } finally {
       setRunning(false);
     }

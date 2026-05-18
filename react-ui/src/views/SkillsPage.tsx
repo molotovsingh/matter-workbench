@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
 export default function SkillsPage() {
@@ -35,7 +36,7 @@ export default function SkillsPage() {
         appendTerminal([`[skill] ${skill.title} completed`]);
       }
     } catch (e) {
-      appendTerminal([`[skill] error: ${(e as Error).message}`]);
+      appendTerminal([`[skill] error: ${getErrorMessage(e)}`]);
     } finally {
       setLoadingRun(null);
     }

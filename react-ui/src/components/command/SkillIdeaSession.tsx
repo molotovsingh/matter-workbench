@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { writeClipboardText } from '../../lib/clipboard';
+import { getErrorMessage } from '../../lib/errors';
 import type { SkillIdea, SkillIdeaDesignBrief } from '../../types';
 
 interface InterviewQuestion {
@@ -132,7 +133,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       }));
       appendTerminal([`[skill-idea] saved — id: ${savedIdea.id}`]);
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'ready', error: (e as Error).message }));
+      setSession((s) => ({ ...s, phase: 'ready', error: getErrorMessage(e) }));
     }
   }
 
@@ -155,7 +156,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       }));
       appendTerminal(['[skill-idea] sample ready']);
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'saved', error: (e as Error).message }));
+      setSession((s) => ({ ...s, phase: 'saved', error: getErrorMessage(e) }));
     }
   }
 
@@ -174,7 +175,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.title}`]);
       dispatch({ type: 'SET_TAB', payload: 'skills' });
     } catch (e) {
-      setSession((s) => ({ ...s, phase: 'sampled', error: (e as Error).message }));
+      setSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));
     }
   }
 

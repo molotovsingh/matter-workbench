@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import type { ExtractFileResult } from '../../types';
 
 export default function ExtractResult() {
@@ -22,8 +23,8 @@ export default function ExtractResult() {
       setDone(true);
       appendTerminal(['[extract] complete']);
     } catch (e) {
-      setError((e as Error).message);
-      appendTerminal([`[extract] error: ${(e as Error).message}`]);
+      setError(getErrorMessage(e));
+      appendTerminal([`[extract] error: ${getErrorMessage(e)}`]);
     } finally {
       setRunning(false);
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { DescribeSourcesResult as DescribeResult } from '../../types';
 
@@ -32,9 +33,9 @@ export default function DescribeSourcesResult() {
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
       appendTerminal(['[source-index] complete']);
     } catch (e) {
-      setError((e as Error).message);
+      setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Failed' });
-      appendTerminal([`[source-index] error: ${(e as Error).message}`]);
+      appendTerminal([`[source-index] error: ${getErrorMessage(e)}`]);
     } finally {
       setRunning(false);
     }

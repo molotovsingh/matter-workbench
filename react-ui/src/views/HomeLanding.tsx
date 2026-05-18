@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { api, adaptTree } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type { Matter } from '../types';
 import MatterOverview from './MatterOverview';
 
@@ -48,7 +49,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
       dispatch({ type: 'SET_RESUME_MATTER', payload: name });
       onOpenMatter(name);
     } catch (e) {
-      appendTerminal([`[error] ${(e as Error).message}`]);
+      appendTerminal([`[error] ${getErrorMessage(e)}`]);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type { OverlapWarning } from '../types';
 
 interface CollectedFile {
@@ -105,8 +106,8 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       appendTerminal([`[add-files] ${collected.length} file(s) added`]);
       onDone();
     } catch (err) {
-      setError((err as Error).message);
-      appendTerminal([`[add-files] error: ${(err as Error).message}`]);
+      setError(getErrorMessage(err));
+      appendTerminal([`[add-files] error: ${getErrorMessage(err)}`]);
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api, adaptTree } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 
 interface Props {
   onNewMatter: () => void;
@@ -35,7 +36,7 @@ export default function MatterPicker({ onNewMatter }: Props) {
       dispatch({ type: 'SET_TAB', payload: 'home' });
       appendTerminal([`[matter] loaded "${name}" — ${ws.fileCount} files, ${ws.directoryCount} folders`]);
     } catch (e) {
-      appendTerminal([`[matter] error: ${(e as Error).message}`]);
+      appendTerminal([`[matter] error: ${getErrorMessage(e)}`]);
     }
   }
 

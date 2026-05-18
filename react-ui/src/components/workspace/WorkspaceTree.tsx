@@ -1,5 +1,6 @@
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import type { WorkspaceFile } from '../../types';
 
 interface TreeNodeProps {
@@ -38,7 +39,7 @@ function TreeNode({ file }: TreeNodeProps) {
         dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: 'text', content: result.content, ext: result.ext } });
         dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
       } catch (e) {
-        appendTerminal([`[file] error reading ${path}: ${(e as Error).message}`]);
+        appendTerminal([`[file] error reading ${path}: ${getErrorMessage(e)}`]);
       }
     }
   }

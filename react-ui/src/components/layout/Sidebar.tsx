@@ -2,6 +2,7 @@ import { useApp } from '../../store/AppContext';
 import MatterPicker from '../matters/MatterPicker';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api, adaptTree } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 
 const SLASH_SKILLS = [
   { label: 'Set up matter', command: '/matter-init' },
@@ -42,7 +43,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
       });
       appendTerminal(['[workspace] refreshed']);
     } catch (e) {
-      appendTerminal([`[workspace] error: ${(e as Error).message}`]);
+      appendTerminal([`[workspace] error: ${getErrorMessage(e)}`]);
     }
   }
 

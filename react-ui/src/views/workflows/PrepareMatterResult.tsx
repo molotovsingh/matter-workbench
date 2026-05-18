@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import type { PreparationPlan, PreparationStage } from '../../types';
 
@@ -24,8 +25,8 @@ export default function PrepareMatterResult() {
       setPlan(result);
       appendTerminal(['[prepare] plan ready']);
     } catch (e) {
-      setError((e as Error).message);
-      appendTerminal([`[prepare] error: ${(e as Error).message}`]);
+      setError(getErrorMessage(e));
+      appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
     } finally {
       setLoading(false);
     }
@@ -59,8 +60,8 @@ export default function PrepareMatterResult() {
       appendTerminal([`[prepare] ${slash} complete`]);
       await loadPlan();
     } catch (e) {
-      appendTerminal([`[prepare] error: ${(e as Error).message}`]);
-      setError((e as Error).message);
+      appendTerminal([`[prepare] error: ${getErrorMessage(e)}`]);
+      setError(getErrorMessage(e));
     } finally {
       setRunning(false);
     }
@@ -88,7 +89,7 @@ export default function PrepareMatterResult() {
         else if (slash === '/describe_sources') await api.runDescribeSources({ matterName: state.activeMatter?.name });
         appendTerminal([`[prepare] ${slash} done`]);
       } catch (e) {
-        appendTerminal([`[prepare] ${stage.slash} failed: ${(e as Error).message}`]);
+        appendTerminal([`[prepare] ${stage.slash} failed: ${getErrorMessage(e)}`]);
         break;
       }
     }

@@ -6,6 +6,7 @@ import MainContent from './components/layout/MainContent';
 import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
+import { getErrorMessage } from './lib/errors';
 
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal } = useApp();
@@ -32,7 +33,7 @@ function AppShell() {
         }
         appendTerminal([`[boot] ${mattersResult.matters?.length ?? 0} matter(s) loaded`]);
       } catch (e) {
-        appendTerminal([`[boot] server not reachable — ${(e as Error).message}`]);
+        appendTerminal([`[boot] server not reachable — ${getErrorMessage(e)}`]);
       }
     }
     bootstrap();

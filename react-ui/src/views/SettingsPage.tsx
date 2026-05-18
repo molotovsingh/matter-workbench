@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
+import { getErrorMessage } from '../lib/errors';
 import type { AiSettings, Skill } from '../types';
 
 export default function SettingsPage() {
@@ -40,7 +41,7 @@ export default function SettingsPage() {
 
     api.getSkills().then((s) => {
       setSkills(s.skills ?? []);
-    }).catch((e) => setSkillsError((e as Error).message));
+    }).catch((e) => setSkillsError(getErrorMessage(e)));
   }, []);
 
   async function handleSaveMattersHome(e: React.FormEvent) {
@@ -55,7 +56,7 @@ export default function SettingsPage() {
       const mattersResult = await api.getMatters();
       dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
     } catch (err) {
-      setMattersHomeError((err as Error).message);
+      setMattersHomeError(getErrorMessage(err));
     } finally {
       setMattersHomeSaving(false);
     }
@@ -78,7 +79,7 @@ export default function SettingsPage() {
       setFormApiKey('');
       appendTerminal(['[settings] AI settings saved']);
     } catch (err) {
-      setAiSaveError((err as Error).message);
+      setAiSaveError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -95,7 +96,7 @@ export default function SettingsPage() {
       });
       setTestResult(result);
     } catch (err) {
-      setTestResult({ ok: false, error: (err as Error).message });
+      setTestResult({ ok: false, error: getErrorMessage(err) });
     } finally {
       setTesting(false);
     }
