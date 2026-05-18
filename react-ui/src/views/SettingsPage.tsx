@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [formModel, setFormModel] = useState('');
   const [formMaxTokens, setFormMaxTokens] = useState('3000');
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string; model?: string; latency?: number } | null>(null);
+  const [aiLoadError, setAiLoadError] = useState('');
   const [aiSaveError, setAiSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -31,13 +32,21 @@ export default function SettingsPage() {
         setMattersHome(c.mattersHome);
         setMattersHomeEdit(c.mattersHome);
       }
-    }).catch(() => null);
+    }).catch((e) => {
+      const message = getErrorMessage(e);
+      setMattersHomeError(message);
+      appendTerminal([`[settings] config load failed: ${message}`]);
+    });
 
     api.getAiSettings().then((s) => {
       setSettings(s);
       if (s.provider) setFormProvider(s.provider);
       if (s.model) setFormModel(s.model);
-    }).catch(() => null);
+    }).catch((e) => {
+      const message = getErrorMessage(e);
+      setAiLoadError(message);
+      appendTerminal([`[settings] AI settings load failed: ${message}`]);
+    });
 
     api.getSkills().then((s) => {
       setSkills(s.skills ?? []);
@@ -147,7 +156,10 @@ export default function SettingsPage() {
               <button
                 type="button"
                 className="secondary"
-                onClick={() => setMattersHomeEdit(mattersHome)}
+                onClick={() => {
+                  setMattersHomeEdit(mattersHome);
+                  setMattersHomeError('');
+                }}
                 disabled={mattersHomeSaving}
               >
                 Cancel
@@ -163,6 +175,7 @@ export default function SettingsPage() {
         <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
           Local OpenAI-compatible settings. Provider routing for AI tasks is shown below.
         </p>
+        {aiLoadError && <div className="form-warning" style={{ marginBottom: 14 }}>Could not load AI settings: {aiLoadError}</div>}
 
         {settings && !editing && (
           <div className="settings-card" style={{ marginBottom: 14 }}>
