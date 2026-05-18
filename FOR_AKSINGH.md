@@ -518,6 +518,11 @@ They were contract fixes:
   technical slash command to a lawyer-facing label like "Label sources," the
   sidebar, command box, and matter overview should not drift into three
   slightly different vocabularies.
+- `npm run ui:smoke` now checks that React's native-command registry still
+  matches the shared backend built-in command list. This is not a grand
+  architecture change; it is a useful tripwire. If someone adds a backend
+  native skill and forgets to route it in React, the acceptance check should
+  fail before the mismatch reaches a user.
 - the React shell no longer treats infrastructure failures as ordinary empty
   outcomes: command router failures say the command check failed, context
   search API failures show an error instead of "No results found," and rerun

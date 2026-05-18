@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 
+import { readFile } from "node:fs/promises";
+import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
 const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
-const reactRoutedBuiltins = [
-  "/matter-init",
-  "/prepare_matter",
-  "/extract",
-  "/describe_sources",
-  "/context_preview",
-  "/context_search",
-  "/create_listofdates",
-  "/doctor",
-];
+const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -57,6 +51,17 @@ async function fetchJson(pathname) {
 
 async function run() {
   try {
+    const reactNativeCommands = await readReactNativeCommands();
+    assert(
+      sameStringSet(reactNativeCommands, BUILTIN_SKILL_COMMANDS),
+      "React native command registry matches shared backend built-ins",
+      commandSetDiffDetail(reactNativeCommands, BUILTIN_SKILL_COMMANDS),
+    );
+  } catch (error) {
+    fail("React native command registry is readable", error.message);
+  }
+
+  try {
     const { response, text } = await fetchText(uiUrl);
     assert(response.ok, "React UI HTML is reachable", `${response.status} ${response.headers.get("content-type") || ""}`);
     assert(text.includes("<title>Matter Workbench</title>"), "React UI serves Matter Workbench HTML");
@@ -95,11 +100,11 @@ async function run() {
     const slashes = new Set(skillList.map((skill) => skill?.slash).filter(Boolean));
     assert(Array.isArray(skills.skills), "Skills API returns flat skills array", `${skillList.length} skills`);
     assert(skillList.every((skill) => typeof skill?.slash === "string" && typeof skill?.title === "string"), "Skill cards expose slash and title");
-    const missingReactBuiltins = reactRoutedBuiltins.filter((slash) => !slashes.has(slash));
+    const missingReactBuiltins = BUILTIN_SKILL_COMMANDS.filter((slash) => !slashes.has(slash));
     assert(
       missingReactBuiltins.length === 0,
       "Skills API includes React-routed native commands",
-      missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${reactRoutedBuiltins.length} commands`,
+      missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${BUILTIN_SKILL_COMMANDS.length} commands`,
     );
     assert(slashes.has("/describe_sources"), "Source Labels native skill is present");
     assert(slashes.has("/create_listofdates"), "List of Dates native skill is present");
@@ -252,3 +257,29 @@ run().catch((error) => {
   console.error(error.stack || error.message);
   process.exit(1);
 });
+
+async function readReactNativeCommands() {
+  const source = await readFile(reactNativeCommandsPath, "utf8");
+  const commands = [...source.matchAll(/\bcommand:\s*['"]([^'"]+)['"]/g)].map((match) => match[1]);
+  return [...new Set(commands)].sort();
+}
+
+function sameStringSet(left, right) {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+}
+
+function commandSetDiffDetail(left, right) {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const missingFromReact = right.filter((value) => !leftSet.has(value));
+  const extraInReact = left.filter((value) => !rightSet.has(value));
+  if (missingFromReact.length || extraInReact.length) {
+    return [
+      missingFromReact.length ? `missing in React: ${missingFromReact.join(", ")}` : "",
+      extraInReact.length ? `extra in React: ${extraInReact.join(", ")}` : "",
+    ].filter(Boolean).join("; ");
+  }
+  return `${right.length} commands`;
+}
