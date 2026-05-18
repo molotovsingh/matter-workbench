@@ -2,28 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
-
-interface SourceRow {
-  short_label?: string;
-  display_label?: string;
-  document_type?: string;
-  needs_review?: boolean;
-  warnings?: number;
-  file_id?: string;
-}
-
-interface DescribeResult {
-  recordsRead?: number;
-  sourcesLabeled?: number;
-  warningCount?: number;
-  needsReviewCount?: number;
-  outputPath?: string;
-  sources?: SourceRow[];
-  provider?: string;
-  returnedProvider?: string;
-  model?: string;
-  returnedModel?: string;
-}
+import type { DescribeSourcesResult as DescribeResult } from '../../types';
 
 export default function DescribeSourcesResult() {
   const { state, dispatch, appendTerminal } = useApp();
@@ -49,7 +28,7 @@ export default function DescribeSourcesResult() {
     appendTerminal(['[source-index] calling AI provider…']);
     try {
       const raw = await api.runDescribeSources({ matterName: state.activeMatter.name });
-      setResult(raw as DescribeResult);
+      setResult(raw);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
       appendTerminal(['[source-index] complete']);
     } catch (e) {
@@ -68,6 +47,11 @@ export default function DescribeSourcesResult() {
 
   const sources = result?.sources ?? [];
   const visibleSources = sources.slice(0, 12);
+  const warningCount = sources.reduce((sum, source) => {
+    if (Array.isArray(source.warnings)) return sum + source.warnings.length;
+    return sum + Number(source.warnings || 0);
+  }, 0);
+  const needsReviewCount = sources.filter((source) => source.needs_review).length;
 
   return (
     <div>
@@ -125,21 +109,21 @@ export default function DescribeSourcesResult() {
         <>
           <dl className="skill-contract">
             <dt>Records read</dt>
-            <dd>{result.recordsRead ?? '—'}</dd>
+            <dd>{result.counts?.recordsRead ?? '—'}</dd>
             <dt>Sources labeled</dt>
-            <dd>{result.sourcesLabeled ?? sources.length}</dd>
+            <dd>{result.counts?.descriptors ?? sources.length}</dd>
             <dt>Warnings</dt>
-            <dd>{result.warningCount ?? 0}</dd>
+            <dd>{warningCount}</dd>
             <dt>Needs review</dt>
-            <dd>{result.needsReviewCount ?? 0}</dd>
+            <dd>{needsReviewCount}</dd>
           </dl>
 
-          {result.outputPath && (
+          {result.outputPaths?.json && (
             <div style={{ marginTop: 16 }}>
               <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', marginBottom: 4 }}>
                 Saved record
               </div>
-              <code>{result.outputPath}</code>
+              <code>{result.outputPaths.json}</code>
             </div>
           )}
 
@@ -158,10 +142,10 @@ export default function DescribeSourcesResult() {
                 <tbody>
                   {visibleSources.map((row, i) => (
                     <tr key={i}>
-                      <td>{row.short_label || row.display_label || '—'}</td>
+                      <td>{row.source_short_label || row.short_label || row.source_label || row.display_label || '—'}</td>
                       <td>{row.document_type || '—'}</td>
                       <td>{row.needs_review ? 'Yes' : 'No'}</td>
-                      <td>{row.warnings ?? 0}</td>
+                      <td>{Array.isArray(row.warnings) ? row.warnings.length : row.warnings ?? 0}</td>
                       <td><code>{row.file_id || '—'}</code></td>
                     </tr>
                   ))}
@@ -178,14 +162,14 @@ export default function DescribeSourcesResult() {
           <details style={{ marginTop: 20 }}>
             <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>Run details</summary>
             <dl className="skill-contract" style={{ marginTop: 8 }}>
-              {(result.returnedProvider || result.provider) && (
-                <><dt>AI Provider</dt><dd>{result.returnedProvider || result.provider}</dd></>
+              {(result.aiRun?.returnedProvider || result.aiRun?.provider) && (
+                <><dt>AI Provider</dt><dd>{result.aiRun.returnedProvider || result.aiRun.provider}</dd></>
               )}
-              {(result.returnedModel || result.model) && (
-                <><dt>Model</dt><dd><code>{result.returnedModel || result.model}</code></dd></>
+              {(result.aiRun?.returnedModel || result.aiRun?.model) && (
+                <><dt>Model</dt><dd><code>{result.aiRun.returnedModel || result.aiRun.model}</code></dd></>
               )}
-              {result.outputPath && (
-                <><dt>Record path</dt><dd><code>{result.outputPath}</code></dd></>
+              {result.outputPaths?.json && (
+                <><dt>Record path</dt><dd><code>{result.outputPaths.json}</code></dd></>
               )}
             </dl>
           </details>

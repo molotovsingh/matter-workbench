@@ -3,8 +3,16 @@ import type {
   AppConfig,
   ConfigurableSkill,
   ConfigurableSkillRunResult,
+  DescribeSourcesResult,
+  DoctorFixResult,
+  DoctorScanResult,
+  ExtractRunResult,
+  ListOfDatesRunResult,
+  MatterContextPreview,
+  MatterContextSearchResponse,
   MatterAttention,
   MatterStatus,
+  PreparationPlan,
   SkillFactoryHealth,
   SkillIdea,
   SkillRegistry,
@@ -132,11 +140,11 @@ export const api = {
   // ─── Matter workflow ──────────────────────
   getMatterStatus: () => getJson<MatterStatus>('/api/matter-status'),
   getMatterAttention: () => getJson<MatterAttention>('/api/matter-attention'),
-  getPrepareMatter: () => getJson<unknown>('/api/prepare-matter'),
+  getPrepareMatter: () => getJson<PreparationPlan>('/api/prepare-matter'),
   runMatterInit: (body: unknown) => postJson('/api/matter-init', body),
-  runExtract: (body: unknown) => postJson('/api/extract', body),
-  runDescribeSources: (body: unknown) => postJson('/api/describe-sources', body),
-  runCreateListOfDates: (body: unknown) => postJson('/api/create-listofdates', body),
+  runExtract: (body: unknown) => postJson<ExtractRunResult>('/api/extract', body),
+  runDescribeSources: (body: unknown) => postJson<DescribeSourcesResult>('/api/describe-sources', body),
+  runCreateListOfDates: (body: unknown) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
   getRerunAdvice: (skill: string) => getJson<{
     skill: string;
     state: string;
@@ -148,10 +156,10 @@ export const api = {
     message?: string;
     dependencyState?: string;
   }>(`/api/rerun-advice?skill=${encodeURIComponent(skill)}`),
-  runDoctorScan: (body: unknown) => postJson('/api/doctor/scan', body),
-  runDoctorFix: (body: unknown) => postJson('/api/doctor/fix', body),
-  getMatterContext: () => getJson<unknown>('/api/matter-context'),
-  searchMatterContext: (query: string) => getJson<unknown>(`/api/matter-context/search?q=${encodeURIComponent(query)}`),
+  runDoctorScan: (body: unknown) => postJson<DoctorScanResult>('/api/doctor/scan', body),
+  runDoctorFix: (body: unknown) => postJson<DoctorFixResult>('/api/doctor/fix', body),
+  getMatterContext: () => getJson<MatterContextPreview>('/api/matter-context'),
+  searchMatterContext: (query: string) => getJson<MatterContextSearchResponse>(`/api/matter-context/search?q=${encodeURIComponent(query)}`),
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),

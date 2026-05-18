@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-
-interface ExtractRow { source: string; destination: string; status: string; note?: string }
+import type { ExtractFileResult } from '../../types';
 
 export default function ExtractResult() {
   const { state, appendTerminal } = useApp();
-  const [rows, setRows] = useState<ExtractRow[]>([]);
+  const [rows, setRows] = useState<ExtractFileResult[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
@@ -19,8 +18,7 @@ export default function ExtractResult() {
     appendTerminal(['[extract] running…']);
     try {
       const result = await api.runExtract({ matterName: state.activeMatter.name });
-      const r = result as { rows?: ExtractRow[] };
-      setRows(r.rows ?? []);
+      setRows(result.fileResults ?? []);
       setDone(true);
       appendTerminal(['[extract] complete']);
     } catch (e) {
@@ -64,7 +62,7 @@ export default function ExtractResult() {
             <thead>
               <tr>
                 <th>Source</th>
-                <th>Destination</th>
+                <th>File ID</th>
                 <th>Status</th>
                 <th>Note</th>
               </tr>
@@ -72,10 +70,10 @@ export default function ExtractResult() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  <td><code>{row.source}</code></td>
-                  <td><code>{row.destination}</code></td>
+                  <td><code>{row.original_name || row.source_path || row.file_id}</code></td>
+                  <td><code>{row.file_id || ''}</code></td>
                   <td>{row.status}</td>
-                  <td>{row.note ?? ''}</td>
+                  <td>{row.notes ?? ''}</td>
                 </tr>
               ))}
             </tbody>

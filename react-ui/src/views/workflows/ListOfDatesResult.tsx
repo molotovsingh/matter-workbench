@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
-
-interface ChronologyEntry {
-  date: string;
-  description: string;
-  relevance?: string;
-  source?: string;
-  sourceFile?: string;
-}
+import type { ChronologyEntry } from '../../types';
 
 export default function ListOfDatesResult() {
   const { state, appendTerminal } = useApp();
@@ -34,10 +27,9 @@ export default function ListOfDatesResult() {
     appendTerminal(['[list-of-dates] generating…']);
     try {
       const result = await api.runCreateListOfDates({ matterName: state.activeMatter.name });
-      const r = result as { entries?: ChronologyEntry[] };
-      setEntries(r.entries ?? []);
+      setEntries(result.entries ?? []);
       setDone(true);
-      appendTerminal([`[list-of-dates] ${r.entries?.length ?? 0} entries`]);
+      appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -91,14 +83,13 @@ export default function ListOfDatesResult() {
             </div>
             {entries.map((entry, i) => (
               <div key={i} className="chronology-row">
-                <time>{entry.date}</time>
-                <p>{entry.description}</p>
-                <div className={`chronology-relevance${entry.relevance ? ` ${entry.relevance}` : ''}`}>
-                  {entry.relevance ?? '—'}
+                <time>{entry.date_iso || entry.date || entry.date_text || '—'}</time>
+                <p>{entry.event || entry.description || '—'}</p>
+                <div className={`chronology-relevance${entry.legal_relevance || entry.relevance ? ' has-value' : ''}`}>
+                  {entry.legal_relevance || entry.relevance || '—'}
                 </div>
                 <div className="chronology-source">
-                  {entry.source && <span>{entry.source}</span>}
-                  {entry.sourceFile && <span>{entry.sourceFile}</span>}
+                  {sourceLabels(entry).map((label) => <span key={label}>{label}</span>)}
                 </div>
               </div>
             ))}
@@ -107,4 +98,12 @@ export default function ListOfDatesResult() {
       )}
     </div>
   );
+}
+
+function sourceLabels(entry: ChronologyEntry): string[] {
+  const sources = entry.supporting_sources?.length ? entry.supporting_sources : [entry];
+  const labels = sources
+    .map((source) => source.source_short_label || source.source_label || source.source_path || source.citation || '')
+    .filter(Boolean);
+  return [...new Set(labels)].slice(0, 3);
 }

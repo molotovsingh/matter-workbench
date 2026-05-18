@@ -297,6 +297,191 @@ export interface ConfigurableSkillRunResult {
   warnings?: string[];
 }
 
+export interface ExtractFileResult {
+  file_id?: string;
+  intake_id?: string;
+  source_path?: string;
+  original_name?: string;
+  category?: string;
+  status: string;
+  engine?: string;
+  notes?: string;
+}
+
+export interface ExtractRunResult {
+  dryRun?: boolean;
+  matterRoot?: string;
+  engineVersion?: string;
+  counts?: Record<string, number>;
+  perIntake?: Array<Record<string, string | number>>;
+  fileResults?: ExtractFileResult[];
+  outputLines?: string[];
+}
+
+export interface SourceDescriptorRow {
+  short_label?: string;
+  display_label?: string;
+  source_short_label?: string;
+  source_label?: string;
+  document_type?: string;
+  needs_review?: boolean;
+  warnings?: string[] | number;
+  file_id?: string;
+}
+
+export interface DescribeSourcesResult {
+  dryRun?: boolean;
+  matterRoot?: string;
+  engineVersion?: string;
+  counts?: {
+    recordsRead?: number;
+    sourcePackets?: number;
+    descriptors?: number;
+  };
+  outputPaths?: { directory?: string; json?: string };
+  sources?: SourceDescriptorRow[];
+  aiRun?: { provider?: string; model?: string; returnedProvider?: string; returnedModel?: string };
+  outputLines?: string[];
+}
+
+export interface ChronologyEntry {
+  date_iso?: string;
+  date_text?: string;
+  date?: string;
+  event?: string;
+  description?: string;
+  event_type?: string;
+  legal_relevance?: string;
+  relevance?: string;
+  source_label?: string;
+  source_short_label?: string;
+  source_path?: string;
+  citation?: string;
+  cluster_type?: string;
+  supporting_sources?: Array<{
+    source_label?: string;
+    source_short_label?: string;
+    original_name?: string;
+    source_path?: string;
+    citation?: string;
+  }>;
+}
+
+export interface ListOfDatesRunResult {
+  dryRun?: boolean;
+  matterRoot?: string;
+  engineVersion?: string;
+  generationMode?: string;
+  counts?: Record<string, number>;
+  outputPaths?: { json?: string; csv?: string; markdown?: string; candidates?: string };
+  entries?: ChronologyEntry[];
+  outputLines?: string[];
+}
+
+export interface DoctorIssue {
+  id: string;
+  severity: 'error' | 'warning' | 'info';
+  title: string;
+  description: string;
+  fixDescription?: string;
+  selected?: boolean;
+}
+
+export interface DoctorScanResult {
+  issues?: DoctorIssue[];
+}
+
+export interface DoctorFixResult {
+  applied?: Array<Record<string, unknown>>;
+  failed?: Array<Record<string, unknown>>;
+  remaining?: DoctorIssue[];
+}
+
+export interface MatterContextSource {
+  source_id?: string;
+  content_hash?: string;
+  file_id?: string;
+  source_label?: string;
+  source_short_label?: string;
+  document_type?: string;
+  source_path?: string;
+  needs_review?: boolean;
+  sample_citations?: string[];
+}
+
+export interface MatterContextArtifact {
+  path?: string;
+  kind?: string;
+  summary?: string;
+  schema_version?: string;
+  source_count?: number | null;
+  entry_count?: number | null;
+}
+
+export interface MatterContextPreview {
+  schema_version?: string;
+  packet_schema_version?: string;
+  generated_at?: string;
+  matter?: { matter_name?: string; folder_name?: string; [key: string]: unknown };
+  counts?: {
+    file_registers?: number;
+    registered_files?: number;
+    sources?: number;
+    evidence_blocks_included?: number;
+    evidence_blocks_omitted?: number;
+    library_artifacts?: number;
+    warnings?: number;
+  };
+  limits?: { max_blocks?: number; omitted_blocks?: number; [key: string]: unknown };
+  source_index_present?: boolean;
+  warnings?: string[];
+  library_artifacts?: MatterContextArtifact[];
+  top_sources?: MatterContextSource[];
+}
+
+export interface MatterContextSearchResult {
+  citation?: string;
+  file_id?: string;
+  page?: number | null;
+  block_id?: string;
+  source_label?: string;
+  source_short_label?: string;
+  document_type?: string;
+  source_path?: string;
+  snippet: string;
+  match_terms?: string[];
+}
+
+export interface MatterContextSearchResponse {
+  schema_version?: string;
+  query?: string;
+  counts?: Record<string, number>;
+  warnings?: string[];
+  results?: MatterContextSearchResult[];
+}
+
+export interface PreparationStage {
+  id?: string;
+  label: string;
+  slash?: string;
+  state: string;
+  description?: string;
+  artifacts?: string[];
+  actionable?: boolean;
+  paidProviderCall?: boolean;
+}
+
+export interface PreparationPlan {
+  matter?: { name?: string; folderName?: string };
+  matterName?: string;
+  stages: PreparationStage[];
+  nextStep?: { state: string; label: string; message?: string; stage?: string; slash?: string } | null;
+  metadata?: { complete?: boolean; missing?: string[] };
+  metadataCheck?: { valid: boolean; missing?: string[] };
+  downstream?: Record<string, unknown>;
+  warnings?: string[];
+}
+
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
 export type ViewName =
   | 'home-landing'

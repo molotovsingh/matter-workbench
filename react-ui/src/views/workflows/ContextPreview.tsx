@@ -1,40 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-
-interface ContextSource {
-  file_id?: string;
-  short_label?: string;
-  display_label?: string;
-  document_type?: string;
-  sample_citations?: string[];
-}
-
-interface LibraryArtifact {
-  path?: string;
-  kind?: string;
-  summary?: string;
-  heading?: string;
-}
-
-interface ContextData {
-  matterName?: string;
-  matterFolder?: string;
-  sourcesCount?: number;
-  includedBlocks?: number;
-  omittedBlocks?: number;
-  libraryArtifactsCount?: number;
-  sourceLabelsPresent?: boolean;
-  blockCap?: number;
-  generatedAt?: string;
-  warnings?: string[];
-  topSources?: ContextSource[];
-  libraryArtifacts?: LibraryArtifact[];
-}
+import type { MatterContextPreview } from '../../types';
 
 export default function ContextPreview() {
   const { state, dispatch, appendTerminal } = useApp();
-  const [data, setData] = useState<ContextData | null>(null);
+  const [data, setData] = useState<MatterContextPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
@@ -46,13 +17,12 @@ export default function ContextPreview() {
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Running' });
     appendTerminal(['[context] loading preview…']);
     try {
-      const raw = await api.getMatterContext();
-      const d = raw as ContextData;
-      setData(d);
+      const data = await api.getMatterContext();
+      setData(data);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Context Preview Ready' });
       appendTerminal([
-        `[context] sources: ${d.sourcesCount ?? 0}`,
-        `[context] evidence blocks: ${d.includedBlocks ?? 0} included, ${d.omittedBlocks ?? 0} omitted`,
+        `[context] sources: ${data.counts?.sources ?? 0}`,
+        `[context] evidence blocks: ${data.counts?.evidence_blocks_included ?? 0} included, ${data.counts?.evidence_blocks_omitted ?? 0} omitted`,
         '[context] provider calls: none',
       ]);
     } catch (e) {
@@ -83,8 +53,8 @@ export default function ContextPreview() {
     }
   }
 
-  const topSources = (data?.topSources ?? []).slice(0, 12);
-  const libraryArtifacts = data?.libraryArtifacts ?? [];
+  const topSources = (data?.top_sources ?? []).slice(0, 12);
+  const libraryArtifacts = data?.library_artifacts ?? [];
   const warnings = data?.warnings ?? [];
 
   return (
@@ -127,23 +97,23 @@ export default function ContextPreview() {
         <>
           <dl className="skill-contract">
             <dt>Matter name</dt>
-            <dd>{data.matterName || state.activeMatter?.name || '—'}</dd>
-            {data.matterFolder && (
-              <><dt>Matter folder</dt><dd><code>{data.matterFolder}</code></dd></>
+            <dd>{data.matter?.matter_name || data.matter?.folder_name || state.activeMatter?.name || '—'}</dd>
+            {data.matter?.folder_name && (
+              <><dt>Matter folder</dt><dd><code>{data.matter.folder_name}</code></dd></>
             )}
             <dt>Sources</dt>
-            <dd>{data.sourcesCount ?? 0}</dd>
+            <dd>{data.counts?.sources ?? 0}</dd>
             <dt>Evidence blocks</dt>
-            <dd>{data.includedBlocks ?? 0} included, {data.omittedBlocks ?? 0} omitted by bounds</dd>
+            <dd>{data.counts?.evidence_blocks_included ?? 0} included, {data.counts?.evidence_blocks_omitted ?? 0} omitted by bounds</dd>
             <dt>Library artifacts</dt>
-            <dd>{data.libraryArtifactsCount ?? libraryArtifacts.length}</dd>
+            <dd>{data.counts?.library_artifacts ?? libraryArtifacts.length}</dd>
             <dt>Source Labels</dt>
-            <dd>{data.sourceLabelsPresent ? 'Present' : 'Missing'}</dd>
-            {data.blockCap != null && (
-              <><dt>Block cap</dt><dd>{data.blockCap}</dd></>
+            <dd>{data.source_index_present ? 'Present' : 'Missing'}</dd>
+            {data.limits?.max_blocks != null && (
+              <><dt>Block cap</dt><dd>{String(data.limits.max_blocks)}</dd></>
             )}
-            {data.generatedAt && (
-              <><dt>Generated</dt><dd>{new Date(data.generatedAt).toLocaleString()}</dd></>
+            {data.generated_at && (
+              <><dt>Generated</dt><dd>{new Date(data.generated_at).toLocaleString()}</dd></>
             )}
           </dl>
 
@@ -179,7 +149,7 @@ export default function ContextPreview() {
                     {topSources.map((s, i) => (
                       <tr key={i}>
                         <td><code>{s.file_id || '—'}</code></td>
-                        <td>{s.short_label || s.display_label || '—'}</td>
+                        <td>{s.source_short_label || s.source_label || '—'}</td>
                         <td>{s.document_type || '—'}</td>
                         <td>
                           {s.sample_citations && s.sample_citations.length > 0
@@ -214,7 +184,7 @@ export default function ContextPreview() {
                       <tr key={i}>
                         <td><code>{a.path || '—'}</code></td>
                         <td>{a.kind || '—'}</td>
-                        <td>{a.summary || a.heading || a.kind || '—'}</td>
+                        <td>{a.summary || a.kind || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -228,23 +198,23 @@ export default function ContextPreview() {
   );
 }
 
-function buildContextReport(data: ContextData): string {
+function buildContextReport(data: MatterContextPreview): string {
   const lines: string[] = [
-    `# Context Preview: ${data.matterName || 'Unknown'}`,
+    `# Context Preview: ${data.matter?.matter_name || data.matter?.folder_name || 'Unknown'}`,
     '',
-    `- Sources: ${data.sourcesCount ?? 0}`,
-    `- Evidence blocks: ${data.includedBlocks ?? 0} included, ${data.omittedBlocks ?? 0} omitted`,
-    `- Library artifacts: ${data.libraryArtifactsCount ?? 0}`,
-    `- Source Labels: ${data.sourceLabelsPresent ? 'Present' : 'Missing'}`,
+    `- Sources: ${data.counts?.sources ?? 0}`,
+    `- Evidence blocks: ${data.counts?.evidence_blocks_included ?? 0} included, ${data.counts?.evidence_blocks_omitted ?? 0} omitted`,
+    `- Library artifacts: ${data.counts?.library_artifacts ?? 0}`,
+    `- Source Labels: ${data.source_index_present ? 'Present' : 'Missing'}`,
     '',
   ];
   if (data.warnings?.length) {
     lines.push('## Warnings', ...data.warnings.map((w) => `- ${w}`), '');
   }
-  if (data.topSources?.length) {
+  if (data.top_sources?.length) {
     lines.push('## Top Sources');
-    for (const s of data.topSources) {
-      lines.push(`- ${s.short_label || s.display_label || s.file_id || '—'} (${s.document_type || '—'})`);
+    for (const s of data.top_sources) {
+      lines.push(`- ${s.source_short_label || s.source_label || s.file_id || '—'} (${s.document_type || '—'})`);
     }
     lines.push('');
   }

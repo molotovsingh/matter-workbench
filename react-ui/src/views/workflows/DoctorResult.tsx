@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-
-interface DoctorIssue {
-  id: string;
-  severity: 'error' | 'warning' | 'info';
-  title: string;
-  description: string;
-  fixDescription?: string;
-  selected?: boolean;
-}
+import type { DoctorIssue } from '../../types';
 
 export default function DoctorResult() {
   const { state, appendTerminal } = useApp();
@@ -29,10 +21,9 @@ export default function DoctorResult() {
     appendTerminal(['[doctor] scanning…']);
     try {
       const result = await api.runDoctorScan({ matterName: state.activeMatter.name });
-      const r = result as { issues?: DoctorIssue[] };
-      setIssues((r.issues ?? []).map((i) => ({ ...i, selected: i.severity !== 'info' })));
+      setIssues((result.issues ?? []).map((i) => ({ ...i, selected: i.severity !== 'info' })));
       setDone(true);
-      appendTerminal([`[doctor] found ${r.issues?.length ?? 0} issue(s)`]);
+      appendTerminal([`[doctor] found ${result.issues?.length ?? 0} issue(s)`]);
     } catch (e) {
       setError((e as Error).message);
     } finally {

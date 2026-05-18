@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
-
-interface SearchResult { snippet: string; source: string; relevance?: string }
+import type { MatterContextSearchResult } from '../../types';
 
 export default function ContextSearch() {
   const { state } = useApp();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<MatterContextSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -17,8 +16,7 @@ export default function ContextSearch() {
     setSearching(true);
     setDone(false);
     try {
-      const r = await api.searchMatterContext(query);
-      const res = r as { results?: SearchResult[] };
+      const res = await api.searchMatterContext(query);
       setResults(res.results ?? []);
       setDone(true);
     } catch { setDone(true); } finally { setSearching(false); }
@@ -49,10 +47,19 @@ export default function ContextSearch() {
       {results.map((r, i) => (
         <div key={i} style={{ marginBottom: 16, padding: '14px 16px', border: '1px solid var(--border)', background: 'var(--panel)' }}>
           <div style={{ color: 'var(--muted-strong)', lineHeight: 1.55, fontSize: 14, marginBottom: 8 }}>{r.snippet}</div>
-          <code style={{ color: 'var(--muted)', fontSize: 11 }}>{r.source}</code>
-          {r.relevance && <span style={{ marginLeft: 10, fontSize: 11, color: 'var(--muted)' }}>{r.relevance}</span>}
+          <code style={{ color: 'var(--muted)', fontSize: 11 }}>{sourceLabel(r)}</code>
+          {r.document_type && <span style={{ marginLeft: 10, fontSize: 11, color: 'var(--muted)' }}>{r.document_type}</span>}
         </div>
       ))}
     </div>
   );
+}
+
+function sourceLabel(result: MatterContextSearchResult): string {
+  return result.source_short_label
+    || result.source_label
+    || result.citation
+    || result.source_path
+    || result.file_id
+    || 'Unlabelled source';
 }

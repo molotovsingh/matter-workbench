@@ -2,23 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
-
-interface PreparationStage {
-  label: string;
-  slash?: string;
-  state: string;
-  description?: string;
-  artifacts?: string[];
-  actionable?: boolean;
-  paidProviderCall?: boolean;
-}
-
-interface PreparationPlan {
-  matterName: string;
-  stages: PreparationStage[];
-  nextStep?: { state: string; label: string; message?: string; stage?: string; slash?: string } | null;
-  metadataCheck?: { valid: boolean; missing?: string[] };
-}
+import type { PreparationPlan, PreparationStage } from '../../types';
 
 export default function PrepareMatterResult() {
   const { state, dispatch, appendTerminal } = useApp();
@@ -37,7 +21,7 @@ export default function PrepareMatterResult() {
     setError('');
     try {
       const result = await api.getPrepareMatter();
-      setPlan(result as PreparationPlan);
+      setPlan(result);
       appendTerminal(['[prepare] plan ready']);
     } catch (e) {
       setError((e as Error).message);
