@@ -65,9 +65,6 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         };
         if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
           options.apiKey = env.OPENAI_API_KEY;
-          options.model = typeof body.model === "string" && body.model.trim()
-            ? body.model.trim()
-            : env.OPENAI_MODEL;
           options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
         }
         sendJson(response, 200, await runCreateListOfDates(options));

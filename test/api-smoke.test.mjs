@@ -685,6 +685,105 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
   }
 });
 
+test("create-listofdates API route ignores request-body model overrides", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-api-openai-policy-test-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "OpenAI Policy Matter");
+  await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files"), { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  await writeFile(
+    path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "Source Files", "notice.txt"),
+    "Legal notice was issued on 20 April 2026.",
+  );
+  await runMatterInit({
+    matterRoot,
+    dryRun: false,
+    metadata: {
+      clientName: "OpenAI Policy Client",
+      matterName: "OpenAI Policy Matter",
+      oppositeParty: "Opposite",
+      matterType: "Test",
+      jurisdiction: "Local",
+      briefDescription: "",
+    },
+  });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {
+      MATTERS_HOME: mattersHome,
+      OPENAI_API_KEY: "sk-openai-policy-route-test",
+      OPENAI_MODEL: "policy-listofdates-route-model",
+      OPENAI_MAX_OUTPUT_TOKENS: "2345",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    skillRegistryPath: path.join(process.cwd(), "skills", "registry.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+  const realFetch = globalThis.fetch;
+  const requests = [];
+
+  globalThis.fetch = async (url, init) => {
+    const endpoint = String(url);
+    if (endpoint === "https://api.openai.com/v1/responses") {
+      requests.push({
+        endpoint,
+        headers: init.headers,
+        body: JSON.parse(init.body),
+      });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          output_text: JSON.stringify({
+            entries: [{
+              date_iso: "2026-04-20",
+              date_text: "20 April 2026",
+              event: "Legal notice was issued.",
+              citation: "FILE-0001 p1.b1",
+              needs_review: false,
+              confidence: 0.91,
+              ...lawyerFields({
+                event_type: "notice",
+                legal_relevance: "Supports the client's notice chronology because the cited source records the legal notice date.",
+                issue_tags: ["notice"],
+              }),
+            }],
+          }),
+        }),
+      };
+    }
+    return realFetch(url, init);
+  };
+
+  try {
+    await postJson(baseUrl, "/api/switch-matter", { name: "OpenAI Policy Matter" });
+    const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
+    assert.equal(extract.counts.extracted, 1);
+
+    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", {
+      dryRun: false,
+      model: "request-body-model-should-not-be-used",
+    });
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].headers.authorization, "Bearer sk-openai-policy-route-test");
+    assert.equal(requests[0].body.model, "policy-listofdates-route-model");
+    assert.equal(requests[0].body.max_output_tokens, 2345);
+    assert.equal(listOfDates.aiRun.provider, "openai-direct");
+    assert.equal(listOfDates.aiRun.model, "policy-listofdates-route-model");
+    assert.equal(listOfDates.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
+  } finally {
+    globalThis.fetch = realFetch;
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
 test("overlap check reads file registers from every intake folder", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-overlap-test-"));
   const appDir = path.join(tmp, "app");

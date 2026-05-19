@@ -1,7 +1,7 @@
 # Future Design Decision: Model-To-App Task Policy
 
 Date: 2026-05-19
-Status: Parked future feature
+Status: Parked future feature, deep-review updated 2026-05-19
 
 ## Why This Exists
 
@@ -27,6 +27,40 @@ For example:
 
 That is the failure mode this future feature should prevent.
 
+## Deep Review Correction
+
+Do not treat this note as a simple port of V2.
+
+V2 already has a narrow Unibox model selector for matter Q&A, plus tests proving
+that `/new_skill` ignores that selected copilot model. V1 does not yet have the
+same dedicated `matter_qa` / `copilot_answer` task class. V1 has strong
+native-skill policy work in several places, but a future copilot selector would
+still need new task boundaries and tests before it is safe.
+
+The deeper rule is also more nuanced than:
+
+```text
+copilot = cheap
+skills = strong
+```
+
+Some copilot work is low-risk and transient, such as "where is the addendum
+agreement?" or "summarize this document." That can use deterministic search
+first, and cheaper answer models later if a bakeoff supports them.
+
+Other copilot work is transient but legally judgment-heavy, such as "what is the
+best hook for first argument?" or "surgically rewrite paragraph 8 of the grounds
+with this case law." Those answers may still need a premium source-backed or
+drafting model even if they do not immediately write a durable artifact.
+
+So the right classification is not only "transient versus durable." It is:
+
+```text
+durability + legal judgment + source dependence + write authority
+```
+
+That four-part risk profile should decide the model tier.
+
 ## What V1 Already Has
 
 This is not a blank-slate idea. V1 already has important pieces of the policy
@@ -40,13 +74,27 @@ spine:
 - `docs/future-design-decisions/legal-workbench-policy-prompt.md` defines the
   legal-output discipline that provider-backed tasks must carry across model
   and provider changes.
-- AI run metadata already records policy/model information such as
-  `policyPromptVersion` on policy-backed paths.
+- AI run metadata already records policy/model information such as model policy
+  version and `policyPromptVersion` on policy-backed paths.
 - Paid rerun guardrails already distinguish deterministic actions from
   provider-backed artifact writes.
 
 So the future work is not "invent model policy." The future work is to protect
 that model policy when V1 grows a broader copilot/model-choice surface.
+
+Current V1 gaps that matter before a selector ships:
+
+- there is no dedicated `AI_TASKS.MATTER_QA` or `AI_TASKS.COPILOT_ANSWER`
+  task in `shared/model-policy.mjs`;
+- Settings shows only a small task-status subset, not every model-policy task;
+- no visible user model selector exists in V1 yet;
+- V1 should not add one until exact slash commands, skill design, skill
+  execution, and native artifacts are all proven isolated from that selector.
+
+Deep-review fix landed with this note: `/api/create-listofdates` no longer
+accepts a request-body `model` override on the OpenAI-direct route. Durable List
+of Dates generation now resolves its model from central task policy, not from a
+per-request body field.
 
 ## Core Product Distinction
 
@@ -55,7 +103,8 @@ Not every AI task in a legal workbench has the same risk profile.
 | Task class | Nature | Future model policy |
 | --- | --- | --- |
 | Deterministic app work | Navigation, exact slash commands, file scans, local search | No AI |
-| Copilot Q&A | Transient matter help, document finding, quick explanation | Cheaper models allowed only after bakeoff |
+| Copilot location / explanation | Transient matter help, document finding, quick explanation | Deterministic search first; cheaper models allowed only after bakeoff |
+| Copilot legal synthesis | Argument framing, risk comparison, paragraph-level draft amendment | Strong/premium copilot or drafting tier; still no silent artifact overwrite |
 | App helper | "Where are skills?", "what should I do next?" | Deterministic first; ultra-cheap later if useful |
 | Skill creation | New reusable workflow design, output shape, legal setting | SOTA skill-design tier only |
 | Skill modification | Changes durable reusable behavior | SOTA skill-design tier only |
@@ -132,7 +181,8 @@ user action
 ```
 
 For a transient copilot answer, a selected cheaper model may be permitted after
-evidence.
+evidence. For strategic copilot or draft-amendment work, the task profile may
+still resolve to a premium model even though the output is conversational.
 
 For durable tasks, the selector should be ignored or shown as inapplicable:
 
@@ -143,6 +193,8 @@ Source-backed artifacts use the configured legal-workbench policy.
 
 ## Acceptance Criteria Before Any Copilot Model Selector Ships
 
+- V1 has an explicit `copilot_answer` / `matter_qa` task policy before any
+  selectable model is accepted from the UI.
 - Exact slash commands remain deterministic first.
 - The selected copilot model is sent only to matter Q&A / copilot answer calls.
 - `/new_skill` ignores the copilot answer selector.
@@ -153,6 +205,8 @@ Source-backed artifacts use the configured legal-workbench policy.
 - Configurable skill authoring, validation, revision, and execution ignore the
   copilot answer selector.
 - Native source-backed skills ignore the copilot answer selector.
+- Durable artifact routes do not accept request-body model overrides unless a
+  separate admin-only route and policy explicitly allow it.
 - AI run metadata records the resolved task policy/model/provider actually used.
 - UI copy makes the boundary visible without asking lawyers to understand
   provider architecture.
@@ -167,7 +221,9 @@ Run a small controlled bakeoff:
 
 - 3 real matters;
 - 5 fixed copilot questions per matter;
-- compare usefulness, source discipline, speed, and cost;
+- include both low-risk location/explanation questions and judgment-heavy
+  strategy questions;
+- compare usefulness, source discipline, legal caution, speed, and cost;
 - no skill creation;
 - no artifact writes;
 - no durable outputs;
