@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { cleanCommandLabel } from '../lib/nativeCommands';
+import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { RerunAdvice, RerunAdviceAction } from '../types';
@@ -64,6 +66,8 @@ export default function RerunConfirmDialog({
     : '—';
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ') || '—';
   const heading = advice.state === RERUN_ADVICE_STATES.UNKNOWN ? 'Could not verify current output' : title;
+  const workLabel = cleanCommandLabel(skill);
+  const artifactLabel = advice.artifactPath ? humanizeArtifactPath(advice.artifactPath) : '';
   const actions = typeof extraActions === 'function' ? extraActions(advice) : extraActions;
   const normalizedActions = Array.isArray(actions) ? actions : [];
 
@@ -72,13 +76,20 @@ export default function RerunConfirmDialog({
       <h2 id="rerunConfirmTitle">{heading}</h2>
       {advice.message && <p style={{ whiteSpace: 'pre-line' }}>{advice.message}</p>}
       <ul className="overlap-list">
-        <li><strong>Skill:</strong> <code>{skill}</code></li>
-        {advice.artifactPath && <li><strong>Artifact:</strong> {advice.artifactPath}</li>}
+        <li><strong>Work:</strong> {workLabel}</li>
+        {artifactLabel && <li title={technicalPathTitle(advice.artifactPath)}><strong>Current output:</strong> {artifactLabel}</li>}
         <li><strong>Last run:</strong> {lastRun}</li>
-        <li><strong>Provider / model:</strong> {providerModel}</li>
-        <li><strong>State:</strong> {advice.state}</li>
       </ul>
-      <p>Regenerating can start a paid AI provider call and may replace the output document.</p>
+      <details style={{ margin: '8px 0' }}>
+        <summary style={{ cursor: 'pointer' }}>Technical receipt</summary>
+        <ul className="overlap-list" style={{ marginTop: 8 }}>
+          <li><strong>Command:</strong> <code>{skill}</code></li>
+          <li><strong>Provider / model:</strong> {providerModel}</li>
+          <li><strong>State:</strong> {advice.state}</li>
+          {advice.artifactPath && <li><strong>Path:</strong> <code>{advice.artifactPath}</code></li>}
+        </ul>
+      </details>
+      <p>Regenerating can start a paid AI action and may replace the output document.</p>
       <div className="warning-actions">
         <button type="button" ref={cancelRef} onClick={onCancel}>{cancelLabel}</button>
         {normalizedActions.map((action) => (
@@ -114,7 +125,7 @@ function rerunAdviceUnavailable(skill: string, error: unknown): RerunAdvice {
     shouldConfirm: true,
     artifactPath: '',
     message: [
-      `Could not confirm whether ${skill} has a current work product.`,
+      `Could not confirm whether ${cleanCommandLabel(skill)} has a current work product.`,
       `The rerun check failed: ${message}`,
       'Keep current unless you deliberately want to regenerate.',
     ].join('\n'),

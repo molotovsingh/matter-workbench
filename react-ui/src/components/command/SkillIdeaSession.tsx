@@ -340,7 +340,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         sample: s.sample ? { ...s.sample, approved: true } : s.sample,
         createdSkill: result.skill ? { slash: result.skill.slash, name: result.skill.title } : { name: 'New skill' },
       }));
-      appendTerminal([`[skill-idea] skill created: ${result.skill?.slash ?? result.skill?.title}`]);
+      appendTerminal([`[skill-idea] skill created: ${result.skill?.title ?? 'New skill'}`]);
       dispatch({ type: 'SET_TAB', payload: 'skills' });
     } catch (e) {
       safeSetSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));
@@ -793,7 +793,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
       {session.phase === 'created' && (
         <div className="skill-idea-created">
           <p>
-            Skill created{session.createdSkill?.slash ? `: ${session.createdSkill.slash}` : ''}. You can find it in the Skills tab.
+            Skill created{session.createdSkill?.name ? `: ${session.createdSkill.name}` : ''}. You can find it in the Skills tab.
           </p>
           <div className="skill-idea-actions">
             <button type="button" onClick={() => { onInputOverride(null); onClose(); }}>Done</button>

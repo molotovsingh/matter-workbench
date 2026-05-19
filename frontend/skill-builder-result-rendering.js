@@ -62,7 +62,7 @@ export function renderSkillSampleOutputHtml(sample, { version, approved, sampleR
         : "Awaiting review";
   return `
       <h1>Sample Output</h1>
-      <p class="muted">Review sample only. This did not create a runnable skill, prompt, code, slash command, or matter output file.</p>
+      <p class="muted">Review sample only. This did not create a usable skill or matter output file.</p>
       <section class="skill-router-result">
         <h2>Sample v${Number(version || getSampleVersion(sample, 1))}${sampleApproved ? " - approved" : ""}</h2>
         <dl class="skill-card-meta">

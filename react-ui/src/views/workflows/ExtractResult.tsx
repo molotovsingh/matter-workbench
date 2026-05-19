@@ -20,13 +20,13 @@ export default function ExtractResult() {
     setRunning(true);
     setError('');
     setDone(false);
-    appendTerminal(['[extract] running…']);
+    appendTerminal(['[documents] reading documents…']);
     try {
       const result = await api.runExtract({ matterName });
       if (activeMatterNameRef.current !== matterName) return;
       setRows(result.fileResults ?? []);
       setDone(true);
-      appendTerminal(['[extract] complete']);
+      appendTerminal(['[documents] reading complete']);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
         failurePrefix: '[workspace] refresh failed after Extract update',
@@ -34,7 +34,7 @@ export default function ExtractResult() {
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
-      appendTerminal([`[extract] error: ${getErrorMessage(e)}`]);
+      appendTerminal([`[documents] error: ${getErrorMessage(e)}`]);
     } finally {
       if (activeMatterNameRef.current === matterName) setRunning(false);
     }
@@ -48,7 +48,7 @@ export default function ExtractResult() {
             Document reading
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
-            Extract documents
+            Read documents
           </h1>
           <p className="document-path">{state.activeMatter?.name}</p>
         </div>
@@ -59,7 +59,7 @@ export default function ExtractResult() {
             onClick={handleRun}
             disabled={running || !state.activeMatter}
           >
-            {running ? 'Extracting…' : done ? 'Re-run' : 'Run extract'}
+            {running ? 'Reading…' : done ? 'Read again' : 'Read documents'}
             {' '}
             <span>Local</span>
           </button>
@@ -97,7 +97,7 @@ export default function ExtractResult() {
 
       {!done && !running && (
         <p style={{ color: 'var(--muted-strong)', fontSize: 14, marginTop: 16 }}>
-          Extract reads supported source files and creates structured text records for later review.
+          This reads supported source files and creates structured text records for later review.
         </p>
       )}
     </div>

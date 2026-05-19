@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
+const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLabels.ts", import.meta.url);
 const reactRunReportPath = new URL("../react-ui/src/lib/configurableSkillRunReport.ts", import.meta.url);
 
 let reactRunReportModulePromise = null;
@@ -17,11 +18,14 @@ async function importReactRunReportModule() {
   reactRunReportModulePromise = (async () => {
     const tempDir = await mkdtemp(path.join(tmpdir(), "mwb-react-run-report-"));
     const secretFile = path.join(tempDir, "secretRedaction.mjs");
+    const presentationFile = path.join(tempDir, "presentationLabels.mjs");
     const runReportFile = path.join(tempDir, "configurableSkillRunReport.mjs");
 
     await writeFile(secretFile, transpile(await readFile(reactSecretRedactionPath, "utf8")));
+    await writeFile(presentationFile, transpile(await readFile(reactPresentationLabelsPath, "utf8")));
     const source = (await readFile(reactRunReportPath, "utf8"))
-      .replace("'./secretRedaction'", "'./secretRedaction.mjs'");
+      .replace("'./secretRedaction'", "'./secretRedaction.mjs'")
+      .replace("'./presentationLabels'", "'./presentationLabels.mjs'");
     await writeFile(runReportFile, transpile(source));
 
     return import(pathToFileURL(runReportFile).href);

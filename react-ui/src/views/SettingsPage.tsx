@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import { cleanCommandLabel } from '../lib/nativeCommands';
 import type { AiSettings, Skill } from '../types';
 
 export default function SettingsPage() {
@@ -130,7 +131,7 @@ export default function SettingsPage() {
       <div className="settings-hero">
         <div>
           <h1>Settings</h1>
-          <p>Workspace path, AI provider configuration, and skill routing.</p>
+          <p>Matter folder, AI connection, and advanced routing.</p>
         </div>
         <div className={`settings-ready-status${overallReady ? ' ready' : ' error'}`}>
           <span className="settings-ready-dot" />
@@ -185,7 +186,7 @@ export default function SettingsPage() {
       <div className="settings-section">
         <h2>AI Configuration</h2>
         <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-          Local OpenAI-compatible settings. Provider routing for AI tasks is shown below.
+          The AI connection used by governed workbench tasks. Advanced routing details are shown below.
         </p>
         {aiLoadError && <div className="form-warning" style={{ marginBottom: 14 }}>Could not load AI settings: {aiLoadError}</div>}
 
@@ -193,21 +194,24 @@ export default function SettingsPage() {
           <div className="settings-card" style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <div>
-                <strong>{settings.provider ?? 'Not configured'}</strong>
-                {settings.model && (
-                  <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{settings.model}</div>
-                )}
+                <strong>{settings.apiKeyConfigured ? 'AI connection configured' : 'AI connection not configured'}</strong>
+                <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                  {settings.apiKeyConfigured ? 'Ready for workbench tasks' : 'Add an API key before running AI tasks'}
+                </div>
               </div>
               <span className={`provider-status ${settings.apiKeyConfigured ? 'ready' : 'needs-setup'}`}>
                 {settings.apiKeyConfigured ? 'Ready' : 'Needs setup'}
               </span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-              API key: {settings.apiKeyConfigured ? 'Configured' : 'Missing'}
-              {settings.envPath && (
-                <span> · <code>{settings.envPath}</code></span>
-              )}
-            </div>
+            <details style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer' }}>Technical connection details</summary>
+              <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+                <span>Provider: {settings.provider ?? 'Not configured'}</span>
+                {settings.model && <span>Model: <code>{settings.model}</code></span>}
+                <span>API key: {settings.apiKeyConfigured ? 'Configured' : 'Missing'}</span>
+                {settings.envPath && <span>Settings file: <code>{settings.envPath}</code></span>}
+              </div>
+            </details>
             <div style={{ marginTop: 12 }}>
               <button className="run-skill-button secondary" type="button" onClick={() => setEditing(true)}>
                 Edit
@@ -289,12 +293,12 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* ─── AI Provider Routing ───────────────────── */}
+      {/* ─── Advanced AI Routing ───────────────────── */}
       {settings?.aiTasks && settings.aiTasks.length > 0 && (
         <div className="settings-section">
           <details>
             <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ margin: 0 }}>AI Provider Routing</h2>
+              <h2 style={{ margin: 0 }}>Advanced AI Routing</h2>
               <span className={`provider-status ${settings.aiTasks!.every(t => t.ready) ? 'ready' : 'needs-setup'}`}>
                 {settings.aiTasks!.every(t => t.ready) ? 'All ready' : 'Needs setup'}
               </span>
@@ -336,11 +340,11 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ─── Skill Router ──────────────────────────── */}
+      {/* ─── Skill Registry ──────────────────────────── */}
       <div className="settings-section">
         <details>
           <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h2 style={{ margin: 0 }}>Skill Router</h2>
+            <h2 style={{ margin: 0 }}>Skill Registry</h2>
             <span className={`provider-status ${skillsError ? 'needs-setup' : 'ready'}`}>
               {skillsError ? 'Error' : `${skills.length} skills`}
             </span>
@@ -361,7 +365,14 @@ export default function SettingsPage() {
                 <tbody>
                   {skills.map((s) => (
                     <tr key={s.slash}>
-                      <td><code>{s.slash}</code></td>
+                      <td>
+                        <strong>{s.display?.action || s.title || cleanCommandLabel(s.slash)}</strong>
+                        {s.slash && (
+                          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                            <code>{s.slash}</code>
+                          </div>
+                        )}
+                      </td>
                       <td>{s.category || '—'}</td>
                       <td>{s.mode || '—'}</td>
                       <td>{s.purpose || '—'}</td>

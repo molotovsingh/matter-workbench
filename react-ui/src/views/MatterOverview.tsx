@@ -5,6 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../lib/listOfDatesDependencyState';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
+import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import type {
   PipelineStage,
@@ -31,7 +32,7 @@ export default function MatterOverview({ onCommand }: Props) {
         <h1>{meta.matterName?.trim() || matter.name}</h1>
         <p>
           {matter.fileCount ?? '—'} files and {matter.directoryCount ?? '—'} folders loaded from
-          local workspace.
+          the matter folder.
         </p>
       </section>
 
@@ -56,8 +57,8 @@ export default function MatterOverview({ onCommand }: Props) {
 
       {missingFields.length > 0 && (
         <p className="form-error">
-          Missing metadata: {missingFields.join(', ')}. Edit <code>matter.json</code> on disk and
-          refresh, or recreate the matter via <code>Add new matter</code>.
+          Missing metadata: {missingFields.join(', ')}. Update the matter details file
+          (<code>matter.json</code>) and refresh, or recreate the matter via <code>Add new matter</code>.
         </p>
       )}
 
@@ -167,7 +168,7 @@ function StageArtifacts({ artifacts }: { artifacts?: string[] }) {
   return (
     <div className="pipeline-artifacts">
       {artifacts.slice(0, 4).map((a) => (
-        <code key={a}>{a}</code>
+        <span key={a} title={technicalPathTitle(a)}>{humanizeArtifactPath(a)}</span>
       ))}
       {artifacts.length > 4 && <span className="muted">+{artifacts.length - 4} more</span>}
     </div>
@@ -180,10 +181,13 @@ function StageAiRun({ aiRun }: { aiRun?: PipelineStage['aiRun'] }) {
   const model = aiRun.returnedModel || aiRun.model || '';
   if (!provider && !model) return null;
   return (
-    <div className="pipeline-ai-run">
-      {provider && <span>{provider}</span>}
-      {model && <code>{model}</code>}
-    </div>
+    <details className="pipeline-ai-run">
+      <summary>Run receipt</summary>
+      <div>
+        {provider && <span>{provider}</span>}
+        {model && <code>{model}</code>}
+      </div>
+    </details>
   );
 }
 
@@ -474,11 +478,11 @@ function rerunHintMeta(stage: PipelineStage, advice: RerunAdvice): string[] {
   const meta: string[] = [];
   if (advice.lastRunAt) meta.push(`Last run ${formatDateTime(advice.lastRunAt)}`);
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ');
-  if (providerModel) meta.push(providerModel);
+  if (providerModel) meta.push('Run receipt available');
   if (stage.metrics?.rows != null) {
     meta.push(`${stage.metrics.rows} row${stage.metrics.rows === 1 ? '' : 's'}`);
   }
-  if (advice.newestInputPath) meta.push(`Newest input ${advice.newestInputPath}`);
+  if (advice.newestInputPath) meta.push(`Newest input ${humanizeArtifactPath(advice.newestInputPath)}`);
   return meta;
 }
 

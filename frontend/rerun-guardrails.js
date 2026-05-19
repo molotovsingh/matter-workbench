@@ -1,4 +1,5 @@
 import { getJson } from "./api-client.js";
+import { lawyerActionLabel, lawyerArtifactLabel } from "./lawyer-labels.js";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 
 export async function confirmCurrentArtifactRerun({
@@ -67,13 +68,12 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
   } = options;
   const heading = advice.state === RERUN_ADVICE_STATES.UNKNOWN ? "Could not verify current output" : "Review current output before regenerating";
   const skill = advice.skill || "This skill";
+  const workLabel = lawyerActionLabel(skill, skill);
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
   const details = [
-    ["Skill", skill, true],
-    ["Output document", advice.artifactPath || "Unknown", true],
+    ["Work", workLabel, false],
+    ["Current output", advice.artifactPath ? lawyerArtifactLabel(advice.artifactPath) : "Unknown", false],
     ["Last run", advice.lastRunAt || "Unknown", false],
-    ["Provider / model", providerModel || "Unknown", false],
-    ["State", advice.state || RERUN_ADVICE_STATES.CURRENT, false],
   ];
 
   return `
@@ -86,7 +86,16 @@ export function renderRerunConfirmationHtml(advice, escapeHtml = defaultEscapeHt
           <li><strong>${escapeHtml(label)}:</strong> ${code ? `<code>${escapeHtml(value)}</code>` : escapeHtml(value)}</li>
         `).join("")}
       </ul>
-      <p>Regenerating can start a paid AI provider call and may replace the output document. Keeping current leaves the existing output unchanged.</p>
+      <details>
+        <summary>Technical receipt</summary>
+        <ul class="overlap-list">
+          <li><strong>Command:</strong> <code>${escapeHtml(skill)}</code></li>
+          <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Unknown")}</li>
+          <li><strong>State:</strong> ${escapeHtml(advice.state || RERUN_ADVICE_STATES.CURRENT)}</li>
+          ${advice.artifactPath ? `<li><strong>Path:</strong> <code>${escapeHtml(advice.artifactPath)}</code></li>` : ""}
+        </ul>
+      </details>
+      <p>Regenerating can start a paid AI action and may replace the output document. Keeping current leaves the existing output unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="rerunConfirmCancel">${escapeHtml(cancelLabel)}</button>
         ${extraActions.map((action) => `

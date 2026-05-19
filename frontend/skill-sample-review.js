@@ -30,8 +30,8 @@ export function formatSkillSampleCopy(sample, { version, approved } = {}) {
     `- Warnings: ${redactSensitiveText(warnings.length ? warnings.join("; ") : "None")}`,
     "",
     approved && state !== SKILL_SAMPLE_STATE.APPROVED_STALE
-      ? "This sample is approved, but it is not a runnable skill until creation and validation succeed."
-      : "This is not a runnable skill. No prompt, code, slash command, provider runtime, or activation has been generated.",
+      ? "This sample is approved, but it cannot be used as a skill until creation and validation succeed."
+      : "This is not yet a usable skill. It has not been created, checked, or activated.",
     "",
     "## Sample",
     "",

@@ -3,6 +3,8 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lookupString } from '../../lib/lookup';
+import { cleanCommandLabel } from '../../lib/nativeCommands';
+import { humanizeArtifactPath, technicalPathTitle } from '../../lib/presentationLabels';
 import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
 import { useLatestValue } from '../../hooks/useLatestValue';
 import type { PreparationPlan, PreparationStage } from '../../types';
@@ -94,12 +96,12 @@ export default function PrepareMatterResult() {
     if (!matchedStage || !isRunnablePreparationStage(matchedStage)) return;
     setConfirmingPaid(false);
     setRunning(true);
-    appendTerminal([`[prepare] running: ${plan.nextStep.slash}`]);
+    appendTerminal([`[prepare] running: ${cleanCommandLabel(plan.nextStep.slash)}`]);
     try {
       const slash = plan.nextStep.slash;
       await runPreparationStage(slash, matterName);
       if (activeMatterNameRef.current !== matterName) return;
-      appendTerminal([`[prepare] ${slash} complete`]);
+      appendTerminal([`[prepare] ${cleanCommandLabel(slash)} complete`]);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
         failurePrefix: '[workspace] refresh failed after preparation update',
@@ -128,21 +130,21 @@ export default function PrepareMatterResult() {
           setPendingPaidConfirm({ stage, resolve });
         });
         if (skipPaid) {
-          appendTerminal([`[prepare] skipped paid stage: ${stage.slash}`]);
+          appendTerminal([`[prepare] skipped paid stage: ${stageLabel(stage)}`]);
           continue;
         }
       }
-      appendTerminal([`[prepare] running child stage: ${stage.slash}`]);
+      appendTerminal([`[prepare] running: ${stageLabel(stage)}`]);
       try {
         if (activeMatterNameRef.current !== matterName) break;
         if (!stage.slash) throw new Error(`Preparation stage has no runnable slash: ${stage.label}`);
         const slash = stage.slash;
         await runPreparationStage(slash, matterName);
         if (activeMatterNameRef.current !== matterName) break;
-        appendTerminal([`[prepare] ${slash} done`]);
+        appendTerminal([`[prepare] ${cleanCommandLabel(slash)} done`]);
       } catch (e) {
         if (activeMatterNameRef.current !== matterName) break;
-        appendTerminal([`[prepare] ${stage.slash} failed: ${getErrorMessage(e)}`]);
+        appendTerminal([`[prepare] ${stageLabel(stage)} failed: ${getErrorMessage(e)}`]);
         break;
       }
     }
@@ -215,19 +217,19 @@ export default function PrepareMatterResult() {
       {confirmingPaid && plan?.nextStep?.slash && (
         <div style={{ marginTop: 20 }}>
           <div className="form-warning" role="alertdialog">
-            <h2>Confirm paid step: {plan.nextStep.label}</h2>
+            <h2>Confirm paid step: {cleanCommandLabel(plan.nextStep.slash)}</h2>
             <p>
               This step uses a paid AI provider. Running it may incur costs.
             </p>
             <ul className="overlap-list">
-              <li><strong>Skill:</strong> <code>{plan.nextStep.slash}</code></li>
+              <li><strong>Step:</strong> {cleanCommandLabel(plan.nextStep.slash)}</li>
             </ul>
             <div className="warning-actions">
               <button type="button" onClick={() => setConfirmingPaid(false)}>
                 Skip this step
               </button>
               <button type="button" className="secondary" onClick={executeRunNext}>
-                Run {plan.nextStep.label}
+                Run {cleanCommandLabel(plan.nextStep.slash)}
               </button>
             </div>
           </div>
@@ -263,8 +265,8 @@ export default function PrepareMatterResult() {
           <div className={`pipeline-stage ${stageStateClass(plan.nextStep.state)}`}>
             <div className="pipeline-stage-main">
               <div>
-                <strong>{plan.nextStep.label}</strong>
-                {plan.nextStep.slash && <span className="pipeline-stage-label">{plan.nextStep.slash}</span>}
+                <strong>{plan.nextStep.slash ? cleanCommandLabel(plan.nextStep.slash) : plan.nextStep.label}</strong>
+                {plan.nextStep.slash && <span className="pipeline-stage-label">{cleanCommandLabel(plan.nextStep.slash)}</span>}
               </div>
               <span className={`pipeline-state ${stageStateClass(plan.nextStep.state)}`}>
                 {stageStateLabel(plan.nextStep.state)}
@@ -290,7 +292,7 @@ export default function PrepareMatterResult() {
               <div key={stage.slash ?? stage.label} className={`pipeline-stage ${stageStateClass(stage.state)}`}>
                 <div className="pipeline-stage-main">
                   <div>
-                    <strong>{stage.label}</strong>
+                    <strong>{stageLabel(stage)}</strong>
                     {stage.slash && <span className="pipeline-stage-label">
                       {stage.paidProviderCall ? 'Uses AI' : 'Local'}
                     </span>}
@@ -307,7 +309,9 @@ export default function PrepareMatterResult() {
                 )}
                 {stage.artifacts && stage.artifacts.length > 0 && (
                   <div className="pipeline-artifacts">
-                    {stage.artifacts.slice(0, 4).map((a) => <code key={a}>{a}</code>)}
+                    {stage.artifacts.slice(0, 4).map((a) => (
+                      <span key={a} title={technicalPathTitle(a)}>{humanizeArtifactPath(a)}</span>
+                    ))}
                     {stage.artifacts.length > 4 && <span className="muted">+{stage.artifacts.length - 4} more</span>}
                   </div>
                 )}
@@ -341,6 +345,12 @@ function stageStateClass(state: string): string {
 
 function stageStateLabel(state: string): string {
   return lookupString(STAGE_STATE_LABELS, state, state);
+}
+
+function stageLabel(stage: PreparationStage): string {
+  if (stage.label) return stage.label;
+  if (stage.slash) return cleanCommandLabel(stage.slash);
+  return 'Preparation step';
 }
 
 function isRunnablePreparationStage(stage?: PreparationStage | null): stage is PreparationStage {

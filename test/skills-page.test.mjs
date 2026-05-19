@@ -686,7 +686,7 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.match(packet, /- Title: Client Update Email/);
   assert.match(packet, /- Proposed slash command: \/client_update_email/);
   assert.match(packet, /- Output document: 30_Drafts\/Client Update Email\.md/);
-  assert.match(packet, /- Target workspace area: 30_Drafts/);
+  assert.match(packet, /- Target matter area: 30_Drafts/);
   assert.match(packet, /Client-facing draft; lawyer must review before sending/);
   assert.match(packet, /do not expose raw FILE-NNNN pX\.bY citations/i);
   assert.match(packet, /## Acceptance Tests/);
@@ -839,13 +839,13 @@ test("skill idea review packet includes governance fields without source text or
   assert.match(packet, /- Matter folder: Mehta vs Skyline/);
   assert.match(packet, /## Original User Text/);
   assert.match(packet, /can list of dates also flag limitation issues/);
-  assert.match(packet, /- Target workspace area: 10_Library/);
+  assert.match(packet, /- Target matter area: 10_Library/);
   assert.match(packet, /- Expected output document: 10_Library\/List of Dates\.md/);
   assert.match(packet, /- Risk level: medium/);
   assert.match(packet, /Target skill: \/create_listofdates/);
   assert.match(packet, /- \[x\] Intended user present/);
   assert.match(packet, /Confirm whether this should be free\/local or paid\/provider-backed/);
-  assert.match(packet, /This is not a runnable skill\. No prompt, code, or provider call has been generated\./);
+  assert.match(packet, /This is not yet a usable skill\. It has not been created, checked, or activated\./);
   assert.doesNotMatch(packet, /API_KEY|OPENAI_API_KEY|MISTRAL_API_KEY|\.env|BEGIN EXTRACTION RECORD|raw document text/i);
 });
 

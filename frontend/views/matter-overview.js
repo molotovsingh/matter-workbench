@@ -1,6 +1,6 @@
 import { getJson } from "../api-client.js";
 import { escapeHtml, validateMetadata } from "../dom-utils.js";
-import { lawyerActionLabel, lawyerActionPill } from "../lawyer-labels.js";
+import { lawyerActionLabel, lawyerActionPill, lawyerArtifactLabel } from "../lawyer-labels.js";
 import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
 import {
   renderMatterAttentionLoading,
@@ -18,13 +18,13 @@ export function createMatterOverview(ctx, skills) {
     const fmt = (value, fallback) => escapeHtml(value && value.trim() ? value : fallback);
     const missing = validateMetadata(meta);
     const missingNote = missing.length
-      ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Edit <code>matter.json</code> on disk and refresh, or recreate the matter via <code>Add new matter</code>.</p>`
+      ? `<p class="form-error">Missing metadata: ${escapeHtml(missing.join(", "))}. Update the matter details file (<code>matter.json</code>) and refresh, or recreate the matter via <code>Add new matter</code>.</p>`
       : "";
 
     editorContent.innerHTML = `
       <section class="matter-overview-hero">
         <h1>${fmt(meta.matterName, activeMatter.folderName || "Matter")}</h1>
-        <p>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders loaded from local workspace.</p>
+        <p>${activeMatter.fileCount} files and ${activeMatter.directoryCount} folders loaded from the matter folder.</p>
       </section>
 
       <dl class="matter-info-card">
@@ -155,7 +155,7 @@ function renderStageArtifacts(artifacts, escape) {
   if (!Array.isArray(artifacts) || !artifacts.length) return '<div class="pipeline-artifacts muted">No output document found.</div>';
   return `
     <div class="pipeline-artifacts">
-      ${artifacts.slice(0, 4).map((artifact) => `<code>${escape(artifact)}</code>`).join("")}
+      ${artifacts.slice(0, 4).map((artifact) => `<span title="${escape(artifact)}">${escape(lawyerArtifactLabel(artifact))}</span>`).join("")}
       ${artifacts.length > 4 ? `<span class="muted">+${artifacts.length - 4} more</span>` : ""}
     </div>
   `;
@@ -167,10 +167,13 @@ function renderStageAiRun(aiRun, escape) {
   const model = aiRun.returnedModel || aiRun.model || "";
   if (!provider && !model) return "";
   return `
-    <div class="pipeline-ai-run">
-      ${provider ? `<span>${escape(provider)}</span>` : ""}
-      ${model ? `<code>${escape(model)}</code>` : ""}
-    </div>
+    <details class="pipeline-ai-run">
+      <summary>Run receipt</summary>
+      <div>
+        ${provider ? `<span>${escape(provider)}</span>` : ""}
+        ${model ? `<code>${escape(model)}</code>` : ""}
+      </div>
+    </details>
   `;
 }
 
@@ -226,11 +229,11 @@ function rerunHintMeta(stage, advice) {
   const meta = [];
   if (advice.lastRunAt) meta.push(`Last run ${formatDateTime(advice.lastRunAt)}`);
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(" / ");
-  if (providerModel) meta.push(providerModel);
+  if (providerModel) meta.push("Run receipt available");
   if (Number.isInteger(stage?.metrics?.rows)) {
     meta.push(`${stage.metrics.rows} row${stage.metrics.rows === 1 ? "" : "s"}`);
   }
-  if (advice.newestInputPath) meta.push(`Newest input ${advice.newestInputPath}`);
+  if (advice.newestInputPath) meta.push(`Newest input ${lawyerArtifactLabel(advice.newestInputPath)}`);
   return meta;
 }
 

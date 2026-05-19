@@ -77,7 +77,7 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
   assert.match(packet, /Status: Draft complete - ready to mark for review/);
   assert.match(packet, /Checklist: Complete/);
   assert.match(packet, /Suggested classification: modification candidate \(\/create_listofdates\)/);
-  assert.match(packet, /This is not a runnable skill/);
+  assert.match(packet, /This is not yet a usable skill/);
 });
 
 test("skill idea review packet redacts secrets from copied user text", () => {

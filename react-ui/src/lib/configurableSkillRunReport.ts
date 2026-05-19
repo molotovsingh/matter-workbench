@@ -1,4 +1,5 @@
 import type { ActiveMatter, SkillRun, WorkspaceFile } from '../types';
+import { humanizeArtifactPath } from './presentationLabels';
 import { redactSensitiveText } from './secretRedaction';
 
 export function formatConfigurableRunOutputDocumentState(overwrite?: string): string {
@@ -61,11 +62,7 @@ export function formatConfigurableSkillRunReport(run: SkillRun): string {
 }
 
 export function humanizeRunOutputPath(path = ''): string {
-  return String(path || '')
-    .replace(/^10_Library\//, 'Source Record / ')
-    .replace(/^20_Workshop\//, 'Case Analysis / ')
-    .replace(/^30_Drafts\//, 'Drafts / ')
-    .replace(/^40_Dispatch\//, 'Ready to Send / ');
+  return humanizeArtifactPath(path);
 }
 
 function packetValue(value: unknown): string {

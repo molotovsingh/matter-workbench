@@ -1,4 +1,6 @@
 import { redactSensitiveText } from './secretRedaction';
+import { cleanCommandLabel } from './nativeCommands';
+import { humanizeArtifactPath } from './presentationLabels';
 
 export interface CompactActivityRow {
   time: string;
@@ -35,6 +37,8 @@ export function formatCompactActivityLine(line: string): CompactActivityRow | nu
   const body = match ? match[2] : raw;
   const message = body
     .replace(/^\[[^\]]+\]\s*/, '')
+    .replace(/\b(?:10_Library|20_Workshop|30_Drafts|40_Dispatch)\/[^\s]+(?:\s+[^\s]+)*?\.(?:md|json|csv)\b/g, (path) => humanizeArtifactPath(path))
+    .replace(/(^|\s)(\/[a-z][a-z0-9_-]*)(?=\s|$|[.,;:])/gi, (_match, prefix, command) => `${prefix}${cleanCommandLabel(command)}`)
     .replace(/\s+->\s+/g, ' → ')
     .replace(/\s+/g, ' ')
     .trim();

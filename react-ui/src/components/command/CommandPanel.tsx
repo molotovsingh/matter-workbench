@@ -13,7 +13,7 @@ interface CommandSuggestion {
 }
 
 const STATIC_SUGGESTIONS: CommandSuggestion[] = [
-  { label: 'New skill', description: 'Create a custom AI skill', command: 'new skill' },
+  { label: 'New skill', description: 'Design a reusable matter skill', command: 'new skill' },
   { label: 'Find a matter', description: 'Open matter picker', command: 'find a matter' },
   ...COMMAND_PANEL_NATIVE_SUGGESTIONS,
 ];
@@ -196,7 +196,7 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
       </div>
 
       <p className="command-panel-note" style={{ order: 7 }}>
-        Paid AI actions ask before running. New skills are tested with a sample before they become runnable.
+        Paid AI actions ask before running. New skills are tested with a sample before they can be used.
       </p>
     </aside>
   );

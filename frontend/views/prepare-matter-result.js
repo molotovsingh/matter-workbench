@@ -54,8 +54,13 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
         <li><strong>Step:</strong> ${escapeHtml(lawyerActionLabel(stage, stage?.label || "Label sources"))}</li>
         <li><strong>Saved record:</strong> ${escapeHtml(lawyerArtifactLabel(advice.artifactPath || "10_Library/Source Index.json"))}</li>
         <li><strong>Status:</strong> ${escapeHtml(stageStateLabel(stage || { state: advice.state || "missing" }))}</li>
-        <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
       </ul>
+      <details>
+        <summary>Technical receipt</summary>
+        <ul class="overlap-list">
+          <li><strong>Provider / model:</strong> ${escapeHtml(providerModel || "Configured in Settings")}</li>
+        </ul>
+      </details>
       <p>Cancel leaves existing files unchanged.</p>
       <div class="warning-actions">
         <button type="button" id="preparePaidCancel">Keep current</button>

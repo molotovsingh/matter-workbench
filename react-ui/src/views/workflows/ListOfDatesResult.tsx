@@ -26,13 +26,13 @@ export default function ListOfDatesResult() {
     const matterName = state.activeMatter.name;
     setConfirming(false);
     setRunning(true); setError(''); setDone(false);
-    appendTerminal(['[list-of-dates] generating…']);
+    appendTerminal(['[list-of-dates] creating List of Dates…']);
     try {
       const result = await api.runCreateListOfDates({ matterName });
       if (activeMatterNameRef.current !== matterName) return;
       setEntries(result.entries ?? []);
       setDone(true);
-      appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries`]);
+      appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries created`]);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
         failurePrefix: '[workspace] refresh failed after List of Dates update',
@@ -51,7 +51,7 @@ export default function ListOfDatesResult() {
     setConfirming(false);
     setRunning(true);
     setError('');
-    appendTerminal(['[list-of-dates] refreshing labels without AI…']);
+    appendTerminal(['[list-of-dates] refreshing source labels without AI…']);
     try {
       const result = await api.refreshListOfDatesLabels({ matterName, dryRun: false });
       if (activeMatterNameRef.current !== matterName) return;
@@ -79,12 +79,12 @@ export default function ListOfDatesResult() {
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Library workflow
           </div>
-          <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Create list of dates</h1>
+          <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Create List of Dates</h1>
           <p className="document-path">{state.activeMatter?.name}</p>
         </div>
         <div className="document-actions">
           <button className="run-skill-button" type="button" onClick={handleRunClick} disabled={running || confirming || !state.activeMatter}>
-            {running ? 'Generating…' : done ? 'Re-generate' : 'Generate'}
+            {running ? 'Generating…' : done ? 'Regenerate' : 'Generate'}
             {' '}
             <span>Uses AI</span>
           </button>

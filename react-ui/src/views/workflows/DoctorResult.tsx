@@ -75,7 +75,7 @@ export default function DoctorResult() {
             Matter diagnostics
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
-            Check matter
+            Check matter health
           </h1>
           <p className="document-path">{state.activeMatter?.name}</p>
         </div>

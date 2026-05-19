@@ -323,8 +323,8 @@ test("settings page leads with readiness and collapses routing tables", async ()
     assert.match(elements.editorContent.innerHTML, /AI Configuration/);
     assert.match(elements.editorContent.innerHTML, /Save AI settings/);
     assert.match(elements.editorContent.innerHTML, /Test connection/);
-    assert.match(elements.editorContent.innerHTML, /<summary>[\s\S]*AI Provider Routing/);
-    assert.match(elements.editorContent.innerHTML, /<summary>[\s\S]*Skill Router/);
+    assert.match(elements.editorContent.innerHTML, /<summary>[\s\S]*Advanced AI Routing/);
+    assert.match(elements.editorContent.innerHTML, /<summary>[\s\S]*Skill Registry/);
     assert.match(elements.editorContent.innerHTML, /1 skills/);
     assert.ok(nodes.settingsForm.handlers.submit);
     assert.ok(nodes.aiSettingsForm.handlers.submit);

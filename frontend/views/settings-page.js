@@ -62,7 +62,7 @@ export function renderSettingsPageHtml({
       <div class="settings-hero">
         <div>
           <h1>Settings</h1>
-          <p>Workspace path, AI provider configuration, and skill routing.</p>
+          <p>Matter folder, AI connection, and advanced routing.</p>
         </div>
         <div class="settings-ready-status ${readyStatus.ready ? "ready" : "error"}">
           <span class="settings-ready-dot" aria-hidden="true"></span>
@@ -89,7 +89,7 @@ export function renderSettingsPageHtml({
 
       ${renderAiSettingsForm(aiSettings, aiSettingsError)}
       ${renderSettingsAdminDetails({
-        title: "Skill Router",
+        title: "Skill Registry",
         badge: skillRegistryError ? "Error" : `${skillCount} skills`,
         tone: skillRegistryError ? "needs-setup" : "ready",
         body: renderSkillRouterPanel(skillRegistry, skillRegistryError),
@@ -169,7 +169,7 @@ function renderAiSettingsForm(settings, loadError) {
   return `
     <section class="settings-section">
       <h2>AI Configuration</h2>
-      <p class="muted">Local OpenAI direct settings. Provider routing for AI tasks is shown below.</p>
+      <p class="muted">The AI connection used by governed workbench tasks. Advanced routing details are shown below.</p>
       <dl class="matter-info-card settings-current-card">
         <dt>Provider</dt><dd>${escapeHtml(settings?.provider || "OpenAI")}</dd>
         <dt>API key</dt><dd id="aiKeyStatus">${escapeHtml(status)}</dd>
@@ -228,7 +228,7 @@ function renderAiProviderStatus(tasks = []) {
     }).join("")
     : '<tr><td colspan="7">No AI task policies found.</td></tr>';
   return renderSettingsAdminDetails({
-    title: "AI Provider Routing",
+    title: "Advanced AI Routing",
     badge,
     tone: allReady ? "ready" : "needs-setup",
     body: `

@@ -25,13 +25,13 @@ export default function DescribeSourcesResult() {
     setRunning(true);
     setError('');
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Running' });
-    appendTerminal(['[source-index] calling AI provider…']);
+    appendTerminal(['[source-labels] creating source labels…']);
     try {
       const raw = await api.runDescribeSources({ matterName });
       if (activeMatterNameRef.current !== matterName) return;
       setResult(raw);
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Complete' });
-      appendTerminal(['[source-index] complete']);
+      appendTerminal(['[source-labels] complete']);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
         failurePrefix: '[workspace] refresh failed after Source Labels update',
@@ -40,7 +40,7 @@ export default function DescribeSourcesResult() {
       if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(e));
       dispatch({ type: 'SET_STATUS_BAR', payload: 'Source Labels Failed' });
-      appendTerminal([`[source-index] error: ${getErrorMessage(e)}`]);
+      appendTerminal([`[source-labels] error: ${getErrorMessage(e)}`]);
     } finally {
       if (activeMatterNameRef.current === matterName) setRunning(false);
     }
@@ -67,7 +67,7 @@ export default function DescribeSourcesResult() {
             Library workflow
           </div>
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px', lineHeight: 1.15 }}>
-            {result ? 'Source Labels created' : 'Source Labels'}
+            {result ? 'Source Labels created' : 'Source Labels / Document Index'}
           </h1>
           <p className="document-path">{state.activeMatter?.name}</p>
         </div>
@@ -78,7 +78,7 @@ export default function DescribeSourcesResult() {
             onClick={handleRunClick}
             disabled={running || confirming || !state.activeMatter}
           >
-            {running ? 'Running…' : result ? 'Regenerate source labels' : 'Run describe sources'}
+            {running ? 'Running…' : result ? 'Regenerate source labels' : 'Create source labels'}
             {' '}
             <span>Uses AI</span>
           </button>
@@ -183,7 +183,7 @@ export default function DescribeSourcesResult() {
 
       {!result && !running && !error && (
         <p style={{ color: 'var(--muted-strong)', fontSize: 14, marginTop: 16 }}>
-          Describe Sources uses AI to label each extracted document with a short description,
+          Source Labels / Document Index uses AI to label each extracted document with a short description,
           document type, and review flag. The labels power the chronology and context views.
         </p>
       )}

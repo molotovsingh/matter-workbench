@@ -97,7 +97,7 @@ export function formatSkillIdeaImplementationBriefMarkdown(idea = {}, registry =
     "## Output",
     "",
     `- Output document: ${packetValue(brief.outputArtifact)}`,
-    `- Target workspace area: ${packetValue(brief.targetLane)}`,
+    `- Target matter area: ${packetValue(brief.targetLane)}`,
     `- Output posture: ${packetValue(brief.outputPosture)}`,
     "",
     "## Provider / Model Posture",
@@ -212,7 +212,7 @@ function buildNewSkillBrief({ idea, brief, specialty }) {
     uiEntryPoints: [
       `Command rail: ${proposedSlash}`,
       `Skills tab: built-in card after implementation`,
-      "Output appears in the target workspace area after a confirmed run.",
+      "Output appears in the target matter area after a confirmed run.",
     ],
     rerunBehavior: "Use a paid-rerun confirmation when the output document already exists and upstream inputs are current. Do not overwrite a lawyer-reviewed draft without confirmation.",
     runtimeConfirmations: defaults.runtimeConfirmations || [
@@ -275,7 +275,7 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     uiEntryPoints: [
       `Existing skill surface: ${targetSkillId}`,
       "Skills tab: improvement proposal stays non-runnable until separately implemented.",
-      "If implemented as a separate review document, show it in the target workspace area.",
+      "If implemented as a separate review document, show it in the target matter area.",
     ],
     rerunBehavior: "Do not change existing rerun behavior silently. If a new output document is introduced, add the same current-output confirmation pattern before overwriting it.",
     changeShape: limitationRelated
@@ -508,7 +508,7 @@ function splitInputs(value) {
 function buildOpenQuestions(brief, defaults) {
   const questions = [];
   if (!brief.expectedOutputArtifact) questions.push("Confirm the exact output document path.");
-  if (!brief.targetLane) questions.push("Confirm the target workspace area.");
+  if (!brief.targetLane) questions.push("Confirm the target matter area.");
   if (!brief.paidPosture || brief.paidPosture === "unknown") questions.push("Confirm whether the future runtime should be free/local or paid/provider-backed.");
   if (!brief.riskLevel) questions.push("Confirm the risk level before implementation.");
   return [...questions, ...defaults].filter(Boolean);

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
-import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus } from '../lib/skillIdeaStatuses';
+import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus, skillIdeaStatusLabel } from '../lib/skillIdeaStatuses';
+import { humanizeArtifactPath } from '../lib/presentationLabels';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
@@ -52,12 +53,12 @@ export default function SkillsPage() {
     }
     const matterName = state.activeMatter.name;
     setLoadingRun(skill.id);
-    appendTerminal([`[skill] running ${skill.slash} on ${matterName}…`]);
+    appendTerminal([`[skill] running ${skill.title || 'custom skill'} on ${matterName}…`]);
     try {
       const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false, matterName });
       if (activeMatterNameRef.current !== matterName) return;
       if (result.state === 'requires_overwrite') {
-        appendTerminal([`[skill] ${skill.slash} artifact exists at ${result.artifactPath ?? '?'} — overwrite not confirmed`]);
+        appendTerminal([`[skill] ${skill.title || 'Custom skill'} output exists at ${humanizeArtifactPath(result.artifactPath)} — overwrite not confirmed`]);
       } else {
         appendTerminal([`[skill] ${skill.title} completed`]);
       }
@@ -77,12 +78,12 @@ export default function SkillsPage() {
       <div className="skills-hero">
         <div>
           <h1>Skills</h1>
-          <p>Built-in workflows and custom AI skills available in this workbench.</p>
+          <p>Built-in legal workflows and reviewed custom skills available in this workbench.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {health && (
             <span className={`pipeline-state ${health.state === 'ok' ? 'present' : 'warning'}`}>
-              Factory: {health.state}
+              {health.state === 'ok' ? 'Skill setup ready' : 'Skill setup needs attention'}
             </span>
           )}
         </div>
@@ -99,12 +100,12 @@ export default function SkillsPage() {
       <div className="skills-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
         {registrySkills.length > 0 && (
           <span className="pipeline-state present">
-            {registrySkills.length} built-in
+            {registrySkills.length} built-in workflow{registrySkills.length !== 1 ? 's' : ''}
           </span>
         )}
         {customSkills.length > 0 && (
           <span className="pipeline-state present">
-            {customSkills.length} custom
+            {customSkills.length} custom skill{customSkills.length !== 1 ? 's' : ''}
           </span>
         )}
         {activeIdeas.length > 0 && (
@@ -166,7 +167,7 @@ export default function SkillsPage() {
                   <div>
                     <p>{idea.text}</p>
                     <div className="skill-idea-row-meta">
-                      <span>{idea.status}</span>
+                      <span>{skillIdeaStatusLabel(idea.status)}</span>
                       <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
                       {idea.sampleCount !== undefined && <span>{idea.sampleCount} sample{idea.sampleCount !== 1 ? 's' : ''}</span>}
                     </div>

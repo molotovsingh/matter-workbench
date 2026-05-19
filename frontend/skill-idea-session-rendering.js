@@ -180,7 +180,7 @@ export function renderSavedSkillIdeaSessionHtml({
   return `
       <section class="command-interview" aria-live="polite">
         <h3>Saved skill idea</h3>
-        <p class="muted">Not runnable yet. No prompt, code, slash command, activation, or matter file has been generated.</p>
+        <p class="muted">Not usable yet. No skill has been created, activated, or written to a matter folder.</p>
         ${renderSkillIdeaUnderstood(interview)}
         <dl class="skill-card-meta">
           <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>

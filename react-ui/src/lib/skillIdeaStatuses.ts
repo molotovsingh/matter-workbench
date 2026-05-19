@@ -23,3 +23,11 @@ export function normalizeSkillIdeaStatus(status: string | null | undefined): Ski
   const mapped = LEGACY_SKILL_IDEA_STATUS_MAP[normalized as keyof typeof LEGACY_SKILL_IDEA_STATUS_MAP] || normalized;
   return isSkillIdeaStatus(mapped) ? mapped : SKILL_IDEA_STATUS.INCOMPLETE;
 }
+
+export function skillIdeaStatusLabel(status: string | null | undefined): string {
+  const normalized = normalizeSkillIdeaStatus(status);
+  if (normalized === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return 'Ready to review';
+  if (normalized === SKILL_IDEA_STATUS.PARKED) return 'Parked';
+  if (normalized === SKILL_IDEA_STATUS.DISMISSED) return 'Dismissed';
+  return 'Draft saved';
+}

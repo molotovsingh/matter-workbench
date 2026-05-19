@@ -35,8 +35,8 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   },
   {
     command: '/extract',
-    label: 'Extract documents',
-    description: 'Read supported source files',
+    label: 'Read documents',
+    description: 'Read supported files for later review',
     view: 'extract',
     pill: 'Local',
     showInSidebar: true,
@@ -45,8 +45,8 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   },
   {
     command: '/describe_sources',
-    label: 'Label sources',
-    description: 'Create lawyer-readable source labels',
+    label: 'Source Labels / Document Index',
+    description: 'Organize documents and prepare source labels',
     view: 'describe-sources',
     pill: 'Uses AI',
     showInSidebar: true,
@@ -73,8 +73,8 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   },
   {
     command: '/create_listofdates',
-    label: 'Create list of dates',
-    description: 'Generate the source-backed chronology',
+    label: 'Create List of Dates',
+    description: 'Build the source-backed chronology',
     view: 'list-of-dates',
     pill: 'Uses AI',
     showInSidebar: true,
@@ -83,7 +83,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   },
   {
     command: '/doctor',
-    label: 'Check matter',
+    label: 'Check matter health',
     description: 'Run local diagnostics',
     view: 'doctor',
     pill: 'Local',

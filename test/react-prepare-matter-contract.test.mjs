@@ -12,5 +12,5 @@ test("React Prepare Matter confirms paid steps without rerun-advice auto-run", a
   assert.match(source, /matchedStage\.action === PREPARATION_STAGE_ACTIONS\.CONFIRM_PAID_RUN/);
   assert.match(source, /role="alertdialog"/);
   assert.match(source, /This step uses a paid AI provider\. Running it may incur costs\./);
-  assert.match(source, /Run \{plan\.nextStep\.label\}/);
+  assert.match(source, /Run \{cleanCommandLabel\(plan\.nextStep\.slash\)\}/);
 });

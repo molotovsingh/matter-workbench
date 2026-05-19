@@ -194,8 +194,8 @@ export function formatSkillIdeaSampleCopy(
     `- Warnings: ${redactSensitiveText(warnings.length ? warnings.join('; ') : 'None')}`,
     '',
     state === SKILL_SAMPLE_STATE.APPROVED_CURRENT || approved
-      ? 'This sample is approved, but it is not a runnable skill until creation and validation succeed.'
-      : 'This is not a runnable skill. No prompt, code, slash command, provider runtime, or activation has been generated.',
+      ? 'This sample is approved, but it cannot be used as a skill until creation and validation succeed.'
+      : 'This is not yet a usable skill. It has not been created, checked, or activated.',
     '',
     '## Sample',
     '',
@@ -234,7 +234,7 @@ export function formatSkillIdeaReviewPacket(idea: SkillIdea, registry?: SkillReg
     `- Problem / job to be done: ${packetValue(brief.problem)}`,
     `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
     `- Expected output document: ${packetValue(brief.expectedOutputArtifact)}`,
-    `- Target workspace area: ${packetValue(brief.targetLane)}`,
+    `- Target matter area: ${packetValue(brief.targetLane)}`,
     `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
     `- Risk level: ${packetValue(brief.riskLevel)}`,
     '',
@@ -252,7 +252,7 @@ export function formatSkillIdeaReviewPacket(idea: SkillIdea, registry?: SkillReg
     '',
     '## Boundary',
     '',
-    'This is not a runnable skill. No prompt, code, or provider call has been generated.',
+    'This is not yet a usable skill. It has not been created, checked, or activated.',
     '',
   ].join('\n');
 }
@@ -347,7 +347,7 @@ function buildSkillIdeaOpenQuestions({
     .map((item) => `Complete readiness item: ${item.label}.`);
   if (!brief.paidPosture || brief.paidPosture === 'unknown') questions.push('Confirm whether this should be free/local or paid/provider-backed.');
   if (!brief.expectedOutputArtifact) questions.push('Confirm the durable output document, if any.');
-  if (!brief.targetLane) questions.push('Confirm the target workspace area.');
+  if (!brief.targetLane) questions.push('Confirm the target matter area.');
   return questions.length ? questions : ['None from the readiness checklist.'];
 }
 

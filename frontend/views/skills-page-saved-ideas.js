@@ -47,7 +47,7 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
     `- Problem / job to be done: ${packetValue(brief.problem)}`,
     `- Expected inputs: ${packetValue(brief.expectedInputs)}`,
     `- Expected output document: ${packetValue(brief.expectedOutputArtifact)}`,
-    `- Target workspace area: ${packetValue(brief.targetLane)}`,
+    `- Target matter area: ${packetValue(brief.targetLane)}`,
     `- Paid/free posture: ${packetValue(brief.paidPosture)}`,
     `- Risk level: ${packetValue(brief.riskLevel)}`,
     "",
@@ -65,7 +65,7 @@ export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
     "",
     "## Boundary",
     "",
-    "This is not a runnable skill. No prompt, code, or provider call has been generated.",
+    "This is not yet a usable skill. It has not been created, checked, or activated.",
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -76,7 +76,7 @@ export function renderSavedIdeas(ideas, escape, { compact = false, samplesByIdea
   return `
     <section>
       <h2>Saved Ideas</h2>
-      <p class="muted">Non-running idea inbox for possible future skills. These records do not create slash commands, draft skills, provider calls, or runnable skills.</p>
+      <p class="muted">Non-running idea inbox for possible future skills. These records do not create usable skills, call AI, or write matter files.</p>
       ${normalized.length ? `
         <div class="skills-grid">
           ${normalized.map((idea) => renderSavedIdeaCard(idea, escape, { samplesByIdea })).join("")}
@@ -266,7 +266,7 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
           Review details
           <span class="pipeline-state ${escape(progress.className)}">${escape(progress.label)}</span>
         </summary>
-        <p class="muted">This idea is not runnable. Reviewing it here does not create a slash command, call a provider, or write a matter file.</p>
+        <p class="muted">This idea is not usable yet. Reviewing it here does not create a skill, call AI, or write a matter file.</p>
         <details class="skill-idea-brief">
           <summary>Design brief <span class="muted">Not runnable yet</span></summary>
           <form class="skill-idea-brief-form" data-skill-idea-brief-form data-skill-idea-id="${escape(idea.id || "")}">
@@ -440,7 +440,7 @@ function buildSkillIdeaOpenQuestions({ brief, readiness }) {
     .map((item) => `Complete readiness item: ${item.label}.`);
   if (brief.paidPosture === "unknown") questions.push("Confirm whether this should be free/local or paid/provider-backed.");
   if (!brief.expectedOutputArtifact) questions.push("Confirm the durable output document, if any.");
-  if (!brief.targetLane) questions.push("Confirm the target workspace area.");
+  if (!brief.targetLane) questions.push("Confirm the target matter area.");
   return questions.length ? questions : ["None from the readiness checklist."];
 }
 

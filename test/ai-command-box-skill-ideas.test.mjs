@@ -698,7 +698,7 @@ test("command box skill idea interview session saves answers into a design brief
   await box.handleCommand({ userRequest: "copy review packet" });
   assert.match(copied, /^# Skill Idea Review Packet/);
   assert.match(copied, /- Status: Draft complete - ready to mark for review/);
-  assert.match(copied, /This is not a runnable skill/);
+  assert.match(copied, /This is not yet a usable skill/);
   assert.doesNotMatch(copied, /API_KEY|\.env|source document text/i);
 
   await box.handleCommand({ userRequest: "mark ready for review" });
@@ -860,7 +860,7 @@ test("command box generates, revises, copies a sample, and creates a skill when 
   assert.equal(sampleCalls[0].feedback, "");
   assert.match(ctx.elements.editorContent.innerHTML, /Sample Output/);
   assert.match(ctx.elements.editorContent.innerHTML, /Client Update Email/);
-  assert.match(ctx.elements.editorContent.innerHTML, /This did not create a runnable skill/);
+  assert.match(ctx.elements.editorContent.innerHTML, /This did not create a usable skill/);
   assert.match(ctx.elements.editorContent.innerHTML, /Sample Ledger/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample v1 ready for review/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Sample Ledger/);
@@ -885,7 +885,7 @@ test("command box generates, revises, copies a sample, and creates a skill when 
 
   assert.match(copied, /^# Skill Sample Output/);
   assert.match(copied, /Awaiting review/);
-  assert.match(copied, /This is not a runnable skill/);
+  assert.match(copied, /This is not yet a usable skill/);
   assert.doesNotMatch(copied, /API_KEY|\.env|full extraction records/i);
 
   await box.handleCommand({ userRequest: "copy sample v1" });
