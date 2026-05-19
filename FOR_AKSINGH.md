@@ -608,10 +608,20 @@ type-checks, and smoke-tests the React app against the live backend shape.
 
 Important files:
 
-- `index.html` - app shell;
-- `styles.css` - layout and visual system;
-- `frontend/event-wiring.js` - user actions and skill dispatch;
-- `frontend/ai-command-box.js` - small Command rail facade;
+- `react-ui/src/App.tsx` - default React shell composition;
+- `react-ui/src/store/AppContext.tsx` - active matter, matter switching, and workspace refresh owner;
+- `react-ui/src/api/client.ts` - React UI API adapter against the same backend contract;
+- `react-ui/src/lib/nativeCommands.ts` - native command labels, routing views, sidebar actions, command suggestions, and local-vs-AI badges;
+- `react-ui/src/components/command/CommandPanel.tsx` - React command panel and compact activity strip;
+- `react-ui/src/components/RerunConfirmDialog.tsx` - React rerun confirmation dialog;
+- `react-ui/src/views/MatterOverview.tsx` - React matter overview and readiness surface;
+- `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
+- `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
+- `scripts/react-ui-smoke.mjs` - live acceptance check for React/backend contract drift.
+- `index.html` - legacy app shell served only with `MWB_UI_SHELL=legacy`;
+- `styles.css` - legacy layout and visual system;
+- `frontend/event-wiring.js` - legacy user actions and skill dispatch;
+- `frontend/ai-command-box.js` - legacy Command rail facade;
 - `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
 - `frontend/skill-idea-session-state.js` - pure session initialization, planner terminal copy, and answer-advancement helpers;
 - `frontend/skill-idea-session-action-wiring.js` - button/action wiring for saved skill idea sessions;
@@ -630,15 +640,6 @@ Important files:
 - `frontend/api-client.js` - API helper;
 - `frontend/state.js` - shared state;
 - `frontend/status.js` - status output.
-- `react-ui/src/App.tsx` - React shell composition for the imported UI track;
-- `react-ui/src/api/client.ts` - React UI API adapter against the same backend contract;
-- `react-ui/src/lib/nativeCommands.ts` - one source of truth for native command labels, routing views, sidebar actions, command suggestions, and local-vs-AI badges;
-- `react-ui/src/components/command/CommandPanel.tsx` - React version of the command rail;
-- `react-ui/src/components/RerunConfirmDialog.tsx` - React rerun confirmation dialog;
-- `react-ui/src/views/MatterOverview.tsx` - React matter overview and readiness surface;
-- `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
-- `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
-- `scripts/react-ui-smoke.mjs` - small live acceptance check before we promote frontend experiments into the main repo.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
 

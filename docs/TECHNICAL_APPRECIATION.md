@@ -169,21 +169,39 @@ writeAtomic(path, content) →
 
 This is a small detail that prevents a large class of bugs: no partial JSON files from interrupted writes and no half-written matter metadata in the stores that use the shared atomic persistence path. Combined with the extraction cache, the system can often recover from interruption by re-running from saved state.
 
-### 10. Frontend Controller Decomposition Without a Framework
+### 10. React Production Shell With Contract-Tested Legacy Lessons
 
-The frontend is plain JavaScript — no React, no Vue, no build step. Yet the Command rail (the primary user interaction surface) is decomposed into ~10 focused controllers, each owning one workflow:
+The production frontend is now React/Vite. That matters because the app has
+crossed from a prototype shell into a UI architecture that can carry more
+screens, async state, and workflow-specific components without every feature
+living in one browser file.
+
+The old plain-JS shell is still valuable, but now as a fallback and reference
+implementation. It taught the main lesson: even without a framework, the command
+surface must be decomposed by workflow instead of becoming one giant event
+handler.
 
 ```
-ai-command-box.js         ← facade
-  ├── deterministic-command-controller.js     ← /matter-init, /extract, etc.
-  ├── router-check-controller.js              ← intent routing
-  ├── new-skill-mode-controller.js            ← skill creation wizard
-  ├── skill-idea-session-controller.js        ← interview → sample → approve
-  ├── configurable-skill-run-controller.js    ← run → review → replace
-  └── report-controller.js                    ← Copy Report sanitization
+React production shell
+  ├── AppContext.tsx                 ← active matter and workspace refresh owner
+  ├── CommandPanel.tsx               ← command panel and activity strip
+  ├── workflows/*.tsx                ← native skill workflow views
+  ├── RerunConfirmDialog.tsx         ← paid/replacing artifact guard
+  └── filePreview.ts                 ← file loading + List of Dates preview
+
+Legacy fallback shell
+  ├── ai-command-box.js              ← facade
+  ├── skill-idea-session-controller  ← interview → sample → approve
+  ├── configurable-skill-run         ← run → review → replace
+  └── report/copy helpers            ← sanitized diagnostics
 ```
 
-Each controller handles its own DOM events, API calls, and state transitions. The facade routes commands to the right controller. This is **controller composition without a framework** — the pattern frameworks like Ember and Angular formalized, implemented with discipline in vanilla JS.
+The React migration was accepted only after API-contract fixes, typechecks,
+backend tests, production smoke, and a browser check at `/`. The key engineering
+lesson is not "React is better." It is that a legal workbench frontend must
+faithfully speak the backend contract: matter identity, rerun advice, paid
+confirmation, source-label refresh, sample approval, and workspace refresh are
+product rules, not just component state.
 
 ---
 

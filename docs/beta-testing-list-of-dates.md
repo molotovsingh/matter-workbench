@@ -3,7 +3,7 @@
 This is the supervised beta handoff for the current app workflow:
 
 ```text
-pick matter -> status -> open library -> /extract -> /describe_sources -> /create_listofdates
+open app -> pick matter -> prepare matter/status -> source labels -> create List of Dates -> review Library output
 ```
 
 The pipeline is ready for real-matter testing with lawyer review. It is not court-ready without review. Treat the generated chronology as lawyer-review-ready work product: useful, source-backed, and auditable, but still requiring professional judgment before use.
@@ -45,10 +45,15 @@ The `latency` route is the recommended `/create_listofdates` OpenRouter route fo
 
 ## Current Tester Workflow
 
-Use the light-themed app and the right-side Command rail. The Command rail is deterministic in this beta: it runs known commands, opens workspace lanes, previews the bounded context packet, and can search that packet locally. It is not a chat surface, Q&A tool, semantic search system, or drafting copilot yet. Future provider-backed matter Co-pilot behavior is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
+Use the React production shell at `/` and the right-side command panel. The
+command panel is deterministic in this beta for known actions: it runs native
+commands, opens workspace lanes, previews the bounded context packet, and can
+search that packet locally. It is not a general chat surface, semantic search
+system, or drafting copilot yet. Future provider-backed matter Co-pilot behavior
+is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
 
-1. Pick a matter from the sidebar.
-2. Type `status` in the Command rail.
+1. Pick a matter from Home or the matter picker.
+2. Type `status` in the command panel.
    - Confirm the matter pipeline panel appears.
    - Check whether `/extract`, `/describe_sources`, and `/create_listofdates` are current, stale, missing, or not run.
 3. Type `open library`.
@@ -74,11 +79,11 @@ Use the light-themed app and the right-side Command rail. The Command rail is de
    - The report should include matter name, folder, typed command, matched command, status, provider/model when available, artifact paths, and latest visible terminal lines.
    - It should not include API keys, `.env`, raw source document text, or full extraction records.
 10. Use `open skills` when you want to inspect available capabilities.
-    - The Skills tab is read-only in this beta.
-    - It shows built-in skills, deterministic versus paid posture, and current matter status where available.
-    - It does not create, edit, activate, or run configurable skills.
+    - The native legal spine is still Source Labels / Document Index and List of Dates.
+    - The custom skill factory is available for supervised experiments, but it is not the V1 legal spine.
+    - Do not treat a custom skill as trusted until its sample has been reviewed and approved.
 
-Useful Command rail inputs:
+Useful command panel inputs:
 
 ```text
 /extract
@@ -169,7 +174,7 @@ The readable label helps the lawyer. The raw citation remains the audit handle.
 
 For each matter, reviewers should mark:
 
-- whether the Command rail action did what the tester expected;
+- whether the command panel action did what the tester expected;
 - whether a paid rerun warning appeared when a current artifact already existed;
 - whether Cancel preserved the existing artifact;
 - missing legally important events;
@@ -200,7 +205,7 @@ The beta goal is to learn whether the chronology helps the lawyer see the case f
 - `/create_listofdates` may run without confirmation when upstream inputs are newer than the existing artifact. That is intentional: the artifact is stale, not current.
 - Reviewers must check for missing events and overstated legal relevance.
 - Cluster completeness needs human review, especially for payment and discrepancy clusters.
-- The Command rail has local context search, but it is not legal Q&A, semantic search, chat, or drafting copilot yet.
+- The command panel has local context search, but it is not legal Q&A, semantic search, chat, or drafting copilot yet.
 - Lane commands are just navigation; they do not validate whether a lane is legally complete.
 - This is not "court-ready without review"; it is "lawyer-review-ready."
 

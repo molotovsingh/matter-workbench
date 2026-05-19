@@ -15,7 +15,7 @@ artifacts, and eval tooling, see
 
 Current release checkpoint: [Matter Workbench v1.0.0-beta.1](docs/releases/v1.0.0-beta.1.md).
 
-For the current tester-facing workflow, Command rail commands, recommended
+For the current tester-facing workflow, command panel inputs, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
 
@@ -44,12 +44,12 @@ behind an explicit confirmation. Superseded planning contracts now live under
 
 ## Scope
 
-- Local legal matter workbench with a Matter Explorer, Command rail, and durable disk artifacts
+- Local legal matter workbench with a Matter Explorer, command panel, and durable disk artifacts
 - Current built-in actions: `/prepare_matter`, `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, `/context_preview`, `/context_search`, and `/doctor`
 - Approved configurable skills can be created from reviewed samples and then run as their own slash commands
 - One active matter at a time, selected from the in-app Matters list or pinned by `MATTER_ROOT`
 - Matter context is read from the active matter's `matter.json`
-- The right-side Command rail runs deterministic slash commands, opens workspace lanes, shows status, and keeps paid rerun guardrails
+- The right-side command panel runs deterministic slash commands, opens workspace lanes, shows status, and keeps paid rerun guardrails
 - Matter metadata is captured before `/matter-init` runs
 - `server.mjs` enables local filesystem writes for deterministic intake, extraction, source labeling, and chronology engines
 - The Matter Explorer reflects the current matter root from disk
@@ -75,10 +75,10 @@ The intended skill shape is:
 Other document-specific skills follow the same pattern: explicit verb, bounded
 input, durable output, and lawyer review before downstream use.
 
-In the UI, the sidebar shows available slash skills and the right-side Command
-rail accepts exact commands such as `/matter-init`, `/extract`, `open library`,
-or `status`. Paid AI skills keep the rerun confirmation guardrails when current
-artifacts already exist.
+In the UI, the right-side command panel accepts exact commands such as
+`/matter-init`, `/extract`, `open library`, or `status`, and shows command
+suggestions when useful. Paid AI skills keep the rerun confirmation guardrails
+when current artifacts already exist.
 
 The Matter Explorer loads the current matter from the local Node server, reads
 metadata from `matter.json`, and renders the visible workspace tree. Text files

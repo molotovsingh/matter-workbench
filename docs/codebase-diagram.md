@@ -12,23 +12,35 @@ Update this diagram when adding a new route, service, engine, persistent artifac
 
 ```mermaid
 flowchart LR
-  Browser["Browser UI<br/>index.html<br/>styles.css<br/>frontend/*.js"]
+  Browser["Browser UI<br/>React default shell<br/>react-ui/* -> react-dist/"]
+  LegacyBrowser["Legacy fallback UI<br/>index.html<br/>styles.css<br/>frontend/*.js<br/>MWB_UI_SHELL=legacy"]
   Server["Local Node server<br/>server.mjs"]
   Cli["CLI commands<br/>MATTER_ROOT=... node *.mjs --apply"]
 
   Browser -->|"HTTP JSON/file requests"| Server
+  LegacyBrowser -->|"HTTP JSON/file requests"| Server
 
-  subgraph FrontendControllers["Frontend controller split"]
-    CommandFacade["frontend/ai-command-box.js<br/>Command rail facade"]
-    SkillIdeaSession["frontend/skill-idea-session-controller.js<br/>interview, samples, approval"]
-    ConfigurableRunController["frontend/configurable-skill-run-controller.js<br/>custom skill runs and output replacement"]
-    SkillsPageViews["frontend/views/skills-page*.js<br/>Skills page sections"]
+  subgraph FrontendControllers["Frontend surfaces"]
+    ReactApp["react-ui/src/App.tsx<br/>default shell composition"]
+    ReactContext["react-ui/src/store/AppContext.tsx<br/>active matter and workspace refresh owner"]
+    ReactCommand["react-ui/src/components/command/CommandPanel.tsx<br/>command panel"]
+    ReactWorkflowViews["react-ui/src/views/workflows/*.tsx<br/>native workflow views"]
+    ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and List of Dates preview helpers"]
+    CommandFacade["frontend/ai-command-box.js<br/>legacy command rail facade"]
+    SkillIdeaSession["frontend/skill-idea-session-controller.js<br/>legacy interview, samples, approval"]
+    ConfigurableRunController["frontend/configurable-skill-run-controller.js<br/>legacy custom skill runs and output replacement"]
+    SkillsPageViews["frontend/views/skills-page*.js<br/>legacy Skills page sections"]
   end
 
-  Browser --> CommandFacade
+  Browser --> ReactApp
+  ReactApp --> ReactContext
+  ReactApp --> ReactCommand
+  ReactApp --> ReactWorkflowViews
+  ReactApp --> ReactFilePreview
+  LegacyBrowser --> CommandFacade
   CommandFacade --> SkillIdeaSession
   CommandFacade --> ConfigurableRunController
-  Browser --> SkillsPageViews
+  LegacyBrowser --> SkillsPageViews
 
   subgraph Routes["Route/API layer"]
     ApiRoutes["routes/api-routes.mjs<br/>top-level API dispatcher"]
@@ -268,7 +280,8 @@ Matter-level blocker and warning inspection is intentionally read-only:
 
 The implementation lives in:
 
-- `frontend/views/matter-attention-card.js` - overview card renderer for blocker/warning counts and bounded evidence-backed items.
+- `react-ui/src/views/MatterOverview.tsx` - default React overview surface that renders blocker/warning counts and bounded evidence-backed items.
+- `frontend/views/matter-attention-card.js` - legacy overview card renderer for the same matter-attention API.
 - `services/matter-attention-service.mjs` - orchestration, item normalization, sorting, summary.
 - `services/matter-attention-intake.mjs` - matter setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file signals.
 - `services/matter-attention-source-labels.mjs` - Source Index existence/schema/label-review/developer-name and Source Labels rerun-advice signals.
