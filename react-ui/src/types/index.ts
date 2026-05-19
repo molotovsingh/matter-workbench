@@ -725,6 +725,7 @@ export interface AppState {
   titleText: string;
   statusBar: string;
   terminalLines: string[];
+  activityLines: string[];
   commandCopyText: string;
   isCommandRunning: boolean;
 }

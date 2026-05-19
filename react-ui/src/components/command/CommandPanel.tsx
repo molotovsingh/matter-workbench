@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import SkillIdeaSession from './SkillIdeaSession';
+import { latestCompactActivityRows } from '../../lib/activityLog';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
 import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
 
@@ -29,10 +30,10 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
-  const [activityLog, setActivityLog] = useState<Array<{ time: string; text: string }>>([]);
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activityRows = latestCompactActivityRows(state.activityLines);
 
   function handleInputChange(value: string) {
     setInput(value);
@@ -76,12 +77,6 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
     setActiveSuggestion(-1);
   }
 
-  function addActivity(text: string) {
-    const now = new Date();
-    const time = now.toTimeString().slice(0, 5);
-    setActivityLog((prev) => [...prev.slice(-4), { time, text }]);
-  }
-
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const cmd = input.trim();
@@ -90,18 +85,15 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
     setShowSuggestions(false);
 
     if (inputOverrideRef.current?.(cmd)) {
-      addActivity(cmd);
       return;
     }
 
     const ideaParsed = parseSkillIdeaText(cmd);
     if (ideaParsed !== null) {
       setSkillIdeaInput(cmd);
-      addActivity(cmd);
       return;
     }
 
-    addActivity(cmd);
     onCommand(cmd);
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
@@ -179,13 +171,13 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
         )}
       </form>
 
-      {activityLog.length > 0 && (
+      {activityRows.length > 0 && (
         <div className="command-activity-strip" style={{ order: 5 }}>
-          <div className="command-activity-title">Recent</div>
-          {activityLog.map((entry, i) => (
+          <div className="command-activity-title">Recent activity</div>
+          {activityRows.map((entry, i) => (
             <div key={i} className="command-activity-row">
               <time>{entry.time}</time>
-              <span>{entry.text}</span>
+              <span>{entry.message}</span>
             </div>
           ))}
         </div>

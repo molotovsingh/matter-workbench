@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { api } from '../api/client';
 import { activeMatterFromWorkspace } from '../lib/activeMatter';
+import { stampActivityLines, trimActivityLines } from '../lib/activityLog';
 import { getErrorMessage } from '../lib/errors';
 
 type Action =
@@ -35,7 +36,7 @@ type Action =
   | { type: 'SET_BREADCRUMBS'; payload: string }
   | { type: 'SET_TITLE'; payload: string }
   | { type: 'SET_STATUS_BAR'; payload: string }
-  | { type: 'APPEND_TERMINAL'; payload: string[] }
+  | { type: 'APPEND_TERMINAL'; payload: { terminalLines: string[]; activityLines: string[] } }
   | { type: 'CLEAR_TERMINAL' }
   | { type: 'SET_COMMAND_COPY'; payload: string }
   | { type: 'SET_COMMAND_RUNNING'; payload: boolean };
@@ -64,6 +65,7 @@ const initialState: AppState = {
   titleText: 'No matter selected',
   statusBar: 'Pick a matter to begin',
   terminalLines: ['[workbench] ready'],
+  activityLines: [],
   commandCopyText: 'Ask a general question, create a skill, or pick a matter first.',
   isCommandRunning: false,
 };
@@ -101,9 +103,13 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_STATUS_BAR':
       return { ...state, statusBar: action.payload };
     case 'APPEND_TERMINAL':
-      return { ...state, terminalLines: [...state.terminalLines, ...action.payload].slice(-50) };
+      return {
+        ...state,
+        terminalLines: [...state.terminalLines, ...action.payload.terminalLines].slice(-50),
+        activityLines: trimActivityLines([...state.activityLines, ...action.payload.activityLines]),
+      };
     case 'CLEAR_TERMINAL':
-      return { ...state, terminalLines: [] };
+      return { ...state, terminalLines: [], activityLines: [] };
     case 'SET_COMMAND_COPY':
       return { ...state, commandCopyText: action.payload };
     case 'SET_COMMAND_RUNNING':
@@ -199,7 +205,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const appendTerminal = useCallback((lines: string[]) => {
-    dispatch({ type: 'APPEND_TERMINAL', payload: lines });
+    dispatch({
+      type: 'APPEND_TERMINAL',
+      payload: {
+        terminalLines: lines,
+        activityLines: stampActivityLines(lines),
+      },
+    });
   }, []);
 
   const switchActiveMatter = useCallback(async (
@@ -285,8 +297,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setStatus = useCallback((opts: { bar?: string; terminal?: string[] }) => {
     if (opts.bar) dispatch({ type: 'SET_STATUS_BAR', payload: opts.bar });
-    if (opts.terminal) dispatch({ type: 'APPEND_TERMINAL', payload: opts.terminal });
-  }, []);
+    if (opts.terminal) appendTerminal(opts.terminal);
+  }, [appendTerminal]);
 
   const value: AppContextValue = {
     state,
