@@ -107,8 +107,8 @@ Instead:
 
 - Add New Matter captures initial metadata and client narrative.
 - Intake and extraction produce document evidence.
-- Source Inventory / Discovery uses metadata as context.
-- Source Inventory can flag possible metadata corrections.
+- Source Labels / Document Index uses metadata as context.
+- Source Labels / Document Index can flag possible metadata corrections.
 - Metadata Review confirms corrections before later skills rely on them.
 - Chronology and court-facing outputs use confirmed metadata labels.
 
@@ -118,7 +118,7 @@ This keeps responsibilities clean:
 |---|---|
 | Add New Matter | initial client interview and metadata capture |
 | Metadata Review | correction and confirmation after documents are read |
-| Source Inventory / Discovery | document organization, bad-copy flags, chronology feed, possible metadata issues |
+| Source Labels / Document Index | document organization, bad-copy flags, chronology feed, possible metadata issues |
 | List of Dates | time-ordered source-grounded story using confirmed metadata |
 | Later legal skills | issue, relief, evidence, contradiction, brief, and drafting work |
 
@@ -147,7 +147,7 @@ Use full name?
 
 ## Why This Should Be Separate From The Skill
 
-If the Source Inventory skill owns metadata cleanup, the skill becomes too
+If Source Labels / Document Index owns metadata cleanup, the skill becomes too
 broad. It would mix:
 
 - matter creation;

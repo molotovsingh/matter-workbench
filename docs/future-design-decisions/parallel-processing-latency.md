@@ -1,6 +1,7 @@
 # Parallel Processing And Latency Strategy
 
-Status: Parked future feature
+Date: 2026-05-19
+Status: Parked future feature; local/V1 runtime path
 
 ## Problem
 
@@ -118,6 +119,13 @@ Can the user leave the screen and come back to a durable receipt?
 
 The future architecture probably needs both, but they should not be mixed in one
 large first slice.
+
+Hosted beta has a stricter foundation order. The hosted path should first prove
+tenant-scoped upload, object lifecycle, durable jobs, and canonical incidents as
+defined in [Hosted Beta Database Architecture](hosted-beta-database-architecture.md).
+This note's Source Labels parallelism slice is a local/V1 runtime improvement,
+not permission to move Source Labels or List of Dates into hosted workers before
+the hosted foundation is safe.
 
 Suggested order:
 

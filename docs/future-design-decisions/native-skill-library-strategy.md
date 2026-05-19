@@ -332,8 +332,10 @@ For the first two native skills, the product rule should be strict:
 - Skill 2 chronology/List of Dates outputs belong in `10_Library`.
 - These outputs are generated source-backed artifacts, not in-app lawyer-edited
   work product.
-- If they are wrong or stale, the app should fix upstream inputs and regenerate,
-  not ask the lawyer to manually maintain rows.
+- If they are wrong or stale, the app should fix upstream inputs and then
+  choose the cheapest correct action: refresh labels when only labels changed,
+  review when metadata changed, and regenerate when source content changed.
+  It should not ask the lawyer to manually maintain generated rows.
 - Lawyer editing belongs in `30_Drafts` or in the lawyer's own drafting tool.
 - `40_Dispatch` is the send/file-ready handoff lane. After dispatch, the app
   should not behave as if it still owns the legal work product.
@@ -442,7 +444,7 @@ Do not start with final drafting. Start with matter understanding.
 
 ### Phase 1: Case Control
 
-1. Document Index / Source Inventory
+1. Source Labels / Document Index
 2. Factual Chronology / List of Dates
 3. Procedural History
 4. Parties / Entities / Relationship Map

@@ -444,10 +444,20 @@ This native skill family should produce or feed:
 - List of Dates handoff;
 - client request candidates for bad/missing documents.
 
-Possible files:
+Stable current app contract:
 
 ```text
-10_Library/Document Index.json
+10_Library/Source Index.json
+```
+
+Do not introduce both `Source Index.json` and `Document Index.json` as
+competing canonical JSON files in the first slice. The broader Document Index
+contract should extend or version the source-record schema deliberately.
+
+Possible lawyer-visible or supporting views:
+
+```text
+10_Library/Source Labels.md
 10_Library/Document Index.md
 10_Library/Chronological Reading Notes.md
 20_Workshop/Client Document Requests.md

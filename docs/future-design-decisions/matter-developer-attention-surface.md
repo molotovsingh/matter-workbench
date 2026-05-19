@@ -1,5 +1,8 @@
 # Matter Developer Attention Surface
 
+Date: 2026-05-19
+Status: Current local diagnostic contract; hosted beta should project from canonical incidents
+
 ## Problem
 
 Matter Workbench already writes useful traces: intake registers, extraction logs, Source Index metadata, List of Dates sidecars, rerun advice, command interaction JSONL, and custom-skill run receipts.

@@ -38,7 +38,8 @@ The goal is to help the lawyer decide:
 
 - whether to run a paid skill now;
 - whether to rerun an already-current artifact;
-- whether to choose a faster/cheaper model;
+- whether to choose a faster/cheaper model where task policy permits user
+  choice;
 - whether a high-stakes matter justifies a premium model.
 
 The app should avoid pretending it can produce exact bills. Provider pricing,
@@ -298,7 +299,7 @@ The Settings/Skills tab may later show:
 Task                          Model policy          Cost posture
 Skill interview capture        Deterministic         Free/local
 Skill design review            Premium planned       Paid
-List of Dates                  GPT-4.1 via OR        Paid
+List of Dates                  Source-backed policy  Paid
 Context search                 Local packet search   Free/local
 ```
 
@@ -318,6 +319,11 @@ If OpenRouter returns routed endpoint/provider cost metadata, prefer that over
 static model-config pricing. Static pricing should be fallback only.
 
 ## Data Storage Options
+
+For the local app, prefer derived or local diagnostic sources first. For hosted
+beta, use the `provider_runs` and `cost_events` control-plane tables described
+in [Hosted Beta Database Architecture](hosted-beta-database-architecture.md).
+Do not invent a separate hosted cost ledger beside those tables.
 
 ### Option A: Derive From Artifacts First
 
