@@ -34,6 +34,8 @@ app-wide readiness, see
 For the parked future latency strategy around parallel processing, progress
 receipts, and long-running native skills, see
 [docs/future-design-decisions/parallel-processing-latency.md](docs/future-design-decisions/parallel-processing-latency.md).
+For the future hosted beta database and tenancy architecture, see
+[docs/future-design-decisions/hosted-beta-database-architecture.md](docs/future-design-decisions/hosted-beta-database-architecture.md).
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
