@@ -60,6 +60,7 @@ export default function ExtractResult() {
             disabled={running || !state.activeMatter}
           >
             {running ? 'Extracting…' : done ? 'Re-run' : 'Run extract'}
+            {' '}
             <span>Local</span>
           </button>
         </div>

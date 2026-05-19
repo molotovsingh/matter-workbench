@@ -79,6 +79,7 @@ export default function DescribeSourcesResult() {
             disabled={running || confirming || !state.activeMatter}
           >
             {running ? 'Running…' : result ? 'Regenerate source labels' : 'Run describe sources'}
+            {' '}
             <span>Uses AI</span>
           </button>
           {result && (

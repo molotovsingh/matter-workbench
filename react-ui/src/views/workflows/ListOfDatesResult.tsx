@@ -85,6 +85,7 @@ export default function ListOfDatesResult() {
         <div className="document-actions">
           <button className="run-skill-button" type="button" onClick={handleRunClick} disabled={running || confirming || !state.activeMatter}>
             {running ? 'Generating…' : done ? 'Re-generate' : 'Generate'}
+            {' '}
             <span>Uses AI</span>
           </button>
         </div>

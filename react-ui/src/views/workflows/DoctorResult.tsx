@@ -82,6 +82,7 @@ export default function DoctorResult() {
         <div className="document-actions">
           <button className="run-skill-button" type="button" onClick={handleScan} disabled={scanning || !state.activeMatter}>
             {scanning ? 'Scanning…' : done ? 'Re-scan' : 'Scan matter'}
+            {' '}
             <span>Local</span>
           </button>
         </div>
