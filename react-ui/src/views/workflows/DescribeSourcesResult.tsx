@@ -15,11 +15,7 @@ export default function DescribeSourcesResult() {
   const [error, setError] = useState('');
 
   function handleRunClick() {
-    if (result) {
-      setConfirming(true);
-    } else {
-      executeRun();
-    }
+    setConfirming(true);
   }
 
   async function executeRun() {

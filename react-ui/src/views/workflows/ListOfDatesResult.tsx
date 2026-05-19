@@ -18,11 +18,7 @@ export default function ListOfDatesResult() {
   const [error, setError] = useState('');
 
   function handleRunClick() {
-    if (done) {
-      setConfirming(true);
-    } else {
-      executeRun();
-    }
+    setConfirming(true);
   }
 
   async function executeRun() {
