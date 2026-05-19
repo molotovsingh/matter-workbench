@@ -25,6 +25,9 @@ custom skill demand and AI spend, see
 For the shared legal-output prompt contract that keeps source, citation,
 visibility, and model-risk rules stable across providers, see
 [docs/future-design-decisions/legal-workbench-policy-prompt.md](docs/future-design-decisions/legal-workbench-policy-prompt.md).
+For the parked future model-to-app task policy that keeps copilot model choice
+from controlling durable skill design or artifact-writing work, see
+[docs/future-design-decisions/model-to-app-task-policy.md](docs/future-design-decisions/model-to-app-task-policy.md).
 For the parked future distinction between matter-level diagnostics and
 app-wide readiness, see
 [docs/future-design-decisions/system-health-surface.md](docs/future-design-decisions/system-health-surface.md).
