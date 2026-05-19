@@ -8,6 +8,7 @@ import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
+import { parseSkillIdeaText } from './lib/skillIdeaInput';
 import { useLatestValue } from './hooks/useLatestValue';
 import type { ActiveView } from './types';
 
@@ -69,7 +70,7 @@ function AppShell() {
       return;
     }
 
-    if (lower === 'new skill' || lower.includes('create a skill') || lower.includes('new skill')) {
+    if (parseSkillIdeaText(cmd) !== null) {
       dispatch({ type: 'SET_TAB', payload: 'skills' });
       dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });
       return;

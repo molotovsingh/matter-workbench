@@ -9,6 +9,7 @@ import {
 
 const nativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const nativeAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
+const reactAppPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 
 test("React native commands mirror shared slash commands and aliases", async () => {
   const [commandsSource, aliasesSource] = await Promise.all([
@@ -36,4 +37,12 @@ test("React native command resolver handles aliases before model intent", async 
   assert.match(commandsSource, /export function resolveNativeCommand/);
   assert.match(commandsSource, /getNativeCommandAlias\(normalized\)/);
   assert.match(commandsSource, /return \{ command: aliasCommand, view: aliasView \}/);
+});
+
+test("React app shell uses the shared skill-idea input classifier", async () => {
+  const appSource = await readFile(reactAppPath, "utf8");
+
+  assert.match(appSource, /parseSkillIdeaText\(cmd\)/);
+  assert.doesNotMatch(appSource, /includes\(['"]create a skill['"]\)/);
+  assert.doesNotMatch(appSource, /includes\(['"]new skill['"]\)/);
 });
