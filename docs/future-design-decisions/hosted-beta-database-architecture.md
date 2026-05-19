@@ -125,6 +125,7 @@ Tables that should carry `tenant_id` directly:
 - `matters`
 - `matter_memberships`
 - `matter_intakes`
+- `upload_sessions`
 - `documents`
 - `document_blobs`
 - `extraction_records`
@@ -221,6 +222,7 @@ Required fields:
 
 ```text
 matter_intakes
+upload_sessions
 documents
 document_blobs
 ```
@@ -241,6 +243,17 @@ Required fields:
 - `matter_intakes.label`
 - `matter_intakes.received_at`
 - `matter_intakes.created_by_user_id`
+- `upload_sessions.id`
+- `upload_sessions.tenant_id`
+- `upload_sessions.matter_id`
+- `upload_sessions.intake_id`
+- `upload_sessions.idempotency_key`
+- `upload_sessions.created_by_user_id`
+- `upload_sessions.status`: `pending`, `uploading`, `uploaded`, `verified`,
+  `partial_failed`, `failed`, `cancelled`
+- `upload_sessions.expected_file_count`
+- `upload_sessions.created_at`
+- `upload_sessions.finished_at`
 - `documents.id`
 - `documents.tenant_id`
 - `documents.matter_id`
@@ -263,14 +276,15 @@ Required fields:
 - `document_blobs.mime_type`
 - `document_blobs.size_bytes`
 - `document_blobs.sha256`
-- `document_blobs.state`: `pending`, `uploaded`, `verified`, `orphaned`,
-  `deleted_pending`
+- `document_blobs.state`: `pending`, `uploaded`, `verified`, `failed`,
+  `orphaned`, `deleted_pending`
 
 Constraints:
 
 ```text
 unique(documents.matter_id, documents.file_number)
 unique(documents.matter_id, documents.file_id)
+unique(upload_sessions.tenant_id, upload_sessions.idempotency_key)
 unique(document_blobs.tenant_id, document_blobs.object_key)
 ```
 
@@ -313,13 +327,16 @@ Required lifecycle:
 
 ```text
 1. create upload session row
-2. create document row with status pending_upload
-3. create document_blob row with state pending
-4. upload object to private object storage
-5. verify object checksum and size
-6. mark document_blob verified
-7. mark document uploaded or verified
-8. enqueue processing job through job_outbox
+2. mark upload session uploading
+3. for each file, create document row with status pending_upload
+4. for each file, create document_blob row with state pending
+5. upload object to private object storage
+6. mark upload session uploaded when expected objects are stored
+7. verify object checksum and size
+8. mark document_blob verified
+9. mark document uploaded or verified
+10. mark upload session verified when expected files are verified
+11. enqueue processing job through job_outbox
 ```
 
 Failure handling:
@@ -329,16 +346,20 @@ Failure handling:
   - cleanup job marks it `orphaned` or deletes it after retention window.
 - DB rows exist but object upload fails:
   - document remains `pending_upload` or `failed`;
+  - upload session becomes `failed` or `partial_failed`;
   - retry may reuse idempotency key;
   - no extraction job is enqueued.
 - checksum mismatch:
   - blob state becomes `failed`;
   - document status becomes `failed`;
+  - upload session becomes `failed` or `partial_failed`;
   - incident is recorded.
 
 Acceptance tests:
 
 - retrying the same upload idempotency key does not create duplicate documents;
+- upload session status reflects `failed`, `partial_failed`, and `verified`
+  outcomes;
 - failed object verification does not enqueue extraction;
 - orphaned object cleanup is observable;
 - duplicate file hash within a matter records duplicate status without
@@ -464,7 +485,8 @@ Required `provider_runs` fields:
 
 - `provider_runs.id`
 - `provider_runs.tenant_id`
-- `provider_runs.matter_id`
+- `provider_runs.matter_id`, nullable only for tenant-level copilot,
+  skill-creation, or skill-modification calls
 - `provider_runs.job_id`
 - `provider_runs.task_class`: `copilot`, `skill_creation`,
   `skill_modification`, `skill_execution`, `native_source_skill`,
@@ -490,6 +512,17 @@ Required `provider_runs` fields:
 No provider fallback should silently replace the model/policy selected for a
 legal-output task.
 
+Job idempotency constraints:
+
+```text
+unique(processing_jobs.tenant_id, processing_jobs.idempotency_key)
+unique(job_outbox.tenant_id, job_outbox.job_id, job_outbox.event_type)
+```
+
+If a job type legitimately emits multiple events of the same type, add an
+explicit `event_key` and include it in the outbox uniqueness rule. Do not rely
+on worker-side de-duplication alone.
+
 ## Artifacts And Currentness
 
 ```text
@@ -509,7 +542,8 @@ Required fields:
   `context_packet`, `draft`, `dispatch_copy`, `export`, `custom_skill_output`
 - `matter_artifacts.mode`: e.g. `internal_review`, `court_filing`,
   `label_refresh`, `sample`, `default`
-- `matter_artifacts.profile`: optional profile or audience key
+- `matter_artifacts.profile_key`: profile or audience key; use `default`
+  instead of `null`
 - `matter_artifacts.format`: `json`, `md`, `csv`, `pdf`, `docx`, `txt`
 - `matter_artifacts.schema_version`
 - `matter_artifacts.object_key`
@@ -524,12 +558,17 @@ Required fields:
 Currentness scope:
 
 ```text
-unique current artifact per
-(matter_id, artifact_family, mode, profile, format)
+partial unique index for current artifacts only:
+(matter_id, artifact_family, mode, profile_key, format)
+where is_current = true
 ```
 
 Do not use only `(matter_id, kind)`. That is too coarse for internal chronology,
 filing chronology, refresh-only output, court export, and future custom modes.
+
+Do not make `profile_key` nullable unless the database index explicitly uses
+`NULLS NOT DISTINCT`. Otherwise Postgres can allow multiple "current" artifacts
+where `profile_key` is `NULL`.
 
 `artifact_validation_results` records checks such as:
 
@@ -625,8 +664,10 @@ Required fields:
 
 - `audit_events.id`
 - `audit_events.tenant_id`
-- `audit_events.user_id`
-- `audit_events.matter_id`
+- `audit_events.actor_type`: `user`, `worker`, `system`
+- `audit_events.actor_user_id`, nullable for worker/system events
+- `audit_events.matter_id`, nullable for tenant-level events such as
+  invitation/removal
 - `audit_events.action`
 - `audit_events.target_type`
 - `audit_events.target_id`
@@ -659,7 +700,7 @@ Required fields:
 
 - `cost_events.id`
 - `cost_events.tenant_id`
-- `cost_events.matter_id`
+- `cost_events.matter_id`, nullable for tenant-level or session-level costs
 - `cost_events.provider_run_id`
 - `cost_events.job_id`
 - `cost_events.approval_event_id`
@@ -721,6 +762,10 @@ When implemented, import must:
 - preserve hashes and artifact provenance;
 - report import warnings as incidents, not silently discard them.
 
+If an imported `FILE-NNNN` collides with an existing hosted source identity for
+the same matter, stop that import batch and record an incident. Do not silently
+renumber source identities after import.
+
 ## Search Direction
 
 First search should be deterministic and citation-preserving:
@@ -779,10 +824,12 @@ Acceptance criteria:
 - user can create a matter;
 - every matter row has `tenant_id`;
 - user can upload files to a matter;
+- each upload has an `upload_sessions` row and idempotency key;
 - uploaded files are private object-storage blobs, not Postgres blobs;
 - Postgres records document identity, checksum, size, object key, and state;
 - `FILE-NNNN` is allocated transactionally per matter;
 - duplicate upload by hash does not overwrite the original document identity;
+- retrying the same upload idempotency key does not create duplicate documents;
 - extraction job can be queued through `job_outbox`;
 - job state survives server restart;
 - failed jobs create canonical incidents;
