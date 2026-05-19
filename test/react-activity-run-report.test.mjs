@@ -73,7 +73,7 @@ test("React custom skill run report mirrors metadata-only redaction boundary", a
 });
 
 test("React Activity output opening is limited to the run matter", async () => {
-  const { canOpenSkillRunOutputForMatter } = await importReactRunReportModule();
+  const { canOpenSkillRunOutputForMatter, skillRunOutputExistsInWorkspace } = await importReactRunReportModule();
   const run = {
     id: "run_1",
     status: "succeeded",
@@ -95,4 +95,33 @@ test("React Activity output opening is limited to the run matter", async () => {
     name: "Ayesha Vs Japan Airlines",
     folderName: "Ayesha Vs Japan Airlines",
   }), false);
+
+  const activeMatter = {
+    name: "Ayesha Vs Japan Airlines",
+    folderName: "Ayesha Vs Japan Airlines",
+    workspace: {
+      name: "Ayesha Vs Japan Airlines",
+      path: "",
+      children: [
+        {
+          name: "Case Analysis",
+          path: "20_Workshop",
+          type: "folder",
+          children: [
+            {
+              name: "Party Map.md",
+              path: "20_Workshop/Party Map.md",
+              type: "file",
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  assert.equal(skillRunOutputExistsInWorkspace(run, activeMatter), true);
+  assert.equal(skillRunOutputExistsInWorkspace({
+    ...run,
+    outputPaths: { markdown: "20_Workshop/Missing.md" },
+  }, activeMatter), false);
 });

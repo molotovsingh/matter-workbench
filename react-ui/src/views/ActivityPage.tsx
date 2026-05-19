@@ -7,6 +7,7 @@ import {
   formatConfigurableRunOutputDocumentState,
   formatConfigurableSkillRunReport,
   humanizeRunOutputPath,
+  skillRunOutputExistsInWorkspace,
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
@@ -210,6 +211,7 @@ function RunCard({
   const startedTime = formatTime(run.startedAt);
   const outputPath = run.outputPaths?.markdown;
   const canOpen = canOpenSkillRunOutputForMatter(run, activeMatter);
+  const outputExists = skillRunOutputExistsInWorkspace(run, activeMatter);
 
   return (
     <article className={`activity-card${compact ? ' compact' : ''} ${statusClass}`}>
@@ -230,10 +232,13 @@ function RunCard({
       </div>
       {!compact && (
         <div className="activity-card-actions">
-          {canOpen && (
+          {canOpen && outputExists && (
             <button className="run-skill-button secondary" type="button" onClick={() => onOpen(run)}>
               Open output
             </button>
+          )}
+          {canOpen && outputPath && !outputExists && (
+            <span className="muted" style={{ alignSelf: 'center', fontSize: 12 }}>Output missing</span>
           )}
           <button className="run-skill-button secondary" type="button" onClick={() => onCopy(run)}>
             Copy report

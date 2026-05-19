@@ -1,4 +1,4 @@
-import type { ActiveMatter, SkillRun } from '../types';
+import type { ActiveMatter, SkillRun, WorkspaceFile } from '../types';
 import { redactSensitiveText } from './secretRedaction';
 
 export function formatConfigurableRunOutputDocumentState(overwrite?: string): string {
@@ -12,6 +12,12 @@ export function canOpenSkillRunOutputForMatter(run: SkillRun, activeMatter: Acti
   const outputPath = run.outputPaths?.markdown;
   if (!outputPath || run.status !== 'succeeded' || !activeMatter?.folderName) return false;
   return activeMatter.folderName === run.matterFolder;
+}
+
+export function skillRunOutputExistsInWorkspace(run: SkillRun, activeMatter: ActiveMatter | null): boolean {
+  const outputPath = normalizeWorkspacePath(run.outputPaths?.markdown);
+  if (!outputPath || !activeMatter?.workspace?.children) return false;
+  return workspaceContainsPath(activeMatter.workspace.children, outputPath);
 }
 
 export function formatConfigurableSkillRunReport(run: SkillRun): string {
@@ -65,4 +71,16 @@ export function humanizeRunOutputPath(path = ''): string {
 function packetValue(value: unknown): string {
   const normalized = String(value || '').trim();
   return redactSensitiveText(normalized || 'Not specified');
+}
+
+function workspaceContainsPath(nodes: WorkspaceFile[], targetPath: string): boolean {
+  for (const node of nodes) {
+    if (node.type === 'file' && normalizeWorkspacePath(node.path) === targetPath) return true;
+    if (node.children?.length && workspaceContainsPath(node.children, targetPath)) return true;
+  }
+  return false;
+}
+
+function normalizeWorkspacePath(value?: string): string {
+  return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').trim();
 }
