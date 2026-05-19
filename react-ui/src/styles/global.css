@@ -778,6 +778,13 @@ code { color: var(--code-text); }
 /* ─── Responsive ────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 48px minmax(220px,280px) 1fr; }
+  .activity-bar { align-items: center; gap: 8px; padding: 18px 6px 12px; }
+  .activity-logo { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 2px 0 24px; font-size: 0; }
+  .activity-logo strong::first-letter { color: var(--nav-text); font-family: var(--display-font); font-size: 20px; line-height: 1; }
+  .activity-logo span,
+  .activity-label { display: none; }
+  .activity-item { justify-content: center; min-height: 36px; width: 36px; padding: 0; }
+  .activity-icon { width: 18px; flex-basis: 18px; }
   .editor-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) auto; }
   .command-panel { border-left: 0; border-top: 1px solid var(--border); max-height: min(420px,48vh); }
   .matter-info-card { grid-template-columns: 1fr; }
