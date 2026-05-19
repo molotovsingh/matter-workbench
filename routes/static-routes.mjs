@@ -23,7 +23,7 @@ export function resolveStaticPath(appDir, urlPath, options = {}) {
     return null;
   }
 
-  const uiShell = options.uiShell === "react" ? "react" : "legacy";
+  const uiShell = options.uiShell === "legacy" ? "legacy" : "react";
   const reactRoot = path.resolve(appDir, "react-dist");
 
   if (uiShell === "react" && cleanPath === "/") {
@@ -45,7 +45,7 @@ export function resolveStaticPath(appDir, urlPath, options = {}) {
   return absolutePath;
 }
 
-export async function serveStatic({ appDir, request, response, uiShell = "legacy" }) {
+export async function serveStatic({ appDir, request, response, uiShell = "react" }) {
   const filePath = resolveStaticPath(appDir, request.url || "/", { uiShell });
   if (!filePath) {
     response.writeHead(403);

@@ -1,6 +1,8 @@
 {
   "scripts": {
-    "start": "node server.mjs",
+    "start": "npm run ui:build && node server.mjs",
+    "start:server": "node server.mjs",
+    "start:legacy": "MWB_UI_SHELL=legacy node server.mjs",
     "test": "node --test",
     "ui:dev": "vite --config react-ui/vite.config.ts --host 127.0.0.1",
     "ui:typecheck": "tsc -b react-ui/tsconfig.json",

@@ -33,7 +33,8 @@ export async function createWorkbenchServer(options = {}) {
   const env = options.env || (await loadLocalEnv({ appDir, override: true })).env;
   const host = options.host || "127.0.0.1";
   const port = Number(options.port ?? env.PORT ?? 4173);
-  const uiShell = options.uiShell || (env.MWB_UI_SHELL === "react" ? "react" : "legacy");
+  const requestedUiShell = options.uiShell || env.MWB_UI_SHELL || "react";
+  const uiShell = requestedUiShell === "legacy" ? "legacy" : "react";
 
   const configService = createConfigService({ appDir, env });
   await configService.load();

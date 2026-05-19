@@ -470,9 +470,13 @@ The core lifecycle service is still `services/configurable-skills-service.mjs`, 
 
 ## The Frontend
 
-The stable v1 frontend is plain browser JavaScript. The React/Vite UI that was
-previously being explored in a separate local repo has now been absorbed into
-this repo under `react-ui/`, so there is one product codebase again.
+The default v1 frontend is now the React/Vite shell in `react-ui/`. The older
+plain browser JavaScript shell still exists, but it is no longer the normal
+door into the product.
+
+The React/Vite UI that was previously being explored in a separate local repo
+has now been absorbed into this repo under `react-ui/`, so there is one product
+codebase again.
 
 In plain English: we did not move into two houses. We brought the useful React
 prototype furniture into the main house, put it in one room, and left the old
@@ -480,25 +484,32 @@ prototype house ready to be demolished later.
 
 The current safe arrangement is:
 
-- `/` serves the existing stable plain-JS v1 app.
-- `react-ui/` contains the React source for the next frontend track.
-- `PORT=4191 npm start` is the usual backend command for React UI work in this repo; keep it running in one terminal.
-- `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/` while proxying API calls to the backend.
-- `npm run ui:build` type-checks and builds the React app.
-- `npm run ui:smoke` checks that the React UI and the live backend still agree on the API shapes React renders.
-- `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
+- `/` serves the compiled React shell by default.
+- `/react/` also serves the compiled React shell, so older test links keep working.
+- `react-ui/` contains the React source.
 - `react-dist/` is generated output and is ignored by git.
-- `/react/` can serve the compiled React build from the same backend.
-- `MWB_UI_SHELL=react npm start` is the opt-in cutover test path: `/` serves the compiled React build while the default remains the plain-JS app.
+- `npm start` first builds `react-dist/`, then starts `server.mjs`.
+- `npm run start:server` starts the backend without rebuilding when `react-dist/` is already current.
+- `npm run start:legacy` or `MWB_UI_SHELL=legacy npm run start:server` serves the previous plain-JS shell as an explicit fallback.
+- `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/react/` while proxying API calls to the backend.
+- `npm run ui:build` type-checks and builds the React app.
+- `npm run ui:smoke` checks that the production React root and the live backend still agree on the API shapes React renders.
+- `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
 
 This means the separate `matter-workbench-react-ui-claude` repo is no longer a
 source of truth. Keep it only as a temporary backup until we are comfortable
 deleting it.
 
-That last shell flag is deliberately not a product change. It is a release
-valve. The eventual decision to make React the default should be a controlled
-switch with acceptance evidence, not a route rewrite mixed into unrelated
-frontend work.
+The most important cutover lesson was not "switch `/` to React." It was
+"production must be bootable from a clean checkout." Because `react-dist/` is
+ignored, a fresh repo will not contain the compiled UI. If `npm start` only ran
+`node server.mjs`, the production root could point at a missing build. That is
+why `npm start` now builds React before starting the server, while
+`npm run start:server` remains available for fast local restarts.
+
+The legacy shell flag is now a release valve, not the main product path. It
+lets us compare behavior or recover quickly if a root-shell bug appears, without
+pretending we are still maintaining two equal frontends.
 
 The React track has also been hardened against the exact kind of drift that
 usually makes frontend ports painful. The important fixes were not cosmetic.

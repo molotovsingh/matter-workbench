@@ -26,7 +26,7 @@ import {
 } from "../shared/skill-sample-states.mjs";
 
 const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || "http://127.0.0.1:4191");
-const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:5173/react/";
+const uiUrl = process.env.MWB_UI_URL || "http://127.0.0.1:4191/";
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactNativeCommandAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
 const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);

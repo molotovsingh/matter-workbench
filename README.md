@@ -166,10 +166,17 @@ cd /path/to/matter-workbench
 npm start
 ```
 
-Then open `http://127.0.0.1:4173/`. On first launch the app asks where your
-matters should live and creates that folder for you. Use **+ New Matter** in
-the sidebar to create a matter, or pick an existing one from the **Matters**
-list.
+`npm start` builds the React UI and starts the backend. Then open
+`http://127.0.0.1:4173/`. On first launch the app asks where your matters
+should live and creates that folder for you. Use **+ New Matter** in the sidebar
+to create a matter, or pick an existing one from the **Matters** list.
+
+The React shell is now the default UI at `/`. To run the previous plain-JS shell
+as a fallback, use:
+
+```bash
+MWB_UI_SHELL=legacy npm run start:server
+```
 
 ### React UI track
 
@@ -191,7 +198,7 @@ npm run ui:dev
 ```
 
 This starts the backend on `http://127.0.0.1:4191`, then serves the React UI at
-`http://127.0.0.1:5173/` and proxies `/api` to that backend. If you run the
+`http://127.0.0.1:5173/react/` and proxies `/api` to that backend. If you run the
 backend on a different port, set `VITE_API_TARGET` before `npm run ui:dev`.
 
 To build the React UI inside the main repo:
@@ -201,8 +208,8 @@ npm run ui:build
 ```
 
 The build output goes to ignored `react-dist/`. The backend can serve that
-compiled UI at `/react/`, while `/` continues to serve the current stable
-plain-JS v1 UI until we deliberately switch defaults.
+compiled UI at both `/` and `/react/`. The previous plain-JS v1 UI remains
+available only when `MWB_UI_SHELL=legacy` is set.
 
 Before accepting changes from a frontend experiment repo, run:
 
@@ -210,12 +217,17 @@ Before accepting changes from a frontend experiment repo, run:
 npm run ui:accept
 ```
 
-`ui:smoke` expects the backend at `http://127.0.0.1:4191` and the React UI at
-`http://127.0.0.1:5173/react/`. Override those with `MWB_BACKEND_URL` and
-`MWB_UI_URL` when testing another local port. If no matter is active, the smoke
-check skips matter-specific workspace, readiness, attention, context, file
-preview, doctor-scan, and rerun-advice checks and still validates the shared app
-contract.
+`ui:smoke` expects the backend and default React shell at
+`http://127.0.0.1:4191/`. For Vite dev-server testing, run:
+
+```bash
+MWB_UI_URL=http://127.0.0.1:5173/react/ npm run ui:smoke
+```
+
+Override `MWB_BACKEND_URL` and `MWB_UI_URL` when testing another local port. If
+no matter is active, the smoke check skips matter-specific workspace,
+readiness, attention, context, file preview, doctor-scan, and rerun-advice
+checks and still validates the shared app contract.
 
 ## Switching matters
 
@@ -249,12 +261,12 @@ The active matter overview also renders a read-only Developer attention card fro
 
 ## Files
 
-- `index.html` - app shell markup
-- `styles.css` - app visual system and layout
-- `app.js` - frontend composition, state bootstrapping, and built-in skill dispatch
-- `frontend/` - command rail UI, screens, workspace views, and skill-specific frontend runners
-- `react-ui/` - React/Vite UI track imported into the main repo for future frontend work
-- `react-dist/` - ignored generated build output for the React UI, served at `/react/`
+- `react-ui/` - default React/Vite UI source
+- `react-dist/` - ignored generated build output for the React UI, served at `/` and `/react/`
+- `index.html` - previous plain-JS app shell, available with `MWB_UI_SHELL=legacy`
+- `styles.css` - previous plain-JS visual system and layout
+- `app.js` - previous plain-JS frontend composition, state bootstrapping, and built-in skill dispatch
+- `frontend/` - previous plain-JS command rail UI, screens, workspace views, and skill-specific frontend runners
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
 - `routes/app-shell-routes.mjs` - app settings, matters, workspace, uploads, files, overlap checks, and command diagnostics

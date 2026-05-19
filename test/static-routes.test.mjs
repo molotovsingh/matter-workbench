@@ -9,7 +9,7 @@ import { resolveStaticPath, serveStatic } from "../routes/static-routes.mjs";
 test("static route containment rejects traversal and prefix sibling paths", () => {
   const appDir = path.resolve("/tmp/matter-static-app");
 
-  assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "index.html"));
+  assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(resolveStaticPath(appDir, "/styles.css"), path.join(appDir, "styles.css"));
   assert.equal(resolveStaticPath(appDir, "/react"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(resolveStaticPath(appDir, "/react/"), path.join(appDir, "react-dist", "index.html"));
@@ -23,13 +23,13 @@ test("static route containment rejects traversal and prefix sibling paths", () =
   assert.equal(resolveStaticPath(appDir, "/%E0%A4%A"), null);
 });
 
-test("static route can opt into React shell at root without changing the default", () => {
+test("static route can opt into legacy shell at root while React stays default", () => {
   const appDir = path.resolve("/tmp/matter-static-app");
 
-  assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "index.html"));
+  assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(
-    resolveStaticPath(appDir, "/", { uiShell: "react" }),
-    path.join(appDir, "react-dist", "index.html"),
+    resolveStaticPath(appDir, "/", { uiShell: "legacy" }),
+    path.join(appDir, "index.html"),
   );
   assert.equal(
     resolveStaticPath(appDir, "/react/assets/index.js", { uiShell: "react" }),
@@ -48,6 +48,7 @@ test("static route streams file content with no-store headers", async () => {
       appDir,
       request: { url: "/" },
       response,
+      uiShell: "legacy",
     });
 
     assert.equal(handled, true);
@@ -60,7 +61,7 @@ test("static route streams file content with no-store headers", async () => {
   }
 });
 
-test("static route streams React shell when opt-in shell is selected", async () => {
+test("static route streams React shell by default", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-static-"));
   try {
     await writeFile(path.join(appDir, "index.html"), "<h1>Legacy</h1>");
@@ -72,7 +73,6 @@ test("static route streams React shell when opt-in shell is selected", async () 
       appDir,
       request: { url: "/" },
       response,
-      uiShell: "react",
     });
 
     assert.equal(handled, true);
