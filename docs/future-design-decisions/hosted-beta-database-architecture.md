@@ -1,194 +1,194 @@
 # Future Design Decision: Hosted Beta Database Architecture
 
-Date: 2026-05-18
-Status: Planning note
+Date: 2026-05-19
+Status: Implementation contract draft
 
-## Why This Exists
+## Purpose
 
-Matter Workbench began as a local-first legal workbench. That was the right
-shape for proving the core workflow:
+This note defines the first hosted-beta data contract for Matter Workbench:
 
-```text
-matter folder -> intake -> extraction -> source labels -> list of dates
-```
+- what the hosted control plane must own;
+- what remains in object storage;
+- how tenant isolation works;
+- how upload, job, provider, artifact, and diagnostic state should be modeled;
+- what the first implementation slice must prove before legal workflow engines
+  move into hosted workers.
 
-The current app can reason from local artifacts such as `matter.json`,
-`File Register.csv`, `Extraction Log.csv`, `Source Index.json`, and List of
-Dates outputs. That is understandable, inspectable, and good for a single
-operator on one machine.
+This is not a full product roadmap. It is the minimum database and worker
+contract needed to avoid painting the hosted beta into a corner.
 
-Hosted beta changes the problem.
+## Core Decisions
 
-If selected members of a firm use the product, and each member may have 500+
-matters, the product is no longer just a local document workbench. It becomes a
-multi-user legal matter system. The hard questions become:
+1. Use Postgres as the hosted control plane.
+2. Use private object storage for original files, normalized files, extraction
+   payloads, generated artifacts, exports, and large derived payloads.
+3. Use durable jobs and workers for extraction, OCR, source labels, List of
+   Dates, exports, and future configurable skills.
+4. Use a tenant model underneath even if early beta looks like one private
+   account per user.
+5. Treat Matter Attention as a projection over canonical incidents, failures,
+   validation results, and jobs. Do not make attention itself the main source of
+   truth.
+6. Keep source identity and citation discipline from the local app:
+   `FILE-NNNN` remains matter-scoped; raw citations remain audit handles;
+   lawyer-readable labels remain presentation handles.
 
-- who owns each matter;
-- who can access it;
-- where original documents live;
-- which processing jobs have run;
-- what failed;
-- which generated artifact is current;
-- what needs developer or operator attention;
-- how data can be recovered, audited, exported, or deleted.
+## Naming Rule
 
-The database is therefore not only a performance tool. It is the operational
-memory of the hosted product.
+Avoid using `workspace` as the internal database concept.
 
-## Core Decision
+This repo already uses "workspace" for the matter file browser, lanes, and
+preview surface:
 
-Use a tenant/workspace model in the database from day one, even if the first
-beta user experience behaves like isolated personal accounts.
+- `services/workspace-service.mjs`
+- `shared/workspace-lanes.mjs`
+- `react-ui/src/components/workspace/WorkspaceTree.tsx`
 
-The practical shape is:
-
-```text
-workspace/firm tenant underneath
-single-user sandbox experience on top for early beta
-```
-
-This means the first beta can still feel simple:
+For hosted tenancy, use one of these internally:
 
 ```text
-user -> matters -> documents -> artifacts
+tenants
+tenant_memberships
 ```
 
-But the durable data model should still allow:
+The UI can later say "workspace" if that tests better, but the database and
+backend authorization layer should call the boundary a tenant. That avoids
+confusing the hosted ownership boundary with the local matter workspace tree.
 
-```text
-workspace -> members -> matters -> documents -> jobs -> artifacts
-```
+## Storage Roles
 
-The name can be `workspace` in code and UI if `firm` feels too heavy early on.
-For a legal product, though, the concept should preserve firm-style ownership:
-matters often belong to a firm or team, not permanently to one lawyer's login.
+### Postgres
 
-## Why Not Pure User Isolation
+Postgres owns:
 
-Pure user isolation is tempting for beta because it is simpler:
-
-```text
-users
-matters.user_id
-documents.user_id
-```
-
-That gives each beta user a private sandbox. It reduces early permissions work
-and avoids firm administration screens.
-
-The problem is that legal work rarely stays personal:
-
-- a partner, associate, clerk, and paralegal may work on the same matter;
-- the same matter may be uploaded twice by different firm members;
-- a user may leave the firm;
-- a firm may need to recover matter data;
-- a future admin may need audit and deletion controls;
-- collaboration becomes a painful retrofit if every table assumes one owner.
-
-The first schema should avoid that trap. It can create one workspace per beta
-user, but the rows should still carry `workspace_id`. That gives user-isolated
-behavior today without blocking firm ownership tomorrow.
-
-## Current Local Model
-
-Current Matter Workbench state is mostly file-backed:
-
-```text
-matters home/
-  Matter Name/
-    matter.json
-    00_Inbox/
-      Intake 01 - Initial/
-        File Register.csv
-        Extraction Log.csv
-        Originals/
-        By Type/
-        _extracted/
-    10_Library/
-      Source Index.json
-      List of Dates.md
-      List of Dates.json
-```
-
-The server selects a matters home, lists matter folders, reads `matter.json`,
-and derives matter status from artifacts on disk. This is a good local
-contract, but hosted beta needs a database-backed control plane.
-
-The local artifact shape should still influence the hosted design. It already
-has useful boundaries:
-
+- tenant membership and access control;
 - matter metadata;
-- intakes;
-- file registers;
-- extraction records;
-- source labels;
-- chronology artifacts;
-- rerun and attention signals.
+- document identity;
+- upload state;
+- object pointers and checksums;
+- extraction/source-label/artifact registry rows;
+- job state;
+- provider run metadata;
+- cost metadata;
+- validation results;
+- incidents;
+- audit events;
+- acknowledgement/resolution state.
 
-The hosted database should not erase these concepts. It should make them
-queryable, permissioned, auditable, and recoverable.
+Postgres should not store large PDFs, images, Word documents, long extracted
+text payloads, generated Markdown bodies, or export blobs unless a narrow
+exception is documented.
 
-## Recommended Hosted Shape
+### Object Storage
 
-Use four storage layers:
+Object storage owns:
+
+- uploaded originals;
+- normalized working copies, if needed;
+- OCR output payloads;
+- extraction record payloads or large text blocks;
+- Source Index artifacts;
+- List of Dates artifacts;
+- export files;
+- snapshots needed for dispatch/provenance.
+
+All stored objects must have a Postgres row that records ownership, checksum,
+state, and retention/deletion status.
+
+### Queue And Workers
+
+Workers own long-running work:
+
+- intake normalization;
+- extraction;
+- OCR;
+- source labeling;
+- List of Dates;
+- custom skill execution;
+- exports;
+- validation passes.
+
+The web request should enqueue work and return durable job state. It should not
+hold a user request open for a long legal-processing job.
+
+## Tenant Isolation Contract
+
+Every sensitive row must belong to exactly one tenant, directly or through an
+explicit parent relation.
+
+For hosted legal data, prefer denormalizing `tenant_id` onto tenant-scoped
+tables even when it can be derived from `matter_id`. This makes RLS policies,
+query review, debugging, and accidental ID-tampering tests simpler.
+
+Tables that should carry `tenant_id` directly:
+
+- `matters`
+- `matter_memberships`
+- `matter_intakes`
+- `documents`
+- `document_blobs`
+- `extraction_records`
+- `document_text_blocks`
+- `source_descriptors`
+- `processing_jobs`
+- `provider_runs`
+- `matter_artifacts`
+- `artifact_validation_results`
+- `incidents`
+- `attention_acknowledgements`
+- `cost_events`
+- `audit_events`
+- `job_outbox`
+
+Access rule for the first hosted beta:
 
 ```text
-Postgres
-  operational source of truth
-
-Object storage
-  original documents, extracted text payloads, generated artifacts
-
-Queue/workers
-  long-running extraction, OCR, source labeling, chronology, and custom skills
-
-Search index
-  full-text search first, vector search later where useful
+user can access a matter only if user is an active member of matter.tenant_id
 ```
 
-Postgres should know what exists and who can access it. It should not hold large
-PDFs, images, Word documents, or generated markdown blobs directly unless there
-is a narrow reason.
+Matter-level sharing can be modeled with `matter_memberships`, but the first
+beta does not need a sharing UI.
 
-Object storage should hold:
-
-- original uploaded files;
-- normalized working copies when needed;
-- OCR outputs;
-- full extraction record payloads if too large for normal rows;
-- source index artifacts;
-- list-of-dates artifacts;
-- export files.
-
-Postgres stores stable pointers to those objects plus checksums, versions,
-ownership, status, and audit metadata.
-
-## First Data Model
-
-The first durable schema should include these tables or equivalent entities.
-
-### Tenancy And Identity
+Acceptance test:
 
 ```text
-workspaces
+Changing a matter/document/job/artifact id in the URL or request body must not
+allow access to another tenant's data.
+```
+
+## First Schema Contract
+
+This is not final SQL. It is the first implementation contract for table shape
+and ownership.
+
+### Tenancy And Users
+
+```text
+tenants
 users
-workspace_memberships
+tenant_memberships
 ```
 
-`workspaces` is the tenant boundary. In early beta, each user can receive their
-own workspace automatically. Later, multiple users can belong to the same firm
-workspace.
+Required fields:
 
-Useful fields:
-
-- `workspaces.id`
-- `workspaces.name`
-- `workspaces.type` such as `personal_beta`, `firm`, `internal_test`
+- `tenants.id`
+- `tenants.name`
+- `tenants.type`: `personal_beta`, `firm`, `internal_test`
+- `tenants.created_at`
 - `users.id`
 - `users.email`
 - `users.name`
-- `workspace_memberships.role` such as `owner`, `admin`, `member`, `viewer`
-- `workspace_memberships.status`
+- `users.status`
+- `tenant_memberships.tenant_id`
+- `tenant_memberships.user_id`
+- `tenant_memberships.role`: `owner`, `admin`, `member`, `viewer`
+- `tenant_memberships.status`: `active`, `invited`, `suspended`, `removed`
+
+Early beta behavior:
+
+```text
+one user -> one personal_beta tenant -> all matters belong to that tenant
+```
 
 ### Matters
 
@@ -197,13 +197,10 @@ matters
 matter_memberships
 ```
 
-Every matter belongs to a workspace. Optional `matter_memberships` allow
-matter-level sharing later without changing the main matter table.
-
-Useful fields:
+Required fields:
 
 - `matters.id`
-- `matters.workspace_id`
+- `matters.tenant_id`
 - `matters.created_by_user_id`
 - `matters.name`
 - `matters.client_name`
@@ -211,359 +208,640 @@ Useful fields:
 - `matters.matter_type`
 - `matters.jurisdiction`
 - `matters.brief_description`
-- `matters.status`
+- `matters.status`: `active`, `archived`, `deleted_pending`
+- `matters.created_at`
 - `matters.archived_at`
-
-For early beta, access can be:
-
-```text
-user can access matter if user is a member of matter.workspace_id
-```
-
-Matter-level memberships can remain unused until collaboration is required.
+- `matter_memberships.tenant_id`
+- `matter_memberships.matter_id`
+- `matter_memberships.user_id`
+- `matter_memberships.role`
+- `matter_memberships.status`
 
 ### Intakes And Documents
 
 ```text
 matter_intakes
 documents
-document_versions
+document_blobs
 ```
 
-An intake represents a batch of files added to a matter. A document represents
-the logical file. A document version represents a specific uploaded blob or
-normalized copy.
+`matter_intakes` represents a batch of files added to a matter.
 
-Useful fields:
+`documents` represents the logical source document and stable matter-scoped
+source identity.
+
+`document_blobs` represents stored original/normalized file blobs. It must not
+represent OCR text or extracted text.
+
+Required fields:
 
 - `matter_intakes.id`
+- `matter_intakes.tenant_id`
 - `matter_intakes.matter_id`
 - `matter_intakes.label`
 - `matter_intakes.received_at`
 - `matter_intakes.created_by_user_id`
 - `documents.id`
+- `documents.tenant_id`
 - `documents.matter_id`
 - `documents.intake_id`
-- `documents.file_id` such as `FILE-0001`
+- `documents.file_number`
+- `documents.file_id`: e.g. `FILE-0001`
 - `documents.original_name`
 - `documents.category`
 - `documents.sha256`
 - `documents.size_bytes`
 - `documents.duplicate_of_document_id`
-- `documents.status`
-- `document_versions.object_key`
-- `document_versions.mime_type`
-- `document_versions.version_kind` such as `original`, `working_copy`, `ocr_text`
+- `documents.status`: `pending_upload`, `uploaded`, `verified`, `duplicate`,
+  `unsupported`, `failed`, `deleted_pending`
+- `document_blobs.id`
+- `document_blobs.tenant_id`
+- `document_blobs.matter_id`
+- `document_blobs.document_id`
+- `document_blobs.blob_kind`: `original`, `normalized_working_copy`
+- `document_blobs.object_key`
+- `document_blobs.mime_type`
+- `document_blobs.size_bytes`
+- `document_blobs.sha256`
+- `document_blobs.state`: `pending`, `uploaded`, `verified`, `orphaned`,
+  `deleted_pending`
 
-The current local `FILE-NNNN` idea should survive. Lawyers and artifacts need a
-stable source identity. In the hosted model, `FILE-NNNN` can remain unique
-inside a matter while the database primary key remains globally unique.
+Constraints:
 
-### Extraction And Source Labels
+```text
+unique(documents.matter_id, documents.file_number)
+unique(documents.matter_id, documents.file_id)
+unique(document_blobs.tenant_id, document_blobs.object_key)
+```
+
+## FILE-NNNN Allocation
+
+Hosted uploads can be concurrent. `FILE-NNNN` allocation must be database-owned.
+
+Allowed patterns:
+
+1. `matters.next_file_number` updated in a transaction with row lock.
+2. A `matter_file_allocations` table with transaction-guarded allocation.
+3. A database function that allocates the next matter-scoped number atomically.
+
+Not allowed:
+
+```text
+read max(file_number) in application code -> add 1 -> insert later
+```
+
+Every document row must store both:
+
+- `file_number`: integer, used for allocation and sorting;
+- `file_id`: formatted `FILE-NNNN`, used for source identity and audit handles.
+
+## Upload And Object Lifecycle
+
+The upload flow must be idempotent and recoverable.
+
+Required upload inputs:
+
+- `tenant_id`
+- `matter_id`
+- `intake_id`
+- idempotency key
+- original file name
+- size
+- sha256, when available before upload
+
+Required lifecycle:
+
+```text
+1. create upload session row
+2. create document row with status pending_upload
+3. create document_blob row with state pending
+4. upload object to private object storage
+5. verify object checksum and size
+6. mark document_blob verified
+7. mark document uploaded or verified
+8. enqueue processing job through job_outbox
+```
+
+Failure handling:
+
+- object upload succeeds but DB update fails:
+  - object remains unreferenced or blob row remains non-verified;
+  - cleanup job marks it `orphaned` or deletes it after retention window.
+- DB rows exist but object upload fails:
+  - document remains `pending_upload` or `failed`;
+  - retry may reuse idempotency key;
+  - no extraction job is enqueued.
+- checksum mismatch:
+  - blob state becomes `failed`;
+  - document status becomes `failed`;
+  - incident is recorded.
+
+Acceptance tests:
+
+- retrying the same upload idempotency key does not create duplicate documents;
+- failed object verification does not enqueue extraction;
+- orphaned object cleanup is observable;
+- duplicate file hash within a matter records duplicate status without
+  overwriting the first document identity.
+
+## Extraction And Text
 
 ```text
 extraction_records
-source_descriptors
+document_text_blocks
 ```
 
-Extraction records can be split: summary fields in Postgres, full block payload
-in object storage or a JSONB column depending on size.
+`extraction_records` records the extraction run output and summary.
 
-Useful fields:
+`document_text_blocks` stores queryable page/block metadata. The full text can
+live in Postgres for bounded blocks or object storage for large payloads.
 
+Required fields:
+
+- `extraction_records.id`
+- `extraction_records.tenant_id`
+- `extraction_records.matter_id`
 - `extraction_records.document_id`
-- `extraction_records.status`
+- `extraction_records.document_blob_id`
+- `extraction_records.status`: `queued`, `running`, `succeeded`, `failed`,
+  `needs_ocr`, `unsupported`
 - `extraction_records.engine`
+- `extraction_records.engine_version`
 - `extraction_records.page_count`
 - `extraction_records.ocr_applied`
 - `extraction_records.needs_review`
 - `extraction_records.payload_object_key`
+- `extraction_records.content_hash`
+- `document_text_blocks.tenant_id`
+- `document_text_blocks.matter_id`
+- `document_text_blocks.document_id`
+- `document_text_blocks.extraction_record_id`
+- `document_text_blocks.page`
+- `document_text_blocks.block`
+- `document_text_blocks.citation`: e.g. `FILE-0001 p2.b4`
+- `document_text_blocks.text`
+- `document_text_blocks.text_object_key`, optional for large blocks
+
+OCR text is extraction output. It is not a `document_blob` version.
+
+## Source Labels
+
+```text
+source_descriptors
+```
+
+Required fields:
+
+- `source_descriptors.id`
+- `source_descriptors.tenant_id`
+- `source_descriptors.matter_id`
 - `source_descriptors.document_id`
-- `source_descriptors.display_label`
-- `source_descriptors.short_label`
+- `source_descriptors.extraction_record_id`
+- `source_descriptors.suggested_label`
+- `source_descriptors.confirmed_label`
+- `source_descriptors.label_status`: `suggested`, `confirmed`, `overridden`,
+  `needs_review`
+- `source_descriptors.label_source`: `model`, `filename`, `document_text`,
+  `lawyer_override`
+- `source_descriptors.confirmed_by_user_id`
+- `source_descriptors.confirmed_at`
 - `source_descriptors.document_type`
 - `source_descriptors.document_date`
 - `source_descriptors.needs_review`
-- `source_descriptors.ai_run_id`
+- `source_descriptors.provider_run_id`
 
-This keeps the current Source Index concept but makes source labels queryable.
+Rule:
 
-### Jobs And Provider Runs
+```text
+Changing only a label should refresh rendered artifacts when possible. It should
+not automatically force AI chronology regeneration.
+```
+
+## Jobs, Outbox, And Provider Runs
 
 ```text
 processing_jobs
+job_outbox
 provider_runs
 ```
 
-Long-running work should not be modeled as a request/response event. Upload,
-extraction, OCR, source labeling, and list-of-dates generation all need durable
-job state.
+`processing_jobs` is the user-visible job ledger.
 
-Useful fields:
+`job_outbox` is the transaction boundary between Postgres state changes and
+worker execution.
+
+`provider_runs` records every model/provider call that can affect legal output,
+validation, skill creation, or cost.
+
+Required `processing_jobs` fields:
 
 - `processing_jobs.id`
-- `processing_jobs.workspace_id`
+- `processing_jobs.tenant_id`
 - `processing_jobs.matter_id`
-- `processing_jobs.kind` such as `matter_init`, `extract`, `describe_sources`,
-  `create_listofdates`
-- `processing_jobs.status` such as `queued`, `running`, `succeeded`, `failed`,
-  `cancelled`
+- `processing_jobs.kind`: `intake`, `extract`, `ocr`, `source_labels`,
+  `list_of_dates`, `label_refresh`, `custom_skill`, `export`, `validation`
+- `processing_jobs.status`: `queued`, `running`, `succeeded`, `failed`,
+  `cancelled`, `retrying`
+- `processing_jobs.idempotency_key`
+- `processing_jobs.created_by_user_id`
 - `processing_jobs.started_at`
 - `processing_jobs.finished_at`
 - `processing_jobs.error_code`
 - `processing_jobs.error_message`
-- `processing_jobs.created_by_user_id`
+
+Required `job_outbox` fields:
+
+- `job_outbox.id`
+- `job_outbox.tenant_id`
+- `job_outbox.job_id`
+- `job_outbox.event_type`
+- `job_outbox.payload_json`
+- `job_outbox.status`: `pending`, `claimed`, `published`, `failed`
+- `job_outbox.created_at`
+- `job_outbox.published_at`
+
+Required `provider_runs` fields:
+
+- `provider_runs.id`
+- `provider_runs.tenant_id`
+- `provider_runs.matter_id`
+- `provider_runs.job_id`
+- `provider_runs.task_class`: `copilot`, `skill_creation`,
+  `skill_modification`, `skill_execution`, `native_source_skill`,
+  `validation`
 - `provider_runs.provider`
 - `provider_runs.model`
+- `provider_runs.policy_prompt_version`
 - `provider_runs.prompt_version`
 - `provider_runs.input_artifact_id`
 - `provider_runs.output_artifact_id`
+- `provider_runs.status`: `started`, `succeeded`, `failed`, `cancelled`
+- `provider_runs.error_code`
+- `provider_runs.error_message`
 - `provider_runs.usage_json`
-- `provider_runs.status`
+- `provider_runs.input_tokens`
+- `provider_runs.output_tokens`
+- `provider_runs.cost_amount`
+- `provider_runs.cost_currency`
+- `provider_runs.cost_confidence`: `actual`, `estimated`, `planned`,
+  `unknown`
+- `provider_runs.approval_event_id`
 
-Provider runs matter because legal output must remain auditable. When a List of
-Dates was generated, the system should know the model, provider, prompt
-version, source inputs, output artifact, and failure mode.
+No provider fallback should silently replace the model/policy selected for a
+legal-output task.
 
-### Artifacts
+## Artifacts And Currentness
 
 ```text
 matter_artifacts
+artifact_validation_results
 ```
 
-Generated outputs should be registered, even if the actual file lives in object
-storage.
+`matter_artifacts` registers generated outputs and durable snapshots. The body
+usually lives in object storage.
 
-Useful fields:
+Required fields:
 
 - `matter_artifacts.id`
-- `matter_artifacts.workspace_id`
+- `matter_artifacts.tenant_id`
 - `matter_artifacts.matter_id`
-- `matter_artifacts.kind` such as `source_index`, `list_of_dates_json`,
-  `list_of_dates_markdown`, `context_packet`, `export_pdf`
+- `matter_artifacts.artifact_family`: `source_index`, `list_of_dates`,
+  `context_packet`, `draft`, `dispatch_copy`, `export`, `custom_skill_output`
+- `matter_artifacts.mode`: e.g. `internal_review`, `court_filing`,
+  `label_refresh`, `sample`, `default`
+- `matter_artifacts.profile`: optional profile or audience key
+- `matter_artifacts.format`: `json`, `md`, `csv`, `pdf`, `docx`, `txt`
 - `matter_artifacts.schema_version`
 - `matter_artifacts.object_key`
 - `matter_artifacts.content_hash`
 - `matter_artifacts.created_by_job_id`
+- `matter_artifacts.source_artifact_id`
+- `matter_artifacts.source_index_hash`
+- `matter_artifacts.extraction_snapshot_hash`
 - `matter_artifacts.is_current`
 - `matter_artifacts.created_at`
 
-Only one artifact of a kind may be current for a matter unless the product
-explicitly supports multiple named versions.
-
-### Attention And Incidents
+Currentness scope:
 
 ```text
-matter_attention_items
+unique current artifact per
+(matter_id, artifact_family, mode, profile, format)
 ```
 
-The local app already has a matter attention direction. Hosted beta should make
-attention durable, not only derived at read time.
+Do not use only `(matter_id, kind)`. That is too coarse for internal chronology,
+filing chronology, refresh-only output, court export, and future custom modes.
 
-Useful fields:
+`artifact_validation_results` records checks such as:
 
-- `matter_attention_items.id`
-- `matter_attention_items.workspace_id`
-- `matter_attention_items.matter_id`
-- `matter_attention_items.category`
-- `matter_attention_items.severity`
-- `matter_attention_items.status` such as `open`, `resolved`, `ignored`
-- `matter_attention_items.title`
-- `matter_attention_items.detail`
-- `matter_attention_items.evidence_ref`
-- `matter_attention_items.created_by_job_id`
-- `matter_attention_items.resolved_at`
+- schema validation;
+- missing linked source labels;
+- raw developer-name leakage in lawyer-visible output;
+- stale source dependency;
+- failed render/export;
+- citation consistency.
 
-This is how developers notice failing matters before lawyers have to complain.
+Required fields:
 
-### Audit
+- `artifact_validation_results.id`
+- `artifact_validation_results.tenant_id`
+- `artifact_validation_results.matter_id`
+- `artifact_validation_results.artifact_id`
+- `artifact_validation_results.validation_kind`
+- `artifact_validation_results.status`: `passed`, `warning`, `failed`
+- `artifact_validation_results.code`
+- `artifact_validation_results.detail`
+- `artifact_validation_results.evidence_ref`
+- `artifact_validation_results.created_by_job_id`
+- `artifact_validation_results.created_at`
+
+## Incidents And Attention Projection
+
+Canonical diagnostic facts should live in:
+
+```text
+processing_jobs
+provider_runs
+artifact_validation_results
+incidents
+audit_events
+```
+
+Attention should be a projection over those facts, plus acknowledgement state.
+
+```text
+incidents
+attention_acknowledgements
+```
+
+Required `incidents` fields:
+
+- `incidents.id`
+- `incidents.tenant_id`
+- `incidents.matter_id`
+- `incidents.source_type`: `job`, `provider_run`, `artifact_validation`,
+  `system`, `manual`
+- `incidents.source_id`
+- `incidents.category`: `intake`, `extraction`, `source_labels`,
+  `chronology`, `provider`, `custom_skill`, `artifact`, `security`, `system`
+- `incidents.severity`: `blocker`, `warning`, `info`
+- `incidents.status`: `open`, `resolved`
+- `incidents.code`
+- `incidents.title`
+- `incidents.detail`
+- `incidents.evidence_ref`
+- `incidents.created_at`
+- `incidents.resolved_at`
+
+Required `attention_acknowledgements` fields:
+
+- `attention_acknowledgements.id`
+- `attention_acknowledgements.tenant_id`
+- `attention_acknowledgements.matter_id`
+- `attention_acknowledgements.incident_id`
+- `attention_acknowledgements.user_id`
+- `attention_acknowledgements.status`: `acknowledged`, `ignored`
+- `attention_acknowledgements.note`
+- `attention_acknowledgements.created_at`
+
+Matter Attention API behavior:
+
+```text
+read canonical facts -> apply acknowledgement state -> return attention view
+```
+
+Do not write `matter_attention_items` as the primary diagnostic source. That
+would create a stale second truth beside jobs, provider runs, and validation
+results.
+
+## Audit Events
 
 ```text
 audit_events
 ```
 
-Legal products need a durable record of important operations:
+Audit events are append-only.
 
-- user invited;
-- user removed;
-- matter created;
-- document uploaded;
-- document deleted;
-- AI job started;
-- AI artifact generated;
-- artifact exported;
-- permission changed.
+Required fields:
 
-Audit events should be append-only. They should reference workspace, user,
-matter, and target entity where applicable.
+- `audit_events.id`
+- `audit_events.tenant_id`
+- `audit_events.user_id`
+- `audit_events.matter_id`
+- `audit_events.action`
+- `audit_events.target_type`
+- `audit_events.target_id`
+- `audit_events.ip_address`
+- `audit_events.user_agent`
+- `audit_events.metadata_json`
+- `audit_events.created_at`
 
-## Access Control Rule
+Must audit:
 
-The first access-control invariant should be simple and strict:
+- user invitation/removal;
+- matter creation/archive/delete request;
+- document upload/delete request;
+- provider job start/finish/failure;
+- artifact generation/export/dispatch snapshot;
+- permission changes;
+- source label confirmation/override;
+- cost approval events.
+
+## Cost Governance
+
+Cost is not billing in the first slice, but hosted beta must record enough to
+avoid surprise spend.
 
 ```text
-Every matter, document, job, artifact, attention item, and audit event must
-belong to exactly one workspace.
+cost_events
 ```
 
-Every query should be scoped by `workspace_id`, either directly or through a
-joined matter/document.
+Required fields:
 
-This avoids the most common hosted-app mistake: building features first and
-then trying to bolt tenant isolation onto queries later.
+- `cost_events.id`
+- `cost_events.tenant_id`
+- `cost_events.matter_id`
+- `cost_events.provider_run_id`
+- `cost_events.job_id`
+- `cost_events.approval_event_id`
+- `cost_events.scope`: `session`, `matter`, `tenant`
+- `cost_events.amount`
+- `cost_events.currency`
+- `cost_events.confidence`: `actual`, `estimated`, `planned`, `unknown`
+- `cost_events.input_tokens`
+- `cost_events.output_tokens`
+- `cost_events.provider`
+- `cost_events.model`
+- `cost_events.created_at`
 
-## Beta Simplification
+The UI does not need a billing dashboard in the first slice. It does need enough
+metadata to show paid-action confirmation, run receipts, and matter-level cost
+summaries later.
 
-The first hosted beta does not need full firm administration.
+## Hosted Execution Strategy Using Local Engines
 
-Acceptable first behavior:
+Do not rewrite all engines first.
 
-- each beta user gets one workspace;
-- each workspace has one owner member;
-- matters are visible only to that workspace owner;
-- no sharing UI;
-- no firm admin UI;
-- no cross-user collaboration.
+The first hosted worker can materialize a temporary matter workspace, run the
+existing engine, validate output, then persist results back to object storage
+and Postgres.
 
-But the schema still carries `workspace_id`.
+Required worker flow:
 
-That keeps the beta experience personal while preserving the data model needed
-for real firm deployment.
+```text
+1. claim processing job
+2. create temporary isolated working directory
+3. materialize required source blobs and metadata
+4. run existing local engine
+5. validate generated outputs
+6. write artifact blobs to object storage
+7. register artifacts, provider runs, validation results, incidents, cost
+8. mark job succeeded or failed
+9. clean temporary working directory
+```
 
-## Migration Strategy From Local App
+The local file contracts remain implementation details inside the worker. The
+hosted UI reads Postgres and object pointers, not temporary disk paths.
 
-Do not rewrite everything at once.
+## Importing Existing Local Matter Folders
 
-Use the database first as a control plane:
+This is separate from hosted execution.
 
-1. User creates a hosted matter.
-2. Database creates the matter row.
-3. Upload creates document rows and stores blobs in object storage.
-4. Worker runs intake/extraction/source labeling.
-5. Worker writes generated payloads to object storage.
-6. Worker registers artifacts, jobs, provider runs, and attention items in
-   Postgres.
-7. UI reads matter status from Postgres instead of scanning local files.
+Local-folder import is not required for the first hosted slice unless beta
+users must bring existing Matter Workbench folders into the hosted product.
 
-The current file contracts can still be used inside workers as an implementation
-detail. For example, a worker may materialize a temporary matter folder, run an
-existing engine, validate the output, then persist the result back into object
-storage and Postgres.
+When implemented, import must:
 
-This reduces risk because the trusted engines do not all need to be rewritten
-before the hosted architecture exists.
+- read `matter.json`;
+- map local intake folders to `matter_intakes`;
+- map `File Register.csv` rows to `documents`;
+- allocate or preserve `FILE-NNNN` identities;
+- upload originals/working copies to object storage;
+- register extraction records, Source Index, List of Dates, and run metadata
+  when present;
+- preserve hashes and artifact provenance;
+- report import warnings as incidents, not silently discard them.
 
 ## Search Direction
 
-Start with Postgres full-text search or a simple external search index over:
+First search should be deterministic and citation-preserving:
 
-- matter metadata;
+- Postgres full-text search, or a simple external search index;
+- indexed matter metadata;
 - document labels;
-- extracted text;
+- extracted text blocks;
 - citation blocks;
-- generated artifact summaries.
+- artifact summaries.
 
-Vector search can come later. It should not replace citation discipline.
+Vector search can come later. It must not replace citation discipline.
 
-The legal search rule should remain:
+Rule:
 
 ```text
-Search results must point back to source identity and citation location.
+Every legal search result must point back to source identity and citation
+location.
 ```
-
-If a result cannot be tied back to a document, page, block, or artifact, it is
-not useful enough for legal work.
 
 ## Security And Privacy Guardrails
 
-Hosted beta must treat legal documents as sensitive by default.
+Minimum hosted beta guardrails:
 
-Minimum guardrails:
-
-- tenant-scoped queries;
+- tenant-scoped RLS or equivalent authorization on every sensitive table;
 - private object storage buckets;
-- signed URLs with short expiry;
+- short-lived signed URLs;
 - encryption at rest;
 - TLS everywhere;
-- audit events for sensitive actions;
-- deletion/export policy defined before firm beta;
-- provider calls logged with model and artifact references;
-- no provider secret leakage to frontend responses;
 - no public static serving of uploaded matter documents;
-- backups tested, not merely enabled.
-
-The product should also make provider behavior explicit. If text leaves the
-system for OCR, source labeling, or chronology generation, that needs a clear
-operational record.
-
-## Non-Goals For The First Hosted Slice
-
-Do not start with:
-
-- complex firm hierarchy;
-- practice-group permissions;
-- document-level sharing controls;
-- real-time collaborative editing;
-- full legal document management replacement;
-- automatic cross-matter knowledge graph;
-- vector search as the first source of truth;
-- database storage of raw large files;
-- rewriting all local engines before proving hosted job flow.
-
-Those may matter later. The first hosted slice should prove secure tenancy,
-matter upload, job execution, artifact registry, and developer-visible failure
-state.
+- provider keys never returned to frontend responses;
+- provider calls logged with task class, model, policy, and artifact references;
+- deletion/export policy defined before firm beta;
+- backups tested, not merely enabled;
+- audit events for sensitive actions;
+- object cleanup for orphaned uploads;
+- no training/tuning on user matter data unless explicitly approved by owner
+  policy.
 
 ## First Implementation Slice
 
-The first slice should be:
+Build this first:
 
 ```text
-hosted matter catalogue + document upload metadata + durable job ledger
+hosted matter catalogue
++ tenant-scoped document upload
++ object lifecycle
++ durable extraction job ledger
++ incident projection
 ```
 
 Acceptance criteria:
 
-- a user can sign in;
-- the user has a workspace;
-- the user can create a matter;
-- uploaded documents are stored outside Postgres;
-- Postgres records each document, checksum, size, and object key;
-- an extraction job can be queued;
-- job status survives server restart;
-- failures are visible on the matter;
-- every query is workspace-scoped;
-- no user can access another workspace's matter by changing an ID in the URL.
+- user can sign in;
+- user is assigned to one `personal_beta` tenant;
+- user can create a matter;
+- every matter row has `tenant_id`;
+- user can upload files to a matter;
+- uploaded files are private object-storage blobs, not Postgres blobs;
+- Postgres records document identity, checksum, size, object key, and state;
+- `FILE-NNNN` is allocated transactionally per matter;
+- duplicate upload by hash does not overwrite the original document identity;
+- extraction job can be queued through `job_outbox`;
+- job state survives server restart;
+- failed jobs create canonical incidents;
+- Matter Attention reads incidents/jobs/validation results as a projection;
+- every API query is tenant-scoped;
+- changing IDs in URL/body cannot access another tenant's matter;
+- orphaned object cleanup can be observed;
+- audit events exist for matter creation, upload, job enqueue, and failure.
 
-Only after this slice should `/describe_sources` and `/create_listofdates`
-move into the hosted job pipeline.
+Do not move `/describe_sources` or `/create_listofdates` into hosted workers
+until this slice passes.
 
-## Open Product Questions
+## Non-Goals For First Slice
 
-These need owner judgment before a firm beta:
+Do not start with:
 
-- Is the beta legally a personal sandbox or a firm workspace?
+- firm admin UI;
+- matter sharing UI;
+- document-level sharing controls;
+- real-time collaborative editing;
+- full document-management replacement;
+- automatic cross-matter knowledge graph;
+- vector search as source of truth;
+- court-facing export system;
+- billing dashboard;
+- rewriting all local engines.
+
+## Open Product Owner Questions
+
+These must be answered before firm beta:
+
+- Is hosted beta legally a personal sandbox or a firm-owned workspace?
 - Who can delete a matter?
 - Who can export a matter?
-- What happens when a user leaves the firm?
+- What happens when a user leaves a firm?
 - Should firm admins see all matters by default?
 - How long are uploaded originals retained?
-- Are provider calls allowed for all uploaded documents or only after explicit
-  user confirmation?
+- Are provider calls allowed for all uploaded documents, or only after explicit
+  confirmation?
 - What is the data deletion promise to beta users?
-- Is the product allowed to train or tune anything from user matter data? The
-  safest default is no.
+- Can beta operators view matter diagnostics that include document names?
+- Is any training, tuning, or eval use of user matter data allowed? Safest
+  default: no.
 
-## Summary
+## Stop Rule
 
-The database should not be treated as a bigger version of the local matter
-folder. It should be the hosted product's control plane.
+If implementation starts before the first-slice contract above is testable, the
+team is likely building product screens on an unsafe hosted foundation.
 
-Use Postgres for ownership, permissions, job state, artifact registry,
-attention items, provider runs, and audit. Use object storage for large files
-and generated payloads. Use workers for long-running legal processing. Keep
-source identity and citation discipline from the current local architecture.
+The first hosted beta should prove:
 
-The design should look user-isolated in early beta if that keeps rollout
-simple, but it should be workspace-scoped underneath so the product can grow
-into real firm use without a painful tenancy migration.
+```text
+tenant isolation
++ private file custody
++ durable jobs
++ object lifecycle
++ canonical incidents
++ audit trail
+```
+
+Only then should hosted source labels, List of Dates, custom skills, exports,
+and copilot-style work move onto the hosted path.
