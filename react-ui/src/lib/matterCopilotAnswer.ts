@@ -12,7 +12,7 @@ export function parseAskCommand(input: string): string | null {
 
 export function formatMatterCopilotAnswer(answer: MatterCopilotAnswer): string {
   const status = answer.answer_status || 'not_found';
-  const body = normalizeText(answer.answer_markdown) || fallbackForStatus(status);
+  const body = lawyerVisibleAnswerText(answer.answer_markdown) || fallbackForStatus(status);
   const parts = [body];
 
   const sourceLabels = visibleSourceLabels(answer);
@@ -20,15 +20,15 @@ export function formatMatterCopilotAnswer(answer: MatterCopilotAnswer): string {
     parts.push(`Sources: ${sourceLabels.join('; ')}`);
   }
 
-  const warnings = (answer.warnings || []).map(normalizeText).filter(Boolean).slice(0, 2);
+  const warnings = visibleWarnings(answer.warnings || []).slice(0, 2);
   if (warnings.length) {
     parts.push(`Limits: ${warnings.join(' ')}`);
   }
 
   if (answer.ai_run?.provider && answer.ai_run?.model) {
-    parts.push(`Mode: chat-only answer from bounded matter context (${answer.ai_run.provider} / ${answer.ai_run.model}).`);
+    parts.push(`Mode: chat-only answer from the current matter record (${answer.ai_run.provider} / ${answer.ai_run.model}).`);
   } else {
-    parts.push('Mode: chat-only answer from bounded matter context.');
+    parts.push('Mode: chat-only answer from the current matter record.');
   }
 
   if (status === 'not_found') {
@@ -58,7 +58,51 @@ function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {
 
 function fallbackForStatus(status: string): string {
   if (status === 'blocked') return 'The request needs a more explicit workflow before the app should act on it.';
-  return 'The current bounded matter context does not contain enough support for a reliable answer.';
+  return 'The current matter record does not contain enough support for a reliable answer.';
+}
+
+function lawyerVisibleAnswerText(value: unknown): string {
+  return normalizeText(value)
+    .replace(/\b[Tt]he packet supports that\b/g, 'The record indicates that')
+    .replace(/\b[Tt]he packet supports\b/g, 'The record indicates')
+    .replace(/\b[Tt]he supplied packet supports that\b/g, 'The record indicates that')
+    .replace(/\b[Tt]he supplied packet supports\b/g, 'The record indicates')
+    .replace(/\b[Tt]he bounded matter context supports that\b/g, 'The record indicates that')
+    .replace(/\b[Tt]he bounded matter context supports\b/g, 'The record indicates')
+    .replace(/\b[Tt]he context packet supports that\b/g, 'The record indicates that')
+    .replace(/\b[Tt]he context packet supports\b/g, 'The record indicates')
+    .replace(/\bfrom the packet\b/g, 'from the record')
+    .replace(/\bin the packet\b/g, 'in the record')
+    .replace(/\bsupplied packet\b/g, 'current record')
+    .replace(/\bbounded matter context\b/g, 'current matter record')
+    .replace(/\bcontext packet\b/g, 'matter record');
+}
+
+function visibleWarnings(values: unknown[]): string[] {
+  const visible = [];
+  let omittedEvidence = false;
+  for (const value of values) {
+    const warning = lawyerVisibleWarning(value);
+    if (!warning) continue;
+    if (warning === OMITTED_EVIDENCE_WARNING) {
+      if (omittedEvidence) continue;
+      omittedEvidence = true;
+    }
+    visible.push(warning);
+  }
+  return visible;
+}
+
+const OMITTED_EVIDENCE_WARNING = 'Only part of the matter record was included in this quick answer; use the underlying sources for full review.';
+
+function lawyerVisibleWarning(value: unknown): string {
+  const warning = lawyerVisibleAnswerText(value);
+  if (!warning) return '';
+  if (/Omitted \d+ evidence block\(s\) due to maxBlocks=/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
+  if (/Truncated \d+ evidence block\(s\) due to maxCharsPerBlock=/i.test(warning)) return '';
+  if (/Omitted \d+ source record\(s\) due to maxSources=/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
+  if (/maxBlocks|maxCharsPerBlock|maxSources|packet_schema|FILE-\d{4}/i.test(warning)) return '';
+  return warning;
 }
 
 function normalizeText(value: unknown): string {

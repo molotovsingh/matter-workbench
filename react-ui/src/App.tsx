@@ -36,8 +36,8 @@ function AppShell() {
       return;
     }
     if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
-    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the bounded matter context…' });
-    appendTerminal(['[copilot] answering from bounded matter context']);
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the current matter record…' });
+    appendTerminal(['[copilot] answering from current matter record']);
     try {
       const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName });
       if (activeMatterNameRef.current !== matterName) return;
@@ -52,7 +52,7 @@ function AppShell() {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       appendTerminal([`[copilot] failed: ${message}`]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: `I could not answer from the matter context: ${message}` });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `I could not answer from the current matter record: ${message}` });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }

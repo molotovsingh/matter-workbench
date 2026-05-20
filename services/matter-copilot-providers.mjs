@@ -14,6 +14,9 @@ const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "If the packet does not support the answer, return not_found or partial with a limitation.",
   "Keep the answer concise and lawyer-readable.",
   "Separate source-supported facts from inference.",
+  "In answer_markdown, write like a careful lawyer: say 'the record indicates', 'the record shows', or 'I cannot confirm from the record'.",
+  "Do not say 'the packet supports', 'the supplied packet', 'bounded context', or similar implementation language in answer_markdown.",
+  "Use implementation language only in internal reasoning, never in the visible answer.",
   "Use lawyer-facing source labels in answer text; raw FILE citations belong only in the structured sources array.",
   "Return only JSON matching the schema.",
 ], {
@@ -133,6 +136,11 @@ export function createDefaultMatterCopilotProvider({ providerConfig, env, fetchI
 function copilotUserPayload({ question, matterContext }) {
   return {
     task: "Answer the user's one-time matter question from the bounded matter context only.",
+    visible_answer_voice: [
+      "Do not mention packets, context packets, bounded context, maxBlocks, extraction limits, or internal implementation terms in answer_markdown.",
+      "Use 'the record' or 'the current record' for lawyer-facing uncertainty.",
+      "Keep technical limitations in warnings, not the answer body.",
+    ],
     question,
     matter_context: matterContext,
     strict_rules: [
