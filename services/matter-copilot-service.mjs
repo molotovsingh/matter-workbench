@@ -185,8 +185,8 @@ function normalizeMatterCopilotAnswer({
 }) {
   const record = rawAnswer && typeof rawAnswer === "object" && !Array.isArray(rawAnswer) ? rawAnswer : {};
   const answerStatus = normalizeAnswerStatus(record.answer_status);
-  const sourceMap = buildCitationMap(packet);
-  const sources = normalizeSources(record.sources, sourceMap);
+  const sourceResolver = buildSourceResolver(packet);
+  const sources = normalizeSources(record.sources, sourceResolver);
   if (SOURCE_REQUIRED_STATUSES.has(answerStatus) && !sources.length) {
     throw makeHttpError("Matter copilot answer did not include validated source citations.", 502);
   }
@@ -213,42 +213,64 @@ function normalizeMatterCopilotAnswer({
   };
 }
 
-function buildCitationMap(packet) {
+function buildSourceResolver(packet) {
   const byCitation = new Map();
+  const byLabel = new Map();
   for (const block of Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : []) {
-    if (block?.citation) byCitation.set(block.citation, block);
+    if (block?.citation) {
+      byCitation.set(block.citation, block);
+      indexSourceLabel(byLabel, block.source_label, block);
+      indexSourceLabel(byLabel, block.source_short_label, block);
+    }
   }
   for (const artifact of Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : []) {
     if (artifact?.kind !== "list_of_dates" || !Array.isArray(artifact.entries)) continue;
     for (const entry of artifact.entries) {
-      addChronologyCitation(byCitation, entry, entry);
+      const entryBlock = addChronologyCitation(byCitation, entry, entry);
+      indexSourceLabel(byLabel, entry.source_label, entryBlock);
+      indexSourceLabel(byLabel, entry.source_short_label, entryBlock);
       for (const source of Array.isArray(entry.supporting_sources) ? entry.supporting_sources : []) {
-        addChronologyCitation(byCitation, source, entry);
+        const sourceBlock = addChronologyCitation(byCitation, source, entry);
+        indexSourceLabel(byLabel, source.source_label || entry.source_label, sourceBlock);
+        indexSourceLabel(byLabel, source.source_short_label || entry.source_short_label, sourceBlock);
       }
     }
   }
-  return byCitation;
+  return { byCitation, byLabel };
 }
 
 function addChronologyCitation(byCitation, source = {}, entry = {}) {
   const citation = normalizeText(source.citation);
-  if (!citation || byCitation.has(citation)) return;
-  byCitation.set(citation, {
+  if (!citation) return null;
+  if (byCitation.has(citation)) return byCitation.get(citation);
+  const block = {
     citation,
     source_label: normalizeText(source.source_label) || normalizeText(entry.source_label),
     source_short_label: normalizeText(source.source_short_label) || normalizeText(entry.source_short_label),
     text: normalizeText(entry.source_excerpt) || normalizeText(entry.event),
-  });
+  };
+  byCitation.set(citation, block);
+  return block;
 }
 
-function normalizeSources(rawSources, sourceMap) {
+function indexSourceLabel(byLabel, label, block) {
+  const key = normalizeSourceReference(label);
+  if (!key || !block?.citation) return;
+  if (!byLabel.has(key)) byLabel.set(key, []);
+  const blocks = byLabel.get(key);
+  if (!blocks.some((candidate) => candidate.citation === block.citation)) blocks.push(block);
+}
+
+function normalizeSources(rawSources, sourceResolver) {
   const sources = [];
   const seen = new Set();
   for (const source of Array.isArray(rawSources) ? rawSources : []) {
-    const rawCitation = normalizeText(source?.raw_citation);
-    if (!rawCitation || seen.has(rawCitation)) continue;
-    const block = sourceMap.get(rawCitation);
-    if (!block) throw makeHttpError(`Matter copilot returned unsupported citation: ${rawCitation}`, 502);
+    const sourceReference = normalizeText(source?.raw_citation);
+    if (!sourceReference) continue;
+    const block = resolveSourceReference(sourceReference, source, sourceResolver);
+    const rawCitation = block?.citation || sourceReference;
+    if (!block) throw makeHttpError(`Matter copilot returned unsupported citation: ${sourceReference}`, 502);
+    if (seen.has(rawCitation)) continue;
     seen.add(rawCitation);
     sources.push({
       raw_citation: rawCitation,
@@ -257,6 +279,51 @@ function normalizeSources(rawSources, sourceMap) {
     });
   }
   return sources;
+}
+
+function resolveSourceReference(sourceReference, source = {}, sourceResolver = {}) {
+  const byCitation = sourceResolver.byCitation || new Map();
+  const direct = byCitation.get(sourceReference);
+  if (direct) return direct;
+
+  const byLabel = sourceResolver.byLabel || new Map();
+  const candidates = byLabel.get(normalizeSourceReference(sourceReference)) || [];
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  const snippet = normalizeText(source?.snippet);
+  if (snippet) {
+    const scored = candidates
+      .map((block) => ({ block, score: sourceMatchScore(snippet, block.text) }))
+      .sort((a, b) => b.score - a.score);
+    if (scored[0]?.score > 0) return scored[0].block;
+  }
+
+  const label = normalizeSourceReference(source?.source_label);
+  if (label && label !== normalizeSourceReference(sourceReference)) {
+    const labelCandidates = byLabel.get(label) || [];
+    if (labelCandidates.length === 1) return labelCandidates[0];
+  }
+
+  return candidates[0];
+}
+
+function sourceMatchScore(snippet, blockText) {
+  const snippetText = normalizeSourceReference(snippet);
+  const evidenceText = normalizeSourceReference(blockText);
+  if (!snippetText || !evidenceText) return 0;
+  if (evidenceText.includes(snippetText) || snippetText.includes(evidenceText)) return 1000;
+  const words = new Set(snippetText.split(" ").filter((word) => word.length > 4));
+  if (!words.size) return 0;
+  let score = 0;
+  for (const word of words) {
+    if (evidenceText.includes(word)) score += 1;
+  }
+  return score;
+}
+
+function normalizeSourceReference(value) {
+  return normalizeText(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function normalizeQuestion(value) {

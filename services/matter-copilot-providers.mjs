@@ -152,6 +152,8 @@ function copilotUserPayload({ question, matterContext }) {
       "Do not run skills.",
       "Do not provide final legal advice.",
       "Do not cite anything outside the supplied packet.",
+      "In sources[].raw_citation, use an exact citation handle from evidence_blocks[].citation, chronology_entries[].citation, or chronology_entries[].supporting_sources[].citation.",
+      "Do not put a lawyer-facing source label or document title in sources[].raw_citation.",
       "Use not_found when the supplied packet does not answer the question.",
     ],
   };

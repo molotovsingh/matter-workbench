@@ -66,6 +66,30 @@ test("matter copilot fails closed when provider cites outside the packet", async
   );
 });
 
+test("matter copilot resolves an unambiguous source label back to a raw citation", async () => {
+  const root = await makeMatterRoot();
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async () => ({
+      answer_status: "answered",
+      answer_markdown: "The record indicates the consumer complaint was filed on 21 January 2013.",
+      confidence: 0.8,
+      sources: [{
+        raw_citation: "Consumer complaint filing record",
+        source_label: "Consumer complaint filing record",
+        snippet: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
+      }],
+      warnings: [],
+    }),
+  });
+
+  const answer = await service.answerQuestion({ question: "which date started the lis?" });
+
+  assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b1"]);
+  assert.equal(answer.sources[0].source_label, "Consumer complaint filing record");
+});
+
 async function makeMatterRoot() {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-copilot-test-"));
   const root = path.join(tmp, "Mehta vs Skyline");
