@@ -409,6 +409,43 @@ test("extract invalidates cached weak OCR when repair provider is enabled", asyn
   assert.equal(record.pages[0].needs_review, false);
 });
 
+test("extract invalidates cached suspicious OCR even when confidence was high", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "suspicious-scan.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async () => ({
+      engine: "suspicious-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "Payment was due by $1.8.14.", confidence: 0.99 }],
+    }),
+  });
+
+  const calls = [];
+  const repairProvider = async () => {
+    calls.push("repair");
+    return {
+      engine: "strong-repair-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "Payment was due by 31.8.14.", confidence: 0.98 }],
+    };
+  };
+  repairProvider.repairsWeakOcr = true;
+
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: repairProvider,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.cached, 0);
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "strong-repair-ocr@1.0.0");
+  assert.equal(record.pages[0].blocks[0].text, "Payment was due by 31.8.14.");
+});
+
 test("extract preserves Extraction Log.csv row order with bounded concurrency", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "01-note.txt", "First");

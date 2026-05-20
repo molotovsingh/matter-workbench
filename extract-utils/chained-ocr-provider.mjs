@@ -59,7 +59,9 @@ export function createChainedOcrProvider({
       return withProviderWarning(primaryResult, `Gemini OCR repair failed; keeping primary OCR (${repairError.message})`);
     }
 
-    if (repairScore.usable && repairScore.score >= primaryScore.score) {
+    if (repairScore.usable
+      && repairScore.emptyPages <= primaryScore.emptyPages
+      && repairScore.score >= primaryScore.score) {
       return repairResult;
     }
 

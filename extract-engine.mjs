@@ -8,6 +8,7 @@ import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.
 import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
 import { extractRtf, RTF_ENGINE_FINGERPRINT } from "./extract-utils/rtf-extract.mjs";
 import { createChainedOcrProvider } from "./extract-utils/chained-ocr-provider.mjs";
+import { scoreOcrProviderResult } from "./extract-utils/ocr-quality.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
@@ -88,6 +89,10 @@ function canUseCachedExtraction(cached, row, route, options) {
 
 function hasWeakCachedOcr(cached) {
   const pages = Array.isArray(cached?.pages) ? cached.pages : [];
+  const hasOcrPages = pages.some((page) => page.ocr_required === true);
+  if (!hasOcrPages) return false;
+  const score = scoreOcrProviderResult(cached, { pageCount: cached.page_count });
+  if (score.needsRepair) return true;
   return pages.some((page) => {
     if (page.ocr_required !== true) return false;
     const blocks = Array.isArray(page.blocks) ? page.blocks : [];
