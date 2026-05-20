@@ -12,8 +12,11 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.match(source, /Matter Copilot/);
   assert.match(source, /COPILOT_MODEL_PRESETS/);
   assert.match(models, /GPT-4\.1/);
-  assert.match(models, /model: 'gpt-4\.1'/);
+  assert.match(models, /provider: 'openrouter', model: 'openai\/gpt-4\.1'/);
   assert.match(models, /shortLabel: '4\.1'/);
+  assert.match(models, /Gemini 2\.5 Pro/);
+  assert.match(models, /shortLabel: 'Gemini'/);
+  assert.match(models, /provider: 'openrouter', model: 'google\/gemini-2\.5-pro'/);
   assert.match(models, /Claude Sonnet 4\.6/);
   assert.match(models, /anthropic\/claude-sonnet-4\.6/);
   assert.match(models, /Claude Sonnet 4\.5/);

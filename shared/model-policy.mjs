@@ -37,7 +37,9 @@ export const DEFAULT_SKILL_AUTHORING_TIMEOUT_MS = 120_000;
 export const DEFAULT_CONFIGURABLE_SKILL_RUN_MODEL = "gpt-5.4";
 export const DEFAULT_CONFIGURABLE_SKILL_RUN_MAX_OUTPUT_TOKENS = 8000;
 export const DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS = 120_000;
-export const DEFAULT_COPILOT_ANSWER_MODEL = "gpt-5.4-mini";
+export const DEFAULT_COPILOT_ANSWER_PROVIDER = AI_PROVIDERS.OPENROUTER;
+export const DEFAULT_COPILOT_ANSWER_MODEL = "openai/gpt-4.1";
+export const DEFAULT_COPILOT_ANSWER_OPENAI_MODEL = "gpt-5.4-mini";
 export const DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS = 2200;
 export const DEFAULT_COPILOT_ANSWER_TIMEOUT_MS = 90_000;
 export const DEFAULT_CREATE_LISTOFDATES_PASS1_MODEL = "gpt-4.1";
@@ -134,15 +136,16 @@ const TASK_POLICIES = Object.freeze({
   [AI_TASKS.COPILOT_ANSWER]: Object.freeze({
     task: AI_TASKS.COPILOT_ANSWER,
     tier: "copilot_answer",
-    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    provider: DEFAULT_COPILOT_ANSWER_PROVIDER,
     endpoint: DEFAULT_RESPONSES_ENDPOINT,
     fallback: "fail_closed",
     providerEnvKey: "COPILOT_ANSWER_PROVIDER",
     modelEnvKey: "OPENAI_COPILOT_ANSWER_MODEL",
     maxOutputTokensEnvKey: "OPENAI_COPILOT_ANSWER_MAX_OUTPUT_TOKENS",
     timeoutMsEnvKey: "OPENAI_COPILOT_ANSWER_TIMEOUT_MS",
-    defaultModel: DEFAULT_COPILOT_ANSWER_MODEL,
+    defaultModel: DEFAULT_COPILOT_ANSWER_OPENAI_MODEL,
     openRouterModelEnvKey: "OPENROUTER_COPILOT_ANSWER_MODEL",
+    defaultOpenRouterModel: DEFAULT_COPILOT_ANSWER_MODEL,
     openRouterMaxOutputTokensEnvKey: "OPENROUTER_COPILOT_ANSWER_MAX_OUTPUT_TOKENS",
     openRouterTimeoutMsEnvKey: "OPENROUTER_COPILOT_ANSWER_TIMEOUT_MS",
     providerOrderEnvKey: "OPENROUTER_COPILOT_ANSWER_PROVIDER_ORDER",
@@ -272,7 +275,7 @@ function resolveTaskProvider(base, env) {
 
 function modelForProvider(base, env, provider) {
   if (provider === AI_PROVIDERS.OPENROUTER) {
-    return env[base.openRouterModelEnvKey || base.modelEnvKey] || "";
+    return env[base.openRouterModelEnvKey || base.modelEnvKey] || base.defaultOpenRouterModel || "";
   }
   return env[base.modelEnvKey] || base.defaultModel || DEFAULT_OPENAI_MODEL;
 }

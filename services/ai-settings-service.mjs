@@ -17,6 +17,7 @@ const COPILOT_PROVIDER_ENV_KEY = "COPILOT_ANSWER_PROVIDER";
 const OPENAI_COPILOT_MODEL_ENV_KEY = "OPENAI_COPILOT_ANSWER_MODEL";
 const OPENROUTER_COPILOT_MODEL_ENV_KEY = "OPENROUTER_COPILOT_ANSWER_MODEL";
 const COPILOT_MODEL_CHECK_TIMEOUT_MS = 30_000;
+const COPILOT_MODEL_CHECK_MAX_TOKENS = 128;
 const COPILOT_MODEL_CHECK_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
@@ -226,7 +227,7 @@ export function createAiSettingsService({
       body: JSON.stringify({
         model,
         input: "Return JSON matching the schema with ok set to true.",
-        max_output_tokens: 16,
+        max_output_tokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
         text: {
           format: {
             type: "json_schema",
@@ -255,7 +256,7 @@ export function createAiSettingsService({
           { role: "user", content: "Return JSON matching the schema with ok set to true." },
         ],
         temperature: 0,
-        max_tokens: 16,
+        max_tokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
         provider: {
           require_parameters: true,
           allow_fallbacks: false,

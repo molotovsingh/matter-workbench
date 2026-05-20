@@ -23,8 +23,8 @@ export default function SettingsPage() {
   const [aiSaveError, setAiSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [copilotProvider, setCopilotProvider] = useState('openai-direct');
-  const [copilotModel, setCopilotModel] = useState('gpt-5.4-mini');
+  const [copilotProvider, setCopilotProvider] = useState('openrouter');
+  const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
   const [copilotApiKey, setCopilotApiKey] = useState('');
   const [copilotSaving, setCopilotSaving] = useState(false);
   const [copilotSaveError, setCopilotSaveError] = useState('');

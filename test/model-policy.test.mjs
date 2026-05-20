@@ -8,6 +8,7 @@ import {
   DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS,
   DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS,
   DEFAULT_COPILOT_ANSWER_MODEL,
+  DEFAULT_COPILOT_ANSWER_PROVIDER,
   DEFAULT_COPILOT_ANSWER_TIMEOUT_MS,
   DEFAULT_CREATE_LISTOFDATES_PASS1_MAX_OUTPUT_TOKENS,
   DEFAULT_CREATE_LISTOFDATES_PASS1_MODEL,
@@ -183,9 +184,29 @@ test("copilot answer policy has a separate fail-closed task class", () => {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.COPILOT_ANSWER,
     tier: "copilot_answer",
+    provider: DEFAULT_COPILOT_ANSWER_PROVIDER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_COPILOT_ANSWER_MODEL,
+    maxOutputTokens: DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_COPILOT_ANSWER_TIMEOUT_MS,
+    fallback: "fail_closed",
+    providerOrder: [],
+  });
+});
+
+test("copilot answer policy keeps saved provider and model overrides authoritative", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.COPILOT_ANSWER, {
+    env: {
+      COPILOT_ANSWER_PROVIDER: "openai-direct",
+      OPENAI_COPILOT_ANSWER_MODEL: "gpt-5.4-mini",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.COPILOT_ANSWER,
+    tier: "copilot_answer",
     provider: AI_PROVIDERS.OPENAI_DIRECT,
     endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_COPILOT_ANSWER_MODEL,
+    model: "gpt-5.4-mini",
     maxOutputTokens: DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_COPILOT_ANSWER_TIMEOUT_MS,
     fallback: "fail_closed",

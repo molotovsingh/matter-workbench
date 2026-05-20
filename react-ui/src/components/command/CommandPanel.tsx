@@ -40,8 +40,8 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
-  const [copilotProvider, setCopilotProvider] = useState('openai-direct');
-  const [copilotModel, setCopilotModel] = useState('gpt-5.4-mini');
+  const [copilotProvider, setCopilotProvider] = useState('openrouter');
+  const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
   const [copilotSwitching, setCopilotSwitching] = useState(false);
   const [copilotSwitchStatus, setCopilotSwitchStatus] = useState('');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
