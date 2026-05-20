@@ -18,6 +18,8 @@ Current release checkpoint: [Matter Workbench v1.0.0-beta.2](docs/releases/v1.0.
 For the current tester-facing workflow, command panel inputs, recommended
 local env, paid rerun behavior, and review checklist, see
 [docs/beta-testing-list-of-dates.md](docs/beta-testing-list-of-dates.md).
+For a plain-language product feature and differentiation brief, see
+[docs/product-features-and-differentiation.md](docs/product-features-and-differentiation.md).
 
 For the product strategy behind a reusable built-in skill library that reduces
 custom skill demand and AI spend, see
