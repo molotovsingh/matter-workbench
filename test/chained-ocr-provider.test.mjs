@@ -114,6 +114,48 @@ test("chained OCR rejects Gemini repair that drops pages covered by Mistral", as
   assert.match(result.pages[0].warnings[0], /Gemini OCR repair rejected/);
 });
 
+test("chained OCR rejects Gemini repair with duplicate page numbers", async () => {
+  const provider = createChainedOcrProvider({
+    repairEnabled: true,
+    mistralProvider: async () => ({
+      engine: "mistral-ocr-latest",
+      pages: [
+        {
+          page: 1,
+          markdown: "Agreement dated 20.04.2026 records payment of Rs. 10,00,000.",
+          confidence: 0.95,
+        },
+        {
+          page: 2,
+          markdown: "Possession letter states handover by $1.8.14.",
+          confidence: 0.95,
+        },
+      ],
+    }),
+    geminiProvider: async () => ({
+      engine: "gemini-ocr:gemini-2.5-pro",
+      pages: [
+        {
+          page: 1,
+          markdown: "Agreement dated 20.04.2026 records payment of Rs. 10,00,000 with more surrounding text.",
+          confidence: 0.99,
+        },
+        {
+          page: 1,
+          markdown: "Possession letter states handover by 31.8.14 with more surrounding text.",
+          confidence: 0.99,
+        },
+      ],
+    }),
+  });
+
+  const result = await provider({ ...PACKET, pageCount: 2 });
+
+  assert.equal(result.engine, "mistral-ocr-latest");
+  assert.equal(result.pages.length, 2);
+  assert.match(result.pages[0].warnings[0], /Gemini OCR repair rejected/);
+});
+
 test("OCR quality scorer flags suspicious date substitutions", () => {
   const score = scoreOcrProviderResult(
     ocrResult("mistral-ocr-latest", "The amount was payable up to $1.8.14."),

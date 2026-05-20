@@ -31,9 +31,11 @@ export function createChainedOcrProvider({
   const provider = async function chainedOcrProvider(packet) {
     let primaryResult;
     let primaryScore;
+    let primaryCoverage;
     try {
       primaryResult = await primary(packet);
       primaryScore = scoreOcrProviderResult(primaryResult, { pageCount: packet.pageCount });
+      primaryCoverage = summarizePageCoverage(primaryResult, packet.pageCount);
     } catch (primaryError) {
       if (!repair) throw primaryError;
       try {
@@ -52,14 +54,18 @@ export function createChainedOcrProvider({
 
     let repairResult;
     let repairScore;
+    let repairCoverage;
     try {
       repairResult = await repair(packet);
       repairScore = scoreOcrProviderResult(repairResult, { pageCount: packet.pageCount });
+      repairCoverage = summarizePageCoverage(repairResult, packet.pageCount);
     } catch (repairError) {
       return withProviderWarning(primaryResult, `Gemini OCR repair failed; keeping primary OCR (${repairError.message})`);
     }
 
     if (repairScore.usable
+      && repairCoverage.valid
+      && repairCoverage.textPages >= primaryCoverage.textPages
       && repairScore.emptyPages <= primaryScore.emptyPages
       && repairScore.score >= primaryScore.score) {
       return repairResult;
@@ -94,6 +100,34 @@ function maybeCreateGeminiRepairProvider({ env, fetchImpl, repairEnabled, repair
     timeoutMs: env.GEMINI_OCR_TIMEOUT_MS,
     thinkingLevel: env.GEMINI_OCR_THINKING_LEVEL,
   });
+}
+
+function summarizePageCoverage(providerResult, pageCount) {
+  const pages = Array.isArray(providerResult?.pages) ? providerResult.pages : [];
+  const expectedPages = Number.isInteger(pageCount) && pageCount > 0 ? pageCount : pages.length;
+  const seen = new Set();
+  let textPages = 0;
+  let valid = true;
+
+  for (const page of pages) {
+    const pageNumber = Number(page?.page);
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || (expectedPages > 0 && pageNumber > expectedPages) || seen.has(pageNumber)) {
+      valid = false;
+      continue;
+    }
+    seen.add(pageNumber);
+    if (pageHasText(page)) textPages += 1;
+  }
+
+  if (expectedPages > 0 && seen.size < expectedPages) valid = false;
+  return { valid, textPages, expectedPages };
+}
+
+function pageHasText(page) {
+  if (Array.isArray(page?.blocks)) {
+    return page.blocks.some((block) => String(block?.text ?? block?.markdown ?? "").trim());
+  }
+  return String(page?.markdown ?? page?.text ?? "").trim().length > 0;
 }
 
 function withProviderWarning(providerResult, warning) {
