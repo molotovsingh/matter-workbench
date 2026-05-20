@@ -8,6 +8,10 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   const source = await readFile(settingsPagePath, "utf8");
 
   assert.match(source, /Matter Copilot/);
+  assert.match(source, /GPT-4\.1/);
+  assert.match(source, /model: 'gpt-4\.1'/);
+  assert.match(source, /Claude Sonnet 4\.6/);
+  assert.match(source, /anthropic\/claude-sonnet-4\.6/);
   assert.match(source, /Claude Sonnet 4\.5/);
   assert.match(source, /anthropic\/claude-sonnet-4\.5/);
   assert.match(source, /copilotProvider/);

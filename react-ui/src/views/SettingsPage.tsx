@@ -8,6 +8,8 @@ import type { AiSettings, Skill } from '../types';
 const COPILOT_MODEL_PRESETS = [
   { label: 'GPT-5.4', provider: 'openai-direct', model: 'gpt-5.4' },
   { label: 'GPT-5.4 Mini', provider: 'openai-direct', model: 'gpt-5.4-mini' },
+  { label: 'GPT-4.1', provider: 'openai-direct', model: 'gpt-4.1' },
+  { label: 'Claude Sonnet 4.6', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
   { label: 'Claude Sonnet 4.5', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' },
 ];
 
