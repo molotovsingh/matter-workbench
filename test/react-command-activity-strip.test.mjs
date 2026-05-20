@@ -76,3 +76,13 @@ test("React command panel reads the shared activity stream, not a local-only str
   assert.match(source, /latestCompactActivityRows\(state\.activityLines\)/);
   assert.doesNotMatch(source, /setActivityLog|activityLog,\s*setActivityLog/);
 });
+
+test("React command panel exposes a tested Copilot model switcher", async () => {
+  const source = await readFile(reactCommandPanelPath, "utf8");
+
+  assert.match(source, /aria-label="Copilot model"/);
+  assert.match(source, /COPILOT_MODEL_PRESETS/);
+  assert.match(source, /api\.saveAiSettings\(\{\s*copilotProvider/s);
+  assert.match(source, /Testing \$\{preset\.shortLabel\}/);
+  assert.match(source, /Switch failed\. Still using/);
+});

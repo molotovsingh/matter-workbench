@@ -420,6 +420,14 @@ strong { font-weight: 600; }
 .command-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; order: 0; }
 .command-panel-kicker, .command-panel-label { color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .command-panel h2 { margin: 4px 0 0; font-family: var(--display-font); font-size: 21px; font-weight: 600; line-height: 1.2; }
+.copilot-model-switch { display: grid; flex: 0 0 auto; gap: 4px; justify-items: end; min-width: 92px; }
+.copilot-model-switch span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; line-height: 1; text-transform: uppercase; }
+.copilot-model-switch select {
+  min-width: 92px; height: 28px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--input-bg); color: var(--text); font: inherit; font-size: var(--font-size-sm); padding: 3px 24px 3px 8px;
+}
+.copilot-model-switch select:disabled { color: var(--muted); cursor: progress; opacity: 0.72; }
+.copilot-model-status { color: var(--muted); font-size: var(--font-size-sm); line-height: 1.35; margin-top: -4px; }
 .command-panel-copy, .command-panel-note { color: var(--muted-strong); line-height: 1.5; }
 .command-panel-copy {
   flex: 1 1 auto; margin: 0; min-height: 64px; max-height: min(46vh, 520px);

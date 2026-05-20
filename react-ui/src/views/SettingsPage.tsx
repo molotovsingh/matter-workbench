@@ -3,19 +3,8 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
+import { COPILOT_MODEL_PRESETS, copilotPresetValue } from '../lib/copilotModels';
 import type { AiSettings, Skill } from '../types';
-
-const COPILOT_MODEL_PRESETS = [
-  { label: 'GPT-5.4', provider: 'openai-direct', model: 'gpt-5.4' },
-  { label: 'GPT-5.4 Mini', provider: 'openai-direct', model: 'gpt-5.4-mini' },
-  { label: 'GPT-4.1', provider: 'openai-direct', model: 'gpt-4.1' },
-  { label: 'Claude Sonnet 4.6', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
-  { label: 'Claude Sonnet 4.5', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' },
-];
-
-function copilotPresetValue(provider?: string, model?: string) {
-  return `${provider || ''}|${model || ''}`;
-}
 
 function findCopilotTask(settings: AiSettings | null) {
   return settings?.aiTasks?.find((task) => task.task === 'copilot_answer') || null;
