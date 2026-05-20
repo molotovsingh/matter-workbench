@@ -17,7 +17,8 @@ test("matter copilot answers from bounded context and validates citations", asyn
     answerProvider: async ({ question, matterContext, schema }) => {
       assert.equal(question, "which date started the lis?");
       assert.equal(matterContext.schema_version, "matter-context-packet/v1");
-      assert.match(matterContext.context_priority[0], /chronology_entries first/);
+      assert.match(matterContext.context_priority[0], /list_of_dates_markdown and chronology_entries first/);
+      assert.match(matterContext.list_of_dates_markdown.markdown, /# List of Dates/);
       assert.equal(matterContext.chronology_entries.length, 1);
       assert.equal(matterContext.chronology_entries[0].event, "Consumer complaint was filed.");
       assert.equal("evidence_blocks_omitted" in matterContext.counts, false);
@@ -163,6 +164,10 @@ async function makeMatterRoot() {
         needs_review: false,
       }],
     }, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(root, "10_Library", "List of Dates.md"),
+    "# List of Dates\n\n| Date | Event | Legal Relevance | Source |\n|---|---|---|---|\n| 21 January 2013 | Consumer complaint was filed. | Starts the lis before the consumer forum. | Complaint filing record |\n",
   );
   return root;
 }

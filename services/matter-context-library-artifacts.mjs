@@ -45,10 +45,14 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings) {
   }
 
   if (relativePath.endsWith(".md")) {
+    const maxChars = Number.isInteger(limits.maxChronologyMarkdownChars) ? limits.maxChronologyMarkdownChars : 32000;
+    const markdown = boundedText(body, maxChars);
     return {
       path: relativePath,
-      kind: "markdown",
+      kind: relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
       heading: firstMarkdownHeading(body),
+      markdown,
+      markdown_truncated: markdown.length < normalizeText(body).length,
       char_count: body.length,
       line_count: body.split(/\r?\n/).length,
       mtime: info.mtime.toISOString(),

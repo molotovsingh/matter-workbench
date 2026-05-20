@@ -52,6 +52,7 @@ const COPILOT_CONTEXT_LIMITS = Object.freeze({
   maxCharsPerBlock: 1100,
   maxLibraryArtifacts: 4,
   maxChronologyEntries: 120,
+  maxChronologyMarkdownChars: 32000,
 });
 
 const MAX_QUESTION_LENGTH = 1200;
@@ -110,15 +111,22 @@ function summarizeMatterContextForCopilot(packet) {
   const chronologyEntries = libraryArtifacts
     .filter((artifact) => artifact?.kind === "list_of_dates" && Array.isArray(artifact.entries))
     .flatMap((artifact) => artifact.entries);
+  const chronologyMarkdown = libraryArtifacts.find((artifact) => artifact?.kind === "list_of_dates_markdown");
   return {
     schema_version: packet?.schema_version || "",
     generated_at: packet?.generated_at || "",
     matter: packet?.matter || {},
     context_priority: [
-      "Read chronology_entries first when present.",
+      "Read list_of_dates_markdown and chronology_entries first when present.",
       "Use source records and evidence_blocks to verify, cite, or fill gaps.",
       "Preserve OCR or source-review warnings when they affect reliability.",
     ],
+    list_of_dates_markdown: chronologyMarkdown ? {
+      path: chronologyMarkdown.path || "",
+      heading: chronologyMarkdown.heading || "",
+      markdown: chronologyMarkdown.markdown || "",
+      markdown_truncated: Boolean(chronologyMarkdown.markdown_truncated),
+    } : null,
     chronology_entries: chronologyEntries.map((entry) => ({
       date_iso: entry.date_iso || "",
       date_text: entry.date_text || "",

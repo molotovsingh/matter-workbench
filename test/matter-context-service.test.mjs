@@ -140,7 +140,7 @@ async function writeListOfDates(root) {
       },
     }, null, 2)}\n`,
   );
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\n| Date | Event |\n");
+  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\nVerbose chronology note.\n\n| Date | Event |\n");
 }
 
 test("matter context packet includes source-labeled extraction blocks and selected library summaries", async () => {
@@ -208,6 +208,7 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "source_index").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
+  assert.match(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates_markdown").markdown, /Verbose chronology note/);
   assert.deepEqual(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").entries.map((entry) => entry.event), [
     "Agreement was signed.",
   ]);
