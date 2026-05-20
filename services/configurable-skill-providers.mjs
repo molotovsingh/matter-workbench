@@ -47,6 +47,8 @@ const AUTHORING_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "The skill must be faithful to the approved sample and design brief.",
   "Prefer safe internal workshop artifacts unless the approved design clearly asks for drafts or dispatch.",
   "The prompt must require source-backed factual statements when the skill is internal legal work product.",
+  "For source_backed required skills, the prompt and citation_policy must require readable source labels plus raw FILE-NNNN pX.bY audit citations.",
+  "If raw citations should not appear in normal prose, require a clearly marked internal audit/source-handles section instead.",
   "Never claim the skill is court-ready or final legal advice.",
 ], {
   customSkill: true,
@@ -60,7 +62,8 @@ const RUN_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "Do not mention that you are an AI model.",
   "Do not invent facts. Mark uncertainty and missing evidence clearly.",
   "For source-backed work, cite readable source labels in normal lawyer-visible text.",
-  "Keep raw FILE-NNNN pX.bY citations in audit metadata or technical views unless the approved output contract explicitly asks for audit citations.",
+  "For source-backed work, include raw FILE-NNNN pX.bY citations in a clearly marked internal audit/source-handles section.",
+  "Do not present raw audit handles as court-facing text.",
 ], {
   customSkill: true,
 });

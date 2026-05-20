@@ -6,6 +6,11 @@ export const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 
 const MAX_PROMPT_LENGTH = 8000;
 const MAX_OUTPUT_LENGTH = 80_000;
+const RAW_SOURCE_HANDLE_INSTRUCTION = [
+  "For source-backed outputs, keep readable source labels in normal lawyer-facing prose.",
+  "Also include an internal audit/source-handles section with raw FILE-NNNN pX.bY citations for material factual assertions and recommendations.",
+  "Mark that audit section internal and not court-facing.",
+].join(" ");
 
 export function skillToRegistryCard(skill = {}) {
   const normalized = normalizeStoredSkill(skill);
@@ -49,6 +54,7 @@ export function primaryActiveSkills(skills = []) {
 
 export function normalizeAuthoredDefinition(definition = {}, idea = {}) {
   const brief = idea.designBrief || {};
+  const sourceBacked = ["required", "optional", "none"].includes(definition.source_backed) ? definition.source_backed : "required";
   return {
     title: normalizeText(definition.title || titleFromArtifact(brief.expectedOutputArtifact) || "Custom Skill"),
     slash: normalizeSlash(definition.slash || slashFromTitle(definition.title || titleFromArtifact(brief.expectedOutputArtifact))),
@@ -57,9 +63,13 @@ export function normalizeAuthoredDefinition(definition = {}, idea = {}) {
     output_artifact: normalizeArtifactPath(definition.output_artifact || brief.expectedOutputArtifact, definition.target_lane || brief.targetLane),
     matter_required: definition.matter_required !== false,
     paid_provider_call: definition.paid_provider_call !== false,
-    source_backed: ["required", "optional", "none"].includes(definition.source_backed) ? definition.source_backed : "required",
-    prompt: boundedPrompt(definition.prompt || ""),
-    citation_policy: normalizeText(definition.citation_policy || "Cite source-backed factual statements with readable labels and raw citations."),
+    source_backed: sourceBacked,
+    prompt: sourceBacked === "required"
+      ? withRawSourceHandleInstruction(boundedPrompt(definition.prompt || ""))
+      : boundedPrompt(definition.prompt || ""),
+    citation_policy: sourceBacked === "required"
+      ? withRawSourceHandleInstruction(normalizeText(definition.citation_policy || "Cite source-backed factual statements with readable labels and raw citations."))
+      : normalizeText(definition.citation_policy || "Cite source-backed factual statements with readable labels and raw citations."),
   };
 }
 
@@ -166,6 +176,13 @@ export function boundedOutputMarkdown(value) {
 
 export function normalizeText(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function withRawSourceHandleInstruction(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return normalized;
+  if (/FILE-NNNN|FILE-\d{4}|raw FILE/i.test(normalized)) return normalized;
+  return boundedPrompt(`${normalized} ${RAW_SOURCE_HANDLE_INSTRUCTION}`);
 }
 
 function customSkillGroupingKey(skill = {}) {

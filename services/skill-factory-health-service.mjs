@@ -150,11 +150,13 @@ function validateSkill(skill, { ideaById, sampleById, issues }) {
     if (sample.ideaId !== skill.sourceIdeaId) {
       addIssue(issues, "error", "skill_sample_idea_mismatch", `Skill ${skill.slash || skill.id} links idea ${skill.sourceIdeaId || "(blank)"} but sample ${sample.id} belongs to ${sample.ideaId || "(blank)"}.`);
     }
-    if (!sample.approved) {
-      addIssue(issues, "error", "skill_unapproved_sample", `Skill ${skill.slash || skill.id} was built from unapproved sample ${sample.id}.`);
-    }
-    if (idea && sample.designBriefHash !== hashDesignBrief(idea.designBrief || {})) {
-      addIssue(issues, "error", "skill_stale_sample", `Skill ${skill.slash || skill.id} points to a sample that is stale against its idea.`);
+    if (!isFailedDraft(skill)) {
+      if (!sample.approved) {
+        addIssue(issues, "error", "skill_unapproved_sample", `Skill ${skill.slash || skill.id} was built from unapproved sample ${sample.id}.`);
+      }
+      if (idea && sample.designBriefHash !== hashDesignBrief(idea.designBrief || {})) {
+        addIssue(issues, "error", "skill_stale_sample", `Skill ${skill.slash || skill.id} points to a sample that is stale against its idea.`);
+      }
     }
   }
   if (!VALID_LANES.has(skill.targetLane)) {
@@ -166,6 +168,10 @@ function validateSkill(skill, { ideaById, sampleById, issues }) {
   if (skill.status === "active" && skill.validation?.status !== "passed") {
     addIssue(issues, "warning", "active_skill_validation_status", `Active skill ${skill.slash || skill.id} does not have passed validation metadata.`);
   }
+}
+
+function isFailedDraft(skill = {}) {
+  return skill.status === "draft" && skill.validation?.status === "failed";
 }
 
 function validateSkillVersionLinks(skills, { skillById, issues }) {

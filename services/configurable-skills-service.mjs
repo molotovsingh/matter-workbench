@@ -111,6 +111,7 @@ export function createConfigurableSkillsService({
       if (targetSlash && !targetSkill) {
         throw makeHttpError(`No active configurable skill found for ${targetSlash}`, 409);
       }
+      const reservedCustomSlashes = activeCustomSlashes(store.skills);
       const authoringPolicy = resolveModelPolicy(AI_TASKS.SKILL_AUTHORING, { env });
       const authoringProviderConfig = resolveProviderConfig(authoringPolicy, { endpoint });
       if (!authoringProviderConfig.model) throw makeHttpError("Skill authoring model is not configured.", 409);
@@ -130,7 +131,7 @@ export function createConfigurableSkillsService({
       const authored = normalizeAuthoredDefinition(await provider({
         idea,
         sample,
-        existingSlashes: store.skills.map((skill) => skill.slash),
+        existingSlashes: reservedCustomSlashes,
         targetSkill,
         providerConfig: authoringProviderConfig,
         schema: AUTHORING_SCHEMA,
@@ -138,13 +139,13 @@ export function createConfigurableSkillsService({
       authored.slash = targetSkill
         ? targetSkill.slash
         : uniqueSlash(authored.slash || slashFromTitle(authored.title), [
-          ...store.skills.map((skill) => skill.slash),
+          ...reservedCustomSlashes,
           ...BUILTIN_SKILL_COMMANDS,
         ]);
 
       const timestamp = now().toISOString();
       const skillId = idFactory();
-      const draft = buildDraftConfigurableSkill({
+      let draft = buildDraftConfigurableSkill({
         authored,
         idea,
         sample,
@@ -163,6 +164,12 @@ export function createConfigurableSkillsService({
       });
       draft.validation = validation;
       if (validation.status !== "passed") {
+        if (!targetSkill) {
+          draft = normalizeStoredSkill({
+            ...draft,
+            slash: failedValidationSlash(draft.slash, store.skills),
+          });
+        }
         store.skills.push(draft);
         validationError = makeHttpError(`Draft skill validation failed: ${validation.messages.join("; ")}`, 422);
         return {
@@ -331,6 +338,20 @@ function extractTargetSkillSlash(idea = {}) {
   const improve = text.match(/\bImprove\s+(\/[a-z0-9_-]+)/i);
   if (improve) return normalizeSlash(improve[1]);
   return "";
+}
+
+function activeCustomSlashes(skills = []) {
+  return skills
+    .filter((skill) => skill.status === "active")
+    .map((skill) => skill.slash);
+}
+
+function failedValidationSlash(baseSlash, skills = []) {
+  const base = normalizeSlash(baseSlash || "/custom_skill");
+  return uniqueSlash(`${base}_failed_validation`, [
+    ...skills.map((skill) => skill.slash),
+    ...BUILTIN_SKILL_COMMANDS,
+  ]);
 }
 
 async function exists(filePath) {

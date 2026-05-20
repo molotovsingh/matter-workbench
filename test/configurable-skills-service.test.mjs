@@ -32,6 +32,8 @@ test("configurable skills create active skills from approved samples and allocat
   assert.equal(first.skill.status, "active");
   assert.equal(first.skill.slash, "/party_officer_map");
   assert.equal(first.skill.outputArtifact, "20_Workshop/Party and Officer Map.md");
+  assert.match(first.skill.promptConfig.prompt, /raw FILE-NNNN pX\.bY citations/);
+  assert.match(first.skill.promptConfig.citationPolicy, /raw FILE-NNNN pX\.bY citations/);
   assert.equal(second.skill.status, "active");
   assert.equal(second.skill.slash, "/party_officer_map_2");
 
@@ -41,6 +43,37 @@ test("configurable skills create active skills from approved samples and allocat
   const cards = await service.activeSkillCards();
   assert.deepEqual(cards.map((card) => card.slash), ["/party_officer_map_2"]);
   assert.ok(cards.every((card) => card.configurable));
+});
+
+test("failed new skill drafts do not reserve the clean slash on retry", async () => {
+  const { service } = await makeServiceHarness({
+    runMarkdownSequence: [
+      "# Party and Officer Map\n\nGeneric output without raw citations.",
+      [
+        "# Party and Officer Map",
+        "",
+        "| Name | Role | Evidence |",
+        "| --- | --- | --- |",
+        "| Ayesha | Client | Matter context (FILE-0001 p1.b1) |",
+      ].join("\n"),
+    ],
+  });
+
+  await assert.rejects(
+    () => service.createSkillFromApprovedSample({ ideaId: "idea_party_1" }),
+    /Validation run output must include raw FILE citations/,
+  );
+  const retry = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  assert.equal(retry.skill.status, "active");
+  assert.equal(retry.skill.slash, "/party_officer_map");
+  const listed = await service.listSkills();
+  assert.deepEqual(listed.skills.map((skill) => [skill.slash, skill.status]), [
+    ["/party_officer_map_failed_validation", "draft"],
+    ["/party_officer_map", "active"],
+  ]);
+  const cards = await service.activeSkillCards();
+  assert.deepEqual(cards.map((card) => card.slash), ["/party_officer_map"]);
 });
 
 test("configurable skills create validated new versions without silently overwriting the active skill", async () => {
@@ -201,7 +234,8 @@ test("configurable skill authoring and run providers carry the shared legal work
   assert.match(authoringBodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
   assert.match(authoringBodies[0].input[0].content, /Custom skill policy/);
   assert.match(runBodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
-  assert.match(runBodies[0].input[0].content, /Keep raw FILE-NNNN pX\.bY citations in audit metadata/);
+  assert.match(authoringBodies[0].input[0].content, /raw FILE-NNNN pX\.bY audit citations/);
+  assert.match(runBodies[0].input[0].content, /include raw FILE-NNNN pX\.bY citations in a clearly marked internal audit/);
 });
 
 test("configurable skill validation blocks bad source-backed samples and keeps draft non-runnable", async () => {

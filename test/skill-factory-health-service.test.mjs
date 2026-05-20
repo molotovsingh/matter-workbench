@@ -196,6 +196,53 @@ test("skill factory health reports broken version links and duplicate active ver
   assert.ok(health.checks.some((check) => check.id === "skill_versions" && check.state === "error"));
 });
 
+test("skill factory health ignores stale sample state for failed draft history", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-failed-draft-"));
+  const designBrief = partyBrief();
+  const hash = hashDesignBrief(designBrief);
+  await writeStores(appDir, {
+    ideas: [{
+      id: "idea_party",
+      designBrief,
+    }],
+    samples: [{
+      id: "sample_failed",
+      ideaId: "idea_party",
+      approved: false,
+      designBriefHash: "old-hash",
+    }, {
+      id: "sample_active",
+      ideaId: "idea_party",
+      approved: true,
+      designBriefHash: hash,
+    }],
+    skills: [{
+      id: "skill_failed",
+      slash: "/party_officer_map_failed_validation",
+      status: "draft",
+      sourceIdeaId: "idea_party",
+      sourceSampleId: "sample_failed",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "failed", messages: ["Validation run output must include raw FILE citations."] },
+    }, {
+      id: "skill_active",
+      slash: "/party_officer_map",
+      status: "active",
+      sourceIdeaId: "idea_party",
+      sourceSampleId: "sample_active",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Party and Officer Map.md",
+      validation: { status: "passed" },
+    }],
+  });
+
+  const health = await createSkillFactoryHealthService({ appDir }).checkHealth();
+
+  assert.equal(health.state, "ok");
+  assert.deepEqual(health.issues, []);
+});
+
 test("skill factory health reports malformed stores without throwing", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-malformed-"));
   await writeFile(path.join(appDir, "skill-ideas.json"), "{not-json", "utf8");
