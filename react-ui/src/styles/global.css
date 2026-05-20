@@ -431,8 +431,13 @@ strong { font-weight: 600; }
 .command-panel-copy, .command-panel-note { color: var(--muted-strong); line-height: 1.5; }
 .command-panel-copy {
   flex: 1 1 auto; margin: 0; min-height: 64px; max-height: min(46vh, 520px);
-  order: 1; overflow-y: auto; padding-right: 4px; white-space: pre-line;
+  order: 1; overflow-y: auto; padding-right: 8px; scrollbar-color: var(--border-strong) transparent;
+  scrollbar-gutter: stable; scrollbar-width: thin; white-space: pre-line;
 }
+.command-panel-copy::-webkit-scrollbar { width: 8px; }
+.command-panel-copy::-webkit-scrollbar-track { background: transparent; }
+.command-panel-copy::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+.command-panel-copy::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .command-panel-note { margin: 0; font-size: var(--font-size-sm); line-height: 1.4; order: 7; }
 .command-panel-examples { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; opacity: 0.82; order: 2; transition: opacity 120ms ease; }
 .command-panel-examples code {

@@ -22,4 +22,7 @@ test("React command panel keeps long copilot answers scrollable above the input"
   assert.match(copyRule, /flex:\s*1 1 auto/);
   assert.match(copyRule, /max-height:\s*min\(46vh,\s*520px\)/);
   assert.match(copyRule, /overflow-y:\s*auto/);
+  assert.match(copyRule, /scrollbar-gutter:\s*stable/);
+  assert.match(copyRule, /scrollbar-width:\s*thin/);
+  assert.match(css, /\.command-panel-copy::-webkit-scrollbar-thumb/);
 });
