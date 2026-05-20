@@ -268,6 +268,7 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/matter-init", "skip_current"],
       ["/extract", "skip_current"],
       ["/describe_sources", "skip_current"],
+      ["/create_listofdates", "skip_current"],
     ]);
     assert.equal(prepareMatter.nextStep.state, "complete");
     const sourceRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/describe_sources")}`);

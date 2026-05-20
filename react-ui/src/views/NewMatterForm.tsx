@@ -5,7 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 
 interface Props {
   onCancel: () => void;
-  onCreated: (name: string) => void;
+  onCreated: (name: string, opts?: { autoPrepare?: boolean }) => void;
 }
 
 export default function NewMatterForm({ onCancel, onCreated }: Props) {
@@ -38,7 +38,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     try {
       const fd = new FormData();
       fd.append('name', name.trim());
-      const metadata: Record<string, string> = {};
+      const metadata: Record<string, string> = { matterName: name.trim() };
       if (clientName) metadata.clientName = clientName;
       if (matterType) metadata.matterType = matterType;
       if (oppositeParty) metadata.oppositeParty = oppositeParty;
@@ -55,7 +55,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         successMessage: false,
         failureMessage: (err) => `[new-matter] switch error: ${getErrorMessage(err)}`,
       });
-      onCreated(name.trim());
+      onCreated(name.trim(), { autoPrepare: files.length > 0 });
     } catch (err) {
       if (isMatterSwitchSupersededError(err)) return;
       setError(getErrorMessage(err));

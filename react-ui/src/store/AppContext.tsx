@@ -13,6 +13,7 @@ import type {
   ActiveTab,
   ActiveView,
   FilePreview,
+  PreparationRunStatus,
   WorkspaceApiResponse,
 } from '../types';
 import { api } from '../api/client';
@@ -39,7 +40,8 @@ type Action =
   | { type: 'APPEND_TERMINAL'; payload: { terminalLines: string[]; activityLines: string[] } }
   | { type: 'CLEAR_TERMINAL' }
   | { type: 'SET_COMMAND_COPY'; payload: string }
-  | { type: 'SET_COMMAND_RUNNING'; payload: boolean };
+  | { type: 'SET_COMMAND_RUNNING'; payload: boolean }
+  | { type: 'SET_PREPARATION_RUN'; payload: PreparationRunStatus | null };
 
 function readStoredTheme(): 'light' | 'dark' {
   try {
@@ -68,6 +70,7 @@ const initialState: AppState = {
   activityLines: [],
   commandCopyText: 'Ask a general question, create a skill, or pick a matter first.',
   isCommandRunning: false,
+  preparationRun: null,
 };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -114,6 +117,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, commandCopyText: action.payload };
     case 'SET_COMMAND_RUNNING':
       return { ...state, isCommandRunning: action.payload };
+    case 'SET_PREPARATION_RUN':
+      return { ...state, preparationRun: action.payload };
     default:
       return state;
   }
@@ -198,6 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearActiveMatter = useCallback(() => {
     activeMatterNameRef.current = null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: null });
+    dispatch({ type: 'SET_PREPARATION_RUN', payload: null });
     dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
     dispatch({ type: 'SET_STATUS_BAR', payload: 'Pick a matter to begin' });
@@ -273,19 +279,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     failurePrefix = '[workspace] refresh failed',
     expectedMatterName = state.activeMatter?.name,
   }: { reason?: string; successMessage?: string; failurePrefix?: string; expectedMatterName?: string } = {}) => {
-    if (!state.activeMatter) return null;
+    const targetMatterName = expectedMatterName || activeMatterNameRef.current || state.activeMatter?.name;
+    if (!targetMatterName) return null;
     if (reason) appendTerminal([reason]);
     try {
-      const workspace = await api.getWorkspace(expectedMatterName);
-      if (expectedMatterName && activeMatterNameRef.current !== expectedMatterName) {
+      const workspace = await api.getWorkspace(targetMatterName);
+      if (activeMatterNameRef.current !== targetMatterName) {
         appendTerminal(['[workspace] refresh skipped - active matter changed']);
         return null;
       }
-      if (!workspaceMatchesMatter(workspace, expectedMatterName)) {
+      if (!workspaceMatchesMatter(workspace, targetMatterName)) {
         appendTerminal(['[workspace] refresh skipped - active matter changed']);
         return null;
       }
-      const refreshed = activeMatterFromWorkspace(workspace, state.activeMatter.name);
+      const refreshed = activeMatterFromWorkspace(workspace, targetMatterName);
       setActiveMatter(refreshed);
       appendTerminal([successMessage || `[workspace] refreshed — ${workspace.fileCount} files, ${workspace.directoryCount} folders`]);
       return refreshed;

@@ -173,7 +173,7 @@ function validateDescriptorShape(descriptor) {
   validateHumanLabel(descriptor.display_label, `display_label for ${descriptor.file_id}`);
   validateHumanLabel(descriptor.short_label, `short_label for ${descriptor.file_id}`);
   if (!DOCUMENT_TYPES.has(descriptor.document_type)) throwProviderError(`Invalid document_type for ${descriptor.file_id}`);
-  if (descriptor.document_date !== null && !isValidIsoDate(descriptor.document_date)) {
+  if (descriptor.document_date !== null && typeof descriptor.document_date !== "string") {
     throwProviderError(`Invalid document_date for ${descriptor.file_id}`);
   }
   if (!DATE_BASES.has(descriptor.date_basis)) throwProviderError(`Invalid date_basis for ${descriptor.file_id}`);
@@ -241,6 +241,11 @@ function validateDescriptorEvidence(descriptor, packet) {
 function normalizeDescriptor(descriptor, packet) {
   const displayLabel = descriptor.display_label.trim();
   const shortLabel = descriptor.short_label.trim();
+  const normalizedDate = normalizeDocumentDate(descriptor.document_date);
+  const dateWarnings = normalizedDate.valid
+    ? []
+    : ["Invalid document_date returned by the source-label model; date cleared for lawyer review."];
+  const needsReview = descriptor.needs_review || !normalizedDate.valid;
   const labelReason = descriptor.evidence
     .map((evidence) => evidence.reason)
     .filter(Boolean)
@@ -259,15 +264,15 @@ function normalizeDescriptor(descriptor, packet) {
     short_label: shortLabel,
     suggested_label: displayLabel,
     confirmed_label: "",
-    label_status: descriptor.needs_review ? LABEL_STATUS.NEEDS_REVIEW : LABEL_STATUS.SUGGESTED,
+    label_status: needsReview ? LABEL_STATUS.NEEDS_REVIEW : LABEL_STATUS.SUGGESTED,
     label_source: LABEL_SOURCE.MODEL,
     label_reason: labelReason,
     label_revision: 1,
     confirmed_by: "",
     confirmed_at: "",
     document_type: descriptor.document_type,
-    document_date: descriptor.document_date,
-    date_basis: descriptor.date_basis,
+    document_date: normalizedDate.value,
+    date_basis: normalizedDate.valid ? descriptor.date_basis : "unknown",
     parties: {
       from: descriptor.parties.from,
       to: [...descriptor.parties.to],
@@ -281,13 +286,19 @@ function normalizeDescriptor(descriptor, packet) {
       signatory: descriptor.parties.signatory,
     },
     confidence: descriptor.confidence,
-    needs_review: descriptor.needs_review,
+    needs_review: needsReview,
     evidence: descriptor.evidence.map((evidence) => ({
       citation: evidence.citation,
       reason: evidence.reason.trim(),
     })),
-    warnings: [...descriptor.warnings],
+    warnings: [...descriptor.warnings, ...dateWarnings],
   };
+}
+
+function normalizeDocumentDate(value) {
+  if (value === null) return { value: null, valid: true };
+  if (isValidIsoDate(value)) return { value, valid: true };
+  return { value: null, valid: false };
 }
 
 function isValidIsoDate(value) {

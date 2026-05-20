@@ -100,6 +100,28 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
   });
 });
 
+test("multipart upload falls back to folder name when metadata omits matter name", async () => {
+  await withServer(async ({ baseUrl, mattersHome }) => {
+    const createForm = new FormData();
+    createForm.set("name", "Fallback Matter Name");
+    createForm.set("metadata", JSON.stringify({
+      clientName: "Client A",
+      oppositeParty: "Opposite B",
+      matterType: "Consumer",
+      jurisdiction: "Delhi",
+    }));
+    createForm.set("paths", JSON.stringify(["notice.txt"]));
+    appendTextFile(createForm, "files", "notice.txt", "Notice served on 1 January 2026.");
+
+    const created = await postMultipart(baseUrl, "/api/matters/new", createForm);
+    assert.equal(created.folderName, "Fallback Matter Name");
+    assert.equal(created.metadata.matterName, "Fallback Matter Name");
+
+    const matterJson = JSON.parse(await readFile(path.join(mattersHome, "Fallback Matter Name", "matter.json"), "utf8"));
+    assert.equal(matterJson.matter_name, "Fallback Matter Name");
+  });
+});
+
 test("multipart add-files honors explicit matter without switching active matter", async () => {
   await withServer(async ({ baseUrl }) => {
     const firstForm = new FormData();

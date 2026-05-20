@@ -16,9 +16,10 @@ interface Props {
   onOpenMatter: (name: string) => void;
   onViewAllMatters: () => void;
   onCommand: (command: string) => void;
+  onRunPreparationAgain: (matterName: string) => void;
 }
 
-export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatters, onCommand }: Props) {
+export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatters, onCommand, onRunPreparationAgain }: Props) {
   const { state, dispatch, switchActiveMatter } = useApp();
   const { matters, resumeMatterName, activeMatter } = state;
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
   }
 
   if (activeMatter) {
-    return <MatterOverview onCommand={onCommand} />;
+    return <MatterOverview onCommand={onCommand} onRunPreparationAgain={onRunPreparationAgain} />;
   }
 
   return (

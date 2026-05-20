@@ -4,7 +4,7 @@ import test from "node:test";
 
 const prepareMatterPath = new URL("../react-ui/src/views/workflows/PrepareMatterResult.tsx", import.meta.url);
 
-test("React Prepare Matter confirms paid steps without rerun-advice auto-run", async () => {
+test("React Prepare Matter keeps paid confirmation on the manual next-step path", async () => {
   const source = await readFile(prepareMatterPath, "utf8");
 
   assert.doesNotMatch(source, /RerunConfirmDialog/);
@@ -13,4 +13,14 @@ test("React Prepare Matter confirms paid steps without rerun-advice auto-run", a
   assert.match(source, /role="alertdialog"/);
   assert.match(source, /This step uses a paid AI provider\. Running it may incur costs\./);
   assert.match(source, /Run \{cleanCommandLabel\(plan\.nextStep\.slash\)\}/);
+});
+
+test("React Prepare Matter full-run button uses the shared automatic preparation runner", async () => {
+  const source = await readFile(prepareMatterPath, "utf8");
+
+  assert.match(source, /runAutomaticPreparation/);
+  assert.match(source, /createInitialPreparationRun/);
+  assert.match(source, /dispatch\(\{ type: 'SET_PREPARATION_RUN', payload: latestRun \}\)/);
+  assert.match(source, /onProgress: \(status\) => \{/);
+  assert.doesNotMatch(source, /pendingPaidConfirm/);
 });

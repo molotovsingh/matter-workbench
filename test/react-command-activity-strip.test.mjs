@@ -12,6 +12,8 @@ const reactNativeCommandAliasesPath = new URL("../react-ui/src/lib/nativeCommand
 const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLabels.ts", import.meta.url);
 const reactActivityLogPath = new URL("../react-ui/src/lib/activityLog.ts", import.meta.url);
 const reactCommandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const reactMainContentPath = new URL("../react-ui/src/components/layout/MainContent.tsx", import.meta.url);
+const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 
 let reactActivityLogModulePromise = null;
 
@@ -75,6 +77,15 @@ test("React command panel reads the shared activity stream, not a local-only str
 
   assert.match(source, /latestCompactActivityRows\(state\.activityLines\)/);
   assert.doesNotMatch(source, /setActivityLog|activityLog,\s*setActivityLog/);
+});
+
+test("React shell keeps activity in the command panel and Activity page only", async () => {
+  const mainContent = await readFile(reactMainContentPath, "utf8");
+  const activityPage = await readFile(reactActivityPagePath, "utf8");
+
+  assert.doesNotMatch(mainContent, /bottom-panel|terminal-output|terminalRef/);
+  assert.match(activityPage, /activity-system-log/);
+  assert.match(activityPage, /System Log/);
 });
 
 test("React command panel exposes a tested Copilot model switcher", async () => {

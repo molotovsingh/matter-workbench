@@ -365,11 +365,43 @@ strong { font-weight: 600; }
 }
 
 .titlebar { background: var(--chrome-bg); border-bottom: 1px solid var(--border); padding: 0 24px; }
-.title-center { flex: 1; min-width: 0; text-align: center; }
+.title-center { flex: 1; min-width: 0; display: flex; justify-content: center; text-align: center; }
 .title-left, .title-right, .title-text { color: var(--muted); font-size: 12px; }
 .title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .title-left, .title-right { width: 140px; }
 .title-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; text-align: right; }
+.active-matter-pill {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  color: var(--muted);
+  display: inline-flex;
+  gap: 7px;
+  max-width: min(520px, 72%);
+  min-width: 0;
+  padding: 4px 12px;
+}
+.active-matter-dot { background: var(--success); border-radius: 50%; flex: 0 0 auto; height: 7px; width: 7px; }
+.active-matter-label {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.active-matter-pill strong {
+  color: var(--text);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .theme-toggle {
   border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
@@ -397,18 +429,6 @@ strong { font-weight: 600; }
 .editor-content h1 { margin-top: 0; margin-bottom: 10px; font-size: 28px; }
 .editor-content h2 { margin: 28px 0 10px; font-size: 16px; }
 .editor-content p { max-width: 760px; line-height: 1.6; color: var(--muted-strong); }
-
-/* ─── Bottom panel (terminal) ───────────────────────────── */
-.bottom-panel {
-  border-top: 1px solid var(--border); background: var(--chrome-bg);
-  flex: 0 0 auto; padding: 8px 16px 10px;
-}
-.bottom-meta { color: var(--muted); font-size: 12px; }
-.terminal-output {
-  margin: 8px 0 0; padding: 10px 12px; background: var(--terminal-bg); border: 1px solid var(--border);
-  color: var(--terminal-text); height: 104px; overflow-y: auto; white-space: pre-wrap;
-  font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12px; line-height: 1.45;
-}
 
 /* ─── Command panel ─────────────────────────────────────── */
 .command-panel {
@@ -591,6 +611,19 @@ strong { font-weight: 600; }
 .matter-info-card dd { border-bottom: 1px solid var(--border-subtle); margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 11px 16px; color: var(--text); }
 .matter-info-card dt:last-of-type, .matter-info-card dd:last-of-type { border-bottom: 0; }
 .matter-pipeline-card { max-width: 780px; margin: 16px 0 24px; padding: 18px; border-radius: 5px; background: var(--panel); border: 1px solid var(--border); }
+.matter-preparation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.matter-preparation-heading h2 { margin-bottom: 0; }
+.matter-preparation-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.preparation-progress { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+.preparation-progress-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: flex-start; border: 1px solid var(--border-subtle); border-radius: 5px; padding: 9px 10px; color: var(--muted); font-size: 12px; min-width: 0; }
+.preparation-progress-step strong { display: block; color: var(--text); font-size: 12px; line-height: 1.25; }
+.preparation-progress-step span:last-child { display: block; line-height: 1.35; overflow-wrap: anywhere; }
+.preparation-progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-light); margin-top: 4px; }
+.preparation-progress-step.running { border-color: var(--warning-border); background: var(--warning-bg); }
+.preparation-progress-step.done .preparation-progress-dot { background: var(--success); }
+.preparation-progress-step.running .preparation-progress-dot { background: var(--warning-border); }
+.preparation-progress-step.failed { border-color: var(--pipeline-failed-border); background: var(--error-soft-bg); }
+.preparation-progress-step.failed .preparation-progress-dot { background: var(--danger); }
 .pipeline-stage-list { display: grid; margin-top: 16px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 5px; }
 .pipeline-stage { border: 0; border-bottom: 1px solid var(--border-subtle); background: var(--panel); padding: 14px 16px; }
 .pipeline-stage:last-child { border-bottom: 0; }

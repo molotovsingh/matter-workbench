@@ -66,11 +66,12 @@ test("prepare matter plan skips setup and asks before paid source labeling", asy
     ["/matter-init", "current", "skip_current"],
     ["/extract", "current", "skip_current"],
     ["/describe_sources", "missing", "confirm_paid_run"],
+    ["/create_listofdates", "blocked", "blocked"],
   ]);
   assert.equal(plan.nextStep.slash, "/describe_sources");
   assert.match(plan.nextStep.message, /confirm paid source labeling/i);
   assert.ok(plan.warnings.some((warning) => /paid AI provider call/i.test(warning)));
-  assert.equal(plan.downstream.listOfDates.action, "recommend_after_prepare");
+  assert.equal(plan.downstream.listOfDates.action, "blocked");
 });
 
 test("prepare matter plan blocks source labeling when extraction has no usable records", async () => {
@@ -91,13 +92,14 @@ test("prepare matter plan blocks source labeling when extraction has no usable r
     ["/matter-init", "current", "skip_current"],
     ["/extract", "blocked", "blocked"],
     ["/describe_sources", "blocked", "blocked"],
+    ["/create_listofdates", "blocked", "blocked"],
   ]);
   assert.equal(plan.nextStep.slash, "/extract");
   assert.match(plan.nextStep.message, /no usable extraction records/i);
-  assert.equal(plan.downstream.listOfDates.action, "recommend_after_prepare");
+  assert.equal(plan.downstream.listOfDates.action, "blocked");
 });
 
-test("prepare matter plan skips current source labels and recommends list of dates separately", async () => {
+test("prepare matter plan treats missing list of dates as a preparation stage", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-current-test-"));
   const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
   const libraryDir = path.join(root, "10_Library");
@@ -132,10 +134,11 @@ test("prepare matter plan skips current source labels and recommends list of dat
     ["/matter-init", "skip_current"],
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
+    ["/create_listofdates", "confirm_paid_run"],
   ]);
-  assert.equal(plan.nextStep.state, "complete");
-  assert.equal(plan.downstream.listOfDates.action, "recommend_separate_skill");
-  assert.match(plan.downstream.listOfDates.reason, /Run Create list of dates separately/i);
+  assert.equal(plan.nextStep.slash, "/create_listofdates");
+  assert.equal(plan.downstream.listOfDates.action, "confirm_paid_run");
+  assert.match(plan.downstream.listOfDates.reason, /List of Dates is missing/i);
 });
 
 test("prepare matter plan blocks when required metadata is missing", async () => {

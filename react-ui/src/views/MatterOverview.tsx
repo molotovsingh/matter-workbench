@@ -13,16 +13,22 @@ import type {
   MatterAttention,
   AttentionItem,
   AttentionSummary,
+  PreparationRunStatus,
 } from '../types';
 
 interface Props {
   onCommand: (command: string) => void;
+  onRunPreparationAgain: (matterName: string) => void;
 }
 
-export default function MatterOverview({ onCommand }: Props) {
+export default function MatterOverview({ onCommand, onRunPreparationAgain }: Props) {
   const { state } = useApp();
   const matter = state.activeMatter!;
   const meta = matter.metadata ?? {};
+  const preparationRun = state.preparationRun?.matterName === matter.name ? state.preparationRun : null;
+  const preparationRefreshKey = preparationRun
+    ? `${preparationRun.state}:${preparationRun.finishedAt || preparationRun.startedAt}`
+    : '';
 
   const missingFields = validateMetadata(meta as Record<string, string | undefined>);
 
@@ -62,7 +68,12 @@ export default function MatterOverview({ onCommand }: Props) {
         </p>
       )}
 
-      <PipelineCard matterName={matter.name} />
+      <PipelineCard
+        matterName={matter.name}
+        preparationRun={preparationRun}
+        refreshKey={preparationRefreshKey}
+        onRunPreparationAgain={onRunPreparationAgain}
+      />
 
       <div className="form-actions matter-run-actions">
         {OVERVIEW_NATIVE_COMMANDS.map((command) => (
@@ -76,21 +87,24 @@ export default function MatterOverview({ onCommand }: Props) {
         ))}
       </div>
 
-      <details style={{ marginTop: 28 }}>
-        <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 13, fontWeight: 500 }}>
-          Diagnostics
-        </summary>
-        <div style={{ marginTop: 12 }}>
-          <AttentionCard matterName={matter.name} />
-        </div>
-      </details>
+      <AttentionCard matterName={matter.name} refreshKey={preparationRefreshKey} />
     </div>
   );
 }
 
 // ─── Pipeline card ────────────────────────────────────────
 
-function PipelineCard({ matterName }: { matterName: string }) {
+function PipelineCard({
+  matterName,
+  preparationRun,
+  refreshKey,
+  onRunPreparationAgain,
+}: {
+  matterName: string;
+  preparationRun: PreparationRunStatus | null;
+  refreshKey: string;
+  onRunPreparationAgain: (matterName: string) => void;
+}) {
   const [stages, setStages] = useState<PipelineStage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,12 +125,31 @@ function PipelineCard({ matterName }: { matterName: string }) {
     return () => {
       cancelled = true;
     };
-  }, [matterName]);
+  }, [matterName, refreshKey]);
 
   return (
     <section className="matter-pipeline-card">
-      <h2>Matter readiness</h2>
-      {error && <p className="muted">Matter readiness is unavailable: {error}</p>}
+      <div className="matter-preparation-heading">
+        <h2>Matter Preparation</h2>
+        <div className="matter-preparation-actions">
+          <button
+            type="button"
+            className="run-skill-button"
+            onClick={() => onRunPreparationAgain(matterName)}
+            disabled={preparationRun?.state === 'running'}
+          >
+            Run preparation again
+          </button>
+          <span className={`pipeline-state ${preparationHeadlineClass({ preparationRun, stages, error })}`}>
+            {preparationHeadlineLabel({ preparationRun, stages, error })}
+          </span>
+        </div>
+      </div>
+      <p className="muted">
+        {preparationSummaryText(preparationRun)}
+      </p>
+      {preparationRun && <PreparationProgress run={preparationRun} />}
+      {error && <p className="muted">Matter preparation is unavailable: {error}</p>}
       {!error && stages === null && (
         <p className="muted">Checking what has already been prepared for this matter…</p>
       )}
@@ -124,8 +157,8 @@ function PipelineCard({ matterName }: { matterName: string }) {
       {stages && stages.length > 0 && (
         <>
           <p className="muted">
-            Based on files already saved for this matter. Missing work products are shown as not
-            started.
+            Based on files already saved for this matter. Missing work products are shown as
+            needs review.
           </p>
           <div className="pipeline-stage-list">
             {stages.map((stage) => (
@@ -138,8 +171,24 @@ function PipelineCard({ matterName }: { matterName: string }) {
   );
 }
 
+function PreparationProgress({ run }: { run: PreparationRunStatus }) {
+  return (
+    <div className="preparation-progress" aria-label="Matter preparation progress">
+      {run.steps.map((step) => (
+        <div key={step.id} className={`preparation-progress-step ${step.state}`}>
+          <span className="preparation-progress-dot" />
+          <div>
+            <strong>{step.label}</strong>
+            {step.detail && <span>{step.detail}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StageRow({ stage }: { stage: PipelineStage }) {
-  const stateClass = stage.present ? 'present' : 'not-run';
+  const stateClass = pipelineStageStateClass(stage);
   const label = stageDisplayLabel(stage);
   const pill = stagePill(stage);
 
@@ -151,7 +200,7 @@ function StageRow({ stage }: { stage: PipelineStage }) {
           {pill && <span className="pipeline-stage-label">{pill}</span>}
         </div>
         <span className={`pipeline-state ${stateClass}`}>
-          {stage.present ? 'Done' : 'Not started'}
+          {pipelineStageStateLabel(stage)}
         </span>
       </div>
       <StageArtifacts artifacts={stage.artifacts} />
@@ -215,7 +264,7 @@ function StageRerunHint({ stage }: { stage: PipelineStage }) {
 
 // ─── Attention card ───────────────────────────────────────
 
-function AttentionCard({ matterName }: { matterName: string }) {
+function AttentionCard({ matterName, refreshKey }: { matterName: string; refreshKey: string }) {
   const [data, setData] = useState<MatterAttention | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -236,7 +285,7 @@ function AttentionCard({ matterName }: { matterName: string }) {
     return () => {
       cancelled = true;
     };
-  }, [matterName]);
+  }, [matterName, refreshKey]);
 
   const summary = data?.summary ?? { state: 'clear', blocker: 0, warning: 0, info: 0 };
   const items = data?.items ?? [];
@@ -247,27 +296,27 @@ function AttentionCard({ matterName }: { matterName: string }) {
     <section className="matter-pipeline-card matter-attention-card">
       {error && (
         <>
-          <h2>Developer attention</h2>
-          <p className="muted">Developer attention is unavailable: {error}</p>
+          <h2>Preparation Advisory</h2>
+          <p className="muted">Preparation advisory is unavailable: {error}</p>
         </>
       )}
       {!error && data === null && (
         <>
-          <h2>Developer attention</h2>
+          <h2>Preparation Advisory</h2>
           <p className="muted">Checking matter-level blockers and warnings…</p>
         </>
       )}
       {data && (
         <>
           <div className="matter-attention-heading">
-            <h2>Developer attention</h2>
+            <h2>Preparation Advisory</h2>
             <span className={`pipeline-state ${attentionStateClass(summary.state)}`}>
               {attentionStateLabel(summary)}
             </span>
           </div>
           <p className="muted">
-            Read-only diagnostics gathered from intake, extraction, source labels, chronology, skill
-            runs, and command failures.
+            Warnings gathered from intake, extraction, source labels, chronology, skill runs, and
+            matter-scoped command failures.
           </p>
           <AttentionSummaryChips summary={summary} />
           {items.length > 0 ? (
@@ -280,13 +329,13 @@ function AttentionCard({ matterName }: { matterName: string }) {
               {hiddenCount > 0 && (
                 <p className="matter-attention-more muted">
                   +{hiddenCount} more item{hiddenCount === 1 ? '' : 's'} in the full
-                  matter-attention report.
+                  preparation report.
                 </p>
               )}
             </>
           ) : (
             <p className="matter-attention-clear muted">
-              No developer blockers or warnings found for this matter.
+              No preparation blockers or warnings found for this matter.
             </p>
           )}
         </>
@@ -320,7 +369,7 @@ function AttentionItemRow({ item }: { item: AttentionItem }) {
     <article className={`matter-attention-item ${attentionSeverityClass(severity)}`}>
       <div className="matter-attention-item-main">
         <div>
-          <strong>{item.title || 'Developer attention needed'}</strong>
+          <strong>{item.title || 'Preparation item'}</strong>
           {item.category && <span className="pipeline-stage-label">{item.category}</span>}
         </div>
         <span className={`pipeline-state ${attentionSeverityStateClass(severity)}`}>
@@ -373,6 +422,71 @@ function SkillButton({
 }
 
 // ─── Helper functions ─────────────────────────────────────
+
+function preparationHeadlineLabel({
+  preparationRun,
+  stages,
+  error,
+}: {
+  preparationRun: PreparationRunStatus | null;
+  stages: PipelineStage[] | null;
+  error: string | null;
+}): string {
+  if (preparationRun?.state === 'running') return 'Preparing…';
+  if (preparationRun?.state === 'blocked') return 'Blocked';
+  if (error) return 'Needs review';
+  if (!stages) return 'Checking';
+  if (stages.some((stage) => stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM)) return 'Blocked';
+  if (stages.length > 0 && stages.every(stageIsCurrent)) return 'Prepared';
+  return 'Needs review';
+}
+
+function preparationHeadlineClass({
+  preparationRun,
+  stages,
+  error,
+}: {
+  preparationRun: PreparationRunStatus | null;
+  stages: PipelineStage[] | null;
+  error: string | null;
+}): string {
+  const label = preparationHeadlineLabel({ preparationRun, stages, error });
+  if (label === 'Prepared') return 'present';
+  if (label === 'Blocked') return 'failed';
+  if (label === 'Preparing…' || label === 'Checking') return 'pending';
+  return 'warning';
+}
+
+function preparationSummaryText(preparationRun: PreparationRunStatus | null): string {
+  if (preparationRun?.state === 'running') {
+    return 'Automatic preparation is running. You can keep reviewing the matter while it works.';
+  }
+  if (preparationRun?.state === 'blocked') {
+    return 'Automatic preparation stopped. Review the advisory before drafting.';
+  }
+  if (preparationRun) {
+    return 'Automatic preparation has run for this matter. Review the advisory before drafting.';
+  }
+  return 'Review the preparation status and advisory before drafting.';
+}
+
+function stageIsCurrent(stage: PipelineStage): boolean {
+  if (!stage.present) return false;
+  const adviceState = stage.rerunAdvice?.state || RERUN_ADVICE_STATES.CURRENT;
+  return adviceState === RERUN_ADVICE_STATES.CURRENT;
+}
+
+function pipelineStageStateClass(stage: PipelineStage): string {
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) return 'failed';
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE) return 'warning';
+  return stage.present ? 'present' : 'not-run';
+}
+
+function pipelineStageStateLabel(stage: PipelineStage): string {
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) return 'Blocked';
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE) return 'Needs review';
+  return stage.present ? 'Done' : 'Needs review';
+}
 
 function validateMetadata(meta: Record<string, string | undefined>): string[] {
   const required = ['clientName', 'matterName', 'matterType', 'jurisdiction'] as const;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import ActivityBar from './components/layout/ActivityBar';
 import Sidebar from './components/layout/Sidebar';
@@ -11,6 +11,7 @@ import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotA
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
 import { localAssistantReply } from './lib/assistantSmallTalk';
+import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
 import { useLatestValue } from './hooks/useLatestValue';
 import type { ActiveView } from './types';
 
@@ -18,9 +19,106 @@ function AppShell() {
   const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
+  const preparationRunSeqRef = useRef(0);
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
+
+  const runPreparationForMatter = useCallback(async (
+    matterName: string,
+    {
+      reason = '[prepare] automatic preparation started',
+      mode = 'needed',
+      initialMessage = 'Preparing matter…',
+    }: {
+      reason?: string;
+      mode?: 'needed' | 'full';
+      initialMessage?: string;
+    } = {},
+  ) => {
+    const cleanMatterName = matterName.trim();
+    if (!cleanMatterName) return;
+    const runSeq = preparationRunSeqRef.current + 1;
+    preparationRunSeqRef.current = runSeq;
+    let latestRun = createInitialPreparationRun(cleanMatterName, initialMessage);
+    dispatch({ type: 'SET_PREPARATION_RUN', payload: latestRun });
+    dispatch({ type: 'SET_STATUS_BAR', payload: initialMessage });
+    appendTerminal([reason]);
+
+    let sawTargetMatter = activeMatterNameRef.current === cleanMatterName;
+    const isStale = () => {
+      if (preparationRunSeqRef.current !== runSeq) return true;
+      const activeName = activeMatterNameRef.current;
+      if (activeName === cleanMatterName) {
+        sawTargetMatter = true;
+        return false;
+      }
+      return sawTargetMatter || Boolean(activeName);
+    };
+    try {
+      const result = await runAutomaticPreparation({
+        matterName: cleanMatterName,
+        appendTerminal,
+        isStale,
+        mode,
+        initialMessage,
+        onProgress: (status) => {
+          latestRun = status;
+          if (!isStale()) dispatch({ type: 'SET_PREPARATION_RUN', payload: status });
+        },
+      });
+      if (isStale()) return;
+      const refreshed = await refreshActiveMatterWorkspace({
+        expectedMatterName: cleanMatterName,
+        failurePrefix: '[workspace] refresh failed after automatic preparation',
+      });
+      if (isStale()) return;
+      const finalState = refreshed ? result.state : 'needs_review';
+      const finalMessage = refreshed
+        ? result.message
+        : `${result.message} Refresh the matter view to see the latest files.`;
+      const completed = {
+        ...latestRun,
+        state: finalState,
+        message: finalMessage,
+        finishedAt: new Date().toISOString(),
+      };
+      dispatch({ type: 'SET_PREPARATION_RUN', payload: completed });
+      dispatch({ type: 'SET_STATUS_BAR', payload: finalState === 'prepared' ? 'Matter prepared' : 'Matter needs review' });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: finalMessage });
+    } catch (error) {
+      if (isStale()) return;
+      const message = getErrorMessage(error);
+      dispatch({
+        type: 'SET_PREPARATION_RUN',
+        payload: {
+          ...latestRun,
+          state: 'blocked',
+          message: 'Automatic preparation stopped.',
+          error: message,
+          finishedAt: new Date().toISOString(),
+        },
+      });
+      dispatch({ type: 'SET_STATUS_BAR', payload: 'Matter preparation blocked' });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Matter preparation stopped: ${message}` });
+      appendTerminal([`[prepare] preparation failed: ${message}`]);
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace]);
+
+  const startAutoPreparation = useCallback((matterName: string, reason = '[prepare] automatic preparation started') => {
+    void runPreparationForMatter(matterName, { reason, mode: 'needed' });
+  }, [runPreparationForMatter]);
+
+  const handleRunPreparationAgain = useCallback((matterName: string) => {
+    const cleanMatterName = matterName.trim();
+    if (!cleanMatterName) return;
+    if (state.preparationRun?.matterName === cleanMatterName && state.preparationRun.state === 'running') return;
+    void runPreparationForMatter(cleanMatterName, {
+      reason: `[prepare] rerunning full preparation for "${cleanMatterName}"`,
+      mode: 'full',
+      initialMessage: 'Running preparation again…',
+    });
+  }, [runPreparationForMatter, state.preparationRun]);
 
   const answerMatterQuestion = useCallback(async (
     question: string,
@@ -169,7 +267,8 @@ function AppShell() {
     handleCommand(command);
   }
 
-  function handleMatterCreated(name: string) {
+  function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
+    activeMatterNameRef.current = name;
     dispatch({ type: 'SET_RESUME_MATTER', payload: name });
     setActiveView('home');
     api.getMatters()
@@ -179,6 +278,18 @@ function AppShell() {
         appendTerminal([`[matter] list refresh failed after creating "${name}": ${message}`]);
         dispatch({ type: 'SET_COMMAND_COPY', payload: 'Matter was created, but the matter list could not refresh. Use Refresh or reload if it is missing.' });
       });
+    if (opts.autoPrepare) {
+      void startAutoPreparation(name, `[prepare] automatic preparation queued after first upload for "${name}"`);
+    }
+  }
+
+  async function handleAddFilesDone(opts: { autoPrepare?: boolean } = {}) {
+    const matterName = state.activeMatter?.name ?? activeMatterNameRef.current;
+    setActiveView('home');
+    await refreshActiveMatterWorkspace({ reason: '[add-files] files added — refreshing workspace' });
+    if (opts.autoPrepare && matterName) {
+      void startAutoPreparation(matterName, `[prepare] automatic preparation queued after added files for "${matterName}"`);
+    }
   }
 
   function handleOpenMatter(name: string) {
@@ -214,11 +325,9 @@ function AppShell() {
         onMatterCreated={handleMatterCreated}
         onViewAllMatters={() => { setActiveView('home'); dispatch({ type: 'SET_TAB', payload: 'home' }); }}
         onOpenMatter={handleOpenMatter}
-        onAddFilesDone={() => {
-          setActiveView('home');
-          void refreshActiveMatterWorkspace({ reason: '[add-files] files added — refreshing workspace' });
-        }}
+        onAddFilesDone={handleAddFilesDone}
         onCommand={handleCommand}
+        onRunPreparationAgain={handleRunPreparationAgain}
         commandPanel={
           <CommandPanel
             onCommand={handleCommand}

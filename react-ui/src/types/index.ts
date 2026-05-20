@@ -55,6 +55,19 @@ export interface WorkspaceApiResponse {
   tree: WorkspaceApiNode;
 }
 
+export interface AddFilesResponse extends WorkspaceApiResponse {
+  intakeAdded?: {
+    intakeId?: string;
+    intakeDirName?: string;
+    receivedDate?: string;
+    label?: string;
+    scanned?: number;
+    unique?: number;
+    duplicatesInBatch?: number;
+    duplicatesOfPrior?: number;
+  };
+}
+
 export interface Skill {
   schema_version?: string;
   id: string;
@@ -695,6 +708,9 @@ export interface PreparationStage {
   description?: string;
   artifacts?: string[];
   paidProviderCall?: boolean;
+  rerunAdvice?: RerunAdvice;
+  metrics?: { rows?: number };
+  aiRun?: PipelineStageAiRun | null;
 }
 
 export interface PreparationPlan {
@@ -706,6 +722,25 @@ export interface PreparationPlan {
   metadataCheck?: { valid: boolean; missing?: string[] };
   downstream?: Record<string, unknown>;
   warnings?: string[];
+}
+
+export type PreparationStepState = 'pending' | 'running' | 'done' | 'skipped' | 'failed';
+
+export interface PreparationProgressStep {
+  id: string;
+  label: string;
+  state: PreparationStepState;
+  detail?: string;
+}
+
+export interface PreparationRunStatus {
+  matterName: string;
+  state: 'idle' | 'running' | 'prepared' | 'needs_review' | 'blocked';
+  message?: string;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  steps: PreparationProgressStep[];
 }
 
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
@@ -761,4 +796,5 @@ export interface AppState {
   activityLines: string[];
   commandCopyText: string;
   isCommandRunning: boolean;
+  preparationRun: PreparationRunStatus | null;
 }

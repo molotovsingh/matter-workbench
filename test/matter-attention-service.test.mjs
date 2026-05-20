@@ -19,11 +19,12 @@ test("matter attention aggregates developer blockers from existing matter traces
     "",
   ].join("\n"));
   await writeFile(path.join(intakeDir, "Extraction Log.csv"), [
-    "file_id,intake_id,status,notes",
-    "FILE-0001,INTAKE-01,failed,unhandled parser error",
-    "FILE-0002,INTAKE-01,ocr-required-all,scan has no embedded text",
-    "FILE-0003,INTAKE-01,skipped-unsupported-format,legacy msg",
-    "FILE-0004,INTAKE-01,skipped-duplicate,duplicate of prior file",
+    "file_id,intake_id,status,low_confidence_pages,needs_review_pages,provider_warnings_count,notes",
+    "FILE-0001,INTAKE-01,failed,0,0,0,unhandled parser error",
+    "FILE-0002,INTAKE-01,ocr-required-all,0,0,0,scan has no embedded text",
+    "FILE-0003,INTAKE-01,skipped-unsupported-format,0,0,0,legacy msg",
+    "FILE-0004,INTAKE-01,skipped-duplicate,0,0,0,duplicate of prior file",
+    "FILE-0005,INTAKE-01,extracted,2,3,1,weak OCR",
     "",
   ].join("\n"));
   await writeFile(path.join(root, "10_Library", "Source Index.json"), `${JSON.stringify({
@@ -165,6 +166,7 @@ test("matter attention aggregates developer blockers from existing matter traces
   assertAttentionCode(attention, "working_copy_missing");
   assertAttentionCode(attention, "extraction_failed");
   assertAttentionCode(attention, "ocr_required_all");
+  assertAttentionCode(attention, "ocr_low_confidence");
   assertAttentionCode(attention, "source_labels_need_review");
   assertAttentionCode(attention, "source_label_developer_name");
   assertAttentionCode(attention, "listofdates_json_missing");

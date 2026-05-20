@@ -1,4 +1,5 @@
 import path from "node:path";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
 import { REQUIRED_METADATA } from "../shared/matter-contract.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 
@@ -26,6 +27,13 @@ const STAGE_DEFINITIONS = [
     description: "Create lawyer-readable source labels in Source Index.json.",
     paidProviderCall: true,
   },
+  {
+    id: "create-listofdates",
+    slash: "/create_listofdates",
+    label: "Create List of Dates",
+    description: "Build a source-backed chronology for lawyer review.",
+    paidProviderCall: true,
+  },
 ];
 
 export function createPrepareMatterService({ matterStore, matterStatusService } = {}) {
@@ -48,8 +56,8 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
     const setup = buildSetupStage(matterInitStage, missingMetadata);
     const extraction = buildExtractionStage(extractStage, setup);
     const sourceLabels = buildSourceLabelsStage(sourceStage, extraction);
-    const runnableStages = [setup, extraction, sourceLabels];
-    const listOfDates = buildListOfDatesRecommendation(listStage, sourceLabels);
+    const listOfDates = buildListOfDatesStage(listStage, sourceLabels);
+    const runnableStages = [setup, extraction, sourceLabels, listOfDates];
     const nextStage = firstActionableStage(runnableStages);
 
     return {
@@ -71,7 +79,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
         : {
           state: "complete",
           label: "Core preparation is current",
-          message: "Review the Analysis Library or run local context search.",
+          message: "Review the preparation advisory before drafting.",
           stage: "",
           slash: "",
         },
@@ -113,7 +121,7 @@ function noActiveMatterPlan() {
       listOfDates: {
         id: "create-listofdates",
         slash: "/create_listofdates",
-        label: "Create list of dates",
+        label: "Create List of Dates",
         state: "not_selected",
         action: PREPARATION_STAGE_ACTIONS.BLOCKED,
         reason: "Pick or create a matter first.",
@@ -237,13 +245,9 @@ function buildSourceLabelsStage(stage, extractionStage) {
   };
 }
 
-function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
+function buildListOfDatesStage(stage, sourceLabelsStage) {
   const base = {
-    id: "create-listofdates",
-    slash: "/create_listofdates",
-    label: "Create list of dates",
-    artifacts: Array.isArray(stage?.artifacts) ? stage.artifacts : [],
-    aiRun: stage?.aiRun || null,
+    ...stageBase("/create_listofdates", stage),
     metrics: stage?.metrics || null,
     rerunAdvice: stage?.rerunAdvice || null,
   };
@@ -252,7 +256,7 @@ function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
     return {
       ...base,
       state: "current",
-      action: PREPARATION_STAGE_ACTIONS.RECOMMEND_REVIEW,
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
       reason: "List of Dates already exists and appears current.",
     };
   }
@@ -260,15 +264,32 @@ function buildListOfDatesRecommendation(stage, sourceLabelsStage) {
     return {
       ...base,
       state: "blocked",
-      action: PREPARATION_STAGE_ACTIONS.RECOMMEND_AFTER_PREPARE,
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: "Label sources before creating the List of Dates.",
+    };
+  }
+  if (adviceState === "missing_upstream") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: "Source label inputs are missing.",
+    };
+  }
+  if (adviceState === "stale" && stage?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+    return {
+      ...base,
+      paidProviderCall: false,
+      state: "stale",
+      action: PREPARATION_STAGE_ACTIONS.RUN,
+      reason: "Source labels changed after the chronology was rendered. Refresh labels without regenerating the chronology.",
     };
   }
   return {
     ...base,
-    state: adviceState === "stale" ? "stale" : "missing",
-    action: PREPARATION_STAGE_ACTIONS.RECOMMEND_SEPARATE_SKILL,
-    reason: "Run Create list of dates separately after preparation.",
+    state: adviceState === "stale" ? "stale" : adviceState === "failed" ? "failed" : "missing",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+    reason: listOfDatesReason(adviceState),
   };
 }
 
@@ -304,10 +325,11 @@ function nextStepSummary(stage) {
     };
   }
   if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
+    const paidTarget = stage.slash === "/describe_sources" ? "source labeling" : stage.label;
     return {
       state: stage.state,
       label: stage.label,
-      message: `Next step: confirm paid source labeling before running ${stage.label}.`,
+      message: `Next step: confirm paid ${paidTarget} before running ${stage.label}.`,
       stage: stage.id,
       slash: stage.slash,
     };
@@ -327,16 +349,22 @@ function sourceLabelReason(state) {
   return "Source labels are missing and require a paid AI confirmation before running.";
 }
 
+function listOfDatesReason(state) {
+  if (state === "stale") return "Newer source material may affect the List of Dates; regeneration needs a paid AI confirmation.";
+  if (state === "failed") return "Existing List of Dates metadata could not be read; regeneration needs confirmation.";
+  return "List of Dates is missing and requires a paid AI confirmation before running.";
+}
+
 function warningsForPlan({ missingMetadata, stages, listOfDates }) {
   const warnings = [];
   if (missingMetadata.length) {
     warnings.push(`Missing metadata: ${missingMetadata.join(", ")}`);
   }
   if (stages.some((stage) => stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN)) {
-    warnings.push("Label sources may make a paid AI provider call.");
+    warnings.push("Automatic preparation may make paid AI provider calls.");
   }
-  if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RECOMMEND_SEPARATE_SKILL) {
-    warnings.push("List of Dates is not part of preparation V0; run it separately after source labels are ready.");
+  if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RUN && listOfDates?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+    warnings.push("List of Dates only needs a label refresh; chronology regeneration is not required.");
   }
   return warnings;
 }

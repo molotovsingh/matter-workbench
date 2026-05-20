@@ -3,6 +3,7 @@ import type {
   AiSettingsSaveRequest,
   AiSettingsTestRequest,
   AiSettingsTestResponse,
+  AddFilesResponse,
   AppConfig,
   CheckOverlapRequest,
   CheckOverlapResponse,
@@ -182,7 +183,7 @@ export const api = {
   // ─── Matters ─────────────────────────────
   getMatters: () => getJson<{ matters: Array<{ name: string }> }>('/api/matters'),
   newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
-  addFiles: (formData: FormData) => postFormData('/api/matters/add-files', formData),
+  addFiles: (formData: FormData) => postFormData<AddFilesResponse>('/api/matters/add-files', formData),
   checkOverlap: (body: CheckOverlapRequest) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
   switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),

@@ -266,15 +266,19 @@ test("source descriptor fixture quality check rejects misleading filename dates 
   );
 });
 
-test("source descriptors reject impossible ISO dates", () => {
+test("source descriptors downgrade impossible ISO dates to needs-review labels", () => {
   const packets = buildSourcePackets(extractionRecords());
   const descriptors = validDescriptors(packets);
   descriptors[0].document_date = "2004-20-20";
 
-  assert.throws(
-    () => validateAndSortDescriptors({ sources: descriptors }, packets),
-    /Invalid document_date for FILE-0001/,
-  );
+  const sources = validateAndSortDescriptors({ sources: descriptors }, packets);
+  const source = sources.find((candidate) => candidate.file_id === "FILE-0001");
+
+  assert.equal(source.document_date, null);
+  assert.equal(source.date_basis, "unknown");
+  assert.equal(source.needs_review, true);
+  assert.equal(source.label_status, "needs_review");
+  assert.match(source.warnings.join(" "), /Invalid document_date returned by the source-label model/);
 });
 
 test("source descriptors reject literal None party fields", () => {

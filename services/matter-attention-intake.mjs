@@ -151,6 +151,11 @@ async function collectExtractionLogAttention({ root, items }, folder) {
 
   const failed = log.rows.filter((row) => normalizeText(row.status) === "failed");
   const ocrRequired = log.rows.filter((row) => normalizeText(row.status) === "ocr-required-all");
+  const lowConfidenceOcr = log.rows.filter((row) => (
+    positiveInteger(row.low_confidence_pages) > 0
+    || positiveInteger(row.needs_review_pages) > 0
+    || positiveInteger(row.provider_warnings_count) > 0
+  ));
   const skipped = log.rows.filter((row) => {
     const status = normalizeText(row.status);
     return status.startsWith("skipped-") && status !== "skipped-duplicate";
@@ -177,6 +182,19 @@ async function collectExtractionLogAttention({ root, items }, folder) {
       evidence: sampleRowEvidence(logRelative, ocrRequired, "file_id"),
     });
   }
+  if (lowConfidenceOcr.length) {
+    const lowConfidencePages = sumIntegerField(lowConfidenceOcr, "low_confidence_pages");
+    const needsReviewPages = sumIntegerField(lowConfidenceOcr, "needs_review_pages");
+    addItem(items, {
+      severity: "warning",
+      category: "extraction",
+      code: "ocr_low_confidence",
+      title: "OCR text needs review",
+      detail: `${lowConfidenceOcr.length} extracted file(s) include OCR warnings, low-confidence pages, or pages marked for review. Low-confidence pages: ${lowConfidencePages}. Pages needing review: ${needsReviewPages}.`,
+      action: "Compare the OCR text against the scans or replace poor copies before relying on source-backed outputs.",
+      evidence: sampleRowEvidence(logRelative, lowConfidenceOcr, "file_id"),
+    });
+  }
   if (skipped.length) {
     addItem(items, {
       severity: "warning",
@@ -192,4 +210,13 @@ async function collectExtractionLogAttention({ root, items }, folder) {
 
 function addItem(items, item) {
   items.push(item);
+}
+
+function positiveInteger(value) {
+  const number = Number.parseInt(String(value ?? "0"), 10);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function sumIntegerField(rows, field) {
+  return rows.reduce((sum, row) => sum + positiveInteger(row[field]), 0);
 }

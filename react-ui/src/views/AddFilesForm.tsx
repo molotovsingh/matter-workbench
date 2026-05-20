@@ -12,7 +12,7 @@ interface CollectedFile {
 
 interface Props {
   onCancel: () => void;
-  onDone: () => void;
+  onDone: (opts?: { autoPrepare?: boolean }) => void;
 }
 
 async function hashFile(file: File): Promise<string> {
@@ -108,10 +108,10 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       fd.append('paths', JSON.stringify(collected.map((c) => c.relativePath)));
       collected.forEach((c) => fd.append('files', c.file, c.relativePath));
 
-      await api.addFiles(fd);
+      const result = await api.addFiles(fd);
       if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[add-files] ${collected.length} file(s) added`]);
-      onDone();
+      onDone({ autoPrepare: (result.intakeAdded?.unique ?? collected.length) > 0 });
     } catch (err) {
       if (activeMatterNameRef.current !== matterName) return;
       setError(getErrorMessage(err));

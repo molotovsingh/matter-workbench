@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
@@ -6,8 +6,17 @@ import { lookupString } from '../../lib/lookup';
 import { cleanCommandLabel } from '../../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../../lib/presentationLabels';
 import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
+import {
+  createInitialPreparationRun,
+  findNextPreparationStage,
+  hasRunnablePreparationStage,
+  isRunnablePreparationStage,
+  runAutomaticPreparation,
+  runPreparationStage,
+  stageLabel,
+} from '../../lib/autoPreparationRunner';
 import { useLatestValue } from '../../hooks/useLatestValue';
-import type { PreparationPlan, PreparationStage } from '../../types';
+import type { PreparationPlan } from '../../types';
 
 const STAGE_STATE_CLASSES = {
   present: 'present',
@@ -42,11 +51,8 @@ export default function PrepareMatterResult() {
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [confirmingPaid, setConfirmingPaid] = useState(false);
-  const [pendingPaidConfirm, setPendingPaidConfirm] = useState<{
-    stage: PreparationStage;
-    resolve: (skip: boolean) => void;
-  } | null>(null);
   const [error, setError] = useState('');
+  const preparationRunSeqRef = useRef(0);
 
   const loadPlan = useCallback(async ({ matterName, isStale = () => false }: { matterName?: string; isStale?: () => boolean } = {}) => {
     setLoading(true);
@@ -99,7 +105,7 @@ export default function PrepareMatterResult() {
     appendTerminal([`[prepare] running: ${cleanCommandLabel(plan.nextStep.slash)}`]);
     try {
       const slash = plan.nextStep.slash;
-      await runPreparationStage(slash, matterName);
+      await runPreparationStage(matchedStage, matterName);
       if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[prepare] ${cleanCommandLabel(slash)} complete`]);
       await refreshActiveMatterWorkspace({
@@ -120,46 +126,68 @@ export default function PrepareMatterResult() {
   }
 
   async function handleRunAll() {
-    if (!plan?.stages || !state.activeMatter) return;
+    if (!state.activeMatter) return;
     const matterName = state.activeMatter.name;
+    const runSeq = preparationRunSeqRef.current + 1;
+    preparationRunSeqRef.current = runSeq;
+    let latestRun = createInitialPreparationRun(matterName, 'Preparing matter…');
+    const isStale = () => preparationRunSeqRef.current !== runSeq || activeMatterNameRef.current !== matterName;
+    dispatch({ type: 'SET_PREPARATION_RUN', payload: latestRun });
     setRunning(true);
-    const runnableStages = plan.stages.filter(isRunnablePreparationStage);
-    for (const stage of runnableStages) {
-      if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
-        const skipPaid = await new Promise<boolean>((resolve) => {
-          setPendingPaidConfirm({ stage, resolve });
-        });
-        if (skipPaid) {
-          appendTerminal([`[prepare] skipped paid stage: ${stageLabel(stage)}`]);
-          continue;
-        }
-      }
-      appendTerminal([`[prepare] running: ${stageLabel(stage)}`]);
-      try {
-        if (activeMatterNameRef.current !== matterName) break;
-        if (!stage.slash) throw new Error(`Preparation stage has no runnable slash: ${stage.label}`);
-        const slash = stage.slash;
-        await runPreparationStage(slash, matterName);
-        if (activeMatterNameRef.current !== matterName) break;
-        appendTerminal([`[prepare] ${cleanCommandLabel(slash)} done`]);
-      } catch (e) {
-        if (activeMatterNameRef.current !== matterName) break;
-        appendTerminal([`[prepare] ${stageLabel(stage)} failed: ${getErrorMessage(e)}`]);
-        break;
-      }
+    setError('');
+    appendTerminal([`[prepare] running full preparation for "${matterName}"`]);
+    try {
+      const result = await runAutomaticPreparation({
+        matterName,
+        appendTerminal,
+        isStale,
+        onProgress: (status) => {
+          latestRun = status;
+          if (!isStale()) dispatch({ type: 'SET_PREPARATION_RUN', payload: status });
+        },
+      });
+      if (isStale()) return;
+      const refreshed = await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after preparation update',
+      });
+      await loadPlan({
+        matterName,
+        isStale: () => activeMatterNameRef.current !== matterName,
+      });
+      if (isStale()) return;
+      const finalState = refreshed ? result.state : 'needs_review';
+      const finalMessage = refreshed
+        ? result.message
+        : `${result.message} Refresh the matter view to see the latest files.`;
+      dispatch({
+        type: 'SET_PREPARATION_RUN',
+        payload: {
+          ...latestRun,
+          state: finalState,
+          message: finalMessage,
+          finishedAt: new Date().toISOString(),
+        },
+      });
+      dispatch({ type: 'SET_STATUS_BAR', payload: finalState === 'prepared' ? 'Matter prepared' : 'Matter needs review' });
+    } catch (e) {
+      if (isStale()) return;
+      const message = getErrorMessage(e);
+      setError(message);
+      appendTerminal([`[prepare] error: ${message}`]);
+      dispatch({
+        type: 'SET_PREPARATION_RUN',
+        payload: {
+          ...latestRun,
+          state: 'blocked',
+          message: 'Preparation stopped.',
+          error: message,
+          finishedAt: new Date().toISOString(),
+        },
+      });
+    } finally {
+      if (!isStale()) setRunning(false);
     }
-    if (activeMatterNameRef.current !== matterName) return;
-    setPendingPaidConfirm(null);
-    await refreshActiveMatterWorkspace({
-      expectedMatterName: matterName,
-      failurePrefix: '[workspace] refresh failed after preparation update',
-    });
-    await loadPlan({
-      matterName,
-      isStale: () => activeMatterNameRef.current !== matterName,
-    });
-    setRunning(false);
-    dispatch({ type: 'SET_STATUS_BAR', payload: 'Prepare Matter Complete' });
   }
 
   return (
@@ -230,25 +258,6 @@ export default function PrepareMatterResult() {
               </button>
               <button type="button" className="secondary" onClick={executeRunNext}>
                 Run {cleanCommandLabel(plan.nextStep.slash)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingPaidConfirm && (
-        <div style={{ marginTop: 20 }}>
-          <div className="form-warning" role="alertdialog">
-            <h2>Confirm paid step: {pendingPaidConfirm.stage.label}</h2>
-            <p>
-              This step uses a paid AI provider. Running it may incur costs.
-            </p>
-            <div className="warning-actions">
-              <button type="button" onClick={() => { pendingPaidConfirm.resolve(true); setPendingPaidConfirm(null); }}>
-                Skip
-              </button>
-              <button type="button" className="secondary" onClick={() => { pendingPaidConfirm.resolve(false); setPendingPaidConfirm(null); }}>
-                Run {pendingPaidConfirm.stage.label}
               </button>
             </div>
           </div>
@@ -331,40 +340,10 @@ export default function PrepareMatterResult() {
   );
 }
 
-async function runPreparationStage(slash: string, matterName?: string) {
-  const body = { matterName };
-  if (slash === '/matter-init') return api.runMatterInit(body);
-  if (slash === '/extract') return api.runExtract(body);
-  if (slash === '/describe_sources') return api.runDescribeSources(body);
-  throw new Error(`No React runner is wired for preparation stage ${slash}`);
-}
-
 function stageStateClass(state: string): string {
   return lookupString(STAGE_STATE_CLASSES, state, 'not-run');
 }
 
 function stageStateLabel(state: string): string {
   return lookupString(STAGE_STATE_LABELS, state, state);
-}
-
-function stageLabel(stage: PreparationStage): string {
-  if (stage.label) return stage.label;
-  if (stage.slash) return cleanCommandLabel(stage.slash);
-  return 'Preparation step';
-}
-
-function isRunnablePreparationStage(stage?: PreparationStage | null): stage is PreparationStage {
-  return stage?.action === PREPARATION_STAGE_ACTIONS.RUN || stage?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN;
-}
-
-function hasRunnablePreparationStage(plan?: PreparationPlan | null): boolean {
-  return Boolean(plan?.stages?.some(isRunnablePreparationStage));
-}
-
-function findNextPreparationStage(plan: PreparationPlan): PreparationStage | null {
-  if (!plan.nextStep) return null;
-  return plan.stages.find((stage) => (
-    (plan.nextStep?.slash && stage.slash === plan.nextStep.slash)
-    || (plan.nextStep?.stage && stage.id === plan.nextStep.stage)
-  )) ?? null;
 }

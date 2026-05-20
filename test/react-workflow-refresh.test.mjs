@@ -48,14 +48,24 @@ test("React workspace refresh skips stale async results after matter changes", a
   const source = await readFile(new URL("../react-ui/src/store/AppContext.tsx", import.meta.url), "utf8");
 
   assert.match(source, /expectedMatterName = state\.activeMatter\?\.name/);
+  assert.match(source, /const targetMatterName = expectedMatterName \|\| activeMatterNameRef\.current \|\| state\.activeMatter\?\.name/);
   assert.match(source, /const activeMatterNameRef = useRef<string \| null>\(null\)/);
   assert.match(source, /activeMatterNameRef\.current = matter\?\.name \?\? null/);
   assert.match(source, /activeMatterNameRef\.current = null/);
-  assert.match(source, /if \(expectedMatterName && activeMatterNameRef\.current !== expectedMatterName\) \{/);
-  assert.match(source, /workspaceMatchesMatter\(workspace, expectedMatterName\)/);
+  assert.match(source, /if \(activeMatterNameRef\.current !== targetMatterName\) \{/);
+  assert.match(source, /workspaceMatchesMatter\(workspace, targetMatterName\)/);
+  assert.match(source, /activeMatterFromWorkspace\(workspace, targetMatterName\)/);
   assert.match(source, /\[workspace\] refresh skipped - active matter changed/);
   assert.match(source, /function workspaceMatchesMatter\(workspace: WorkspaceApiResponse, expectedMatterName\?: string\): boolean/);
   assert.match(source, /workspace\.folderName, workspace\.metadata\?\.matterName/);
+});
+
+test("React latest-value refs update during render for async guards", async () => {
+  const source = await readFile(new URL("../react-ui/src/hooks/useLatestValue.ts", import.meta.url), "utf8");
+
+  assert.match(source, /const ref = useRef\(value\)/);
+  assert.match(source, /ref\.current = value/);
+  assert.doesNotMatch(source, /useEffect/);
 });
 
 test("React workflow run results are scoped to the matter that started the run", async () => {

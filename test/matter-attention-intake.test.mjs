@@ -29,11 +29,12 @@ test("matter attention intake reads registers and extraction logs", async () => 
     "",
   ].join("\n"));
   await writeFile(path.join(intakeDir, "Extraction Log.csv"), [
-    "file_id,intake_id,status,notes",
-    "FILE-0001,INTAKE-01,failed,parser error",
-    "FILE-0002,INTAKE-01,ocr-required-all,scan only",
-    "FILE-0003,INTAKE-01,skipped-unsupported-format,legacy msg",
-    "FILE-0004,INTAKE-01,skipped-duplicate,duplicate",
+    "file_id,intake_id,status,low_confidence_pages,needs_review_pages,provider_warnings_count,notes",
+    "FILE-0001,INTAKE-01,failed,0,0,0,parser error",
+    "FILE-0002,INTAKE-01,ocr-required-all,0,0,0,scan only",
+    "FILE-0003,INTAKE-01,skipped-unsupported-format,0,0,0,legacy msg",
+    "FILE-0004,INTAKE-01,skipped-duplicate,0,0,0,duplicate",
+    "FILE-0005,INTAKE-01,extracted,2,3,1,weak OCR",
     "",
   ].join("\n"));
 
@@ -47,9 +48,11 @@ test("matter attention intake reads registers and extraction logs", async () => 
     "working_copy_missing",
     "extraction_failed",
     "ocr_required_all",
+    "ocr_low_confidence",
     "extraction_skipped",
   ]);
   assert.equal(items.find((item) => item.code === "working_copy_missing").severity, "blocker");
+  assert.match(items.find((item) => item.code === "ocr_low_confidence").detail, /Low-confidence pages: 2\. Pages needing review: 3/);
   assert.equal(items.find((item) => item.code === "extraction_skipped").evidence[0].row, "FILE-0003");
 });
 

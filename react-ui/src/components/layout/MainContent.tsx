@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import HomeLanding from '../../views/HomeLanding';
 import SkillsPage from '../../views/SkillsPage';
@@ -26,11 +25,12 @@ import { writeClipboardText } from '../../lib/clipboard';
 
 interface Props {
   onNewMatter: () => void;
-  onMatterCreated: (name: string) => void;
+  onMatterCreated: (name: string, opts?: { autoPrepare?: boolean }) => void;
   onViewAllMatters: () => void;
   onOpenMatter: (name: string) => void;
-  onAddFilesDone: () => void;
+  onAddFilesDone: (opts?: { autoPrepare?: boolean }) => void;
   onCommand: (command: string) => void;
+  onRunPreparationAgain: (matterName: string) => void;
   commandPanel: React.ReactNode;
 }
 
@@ -139,17 +139,11 @@ export default function MainContent({
   onOpenMatter,
   onAddFilesDone,
   onCommand,
+  onRunPreparationAgain,
   commandPanel,
 }: Props) {
   const { state } = useApp();
   const { activeView } = state;
-  const terminalRef = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [state.terminalLines]);
 
   const filePreview = state.filePreview;
 
@@ -182,6 +176,7 @@ export default function MainContent({
             onOpenMatter={onOpenMatter}
             onViewAllMatters={onViewAllMatters}
             onCommand={onCommand}
+            onRunPreparationAgain={onRunPreparationAgain}
           />
         );
     }
@@ -193,25 +188,15 @@ export default function MainContent({
 
       <section className="editor-layout">
         <div className="editor-pane">
-          <div className="editor-toolbar">
-            <div className="breadcrumbs">{state.breadcrumbs}</div>
-          </div>
+          {activeView !== 'file-preview' && (
+            <div className="editor-toolbar">
+              <div className="breadcrumbs">{state.breadcrumbs}</div>
+            </div>
+          )}
 
           <article className="editor-content">
             {renderMainView()}
           </article>
-
-          {state.activeMatter && (
-            <section className="bottom-panel" style={{ display: 'block' }}>
-              <div className="bottom-header">
-                <span>Activity</span>
-                <span className="bottom-meta">{state.activeMatter.name}</span>
-              </div>
-              <pre ref={terminalRef} className="terminal-output">
-                {state.terminalLines.join('\n')}
-              </pre>
-            </section>
-          )}
         </div>
 
         {commandPanel}

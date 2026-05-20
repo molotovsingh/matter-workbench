@@ -2,12 +2,21 @@ import { useApp } from '../../store/AppContext';
 
 export default function TitleBar() {
   const { state, toggleTheme } = useApp();
+  const activeMatterName = state.activeMatter?.name || state.titleText;
 
   return (
     <header className="titlebar">
       <div className="title-left">Matter Workbench</div>
       <div className="title-center">
-        <div className="title-text">{state.titleText}</div>
+        {state.activeMatter ? (
+          <div className="active-matter-pill" title={activeMatterName}>
+            <span className="active-matter-dot" aria-hidden="true" />
+            <span className="active-matter-label">Active matter</span>
+            <strong>{activeMatterName}</strong>
+          </div>
+        ) : (
+          <div className="title-text">{state.titleText}</div>
+        )}
       </div>
       <div className="title-right">
         <span className="workspace-mode">Local workspace</span>

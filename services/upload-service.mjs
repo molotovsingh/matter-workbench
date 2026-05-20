@@ -38,7 +38,11 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
         if (cause.code !== "ENOENT") throw cause;
       }
 
-      const metadata = parseUploadJsonField(fields, "metadata", {});
+      const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
+      const metadata = {
+        ...submittedMetadata,
+        matterName: String(submittedMetadata.matterName || name).trim() || name,
+      };
       const relativePaths = validateUploadPathList(fields, files);
       const evidenceDir = path.join(matterPath, "00_Inbox", "Intake 01 - Initial", "Source Files");
       if (!isInsideRoot(mattersHome, evidenceDir)) throw makeHttpError("Invalid matter path", 400);
