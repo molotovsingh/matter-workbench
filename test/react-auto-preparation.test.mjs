@@ -119,8 +119,9 @@ test("React matter overview presents preparation and advisory language", async (
   assert.match(overview, /Automatic preparation stopped/);
   assert.match(overview, /preparationRefreshKey/);
   assert.match(overview, /<PipelineCard[\s\S]*refreshKey=\{preparationRefreshKey\}/);
-  assert.match(overview, /<AttentionCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\}/);
-  assert.match(overview, /\}, \[matterName, refreshKey\]\)/);
+  assert.match(overview, /<AttentionCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} preparationRun=\{preparationRun\}/);
+  assert.match(overview, /Preparing a fresh advisory\. The previous advisory will be replaced when this run finishes\./);
+  assert.match(overview, /\}, \[matterName, refreshKey, isPreparing\]\)/);
   assert.match(overview, /preparationRun/);
   assert.doesNotMatch(overview, /Matter readiness/);
   assert.doesNotMatch(overview, /Developer attention/);

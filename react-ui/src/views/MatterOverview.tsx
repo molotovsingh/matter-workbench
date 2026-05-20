@@ -87,7 +87,7 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
         ))}
       </div>
 
-      <AttentionCard matterName={matter.name} refreshKey={preparationRefreshKey} />
+      <AttentionCard matterName={matter.name} refreshKey={preparationRefreshKey} preparationRun={preparationRun} />
     </div>
   );
 }
@@ -266,14 +266,28 @@ function StageRerunHint({ stage }: { stage: PipelineStage }) {
 
 // ─── Attention card ───────────────────────────────────────
 
-function AttentionCard({ matterName, refreshKey }: { matterName: string; refreshKey: string }) {
+function AttentionCard({
+  matterName,
+  refreshKey,
+  preparationRun,
+}: {
+  matterName: string;
+  refreshKey: string;
+  preparationRun: PreparationRunStatus | null;
+}) {
   const [data, setData] = useState<MatterAttention | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isPreparing = preparationRun?.state === 'running';
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
     setError(null);
+    if (isPreparing) {
+      return () => {
+        cancelled = true;
+      };
+    }
     api
       .getMatterAttention(matterName)
       .then((payload) => {
@@ -287,7 +301,7 @@ function AttentionCard({ matterName, refreshKey }: { matterName: string; refresh
     return () => {
       cancelled = true;
     };
-  }, [matterName, refreshKey]);
+  }, [matterName, refreshKey, isPreparing]);
 
   const summary = data?.summary ?? { state: 'clear', blocker: 0, warning: 0, info: 0 };
   const items = data?.items ?? [];
@@ -305,7 +319,11 @@ function AttentionCard({ matterName, refreshKey }: { matterName: string; refresh
       {!error && data === null && (
         <>
           <h2>Preparation Advisory</h2>
-          <p className="muted">Checking matter-level blockers and warnings…</p>
+          <p className="muted">
+            {isPreparing
+              ? 'Preparing a fresh advisory. The previous advisory will be replaced when this run finishes.'
+              : 'Checking matter-level blockers and warnings…'}
+          </p>
         </>
       )}
       {data && (
