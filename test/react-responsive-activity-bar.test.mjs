@@ -14,3 +14,12 @@ test("React compact viewport keeps the activity rail icon-visible", async () => 
   assert.match(compactMedia, /\.activity-item \{[^}]*width: 36px/);
   assert.match(compactMedia, /\.activity-icon \{[^}]*flex-basis: 18px/);
 });
+
+test("React command panel keeps long copilot answers scrollable above the input", async () => {
+  const css = await readFile(reactCssPath, "utf8");
+  const copyRule = css.match(/\.command-panel-copy \{([\s\S]*?)\}/)?.[1] || "";
+
+  assert.match(copyRule, /flex:\s*1 1 auto/);
+  assert.match(copyRule, /max-height:\s*min\(46vh,\s*520px\)/);
+  assert.match(copyRule, /overflow-y:\s*auto/);
+});
