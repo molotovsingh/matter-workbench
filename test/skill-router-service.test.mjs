@@ -120,7 +120,93 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
   assert.equal(bodies[0].input[0].role, "system");
   assert.match(bodies[0].input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
   assert.match(bodies[0].input[0].content, /Custom skill policy/);
+  assert.match(bodies[0].input[0].content, /transient_copilot/);
+  assert.match(bodies[0].input[1].content, /transient_copilot_rule/);
+  assert.match(bodies[0].input[1].content, /new_skill_rule/);
   assert.equal(bodies[0].text.format.name, "skill_router_decision");
+});
+
+test("one-time matter requests can route to transient copilot instead of skill factory", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "transient_copilot",
+      recommended_action: "transient_copilot",
+      matched_skill: "",
+      confidence: 0.88,
+      reason: "The request asks for a one-time note for the active matter, not a reusable workflow.",
+      user_gate_required: false,
+      suggested_next_action: "Answer this as a one-time matter task. Ask whether to save it as a reusable skill only if the user wants repeated use.",
+      mece_violation: false,
+      legal_setting: legalSetting({
+        jurisdiction: "India",
+        case_type: "Consumer complaint",
+      }),
+      override_requires: [],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "Make me a quick evidence gaps note for this matter.",
+  });
+
+  assert.equal(result.decision, "transient_copilot");
+  assert.equal(result.recommended_action, "transient_copilot");
+  assert.equal(result.user_gate_required, false);
+  assert.equal(result.matched_skill, "");
+  assert.match(result.suggested_next_action, /one-time matter task/i);
+});
+
+test("one-time lookup wording overrides model new-skill classification", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "new_skill",
+      recommended_action: "new_skill",
+      matched_skill: "",
+      confidence: 0.84,
+      reason: "The request begins with new skill.",
+      user_gate_required: false,
+      suggested_next_action: "Start a skill interview.",
+      mece_violation: false,
+      legal_setting: legalSetting(),
+      override_requires: [],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "new skill to find where the addendum agreement is in this matter",
+  });
+
+  assert.equal(result.decision, "transient_copilot");
+  assert.equal(result.recommended_action, "transient_copilot");
+  assert.equal(result.user_gate_required, false);
+  assert.match(result.reason, /one-time matter task/i);
+});
+
+test("reusable lookup wording can still proceed as a new skill", async () => {
+  const service = createSkillRouterService({
+    registryService: registryService(),
+    aiProvider: async () => ({
+      decision: "new_skill",
+      recommended_action: "new_skill",
+      matched_skill: "",
+      confidence: 0.84,
+      reason: "The request asks for a reusable lookup workflow.",
+      user_gate_required: false,
+      suggested_next_action: "Start a skill interview.",
+      mece_violation: false,
+      legal_setting: legalSetting(),
+      override_requires: [],
+    }),
+  });
+
+  const result = await service.checkIntent({
+    userRequest: "new skill to find addendum agreements across all matters",
+  });
+
+  assert.equal(result.decision, "new_skill");
+  assert.equal(result.recommended_action, "new_skill");
 });
 
 test("expert legal preference is routed as skill tuning", async () => {

@@ -4,7 +4,9 @@ import { api } from '../../api/client';
 import SkillIdeaSession from './SkillIdeaSession';
 import { latestCompactActivityRows } from '../../lib/activityLog';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
+import { formatIntentDiscoveryGuidance, shouldStartSkillIdeaSessionFromIntent } from '../../lib/skillIntentRouting';
 import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
+import { getErrorMessage } from '../../lib/errors';
 
 interface CommandSuggestion {
   label: string;
@@ -25,7 +27,7 @@ interface Props {
 }
 
 export default function CommandPanel({ onCommand, reportText, onCopyReport }: Props) {
-  const { state, commandPanelRef } = useApp();
+  const { state, dispatch, appendTerminal, commandPanelRef } = useApp();
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -90,7 +92,29 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
 
     const ideaParsed = parseSkillIdeaText(cmd);
     if (ideaParsed !== null) {
-      setSkillIdeaInput(cmd);
+      if (ideaParsed === '') {
+        setSkillIdeaInput(cmd);
+        return;
+      }
+      const matterName = state.activeMatter?.name ?? null;
+      dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+      appendTerminal([`[skill-idea] checking whether this is one-time or reusable…`]);
+      try {
+        const decision = await api.checkIntent({ userRequest: cmd, matterName: matterName ?? undefined });
+        if (shouldStartSkillIdeaSessionFromIntent(decision)) {
+          setSkillIdeaInput(cmd);
+        } else {
+          dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(decision) });
+          appendTerminal([`[skill-idea] routed away from new skill: ${decision.decision}`]);
+        }
+        await api.logCommandInteraction({ command: cmd, matterName: matterName ?? undefined });
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setSkillIdeaInput(cmd);
+        appendTerminal([`[skill-idea] intent check unavailable; starting interview: ${message}`]);
+      } finally {
+        dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+      }
       return;
     }
 

@@ -9,6 +9,7 @@ export { createOpenAiSkillRouterProvider } from "./skill-router-providers.mjs";
 
 const DIRECT_OVERLAP_CONFIDENCE = 0.78;
 const VALID_DECISIONS = new Set([
+  "transient_copilot",
   "run_existing_skill",
   "modify_existing_skill",
   "create_or_modify_tuning",
@@ -151,6 +152,18 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
   let userGateRequired = Boolean(raw.user_gate_required);
   let reason = collapseWhitespace(raw.reason || "No router reason provided.");
 
+  if (
+    (decision === "new_skill" || decision === "adjacent_skill")
+    && looksLikeOneTimeMatterTask(context.userRequest || "")
+  ) {
+    decision = "transient_copilot";
+    recommendedAction = "transient_copilot";
+    userGateRequired = false;
+    reason = collapseWhitespace(
+      `The request looks like a one-time matter task, not a reusable skill. ${reason}`,
+    );
+  }
+
   if (meceViolation || directOverlap) {
     decision = "needs_user_approval";
     recommendedAction = rawDecisionName === "run_existing_skill" ? "run_existing_skill" : "modify_existing_skill";
@@ -162,6 +175,11 @@ export function normalizeRouterDecision(rawDecision, registry, context = {}) {
 
   if (decision === "override_requested") {
     userGateRequired = true;
+  }
+
+  if (decision === "transient_copilot") {
+    recommendedAction = recommendedAction === "none" ? "transient_copilot" : recommendedAction;
+    userGateRequired = false;
   }
 
   return {
@@ -206,4 +224,20 @@ function collapseWhitespace(value) {
 function hasCreateIntent(value) {
   return /\b(add|build|create|make|new|scaffold)\b/i.test(String(value || ""))
     && /\b(skill|workflow|slash command|slash skill)\b/i.test(String(value || ""));
+}
+
+function looksLikeOneTimeMatterTask(value) {
+  const text = collapseWhitespace(value).toLowerCase();
+  if (!text) return false;
+  const durableSignal = /\b(reusable|repeatable|future|every|all matters|all cases|across matters|cross-matter|workflow|slash command|template|standard skill)\b/.test(text)
+    || /\bfor\s+(?:future|all|every|similar|these)\s+(?:matters|cases)\b/.test(text);
+  if (durableSignal) return false;
+
+  const matterScoped = /\b(this|current|active|selected)\s+(matter|case|file|document|record)\b/.test(text)
+    || /\bin\s+this\s+(matter|case|file|document|record)\b/.test(text)
+    || /\bfor\s+this\s+(matter|case|file|document|record)\b/.test(text);
+  const lookupTask = /\b(where is|where can i|find where|locate|show me|which document|what document|find the|find an|find a)\b/.test(text);
+  const quickTask = /\b(one[- ]?time|quick|just|for now|ad hoc|temporary)\b/.test(text);
+
+  return (matterScoped && lookupTask) || (matterScoped && quickTask);
 }
