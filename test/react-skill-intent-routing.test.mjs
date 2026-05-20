@@ -48,6 +48,7 @@ test("React command panel checks backend intent before opening Skill Factory for
   assert.match(source, /api\.checkIntent\(\{ userRequest: cmd, matterName: matterName \?\? undefined \}\)/);
   assert.match(source, /shouldStartSkillIdeaSessionFromIntent\(decision\)/);
   assert.match(source, /formatIntentDiscoveryGuidance\(decision\)/);
+  assert.match(source, /do not remember earlier chat/i);
   assert.doesNotMatch(source, /if \(ideaParsed !== null\) \{\s*setSkillIdeaInput\(cmd\);/);
 });
 

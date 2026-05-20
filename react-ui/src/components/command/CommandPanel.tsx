@@ -224,7 +224,7 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
       </div>
 
       <p className="command-panel-note" style={{ order: 7 }}>
-        Source-backed answers and skill work may use paid AI. New skills are tested with a sample before they can be used.
+        Source-backed answers are one question at a time and do not remember earlier chat. Skill work may use paid AI.
       </p>
     </aside>
   );
