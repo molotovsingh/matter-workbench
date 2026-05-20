@@ -11,6 +11,7 @@ const DEFAULT_LIMITS = {
   maxBlocks: 120,
   maxCharsPerBlock: 1600,
   maxLibraryArtifacts: 4,
+  maxChronologyEntries: 120,
 };
 
 export async function buildMatterContextPacket(matterRoot, options = {}) {
@@ -56,6 +57,7 @@ export async function buildMatterContextPacket(matterRoot, options = {}) {
       max_blocks: limits.maxBlocks,
       max_chars_per_block: limits.maxCharsPerBlock,
       max_library_artifacts: limits.maxLibraryArtifacts,
+      max_chronology_entries: limits.maxChronologyEntries,
       included_sources: sources.length,
       omitted_sources: Math.max(0, records.length - sources.length),
       included_blocks: evidenceBlocks.length,
@@ -71,6 +73,7 @@ function normalizeLimits(options) {
     maxBlocks: parseLimit(options.maxBlocks, DEFAULT_LIMITS.maxBlocks),
     maxCharsPerBlock: parseLimit(options.maxCharsPerBlock, DEFAULT_LIMITS.maxCharsPerBlock),
     maxLibraryArtifacts: parseLimit(options.maxLibraryArtifacts, DEFAULT_LIMITS.maxLibraryArtifacts),
+    maxChronologyEntries: parseLimit(options.maxChronologyEntries, DEFAULT_LIMITS.maxChronologyEntries),
   };
 }
 

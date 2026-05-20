@@ -51,6 +51,7 @@ const COPILOT_CONTEXT_LIMITS = Object.freeze({
   maxBlocks: 100,
   maxCharsPerBlock: 1100,
   maxLibraryArtifacts: 4,
+  maxChronologyEntries: 120,
 });
 
 const MAX_QUESTION_LENGTH = 1200;
@@ -105,15 +106,37 @@ export function createMatterCopilotService({
 function summarizeMatterContextForCopilot(packet) {
   const evidenceBlocks = Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : [];
   const sources = Array.isArray(packet?.sources) ? packet.sources : [];
+  const libraryArtifacts = Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : [];
+  const chronologyEntries = libraryArtifacts
+    .filter((artifact) => artifact?.kind === "list_of_dates" && Array.isArray(artifact.entries))
+    .flatMap((artifact) => artifact.entries);
   return {
     schema_version: packet?.schema_version || "",
     generated_at: packet?.generated_at || "",
     matter: packet?.matter || {},
+    context_priority: [
+      "Read chronology_entries first when present.",
+      "Use source records and evidence_blocks to verify, cite, or fill gaps.",
+      "Preserve OCR or source-review warnings when they affect reliability.",
+    ],
+    chronology_entries: chronologyEntries.map((entry) => ({
+      date_iso: entry.date_iso || "",
+      date_text: entry.date_text || "",
+      event: entry.event || "",
+      legal_relevance: entry.legal_relevance || "",
+      issue_tags: Array.isArray(entry.issue_tags) ? entry.issue_tags : [],
+      citation: entry.citation || "",
+      source_label: entry.source_label || "",
+      source_short_label: entry.source_short_label || "",
+      source_excerpt: boundedText(entry.source_excerpt, COPILOT_CONTEXT_LIMITS.maxCharsPerBlock),
+      needs_review: Boolean(entry.needs_review),
+      supporting_sources: Array.isArray(entry.supporting_sources) ? entry.supporting_sources : [],
+    })),
     counts: {
       sources: sources.length,
       evidence_blocks_included: evidenceBlocks.length,
-      evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
-      library_artifacts: Array.isArray(packet?.library_artifacts) ? packet.library_artifacts.length : 0,
+      library_artifacts: libraryArtifacts.length,
+      chronology_entries: chronologyEntries.length,
     },
     sources: sources.map((source) => ({
       file_id: source.file_id || "",
@@ -133,7 +156,7 @@ function summarizeMatterContextForCopilot(packet) {
       needs_review: Boolean(block.needs_review),
       text: boundedText(block.text, COPILOT_CONTEXT_LIMITS.maxCharsPerBlock),
     })),
-    library_artifacts: (Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : []).map((artifact) => ({
+    library_artifacts: libraryArtifacts.map((artifact) => ({
       path: artifact.path || "",
       kind: artifact.kind || "",
       summary: artifact.summary || artifact.heading || "",
@@ -184,9 +207,31 @@ function normalizeMatterCopilotAnswer({
 }
 
 function buildCitationMap(packet) {
-  return new Map((Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : [])
-    .filter((block) => block?.citation)
-    .map((block) => [block.citation, block]));
+  const byCitation = new Map();
+  for (const block of Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : []) {
+    if (block?.citation) byCitation.set(block.citation, block);
+  }
+  for (const artifact of Array.isArray(packet?.library_artifacts) ? packet.library_artifacts : []) {
+    if (artifact?.kind !== "list_of_dates" || !Array.isArray(artifact.entries)) continue;
+    for (const entry of artifact.entries) {
+      addChronologyCitation(byCitation, entry, entry);
+      for (const source of Array.isArray(entry.supporting_sources) ? entry.supporting_sources : []) {
+        addChronologyCitation(byCitation, source, entry);
+      }
+    }
+  }
+  return byCitation;
+}
+
+function addChronologyCitation(byCitation, source = {}, entry = {}) {
+  const citation = normalizeText(source.citation);
+  if (!citation || byCitation.has(citation)) return;
+  byCitation.set(citation, {
+    citation,
+    source_label: normalizeText(source.source_label) || normalizeText(entry.source_label),
+    source_short_label: normalizeText(source.source_short_label) || normalizeText(entry.source_short_label),
+    text: normalizeText(entry.source_excerpt) || normalizeText(entry.event),
+  });
 }
 
 function normalizeSources(rawSources, sourceMap) {

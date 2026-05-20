@@ -208,6 +208,10 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "source_index").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
+  assert.deepEqual(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").entries.map((entry) => entry.event), [
+    "Agreement was signed.",
+  ]);
+  assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").entries[0].citation, "FILE-0001 p1.b1");
 
   const summary = summarizeMatterContextPacket(packet);
   assert.equal(summary.schema_version, "matter-context-preview/v1");

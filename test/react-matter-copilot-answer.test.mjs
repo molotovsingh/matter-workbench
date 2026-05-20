@@ -24,12 +24,25 @@ test("React matter copilot answer renders legal record language instead of packe
     warnings: [
       "Omitted 755 evidence block(s) due to maxBlocks=100",
       "The supplied packet is slightly inconsistent in places.",
+      "931 evidence blocks were omitted from the current record.",
+      "Several source documents are marked needs review; OCR quality appears uneven in places.",
     ],
     ai_run: { provider: "openai-direct", model: "gpt-5.4-mini" },
   });
 
   assert.match(rendered, /The record indicates that the client purchased five flats from Atlas\./);
-  assert.match(rendered, /Only part of the matter record was included in this quick answer/);
   assert.match(rendered, /The current record is slightly inconsistent in places\./);
+  assert.match(rendered, /OCR quality appears uneven/i);
   assert.doesNotMatch(rendered, /packet supports|supplied packet|bounded matter context|maxBlocks|evidence block/i);
+
+  const renderedWithoutQualityWarning = formatMatterCopilotAnswer({
+    question: "what happened?",
+    answer_status: "answered",
+    answer_markdown: "The record indicates a payment dispute.",
+    sources: [{ source_label: "Agreement - 1 June 2014" }],
+    warnings: ["931 evidence blocks were omitted from the current record."],
+    ai_run: { provider: "openai-direct", model: "gpt-5.4" },
+  });
+  assert.match(renderedWithoutQualityWarning, /Only part of the matter record was included in this quick answer/);
+  assert.doesNotMatch(renderedWithoutQualityWarning, /evidence block/i);
 });

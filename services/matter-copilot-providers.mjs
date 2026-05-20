@@ -14,6 +14,9 @@ const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "If the packet does not support the answer, return not_found or partial with a limitation.",
   "Keep the answer concise and lawyer-readable.",
   "Separate source-supported facts from inference.",
+  "When chronology_entries are present, read them first as the matter's prepared chronology, then use sources and evidence_blocks to verify, cite, or fill gaps.",
+  "Do not mention omitted evidence-block counts or packet limits in answer_markdown. If coverage is limited, say it is a quick answer from selected matter records.",
+  "Do preserve useful OCR, bad-copy, or needs-review warnings where they may affect reliability.",
   "In answer_markdown, write like a careful lawyer: say 'the record indicates', 'the record shows', or 'I cannot confirm from the record'.",
   "Do not say 'the packet supports', 'the supplied packet', 'bounded context', or similar implementation language in answer_markdown.",
   "Use implementation language only in internal reasoning, never in the visible answer.",
@@ -138,6 +141,7 @@ function copilotUserPayload({ question, matterContext }) {
     task: "Answer the user's one-time matter question from the bounded matter context only.",
     visible_answer_voice: [
       "Do not mention packets, context packets, bounded context, maxBlocks, extraction limits, or internal implementation terms in answer_markdown.",
+      "Do not mention omitted evidence-block counts in answer_markdown.",
       "Use 'the record' or 'the current record' for lawyer-facing uncertainty.",
       "Keep technical limitations in warnings, not the answer body.",
     ],

@@ -79,7 +79,8 @@ function lawyerVisibleAnswerText(value: unknown): string {
 }
 
 function visibleWarnings(values: unknown[]): string[] {
-  const visible = [];
+  const quality = [];
+  const general = [];
   let omittedEvidence = false;
   for (const value of values) {
     const warning = lawyerVisibleWarning(value);
@@ -88,9 +89,13 @@ function visibleWarnings(values: unknown[]): string[] {
       if (omittedEvidence) continue;
       omittedEvidence = true;
     }
-    visible.push(warning);
+    if (/OCR|bad copy|poor quality|needs review|source documents are marked needs review/i.test(warning)) {
+      quality.push(warning);
+    } else if (warning !== OMITTED_EVIDENCE_WARNING) {
+      general.push(warning);
+    }
   }
-  return visible;
+  return [...quality, ...general, ...(omittedEvidence ? [OMITTED_EVIDENCE_WARNING] : [])];
 }
 
 const OMITTED_EVIDENCE_WARNING = 'Only part of the matter record was included in this quick answer; use the underlying sources for full review.';
@@ -99,6 +104,8 @@ function lawyerVisibleWarning(value: unknown): string {
   const warning = lawyerVisibleAnswerText(value);
   if (!warning) return '';
   if (/Omitted \d+ evidence block\(s\) due to maxBlocks=/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
+  if (/\b\d+\s+evidence blocks?\s+(were\s+)?omitted\b/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
+  if (/\bomitted\b.*\bevidence blocks?\b/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
   if (/Truncated \d+ evidence block\(s\) due to maxCharsPerBlock=/i.test(warning)) return '';
   if (/Omitted \d+ source record\(s\) due to maxSources=/i.test(warning)) return OMITTED_EVIDENCE_WARNING;
   if (/maxBlocks|maxCharsPerBlock|maxSources|packet_schema|FILE-\d{4}/i.test(warning)) return '';

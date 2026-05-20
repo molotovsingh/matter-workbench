@@ -17,13 +17,17 @@ test("matter copilot answers from bounded context and validates citations", asyn
     answerProvider: async ({ question, matterContext, schema }) => {
       assert.equal(question, "which date started the lis?");
       assert.equal(matterContext.schema_version, "matter-context-packet/v1");
+      assert.match(matterContext.context_priority[0], /chronology_entries first/);
+      assert.equal(matterContext.chronology_entries.length, 1);
+      assert.equal(matterContext.chronology_entries[0].event, "Consumer complaint was filed.");
+      assert.equal("evidence_blocks_omitted" in matterContext.counts, false);
       assert.equal(schema.required.includes("answer_status"), true);
       return {
         answer_status: "answered",
         answer_markdown: "The record points to 21 January 2013, when the consumer complaint was filed.",
         confidence: 0.78,
         sources: [{
-          raw_citation: "FILE-0001 p1.b1",
+          raw_citation: "FILE-0001 p1.b2",
           source_label: "Consumer complaint filing record",
           snippet: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
         }],
@@ -38,7 +42,7 @@ test("matter copilot answers from bounded context and validates citations", asyn
   assert.equal(answer.answer_status, "answered");
   assert.equal(answer.ai_run.task, "copilot_answer");
   assert.equal(answer.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
-  assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b1"]);
+  assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b2"]);
 });
 
 test("matter copilot fails closed when provider cites outside the packet", async () => {
@@ -138,6 +142,24 @@ async function makeMatterRoot() {
         display_label: "Consumer complaint filing record",
         short_label: "Complaint filing record",
         document_type: "complaint",
+        needs_review: false,
+      }],
+    }, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(root, "10_Library", "List of Dates.json"),
+    `${JSON.stringify({
+      schema_version: "list-of-dates/v1",
+      generated_at: "2026-05-20T09:30:00.000Z",
+      entries: [{
+        date_iso: "2013-01-21",
+        date_text: "21 January 2013",
+        event: "Consumer complaint was filed.",
+        legal_relevance: "Starts the lis before the consumer forum.",
+        citation: "FILE-0001 p1.b2",
+        source_label: "Consumer complaint filing record",
+        source_short_label: "Complaint filing record",
+        source_excerpt: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
         needs_review: false,
       }],
     }, null, 2)}\n`,
