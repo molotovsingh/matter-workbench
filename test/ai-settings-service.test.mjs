@@ -77,6 +77,47 @@ test("AI settings expose read-only provider status without secrets", async () =>
   assert.doesNotMatch(serialized, /sk-or-test/);
 });
 
+test("AI settings save Matter Copilot routing without changing global AI defaults", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), [
+    "OPENAI_API_KEY=sk-openai-existing",
+    "OPENAI_MODEL=gpt-existing",
+    "OPENAI_MAX_OUTPUT_TOKENS=2048",
+    "",
+  ].join("\n"));
+
+  const env = {
+    OPENAI_API_KEY: "sk-openai-existing",
+    OPENAI_MODEL: "gpt-existing",
+    OPENAI_MAX_OUTPUT_TOKENS: "2048",
+  };
+  const service = createAiSettingsService({ appDir, env });
+  const saved = await service.saveSettings({
+    copilotProvider: "openrouter",
+    copilotModel: "anthropic/claude-sonnet-4.5",
+    copilotApiKey: "sk-or-v1-test",
+  });
+
+  assert.equal(env.OPENAI_MODEL, "gpt-existing");
+  assert.equal(env.OPENAI_MAX_OUTPUT_TOKENS, "2048");
+  assert.equal(env.COPILOT_ANSWER_PROVIDER, "openrouter");
+  assert.equal(env.OPENROUTER_COPILOT_ANSWER_MODEL, "anthropic/claude-sonnet-4.5");
+  assert.equal(env.OPENROUTER_API_KEY, "sk-or-v1-test");
+
+  const copilot = saved.aiTasks.find((task) => task.task === "copilot_answer");
+  assert.equal(copilot.provider, "openrouter");
+  assert.equal(copilot.model, "anthropic/claude-sonnet-4.5");
+  assert.equal(copilot.ready, true);
+  assert.equal(copilot.note, "Ready");
+  assert.equal(saved.model, "gpt-existing");
+
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.match(text, /OPENAI_MODEL=gpt-existing/);
+  assert.match(text, /COPILOT_ANSWER_PROVIDER=openrouter/);
+  assert.match(text, /OPENROUTER_COPILOT_ANSWER_MODEL=anthropic\/claude-sonnet-4\.5/);
+  assert.match(text, /OPENROUTER_API_KEY=sk-or-v1-test/);
+});
+
 test("AI settings test connection sends a tiny server-side OpenAI request", async () => {
   const bodies = [];
   const server = createServer((request, response) => {

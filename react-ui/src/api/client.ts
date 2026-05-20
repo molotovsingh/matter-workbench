@@ -194,7 +194,7 @@ export const api = {
 
   // ─── AI Settings ─────────────────────────
   getAiSettings: () => getJson<AiSettings>('/api/ai-settings'),
-  saveAiSettings: (body: AiSettingsSaveRequest) => postJson('/api/ai-settings', body),
+  saveAiSettings: (body: AiSettingsSaveRequest) => postJson<AiSettings>('/api/ai-settings', body),
   testAiSettings: (body: AiSettingsTestRequest) => postJson<AiSettingsTestResponse>('/api/ai-settings/test', body),
 
   // ─── Skills ──────────────────────────────

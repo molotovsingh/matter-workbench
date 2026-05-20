@@ -412,6 +412,9 @@ export interface AiSettingsSaveRequest {
   apiKey?: string;
   model?: string;
   maxOutputTokens?: number;
+  copilotProvider?: string;
+  copilotModel?: string;
+  copilotApiKey?: string;
 }
 
 export interface AiSettingsTestRequest {

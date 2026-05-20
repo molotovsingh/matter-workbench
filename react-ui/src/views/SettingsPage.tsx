@@ -5,6 +5,20 @@ import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
 import type { AiSettings, Skill } from '../types';
 
+const COPILOT_MODEL_PRESETS = [
+  { label: 'GPT-5.4', provider: 'openai-direct', model: 'gpt-5.4' },
+  { label: 'GPT-5.4 Mini', provider: 'openai-direct', model: 'gpt-5.4-mini' },
+  { label: 'Claude Sonnet 4.5', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' },
+];
+
+function copilotPresetValue(provider?: string, model?: string) {
+  return `${provider || ''}|${model || ''}`;
+}
+
+function findCopilotTask(settings: AiSettings | null) {
+  return settings?.aiTasks?.find((task) => task.task === 'copilot_answer') || null;
+}
+
 export default function SettingsPage() {
   const { dispatch, appendTerminal } = useApp();
   const [settings, setSettings] = useState<AiSettings | null>(null);
@@ -18,6 +32,11 @@ export default function SettingsPage() {
   const [aiSaveError, setAiSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [copilotProvider, setCopilotProvider] = useState('openai-direct');
+  const [copilotModel, setCopilotModel] = useState('gpt-5.4-mini');
+  const [copilotApiKey, setCopilotApiKey] = useState('');
+  const [copilotSaving, setCopilotSaving] = useState(false);
+  const [copilotSaveError, setCopilotSaveError] = useState('');
 
   const [mattersHome, setMattersHome] = useState('');
   const [mattersHomeEdit, setMattersHomeEdit] = useState('');
@@ -47,6 +66,7 @@ export default function SettingsPage() {
       setSettings(s);
       if (s.provider) setFormProvider(s.provider);
       if (s.model) setFormModel(s.model);
+      applyCopilotSettings(s);
     }).catch((e) => {
       if (cancelled) return;
       const message = getErrorMessage(e);
@@ -107,6 +127,41 @@ export default function SettingsPage() {
     }
   }
 
+  function applyCopilotSettings(nextSettings: AiSettings) {
+    const task = findCopilotTask(nextSettings);
+    if (!task) return;
+    if (task.provider) setCopilotProvider(task.provider);
+    if (task.model) setCopilotModel(task.model);
+  }
+
+  function handleCopilotPresetChange(value: string) {
+    const preset = COPILOT_MODEL_PRESETS.find((p) => copilotPresetValue(p.provider, p.model) === value);
+    if (!preset) return;
+    setCopilotProvider(preset.provider);
+    setCopilotModel(preset.model);
+  }
+
+  async function handleSaveCopilot(e: React.FormEvent) {
+    e.preventDefault();
+    setCopilotSaving(true);
+    setCopilotSaveError('');
+    try {
+      const updated = await api.saveAiSettings({
+        copilotProvider,
+        copilotModel,
+        copilotApiKey: copilotApiKey || undefined,
+      });
+      setSettings(updated);
+      applyCopilotSettings(updated);
+      setCopilotApiKey('');
+      appendTerminal([`[settings] Matter Copilot model saved: ${copilotProvider} / ${copilotModel}`]);
+    } catch (err) {
+      setCopilotSaveError(getErrorMessage(err));
+    } finally {
+      setCopilotSaving(false);
+    }
+  }
+
   async function handleTest() {
     setTesting(true);
     setTestResult(null);
@@ -125,6 +180,10 @@ export default function SettingsPage() {
   }
 
   const overallReady = (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false);
+  const copilotTask = findCopilotTask(settings);
+  const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
+    ? copilotPresetValue(copilotProvider, copilotModel)
+    : '';
 
   return (
     <div className="settings-page">
@@ -292,6 +351,82 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Matter Copilot ───────────────────────── */}
+      {settings && (
+        <div className="settings-section">
+          <h2>Matter Copilot</h2>
+          <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
+            Chooses the model for source-backed chat answers only. Skills and List of Dates keep their governed routes.
+          </p>
+          <div className="settings-card">
+            <form onSubmit={handleSaveCopilot} style={{ display: 'grid', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <div>
+                  <strong>{copilotTask?.ready ? 'Copilot ready' : 'Copilot needs setup'}</strong>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                    {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
+                  </div>
+                </div>
+                <span className={`provider-status ${copilotTask?.ready ? 'ready' : 'needs-setup'}`}>
+                  {copilotTask?.ready ? 'Ready' : 'Needs setup'}
+                </span>
+              </div>
+
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span className="settings-label">Copilot model</span>
+                <select
+                  value={copilotPreset}
+                  onChange={(e) => handleCopilotPresetChange(e.target.value)}
+                  className="settings-input"
+                >
+                  {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
+                  {COPILOT_MODEL_PRESETS.map((preset) => (
+                    <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Provider</span>
+                  <input type="text" value={copilotProvider} readOnly className="settings-input" />
+                </label>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Model id</span>
+                  <input type="text" value={copilotModel} readOnly className="settings-input" />
+                </label>
+              </div>
+
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span className="settings-label">
+                  {copilotProvider === 'openrouter' ? 'OpenRouter API key' : 'OpenAI API key'}
+                </span>
+                <input
+                  type="password"
+                  value={copilotApiKey}
+                  onChange={(e) => setCopilotApiKey(e.target.value)}
+                  placeholder="Leave blank to keep existing key"
+                  className="settings-input"
+                />
+              </label>
+
+              {copilotTask?.note && !copilotTask.ready && (
+                <div className="form-warning">{copilotTask.note}</div>
+              )}
+              {copilotSaveError && <div className="form-warning">{copilotSaveError}</div>}
+
+              <div className="form-actions">
+                <button type="submit" disabled={copilotSaving}>
+                  {copilotSaving ? 'Saving…' : 'Save Copilot model'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ─── Advanced AI Routing ───────────────────── */}
       {settings?.aiTasks && settings.aiTasks.length > 0 && (
