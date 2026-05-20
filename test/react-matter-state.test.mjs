@@ -4,6 +4,7 @@ import test from "node:test";
 
 const appContextPath = new URL("../react-ui/src/store/AppContext.tsx", import.meta.url);
 const activityBarPath = new URL("../react-ui/src/components/layout/ActivityBar.tsx", import.meta.url);
+const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
 
 test("React matter changes clear matter-scoped preview state", async () => {
   const source = await readFile(appContextPath, "utf8");
@@ -30,4 +31,11 @@ test("React rail Home clears the active matter before showing landing", async ()
   assert.match(source, /await api\.clearActiveMatter\(\)/);
   assert.match(source, /clearActiveMatter\(\)/);
   assert.match(source, /dispatch\(\{ type: 'SET_TAB', payload: tabId \}\)/);
+});
+
+test("React active matter sidebar hides the global matter picker", async () => {
+  const source = await readFile(sidebarPath, "utf8");
+
+  assert.match(source, /\{!activeMatter && <MatterPicker onNewMatter=\{onNewMatter\} \/>\}/);
+  assert.match(source, /\{activeMatter && \(/);
 });

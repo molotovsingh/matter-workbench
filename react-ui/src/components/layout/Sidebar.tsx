@@ -44,7 +44,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
         <span className="sidebar-title">{title}</span>
       </div>
 
-      <MatterPicker onNewMatter={onNewMatter} />
+      {!activeMatter && <MatterPicker onNewMatter={onNewMatter} />}
 
       {activeMatter && (
         <>
