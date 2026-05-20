@@ -145,16 +145,8 @@ async function runFullPreparation({
   status: PreparationRunStatus;
 }): Promise<AutomaticPreparationResult> {
   let next = status;
-  const setupPlan = await api.getPrepareMatter(matterName);
-  const setupStage = setupPlan.stages.find((stage) => stage.slash === '/matter-init' || stage.id === 'matter-init') || null;
   for (const stage of FULL_PREPARATION_STAGES) {
     if (isStale()) return staleResult();
-    if (stage.slash === '/matter-init' && setupStage && isCurrentPreparationStage(setupStage)) {
-      appendTerminal([`[prepare] rerun kept: ${stageLabel(stage)}`]);
-      next = markStageDone(next, stage);
-      onProgress(next);
-      continue;
-    }
     next = markStageRunning(next, stage);
     onProgress(next);
     appendTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);

@@ -61,9 +61,9 @@ test("React matter overview can force a full preparation rerun", async () => {
   assert.match(runner, /const FULL_PREPARATION_STAGES: PreparationStage\[\] = \[/);
   assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'/);
   assert.match(runner, /if \(mode === 'full'\) \{/);
-  assert.match(runner, /api\.getPrepareMatter\(matterName\)/);
-  assert.match(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);
-  assert.match(runner, /rerun kept: \$\{stageLabel\(stage\)\}/);
+  assert.match(runner, /const finalPlan = await api\.getPrepareMatter\(matterName\)/);
+  assert.doesNotMatch(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);
+  assert.doesNotMatch(runner, /rerun kept: \$\{stageLabel\(stage\)\}/);
   assert.match(runner, /runPreparationStage\(stage, matterName, \{ forceExtractRefresh: true \}\)/);
   assert.match(runner, /api\.runExtract\(\{ \.\.\.body, forceRefresh: options\.forceExtractRefresh === true \}\)/);
   assert.match(runner, /stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
