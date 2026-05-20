@@ -249,6 +249,78 @@ export default function SettingsPage() {
         </p>
         {aiLoadError && <div className="form-warning" style={{ marginBottom: 14 }}>Could not load AI settings: {aiLoadError}</div>}
 
+        {settings && (
+          <div className="settings-card" style={{ marginBottom: 14 }}>
+            <form onSubmit={handleSaveCopilot} style={{ display: 'grid', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <div>
+                  <strong>Matter Copilot</strong>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                    Source-backed chat answers only. Skills and List of Dates keep their governed routes.
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 5 }}>
+                    Current: {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
+                  </div>
+                </div>
+                <span className={`provider-status ${copilotTask?.ready ? 'ready' : 'needs-setup'}`}>
+                  {copilotTask?.ready ? 'Ready' : 'Needs setup'}
+                </span>
+              </div>
+
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span className="settings-label">Copilot model</span>
+                <select
+                  value={copilotPreset}
+                  onChange={(e) => handleCopilotPresetChange(e.target.value)}
+                  className="settings-input"
+                >
+                  {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
+                  {COPILOT_MODEL_PRESETS.map((preset) => (
+                    <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Provider</span>
+                  <input type="text" value={copilotProvider} readOnly className="settings-input" />
+                </label>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Model id</span>
+                  <input type="text" value={copilotModel} readOnly className="settings-input" />
+                </label>
+              </div>
+
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span className="settings-label">
+                  {copilotProvider === 'openrouter' ? 'OpenRouter API key' : 'OpenAI API key'}
+                </span>
+                <input
+                  type="password"
+                  value={copilotApiKey}
+                  onChange={(e) => setCopilotApiKey(e.target.value)}
+                  placeholder="Leave blank to keep existing key"
+                  className="settings-input"
+                />
+              </label>
+
+              {copilotTask?.note && !copilotTask.ready && (
+                <div className="form-warning">{copilotTask.note}</div>
+              )}
+              {copilotSaveError && <div className="form-warning">{copilotSaveError}</div>}
+
+              <div className="form-actions">
+                <button type="submit" disabled={copilotSaving}>
+                  {copilotSaving ? 'Saving…' : 'Save Copilot model'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {settings && !editing && (
           <div className="settings-card" style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -351,82 +423,6 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
-
-      {/* ─── Matter Copilot ───────────────────────── */}
-      {settings && (
-        <div className="settings-section">
-          <h2>Matter Copilot</h2>
-          <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-            Chooses the model for source-backed chat answers only. Skills and List of Dates keep their governed routes.
-          </p>
-          <div className="settings-card">
-            <form onSubmit={handleSaveCopilot} style={{ display: 'grid', gap: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <div>
-                  <strong>{copilotTask?.ready ? 'Copilot ready' : 'Copilot needs setup'}</strong>
-                  <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                    {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
-                  </div>
-                </div>
-                <span className={`provider-status ${copilotTask?.ready ? 'ready' : 'needs-setup'}`}>
-                  {copilotTask?.ready ? 'Ready' : 'Needs setup'}
-                </span>
-              </div>
-
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Copilot model</span>
-                <select
-                  value={copilotPreset}
-                  onChange={(e) => handleCopilotPresetChange(e.target.value)}
-                  className="settings-input"
-                >
-                  {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
-                  {COPILOT_MODEL_PRESETS.map((preset) => (
-                    <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Provider</span>
-                  <input type="text" value={copilotProvider} readOnly className="settings-input" />
-                </label>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Model id</span>
-                  <input type="text" value={copilotModel} readOnly className="settings-input" />
-                </label>
-              </div>
-
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">
-                  {copilotProvider === 'openrouter' ? 'OpenRouter API key' : 'OpenAI API key'}
-                </span>
-                <input
-                  type="password"
-                  value={copilotApiKey}
-                  onChange={(e) => setCopilotApiKey(e.target.value)}
-                  placeholder="Leave blank to keep existing key"
-                  className="settings-input"
-                />
-              </label>
-
-              {copilotTask?.note && !copilotTask.ready && (
-                <div className="form-warning">{copilotTask.note}</div>
-              )}
-              {copilotSaveError && <div className="form-warning">{copilotSaveError}</div>}
-
-              <div className="form-actions">
-                <button type="submit" disabled={copilotSaving}>
-                  {copilotSaving ? 'Saving…' : 'Save Copilot model'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ─── Advanced AI Routing ───────────────────── */}
       {settings?.aiTasks && settings.aiTasks.length > 0 && (
