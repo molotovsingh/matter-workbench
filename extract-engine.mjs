@@ -7,7 +7,7 @@ import { extractXlsx, XLSX_ENGINE_FINGERPRINT } from "./extract-utils/xlsx-extra
 import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.mjs";
 import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
 import { extractRtf, RTF_ENGINE_FINGERPRINT } from "./extract-utils/rtf-extract.mjs";
-import { createMistralOcrProvider } from "./extract-utils/mistral-ocr-provider.mjs";
+import { createChainedOcrProvider } from "./extract-utils/chained-ocr-provider.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
@@ -81,8 +81,21 @@ function canUseCachedExtraction(cached, row, route, options) {
     const isOcrPlaceholder = pages.length > 0
       && pages.every((page) => page.ocr_required === true && (!Array.isArray(page.blocks) || page.blocks.length === 0));
     if (isOcrPlaceholder) return false;
+    if (options.ocrProvider.repairsWeakOcr === true && hasWeakCachedOcr(cached)) return false;
   }
   return true;
+}
+
+function hasWeakCachedOcr(cached) {
+  const pages = Array.isArray(cached?.pages) ? cached.pages : [];
+  return pages.some((page) => {
+    if (page.ocr_required !== true) return false;
+    const blocks = Array.isArray(page.blocks) ? page.blocks : [];
+    const confidence = Number(page.confidence_avg);
+    return page.needs_review === true
+      || blocks.length === 0
+      || (Number.isFinite(confidence) && confidence < 0.75);
+  });
 }
 
 function extractionObservability(record, stats = {}) {
@@ -109,12 +122,9 @@ function resolveOcrProvider(options) {
   if (Object.hasOwn(options, "ocrProvider")) return options.ocrProvider;
   const env = options.env || process.env;
   if (env.MISTRAL_OCR_ENABLED !== "1") return null;
-  return createMistralOcrProvider({
-    apiKey: env.MISTRAL_API_KEY || "",
-    endpoint: env.MISTRAL_OCR_ENDPOINT,
-    model: env.MISTRAL_OCR_MODEL,
+  return createChainedOcrProvider({
+    env,
     fetchImpl: options.fetchImpl,
-    timeoutMs: env.MISTRAL_OCR_TIMEOUT_MS,
   });
 }
 
@@ -183,114 +193,44 @@ export async function runExtract(options = {}) {
     let intakeSkipped = 0;
     let intakeFailed = 0;
 
-    for (const row of registerRows) {
-      counts.totalFiles += 1;
-      const baseLogRow = {
-        file_id: row.file_id,
-        intake_id: row.intake_id || intake.intake_id,
-        source_path: row.source_path,
-        original_name: row.original_name,
-        category: row.category,
-        sha256: row.sha256,
-        engine: "",
-        page_count: "",
-        ocr_applied: "",
-        ocr_provider_model: "",
-        ocr_required_pages: "",
-        low_confidence_pages: "",
-        needs_review_pages: "",
-        provider_warnings_count: "",
-        multi_column_pages: "",
-        time_taken_ms: "",
-        extracted_at: "",
-        notes: "",
-      };
+    const processedRows = await mapWithConcurrency(
+      registerRows,
+      resolveExtractConcurrency(options),
+      (row) => processRegisterRow({
+        row,
+        intake,
+        matterRoot,
+        extractedDir,
+        dryRun,
+        ocrProvider,
+      }),
+    );
 
-      if (row.status === "exact-duplicate" || row.status === "duplicate-of-prior-intake") {
-        logRows.push({ ...baseLogRow, status: "skipped-duplicate", notes: `duplicate_of: ${row.duplicate_of || ""}` });
+    for (const processed of processedRows) {
+      counts.totalFiles += 1;
+      logRows.push(processed.logRow);
+
+      if (processed.disposition === "skippedDuplicate") {
         counts.skippedDuplicate += 1;
         intakeSkipped += 1;
         continue;
       }
-
-      const route = pickExtractor(row);
-      if (route.skipReason) {
-        logRows.push({ ...baseLogRow, status: "skipped-unsupported-format", notes: route.skipReason });
+      if (processed.disposition === "skippedUnsupported") {
         counts.skippedUnsupported += 1;
         intakeSkipped += 1;
         continue;
       }
-
-      const sourceAbsolute = path.join(matterRoot, row.working_copy_path);
-      if (!(await pathExists(sourceAbsolute))) {
-        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `working copy missing: ${row.working_copy_path}` });
+      if (processed.disposition === "failed") {
         counts.failed += 1;
         intakeFailed += 1;
-        outputLines.push(`[extract] ${row.file_id}: missing on disk`);
         continue;
       }
-
-      const recordPath = path.join(extractedDir, `${row.file_id}.json`);
-      const cached = await readJsonIfExists(recordPath);
-      if (cached && canUseCachedExtraction(cached, row, route, { ocrProvider })) {
-        logRows.push({
-          ...baseLogRow,
-          status: "cached",
-          ...extractionObservability(cached),
-          extracted_at: cached.extracted_at || "",
-        });
+      if (processed.disposition === "cached") {
         counts.cached += 1;
         intakeCached += 1;
         continue;
       }
-
-      const t0 = Date.now();
-      let extraction;
-      try {
-        extraction = await route.extractor({
-          [route.pathField]: sourceAbsolute,
-          fileId: row.file_id,
-          sha256: row.sha256,
-          sourcePath: row.working_copy_path,
-          ocrProvider,
-        });
-      } catch (err) {
-        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `unhandled: ${err.message}` });
-        counts.failed += 1;
-        intakeFailed += 1;
-        outputLines.push(`[extract] ${row.file_id}: failed (${err.message})`);
-        continue;
-      }
-      const elapsed = Date.now() - t0;
-
-      if (extraction.failureReason) {
-        logRows.push({ ...baseLogRow, status: "failed", engine: route.fingerprint, time_taken_ms: elapsed, notes: extraction.failureReason });
-        counts.failed += 1;
-        intakeFailed += 1;
-        outputLines.push(`[extract] ${row.file_id}: ${extraction.failureReason}`);
-        continue;
-      }
-
-      const stats = extraction.stats;
-      const allOcrRequired = stats.pageCount > 0 && stats.ocrRequiredPageCount === stats.pageCount && !stats.ocrApplied;
-      if (allOcrRequired) counts.ocrRequiredFiles += 1;
-
-      if (!dryRun) {
-        await writeFile(recordPath, `${JSON.stringify(extraction.record, null, 2)}\n`);
-        await writeFile(path.join(extractedDir, `${row.file_id}.txt`), extraction.flatText);
-      }
-
-      logRows.push({
-        ...baseLogRow,
-        status: allOcrRequired ? "ocr-required-all" : "extracted",
-        ...extractionObservability(extraction.record, stats),
-        multi_column_pages: stats.multiColumnPageCount,
-        time_taken_ms: elapsed,
-        extracted_at: extraction.record.extracted_at,
-        notes: allOcrRequired && Array.isArray(extraction.record.warnings)
-          ? extraction.record.warnings.join("; ")
-          : "",
-      });
+      if (processed.disposition === "ocrRequired") counts.ocrRequiredFiles += 1;
       counts.extracted += 1;
       intakeExtracted += 1;
     }
@@ -350,6 +290,148 @@ export async function runExtract(options = {}) {
     fileResults,
     outputLines,
   };
+}
+
+async function processRegisterRow({
+  row,
+  intake,
+  matterRoot,
+  extractedDir,
+  dryRun,
+  ocrProvider,
+}) {
+  const baseLogRow = {
+    file_id: row.file_id,
+    intake_id: row.intake_id || intake.intake_id,
+    source_path: row.source_path,
+    original_name: row.original_name,
+    category: row.category,
+    sha256: row.sha256,
+    engine: "",
+    page_count: "",
+    ocr_applied: "",
+    ocr_provider_model: "",
+    ocr_required_pages: "",
+    low_confidence_pages: "",
+    needs_review_pages: "",
+    provider_warnings_count: "",
+    multi_column_pages: "",
+    time_taken_ms: "",
+    extracted_at: "",
+    notes: "",
+  };
+
+  if (row.status === "exact-duplicate" || row.status === "duplicate-of-prior-intake") {
+    return {
+      disposition: "skippedDuplicate",
+      logRow: { ...baseLogRow, status: "skipped-duplicate", notes: `duplicate_of: ${row.duplicate_of || ""}` },
+    };
+  }
+
+  const route = pickExtractor(row);
+  if (route.skipReason) {
+    return {
+      disposition: "skippedUnsupported",
+      logRow: { ...baseLogRow, status: "skipped-unsupported-format", notes: route.skipReason },
+    };
+  }
+
+  const sourceAbsolute = path.join(matterRoot, row.working_copy_path);
+  if (!(await pathExists(sourceAbsolute))) {
+    return {
+      disposition: "failed",
+      logRow: { ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `working copy missing: ${row.working_copy_path}` },
+    };
+  }
+
+  const recordPath = path.join(extractedDir, `${row.file_id}.json`);
+  const cached = await readJsonIfExists(recordPath);
+  if (cached && canUseCachedExtraction(cached, row, route, { ocrProvider })) {
+    return {
+      disposition: "cached",
+      logRow: {
+        ...baseLogRow,
+        status: "cached",
+        ...extractionObservability(cached),
+        extracted_at: cached.extracted_at || "",
+      },
+    };
+  }
+
+  const t0 = Date.now();
+  let extraction;
+  try {
+    extraction = await route.extractor({
+      [route.pathField]: sourceAbsolute,
+      fileId: row.file_id,
+      sha256: row.sha256,
+      sourcePath: row.working_copy_path,
+      ocrProvider,
+    });
+  } catch (err) {
+    return {
+      disposition: "failed",
+      logRow: { ...baseLogRow, status: "failed", engine: route.fingerprint, notes: `unhandled: ${err.message}` },
+    };
+  }
+  const elapsed = Date.now() - t0;
+
+  if (extraction.failureReason) {
+    return {
+      disposition: "failed",
+      logRow: { ...baseLogRow, status: "failed", engine: route.fingerprint, time_taken_ms: elapsed, notes: extraction.failureReason },
+    };
+  }
+
+  const stats = extraction.stats;
+  const allOcrRequired = stats.pageCount > 0 && stats.ocrRequiredPageCount === stats.pageCount && !stats.ocrApplied;
+
+  if (!dryRun) {
+    await writeFile(recordPath, `${JSON.stringify(extraction.record, null, 2)}\n`);
+    await writeFile(path.join(extractedDir, `${row.file_id}.txt`), extraction.flatText);
+  }
+
+  return {
+    disposition: allOcrRequired ? "ocrRequired" : "extracted",
+    logRow: {
+      ...baseLogRow,
+      status: allOcrRequired ? "ocr-required-all" : "extracted",
+      ...extractionObservability(extraction.record, stats),
+      multi_column_pages: stats.multiColumnPageCount,
+      time_taken_ms: elapsed,
+      extracted_at: extraction.record.extracted_at,
+      notes: allOcrRequired && Array.isArray(extraction.record.warnings)
+        ? extraction.record.warnings.join("; ")
+        : "",
+    },
+  };
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), Math.max(1, items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+function resolveExtractConcurrency(options = {}) {
+  const env = options.env || process.env;
+  const explicit = parsePositiveInteger(options.concurrency);
+  if (explicit) return explicit;
+  return parsePositiveInteger(env.EXTRACT_CONCURRENCY) || 3;
+}
+
+function parsePositiveInteger(value) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function emptyResult(dryRun, matterRoot, reason) {

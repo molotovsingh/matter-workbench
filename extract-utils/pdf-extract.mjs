@@ -94,7 +94,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
 
   const shouldRunOcr = typeof ocrProvider === "function"
     && pages.length > 0
-    && pages.every((page) => page.ocr_required && page.blocks.length === 0);
+    && shouldAttemptOcr(pages, ocrProvider);
 
   if (shouldRunOcr) {
     try {
@@ -178,6 +178,18 @@ function emptyPage(pageNumber, ocrRequired) {
     needs_review: ocrRequired,
     blocks: [],
   };
+}
+
+function shouldAttemptOcr(pages, ocrProvider) {
+  const hasMissingTextPage = pages.some((page) => page.ocr_required && page.blocks.length === 0);
+  if (hasMissingTextPage) return true;
+
+  if (ocrProvider?.repairTextLayer !== true) return false;
+  const chars = pages.reduce((sum, page) => (
+    sum + page.blocks.reduce((pageSum, block) => pageSum + String(block.text || "").length, 0)
+  ), 0);
+  const reviewPages = pages.filter((page) => page.needs_review === true).length;
+  return reviewPages > 0 && chars < pages.length * 200;
 }
 
 function sortItemsForReading(items) {

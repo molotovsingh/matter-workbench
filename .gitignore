@@ -7,6 +7,7 @@ react-ui/node_modules/
 .playwright-cli/
 .local/
 output/
+evals/ocr/runs/
 config.json
 skill-ideas.json
 skill-samples.json

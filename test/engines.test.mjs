@@ -88,6 +88,30 @@ startxref
 `);
 }
 
+async function writeMixedPdf(filePath) {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Length 56 >>\nstream\nBT /F1 18 Tf 72 720 Td (Text layer page one) Tj ET\nendstream",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+  const xrefStart = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let index = 1; index <= objects.length; index += 1) {
+    pdf += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  await writeFile(filePath, pdf);
+}
+
 async function writeSimpleDocx(filePath) {
   await rm(filePath, { force: true });
   const buildDir = await mkdtemp(path.join(os.tmpdir(), "matter-docx-"));
@@ -313,6 +337,90 @@ test("extract keeps OCR-required status when injected OCR provider returns no us
   assert.equal(record.pages[0].ocr_required, true);
   assert.equal(record.pages[0].blocks.length, 0);
   assert.ok(record.warnings.some((warning) => warning.includes("OCR provider returned no usable text")));
+});
+
+test("extract OCRs mixed PDFs when only some pages lack a text layer", async () => {
+  const root = await makeMatterRoot();
+  await writeMixedPdf(await writeSource(root, "mixed-scan.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const calls = [];
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async (packet) => {
+      calls.push(packet);
+      return {
+        engine: "fake-mixed-ocr@1.0.0",
+        pages: [
+          { page: 1, markdown: "Text layer page one", confidence: 0.98 },
+          { page: 2, markdown: "Scanned page two dated 10.05.2024.", confidence: 0.98 },
+        ],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].pageCount, 2);
+  assert.equal(result.counts.ocrRequiredFiles, 0);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "fake-mixed-ocr@1.0.0");
+  assert.equal(record.page_count, 2);
+  assert.equal(record.pages[1].blocks[0].text, "Scanned page two dated 10.05.2024.");
+});
+
+test("extract invalidates cached weak OCR when repair provider is enabled", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "weak-scan.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async () => ({
+      engine: "weak-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "Weak scan text", confidence: 0.6 }],
+    }),
+  });
+
+  const calls = [];
+  const repairProvider = async () => {
+    calls.push("repair");
+    return {
+      engine: "strong-repair-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "Strong repair text dated 11.05.2024.", confidence: 0.97 }],
+    };
+  };
+  repairProvider.repairsWeakOcr = true;
+
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: repairProvider,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.cached, 0);
+  assert.equal(result.counts.extracted, 1);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "strong-repair-ocr@1.0.0");
+  assert.equal(record.pages[0].needs_review, false);
+});
+
+test("extract preserves Extraction Log.csv row order with bounded concurrency", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "01-note.txt", "First");
+  await writeSource(root, "02-note.txt", "Second");
+  await writeSource(root, "03-note.txt", "Third");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  await runExtract({ matterRoot: root, dryRun: false, concurrency: 3 });
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.deepEqual(logRows.map((row) => row.file_id), ["FILE-0001", "FILE-0002", "FILE-0003"]);
+  assert.deepEqual(logRows.map((row) => path.basename(row.source_path)), ["01-note.txt", "02-note.txt", "03-note.txt"]);
 });
 
 test("extract wires Mistral OCR only when the explicit env gate is enabled", async () => {
