@@ -64,9 +64,12 @@ test("React matter overview can force a full preparation rerun", async () => {
   assert.match(runner, /const finalPlan = await api\.getPrepareMatter\(matterName\)/);
   assert.doesNotMatch(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);
   assert.doesNotMatch(runner, /rerun kept: \$\{stageLabel\(stage\)\}/);
-  assert.match(runner, /runPreparationStage\(stage, matterName, \{ forceExtractRefresh: true \}\)/);
+  assert.match(runner, /publishProgress = \(run: PreparationRunStatus\) => \{[\s\S]*if \(!isStale\(\)\) onProgress\(run\);/);
+  assert.match(runner, /publishTerminal = \(lines: string\[\]\) => \{[\s\S]*if \(!isStale\(\)\) appendTerminal\(lines\);/);
+  assert.match(runner, /runPreparationStage\(stage, matterName, \{[\s\S]*forceExtractRefresh: true,[\s\S]*forceListOfDatesRegeneration: true,/);
   assert.match(runner, /api\.runExtract\(\{ \.\.\.body, forceRefresh: options\.forceExtractRefresh === true \}\)/);
-  assert.match(runner, /stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
+  assert.match(runner, /!options\.forceListOfDatesRegeneration && stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
+  assert.doesNotMatch(runner, /for \(const stage of FULL_PREPARATION_STAGES\) \{[\s\S]{0,80}if \(isStale\(\)\) return staleResult\(\)/);
   assert.match(app, /mode: 'full'/);
   assert.match(app, /initialMessage: 'Running preparation again…'/);
   assert.match(app, /onRunPreparationAgain=\{handleRunPreparationAgain\}/);

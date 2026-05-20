@@ -145,22 +145,30 @@ async function runFullPreparation({
   status: PreparationRunStatus;
 }): Promise<AutomaticPreparationResult> {
   let next = status;
+  const publishProgress = (run: PreparationRunStatus) => {
+    if (!isStale()) onProgress(run);
+  };
+  const publishTerminal = (lines: string[]) => {
+    if (!isStale()) appendTerminal(lines);
+  };
+
   for (const stage of FULL_PREPARATION_STAGES) {
-    if (isStale()) return staleResult();
     next = markStageRunning(next, stage);
-    onProgress(next);
-    appendTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);
+    publishProgress(next);
+    publishTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);
     try {
-      await runPreparationStage(stage, matterName, { forceExtractRefresh: true });
-      if (isStale()) return staleResult();
-      appendTerminal([`[prepare] rerun complete: ${stageLabel(stage)}`]);
+      await runPreparationStage(stage, matterName, {
+        forceExtractRefresh: true,
+        forceListOfDatesRegeneration: true,
+      });
+      publishTerminal([`[prepare] rerun complete: ${stageLabel(stage)}`]);
       next = markStageDone(next, stage);
-      onProgress(next);
+      publishProgress(next);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       next = markStageFailed(next, stage, message);
-      onProgress(next);
-      appendTerminal([`[prepare] rerun failed: ${stageLabel(stage)} — ${message}`]);
+      publishProgress(next);
+      publishTerminal([`[prepare] rerun failed: ${stageLabel(stage)} — ${message}`]);
       return {
         state: 'blocked',
         message,
@@ -168,13 +176,11 @@ async function runFullPreparation({
     }
   }
 
-  if (isStale()) return staleResult();
   const advisoryStatus = markStep(next, 'advisory', 'running', 'Checking preparation advisory…');
-  onProgress(advisoryStatus);
+  publishProgress(advisoryStatus);
   const finalPlan = await api.getPrepareMatter(matterName);
-  if (isStale()) return staleResult();
   const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: false }), 'advisory', 'done');
-  onProgress(finalStatus);
+  publishProgress(finalStatus);
   if (firstBlockedStage(finalPlan)) {
     return {
       state: 'blocked',
@@ -192,7 +198,7 @@ async function runFullPreparation({
 export async function runPreparationStage(
   stageOrSlash: PreparationStage | string,
   matterName?: string,
-  options: { forceExtractRefresh?: boolean } = {},
+  options: { forceExtractRefresh?: boolean; forceListOfDatesRegeneration?: boolean } = {},
 ) {
   const stage = typeof stageOrSlash === 'string' ? { slash: stageOrSlash, label: cleanCommandLabel(stageOrSlash), state: '', action: '' } : stageOrSlash;
   const body = { matterName };
@@ -200,7 +206,7 @@ export async function runPreparationStage(
   if (stage.slash === '/extract') return api.runExtract({ ...body, forceRefresh: options.forceExtractRefresh === true });
   if (stage.slash === '/describe_sources') return api.runDescribeSources(body);
   if (stage.slash === '/create_listofdates') {
-    if (stage.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+    if (!options.forceListOfDatesRegeneration && stage.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return api.refreshListOfDatesLabels({ matterName, dryRun: false });
     }
     return api.runCreateListOfDates(body);
