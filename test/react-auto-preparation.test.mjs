@@ -72,6 +72,8 @@ test("React matter overview can force a full preparation rerun", async () => {
   assert.match(mainContent, /onRunPreparationAgain: \(matterName: string\) => void/);
   assert.match(homeLanding, /<MatterOverview onCommand=\{onCommand\} onRunPreparationAgain=\{onRunPreparationAgain\} \/>/);
   assert.match(overview, /Run preparation again/);
+  assert.match(overview, /matter-preparation-title[\s\S]*Matter Preparation[\s\S]*preparationHeadlineLabel/);
+  assert.match(overview, /matter-preparation-actions[\s\S]*Run preparation again/);
   assert.match(overview, /disabled=\{preparationRun\?\.state === 'running'\}/);
   assert.match(overview, /onRunPreparationAgain\(matterName\)/);
 });

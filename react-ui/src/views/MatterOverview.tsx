@@ -130,7 +130,12 @@ function PipelineCard({
   return (
     <section className="matter-pipeline-card">
       <div className="matter-preparation-heading">
-        <h2>Matter Preparation</h2>
+        <div className="matter-preparation-title">
+          <h2>Matter Preparation</h2>
+          <span className={`pipeline-state ${preparationHeadlineClass({ preparationRun, stages, error })}`}>
+            {preparationHeadlineLabel({ preparationRun, stages, error })}
+          </span>
+        </div>
         <div className="matter-preparation-actions">
           <button
             type="button"
@@ -140,9 +145,6 @@ function PipelineCard({
           >
             Run preparation again
           </button>
-          <span className={`pipeline-state ${preparationHeadlineClass({ preparationRun, stages, error })}`}>
-            {preparationHeadlineLabel({ preparationRun, stages, error })}
-          </span>
         </div>
       </div>
       <p className="muted">

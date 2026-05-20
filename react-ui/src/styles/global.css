@@ -618,6 +618,7 @@ strong { font-weight: 600; }
 .matter-info-card dt:last-of-type, .matter-info-card dd:last-of-type { border-bottom: 0; }
 .matter-pipeline-card { max-width: 780px; margin: 16px 0 24px; padding: 18px; border-radius: 5px; background: var(--panel); border: 1px solid var(--border); }
 .matter-preparation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.matter-preparation-title { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; min-width: 0; }
 .matter-preparation-heading h2 { margin-bottom: 0; }
 .matter-preparation-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .preparation-progress { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
@@ -690,7 +691,10 @@ strong { font-weight: 600; }
 .active-custom-skill-run span { color: var(--muted); }
 .run-skill-button { border: 1px solid var(--accent-border); background: var(--accent); color: var(--on-accent); border-radius: 4px; padding: 10px 16px; cursor: pointer; font: inherit; font-weight: 600; }
 .run-skill-button:hover { background: var(--run-hover-bg); }
+.run-skill-button:disabled { cursor: default; opacity: 0.58; }
+.run-skill-button:disabled:hover { background: var(--accent); }
 .run-skill-button.secondary { background: var(--input-bg); color: var(--text); border: 1px solid var(--input-border); font-weight: 500; }
+.run-skill-button.secondary:disabled:hover { background: var(--input-bg); }
 
 /* ─── Activity page ─────────────────────────────────────── */
 .activity-page { max-width: 860px; }
