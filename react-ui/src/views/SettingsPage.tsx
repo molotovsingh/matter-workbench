@@ -314,7 +314,7 @@ export default function SettingsPage() {
 
               <div className="form-actions">
                 <button type="submit" disabled={copilotSaving}>
-                  {copilotSaving ? 'Saving…' : 'Save Copilot model'}
+                  {copilotSaving ? 'Testing model…' : 'Test and save Copilot model'}
                 </button>
               </div>
             </form>

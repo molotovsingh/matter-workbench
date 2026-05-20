@@ -78,6 +78,19 @@ test("AI settings expose read-only provider status without secrets", async () =>
 });
 
 test("AI settings save Matter Copilot routing without changing global AI defaults", async () => {
+  const bodies = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      bodies.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ok: true }) } }] }));
+    });
+  });
+
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
   await writeFile(path.join(appDir, ".env"), [
     "OPENAI_API_KEY=sk-openai-existing",
@@ -91,12 +104,24 @@ test("AI settings save Matter Copilot routing without changing global AI default
     OPENAI_MODEL: "gpt-existing",
     OPENAI_MAX_OUTPUT_TOKENS: "2048",
   };
-  const service = createAiSettingsService({ appDir, env });
-  const saved = await service.saveSettings({
-    copilotProvider: "openrouter",
-    copilotModel: "anthropic/claude-sonnet-4.5",
-    copilotApiKey: "sk-or-v1-test",
-  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  let saved;
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+    });
+    saved = await service.saveSettings({
+      copilotProvider: "openrouter",
+      copilotModel: "anthropic/claude-sonnet-4.5",
+      copilotApiKey: "sk-or-v1-test",
+    });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 
   assert.equal(env.OPENAI_MODEL, "gpt-existing");
   assert.equal(env.OPENAI_MAX_OUTPUT_TOKENS, "2048");
@@ -116,6 +141,102 @@ test("AI settings save Matter Copilot routing without changing global AI default
   assert.match(text, /COPILOT_ANSWER_PROVIDER=openrouter/);
   assert.match(text, /OPENROUTER_COPILOT_ANSWER_MODEL=anthropic\/claude-sonnet-4\.5/);
   assert.match(text, /OPENROUTER_API_KEY=sk-or-v1-test/);
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].model, "anthropic/claude-sonnet-4.5");
+  assert.equal(bodies[0].provider.allow_fallbacks, false);
+  assert.equal(bodies[0].provider.require_parameters, true);
+  assert.equal(bodies[0].response_format.type, "json_schema");
+});
+
+test("AI settings do not persist Matter Copilot switch when model ping fails", async () => {
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: "model not available" } }));
+    });
+  });
+
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), [
+    "OPENAI_API_KEY=sk-openai-existing",
+    "OPENAI_MODEL=gpt-existing",
+    "",
+  ].join("\n"));
+  const env = {
+    OPENAI_API_KEY: "sk-openai-existing",
+    OPENAI_MODEL: "gpt-existing",
+  };
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+    });
+    await assert.rejects(
+      () => service.saveSettings({
+        copilotProvider: "openrouter",
+        copilotModel: "anthropic/claude-sonnet-4.5",
+        copilotApiKey: "sk-or-v1-test",
+      }),
+      /Matter Copilot model check failed: model not available/,
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  assert.equal(env.COPILOT_ANSWER_PROVIDER, undefined);
+  assert.equal(env.OPENROUTER_COPILOT_ANSWER_MODEL, undefined);
+  assert.equal(env.OPENROUTER_API_KEY, undefined);
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.doesNotMatch(text, /COPILOT_ANSWER_PROVIDER/);
+  assert.doesNotMatch(text, /OPENROUTER_COPILOT_ANSWER_MODEL/);
+  assert.doesNotMatch(text, /OPENROUTER_API_KEY/);
+});
+
+test("AI settings reject Matter Copilot switch when OpenRouter returns a choice error", async () => {
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        choices: [
+          { error: { message: "structured outputs unavailable for selected provider" } },
+        ],
+      }));
+    });
+  });
+
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), "OPENAI_MODEL=gpt-existing\n");
+  const env = { OPENROUTER_API_KEY: "sk-or-v1-existing" };
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+    });
+    await assert.rejects(
+      () => service.saveSettings({
+        copilotProvider: "openrouter",
+        copilotModel: "anthropic/claude-sonnet-4.5",
+      }),
+      /structured outputs unavailable/,
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  assert.equal(env.COPILOT_ANSWER_PROVIDER, undefined);
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.doesNotMatch(text, /COPILOT_ANSWER_PROVIDER/);
 });
 
 test("AI settings test connection sends a tiny server-side OpenAI request", async () => {
