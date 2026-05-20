@@ -10,6 +10,7 @@ import { getErrorMessage } from './lib/errors';
 import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
+import { localAssistantReply } from './lib/assistantSmallTalk';
 import { useLatestValue } from './hooks/useLatestValue';
 import type { ActiveView } from './types';
 
@@ -92,6 +93,13 @@ function AppShell() {
 
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
+    const localReply = localAssistantReply(cmd, Boolean(state.activeMatter));
+    if (localReply) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: localReply });
+      appendTerminal(['[assistant] local reply']);
+      return;
+    }
+
     const askQuestion = parseAskCommand(cmd);
     if (askQuestion) {
       await answerMatterQuestion(askQuestion);
