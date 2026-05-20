@@ -11,5 +11,7 @@ test("React command fallback ignores stale intent results after matter changes",
   assert.match(source, /const matterName = state\.activeMatter\?\.name \?\? null/);
   assert.match(source, /api\.checkIntent\(\{ userRequest: cmd, matterName: matterName \?\? undefined \}\)/);
   assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*if \(result\.decision === 'run_existing_skill'/);
+  assert.match(source, /result\.decision === 'transient_copilot'/);
+  assert.match(source, /answerMatterQuestion\(cmd, \{ matterName, manageRunning: false \}\)/);
   assert.match(source, /catch \(e\) \{\s*if \(activeMatterNameRef\.current !== matterName\) return;/);
 });

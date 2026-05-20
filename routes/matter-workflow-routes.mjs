@@ -11,6 +11,7 @@ import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
 export async function handleMatterWorkflowApiRequest({ request, requestUrl, response, services }) {
   const {
     matterAttentionService,
+    matterCopilotService,
     matterContextService,
     matterStore,
     matterStatusService,
@@ -119,6 +120,14 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       exactRoute("GET", "/api/matter-context", async () => {
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterContextService.readMatterContextPreview(root));
+      }),
+      exactRoute("POST", "/api/matter-copilot/answer", async () => {
+        const body = await readRequestJson(request);
+        const root = await matterRootForBody(matterStore, body);
+        sendJson(response, 200, await matterCopilotService.answerQuestion({
+          root,
+          question: body.question,
+        }));
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
         const root = await matterRootForQuery(matterStore, requestUrl);

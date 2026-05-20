@@ -21,6 +21,7 @@ import type {
   MatterSkillRunRequest,
   MatterContextPreview,
   MatterContextSearchResponse,
+  MatterCopilotAnswer,
   MatterAttention,
   MatterStatus,
   PreparationPlan,
@@ -215,6 +216,8 @@ export const api = {
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
   getMatterContext: (matterName?: string) => getJson<MatterContextPreview>(withQuery('/api/matter-context', { matter: matterName })),
   searchMatterContext: (query: string, matterName?: string) => getJson<MatterContextSearchResponse>(withQuery('/api/matter-context/search', { q: query, matter: matterName })),
+  answerMatterQuestion: (body: { question: string; matterName?: string }) =>
+    postJson<MatterCopilotAnswer>('/api/matter-copilot/answer', body),
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),

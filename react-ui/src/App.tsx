@@ -7,6 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
+import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
 import { useLatestValue } from './hooks/useLatestValue';
@@ -19,6 +20,43 @@ function AppShell() {
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
+
+  const answerMatterQuestion = useCallback(async (
+    question: string,
+    {
+      matterName = state.activeMatter?.name ?? null,
+      manageRunning = true,
+    }: { matterName?: string | null; manageRunning?: boolean } = {},
+  ) => {
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion) return;
+    if (!matterName) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before asking a matter question.' });
+      appendTerminal(['[copilot] no active matter']);
+      return;
+    }
+    if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the bounded matter context…' });
+    appendTerminal(['[copilot] answering from bounded matter context']);
+    try {
+      const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName });
+      if (activeMatterNameRef.current !== matterName) return;
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotAnswer(answer) });
+      appendTerminal([
+        `[copilot] ${answer.answer_status} — ${(answer.sources || []).length} validated source(s)`,
+        answer.ai_run?.provider && answer.ai_run?.model
+          ? `[copilot] ${answer.ai_run.provider} / ${answer.ai_run.model}`
+          : '[copilot] provider metadata unavailable',
+      ]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
+      const message = getErrorMessage(e);
+      appendTerminal([`[copilot] failed: ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `I could not answer from the matter context: ${message}` });
+    } finally {
+      if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal]);
 
   useEffect(() => {
     setTheme(state.theme);
@@ -54,6 +92,11 @@ function AppShell() {
 
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
+    const askQuestion = parseAskCommand(cmd);
+    if (askQuestion) {
+      await answerMatterQuestion(askQuestion);
+      return;
+    }
 
     // Native skills open their workflow views directly; each view owns its
     // own API calls, rerun guards, and overwrite confirmation.
@@ -98,6 +141,9 @@ function AppShell() {
         } else {
           dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action || `Run ${result.matched_skill}` });
         }
+      } else if (result.decision === 'transient_copilot') {
+        appendTerminal(['[cmd] routed to copilot answer']);
+        await answerMatterQuestion(cmd, { matterName, manageRunning: false });
       } else if (result.suggested_next_action) {
         dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
       }
@@ -109,7 +155,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView]);
+  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion]);
 
   function handleSlashSkill(command: string) {
     handleCommand(command);
@@ -168,6 +214,7 @@ function AppShell() {
         commandPanel={
           <CommandPanel
             onCommand={handleCommand}
+            onTransientCopilotQuestion={(question) => answerMatterQuestion(question, { manageRunning: false })}
             reportText={reportText}
             onCopyReport={handleCopyReport}
           />

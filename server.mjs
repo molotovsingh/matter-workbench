@@ -6,6 +6,7 @@ import { createCommandInteractionLogService } from "./services/command-interacti
 import { createConfigService } from "./services/config-service.mjs";
 import { createConfigurableSkillRunsService } from "./services/configurable-skill-runs-service.mjs";
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
+import { createMatterCopilotService } from "./services/matter-copilot-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
@@ -42,6 +43,13 @@ export async function createWorkbenchServer(options = {}) {
   const matterStore = createMatterStore({
     configService,
     initialMatterRoot: options.matterRoot || env.MATTER_ROOT || null,
+  });
+  const matterCopilotService = createMatterCopilotService({
+    matterStore,
+    answerProvider: options.matterCopilotProvider || null,
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+    endpoint: options.matterCopilotEndpoint,
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
@@ -127,6 +135,7 @@ export async function createWorkbenchServer(options = {}) {
     configurableSkillsService,
     env,
     matterAttentionService,
+    matterCopilotService,
     matterStore,
     matterContextService,
     matterStatusService,

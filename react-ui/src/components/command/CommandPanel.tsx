@@ -22,11 +22,12 @@ const STATIC_SUGGESTIONS: CommandSuggestion[] = [
 
 interface Props {
   onCommand: (command: string) => void;
+  onTransientCopilotQuestion?: (question: string) => Promise<void> | void;
   reportText?: string | null;
   onCopyReport?: () => void;
 }
 
-export default function CommandPanel({ onCommand, reportText, onCopyReport }: Props) {
+export default function CommandPanel({ onCommand, onTransientCopilotQuestion, reportText, onCopyReport }: Props) {
   const { state, dispatch, appendTerminal, commandPanelRef } = useApp();
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
@@ -103,6 +104,9 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
         const decision = await api.checkIntent({ userRequest: cmd, matterName: matterName ?? undefined });
         if (shouldStartSkillIdeaSessionFromIntent(decision)) {
           setSkillIdeaInput(cmd);
+        } else if (decision.decision === 'transient_copilot' && onTransientCopilotQuestion) {
+          appendTerminal(['[skill-idea] routed to copilot answer']);
+          await onTransientCopilotQuestion(cmd);
         } else {
           dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(decision) });
           appendTerminal([`[skill-idea] routed away from new skill: ${decision.decision}`]);
@@ -122,7 +126,7 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
     } catch { /* fire-and-forget */ }
-  }, [input, state.isCommandRunning, state.activeMatter?.name, onCommand]);
+  }, [input, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
 
   return (
     <aside className="command-panel" aria-label="Command box">
@@ -220,7 +224,7 @@ export default function CommandPanel({ onCommand, reportText, onCopyReport }: Pr
       </div>
 
       <p className="command-panel-note" style={{ order: 7 }}>
-        Paid AI actions ask before running. New skills are tested with a sample before they can be used.
+        Source-backed answers and skill work may use paid AI. New skills are tested with a sample before they can be used.
       </p>
     </aside>
   );

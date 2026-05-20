@@ -652,6 +652,36 @@ export interface MatterContextSearchResponse {
   results?: MatterContextSearchResult[];
 }
 
+export interface MatterCopilotSource {
+  raw_citation?: string;
+  source_label?: string;
+  snippet?: string;
+}
+
+export interface MatterCopilotAnswer {
+  schema_version?: string;
+  answered_at?: string;
+  question: string;
+  answer_status: 'answered' | 'partial' | 'not_found' | 'blocked' | string;
+  answer_markdown: string;
+  confidence?: number;
+  sources?: MatterCopilotSource[];
+  warnings?: string[];
+  matter?: { matter_name?: string; folder_name?: string; [key: string]: unknown };
+  context?: {
+    packet_schema_version?: string;
+    evidence_blocks_included?: number;
+    evidence_blocks_omitted?: number;
+  };
+  ai_run?: {
+    provider?: string;
+    model?: string;
+    task?: string;
+    tier?: string;
+    policyPromptVersion?: string;
+  };
+}
+
 export interface PreparationStage {
   id?: string;
   label: string;

@@ -26,6 +26,12 @@ const AI_TASK_STATUS = [
     surface: "List of Dates chronology",
     modelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",
   },
+  {
+    task: AI_TASKS.COPILOT_ANSWER,
+    label: "Matter Copilot",
+    surface: "Source-backed matter Q&A",
+    modelEnvKey: "OPENAI_COPILOT_ANSWER_MODEL",
+  },
 ];
 
 export function createAiSettingsService({

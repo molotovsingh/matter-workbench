@@ -35,6 +35,10 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
     user_gate_required: true,
     matched_skill: "",
   }), false);
+  assert.match(
+    routing.formatIntentDiscoveryGuidance({ decision: "transient_copilot" }),
+    /answer from the active matter context/i,
+  );
 });
 
 test("React command panel checks backend intent before opening Skill Factory for skill-like text", async () => {

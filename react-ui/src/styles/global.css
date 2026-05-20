@@ -421,7 +421,7 @@ strong { font-weight: 600; }
 .command-panel-kicker, .command-panel-label { color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .command-panel h2 { margin: 4px 0 0; font-family: var(--display-font); font-size: 21px; font-weight: 600; line-height: 1.2; }
 .command-panel-copy, .command-panel-note { color: var(--muted-strong); line-height: 1.5; }
-.command-panel-copy { margin: 0; order: 1; }
+.command-panel-copy { margin: 0; order: 1; white-space: pre-line; }
 .command-panel-note { margin: 0; font-size: var(--font-size-sm); line-height: 1.4; order: 7; }
 .command-panel-examples { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; opacity: 0.82; order: 2; transition: opacity 120ms ease; }
 .command-panel-examples code {

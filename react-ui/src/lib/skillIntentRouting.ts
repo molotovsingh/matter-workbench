@@ -11,10 +11,10 @@ export function shouldStartSkillIdeaSessionFromIntent(decision: SkillRouterDecis
 
 export function formatIntentDiscoveryGuidance(decision: SkillRouterDecision | null | undefined): string {
   if (!decision) return 'Could not classify that request. Try again, or say whether this is a one-time task or a reusable skill.';
-  if (decision.suggested_next_action) return decision.suggested_next_action;
   if (decision.decision === 'transient_copilot') {
-    return 'This looks like a one-time matter task. Use the assistant for the immediate answer, or say you want a reusable skill for future matters.';
+    return 'This is a one-time matter question, not a reusable skill. I will answer from the active matter context and keep it chat-only.';
   }
+  if (decision.suggested_next_action) return decision.suggested_next_action;
   if (decision.decision === 'modify_existing_skill' || decision.recommended_action === 'modify_existing_skill') {
     return decision.matched_skill
       ? `This sounds like a change to ${decision.matched_skill}, not a new skill. Open Skills and modify the existing workflow.`

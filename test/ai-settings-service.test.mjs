@@ -58,7 +58,11 @@ test("AI settings expose read-only provider status without secrets", async () =>
   });
 
   const settings = service.readSettings();
-  assert.equal(settings.aiTasks.length, 3);
+  assert.equal(settings.aiTasks.length, 4);
+  const copilot = settings.aiTasks.find((task) => task.task === "copilot_answer");
+  assert.equal(copilot.label, "Matter Copilot");
+  assert.equal(copilot.provider, "openai-direct");
+  assert.equal(copilot.ready, true);
   const listOfDates = settings.aiTasks.find((task) => task.task === "source_backed_analysis");
   assert.equal(listOfDates.label, "/create_listofdates");
   assert.equal(listOfDates.provider, "openrouter");
