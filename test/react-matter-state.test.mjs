@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const appContextPath = new URL("../react-ui/src/store/AppContext.tsx", import.meta.url);
+const activityBarPath = new URL("../react-ui/src/components/layout/ActivityBar.tsx", import.meta.url);
 
 test("React matter changes clear matter-scoped preview state", async () => {
   const source = await readFile(appContextPath, "utf8");
@@ -20,4 +21,13 @@ test("React matter changes clear matter-scoped preview state", async () => {
     source,
     /const switchActiveMatter = useCallback[\s\S]*setActiveMatter\(activeMatter\);\s*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
   );
+});
+
+test("React rail Home clears the active matter before showing landing", async () => {
+  const source = await readFile(activityBarPath, "utf8");
+
+  assert.match(source, /if \(tabId === 'home' && state\.activeMatter\) \{/);
+  assert.match(source, /await api\.clearActiveMatter\(\)/);
+  assert.match(source, /clearActiveMatter\(\)/);
+  assert.match(source, /dispatch\(\{ type: 'SET_TAB', payload: tabId \}\)/);
 });

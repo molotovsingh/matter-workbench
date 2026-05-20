@@ -1,4 +1,6 @@
 import { useApp } from '../../store/AppContext';
+import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import type { ActiveTab } from '../../types';
 
 const TABS: Array<{ id: ActiveTab; icon: string; label: string }> = [
@@ -9,7 +11,19 @@ const TABS: Array<{ id: ActiveTab; icon: string; label: string }> = [
 ];
 
 export default function ActivityBar() {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, clearActiveMatter, appendTerminal } = useApp();
+
+  async function handleTabClick(tabId: ActiveTab) {
+    if (tabId === 'home' && state.activeMatter) {
+      try {
+        await api.clearActiveMatter();
+      } catch (e) {
+        appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(e)}`]);
+      }
+      clearActiveMatter();
+    }
+    dispatch({ type: 'SET_TAB', payload: tabId });
+  }
 
   return (
     <aside className="activity-bar">
@@ -23,7 +37,7 @@ export default function ActivityBar() {
           className={`activity-item${state.activeTab === tab.id ? ' active' : ''}`}
           type="button"
           title={tab.label}
-          onClick={() => dispatch({ type: 'SET_TAB', payload: tab.id })}
+          onClick={() => { void handleTabClick(tab.id); }}
         >
           <span className="activity-icon" aria-hidden="true">{tab.icon}</span>
           <span className="activity-label">{tab.label}</span>
