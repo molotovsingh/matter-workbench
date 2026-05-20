@@ -460,10 +460,11 @@ strong { font-weight: 600; }
 .command-panel-copy::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .command-panel-note { margin: 0; font-size: var(--font-size-sm); line-height: 1.4; order: 7; }
 .command-panel-examples { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; opacity: 0.82; order: 2; transition: opacity 120ms ease; }
-.command-panel-examples code {
+.command-panel-examples button {
   border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--muted-strong);
-  cursor: default; font-family: inherit; font-weight: 500; padding: 5px 11px; font-size: var(--font-size-sm);
+  cursor: pointer; font-family: inherit; font-weight: 500; padding: 5px 11px; font-size: var(--font-size-sm);
 }
+.command-panel-examples button:disabled { cursor: default; opacity: 0.58; }
 .command-panel:focus-within .command-panel-examples { opacity: 1; }
 .ai-command-form { display: flex; flex-direction: column; gap: 7px; margin-top: auto; order: 4; }
 .command-panel-input-row { display: flex; align-items: center; gap: 8px; }
@@ -555,6 +556,11 @@ strong { font-weight: 600; }
 .home-quick-actions { display: grid; gap: 10px; padding: 0 18px 18px; }
 .home-quick-actions button { border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; display: grid; gap: 3px; padding: 14px 16px; text-align: left; }
 .home-quick-actions span { color: var(--muted); font-size: var(--font-size-sm); }
+.home-matter-browser { margin-top: 28px; max-width: 760px; overflow: hidden; }
+.home-matter-browser-search { border-top: 1px solid var(--border-subtle); padding: 14px 18px 16px; }
+.home-matter-browser-search label { display: block; color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.08em; margin-bottom: 6px; text-transform: uppercase; }
+.home-matter-browser-search input { width: 100%; border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-bg); color: var(--text); font: inherit; padding: 10px 12px; }
+.home-matter-empty { color: var(--muted); font-size: var(--font-size-ui); padding: 14px 18px; }
 .home-activity-list { padding: 0 18px 18px; }
 .home-activity-list li { color: var(--muted-strong); font-size: var(--font-size-ui); padding: 7px 0; }
 .home-matter-search-panel { margin-top: 20px; max-width: 560px; }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { getErrorMessage } from '../lib/errors';
 import type { Matter } from '../types';
@@ -17,17 +17,45 @@ interface Props {
   onViewAllMatters: () => void;
   onCommand: (command: string) => void;
   onRunPreparationAgain: (matterName: string) => void;
+  showMatterBrowser?: boolean;
 }
 
-export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatters, onCommand, onRunPreparationAgain }: Props) {
+export default function HomeLanding({
+  onNewMatter,
+  onOpenMatter,
+  onViewAllMatters,
+  onCommand,
+  onRunPreparationAgain,
+  showMatterBrowser = false,
+}: Props) {
   const { state, dispatch, switchActiveMatter } = useApp();
   const { matters, resumeMatterName, activeMatter } = state;
   const [loading, setLoading] = useState(false);
+  const [matterBrowserOpen, setMatterBrowserOpen] = useState(showMatterBrowser);
+  const [matterQuery, setMatterQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   const canResume = Boolean(
     resumeMatterName && matters.some((m: Matter) => m.name === resumeMatterName),
   );
   const preview = matters.slice(0, 3);
+  const browserMatters = useMemo(() => {
+    const q = matterQuery.trim().toLowerCase();
+    if (!q) return matters;
+    return matters.filter((m: Matter) => [
+      m.name,
+      m.clientName,
+      m.matterType,
+      m.status,
+      m.folderPath,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(q)));
+  }, [matters, matterQuery]);
+
+  useEffect(() => {
+    if (!showMatterBrowser) return;
+    setMatterBrowserOpen(true);
+    window.setTimeout(() => searchRef.current?.focus(), 0);
+  }, [showMatterBrowser]);
 
   async function handleOpenMatter(name: string) {
     if (loading) return;
@@ -44,6 +72,12 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleShowMatterBrowser() {
+    onViewAllMatters();
+    setMatterBrowserOpen(true);
+    window.setTimeout(() => searchRef.current?.focus(), 0);
   }
 
   if (activeMatter) {
@@ -94,7 +128,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
           ) : (
             <p className="muted" style={{ padding: '14px 18px' }}>No matters yet.</p>
           )}
-          <button className="home-card-link" type="button" onClick={onViewAllMatters}>
+          <button className="home-card-link" type="button" onClick={handleShowMatterBrowser}>
             View all matters →
           </button>
         </section>
@@ -104,7 +138,7 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
             <h2>Quick actions</h2>
           </div>
           <div className="home-quick-actions">
-            <button type="button" onClick={onViewAllMatters}>
+            <button type="button" onClick={handleShowMatterBrowser}>
               <strong>Find a matter</strong>
               <span>Browse and open an existing matter</span>
             </button>
@@ -115,6 +149,40 @@ export default function HomeLanding({ onNewMatter, onOpenMatter, onViewAllMatter
           </div>
         </section>
       </div>
+
+      {matterBrowserOpen && (
+        <section className="home-card home-matter-browser" aria-label="Find a matter">
+          <div className="home-card-header">
+            <h2>Find a matter</h2>
+            <span>{matterQuery ? `${browserMatters.length} of ${matters.length}` : `${matters.length} total`}</span>
+          </div>
+          <div className="home-matter-browser-search">
+            <label htmlFor="homeMatterSearch">Search matters</label>
+            <input
+              id="homeMatterSearch"
+              ref={searchRef}
+              type="search"
+              placeholder="Search by matter, client, type, or folder"
+              value={matterQuery}
+              onChange={(e) => setMatterQuery(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <ul className="home-matter-list">
+            {browserMatters.length > 0 ? browserMatters.map((m) => (
+              <li key={m.name}>
+                <button type="button" onClick={() => handleOpenMatter(m.name)} disabled={loading}>
+                  <span className="home-matter-dot" aria-hidden="true" />
+                  <strong>{m.name}</strong>
+                </button>
+              </li>
+            )) : (
+              <li className="home-matter-empty">No matters found.</li>
+            )}
+          </ul>
+        </section>
+      )}
     </section>
   );
 }

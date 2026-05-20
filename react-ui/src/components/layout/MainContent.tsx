@@ -177,6 +177,7 @@ export default function MainContent({
             onViewAllMatters={onViewAllMatters}
             onCommand={onCommand}
             onRunPreparationAgain={onRunPreparationAgain}
+            showMatterBrowser={activeView === 'find-matter'}
           />
         );
     }

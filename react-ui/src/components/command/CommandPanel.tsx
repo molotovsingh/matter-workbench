@@ -110,6 +110,19 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
     setActiveSuggestion(-1);
   }
 
+  function runExampleCommand(command: string) {
+    if (state.isCommandRunning) return;
+    setInput('');
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
+    if (command === 'new skill') {
+      setSkillIdeaInput(command);
+      return;
+    }
+    onCommand(command);
+    void api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
+  }
+
   async function handleCopilotModelChange(value: string) {
     const preset = COPILOT_MODEL_PRESETS.find((candidate) => copilotPresetValue(candidate.provider, candidate.model) === value);
     if (!preset || copilotSwitching) return;
@@ -229,9 +242,16 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
       </p>
 
       <div className="command-panel-examples" style={{ order: 3 }} aria-label="Command examples">
-        <code>new skill</code>
-        <code>find a matter</code>
-        <code>prepare matter</code>
+        {['new skill', 'find a matter', 'prepare matter'].map((command) => (
+          <button
+            key={command}
+            type="button"
+            onClick={() => runExampleCommand(command)}
+            disabled={state.isCommandRunning}
+          >
+            {command}
+          </button>
+        ))}
       </div>
 
       {/* Skill idea interview session */}

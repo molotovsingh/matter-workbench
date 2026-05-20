@@ -746,6 +746,7 @@ export interface PreparationRunStatus {
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
 export type ActiveView =
   | 'home'
+  | 'find-matter'
   | 'new-matter'
   | 'add-files'
   | 'file-preview'

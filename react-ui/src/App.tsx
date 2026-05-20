@@ -16,7 +16,7 @@ import { useLatestValue } from './hooks/useLatestValue';
 import type { ActiveView } from './types';
 
 function AppShell() {
-  const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace, clearActiveMatter } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const preparationRunSeqRef = useRef(0);
@@ -157,6 +157,20 @@ function AppShell() {
     }
   }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal]);
 
+  const openMatterFinder = useCallback(async () => {
+    if (state.activeMatter) {
+      try {
+        await api.clearActiveMatter();
+      } catch (e) {
+        appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(e)}`]);
+      }
+      clearActiveMatter();
+    }
+    dispatch({ type: 'SET_TAB', payload: 'home' });
+    dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
+    setActiveView('find-matter');
+  }, [appendTerminal, clearActiveMatter, dispatch, setActiveView, state.activeMatter]);
+
   useEffect(() => {
     setTheme(state.theme);
   }, [setTheme, state.theme]);
@@ -226,9 +240,7 @@ function AppShell() {
     }
 
     if (lower.includes('find a matter') || lower.includes('search matter')) {
-      dispatch({ type: 'SET_TAB', payload: 'home' });
-      dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
-      setActiveView('home');
+      await openMatterFinder();
       return;
     }
 
@@ -261,7 +273,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion]);
+  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder]);
 
   function handleSlashSkill(command: string) {
     handleCommand(command);
@@ -323,7 +335,7 @@ function AppShell() {
       <MainContent
         onNewMatter={() => setActiveView('new-matter')}
         onMatterCreated={handleMatterCreated}
-        onViewAllMatters={() => { setActiveView('home'); dispatch({ type: 'SET_TAB', payload: 'home' }); }}
+        onViewAllMatters={() => { void openMatterFinder(); }}
         onOpenMatter={handleOpenMatter}
         onAddFilesDone={handleAddFilesDone}
         onCommand={handleCommand}
