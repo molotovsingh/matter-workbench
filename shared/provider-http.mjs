@@ -41,14 +41,14 @@ export async function fetchProviderJsonWithTimeout({
   }
   if (isErrorPayload({ response, payload })) {
     if (mapProviderError) throw mapProviderError(response, payload);
-    const message = payload?.error?.message || `Provider returned ${response?.status || "an error"}`;
+    const message = formatProviderErrorMessage(response, payload);
     throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503);
   }
   return payload;
 }
 
 function defaultProviderErrorPredicate({ response, payload }) {
-  return !response.ok || Boolean(payload?.error);
+  return !response.ok || Boolean(payload?.error) || Boolean(firstChoiceError(payload));
 }
 
 export function parseOpenAiJsonOutput(payload, label) {
@@ -68,6 +68,8 @@ export function extractOpenAiOutputText(payload, label) {
 }
 
 export function parseOpenRouterJsonMessage(payload, label) {
+  const choiceError = firstChoiceError(payload);
+  if (choiceError) throw makeHttpError(formatProviderErrorMessage(null, { error: choiceError }), 502);
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string") {
     try {
@@ -78,6 +80,47 @@ export function parseOpenRouterJsonMessage(payload, label) {
   }
   if (content && typeof content === "object") return content;
   throw makeHttpError(`${label} response did not include JSON message content`, 502);
+}
+
+function formatProviderErrorMessage(response, payload) {
+  const error = payload?.error;
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (error && typeof error === "object") {
+    if (typeof error.message === "string" && error.message.trim()) return error.message.trim();
+    const rawMessage = summarizeRawProviderError(error.metadata?.raw);
+    if (rawMessage) return rawMessage;
+  }
+  return `Provider returned ${response?.status || "an error"}`;
+}
+
+function firstChoiceError(payload) {
+  if (!Array.isArray(payload?.choices)) return null;
+  return payload.choices.find((choice) => choice?.error)?.error || null;
+}
+
+function summarizeRawProviderError(raw) {
+  if (!raw) return "";
+  if (typeof raw === "string") {
+    try {
+      return summarizeRawProviderError(JSON.parse(raw)) || truncateProviderError(raw);
+    } catch {
+      return truncateProviderError(raw);
+    }
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) return truncateProviderError(String(raw));
+  const message = raw?.error?.message || raw?.message || raw?.error;
+  if (typeof message === "string" && message.trim()) return truncateProviderError(message);
+  try {
+    return truncateProviderError(JSON.stringify(raw));
+  } catch {
+    return "";
+  }
+}
+
+function truncateProviderError(value, limit = 500) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit - 1)}...`;
 }
 
 export function extractOpenRouterMessageText(payload, label) {

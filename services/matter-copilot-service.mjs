@@ -22,8 +22,7 @@ export const MATTER_COPILOT_ANSWER_JSON_SCHEMA = Object.freeze({
     },
     confidence: {
       type: "number",
-      minimum: 0,
-      maximum: 1,
+      description: "Confidence from 0 to 1. The server clamps this value after provider output.",
     },
     sources: {
       type: "array",
