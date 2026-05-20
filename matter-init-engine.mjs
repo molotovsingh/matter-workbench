@@ -178,6 +178,18 @@ async function readExistingMatterJson(matterRoot) {
   }
 }
 
+function firstExistingIntake(existingMatter = {}) {
+  const intakes = Array.isArray(existingMatter.intakes) ? existingMatter.intakes : [];
+  if (intakes.length > 0) return intakes[0];
+  if (existingMatter.phase_1_intake) return existingMatter.phase_1_intake;
+  return null;
+}
+
+function basenameFromMatterPath(relativePath) {
+  if (typeof relativePath !== "string" || !relativePath.trim()) return "";
+  return path.basename(relativePath);
+}
+
 function resolvePaths(matterRoot, intakeDirName) {
   const intakeDir = path.join(matterRoot, "00_Inbox", intakeDirName);
   return {
@@ -215,12 +227,14 @@ export async function runMatterInit(options = {}) {
   const matterRoot = path.resolve(configuredMatterRoot);
   const metadata = options.metadata || {};
   const dryRun = Boolean(options.dryRun);
-  const intakeId = options.intakeId || INITIAL_INTAKE_ID;
-  const intakeDirName = options.intakeDirName || INITIAL_INTAKE_DIR_NAME;
+  const existingMatter = await readExistingMatterJson(matterRoot);
+  const defaultIntake = firstExistingIntake(existingMatter);
+  const intakeId = options.intakeId || defaultIntake?.intake_id || INITIAL_INTAKE_ID;
+  const intakeDirName = options.intakeDirName || basenameFromMatterPath(defaultIntake?.intake_dir) || INITIAL_INTAKE_DIR_NAME;
   const fileIdStart = Number.isFinite(options.fileIdStart) ? options.fileIdStart : 1;
   const priorHashes = options.priorHashes instanceof Map ? options.priorHashes : new Map();
-  const receivedDate = options.receivedDate || new Date().toISOString().slice(0, 10);
-  const intakeLabel = options.intakeLabel || (intakeDirName === INITIAL_INTAKE_DIR_NAME ? "Initial" : "");
+  const receivedDate = options.receivedDate || defaultIntake?.received_date || new Date().toISOString().slice(0, 10);
+  const intakeLabel = options.intakeLabel || defaultIntake?.label || (intakeDirName === INITIAL_INTAKE_DIR_NAME ? "Initial" : "");
   const paths = resolvePaths(matterRoot, intakeDirName);
   const workspaceLanes = await ensureWorkspaceLanes(matterRoot, dryRun);
   const rootStaging = await stageLooseRootFiles(paths, dryRun);
@@ -329,7 +343,6 @@ export async function runMatterInit(options = {}) {
     notes: "Deterministic copy-only intake. Source files are copied into the Inbox when needed; originals are not moved or modified.",
   }];
 
-  const existingMatter = await readExistingMatterJson(matterRoot);
   const newIntakeEntry = {
     intake_id: intakeId,
     engine_version: MATTER_INIT_ENGINE_VERSION,

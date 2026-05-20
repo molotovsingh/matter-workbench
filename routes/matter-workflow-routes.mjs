@@ -30,6 +30,10 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterRoot: root,
           metadata: body.metadata || {},
           dryRun: Boolean(body.dryRun),
+          intakeId: typeof body.intakeId === "string" && body.intakeId.trim() ? body.intakeId.trim() : undefined,
+          intakeDirName: typeof body.intakeDirName === "string" && body.intakeDirName.trim() ? body.intakeDirName.trim() : undefined,
+          intakeLabel: typeof body.intakeLabel === "string" && body.intakeLabel.trim() ? body.intakeLabel.trim() : undefined,
+          receivedDate: typeof body.receivedDate === "string" && body.receivedDate.trim() ? body.receivedDate.trim() : undefined,
         }));
       }),
       exactRoute("POST", "/api/extract", async () => {

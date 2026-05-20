@@ -171,6 +171,41 @@ test("matter-init preserves originals, classifies working copies, and records du
   );
 });
 
+test("matter-init rerun reuses recorded intake directory instead of legacy default", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-workbench-test-"));
+  const root = path.join(tmp, "matter");
+  const intakeDirName = "Intake 01 - 2026-05-17 Initial";
+  const sourceDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
+  await mkdir(sourceDir, { recursive: true });
+  await writeFile(path.join(sourceDir, "boarding-pass.txt"), "Flight disruption record.\n");
+
+  await runMatterInit({
+    matterRoot: root,
+    metadata: metadata(),
+    dryRun: false,
+    intakeId: "INTAKE-01",
+    intakeDirName,
+    intakeLabel: "Initial",
+    receivedDate: "2026-05-17",
+  });
+
+  const rerun = await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  assert.equal(rerun.intake.intake_dir_name, intakeDirName);
+  assert.equal(rerun.intake.received_date, "2026-05-17");
+  assert.equal(rerun.paths.sourceDir, "00_Inbox/Intake 01 - 2026-05-17 Initial/Source Files");
+  await stat(path.join(root, "00_Inbox", intakeDirName, "File Register.csv"));
+  await assert.rejects(
+    () => stat(path.join(root, "00_Inbox", "Intake 01 - Initial", "Source Files")),
+    { code: "ENOENT" },
+  );
+
+  const matterJson = JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
+  assert.equal(matterJson.intakes.length, 1);
+  assert.equal(matterJson.intakes[0].intake_dir, "00_Inbox/Intake 01 - 2026-05-17 Initial");
+  assert.equal(matterJson.intakes[0].source_dir, "00_Inbox/Intake 01 - 2026-05-17 Initial/Source Files");
+});
+
 test("matter-init ignores OS junk and Office lockfiles before file registration", async () => {
   const root = await makeMatterRoot();
   await writeFile(path.join(root, "Thumbs.db"), "root thumbnails");
