@@ -472,6 +472,8 @@ export interface ConfigurableSkillRunResult {
 
 export interface MatterSkillRunRequest {
   matterName?: string;
+  dryRun?: boolean;
+  forceRefresh?: boolean;
 }
 
 export interface DoctorFixRequest extends MatterSkillRunRequest {

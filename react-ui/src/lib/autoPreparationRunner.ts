@@ -159,7 +159,7 @@ async function runFullPreparation({
     onProgress(next);
     appendTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);
     try {
-      await runPreparationStage(stage, matterName);
+      await runPreparationStage(stage, matterName, { forceExtractRefresh: true });
       if (isStale()) return staleResult();
       appendTerminal([`[prepare] rerun complete: ${stageLabel(stage)}`]);
       next = markStageDone(next, stage);
@@ -197,11 +197,15 @@ async function runFullPreparation({
   };
 }
 
-export async function runPreparationStage(stageOrSlash: PreparationStage | string, matterName?: string) {
+export async function runPreparationStage(
+  stageOrSlash: PreparationStage | string,
+  matterName?: string,
+  options: { forceExtractRefresh?: boolean } = {},
+) {
   const stage = typeof stageOrSlash === 'string' ? { slash: stageOrSlash, label: cleanCommandLabel(stageOrSlash), state: '', action: '' } : stageOrSlash;
   const body = { matterName };
   if (stage.slash === '/matter-init') return api.runMatterInit(body);
-  if (stage.slash === '/extract') return api.runExtract(body);
+  if (stage.slash === '/extract') return api.runExtract({ ...body, forceRefresh: options.forceExtractRefresh === true });
   if (stage.slash === '/describe_sources') return api.runDescribeSources(body);
   if (stage.slash === '/create_listofdates') {
     if (stage.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {

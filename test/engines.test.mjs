@@ -254,6 +254,19 @@ test("extraction cache is keyed on file register sha256", async () => {
   assert.equal(cached.counts.cached, 1);
 });
 
+test("extract force refresh bypasses existing extraction cache", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "note.txt", "Refresh me");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+
+  const forced = await runExtract({ matterRoot: root, dryRun: false, forceRefresh: true });
+
+  assert.equal(forced.counts.cached, 0);
+  assert.equal(forced.counts.extracted, 1);
+  assert.match(forced.outputLines.join("\n"), /\/extract --force-refresh/);
+});
+
 test("extract can use injected OCR provider for scanned PDFs while preserving page block citations", async () => {
   const root = await makeMatterRoot();
   await writeBlankPdf(await writeSource(root, "scanned-notice.pdf", ""));

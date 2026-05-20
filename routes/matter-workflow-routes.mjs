@@ -38,6 +38,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runExtract({
           matterRoot: root,
           dryRun: Boolean(body.dryRun),
+          forceRefresh: Boolean(body.forceRefresh),
           intakeFilter: typeof body.intakeId === "string" && body.intakeId.trim()
             ? body.intakeId.trim()
             : null,

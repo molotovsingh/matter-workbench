@@ -76,6 +76,7 @@ async function readJsonIfExists(filePath) {
 }
 
 function canUseCachedExtraction(cached, row, route, options) {
+  if (options.forceRefresh) return false;
   if (!cached || cached.sha256 !== row.sha256) return false;
   if (route.fingerprint === PDF_ENGINE_FINGERPRINT && typeof options.ocrProvider === "function") {
     const pages = Array.isArray(cached.pages) ? cached.pages : [];
@@ -141,6 +142,7 @@ export async function runExtract(options = {}) {
 
   const dryRun = Boolean(options.dryRun);
   const intakeFilter = options.intakeFilter || null;
+  const forceRefresh = Boolean(options.forceRefresh);
   const ocrProvider = resolveOcrProvider(options);
 
   const matterJsonPath = path.join(matterRoot, "matter.json");
@@ -176,7 +178,7 @@ export async function runExtract(options = {}) {
     ocrRequiredFiles: 0,
     failed: 0,
   };
-  const outputLines = [`> workbench.run /extract${dryRun ? " (dry-run)" : ""}`];
+  const outputLines = [`> workbench.run /extract${forceRefresh ? " --force-refresh" : ""}${dryRun ? " (dry-run)" : ""}`];
   const perIntake = [];
   const fileResults = [];
 
@@ -207,6 +209,7 @@ export async function runExtract(options = {}) {
         matterRoot,
         extractedDir,
         dryRun,
+        forceRefresh,
         ocrProvider,
       }),
     );
@@ -303,6 +306,7 @@ async function processRegisterRow({
   matterRoot,
   extractedDir,
   dryRun,
+  forceRefresh,
   ocrProvider,
 }) {
   const baseLogRow = {
@@ -351,7 +355,7 @@ async function processRegisterRow({
 
   const recordPath = path.join(extractedDir, `${row.file_id}.json`);
   const cached = await readJsonIfExists(recordPath);
-  if (cached && canUseCachedExtraction(cached, row, route, { ocrProvider })) {
+  if (cached && canUseCachedExtraction(cached, row, route, { ocrProvider, forceRefresh })) {
     return {
       disposition: "cached",
       logRow: {
