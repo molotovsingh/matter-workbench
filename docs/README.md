@@ -33,6 +33,7 @@ Treat edits here as contract edits.
 | [Dependency States and Staleness](contracts/dependency-states-and-staleness.md) | Canonical List of Dates dependency states for label refresh, review, and regeneration. |
 | [Custom Skill Governance](contracts/custom-skill-governance.md) | Canonical no-silent-mutation path for skill ideas, samples, validation, and versions. |
 | [Diagnostic Surfaces](contracts/diagnostic-surfaces.md) | Canonical boundary between matter-level attention and app/system health. |
+| [Model Task Boundaries](contracts/model-task-boundaries.md) | Canonical boundary between Copilot model choice and app-owned model policy. |
 | [Create List of Dates Two-Pass](create-listofdates-two-pass-contract.md) | Two-pass chronology behavior and artifact safety. |
 | [Model Routing](model-routing.md) | Provider/task routing and model policy. |
 | [OCR Strategy](ocr-strategy.md) | OCR-first PDF extraction posture. |

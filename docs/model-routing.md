@@ -31,6 +31,8 @@ As of the current implementation, the app has:
 - `shared/ai-provider-policy.mjs` for request-ready provider config and metadata.
 - `create-listofdates-engine.mjs` using OpenAI direct by default and an explicit OpenRouter path when configured.
 - `source-descriptors-engine.mjs` using OpenRouter for `source_description`.
+- `services/matter-copilot-service.mjs` using `copilot_answer` policy for
+  transient matter Q&A.
 - `services/skill-router-service.mjs` using OpenAI direct for skill intent routing.
 - `skills/registry.json` describing current skills, but not yet declaring model policy.
 
@@ -193,6 +195,7 @@ The first implementation does not need all tiers. It can start with `router` and
 | `/extract` | None | deterministic |
 | `/create_listofdates` | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `source_backed_analysis` |
 | `/describe_sources` | OpenRouter Chat Completions, structured JSON | `source_description` |
+| Matter Copilot | OpenRouter by default for transient answers, with pinged selector presets | `copilot_answer` |
 | `/doctor` | None | deterministic |
 | Skill router | OpenAI Responses, structured JSON | `router` |
 

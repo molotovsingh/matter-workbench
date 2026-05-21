@@ -1,12 +1,15 @@
 # Future Design Decision: Model-To-App Task Policy
 
 Date: 2026-05-19
-Status: Parked future feature, deep-review updated 2026-05-19
+Status: Current boundary partly landed; broader selector policy parked
+
+Current canonical contract:
+[Model Task Boundaries](../contracts/model-task-boundaries.md).
 
 ## Why This Exists
 
-V2 has a useful product lesson that V1 should preserve before any broader
-model selector or copilot model menu is added:
+V2 had a useful product lesson that V1 needed to preserve before any broader
+model selector was allowed:
 
 ```text
 Models are replaceable. Legal-output rules and task boundaries are not.
@@ -27,15 +30,29 @@ For example:
 
 That is the failure mode this future feature should prevent.
 
+## Current V1 Status
+
+The first narrow slice has now landed in V1:
+
+- `shared/model-policy.mjs` includes `AI_TASKS.COPILOT_ANSWER`;
+- the visible selector is scoped to transient Matter Copilot answers;
+- model switches are pinged before they are accepted;
+- failed pings keep the previous model;
+- durable skills and source-backed artifacts still resolve model/provider
+  through app-owned task policy.
+
+The canonical rule now lives in
+[Model Task Boundaries](../contracts/model-task-boundaries.md). This note is
+kept as the product rationale and backlog for any broader selector work.
+
 ## Deep Review Correction
 
 Do not treat this note as a simple port of V2.
 
-V2 already has a narrow Unibox model selector for matter Q&A, plus tests proving
-that `/new_skill` ignores that selected copilot model. V1 does not yet have the
-same dedicated `matter_qa` / `copilot_answer` task class. V1 has strong
-native-skill policy work in several places, but a future copilot selector would
-still need new task boundaries and tests before it is safe.
+V2 already had a narrow Unibox model selector for matter Q&A, plus tests proving
+that `/new_skill` ignores that selected copilot model. V1 now has its own
+`copilot_answer` task class and selector boundary. Any broader selector still
+needs task boundaries and tests before it is safe.
 
 The deeper rule is also more nuanced than:
 
@@ -82,14 +99,13 @@ spine:
 So the future work is not "invent model policy." The future work is to protect
 that model policy when V1 grows a broader copilot/model-choice surface.
 
-Current V1 gaps that matter before a selector ships:
+Current V1 gaps that matter before broader selector expansion:
 
-- there is no dedicated `AI_TASKS.MATTER_QA` or `AI_TASKS.COPILOT_ANSWER`
-  task in `shared/model-policy.mjs`;
 - Settings shows only a small task-status subset, not every model-policy task;
-- no visible user model selector exists in V1 yet;
-- V1 should not add one until exact slash commands, skill design, skill
-  execution, and native artifacts are all proven isolated from that selector.
+- draft-amendment/copilot-strategy tasks need their own task policy before they
+  can safely share or override the Copilot answer selector;
+- any broader selector must prove exact slash commands, skill design, skill
+  execution, and native artifacts remain isolated from that selector.
 
 Deep-review fix landed with this note: `/api/create-listofdates` no longer
 accepts a request-body `model` override on the OpenAI-direct route. Durable List
@@ -148,7 +164,7 @@ The hierarchy should be:
 
 ## Product Rule
 
-If V1 adds a visible model selector, name and scope it honestly.
+When V1 shows a visible model selector, name and scope it honestly.
 
 Prefer:
 
@@ -168,7 +184,7 @@ copilot answers.
 
 ## Future Runtime Shape
 
-The future runtime should look like:
+The runtime should keep this shape:
 
 ```text
 user action
@@ -191,10 +207,10 @@ Skill design uses the configured skill-design model.
 Source-backed artifacts use the configured legal-workbench policy.
 ```
 
-## Acceptance Criteria Before Any Copilot Model Selector Ships
+## Acceptance Criteria For Copilot Model Selection
 
-- V1 has an explicit `copilot_answer` / `matter_qa` task policy before any
-  selectable model is accepted from the UI.
+- V1 has an explicit `copilot_answer` task policy before any selectable model is
+  accepted from the UI.
 - Exact slash commands remain deterministic first.
 - The selected copilot model is sent only to matter Q&A / copilot answer calls.
 - `/new_skill` ignores the copilot answer selector.
@@ -207,7 +223,8 @@ Source-backed artifacts use the configured legal-workbench policy.
 - Native source-backed skills ignore the copilot answer selector.
 - Durable artifact routes do not accept request-body model overrides unless a
   separate admin-only route and policy explicitly allow it.
-- AI run metadata records the resolved task policy/model/provider actually used.
+- AI run metadata records the resolved task policy/model/provider actually used
+  where the current answer/artifact path supports it.
 - UI copy makes the boundary visible without asking lawyers to understand
   provider architecture.
 - Tests prove a selected cheap copilot model cannot leak into durable skill
@@ -229,8 +246,8 @@ Run a small controlled bakeoff:
 - no durable outputs;
 - record results under `docs/acceptance/` or a model-bakeoff note.
 
-Only after that evidence should a cheaper model become a default or recommended
-option for copilot answers.
+Only after that evidence should a cheaper model become a recommended default for
+legally meaningful Copilot answers.
 
 ## Relationship To Existing V1 Documents
 
@@ -268,12 +285,12 @@ This parked feature does not authorize:
 
 V1 should learn the clean v2 mental model, but not copy it blindly.
 
-The immediate decision is:
+The standing decision is:
 
 ```text
-Park model choice as a task-policy feature, not a settings-dropdown feature.
+Model choice is a task-policy feature, not a global settings-dropdown feature.
 ```
 
-When the time comes, the first build slice should be a narrow copilot answer
-selector with tests proving that durable skill design and source-backed artifact
-generation remain governed by app-owned task policy.
+The first build slice is now the narrow Copilot answer selector. The remaining
+parked work is any broader model-choice surface, especially draft amendment,
+strategy, validation, or source-backed artifact policy.
