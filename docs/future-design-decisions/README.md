@@ -59,7 +59,7 @@ The repetition across these notes is expected product-discovery residue, not a f
 | Dispatch boundary | Native Skill Library, Native Skill Implementation, Legal Policy, Lawyer Terminology | Canonicalized in [Artifact Visibility and Dispatch](../contracts/artifact-visibility-and-dispatch.md). `40_Dispatch` is a frozen send/file-ready boundary; further work starts from a new draft. |
 | No silent skill/prompt mutation | Custom Skill Prompt Inspector, Custom Skill Run Critique, Legal Policy, Model-To-App Task Policy | Canonicalized in [Custom Skill Governance](../contracts/custom-skill-governance.md). Active skills/prompts do not mutate in place; changes go through draft version, sample, approval, validation, activation. |
 | Model/task isolation | Model-To-App Task Policy, Legal Policy, Cost Framework, Hosted Beta | One model-policy contract proving user-visible model choices cannot leak into durable skill creation, validation, or source-backed artifacts. |
-| Matter vs system diagnostics | Matter Developer Attention, System Health, Hosted Beta | Keep separate contracts: matter-local attention projection versus app/runtime health. |
+| Matter vs system diagnostics | Matter Developer Attention, System Health, Hosted Beta | Canonicalized in [Diagnostic Surfaces](../contracts/diagnostic-surfaces.md). Matter-local attention and app/runtime health stay separate. |
 
 ## Near-Term Recommended Order
 

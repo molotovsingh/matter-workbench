@@ -1,0 +1,181 @@
+# Diagnostic Surfaces
+
+Status: Current boundary contract
+
+This contract defines the boundary between matter-level diagnostics and
+app/system-level diagnostics.
+
+The core rule is:
+
+```text
+Matter Attention explains what is wrong in one matter
+System Health explains what is wrong with the app/runtime
+```
+
+Do not merge these into one score.
+
+## Why This Exists
+
+Matter Workbench can fail for very different reasons:
+
+- a single matter has missing source files;
+- one PDF extracted poorly;
+- one Source Index is stale or invalid;
+- one custom skill run returned warnings;
+- the matters home folder is not writable;
+- an API key is missing;
+- all provider-backed calls are failing;
+- the local app cannot read its stores.
+
+Those failures need different surfaces. A lawyer or developer should not have
+to infer whether a problem is matter-specific or system-wide from a scattered
+log trail.
+
+## Matter Attention
+
+Matter Attention answers:
+
+```text
+For this matter, what looks broken or risky right now?
+```
+
+Current local implementation:
+
+- `GET /api/matter-attention`;
+- optional named matter query;
+- `npm run matter-attention:report`;
+- compact matter overview/advisory display.
+
+Matter Attention is current-state and matter-scoped. It reads existing matter
+traces and aggregates them into evidence-backed items.
+
+It may inspect:
+
+- `matter.json`;
+- intake `File Register.csv`;
+- intake `Extraction Log.csv`;
+- `10_Library/Source Index.json`;
+- `10_Library/List of Dates.md`;
+- `10_Library/List of Dates.json`;
+- rerun advice;
+- configurable custom-skill run receipts;
+- matter-scoped command interactions.
+
+Matter Attention may report:
+
+- intake blockers;
+- extraction/OCR warnings;
+- skipped unsupported files;
+- source-label review needs;
+- chronology dependency issues;
+- custom-skill run failures/warnings;
+- active-matter command failures.
+
+It must not:
+
+- call providers;
+- run skills;
+- mutate matter artifacts;
+- write new logs in the local/V1 file app;
+- preserve advisory history in local/V1;
+- diagnose global provider or filesystem health as its primary job.
+
+## System Health
+
+System Health answers:
+
+```text
+Is the app itself configured, connected, writable, and operational?
+```
+
+System Health is parked as a future feature.
+
+Its scope should include app/runtime setup rather than any one matter:
+
+- matters home configured, readable, and writable where required;
+- `.env` and app-local stores parse correctly;
+- provider/model routes resolve through policy;
+- configured provider keys exist where required;
+- key routes return shaped errors;
+- command logs and custom-skill stores are readable;
+- cross-matter failures point to a shared root cause.
+
+Future System Health should be read-only in its first slice. It should not run
+skills, call expensive providers, mutate config, or write matter artifacts.
+
+## Examples
+
+| Symptom | Surface |
+| --- | --- |
+| One matter is missing `Source Index.json`. | Matter Attention |
+| One matter has `Extraction Log.csv` OCR warnings. | Matter Attention |
+| One custom skill run has warnings. | Matter Attention |
+| One active-matter command failed. | Matter Attention |
+| Matters home is not writable. | System Health |
+| OpenRouter key is missing and all source-label runs fail. | System Health |
+| App-local JSON stores are unreadable. | System Health |
+| Provider-backed commands fail across many matters after config change. | System Health |
+
+Matter Attention may surface the symptom first. System Health should explain the
+shared root cause when the problem is app-wide.
+
+## Hosted Beta Direction
+
+Hosted beta should not make Matter Attention its own durable source of truth.
+
+The durable backend should persist canonical facts such as:
+
+- incidents;
+- job failures;
+- artifact validation results;
+- provider run failures;
+- audit events.
+
+Matter Attention should be a view/projection over those facts, plus optional
+acknowledgements if needed.
+
+Preparation Advisory snapshots may be preserved in hosted beta for QA and
+support, but only as snapshots tied back to canonical incidents/jobs/artifact
+validations. Do not add durable advisory history to the local file-based app.
+
+## UI Placement
+
+Matter Attention belongs near the active matter:
+
+- matter overview;
+- Preparation Advisory;
+- matter-scoped developer report.
+
+System Health belongs near app administration:
+
+- Settings;
+- developer/admin diagnostics;
+- CLI/system report.
+
+Lawyers should not have to read provider routing tables, raw logs, or store
+diagnostics during normal legal work.
+
+## Non-Goals
+
+- This contract does not implement `/api/system-health`.
+- This contract does not create a background monitor.
+- This contract does not define a hosted incident schema.
+- This contract does not make diagnostics lawyer-facing legal advice.
+- This contract does not preserve local advisory history.
+- This contract does not replace cost visibility or provider-run ledgers.
+
+## Implementation Pointers
+
+Current code and docs connected to this contract include:
+
+- `services/matter-attention-service.mjs`;
+- `services/matter-attention-intake.mjs`;
+- `services/matter-attention-source-labels.mjs`;
+- `services/matter-attention-chronology.mjs`;
+- `services/matter-attention-custom-runs.mjs`;
+- `services/matter-attention-command-failures.mjs`;
+- `scripts/matter-attention-report.mjs`;
+- `routes/matter-workflow-routes.mjs`;
+- `docs/future-design-decisions/matter-developer-attention-surface.md`;
+- `docs/future-design-decisions/system-health-surface.md`;
+- `test/matter-attention-*.test.mjs`.

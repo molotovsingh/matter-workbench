@@ -32,6 +32,7 @@ Treat edits here as contract edits.
 | [Artifact Visibility and Dispatch](contracts/artifact-visibility-and-dispatch.md) | Canonical classes for generated artifacts, drafts, technical files, and dispatch copies. |
 | [Dependency States and Staleness](contracts/dependency-states-and-staleness.md) | Canonical List of Dates dependency states for label refresh, review, and regeneration. |
 | [Custom Skill Governance](contracts/custom-skill-governance.md) | Canonical no-silent-mutation path for skill ideas, samples, validation, and versions. |
+| [Diagnostic Surfaces](contracts/diagnostic-surfaces.md) | Canonical boundary between matter-level attention and app/system health. |
 | [Create List of Dates Two-Pass](create-listofdates-two-pass-contract.md) | Two-pass chronology behavior and artifact safety. |
 | [Model Routing](model-routing.md) | Provider/task routing and model policy. |
 | [OCR Strategy](ocr-strategy.md) | OCR-first PDF extraction posture. |
