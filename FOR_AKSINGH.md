@@ -177,7 +177,8 @@ Copy `.env.example` to `.env` and fill only the keys you intend to use.
 For the current beta path:
 
 ```text
-MISTRAL_OCR_ENABLED=1
+MISTRAL_API_KEY=...
+GEMINI_API_KEY=... # optional OCR repair pass
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
 OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=6000
@@ -254,17 +255,19 @@ It reads `File Register.csv`, opens supported working-copy files, and writes `ex
 
 Supported routes include:
 
-- PDFs through `pdfjs-dist`;
+- PDFs through Mistral OCR when `MISTRAL_API_KEY` is configured, with
+  `pdfjs-dist` retained for page-count, text-layer diagnostics, and fallback;
 - DOCX through `mammoth`;
 - RTF;
 - text and Markdown;
 - spreadsheets through `xlsx`;
 - EML email through `mailparser`.
 
-For scanned PDFs, extraction can use Mistral OCR, but only when explicitly enabled:
+For PDFs, key presence controls the OCR provider path:
 
 ```text
-MISTRAL_OCR_ENABLED=1
+MISTRAL_API_KEY=...
+GEMINI_API_KEY=... # optional OCR repair pass
 ```
 
 The extraction log now records OCR observability:

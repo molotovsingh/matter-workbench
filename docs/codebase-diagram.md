@@ -297,7 +297,7 @@ The implementation lives in:
 
 ## Current Provider Posture
 
-- `/extract` is deterministic by default. Mistral OCR is opt-in through `MISTRAL_OCR_ENABLED=1`.
+- `/extract` uses OCR-first PDF extraction when `MISTRAL_API_KEY` is configured. PDF.js remains available for page-count, text-layer diagnostics, and fallback.
 - `/describe_sources` is implemented by `source-descriptors-engine.mjs` and uses OpenRouter with strict structured output and local validation.
 - `/create_listofdates` uses OpenAI direct by default, or OpenRouter when `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
 - OpenRouter routing remains explicit. Automatic fallback is not enabled for lawyer-facing artifacts.

@@ -25,7 +25,8 @@ The most important review question is no longer "does the app run?" The question
 Use `.env.example` as the base. For beta testing, use:
 
 ```text
-MISTRAL_OCR_ENABLED=1
+MISTRAL_API_KEY=...
+GEMINI_API_KEY=... # optional OCR repair pass
 OPENROUTER_SOURCE_DESCRIPTION_MODEL=meta-llama/llama-3.3-70b-instruct
 OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=6000
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
