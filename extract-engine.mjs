@@ -8,7 +8,10 @@ import { extractEml, EML_ENGINE_FINGERPRINT } from "./extract-utils/eml-extract.
 import { extractText, TEXT_ENGINE_FINGERPRINT } from "./extract-utils/text-extract.mjs";
 import { extractRtf, RTF_ENGINE_FINGERPRINT } from "./extract-utils/rtf-extract.mjs";
 import { createChainedOcrProvider } from "./extract-utils/chained-ocr-provider.mjs";
-import { scoreOcrProviderResult } from "./extract-utils/ocr-quality.mjs";
+import {
+  buildExtractionOcrObservability,
+  canUseCachedPdfOcrExtraction,
+} from "./extract-utils/ocr-policy.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
@@ -79,70 +82,12 @@ function canUseCachedExtraction(cached, row, route, options) {
   if (options.forceRefresh) return false;
   if (!cached || cached.sha256 !== row.sha256) return false;
   if (route.fingerprint === PDF_ENGINE_FINGERPRINT && typeof options.ocrProvider === "function") {
-    if (cached.engine === PDF_ENGINE_FINGERPRINT || cached.extraction_strategy !== "ocr-first") return false;
-    const pages = Array.isArray(cached.pages) ? cached.pages : [];
-    const isOcrPlaceholder = pages.length > 0
-      && pages.every((page) => page.ocr_required === true && (!Array.isArray(page.blocks) || page.blocks.length === 0));
-    if (isOcrPlaceholder) return false;
-    if (hasWeakCachedOcr(cached)) return false;
+    return canUseCachedPdfOcrExtraction(cached, {
+      ocrProviderAvailable: true,
+      pdfEngineFingerprint: PDF_ENGINE_FINGERPRINT,
+    });
   }
   return true;
-}
-
-function hasWeakCachedOcr(cached) {
-  const pages = Array.isArray(cached?.pages) ? cached.pages : [];
-  const hasOcrPages = pages.some((page) => page.ocr_required === true);
-  if (!hasOcrPages) return false;
-  const score = scoreOcrProviderResult(cached, { pageCount: cached.page_count });
-  if (score.needsRepair) return true;
-  return pages.some((page) => {
-    if (page.ocr_required !== true) return false;
-    const blocks = Array.isArray(page.blocks) ? page.blocks : [];
-    const confidence = Number(page.confidence_avg);
-    return page.needs_review === true
-      || blocks.length === 0
-      || (Number.isFinite(confidence) && confidence < 0.75);
-  });
-}
-
-function extractionObservability(record, stats = {}) {
-  const pages = Array.isArray(record?.pages) ? record.pages : [];
-  const warnings = Array.isArray(record?.warnings) ? record.warnings : [];
-  const pipeline = record?.ocr_pipeline && typeof record.ocr_pipeline === "object" ? record.ocr_pipeline : {};
-  const ocrApplied = Boolean(stats.ocrApplied || pages.some((page) => (
-    page.ocr_required === true
-    && Array.isArray(page.blocks)
-    && page.blocks.length > 0
-  )));
-  return {
-    engine: record?.engine || "",
-    page_count: record?.page_count ?? stats.pageCount ?? "",
-    ocr_applied: ocrApplied ? "yes" : "no",
-    ocr_provider_model: ocrApplied ? (record?.engine || "") : "",
-    ocr_primary_model: pipeline.primary_model || (ocrApplied ? (record?.engine || "") : ""),
-    ocr_repair_model: pipeline.repair_model || "",
-    ocr_repair_status: pipeline.repair_status || "",
-    ocr_repair_reason: pipeline.repair_reason || "",
-    ocr_required_pages: stats.ocrRequiredPageCount ?? pages.filter((page) => page.ocr_required === true).length,
-    low_confidence_pages: pages.filter((page) => isKnownLowConfidence(page.confidence_avg)).length,
-    needs_review_pages: pages.filter((page) => page.needs_review === true).length,
-    confidence_status: confidenceStatus(pages),
-    provider_warnings_count: ocrApplied ? (stats.providerWarningsCount ?? warnings.length) : 0,
-  };
-}
-
-function isKnownLowConfidence(value) {
-  return typeof value === "number" && Number.isFinite(value) && value < 0.75;
-}
-
-function confidenceStatus(pages = []) {
-  const values = pages.map((page) => page?.confidence_avg);
-  const known = values.filter((value) => typeof value === "number" && Number.isFinite(value));
-  if (!values.length) return "";
-  if (known.length === 0) return "unknown";
-  if (known.some((value) => value < 0.75)) return "low";
-  if (known.length < values.length) return "partial";
-  return "ok";
 }
 
 function resolveOcrProvider(options) {
@@ -387,7 +332,7 @@ async function processRegisterRow({
       logRow: {
         ...baseLogRow,
         status: "cached",
-        ...extractionObservability(cached),
+        ...buildExtractionOcrObservability(cached),
         extracted_at: cached.extracted_at || "",
       },
     };
@@ -431,7 +376,7 @@ async function processRegisterRow({
     logRow: {
       ...baseLogRow,
       status: allOcrRequired ? "ocr-required-all" : "extracted",
-      ...extractionObservability(extraction.record, stats),
+      ...buildExtractionOcrObservability(extraction.record, stats),
       multi_column_pages: stats.multiColumnPageCount,
       time_taken_ms: elapsed,
       extracted_at: extraction.record.extracted_at,

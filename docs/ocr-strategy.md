@@ -1,15 +1,20 @@
 # OCR Strategy Note
 
-Matter Workbench already has a solid deterministic extraction path for born-digital documents. The next OCR work should extend that path instead of replacing it.
+Matter Workbench has a solid deterministic extraction path for born-digital
+documents. PDFs now use a quality-first OCR posture because weak extraction
+poisons Source Labels, List of Dates, and downstream drafting.
 
 ## Decision
 
-Use deterministic extraction first. Use OCR only when the source is scanned, text-poor, or otherwise has no usable text layer.
+For PDF files, use OCR as the trusted primary source whenever Mistral OCR is
+configured. Use PDF.js text-layer extraction as diagnostic/fallback support, not
+as the primary legal source text when OCR is available.
 
 Current benchmark evidence from `/Users/aksingh/pdf-extraction-eval` points to this operating posture:
 
-- **Mistral OCR** is the default candidate for scanned PDFs. It is fast, comparatively cheap, and close enough on quality to justify the first integration path.
-- **Gemini Flash** is a fallback candidate for low-confidence, failed, or high-value documents where the first OCR pass is not good enough.
+- **Mistral OCR** is the primary PDF OCR provider.
+- **Gemini OCR repair** runs when there is any quality doubt and is accepted
+  when it is page-complete and non-empty.
 - OCR output must be normalized before it becomes an `extraction-record/v1` record. Provider markdown is useful as an intermediate format, but downstream skills need clean block text.
 - Page and block citation boundaries remain mandatory. A scanned page still has to produce stable handles like `FILE-0007 p3.b2`.
 
@@ -27,24 +32,23 @@ The provider must not invent `FILE-NNNN` citations, rewrite `source_path`, move 
 
 ## First Runtime Shape
 
-The first app integration should be boring on purpose:
+The runtime shape is intentionally boring:
 
-1. Try the existing PDF text-layer extractor.
-2. If pages are text-poor, allow an OCR provider boundary to supply page text.
+1. Read the PDF with PDF.js for page count and text-layer diagnostics.
+2. If `MISTRAL_API_KEY` is configured, run the OCR chain first.
 3. Strip provider markdown into plain text blocks.
 4. Preserve source page order.
 5. Write normal `extraction-record/v1` records and flat text companions.
 
-No automatic model fallback should be added in this slice. Fallback can come later after we have confidence metadata, error classes, and a review workflow.
-
-The first Mistral runtime provider is intentionally opt-in:
+The first provider is configured by key presence:
 
 ```text
-MISTRAL_OCR_ENABLED=1
 MISTRAL_API_KEY=...
+GEMINI_API_KEY=... # optional repair pass
 ```
 
-Without the explicit enable flag, `/extract` keeps the deterministic behavior and only records that OCR is required.
+Without `MISTRAL_API_KEY`, `/extract` falls back to the deterministic
+non-provider behavior and records OCR/layout warnings where appropriate.
 
 ## Quality Gates
 
@@ -54,6 +58,8 @@ An OCR pass is useful only if it improves the record while preserving traceabili
 - Every block id is assigned by Matter Workbench, not the provider.
 - Markdown headings, bullets, tables, and fences are normalized into readable text.
 - Low confidence pages stay marked `needs_review`.
-- Failed OCR should leave the deterministic `ocr_required` signal in place rather than pretending extraction succeeded.
+- Missing confidence is `unknown`, not automatically low confidence.
+- Failed OCR may fall back to the text-layer record, but the extraction log and
+  advisory must keep the warning visible.
 
 The legal user should never have to care which OCR model ran. They should see better source-backed text and the same citation handles.
