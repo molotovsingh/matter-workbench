@@ -35,7 +35,7 @@ export function normalizeOcrProviderResult(providerResult, { pageCount }) {
       page: pageNumber,
       ocr_required: true,
       confidence_avg: confidence,
-      needs_review: Boolean(providerPage.needs_review) || confidence < 0.75 || !blocks.length,
+      needs_review: Boolean(providerPage.needs_review) || isKnownLowConfidence(confidence) || !blocks.length,
       blocks,
     });
   }
@@ -50,6 +50,7 @@ export function normalizeOcrProviderResult(providerResult, { pageCount }) {
       : "ocr-provider@unknown",
     pages,
     warnings,
+    pipeline: providerResult.pipeline && typeof providerResult.pipeline === "object" ? providerResult.pipeline : null,
     flatText: pages.map((page) => page.blocks.map((block) => block.text).join("\n\n")).join("\n\n"),
   };
 }
@@ -145,10 +146,14 @@ function stripFencedCodeMarkers(text) {
 
 function normalizeConfidence(value) {
   const confidence = Number(value);
-  if (!Number.isFinite(confidence)) return 0.0;
+  if (!Number.isFinite(confidence)) return null;
   if (confidence < 0) return 0.0;
   if (confidence > 1) return 1.0;
   return Math.round(confidence * 100) / 100;
+}
+
+function isKnownLowConfidence(value) {
+  return typeof value === "number" && Number.isFinite(value) && value < 0.75;
 }
 
 function inferBlockTypeFromText(text) {

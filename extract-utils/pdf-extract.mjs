@@ -92,9 +92,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
     });
   }
 
-  const shouldRunOcr = typeof ocrProvider === "function"
-    && pages.length > 0
-    && shouldAttemptOcr(pages, ocrProvider);
+  const shouldRunOcr = typeof ocrProvider === "function" && pages.length > 0;
 
   if (shouldRunOcr) {
     try {
@@ -104,6 +102,12 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
         sha256,
         sourcePath,
         pageCount: doc.numPages,
+        qualityHints: buildPdfTextLayerQualityHints({
+          pages,
+          fileWarnings,
+          multiColumnPageCount,
+          ocrRequiredPageCount,
+        }),
       });
       const normalizedOcr = normalizeOcrProviderResult(providerResult, { pageCount: doc.numPages });
       const record = {
@@ -112,6 +116,8 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
         sha256,
         source_path: sourcePath,
         engine: normalizedOcr.engine,
+        extraction_strategy: "ocr-first",
+        ocr_pipeline: normalizedOcr.pipeline,
         extracted_at: stamp,
         language_detected: detectLanguages(normalizedOcr.flatText),
         page_count: doc.numPages,
@@ -145,6 +151,7 @@ export async function extractPdf({ pdfPath, fileId, sha256, sourcePath, extracte
     sha256,
     source_path: sourcePath,
     engine: PDF_ENGINE_FINGERPRINT,
+    extraction_strategy: "pdf-text-layer",
     extracted_at: stamp,
     language_detected: languageDetected,
     page_count: doc.numPages,
@@ -180,16 +187,30 @@ function emptyPage(pageNumber, ocrRequired) {
   };
 }
 
-function shouldAttemptOcr(pages, ocrProvider) {
-  const hasMissingTextPage = pages.some((page) => page.ocr_required && page.blocks.length === 0);
-  if (hasMissingTextPage) return true;
-
-  if (ocrProvider?.repairTextLayer !== true) return false;
+function buildPdfTextLayerQualityHints({
+  pages = [],
+  fileWarnings = [],
+  multiColumnPageCount = 0,
+  ocrRequiredPageCount = 0,
+} = {}) {
+  const reasons = [];
+  if (ocrRequiredPageCount > 0) {
+    reasons.push(`${ocrRequiredPageCount} page(s) had no reliable embedded text layer`);
+  }
+  if (multiColumnPageCount > 0) {
+    reasons.push(`${multiColumnPageCount} page(s) had layout/read-order risk in embedded text`);
+  }
   const chars = pages.reduce((sum, page) => (
     sum + page.blocks.reduce((pageSum, block) => pageSum + String(block.text || "").length, 0)
   ), 0);
   const reviewPages = pages.filter((page) => page.needs_review === true).length;
-  return reviewPages > 0 && chars < pages.length * 200;
+  if (reviewPages > 0) reasons.push(`${reviewPages} page(s) were marked needs_review by text-layer diagnostics`);
+  if (pages.length > 0 && chars < pages.length * 200) reasons.push("embedded text layer looked thin");
+  if (fileWarnings.length) reasons.push(...fileWarnings);
+  return {
+    needsRepair: reasons.length > 0,
+    reasons: [...new Set(reasons)],
+  };
 }
 
 function sortItemsForReading(items) {

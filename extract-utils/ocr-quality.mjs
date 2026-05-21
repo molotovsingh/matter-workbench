@@ -15,6 +15,7 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
   let chars = 0;
   let blocks = 0;
   let lowConfidencePages = 0;
+  let missingConfidencePages = 0;
   let emptyPages = 0;
   let dateHits = 0;
   let amountHits = 0;
@@ -31,8 +32,13 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
     blocks += pageBlocks;
     if (!text.trim() || pageBlocks === 0) emptyPages += 1;
 
-    const confidence = Number(page.confidence ?? page.confidence_avg);
-    if (Number.isFinite(confidence) && confidence < 0.75) lowConfidencePages += 1;
+    const confidenceValue = page.confidence ?? page.confidence_avg;
+    const confidence = Number(confidenceValue);
+    if (confidenceValue === undefined || confidenceValue === null || confidenceValue === "") {
+      missingConfidencePages += 1;
+    } else if (Number.isFinite(confidence) && confidence < 0.75) {
+      lowConfidencePages += 1;
+    }
 
     dateHits += countMatches(text, DATE_PATTERN);
     amountHits += countMatches(text, AMOUNT_PATTERN);
@@ -46,6 +52,7 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
   const needsRepair = !usable
     || warnings.length > 0
     || lowConfidencePages > 0
+    || missingConfidencePages > 0
     || emptyPages > 0
     || suspiciousHits > 0
     || veryThinText;
@@ -56,6 +63,7 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
     + (amountHits * 80)
     - (warnings.length * 120)
     - (lowConfidencePages * 150)
+    - (missingConfidencePages * 60)
     - (emptyPages * 500)
     - (suspiciousHits * 500)
     - (veryThinText ? 200 : 0);
@@ -64,6 +72,7 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
   if (!usable) reasons.push("no usable OCR text");
   if (warnings.length) reasons.push(`${warnings.length} provider warning(s)`);
   if (lowConfidencePages) reasons.push(`${lowConfidencePages} low-confidence page(s)`);
+  if (missingConfidencePages) reasons.push(`${missingConfidencePages} page(s) with unknown confidence`);
   if (emptyPages) reasons.push(`${emptyPages} empty page(s)`);
   if (suspiciousHits) reasons.push(`${suspiciousHits} suspicious OCR token(s)`);
   if (veryThinText) reasons.push("thin OCR text");
@@ -74,6 +83,7 @@ export function scoreOcrProviderResult(providerResult, { pageCount = 0 } = {}) {
     blocks,
     warnings: warnings.length,
     lowConfidencePages,
+    missingConfidencePages,
     emptyPages,
     dateHits,
     amountHits,

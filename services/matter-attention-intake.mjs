@@ -151,11 +151,13 @@ async function collectExtractionLogAttention({ root, items }, folder) {
 
   const failed = log.rows.filter((row) => normalizeText(row.status) === "failed");
   const ocrRequired = log.rows.filter((row) => normalizeText(row.status) === "ocr-required-all");
-  const lowConfidenceOcr = log.rows.filter((row) => (
+  const reviewRows = log.rows.filter((row) => (
     positiveInteger(row.low_confidence_pages) > 0
     || positiveInteger(row.needs_review_pages) > 0
     || positiveInteger(row.provider_warnings_count) > 0
   ));
+  const lowConfidenceOcr = reviewRows.filter((row) => isOcrReviewRow(row));
+  const textLayoutReview = reviewRows.filter((row) => isTextLayerReviewRow(row));
   const skipped = log.rows.filter((row) => {
     const status = normalizeText(row.status);
     return status.startsWith("skipped-") && status !== "skipped-duplicate";
@@ -189,10 +191,22 @@ async function collectExtractionLogAttention({ root, items }, folder) {
       severity: "warning",
       category: "extraction",
       code: "ocr_low_confidence",
-      title: "OCR text needs review",
+      title: "OCR output needs review",
       detail: `${lowConfidenceOcr.length} extracted file(s) include OCR warnings, low-confidence pages, or pages marked for review. Low-confidence pages: ${lowConfidencePages}. Pages needing review: ${needsReviewPages}.`,
       action: "Compare the OCR text against the scans or replace poor copies before relying on source-backed outputs.",
       evidence: sampleRowEvidence(logRelative, lowConfidenceOcr, "file_id"),
+    });
+  }
+  if (textLayoutReview.length) {
+    const layoutPages = sumIntegerField(textLayoutReview, "multi_column_pages") || sumIntegerField(textLayoutReview, "needs_review_pages");
+    addItem(items, {
+      severity: "warning",
+      category: "extraction",
+      code: "text_layout_needs_review",
+      title: "Extracted text layout needs review",
+      detail: `${textLayoutReview.length} extracted file(s) used an embedded text layer with layout or reading-order warnings. Pages needing review: ${layoutPages}.`,
+      action: "Run OCR-first extraction or compare the extracted text against the scans before relying on source-backed outputs.",
+      evidence: sampleRowEvidence(logRelative, textLayoutReview, "file_id"),
     });
   }
   if (skipped.length) {
@@ -206,6 +220,20 @@ async function collectExtractionLogAttention({ root, items }, folder) {
       evidence: sampleRowEvidence(logRelative, skipped, "file_id"),
     });
   }
+}
+
+function isOcrReviewRow(row = {}) {
+  const explicit = normalizeText(row.ocr_applied);
+  if (explicit === "yes") return true;
+  if (positiveInteger(row.ocr_required_pages) > 0) return true;
+  if (normalizeText(row.ocr_provider_model)) return true;
+  if (explicit === "no") return false;
+  return positiveInteger(row.multi_column_pages) === 0;
+}
+
+function isTextLayerReviewRow(row = {}) {
+  return normalizeText(row.ocr_applied) === "no"
+    && (positiveInteger(row.needs_review_pages) > 0 || positiveInteger(row.multi_column_pages) > 0);
 }
 
 function addItem(items, item) {

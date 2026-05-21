@@ -31,49 +31,99 @@ export function createChainedOcrProvider({
   const provider = async function chainedOcrProvider(packet) {
     let primaryResult;
     let primaryScore;
-    let primaryCoverage;
+    const packetDoubt = qualityHintsNeedRepair(packet?.qualityHints);
     try {
       primaryResult = await primary(packet);
       primaryScore = scoreOcrProviderResult(primaryResult, { pageCount: packet.pageCount });
-      primaryCoverage = summarizePageCoverage(primaryResult, packet.pageCount);
     } catch (primaryError) {
       if (!repair) throw primaryError;
       try {
-        return await repair(packet);
+        const repairResult = await repair(packet);
+        const repairScore = scoreOcrProviderResult(repairResult, { pageCount: packet.pageCount });
+        const repairCoverage = summarizePageCoverage(repairResult, packet.pageCount);
+        if (!repairScore.usable || !repairCoverage.valid) {
+          throw new Error(invalidRepairReason(repairScore, repairCoverage));
+        }
+        return withPipeline(repairResult, {
+          primary_model: "mistral",
+          repair_model: repairResult.engine || "gemini",
+          repair_status: "fallback_used",
+          repair_reason: `primary OCR failed: ${primaryError.message}`,
+          final_model: repairResult.engine || "gemini",
+        });
       } catch (repairError) {
         throw new Error(`Primary OCR failed (${primaryError.message}); Gemini repair also failed (${repairError.message})`);
       }
     }
 
-    if (!primaryScore.needsRepair || !repair) {
-      if (primaryScore.needsRepair && !repair) {
-        return withProviderWarning(primaryResult, `OCR repair skipped: ${primaryScore.reasons.join(", ") || "primary OCR needs review"}`);
+    const primaryDoubtReasons = [
+      ...primaryScore.reasons,
+      ...(packetDoubt ? normalizeHintReasons(packet.qualityHints) : []),
+    ];
+    const primaryNeedsRepair = primaryScore.needsRepair || packetDoubt;
+    if (!primaryNeedsRepair || !repair) {
+      if (primaryNeedsRepair && !repair) {
+        return withPipeline(
+          withProviderWarning(primaryResult, `OCR repair skipped: ${primaryDoubtReasons.join(", ") || "primary OCR needs review"}`),
+          {
+            primary_model: primaryResult.engine || "mistral",
+            repair_model: "",
+            repair_status: "skipped_unavailable",
+            repair_reason: primaryDoubtReasons.join("; "),
+            final_model: primaryResult.engine || "mistral",
+          },
+        );
       }
-      return primaryResult;
+      return withPipeline(primaryResult, {
+        primary_model: primaryResult.engine || "mistral",
+        repair_model: repair ? "gemini" : "",
+        repair_status: "not_needed",
+        repair_reason: "",
+        final_model: primaryResult.engine || "mistral",
+      });
     }
 
     let repairResult;
-    let repairScore;
     let repairCoverage;
     try {
       repairResult = await repair(packet);
-      repairScore = scoreOcrProviderResult(repairResult, { pageCount: packet.pageCount });
       repairCoverage = summarizePageCoverage(repairResult, packet.pageCount);
     } catch (repairError) {
-      return withProviderWarning(primaryResult, `Gemini OCR repair failed; keeping primary OCR (${repairError.message})`);
+      return withPipeline(
+        withProviderWarning(primaryResult, `Gemini OCR repair failed; keeping primary OCR (${repairError.message})`),
+        {
+          primary_model: primaryResult.engine || "mistral",
+          repair_model: "gemini",
+          repair_status: "failed",
+          repair_reason: repairError.message,
+          final_model: primaryResult.engine || "mistral",
+        },
+      );
     }
 
-    if (repairScore.usable
-      && repairCoverage.valid
-      && repairCoverage.textPages >= primaryCoverage.textPages
-      && repairScore.emptyPages <= primaryScore.emptyPages
-      && repairScore.score >= primaryScore.score) {
-      return repairResult;
+    const repairScore = scoreOcrProviderResult(repairResult, { pageCount: packet.pageCount });
+    if (repairScore.usable && repairCoverage.valid) {
+      return withPipeline(repairResult, {
+        primary_model: primaryResult.engine || "mistral",
+        repair_model: repairResult.engine || "gemini",
+        repair_status: "used",
+        repair_reason: primaryDoubtReasons.join("; ") || "primary OCR needed review",
+        final_model: repairResult.engine || "gemini",
+      });
     }
 
-    return withProviderWarning(
-      primaryResult,
-      `Gemini OCR repair rejected; keeping primary OCR (primary score ${primaryScore.score}, Gemini score ${repairScore.score})`,
+    return withPipeline(
+      withProviderWarning(
+        primaryResult,
+        `Gemini OCR repair rejected; keeping primary OCR (${invalidRepairReason(repairScore, repairCoverage)})`,
+      ),
+      {
+        primary_model: primaryResult.engine || "mistral",
+        repair_model: repairResult.engine || "gemini",
+        repair_status: "rejected_invalid",
+        repair_reason: invalidRepairReason(repairScore, repairCoverage),
+        final_model: primaryResult.engine || "mistral",
+      },
     );
   };
 
@@ -82,6 +132,17 @@ export function createChainedOcrProvider({
   provider.primaryProvider = "mistral";
   provider.repairProvider = repair ? "gemini" : "";
   return provider;
+}
+
+function qualityHintsNeedRepair(qualityHints = {}) {
+  return Boolean(qualityHints?.needsRepair || normalizeHintReasons(qualityHints).length);
+}
+
+function normalizeHintReasons(qualityHints = {}) {
+  if (Array.isArray(qualityHints?.reasons)) {
+    return qualityHints.reasons.filter(Boolean).map(String);
+  }
+  return [];
 }
 
 function maybeCreateGeminiRepairProvider({ env, fetchImpl, repairEnabled, repairMode }) {
@@ -144,4 +205,19 @@ function withProviderWarning(providerResult, warning) {
       ...pages.slice(1),
     ],
   };
+}
+
+function withPipeline(providerResult, pipeline) {
+  return {
+    ...providerResult,
+    pipeline,
+  };
+}
+
+function invalidRepairReason(score, coverage) {
+  const reasons = [];
+  if (!coverage.valid) reasons.push("repair output did not cover every page exactly once");
+  if (!score.usable) reasons.push("repair output had no usable OCR text");
+  if (!reasons.length) reasons.push("repair output failed hard validity checks");
+  return reasons.join("; ");
 }

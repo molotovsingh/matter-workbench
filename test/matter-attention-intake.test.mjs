@@ -56,6 +56,30 @@ test("matter attention intake reads registers and extraction logs", async () => 
   assert.equal(items.find((item) => item.code === "extraction_skipped").evidence[0].row, "FILE-0003");
 });
 
+test("matter attention separates OCR quality warnings from text-layer layout warnings", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-attention-intake-layout-"));
+  const intakeDir = path.join(root, "00_Inbox", "Intake 01 - Initial");
+  await mkdir(intakeDir, { recursive: true });
+  await writeFile(path.join(root, "matter.json"), "{}\n");
+  await writeFile(path.join(intakeDir, "File Register.csv"), "file_id,status\nFILE-0001,unique\n");
+  await writeFile(path.join(intakeDir, "Extraction Log.csv"), [
+    "file_id,intake_id,status,ocr_applied,low_confidence_pages,needs_review_pages,provider_warnings_count,multi_column_pages,notes",
+    "FILE-0001,INTAKE-01,extracted,no,0,2,0,2,layout risk",
+    "FILE-0002,INTAKE-01,extracted,yes,1,1,0,0,weak OCR",
+    "",
+  ].join("\n"));
+
+  const items = await buildIntakeAttentionItems({
+    root,
+    matterStore: { listIntakeFolders: async () => [{ name: "Intake 01 - Initial" }] },
+  });
+
+  assert.ok(items.some((item) => item.code === "text_layout_needs_review"));
+  assert.ok(items.some((item) => item.code === "ocr_low_confidence"));
+  assert.equal(items.find((item) => item.code === "text_layout_needs_review").title, "Extracted text layout needs review");
+  assert.equal(items.find((item) => item.code === "ocr_low_confidence").title, "OCR output needs review");
+});
+
 test("matter attention intake reports empty registers", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-attention-intake-empty-register-"));
   const intakeDir = path.join(root, "00_Inbox", "Intake 01 - Initial");

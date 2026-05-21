@@ -359,6 +359,63 @@ test("extract can use injected OCR provider for scanned PDFs while preserving pa
   assert.doesNotMatch(flatText, /[#*]/);
 });
 
+test("extract uses OCR-first for PDFs even when an embedded text layer exists", async () => {
+  const root = await makeMatterRoot();
+  await writeSimplePdf(await writeSource(root, "text-layer.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  const calls = [];
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async (packet) => {
+      calls.push(packet);
+      return {
+        engine: "fake-mistral-ocr@1.0.0",
+        pages: [{ page: 1, markdown: "OCR-first text dated 20 April 2026.", confidence: 0.96 }],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.extracted, 1);
+  assert.equal(result.counts.cached, 0);
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "fake-mistral-ocr@1.0.0");
+  assert.equal(record.extraction_strategy, "ocr-first");
+  assert.equal(record.pages[0].blocks[0].text, "OCR-first text dated 20 April 2026.");
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.equal(logRows[0].engine, "fake-mistral-ocr@1.0.0");
+  assert.equal(logRows[0].ocr_applied, "yes");
+  assert.equal(logRows[0].ocr_primary_model, "fake-mistral-ocr@1.0.0");
+  assert.equal(logRows[0].confidence_status, "ok");
+});
+
+test("extract treats missing OCR confidence as unknown rather than low confidence", async () => {
+  const root = await makeMatterRoot();
+  await writeBlankPdf(await writeSource(root, "unknown-confidence.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+
+  await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async () => ({
+      engine: "fake-mistral-ocr@1.0.0",
+      pages: [{ page: 1, markdown: "OCR text without provider confidence." }],
+    }),
+  });
+
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.pages[0].confidence_avg, null);
+  assert.equal(record.pages[0].needs_review, false);
+
+  const logRows = parseCsv(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "Extraction Log.csv"), "utf8"));
+  assert.equal(logRows[0].low_confidence_pages, "0");
+  assert.equal(logRows[0].confidence_status, "unknown");
+});
+
 test("extract keeps OCR-required status when injected OCR provider returns no usable text", async () => {
   const root = await makeMatterRoot();
   await writeBlankPdf(await writeSource(root, "empty-scan.pdf", ""));
@@ -494,6 +551,34 @@ test("extract invalidates cached suspicious OCR even when confidence was high", 
   assert.equal(record.pages[0].blocks[0].text, "Payment was due by 31.8.14.");
 });
 
+test("extract invalidates cached pdfjs PDF records when OCR is configured", async () => {
+  const root = await makeMatterRoot();
+  await writeSimplePdf(await writeSource(root, "text-layer-cache.pdf", ""));
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false, env: {} });
+
+  const cachedRecord = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(cachedRecord.engine, PDF_ENGINE_FINGERPRINT);
+
+  const calls = [];
+  const result = await runExtract({
+    matterRoot: root,
+    dryRun: false,
+    ocrProvider: async () => {
+      calls.push("ocr");
+      return {
+        engine: "fake-mistral-ocr@1.0.0",
+        pages: [{ page: 1, markdown: "Fresh OCR text.", confidence: 0.96 }],
+      };
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.counts.cached, 0);
+  const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
+  assert.equal(record.engine, "fake-mistral-ocr@1.0.0");
+});
+
 test("extract preserves Extraction Log.csv row order with bounded concurrency", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "01-note.txt", "First");
@@ -508,27 +593,26 @@ test("extract preserves Extraction Log.csv row order with bounded concurrency", 
   assert.deepEqual(logRows.map((row) => path.basename(row.source_path)), ["01-note.txt", "02-note.txt", "03-note.txt"]);
 });
 
-test("extract wires Mistral OCR only when the explicit env gate is enabled", async () => {
+test("extract wires Mistral OCR when MISTRAL_API_KEY is configured", async () => {
   const root = await makeMatterRoot();
   await writeBlankPdf(await writeSource(root, "gated-scan.pdf", ""));
   await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
 
-  const withoutGate = await runExtract({
+  const withoutKey = await runExtract({
     matterRoot: root,
     dryRun: false,
-    env: { MISTRAL_API_KEY: "test-mistral-key" },
+    env: {},
     fetchImpl: async () => {
-      throw new Error("fetch should not be called without gate");
+      throw new Error("fetch should not be called without Mistral key");
     },
   });
-  assert.equal(withoutGate.counts.ocrRequiredFiles, 1);
+  assert.equal(withoutKey.counts.ocrRequiredFiles, 1);
 
   const fetchCalls = [];
-  const withGate = await runExtract({
+  const withKey = await runExtract({
     matterRoot: root,
     dryRun: false,
     env: {
-      MISTRAL_OCR_ENABLED: "1",
       MISTRAL_API_KEY: "test-mistral-key",
     },
     fetchImpl: async (endpoint, init) => {
@@ -545,7 +629,7 @@ test("extract wires Mistral OCR only when the explicit env gate is enabled", asy
   assert.equal(fetchCalls.length, 1);
   assert.equal(fetchCalls[0].body.model, "mistral-ocr-latest");
   assert.match(fetchCalls[0].body.document.document_url, /^data:application\/pdf;base64,/);
-  assert.equal(withGate.counts.ocrRequiredFiles, 0);
+  assert.equal(withKey.counts.ocrRequiredFiles, 0);
 
   const record = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));
   assert.equal(record.engine, "mistral-ocr-latest");
@@ -559,19 +643,4 @@ test("extract wires Mistral OCR only when the explicit env gate is enabled", asy
   assert.equal(logRows[0].ocr_provider_model, "mistral-ocr-latest");
   assert.equal(logRows[0].low_confidence_pages, "0");
   assert.equal(logRows[0].needs_review_pages, "0");
-});
-
-test("extract fails clearly when Mistral OCR gate is enabled without a key", async () => {
-  const root = await makeMatterRoot();
-  await writeBlankPdf(await writeSource(root, "gated-scan-no-key.pdf", ""));
-  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
-
-  await assert.rejects(
-    () => runExtract({
-      matterRoot: root,
-      dryRun: false,
-      env: { MISTRAL_OCR_ENABLED: "1" },
-    }),
-    /MISTRAL_API_KEY is required for Mistral OCR/,
-  );
 });
