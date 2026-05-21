@@ -53,7 +53,7 @@ The repetition across these notes is expected product-discovery residue, not a f
 
 | Contract area | Repeated in | Canonicalization target |
 | --- | --- | --- |
-| Source identity and lawyer-facing labels | Native skill implementation, Document Index, Chronology, Legal Policy, Hosted Beta | One source-record/source-label contract covering stable internal identity, lawyer labels, confirmed/suggested status, hashes, and court-facing visibility. |
+| Source identity and lawyer-facing labels | Native skill implementation, Document Index, Chronology, Legal Policy, Hosted Beta | Canonicalized in [Source Identity and Labels](../contracts/source-identity-and-labels.md). Older notes should link there instead of restating the rule. |
 | Artifact visibility and naming | Native Skill Library, Lawyer Terminology, Chronology, Document Index, Hosted Beta | One artifact presentation contract covering `primary`, `supporting`, `internal_audit`, `dev_hidden`, `court_facing`, plus lane/audience/status naming. |
 | Staleness taxonomy | Native skill implementation, Document Index, Chronology, current List of Dates behavior | One dependency-state contract for `label_refresh_needed`, `chronology_review_needed`, and `chronology_regeneration_needed`. |
 | Dispatch boundary | Native Skill Library, Native Skill Implementation, Legal Policy, Lawyer Terminology | One dispatch/promotion contract: `40_Dispatch` is a frozen send/file-ready boundary; further work starts from a new draft. |

@@ -459,7 +459,7 @@ They build context from:
 
 The current repo should not jump straight to Q&A, but it should eventually add a similar **matter context reader** before allowing the omnibox to answer factual questions about the matter.
 
-The contract for that reader now lives in [`docs/matter-context-reader-contract.md`](matter-context-reader-contract.md). Treat that document as the next boundary before implementing any Q&A/search runtime.
+The contract for that reader now lives in [`docs/matter-context-reader-contract.md`](../../matter-context-reader-contract.md). Treat that document as the next boundary before implementing any Q&A/search runtime.
 
 Adoption guidance:
 
@@ -742,7 +742,7 @@ answer contract:
 - whether outputs are chat-only or artifacts.
 
 The first Q&A contract now lives in
-[`docs/copilot-qna-contract.md`](copilot-qna-contract.md). Use that document
+[`docs/copilot-qna-contract.md`](../../copilot-qna-contract.md). Use that document
 before implementing `/ask`, `ask <question>`, provider-backed matter answers,
 conversation export for Q&A, or citation validation for model answers.
 
@@ -824,7 +824,7 @@ Not implemented:
 - golden validation for user-created skills;
 - chat memory.
 
-This is still a deterministic governance surface, not a model selector or chat surface. Future skill design review, prompt/schema authoring, configurable-skill validation, and configurable-skill execution should use the task policy described in [Model Routing Design](model-routing.md). Do not make the lawyer choose a model while describing a skill idea.
+This is still a deterministic governance surface, not a model selector or chat surface. Future skill design review, prompt/schema authoring, configurable-skill validation, and configurable-skill execution should use the task policy described in [Model Routing Design](../../model-routing.md). Do not make the lawyer choose a model while describing a skill idea.
 
 ## Next Runtime Direction
 
@@ -838,7 +838,7 @@ are now in place. The next configurable-skill work should stay on that ladder:
 - no mutation of built-in skill stubs.
 
 Model usage for those future stages should follow
-[`docs/model-routing.md`](model-routing.md). In particular, skill authoring may
+[`docs/model-routing.md`](../../model-routing.md). In particular, skill authoring may
 justify a premium model later, but idea capture, interview, and readiness remain
 deterministic.
 

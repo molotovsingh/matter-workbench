@@ -7,6 +7,9 @@ server-backed reads and writes.
 
 ## Architecture Map
 
+For a reading order across current contracts, future decisions, releases, and
+archive material, see [docs/README.md](docs/README.md).
+
 For the current codebase map, lifecycle diagram, provider paths, persistent
 artifacts, and eval tooling, see
 [docs/codebase-diagram.md](docs/codebase-diagram.md).

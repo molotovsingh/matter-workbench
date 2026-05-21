@@ -317,7 +317,7 @@ policy. It must still send only allowed planning inputs, not raw matter records.
 
 If a later slice adds AI-assisted design review or brief drafting, the summary
 must be visible and editable before saving. That later work must follow the
-model policy in [Model Routing Design](model-routing.md), not ad hoc model
+model policy in [Model Routing Design](../../model-routing.md), not ad hoc model
 selection inside the Command rail.
 
 Current model boundary:

@@ -211,7 +211,7 @@ V2 proves that a single Unibox can answer matter questions, search, run skills,
 and start skill ideas. This repo should not copy that whole runtime at once.
 
 The future Q&A contract now lives in
-[`copilot-qna-contract.md`](copilot-qna-contract.md). Use it before adding
+[`copilot-qna-contract.md`](../../copilot-qna-contract.md). Use it before adding
 provider-backed `/ask`, matter answers, chat export for Q&A, or citation
 validation for model answers.
 

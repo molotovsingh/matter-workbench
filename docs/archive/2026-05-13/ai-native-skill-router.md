@@ -32,7 +32,7 @@ Artifacts/logs = audit trail
 The router may use AI for fuzzy language understanding, but the app owns the gate. It must not silently create duplicate skills.
 
 The router is not the future Copilot Q&A engine. Matter questions should follow
-[Copilot Q&A Contract](copilot-qna-contract.md), use the bounded context packet,
+[Copilot Q&A Contract](../../copilot-qna-contract.md), use the bounded context packet,
 and validate citations. Skill routing decides whether a user wants a capability
 or workflow change.
 
