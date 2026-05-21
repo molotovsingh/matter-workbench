@@ -66,6 +66,7 @@ The active matter overview also shows a compact **Developer attention** card. It
 It does not:
 
 - write new logs;
+- preserve advisory history;
 - run skills;
 - call providers;
 - mutate matter artifacts;
@@ -166,3 +167,33 @@ Examples:
 - all source-label runs fail because provider auth is broken: System Health;
 - one custom-skill run warning exists: Matter Attention;
 - every provider-backed command fails after a config change: System Health.
+
+## Parked Hosted QA: Advisory History
+
+The local/V1 attention surface is intentionally current-state only. It reads
+the matter traces that exist now and returns the present blocker/warning view.
+It does not preserve old advisory states.
+
+For hosted beta, preserve **Preparation Advisory snapshots** as a QA and
+support artifact, but only after the database backend exists.
+
+The hosted implementation should not store advisory snapshots as a new source
+of truth. It should preserve:
+
+- the rendered advisory view shown after a preparation run;
+- the canonical incident/job/artifact-validation ids that produced it;
+- the matter id, preparation run id, actor, and timestamp;
+- the app version and policy/version metadata needed to interpret it later.
+
+Use cases:
+
+- compare "before" and "after" advisories when extraction, source labels, or
+  chronology quality improves;
+- debug beta-user reports without reconstructing a transient UI state;
+- measure whether preparation changes reduce blockers/warnings across matters;
+- preserve evidence for developer QA without exposing technical diagnostics to
+  lawyers by default.
+
+Stop rule: do not add durable advisory history to the local file-based app. The
+feature belongs with hosted incidents, jobs, artifact validations, and audit
+events.

@@ -610,6 +610,7 @@ Attention should be a projection over those facts, plus acknowledgement state.
 ```text
 incidents
 attention_acknowledgements
+preparation_advisory_snapshots
 ```
 
 Required `incidents` fields:
@@ -651,6 +652,53 @@ read canonical facts -> apply acknowledgement state -> return attention view
 Do not write `matter_attention_items` as the primary diagnostic source. That
 would create a stale second truth beside jobs, provider runs, and validation
 results.
+
+## Preparation Advisory Snapshots
+
+Hosted beta should preserve the Preparation Advisory that was shown after a
+matter preparation run. This is a QA/support feature, not a new truth source.
+
+The advisory snapshot should be a durable rendering/projection record over
+canonical facts:
+
+```text
+preparation_advisory_snapshots
+```
+
+Required fields:
+
+- `preparation_advisory_snapshots.id`
+- `preparation_advisory_snapshots.tenant_id`
+- `preparation_advisory_snapshots.matter_id`
+- `preparation_advisory_snapshots.preparation_run_id`
+- `preparation_advisory_snapshots.generated_by_job_id`
+- `preparation_advisory_snapshots.blocker_count`
+- `preparation_advisory_snapshots.warning_count`
+- `preparation_advisory_snapshots.info_count`
+- `preparation_advisory_snapshots.incident_ids`
+- `preparation_advisory_snapshots.artifact_validation_result_ids`
+- `preparation_advisory_snapshots.rendered_summary_json`
+- `preparation_advisory_snapshots.app_version`
+- `preparation_advisory_snapshots.policy_versions_json`
+- `preparation_advisory_snapshots.created_at`
+
+Rules:
+
+- advisory snapshots are append-only;
+- resolving an incident does not rewrite an old advisory snapshot;
+- a new preparation run creates a new advisory snapshot;
+- the current matter attention view is still computed from canonical incidents,
+  jobs, provider runs, and artifact validation results;
+- snapshots are developer/support visible by default, not lawyer-facing by
+  default.
+
+Why preserve this:
+
+- QA can compare whether extraction/source-label/chronology changes actually
+  reduced warnings;
+- beta-user bug reports can be tied to the exact advisory the user saw;
+- future release notes can cite advisory deltas without reconstructing old
+  transient UI state.
 
 ## Audit Events
 
