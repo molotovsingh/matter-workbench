@@ -29,6 +29,7 @@ Treat edits here as contract edits.
 | [Copilot Q&A](copilot-qna-contract.md) | Transient matter Q&A boundaries. |
 | [Source Descriptors](source-descriptors.md) | Source Index and lawyer-readable labels. |
 | [Source Identity and Labels](contracts/source-identity-and-labels.md) | Canonical split between internal source identity and lawyer-facing labels. |
+| [Artifact Visibility and Dispatch](contracts/artifact-visibility-and-dispatch.md) | Canonical classes for generated artifacts, drafts, technical files, and dispatch copies. |
 | [Create List of Dates Two-Pass](create-listofdates-two-pass-contract.md) | Two-pass chronology behavior and artifact safety. |
 | [Model Routing](model-routing.md) | Provider/task routing and model policy. |
 | [OCR Strategy](ocr-strategy.md) | OCR-first PDF extraction posture. |
