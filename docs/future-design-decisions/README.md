@@ -7,7 +7,7 @@ This folder holds parked product decisions, SME requirement capture, current loc
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 19 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 20 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -43,6 +43,7 @@ This README tracks the 19 decision documents in this folder. The README itself i
 | [Parallel Processing and Latency Strategy](parallel-processing-latency.md) | Parked future feature; local/V1 runtime path | Medium | Long native-skill latency becomes a beta blocker | First local slice should be bounded parallel Source Labels batches with deterministic merge and progress receipts. |
 | [Spreadsheet Understanding](spreadsheet-understanding.md) | Parked future feature | Medium | Beta matters show spreadsheets are common and legally material | Keep current CSV/XLSX flattening. Later add a read-only spreadsheet summary and risk pass before screenshot/vision fallback. |
 | [Communication Evidence Ingestion](communication-evidence-ingestion.md) | Parked future feature | Medium | Beta matters contain WhatsApp, screenshots, email attachments, `.msg`, or communication-heavy evidence | Keep current `.txt` and `.eml` extraction. Later add structured chat/email ingestion before vision fallback. |
+| [Public Indian Legal Updates Widget](public-indian-legal-updates-widget.md) | Parked future feature; experimental integration only | Low-Medium | Product explicitly wants public legal-news updates inside the workbench and Parallel/provider contract is confirmed | Keep disabled by default. Do not implement against a guessed endpoint, send matter data, or place it as a floating panel over the command/workspace surfaces. |
 | [Custom Skill Prompt Inspector](custom-skill-prompt-inspector.md) | Parked for later product decision | Low-Medium | Power users need transparency into active custom skill instructions | Start read-only; do not allow live prompt edits without versioned sample approval. |
 | [Conversation Layout](conversation-layout.md) | Parked for later product decision | Low-Medium | Longer interviews/copilot sessions outgrow the rail | Prefer reversible `Expand conversation` layout before any chat-first redesign. |
 | [Lawyer First-Run UX Friction Report](lawyer-first-run-ux-friction-2026-05-14.md) | Parked UX backlog; not implementation contract | Medium polish | Beta onboarding polish or first-run confusion | Mine for small UI copy/navigation fixes; do not treat as engine or storage contract. |
