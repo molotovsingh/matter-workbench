@@ -135,6 +135,28 @@ test("configurable skill run ledger reports whether output files still exist", a
   assert.equal(listed.runs[0].receipt.isCompletedWork, true);
 });
 
+test("configurable skill run ledger treats unsafe output paths as missing", async () => {
+  const service = await makeService();
+  const matterRoot = await mkdtemp(path.join(os.tmpdir(), "skill-runs-matter-"));
+  const run = await service.createRun({
+    skillId: "skill_party",
+    slash: "/party_officer_map",
+    title: "Party and Officer Map",
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    matterRoot,
+    outputPaths: {
+      markdown: "../outside.md",
+    },
+  });
+  await service.updateRun(run.id, { status: "succeeded" });
+
+  const listed = await service.listRuns();
+  assert.equal(listed.runs[0].outputAvailability.markdown, "missing");
+  assert.equal(listed.runs[0].receipt.receiptState, "output_missing");
+  assert.equal(listed.runs[0].receipt.canOpenOutput, false);
+});
+
 test("configurable skill run normalization bounds fields", () => {
   const record = normalizeRunRecord({
     id: "run_1",

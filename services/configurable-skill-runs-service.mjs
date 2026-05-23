@@ -155,7 +155,7 @@ async function outputPathAvailability(run = {}, relativePath = "") {
     await access(resolveRelativeInside(run.matterRoot, outputPath));
     return "present";
   } catch (error) {
-    if (error?.code === "ENOENT") return "missing";
+    if (error?.code === "ENOENT" || error?.statusCode === 400 || error?.statusCode === 403) return "missing";
     return "unknown";
   }
 }

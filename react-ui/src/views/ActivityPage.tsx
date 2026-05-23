@@ -50,12 +50,16 @@ export default function ActivityPage() {
     };
   }, [appendTerminal]);
 
-  const succeeded = runs.filter((r) => receiptForRun(r).isCompletedWork);
-  const needsAttention = runs.filter((r) => receiptForRun(r).needsAttention);
-  const missingOutput = runs.filter((r) => receiptForRun(r).receiptState === 'output_missing');
-  const failed = runs.filter((r) => receiptForRun(r).receiptState === 'failed');
-  const running = runs.filter((r) => receiptForRun(r).receiptState === 'running');
-  const cancelled = runs.filter((r) => receiptForRun(r).receiptState === 'cancelled');
+  const activeMatterName = state.activeMatter?.name ?? '';
+  const visibleRuns = activeMatterName
+    ? runs.filter((run) => run.matterFolder === activeMatterName || run.matterName === activeMatterName)
+    : runs;
+  const succeeded = visibleRuns.filter((r) => receiptForRun(r).isCompletedWork);
+  const needsAttention = visibleRuns.filter((r) => receiptForRun(r).needsAttention);
+  const missingOutput = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'output_missing');
+  const failed = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'failed');
+  const running = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'running');
+  const cancelled = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'cancelled');
   const workCompleted = succeeded;
   const dayGroups = groupRunsByDay(workCompleted);
 
@@ -105,7 +109,7 @@ export default function ActivityPage() {
           {missingOutput.length > 0 && <span className="warning">{missingOutput.length} output missing</span>}
           {running.length > 0 && <span className="running">{running.length} running</span>}
           {failed.length > 0 && <span className="failed">{failed.length} failed</span>}
-          {!loading && runs.length === 0 && <span className="muted">No runs yet</span>}
+          {!loading && visibleRuns.length === 0 && <span className="muted">No runs yet</span>}
         </div>
       </div>
 
@@ -185,7 +189,7 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && runs.length === 0 && (
+      {!loading && visibleRuns.length === 0 && (
         <div style={{ marginTop: 40, color: 'var(--muted)', fontSize: 14 }}>
           <p>No skill runs yet. Run a skill from the Home tab or command box.</p>
         </div>

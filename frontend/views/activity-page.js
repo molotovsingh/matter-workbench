@@ -20,7 +20,8 @@ export function renderActivityPageHtml({
   activityLogLines = [],
   activityLogText = "",
 } = {}, escapeHtml) {
-  const summary = activityPageSummary(configurableSkillRuns);
+  const visibleRuns = runsForActiveMatter(configurableSkillRuns, activeMatter);
+  const summary = activityPageSummary({ runs: visibleRuns });
   const receiptGroups = groupRunsByReceiptState(summary.runs);
   const systemLogLines = latestActivityLogLines(activityLogLines.length ? activityLogLines : activityLogText);
   return `
@@ -83,6 +84,13 @@ export function renderActivityPageHtml({
       ` : ""}
     </div>
   `;
+}
+
+function runsForActiveMatter(configurableSkillRuns = null, activeMatter = {}) {
+  const runs = Array.isArray(configurableSkillRuns?.runs) ? configurableSkillRuns.runs : [];
+  const activeMatterName = activeMatter?.folderName || activeMatter?.name || "";
+  if (!activeMatterName) return runs;
+  return runs.filter((run) => run.matterFolder === activeMatterName || run.matterName === activeMatterName);
 }
 
 function latestActivityLogLines(lines = []) {

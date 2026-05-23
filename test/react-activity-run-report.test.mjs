@@ -246,8 +246,11 @@ test("React Activity output opening is limited to the run matter", async () => {
 test("React Activity groups custom skill attention from receipt state", async () => {
   const source = await readFile(reactActivityPagePath, "utf8");
 
-  assert.match(source, /const needsAttention = runs\.filter\(\(r\) => receiptForRun\(r\)\.needsAttention\);/);
-  assert.match(source, /const missingOutput = runs\.filter\(\(r\) => receiptForRun\(r\)\.receiptState === 'output_missing'\);/);
+  assert.match(source, /const activeMatterName = state\.activeMatter\?\.name \?\? '';/);
+  assert.match(source, /const visibleRuns = activeMatterName/);
+  assert.match(source, /run\.matterFolder === activeMatterName/);
+  assert.match(source, /const needsAttention = visibleRuns\.filter\(\(r\) => receiptForRun\(r\)\.needsAttention\);/);
+  assert.match(source, /const missingOutput = visibleRuns\.filter\(\(r\) => receiptForRun\(r\)\.receiptState === 'output_missing'\);/);
   assert.match(source, /missingOutput\.length > 0 && <span className="warning">\{missingOutput\.length\} output missing<\/span>/);
   assert.doesNotMatch(source, /deriveSkillRunReceipt/);
   assert.doesNotMatch(source, /run\.status === 'succeeded'/);
