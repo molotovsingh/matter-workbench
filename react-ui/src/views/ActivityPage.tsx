@@ -7,6 +7,7 @@ import {
   formatConfigurableRunOutputDocumentState,
   formatConfigurableSkillRunReport,
   humanizeRunOutputPath,
+  receiptForRun,
   skillRunOutputExistsInWorkspace,
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
@@ -49,11 +50,12 @@ export default function ActivityPage() {
     };
   }, [appendTerminal]);
 
-  const succeeded = runs.filter((r) => r.status === 'succeeded');
-  const failed = runs.filter((r) => r.status === 'failed');
-  const running = runs.filter((r) => r.status === 'running');
-  const cancelled = runs.filter((r) => r.status === 'cancelled');
-  const needsAttention = [...failed, ...running];
+  const succeeded = runs.filter((r) => receiptForRun(r).isCompletedWork);
+  const needsAttention = runs.filter((r) => receiptForRun(r).needsAttention);
+  const missingOutput = runs.filter((r) => receiptForRun(r).receiptState === 'output_missing');
+  const failed = runs.filter((r) => receiptForRun(r).receiptState === 'failed');
+  const running = runs.filter((r) => receiptForRun(r).receiptState === 'running');
+  const cancelled = runs.filter((r) => receiptForRun(r).receiptState === 'cancelled');
   const workCompleted = succeeded;
   const dayGroups = groupRunsByDay(workCompleted);
 
@@ -100,6 +102,7 @@ export default function ActivityPage() {
         </div>
         <div className="activity-summary">
           {succeeded.length > 0 && <span className="completed">{succeeded.length} succeeded</span>}
+          {missingOutput.length > 0 && <span className="warning">{missingOutput.length} output missing</span>}
           {running.length > 0 && <span className="running">{running.length} running</span>}
           {failed.length > 0 && <span className="failed">{failed.length} failed</span>}
           {!loading && runs.length === 0 && <span className="muted">No runs yet</span>}
@@ -205,8 +208,7 @@ function RunCard({
   onOpen: (run: SkillRun) => void;
 }) {
   const title = run.title || run.slash || 'Custom skill run';
-  const statusClass = run.status === 'succeeded' ? 'present' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'not-run' : 'pending';
-  const statusLabel = run.status === 'succeeded' ? 'Succeeded' : run.status === 'failed' ? 'Failed' : run.status === 'cancelled' ? 'Cancelled' : 'Running';
+  const receipt = receiptForRun(run);
   const finishedTime = run.finishedAt ? formatTime(run.finishedAt) : null;
   const startedTime = formatTime(run.startedAt);
   const outputPath = run.outputPaths?.markdown;
@@ -214,12 +216,12 @@ function RunCard({
   const outputExists = skillRunOutputExistsInWorkspace(run, activeMatter);
 
   return (
-    <article className={`activity-card${compact ? ' compact' : ''} ${statusClass}`}>
+    <article className={`activity-card${compact ? ' compact' : ''} ${receipt.statusClass}`}>
       <div className="activity-card-main">
         <div className="activity-card-copy">
           <div className="activity-title-row">
             <h3>{title}</h3>
-            <span className={`pipeline-state ${statusClass}`}>{statusLabel}</span>
+            <span className={`pipeline-state ${receipt.statusClass}`}>{receipt.statusLabel}</span>
           </div>
           <div className="activity-run-line">
             {run.matterName && <span>{run.matterName}</span>}

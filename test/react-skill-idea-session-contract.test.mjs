@@ -3,10 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const skillIdeaSessionPath = new URL("../react-ui/src/components/command/SkillIdeaSession.tsx", import.meta.url);
+const skillIdeaSessionMachinePath = new URL("../react-ui/src/hooks/useSkillIdeaSessionMachine.ts", import.meta.url);
+const skillIdeaSessionActionsPath = new URL("../react-ui/src/lib/skillIdeaSessionActions.ts", import.meta.url);
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 
 test("React skill idea session gates ready-for-review on backend readiness", async () => {
-  const source = await readFile(skillIdeaSessionPath, "utf8");
+  const source = await readFile(skillIdeaSessionMachinePath, "utf8");
 
   assert.match(source, /if \(!session\.savedIdea\?\.readiness\?\.ready\) \{/);
   assert.match(source, /Complete every readiness item before marking ready for review\./);
@@ -15,7 +17,8 @@ test("React skill idea session gates ready-for-review on backend readiness", asy
 });
 
 test("React skill idea session keeps samples tied to the saved design brief and matter", async () => {
-  const source = await readFile(skillIdeaSessionPath, "utf8");
+  const source = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
 
   assert.match(source, /answersDirtySinceSave: boolean/);
   assert.match(source, /answersDirtySinceSave: editingSavedIdea \|\| s\.answersDirtySinceSave/);
@@ -24,15 +27,123 @@ test("React skill idea session keeps samples tied to the saved design brief and 
   assert.match(source, /saving updated idea before sample/);
   assert.match(source, /Save updates and generate a fresh sample before creating the skill\./);
   assert.match(source, /Regenerate the sample after the design brief changes before creating the skill\./);
-  assert.match(source, /generatedSampleMatterFolder\(result\)/);
+  assert.match(actionsSource, /generatedSkillIdeaSampleMatterFolder\(result\)/);
   assert.match(source, /ignored sample result after matter changed/);
   assert.match(source, /ignored interview plan after matter changed/);
   assert.match(source, /ignored saved idea after matter changed/);
   assert.match(source, /ignored overlap check after matter changed/);
-  assert.match(source, /sampleMatterChanged\(session\.sample\)/);
+  assert.match(source, /sampleMatterChanged\(sample\)/);
   assert.match(source, /planSkillIdeaInterview\(\{[\s\S]*matterName: startingMatterName \|\| undefined/);
-  assert.match(source, /createSkillIdea\(\{[\s\S]*matterName: matterName \|\| undefined/);
-  assert.match(source, /api\.checkIntent\(\{[\s\S]*matterName: matterName \|\| undefined/);
+  assert.match(actionsSource, /createSkillIdea\(\{[\s\S]*matterName: matterName \|\| undefined/);
+  assert.match(actionsSource, /skillIdeaTextForSave\(session\.ideaText, brief\)/);
+  assert.match(actionsSource, /text: ideaTextForSave/);
+  assert.match(actionsSource, /api\.checkIntent\(\{[\s\S]*matterName: matterName \|\| undefined/);
+});
+
+test("React empty new-skill interviews synthesize save text and ask for the core job", async () => {
+  const source = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
+
+  assert.match(source, /export function skillIdeaTextForSave/);
+  assert.match(source, /Create a reusable skill to/);
+  assert.match(source, /ensureProblemQuestionForEmptyIdea/);
+  assert.match(source, /What should this skill help you do\?/);
+  assert.match(source, /inferSkillIdeaProblemFromAnswers/);
+});
+
+test("React skill idea session component delegates orchestration to the machine hook", async () => {
+  const source = await readFile(skillIdeaSessionPath, "utf8");
+
+  assert.match(source, /useSkillIdeaSessionMachine/);
+  assert.doesNotMatch(source, /api\.createSkillIdea/);
+  assert.doesNotMatch(source, /api\.generateSampleOutput/);
+  assert.doesNotMatch(source, /api\.createSkillFromIdea/);
+});
+
+test("React skill idea machine delegates persistence details to session actions", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+
+  assert.match(actionsSource, /export async function persistSkillIdeaSession/);
+  assert.match(actionsSource, /buildSkillIdeaDesignBrief/);
+  assert.match(actionsSource, /skillIdeaTextForSave/);
+  assert.match(actionsSource, /api\.createSkillIdea/);
+  assert.match(actionsSource, /api\.updateSkillIdeaBrief/);
+  assert.match(machineSource, /persistSkillIdeaSession/);
+  assert.doesNotMatch(machineSource, /api\.createSkillIdea/);
+  assert.doesNotMatch(machineSource, /api\.updateSkillIdeaBrief/);
+});
+
+test("React skill idea machine delegates sample generation details to session actions", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+
+  assert.match(actionsSource, /export async function generateSkillIdeaSessionSample/);
+  assert.match(actionsSource, /api\.generateSampleOutput/);
+  assert.match(actionsSource, /storedSample\?\.version/);
+  assert.match(actionsSource, /generatedSkillIdeaSampleMatterFolder/);
+  assert.match(machineSource, /generateSkillIdeaSessionSample/);
+  assert.doesNotMatch(machineSource, /api\.generateSampleOutput/);
+  assert.doesNotMatch(machineSource, /storedSample\?\.version/);
+});
+
+test("React skill idea machine keeps saved idea visible before risky sample provider call", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+
+  assert.match(
+    machineSource,
+    /savedIdea = saved\.savedIdea;[\s\S]*savedIdeaId = saved\.savedIdea\.id;[\s\S]*safeSetSession\(\(s\) => \(\{[\s\S]*savedIdeaId,[\s\S]*savedIdea,[\s\S]*designBrief: savedIdea\?\.designBrief \|\| s\.designBrief,[\s\S]*answersDirtySinceSave: false,[\s\S]*\}\)\);[\s\S]*const generatedSample = await generateSkillIdeaSessionSample/,
+  );
+});
+
+test("React skill idea machine delegates copy side effects to session actions", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+
+  assert.match(actionsSource, /export async function copySkillIdeaSample/);
+  assert.match(actionsSource, /export async function copySkillIdeaSampleVersion/);
+  assert.match(actionsSource, /export async function copySkillIdeaReviewPacket/);
+  assert.match(actionsSource, /writeClipboardText/);
+  assert.match(actionsSource, /api\.getSkillIdeaSamples/);
+  assert.match(actionsSource, /api\.getSkills/);
+  assert.match(machineSource, /copySkillIdeaSample/);
+  assert.match(machineSource, /copySkillIdeaSampleVersion/);
+  assert.match(machineSource, /copySkillIdeaReviewPacket/);
+  assert.doesNotMatch(machineSource, /writeClipboardText/);
+  assert.doesNotMatch(machineSource, /api\.getSkillIdeaSamples/);
+  assert.doesNotMatch(machineSource, /api\.getSkills/);
+});
+
+test("React skill idea machine delegates approve-overlap-create API calls to session actions", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+
+  assert.match(actionsSource, /export async function approveAndCreateSkillFromIdeaSession/);
+  assert.match(actionsSource, /api\.approveSkillIdeaSample/);
+  assert.match(actionsSource, /api\.checkIntent/);
+  assert.match(actionsSource, /api\.createSkillFromIdea/);
+  assert.match(actionsSource, /buildSkillCreationOverlapRequest/);
+  assert.match(actionsSource, /isBlockingSkillOverlapDecision/);
+  assert.match(actionsSource, /isCurrentMatterName/);
+  assert.match(machineSource, /approveAndCreateSkillFromIdeaSession/);
+  assert.doesNotMatch(machineSource, /api\.approveSkillIdeaSample/);
+  assert.doesNotMatch(machineSource, /api\.createSkillFromIdea/);
+});
+
+test("React skill idea create action guards stale matter before and after create", async () => {
+  const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+
+  assert.match(
+    actionsSource,
+    /if \(!isCurrentMatterName\(matterName\)\) return \{ status: 'matter_changed' \};[\s\S]*await api\.approveSkillIdeaSample/,
+  );
+  assert.match(
+    actionsSource,
+    /await api\.approveSkillIdeaSample\(ideaId, sample\.id\);[\s\S]*if \(!isCurrentMatterName\(matterName\)\) return \{ status: 'matter_changed' \};[\s\S]*const userRequest = buildSkillCreationOverlapRequest/,
+  );
+  assert.match(
+    actionsSource,
+    /const result = await api\.createSkillFromIdea[\s\S]*if \(!isCurrentMatterName\(matterName\)\) return \{ status: 'matter_changed' \};[\s\S]*return \{ status: 'created'/,
+  );
 });
 
 test("React API client types skill idea status updates as idea responses", async () => {

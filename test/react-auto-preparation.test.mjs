@@ -38,12 +38,14 @@ test("React automatic preparation tolerates switch render gap but cancels after 
   assert.match(context, /dispatch\(\{ type: 'SET_PREPARATION_RUN', payload: null \}\)/);
 });
 
-test("React automatic preparation runner includes List of Dates and label-only refresh", async () => {
+test("React automatic preparation runner includes List of Dates, story, and label-only refresh", async () => {
   const runner = await readFile(runnerPath, "utf8");
   const prepareMatter = await readFile(prepareMatterPath, "utf8");
 
   assert.match(runner, /id: 'create-listofdates', label: 'Building List of Dates'/);
+  assert.match(runner, /id: 'dispute-story', label: 'Writing dispute story'/);
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
+  assert.match(runner, /api\.runMatterStory\(/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
   assert.match(runner, /LABEL_REFRESH_NEEDED/);
   assert.match(prepareMatter, /runPreparationStage\(matchedStage, matterName\)/);
@@ -59,7 +61,7 @@ test("React matter overview can force a full preparation rerun", async () => {
 
   assert.match(runner, /mode = 'needed'/);
   assert.match(runner, /const FULL_PREPARATION_STAGES: PreparationStage\[\] = \[/);
-  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'/);
+  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'[\s\S]*slash: '\/the_story'/);
   assert.match(runner, /if \(mode === 'full'\) \{/);
   assert.match(runner, /const finalPlan = await api\.getPrepareMatter\(matterName\)/);
   assert.doesNotMatch(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);

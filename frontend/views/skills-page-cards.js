@@ -50,6 +50,7 @@ function renderActiveCustomSkillCard(skill, escape, { improvementIdeas = [], con
   const versions = customSkillFamilyVersions(skill, allCustomSkills);
   const familyRuns = customSkillRunsForFamily(skill, versions, configurableSkillRuns);
   const latestRun = familyRuns[0] || null;
+  const latestReceipt = receiptForRun(latestRun);
   const slash = skill.slash || "";
   const improveCommand = `${slash} modify`;
   return `
@@ -75,7 +76,7 @@ function renderActiveCustomSkillCard(skill, escape, { improvementIdeas = [], con
       ` : ""}
       <div class="active-custom-skill-run">
         ${latestRun
-          ? `Last run: ${escape(latestRun.matterName || latestRun.matterFolder || "Unknown matter")} - <strong>${escape(runStatusLabel(latestRun.status))}</strong>${latestRun.startedAt || latestRun.finishedAt ? ` <span>${escape(formatRunTime(latestRun.startedAt || latestRun.finishedAt))}</span>` : ""}`
+          ? `Last run: ${escape(latestRun.matterName || latestRun.matterFolder || "Unknown matter")} - <strong>${escape(latestReceipt.statusLabel)}</strong>${latestRun.startedAt || latestRun.finishedAt ? ` <span>${escape(formatRunTime(latestRun.startedAt || latestRun.finishedAt))}</span>` : ""}`
           : "No runs recorded"}
       </div>
       <div class="active-custom-skill-actions">
@@ -210,8 +211,8 @@ function renderCustomSkillVersionHistory(skill, allCustomSkills, ideas, runs, es
         Open command details if you prefer typing commands.
       </p>
       <dl class="skill-card-meta compact">
-        <div><dt>Latest run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>
-        <div><dt>Latest output</dt><dd>${latestRun?.outputPaths?.markdown ? `<code>${escape(latestRun.outputPaths.markdown)}</code>` : '<span class="muted">None yet</span>'}</dd></div>
+        <div><dt>Latest run</dt><dd>${escape(formatRunReceiptLine(latestRun))}</dd></div>
+        <div><dt>Latest output</dt><dd>${renderLatestRunOutput(latestRun, escape)}</dd></div>
       </dl>
       <ol class="custom-skill-version-list">
         ${versions.map((version) => renderCustomSkillVersionItem(version, ideas, runs, escape)).join("")}
@@ -238,7 +239,7 @@ function renderCustomSkillVersionItem(skill, ideas, runs, escape) {
         <div><dt>Review matter</dt><dd>${escape(ideaMatterLabel(idea))}</dd></div>
         <div><dt>Activated</dt><dd>${escape(skill.activated_at || skill.activatedAt || "Not activated")}</dd></div>
         <div><dt>Validation</dt><dd>${escape(skill.validation?.status || "Unknown")}</dd></div>
-        <div><dt>Last run</dt><dd>${escape(latestRun ? `${latestRun.matterName || latestRun.matterFolder || "Unknown matter"} - ${runStatusLabel(latestRun.status)}` : "No runs recorded")}</dd></div>
+        <div><dt>Last run</dt><dd>${escape(formatRunReceiptLine(latestRun))}</dd></div>
       </dl>
     </li>
   `;
@@ -336,12 +337,37 @@ function ideaMatterLabel(idea) {
   return matter.matterName || matter.folderName || "Not recorded";
 }
 
-function runStatusLabel(status) {
-  if (status === "succeeded") return "Succeeded";
-  if (status === "failed") return "Failed";
-  if (status === "cancelled") return "Cancelled";
-  if (status === "running") return "Running";
-  return status || "Unknown";
+function formatRunReceiptLine(run) {
+  if (!run) return "No runs recorded";
+  return `${run.matterName || run.matterFolder || "Unknown matter"} - ${receiptForRun(run).statusLabel}`;
+}
+
+function renderLatestRunOutput(run, escape) {
+  if (!run) return '<span class="muted">None yet</span>';
+  const receipt = receiptForRun(run);
+  if (receipt.receiptState === "output_missing") {
+    return '<span class="muted">Output missing</span>';
+  }
+  if (!receipt.isCompletedWork && !receipt.canOpenOutput) {
+    return '<span class="muted">No completed output</span>';
+  }
+  return run.outputPaths?.markdown
+    ? `<code>${escape(run.outputPaths.markdown)}</code>`
+    : '<span class="muted">None yet</span>';
+}
+
+function receiptForRun(run = null) {
+  return run?.receipt || {
+    receiptState: "unknown",
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: true,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+  };
 }
 
 function formatRunTime(value) {

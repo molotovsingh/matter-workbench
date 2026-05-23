@@ -119,6 +119,7 @@ test("skills page cards render custom skill version history and improvement tips
         matterName: "Demo Matter",
         outputPaths: { markdown: "20_Workshop/Party Map.md" },
         startedAt: "2026-05-15T10:30:00.000Z",
+        receipt: completedReceipt(),
       },
     ],
   });
@@ -130,3 +131,150 @@ test("skills page cards render custom skill version history and improvement tips
   assert.match(html, /Latest output/);
   assert.match(html, /20_Workshop\/Party Map\.md/);
 });
+
+test("skills page cards use receipt state when a completed custom skill output is missing", () => {
+  const html = renderSkillCards([
+    {
+      id: "skill_v1",
+      slash: "/party_map",
+      title: "Party Map",
+      purpose: "Map parties and officers.",
+      mode: "AI",
+      configurable: true,
+      status: "active",
+      primary: true,
+      version: 1,
+      family_id: "party-map",
+      outputs: ["20_Workshop/Party Map.md"],
+      default_lane: "20_Workshop",
+      runner_key: "/party_map",
+      matter_required: true,
+      paid_provider_call: true,
+      rerun_guarded: true,
+    },
+  ], escapeHtml, {
+    allCustomSkills: [
+      {
+        id: "skill_v1",
+        slash: "/party_map",
+        title: "Party Map",
+        configurable: true,
+        status: "active",
+        primary: true,
+        version: 1,
+        family_id: "party-map",
+      },
+    ],
+    configurableSkillRuns: [
+      {
+        skillId: "skill_v1",
+        slash: "/party_map",
+        status: "succeeded",
+        matterName: "Demo Matter",
+        outputPaths: { markdown: "20_Workshop/Party Map.md" },
+        outputAvailability: { markdown: "missing" },
+        startedAt: "2026-05-15T10:30:00.000Z",
+        receipt: receipt({
+          receiptState: "output_missing",
+          statusLabel: "Output missing",
+          statusClass: "warning",
+          resultText: "Output file missing from matter folder",
+          needsAttention: true,
+          outputFileStatus: "missing",
+          outputFileStatusLabel: "Missing from matter folder",
+        }),
+      },
+    ],
+  });
+
+  assert.match(html, /Latest run<\/dt><dd>Demo Matter - Output missing<\/dd>/);
+  assert.match(html, /Latest output<\/dt><dd><span class="muted">Output missing<\/span><\/dd>/);
+  assert.doesNotMatch(html, /Demo Matter - Succeeded/);
+});
+
+test("skills page cards do not present failed run output paths as latest outputs", () => {
+  const html = renderSkillCards([
+    {
+      id: "skill_v1",
+      slash: "/party_map",
+      title: "Party Map",
+      purpose: "Map parties and officers.",
+      mode: "AI",
+      configurable: true,
+      status: "active",
+      primary: true,
+      version: 1,
+      family_id: "party-map",
+      outputs: ["20_Workshop/Party Map.md"],
+      default_lane: "20_Workshop",
+      runner_key: "/party_map",
+      matter_required: true,
+      paid_provider_call: true,
+      rerun_guarded: true,
+    },
+  ], escapeHtml, {
+    allCustomSkills: [
+      {
+        id: "skill_v1",
+        slash: "/party_map",
+        title: "Party Map",
+        configurable: true,
+        status: "active",
+        primary: true,
+        version: 1,
+        family_id: "party-map",
+      },
+    ],
+    configurableSkillRuns: [
+      {
+        skillId: "skill_v1",
+        slash: "/party_map",
+        status: "failed",
+        matterName: "Demo Matter",
+        outputPaths: { markdown: "20_Workshop/Party Map.md" },
+        errorMessage: "provider failed",
+        startedAt: "2026-05-15T10:30:00.000Z",
+        receipt: receipt({
+          receiptState: "failed",
+          statusLabel: "Failed",
+          statusClass: "failed",
+          resultText: "Failed",
+          needsAttention: true,
+          outputFileStatus: "present",
+          outputFileStatusLabel: "Present in matter folder",
+        }),
+      },
+    ],
+  });
+
+  assert.match(html, /Latest run<\/dt><dd>Demo Matter - Failed<\/dd>/);
+  assert.match(html, /Latest output<\/dt><dd><span class="muted">No completed output<\/span><\/dd>/);
+});
+
+function completedReceipt() {
+  return receipt({
+    receiptState: "completed",
+    statusLabel: "Completed",
+    statusClass: "present",
+    resultText: "Created output document",
+    isCompletedWork: true,
+    canOpenOutput: true,
+    outputFileStatus: "present",
+    outputFileStatusLabel: "Present in matter folder",
+  });
+}
+
+function receipt(overrides = {}) {
+  return {
+    receiptState: "unknown",
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: false,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+    ...overrides,
+  };
+}

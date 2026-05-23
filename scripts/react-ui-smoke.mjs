@@ -16,6 +16,13 @@ import {
 import { SKILL_IDEA_INPUT_PATTERNS } from "../shared/skill-idea-input.mjs";
 import { SKILL_IDEA_SESSION_COMMAND_SETS } from "../shared/skill-idea-session-commands.mjs";
 import {
+  SKILL_IDEA_DESIGN_BRIEF_FIELDS,
+  SKILL_IDEA_PAID_POSTURE_VALUES,
+  SKILL_IDEA_READINESS_CHECKS,
+  SKILL_IDEA_RISK_LEVEL_VALUES,
+  SKILL_IDEA_TARGET_LANE_VALUES,
+} from "../shared/skill-idea-design-brief.mjs";
+import {
   LEGACY_SKILL_IDEA_STATUS_MAP,
   SKILL_IDEA_STATUS,
   SKILL_IDEA_STATUS_VALUES,
@@ -34,6 +41,7 @@ const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparatio
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
 const reactSkillIdeaInputPath = new URL("../react-ui/src/lib/skillIdeaInput.ts", import.meta.url);
+const reactSkillIdeaDesignBriefPath = new URL("../react-ui/src/lib/skillIdeaDesignBrief.ts", import.meta.url);
 const reactSkillIdeaSessionPath = new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url);
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 const reactSkillIdeaStatusesPath = new URL("../react-ui/src/lib/skillIdeaStatuses.ts", import.meta.url);
@@ -199,6 +207,37 @@ async function run() {
     );
   } catch (error) {
     fail("React skill-idea session command contract is readable", error.message);
+  }
+
+  try {
+    const designBrief = await readReactSkillIdeaDesignBriefContract();
+    assert(
+      sameStringSet(designBrief.fields, SKILL_IDEA_DESIGN_BRIEF_FIELDS),
+      "React skill-idea design brief fields match shared contract",
+      commandSetDiffDetail(designBrief.fields, SKILL_IDEA_DESIGN_BRIEF_FIELDS),
+    );
+    assert(
+      sameStringSet(designBrief.targetLanes, SKILL_IDEA_TARGET_LANE_VALUES),
+      "React skill-idea target lanes match shared contract",
+      commandSetDiffDetail(designBrief.targetLanes, SKILL_IDEA_TARGET_LANE_VALUES),
+    );
+    assert(
+      sameStringSet(designBrief.paidPostures, SKILL_IDEA_PAID_POSTURE_VALUES),
+      "React skill-idea paid/free postures match shared contract",
+      commandSetDiffDetail(designBrief.paidPostures, SKILL_IDEA_PAID_POSTURE_VALUES),
+    );
+    assert(
+      sameStringSet(designBrief.riskLevels, SKILL_IDEA_RISK_LEVEL_VALUES),
+      "React skill-idea risk levels match shared contract",
+      commandSetDiffDetail(designBrief.riskLevels, SKILL_IDEA_RISK_LEVEL_VALUES),
+    );
+    assert(
+      sameTupleEntries(designBrief.readinessChecks, SKILL_IDEA_READINESS_CHECKS),
+      "React skill-idea readiness checks match shared contract",
+      tupleDiffDetail(designBrief.readinessChecks, SKILL_IDEA_READINESS_CHECKS),
+    );
+  } catch (error) {
+    fail("React skill-idea design brief contract is readable", error.message);
   }
 
   try {
@@ -590,6 +629,17 @@ async function readReactSkillIdeaSessionCommandSets() {
   ]));
 }
 
+async function readReactSkillIdeaDesignBriefContract() {
+  const source = await readFile(reactSkillIdeaDesignBriefPath, "utf8");
+  return {
+    fields: readStringArray(source, "SKILL_IDEA_DESIGN_BRIEF_FIELDS"),
+    targetLanes: readStringArray(source, "SKILL_IDEA_TARGET_LANE_VALUES"),
+    paidPostures: readStringArray(source, "SKILL_IDEA_PAID_POSTURE_VALUES"),
+    riskLevels: readStringArray(source, "SKILL_IDEA_RISK_LEVEL_VALUES"),
+    readinessChecks: readTupleArray(source, "SKILL_IDEA_READINESS_CHECKS"),
+  };
+}
+
 async function readReactSkillIdeaSessionHelpers() {
   const source = await readFile(reactSkillIdeaSessionPath, "utf8");
   return {
@@ -632,6 +682,12 @@ function readStringArray(source, exportName) {
   const close = source.indexOf("]", open);
   const body = open >= 0 && close > open ? source.slice(open + 1, close) : "";
   return [...body.matchAll(/['"]([^'"]+)['"]/g)].map((match) => match[1]).sort();
+}
+
+function readTupleArray(source, exportName) {
+  const match = source.match(new RegExp(`${exportName}\\s*=\\s*\\[([\\s\\S]*?)\\]\\s*as const`));
+  const body = match?.[1] || "";
+  return [...body.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)].map((match) => [match[1], match[2]]);
 }
 
 function sameStringSet(left, right) {

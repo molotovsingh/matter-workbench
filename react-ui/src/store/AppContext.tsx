@@ -19,6 +19,7 @@ import type {
 import { api } from '../api/client';
 import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { stampActivityLines, trimActivityLines } from '../lib/activityLog';
+import { DEFAULT_COMMAND_COPY_TEXT } from '../lib/commandPanelCopy';
 import { getErrorMessage } from '../lib/errors';
 
 type Action =
@@ -68,7 +69,7 @@ const initialState: AppState = {
   statusBar: 'Pick a matter to begin',
   terminalLines: ['[workbench] ready'],
   activityLines: [],
-  commandCopyText: 'Ask a general question, create a skill, or pick a matter first.',
+  commandCopyText: DEFAULT_COMMAND_COPY_TEXT,
   isCommandRunning: false,
   preparationRun: null,
 };

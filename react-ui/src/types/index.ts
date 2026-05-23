@@ -97,6 +97,8 @@ export interface Skill {
   default_lane?: string;
   runner_key?: string;
   version?: number;
+  configurable?: boolean;
+  status?: string;
 }
 
 export interface SkillRegistry {
@@ -130,10 +132,24 @@ export interface SkillRun {
   matterFolder?: string;
   matterRoot?: string;
   outputPaths?: { markdown?: string; json?: string };
+  outputAvailability?: { markdown?: 'present' | 'missing' | 'not_recorded' | 'unknown'; json?: 'present' | 'missing' | 'not_recorded' | 'unknown' };
   aiRun?: { provider?: string; model?: string; task?: string };
   warnings?: string[];
   overwrite?: 'not_needed' | 'prompted' | 'approved' | 'cancelled' | string;
   errorMessage?: string;
+  receipt?: SkillRunReceipt;
+}
+
+export interface SkillRunReceipt {
+  receiptState: 'running' | 'failed' | 'cancelled' | 'completed' | 'output_missing' | 'unknown';
+  statusLabel: string;
+  statusClass: string;
+  resultText: string;
+  needsAttention: boolean;
+  isCompletedWork: boolean;
+  canOpenOutput: boolean;
+  outputFileStatus: 'present' | 'missing' | 'not_recorded' | 'unknown';
+  outputFileStatusLabel: string;
 }
 
 export interface SkillIdea {
@@ -586,6 +602,17 @@ export interface ListOfDatesRunResult {
   outputPaths?: { json?: string; csv?: string; markdown?: string; candidates?: string };
   entries?: ChronologyEntry[];
   outputLines?: string[];
+}
+
+export interface MatterStoryRunResult {
+  schema_version?: string;
+  state: 'updated' | 'skipped_nonblank' | 'skipped_empty_story' | 'skipped_missing_skill' | string;
+  slash?: string;
+  artifactPath?: string;
+  description?: string;
+  reason?: string;
+  skillRunState?: string;
+  runId?: string;
 }
 
 export interface DoctorIssue {

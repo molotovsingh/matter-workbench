@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -95,6 +95,44 @@ test("configurable skill run ledger missing store returns empty list", async () 
     schema_version: "configurable-skill-runs/v1",
     runs: [],
   });
+});
+
+test("configurable skill run ledger reports whether output files still exist", async () => {
+  const service = await makeService();
+  const matterRoot = await mkdtemp(path.join(os.tmpdir(), "skill-runs-matter-"));
+  const run = await service.createRun({
+    skillId: "skill_party",
+    slash: "/party_officer_map",
+    title: "Party and Officer Map",
+    matterName: "Ayesha Vs Japan Airlines",
+    matterFolder: "Ayesha Vs Japan Airlines",
+    matterRoot,
+    outputPaths: {
+      markdown: "20_Workshop/Party and Officer Map.md",
+      json: "20_Workshop/Party and Officer Map.json",
+    },
+  });
+  await service.updateRun(run.id, { status: "succeeded" });
+
+  let listed = await service.listRuns();
+  assert.deepEqual(listed.runs[0].outputAvailability, {
+    markdown: "missing",
+    json: "missing",
+  });
+  assert.equal(listed.runs[0].receipt.receiptState, "output_missing");
+  assert.equal(listed.runs[0].receipt.needsAttention, true);
+
+  await mkdir(path.join(matterRoot, "20_Workshop"), { recursive: true });
+  await writeFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.md"), "# Party Map\n");
+  await writeFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.json"), "{}\n");
+
+  listed = await service.listRuns();
+  assert.deepEqual(listed.runs[0].outputAvailability, {
+    markdown: "present",
+    json: "present",
+  });
+  assert.equal(listed.runs[0].receipt.receiptState, "completed");
+  assert.equal(listed.runs[0].receipt.isCompletedWork, true);
 });
 
 test("configurable skill run normalization bounds fields", () => {

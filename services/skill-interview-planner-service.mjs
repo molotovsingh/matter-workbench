@@ -3,6 +3,13 @@ import {
   LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
 } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import {
+  SKILL_IDEA_DESIGN_BRIEF_FIELDS,
+  SKILL_IDEA_PAID_POSTURE_VALUES,
+  SKILL_IDEA_RISK_LEVEL_VALUES,
+  SKILL_IDEA_TARGET_LANE_VALUES,
+  sanitizeSkillIdeaDesignBrief,
+} from "../shared/skill-idea-design-brief.mjs";
 import { createDefaultSkillInterviewPlannerProvider } from "./skill-interview-planner-providers.mjs";
 
 export {
@@ -35,16 +42,7 @@ export const SKILL_INTERVIEW_PLAN_SCHEMA = {
     inferred_design_brief: {
       type: "object",
       additionalProperties: false,
-      required: [
-        "intendedUser",
-        "problem",
-        "expectedInputs",
-        "expectedOutputArtifact",
-        "targetLane",
-        "paidPosture",
-        "riskLevel",
-        "notes",
-      ],
+      required: SKILL_IDEA_DESIGN_BRIEF_FIELDS,
       properties: {
         intendedUser: { type: "string" },
         problem: { type: "string" },
@@ -52,15 +50,15 @@ export const SKILL_INTERVIEW_PLAN_SCHEMA = {
         expectedOutputArtifact: { type: "string" },
         targetLane: {
           type: "string",
-          enum: ["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"],
+          enum: SKILL_IDEA_TARGET_LANE_VALUES,
         },
         paidPosture: {
           type: "string",
-          enum: ["free", "paid", "unknown"],
+          enum: SKILL_IDEA_PAID_POSTURE_VALUES,
         },
         riskLevel: {
           type: "string",
-          enum: ["low", "medium", "high"],
+          enum: SKILL_IDEA_RISK_LEVEL_VALUES,
         },
         notes: { type: "string" },
       },
@@ -151,7 +149,7 @@ export function createSkillInterviewPlannerService({
         skillIdea: summarizeSkillIdea(skillIdea),
         activeMatter,
         skillRegistry: summarizeRegistry(registry),
-        designBrief: sanitizeDesignBrief(designBrief),
+        designBrief: sanitizeSkillIdeaDesignBrief(designBrief),
         schema: SKILL_INTERVIEW_PLAN_SCHEMA,
       });
       return {
@@ -245,19 +243,6 @@ function sanitizeMatterSummary(value = {}) {
     jurisdiction: normalizeText(value.jurisdiction),
     client: normalizeText(value.client),
     oppositeParty: normalizeText(value.oppositeParty),
-  };
-}
-
-function sanitizeDesignBrief(value = {}) {
-  return {
-    intendedUser: normalizeText(value.intendedUser),
-    problem: normalizeText(value.problem),
-    expectedInputs: normalizeText(value.expectedInputs),
-    expectedOutputArtifact: normalizeText(value.expectedOutputArtifact),
-    targetLane: normalizeText(value.targetLane),
-    paidPosture: normalizeText(value.paidPosture),
-    riskLevel: normalizeText(value.riskLevel),
-    notes: normalizeText(value.notes),
   };
 }
 

@@ -432,6 +432,8 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(customRun.state, "written");
     assert.equal(customRun.runRecord.status, "succeeded");
     assert.equal(customRun.runRecord.matterFolder, "Smoke Matter");
+    assert.equal(customRun.runRecord.receipt.receiptState, "completed");
+    assert.equal(customRun.runRecord.receipt.canOpenOutput, true);
     assert.equal(customRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
     assert.match(customRun.markdown, /FILE-0001 p1\.b1/);
     const customMarkdown = await readFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.md"), "utf8");
@@ -447,14 +449,17 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     assert.equal(cancelledCustomRun.state, "cancelled");
     assert.equal(cancelledCustomRun.runRecord.status, "cancelled");
+    assert.equal(cancelledCustomRun.runRecord.receipt.receiptState, "cancelled");
     const customOverwrite = await postJson(baseUrl, "/api/configurable-skills/run", {
       slash: "/party_officer_map",
       overwrite: true,
     });
     assert.equal(customOverwrite.state, "written");
     assert.equal(customOverwrite.runRecord.overwrite, "approved");
+    assert.equal(customOverwrite.runRecord.receipt.receiptState, "completed");
     const customRuns = await getJson(baseUrl, "/api/configurable-skills/runs?slash=/party_officer_map");
     assert.equal(customRuns.runs.length, 3);
+    assert.ok(customRuns.runs.every((run) => run.receipt?.receiptState));
     assert.deepEqual(
       [...customRuns.runs.map((run) => run.status)].sort(),
       ["cancelled", "succeeded", "succeeded"],

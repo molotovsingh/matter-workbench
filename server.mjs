@@ -9,6 +9,7 @@ import { createConfigurableSkillsService } from "./services/configurable-skills-
 import { createMatterCopilotService } from "./services/matter-copilot-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
+import { createMatterStoryService } from "./services/matter-story-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
@@ -94,13 +95,17 @@ export async function createWorkbenchServer(options = {}) {
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.configurableSkillEndpoint,
   });
+  const matterStoryService = createMatterStoryService({
+    matterStore,
+    configurableSkillsService,
+  });
   const skillRegistryService = createSkillRegistryService({
     appDir,
     registryPath: options.skillRegistryPath,
     configurableSkillsService,
   });
   const matterStatusService = createMatterStatusService({ matterStore, skillRegistryService });
-  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService });
+  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService, matterStoryService });
   const matterAttentionService = createMatterAttentionService({
     matterStore,
     matterStatusService,

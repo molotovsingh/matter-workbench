@@ -277,6 +277,9 @@ test("active configurable skill runs write only configured markdown and JSON art
 
   assert.equal(firstRun.state, "written");
   assert.equal(firstRun.runRecord.status, "succeeded");
+  assert.equal(firstRun.runRecord.receipt.receiptState, "completed");
+  assert.equal(firstRun.runRecord.receipt.canOpenOutput, true);
+  assert.equal(firstRun.runRecord.outputAvailability.markdown, "present");
   assert.equal(firstRun.runRecord.overwrite, "not_needed");
   assert.equal(firstRun.runRecord.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(firstRun.outputPaths.markdown, "20_Workshop/Party and Officer Map.md");
@@ -294,6 +297,7 @@ test("active configurable skill runs write only configured markdown and JSON art
   const overwritten = await service.runSkill({ slash: "/party_officer_map", overwrite: true });
   assert.equal(overwritten.state, "written");
   assert.equal(overwritten.runRecord.overwrite, "approved");
+  assert.equal(overwritten.runRecord.receipt.receiptState, "completed");
   const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
   assert.deepEqual(runs.runs.map((run) => run.status), ["succeeded", "succeeded"]);
   assert.deepEqual(runs.runs.map((run) => run.title), ["Party and Officer Map v1", "Party and Officer Map v1"]);
@@ -329,6 +333,8 @@ test("configurable skill service records overwrite cancellations", async () => {
   assert.equal(cancelled.runRecord.status, "cancelled");
   assert.equal(cancelled.runRecord.title, "Party and Officer Map v1");
   assert.equal(cancelled.runRecord.overwrite, "cancelled");
+  assert.equal(cancelled.runRecord.receipt.receiptState, "cancelled");
+  assert.equal(cancelled.runRecord.receipt.canOpenOutput, false);
   const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
   assert.equal(runs.runs[0].status, "cancelled");
 });

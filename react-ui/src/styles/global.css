@@ -440,6 +440,13 @@ strong { font-weight: 600; }
 .command-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; order: 0; }
 .command-panel-kicker, .command-panel-label { color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .command-panel h2 { margin: 4px 0 0; font-family: var(--display-font); font-size: 21px; font-weight: 600; line-height: 1.2; }
+.command-panel-header-actions { display: flex; align-items: flex-end; flex: 0 0 auto; gap: 8px; }
+.command-panel-new-task {
+  height: 28px; align-self: end; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--panel); color: var(--muted-strong); cursor: pointer;
+  font-family: inherit; font-size: var(--font-size-sm); font-weight: 700; padding: 0 9px;
+}
+.command-panel-new-task:disabled { cursor: default; opacity: 0.58; }
 .copilot-model-switch { display: grid; flex: 0 0 auto; gap: 4px; justify-items: end; min-width: 92px; }
 .copilot-model-switch span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; line-height: 1; text-transform: uppercase; }
 .copilot-model-switch select {
@@ -466,19 +473,42 @@ strong { font-weight: 600; }
 }
 .command-panel-examples button:disabled { cursor: default; opacity: 0.58; }
 .command-panel:focus-within .command-panel-examples { opacity: 1; }
-.ai-command-form { display: flex; flex-direction: column; gap: 7px; margin-top: auto; order: 4; }
+.intent-choice-panel {
+  border: 1px solid var(--border); background: var(--panel); display: grid; gap: 8px;
+  padding: 10px; order: 3;
+}
+.intent-choice-title {
+  color: var(--muted); font-size: var(--font-size-xs); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.intent-choice-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.intent-choice-actions button {
+  border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text);
+  cursor: pointer; font-family: inherit; font-size: var(--font-size-sm); font-weight: 600; padding: 6px 10px;
+}
+.intent-choice-actions button:first-child { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.intent-choice-actions button:disabled { cursor: default; opacity: 0.58; }
+.ai-command-form { display: flex; flex-direction: column; gap: 7px; margin-top: auto; order: 4; position: relative; }
 .command-panel-input-row { display: flex; align-items: center; gap: 8px; }
 .command-suggestions {
-  border: 1px solid var(--border); background: var(--code-bg); max-height: 190px; overflow-y: auto;
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 30;
+  border: 1px solid var(--border); background: var(--code-bg); box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+  max-height: min(360px, 45vh); overflow-y: auto;
 }
 .command-suggestion {
   display: block; width: 100%; border: 0; border-bottom: 1px solid var(--border);
-  background: transparent; color: var(--text); cursor: pointer; padding: 8px; text-align: left;
+  background: transparent; color: var(--text); cursor: pointer; padding: 6px 8px; text-align: left;
 }
 .command-suggestion:last-child { border-bottom: 0; }
 .command-suggestion.active, .command-suggestion:hover { background: var(--accent-soft); }
 .command-suggestion strong { display: block; font-size: var(--font-size-ui); }
 .command-suggestion span { display: block; color: var(--muted); font-size: var(--font-size-sm); line-height: 1.35; margin-top: 2px; }
+.command-suggestion-command {
+  color: var(--code-text) !important; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-size-xs) !important;
+}
+.command-suggestion-description {
+  display: none !important;
+}
 .command-panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 0; order: 6; }
 .command-panel-actions button {
   height: 28px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
@@ -709,6 +739,7 @@ strong { font-weight: 600; }
 .activity-summary { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: var(--font-size-sm); gap: 0; justify-content: flex-end; padding-top: 5px; white-space: nowrap; }
 .activity-summary span + span::before { color: var(--border-strong); content: "·"; margin: 0 10px; }
 .activity-summary .completed { color: var(--accent-green); font-weight: 700; }
+.activity-summary .warning { color: var(--warning-text); font-weight: 700; }
 .activity-summary .failed { color: var(--danger); font-weight: 700; }
 .activity-summary .running { color: var(--accent-gold); font-weight: 700; }
 .activity-day-list.attention { border-color: var(--danger-border); }

@@ -652,3 +652,29 @@ test("skill idea interview payload stores answers in design brief notes", () => 
   assert.match(payload.designBrief.notes, /Issue-wise matrix/);
   assert.match(payload.designBrief.notes, /Separate admissions, disputes, and unsupported assertions/);
 });
+
+test("skill idea interview payload synthesizes text when opened from blank new-skill chip", () => {
+  const interview = buildSkillIdeaInterview({
+    text: "",
+    idea: "",
+    mode: "new_skill",
+  });
+  const payload = buildSkillIdeaPayloadFromInterview({
+    interview,
+    answers: {
+      citationDiscipline: "Every point must cite source labels.",
+      matterScope: "Whole matter.",
+    },
+    designBrief: {
+      problem: "",
+      expectedOutputArtifact: "20_Workshop/Source Support Note.md",
+      expectedInputs: "List of Dates plus source records.",
+    },
+  });
+
+  assert.equal(
+    payload.text,
+    "Create a reusable skill that produces 20_Workshop/Source Support Note.md from List of Dates plus source records.",
+  );
+  assert.equal(payload.designBrief.expectedOutputArtifact, "20_Workshop/Source Support Note.md");
+});

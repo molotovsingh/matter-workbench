@@ -9,6 +9,7 @@
     "ui:build": "npm run ui:typecheck && vite build --config react-ui/vite.config.ts",
     "ui:smoke": "node scripts/react-ui-smoke.mjs",
     "ui:accept": "npm run ui:build && npm run ui:smoke",
+    "legal-updates:probe": "node scripts/legal-updates-probe.mjs",
     "matter-init:dry-run": "node matter-init-engine.mjs",
     "matter-init": "node matter-init-engine.mjs --apply",
     "extract:dry-run": "node extract-engine.mjs",

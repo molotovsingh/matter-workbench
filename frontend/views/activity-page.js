@@ -5,10 +5,11 @@ export function activityPageSummary(configurableSkillRuns = null) {
   return {
     runs,
     total: runs.length,
-    succeeded: runs.filter((run) => run.status === "succeeded").length,
-    cancelled: runs.filter((run) => run.status === "cancelled").length,
-    failed: runs.filter((run) => run.status === "failed").length,
-    running: runs.filter((run) => run.status === "running").length,
+    succeeded: runs.filter((run) => receiptForRun(run).isCompletedWork).length,
+    missingOutput: runs.filter((run) => receiptForRun(run).receiptState === "output_missing").length,
+    cancelled: runs.filter((run) => receiptForRun(run).receiptState === "cancelled").length,
+    failed: runs.filter((run) => receiptForRun(run).receiptState === "failed").length,
+    running: runs.filter((run) => receiptForRun(run).receiptState === "running").length,
   };
 }
 
@@ -95,6 +96,7 @@ function latestActivityLogLines(lines = []) {
 function renderActivityStats(summary, escape) {
   const parts = [
     { label: `${summary.succeeded} completed`, className: "completed", show: true },
+    { label: `${summary.missingOutput} output missing`, className: "warning", show: summary.missingOutput > 0 },
     { label: `${summary.cancelled} cancelled`, className: "", show: summary.cancelled > 0 },
     { label: `${summary.running} running`, className: "running", show: summary.running > 0 },
     { label: `${summary.failed} failed`, className: "failed", show: summary.failed > 0 },
@@ -132,23 +134,24 @@ function renderRunReceipt(run = {}, activeMatter = {}, escape, { compact = false
   const markdownPath = outputPaths.markdown || "";
   const jsonPath = outputPaths.json || "";
   const time = run.finishedAt || run.startedAt || "";
+  const receipt = receiptForRun(run);
   const canOpenOutput = Boolean(
     markdownPath
-    && run.status === "succeeded"
+    && receipt.canOpenOutput
     && activeMatter?.folderName
     && activeMatter.folderName === run.matterFolder,
   );
   return `
-    <article class="activity-card ${compact ? "compact" : ""} ${escape(runStatusClass(run.status))}">
+    <article class="activity-card ${compact ? "compact" : ""} ${escape(receipt.statusClass)}">
       <div class="activity-card-main">
         <div class="activity-card-copy">
           <div class="activity-title-row">
             <h3>${escape(run.title || run.slash || "Custom skill run")}</h3>
-            <span class="pipeline-state ${escape(runStatusClass(run.status))}">${escape(runStatusLabel(run.status))}</span>
+            <span class="pipeline-state ${escape(receipt.statusClass)}">${escape(receipt.statusLabel)}</span>
           </div>
           <div class="activity-run-line">
             <span>${escape(run.matterName || run.matterFolder || "Unknown matter")}</span>
-            ${run.status !== "cancelled" && markdownPath ? `
+            ${receipt.receiptState !== "cancelled" && markdownPath ? `
               <span aria-hidden="true">→</span>
               <code>${escape(humanOutputPath(markdownPath))}</code>
             ` : ""}
@@ -165,9 +168,10 @@ function renderRunReceipt(run = {}, activeMatter = {}, escape, { compact = false
             <div><dt>Skill</dt><dd><code>${escape(run.slash || "")}</code></dd></div>
             <div><dt>Matter</dt><dd>${escape(run.matterName || run.matterFolder || "Unknown matter")}</dd></div>
             <div><dt>Output</dt><dd>${markdownPath ? `<code>${escape(humanOutputPath(markdownPath))}</code>` : "No output path"}</dd></div>
-            <div><dt>Result</dt><dd>${escape(runResultText(run))}</dd></div>
+            <div><dt>Result</dt><dd>${escape(receipt.resultText)}</dd></div>
             <div><dt>Provider/model</dt><dd>${escape(providerModel)}</dd></div>
             <div><dt>Output document</dt><dd>${escape(formatConfigurableRunOutputDocumentState(run.overwrite))}</dd></div>
+            <div><dt>File status</dt><dd>${escape(receipt.outputFileStatusLabel)}</dd></div>
             <div><dt>Started</dt><dd>${escape(run.startedAt || "Not recorded")}</dd></div>
             <div><dt>Finished</dt><dd>${escape(run.finishedAt || "Not recorded")}</dd></div>
             <div><dt>Metadata</dt><dd>${jsonPath ? `<code>${escape(jsonPath)}</code>` : "No metadata path"}</dd></div>
@@ -183,9 +187,9 @@ function renderRunReceipt(run = {}, activeMatter = {}, escape, { compact = false
 function groupRunsByReceiptState(runs = []) {
   const sorted = [...runs].sort((a, b) => runTimeValue(b) - runTimeValue(a));
   return {
-    attention: sorted.filter((run) => run.status === "failed" || run.status === "running"),
-    completed: sorted.filter((run) => run.status === "succeeded"),
-    cancelled: sorted.filter((run) => run.status === "cancelled"),
+    attention: sorted.filter((run) => receiptForRun(run).needsAttention),
+    completed: sorted.filter((run) => receiptForRun(run).isCompletedWork),
+    cancelled: sorted.filter((run) => receiptForRun(run).receiptState === "cancelled"),
   };
 }
 
@@ -205,14 +209,6 @@ function groupRunsByDay(runs = []) {
 
 function runTimeValue(run = {}) {
   return Date.parse(run.finishedAt || run.startedAt || "") || 0;
-}
-
-function runResultText(run = {}) {
-  if (run.status === "cancelled") return "Cancelled - kept existing output document";
-  if (run.status === "failed") return "Failed";
-  if (run.status === "running") return "Running";
-  if (run.overwrite === "approved") return "Replaced existing output document";
-  return "Created output document";
 }
 
 function humanOutputPath(value = "") {
@@ -250,17 +246,16 @@ function localDateKey(date) {
   ].join("-");
 }
 
-function runStatusLabel(status) {
-  if (status === "succeeded") return "Completed";
-  if (status === "failed") return "Failed";
-  if (status === "cancelled") return "Cancelled";
-  if (status === "running") return "Running";
-  return "Unknown";
-}
-
-function runStatusClass(status) {
-  if (status === "succeeded") return "present";
-  if (status === "failed") return "failed";
-  if (status === "cancelled") return "not-run";
-  return "pending";
+function receiptForRun(run = {}) {
+  return run.receipt || {
+    receiptState: "unknown",
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: true,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+  };
 }

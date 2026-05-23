@@ -31,6 +31,32 @@ function createService(root) {
   return createPrepareMatterService({ matterStore, matterStatusService });
 }
 
+function createStoryAwareService(root, { briefDescription = "" } = {}) {
+  const matterStore = {
+    ...createStore(root),
+    readMatterMetadata: async () => ({
+      clientName: "Client",
+      matterName: "Client v Opponent",
+      oppositeParty: "Opponent",
+      matterType: "Civil",
+      jurisdiction: "India",
+      briefDescription,
+    }),
+  };
+  const matterStatusService = createMatterStatusService({ matterStore });
+  return createPrepareMatterService({
+    matterStore,
+    matterStatusService,
+    matterStoryService: {
+      readDisputeStoryStatus: async () => ({
+        hasActiveSkill: true,
+        storyMarkdownPresent: false,
+        briefDescriptionPresent: Boolean(briefDescription),
+      }),
+    },
+  });
+}
+
 test("prepare matter plan handles no active matter without throwing", async () => {
   const service = createPrepareMatterService({
     matterStore: createStore(null),
@@ -139,6 +165,76 @@ test("prepare matter plan treats missing list of dates as a preparation stage", 
   assert.equal(plan.nextStep.slash, "/create_listofdates");
   assert.equal(plan.downstream.listOfDates.action, "confirm_paid_run");
   assert.match(plan.downstream.listOfDates.reason, /List of Dates is missing/i);
+});
+
+test("prepare matter plan places dispute story after current List of Dates when story skill exists", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-story-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  const libraryDir = path.join(root, "10_Library");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(libraryDir, { recursive: true });
+  await writeFile(path.join(root, "matter.json"), JSON.stringify({
+    matter_name: "Client v Opponent",
+    client_name: "Client",
+    opposite_party: "Opponent",
+    matter_type: "Civil",
+    jurisdiction: "India",
+  }));
+  await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
+  await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({
+    schema_version: "list-of-dates/v1",
+    entries: [],
+  }));
+
+  const plan = await createStoryAwareService(root).readPrepareMatterPlan();
+
+  assert.deepEqual(plan.stages.map((stage) => [stage.slash, stage.action]), [
+    ["/matter-init", "skip_current"],
+    ["/extract", "skip_current"],
+    ["/describe_sources", "skip_current"],
+    ["/create_listofdates", "skip_current"],
+    ["/the_story", "confirm_paid_run"],
+  ]);
+  assert.equal(plan.nextStep.slash, "/the_story");
+  assert.match(plan.nextStep.message, /dispute story/i);
+});
+
+test("prepare matter plan treats existing matter description as completed dispute story", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-story-current-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  const libraryDir = path.join(root, "10_Library");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(libraryDir, { recursive: true });
+  await writeFile(path.join(root, "matter.json"), JSON.stringify({
+    matter_name: "Client v Opponent",
+    client_name: "Client",
+    opposite_party: "Opponent",
+    matter_type: "Civil",
+    jurisdiction: "India",
+    brief_description: "Existing lawyer-entered description.",
+  }));
+  await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
+  await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({
+    schema_version: "list-of-dates/v1",
+    entries: [],
+  }));
+
+  const plan = await createStoryAwareService(root, { briefDescription: "Existing lawyer-entered description." }).readPrepareMatterPlan();
+
+  assert.deepEqual(plan.stages.map((stage) => [stage.slash, stage.action]), [
+    ["/matter-init", "skip_current"],
+    ["/extract", "skip_current"],
+    ["/describe_sources", "skip_current"],
+    ["/create_listofdates", "skip_current"],
+    ["/the_story", "skip_current"],
+  ]);
+  assert.equal(plan.nextStep.state, "complete");
 });
 
 test("prepare matter plan blocks when required metadata is missing", async () => {

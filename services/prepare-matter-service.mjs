@@ -34,9 +34,16 @@ const STAGE_DEFINITIONS = [
     description: "Build a source-backed chronology for lawyer review.",
     paidProviderCall: true,
   },
+  {
+    id: "dispute-story",
+    slash: "/the_story",
+    label: "Write dispute story",
+    description: "Turn the List of Dates into a short matter description for intake metadata.",
+    paidProviderCall: true,
+  },
 ];
 
-export function createPrepareMatterService({ matterStore, matterStatusService } = {}) {
+export function createPrepareMatterService({ matterStore, matterStatusService, matterStoryService = null } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!matterStatusService) throw new Error("matterStatusService is required");
 
@@ -57,7 +64,11 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
     const extraction = buildExtractionStage(extractStage, setup);
     const sourceLabels = buildSourceLabelsStage(sourceStage, extraction);
     const listOfDates = buildListOfDatesStage(listStage, sourceLabels);
-    const runnableStages = [setup, extraction, sourceLabels, listOfDates];
+    const storyStatus = matterStoryService?.readDisputeStoryStatus
+      ? await matterStoryService.readDisputeStoryStatus(root)
+      : null;
+    const disputeStory = buildDisputeStoryStage(storyStatus, listOfDates);
+    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory].filter(Boolean);
     const nextStage = firstActionableStage(runnableStages);
 
     return {
@@ -73,6 +84,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
       stages: runnableStages,
       downstream: {
         listOfDates,
+        ...(disputeStory ? { disputeStory } : {}),
       },
       nextStep: nextStage
         ? nextStepSummary(nextStage)
@@ -83,7 +95,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService } 
           stage: "",
           slash: "",
         },
-      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates }),
+      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory }),
     };
   }
 
@@ -293,6 +305,45 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
   };
 }
 
+function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
+  if (!storyStatus?.hasActiveSkill) return null;
+  const base = {
+    ...stageBase("/the_story", null),
+    artifacts: storyStatus.storyMarkdownPresent ? [storyStatus.artifactPath || "20_Workshop/The Story.md"] : [],
+  };
+  if (listOfDatesStage.state !== "current") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: "Create the List of Dates before writing the dispute story.",
+    };
+  }
+  if (storyStatus.briefDescriptionPresent) {
+    return {
+      ...base,
+      state: "current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: "The intake dispute description is already filled.",
+    };
+  }
+  if (storyStatus.storyMarkdownPresent) {
+    return {
+      ...base,
+      paidProviderCall: false,
+      state: "ready_to_run",
+      action: PREPARATION_STAGE_ACTIONS.RUN,
+      reason: "The Story exists; update the intake dispute description from it.",
+    };
+  }
+  return {
+    ...base,
+    state: "missing",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+    reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
+  };
+}
+
 function stageBase(slash, statusStage) {
   const definition = STAGE_DEFINITIONS.find((candidate) => candidate.slash === slash);
   const display = statusStage?.display || null;
@@ -355,7 +406,7 @@ function listOfDatesReason(state) {
   return "List of Dates is missing and requires a paid AI confirmation before running.";
 }
 
-function warningsForPlan({ missingMetadata, stages, listOfDates }) {
+function warningsForPlan({ missingMetadata, stages, listOfDates, disputeStory = null }) {
   const warnings = [];
   if (missingMetadata.length) {
     warnings.push(`Missing metadata: ${missingMetadata.join(", ")}`);
@@ -365,6 +416,9 @@ function warningsForPlan({ missingMetadata, stages, listOfDates }) {
   }
   if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RUN && listOfDates?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
     warnings.push("List of Dates only needs a label refresh; chronology regeneration is not required.");
+  }
+  if (disputeStory?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
+    warnings.push("The Story will use a paid AI provider call before filling the intake dispute description.");
   }
   return warnings;
 }

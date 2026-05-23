@@ -3,11 +3,17 @@ import {
   DOMAIN_INTERVIEW_TEMPLATES,
   SIMPLE_OUTPUT_PATTERNS,
 } from "./skill-idea-interview-templates.js";
+import {
+  SKILL_IDEA_PAID_POSTURE_VALUES,
+  SKILL_IDEA_RISK_LEVEL_VALUES,
+  SKILL_IDEA_TARGET_LANE_VALUES,
+  sanitizeSkillIdeaDesignBrief,
+} from "../shared/skill-idea-design-brief.mjs";
 
 const MAX_PLANNER_QUESTIONS = 10;
-const VALID_TARGET_LANES = new Set(["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
-const VALID_PAID_POSTURES = new Set(["free", "paid", "unknown"]);
-const VALID_RISK_LEVELS = new Set(["low", "medium", "high"]);
+const VALID_TARGET_LANES = new Set(SKILL_IDEA_TARGET_LANE_VALUES);
+const VALID_PAID_POSTURES = new Set(SKILL_IDEA_PAID_POSTURE_VALUES);
+const VALID_RISK_LEVELS = new Set(SKILL_IDEA_RISK_LEVEL_VALUES);
 
 export function buildSkillIdeaInterview(skillIdea, userRequest = "") {
   const originalText = String(skillIdea?.text || userRequest || "").trim();
@@ -37,7 +43,7 @@ export async function planSkillIdeaInterview(skillIdea, userRequest = "", {
         userRequest,
         activeMatter: summarizeActiveMatter(activeMatter),
         skillRegistry: summarizeSkillRegistry(skillRegistry),
-        designBrief: sanitizeDesignBrief(designBrief),
+        designBrief: sanitizeSkillIdeaDesignBrief(designBrief),
       });
       return normalizePlannerInterview(planned, skillIdea, userRequest);
     } catch {
@@ -84,7 +90,7 @@ export function buildSkillIdeaPayloadFromInterview({
     }),
   };
   return {
-    text: source.originalText || "",
+    text: skillIdeaTextForSave(source.originalText || source.ideaText, mergedBrief),
     designBrief: mergedBrief,
   };
 }
@@ -274,6 +280,28 @@ function sentenceCase(text) {
   return `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}.`;
 }
 
+function skillIdeaTextForSave(ideaText, brief = {}) {
+  const text = normalizeBriefText(ideaText);
+  if (text) return text;
+  const problem = normalizeBriefText(brief.problem);
+  if (problem) return `Create a reusable skill to ${lowercaseLead(problem)}`;
+  const output = normalizeBriefText(brief.expectedOutputArtifact);
+  const inputs = normalizeBriefText(brief.expectedInputs);
+  if (output && inputs) return `Create a reusable skill that produces ${output} from ${inputs}`;
+  if (output) return `Create a reusable skill that produces ${output}`;
+  return "Create a reusable matter skill from the completed interview answers";
+}
+
+function normalizeBriefText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function lowercaseLead(value) {
+  const text = normalizeBriefText(value);
+  if (!text) return text;
+  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
+
 function pickText(primary, fallback) {
   return String(primary || "").trim() || String(fallback || "").trim();
 }
@@ -363,7 +391,7 @@ function normalizePlannerTargetSkill(value, mode) {
 }
 
 function normalizePlannerDesignBrief(value, fallback = {}, contextText = "") {
-  const raw = sanitizeDesignBrief(value);
+  const raw = sanitizeSkillIdeaDesignBrief(value);
   const brief = {
     ...fallback,
     ...raw,
@@ -522,19 +550,6 @@ function normalizeStringArray(value) {
   return Array.isArray(value)
     ? value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 5)
     : [];
-}
-
-function sanitizeDesignBrief(value = {}) {
-  return {
-    intendedUser: String(value.intendedUser || "").trim(),
-    problem: String(value.problem || "").trim(),
-    expectedInputs: String(value.expectedInputs || "").trim(),
-    expectedOutputArtifact: String(value.expectedOutputArtifact || "").trim(),
-    targetLane: String(value.targetLane || "").trim(),
-    paidPosture: String(value.paidPosture || "").trim(),
-    riskLevel: String(value.riskLevel || "").trim(),
-    notes: String(value.notes || "").trim(),
-  };
 }
 
 function summarizeActiveMatter(activeMatter) {

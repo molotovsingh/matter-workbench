@@ -8,35 +8,19 @@ import {
   SKILL_IDEA_STATUS_VALUES,
   normalizeSkillIdeaStatus,
 } from "../shared/skill-idea-statuses.mjs";
+import {
+  SKILL_IDEA_PAID_POSTURES,
+  SKILL_IDEA_RISK_LEVELS,
+  SKILL_IDEA_TARGET_LANES,
+  calculateSkillIdeaReadiness,
+  normalizeSkillIdeaDesignBrief,
+} from "../shared/skill-idea-design-brief.mjs";
 
 export const SKILL_IDEAS_SCHEMA_VERSION = "skill-ideas/v1";
 export const SKILL_IDEA_STATUSES = new Set(SKILL_IDEA_STATUS_VALUES);
-export const SKILL_IDEA_TARGET_LANES = new Set(["", "10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
-export const SKILL_IDEA_PAID_POSTURES = new Set(["", "free", "paid", "unknown"]);
-export const SKILL_IDEA_RISK_LEVELS = new Set(["", "low", "medium", "high"]);
+export { SKILL_IDEA_TARGET_LANES, SKILL_IDEA_PAID_POSTURES, SKILL_IDEA_RISK_LEVELS, calculateSkillIdeaReadiness };
 
 const MAX_IDEA_TEXT_LENGTH = 2000;
-const MAX_BRIEF_TEXT_LENGTH = 4000;
-const EMPTY_DESIGN_BRIEF = Object.freeze({
-  intendedUser: "",
-  problem: "",
-  expectedInputs: "",
-  expectedOutputArtifact: "",
-  targetLane: "",
-  paidPosture: "",
-  riskLevel: "",
-  notes: "",
-});
-const READINESS_CHECKS = Object.freeze([
-  ["intendedUser", "Intended user present"],
-  ["problem", "Problem/job present"],
-  ["expectedInputs", "Expected inputs present"],
-  ["expectedOutputArtifact", "Expected output artifact present"],
-  ["targetLane", "Target lane selected"],
-  ["paidPosture", "Paid/free posture selected"],
-  ["riskLevel", "Risk level selected"],
-  ["notes", "Notes or acceptance criteria present"],
-]);
 
 export function createSkillIdeasService({
   appDir,
@@ -224,53 +208,8 @@ function normalizeStoredIdea(idea) {
   };
 }
 
-export function calculateSkillIdeaReadiness(designBrief = {}) {
-  const normalized = normalizeDesignBrief(designBrief);
-  const items = READINESS_CHECKS.map(([key, label]) => ({
-    key,
-    label,
-    passed: Boolean(normalized[key]),
-  }));
-  const ready = items.every((item) => item.passed);
-  return {
-    state: ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE,
-    ready,
-    passedCount: items.filter((item) => item.passed).length,
-    totalCount: items.length,
-    items,
-  };
-}
-
 function normalizeDesignBrief(designBrief) {
-  const source = designBrief && typeof designBrief === "object" ? designBrief : {};
-  const targetLane = normalizeBriefEnum(source.targetLane, SKILL_IDEA_TARGET_LANES, "target lane");
-  const paidPosture = normalizeBriefEnum(source.paidPosture, SKILL_IDEA_PAID_POSTURES, "paid/free posture");
-  const riskLevel = normalizeBriefEnum(source.riskLevel, SKILL_IDEA_RISK_LEVELS, "risk level");
-  return {
-    ...EMPTY_DESIGN_BRIEF,
-    intendedUser: normalizeBriefText(source.intendedUser, "intended user"),
-    problem: normalizeBriefText(source.problem, "problem"),
-    expectedInputs: normalizeBriefText(source.expectedInputs, "expected inputs"),
-    expectedOutputArtifact: normalizeBriefText(source.expectedOutputArtifact, "expected output artifact"),
-    targetLane,
-    paidPosture,
-    riskLevel,
-    notes: normalizeBriefText(source.notes, "notes"),
-  };
-}
-
-function normalizeBriefText(value, label) {
-  const normalized = String(value || "").trim();
-  if (normalized.length > MAX_BRIEF_TEXT_LENGTH) {
-    throw makeHttpError(`Skill idea design brief ${label} must be ${MAX_BRIEF_TEXT_LENGTH} characters or less`, 400);
-  }
-  return normalized;
-}
-
-function normalizeBriefEnum(value, allowed, label) {
-  const normalized = String(value || "").trim();
-  if (!allowed.has(normalized)) {
-    throw makeHttpError(`Invalid skill idea design brief ${label}: ${normalized || "blank"}`, 400);
-  }
-  return normalized;
+  return normalizeSkillIdeaDesignBrief(designBrief, {
+    makeError: (message, statusCode) => makeHttpError(message, statusCode),
+  });
 }

@@ -15,6 +15,7 @@ import {
   SKILL_IDEA_STATUS,
   normalizeSkillIdeaStatus,
 } from "../../shared/skill-idea-statuses.mjs";
+import { calculateSkillIdeaReadiness } from "../../shared/skill-idea-design-brief.mjs";
 
 export function formatSkillIdeaReviewPacket(idea = {}, registry = {}) {
   const status = normalizeIdeaStatusForView(idea.status);
@@ -394,29 +395,7 @@ function normalizeReadinessForView(readiness, brief) {
       })),
     };
   }
-  const items = [
-    ["intendedUser", "Intended user present"],
-    ["problem", "Problem/job present"],
-    ["expectedInputs", "Expected inputs present"],
-    ["expectedOutputArtifact", "Expected output document present"],
-    ["targetLane", "Workspace area selected"],
-    ["paidPosture", "Paid/free posture selected"],
-    ["riskLevel", "Risk level selected"],
-    ["notes", "Notes or acceptance criteria present"],
-  ].map(([key, label]) => ({
-    key,
-    label,
-    passed: Boolean(brief[key]),
-  }));
-  const passedCount = items.filter((item) => item.passed).length;
-  const ready = passedCount === items.length;
-  return {
-    state: ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE,
-    ready,
-    passedCount,
-    totalCount: items.length,
-    items,
-  };
+  return calculateSkillIdeaReadiness(brief);
 }
 
 function classifySkillIdeaForReview(idea, registry) {

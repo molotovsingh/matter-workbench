@@ -10,6 +10,12 @@ import type {
 import { SKILL_IDEA_STATUS } from './skillIdeaStatuses';
 import { normalizeSkillSampleState, SKILL_SAMPLE_STATE, type SkillSampleState } from './skillSampleStates';
 import { redactSensitiveText } from './secretRedaction';
+import {
+  DEFAULT_SKILL_IDEA_DESIGN_BRIEF,
+  SKILL_IDEA_READINESS_CHECKS,
+  calculateSkillIdeaReadinessForView,
+  normalizeSkillIdeaDesignBriefForView,
+} from './skillIdeaDesignBrief';
 
 export interface InterviewQuestion {
   id: string;
@@ -69,16 +75,34 @@ export function buildSkillIdeaDesignBrief(
     plannedBrief?.notes,
     answerNotes,
   ].filter(Boolean).join('\n');
+  const problem = plannedBrief?.problem
+    || answers.problem
+    || answers.goal
+    || answers.job
+    || ideaText
+    || inferSkillIdeaProblemFromAnswers(answers, questions);
   return {
-    intendedUser: plannedBrief?.intendedUser || 'Lawyer',
-    problem: plannedBrief?.problem || ideaText,
-    expectedInputs: answers.input || plannedBrief?.expectedInputs || 'Selected matter documents and source labels',
-    expectedOutputArtifact: answers.output || plannedBrief?.expectedOutputArtifact || 'Internal matter review note',
-    targetLane: plannedBrief?.targetLane || '20_Workshop',
-    paidPosture: plannedBrief?.paidPosture || 'paid',
-    riskLevel: plannedBrief?.riskLevel || 'medium',
-    notes: notes || 'No extra format rules supplied.',
+    intendedUser: plannedBrief?.intendedUser || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.intendedUser,
+    problem,
+    expectedInputs: answers.input || plannedBrief?.expectedInputs || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.expectedInputs,
+    expectedOutputArtifact: answers.output || plannedBrief?.expectedOutputArtifact || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.expectedOutputArtifact,
+    targetLane: plannedBrief?.targetLane || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.targetLane,
+    paidPosture: plannedBrief?.paidPosture || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.paidPosture,
+    riskLevel: plannedBrief?.riskLevel || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.riskLevel,
+    notes: notes || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.notes,
   };
+}
+
+export function skillIdeaTextForSave(ideaText: string, brief: SkillIdeaDesignBrief): string {
+  const text = normalizeBriefText(ideaText);
+  if (text) return text;
+  const problem = normalizeBriefText(brief.problem);
+  if (problem) return `Create a reusable skill to ${lowercaseLead(problem)}`;
+  const output = normalizeBriefText(brief.expectedOutputArtifact);
+  const inputs = normalizeBriefText(brief.expectedInputs);
+  if (output && inputs) return `Create a reusable skill that produces ${output} from ${inputs}`;
+  if (output) return `Create a reusable skill that produces ${output}`;
+  return 'Create a reusable matter skill from the completed interview answers';
 }
 
 export function formatSkillIdeaDesignBrief(brief: SkillIdeaDesignBrief): string {
@@ -107,7 +131,8 @@ export function normalizePlannedSkillIdeaInterview(
       riskFlags: [],
     };
   }
-  const questions = Array.isArray(plan.questions)
+  const questions = ensureProblemQuestionForEmptyIdea(
+    Array.isArray(plan.questions)
     ? plan.questions
       .filter((question) => question?.id && question?.label)
       .map((question) => ({
@@ -116,7 +141,9 @@ export function normalizePlannedSkillIdeaInterview(
         help: question.help,
         examples: Array.isArray(question.examples) ? question.examples : [],
       }))
-    : [];
+    : [],
+    fallbackIdeaText,
+  );
   return {
     understoodText: plan.understood_summary || fallbackIdeaText,
     questions,
@@ -139,6 +166,51 @@ export function formatSkillIdeaAnswerNotes(answers: Record<string, string>, ques
     .filter(([, value]) => value.trim())
     .map(([id, value]) => `${byId.get(id) || id}: ${value.trim()}`)
     .join('\n');
+}
+
+function ensureProblemQuestionForEmptyIdea(questions: InterviewQuestion[], fallbackIdeaText: string): InterviewQuestion[] {
+  if (fallbackIdeaText.trim()) return questions;
+  const hasProblemQuestion = questions.some((question) => {
+    const id = String(question.id || '').toLowerCase();
+    const label = String(question.label || '').toLowerCase();
+    return /\b(problem|goal|job|task|purpose)\b/.test(id)
+      || /\b(what should this skill|what should the skill|what decision or task)\b/.test(label);
+  });
+  if (hasProblemQuestion) return questions;
+  return [
+    {
+      id: 'problem',
+      label: 'What should this skill help you do?',
+      help: 'Name the legal job in plain language, for example evidence gaps, issue note, limitation review, or client update draft.',
+      examples: ['Find evidence gaps before drafting', 'Prepare an issue-wise internal note', 'Draft a client update email'],
+    },
+    ...questions,
+  ];
+}
+
+function inferSkillIdeaProblemFromAnswers(answers: Record<string, string>, questions: InterviewQuestion[]): string {
+  const entries = Object.entries(answers)
+    .map(([id, value]) => ({
+      id,
+      value: normalizeBriefText(value),
+      label: normalizeBriefText(questions.find((question) => question.id === id)?.label),
+    }))
+    .filter((entry) => entry.value);
+  const direct = entries.find((entry) => /\b(problem|goal|job|task|purpose)\b/i.test(`${entry.id} ${entry.label}`));
+  if (direct) return direct.value;
+  const output = entries.find((entry) => /\b(output|produce|decision|structure|flow)\b/i.test(`${entry.id} ${entry.label}`));
+  if (output) return `Produce ${output.value}`;
+  return entries[0]?.value || '';
+}
+
+function normalizeBriefText(value: unknown): string {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function lowercaseLead(value: string): string {
+  const text = normalizeBriefText(value);
+  if (!text) return text;
+  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
 }
 
 export function overlapMatchedLabel(decision: SkillRouterDecision): string {
@@ -266,16 +338,7 @@ function reviewPacketStatusText(status: string, readinessReady: boolean): string
 }
 
 function normalizeDesignBriefForPacket(brief: SkillIdeaDesignBrief | undefined): PacketDesignBrief {
-  return {
-    intendedUser: brief?.intendedUser || '',
-    problem: brief?.problem || '',
-    expectedInputs: brief?.expectedInputs || '',
-    expectedOutputArtifact: brief?.expectedOutputArtifact || '',
-    targetLane: brief?.targetLane || '',
-    paidPosture: brief?.paidPosture || '',
-    riskLevel: brief?.riskLevel || '',
-    notes: brief?.notes || '',
-  };
+  return normalizeSkillIdeaDesignBriefForView(brief);
 }
 
 function normalizeReadinessForPacket(
@@ -293,25 +356,15 @@ function normalizeReadinessForPacket(
       })),
     };
   }
-  const items = [
-    ['intendedUser', 'Intended user present'],
-    ['problem', 'Problem/job present'],
-    ['expectedInputs', 'Expected inputs present'],
-    ['expectedOutputArtifact', 'Expected output document present'],
-    ['targetLane', 'Workspace area selected'],
-    ['paidPosture', 'Paid/free posture selected'],
-    ['riskLevel', 'Risk level selected'],
-    ['notes', 'Notes or acceptance criteria present'],
-  ].map(([key, label]) => ({
-    label,
-    passed: Boolean(brief[key as keyof PacketDesignBrief]),
-  }));
-  const passedCount = items.filter((item) => item.passed).length;
+  const fallback = calculateSkillIdeaReadinessForView(brief);
   return {
-    ready: passedCount === items.length,
-    passedCount,
-    totalCount: items.length,
-    items,
+    ready: fallback.ready,
+    passedCount: fallback.passedCount,
+    totalCount: fallback.totalCount,
+    items: SKILL_IDEA_READINESS_CHECKS.map(([key, label]) => ({
+      label,
+      passed: Boolean(brief[key]),
+    })),
   };
 }
 

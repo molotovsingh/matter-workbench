@@ -123,6 +123,10 @@ export function createPrepareMatterSkill(ctx) {
         await postJson("/api/extract", { dryRun: false });
       } else if (stage.slash === "/describe_sources") {
         await postJson("/api/describe-sources", { dryRun: false });
+      } else if (stage.slash === "/create_listofdates") {
+        await postJson("/api/create-listofdates", { dryRun: false });
+      } else if (stage.slash === "/the_story") {
+        await postJson("/api/matter-story", { overwrite: false });
       } else {
         throw new Error(`Unsupported preparation stage: ${stage.slash}`);
       }

@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { AI_RUN_LEDGER_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
-import { makeHttpError } from "../shared/safe-paths.mjs";
+import { deriveConfigurableSkillRunReceipt } from "../shared/configurable-skill-run-receipts.mjs";
+import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 
 export const CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION = "configurable-skill-runs/v1";
 export const CONFIGURABLE_SKILL_RUN_SCHEMA_VERSION = "configurable-skill-run-ledger/v1";
@@ -91,9 +92,10 @@ export function createConfigurableSkillRunsService({
     if (normalizedSkillId) runs = runs.filter((run) => run.skillId === normalizedSkillId);
     if (normalizedMatterFolder) runs = runs.filter((run) => run.matterFolder === normalizedMatterFolder);
     runs = [...runs].sort(compareRunsNewestFirst).slice(0, normalizedLimit);
+    const annotatedRuns = await Promise.all(runs.map(annotateRun));
     return {
       schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
-      runs: runs.map(normalizeRunRecord),
+      runs: annotatedRuns,
     };
   }
 
@@ -120,12 +122,42 @@ export function createConfigurableSkillRunsService({
   }
 
   return {
+    annotateRun,
     createRun,
     listRuns,
     recordCancelledRun,
     storePath,
     updateRun,
   };
+}
+
+async function annotateRun(run = {}) {
+  const normalized = normalizeRunRecord(run);
+  const outputAvailability = {
+    markdown: await outputPathAvailability(normalized, normalized.outputPaths.markdown),
+    json: await outputPathAvailability(normalized, normalized.outputPaths.json),
+  };
+  const annotated = {
+    ...normalized,
+    outputAvailability,
+  };
+  return {
+    ...annotated,
+    receipt: deriveConfigurableSkillRunReceipt(annotated),
+  };
+}
+
+async function outputPathAvailability(run = {}, relativePath = "") {
+  const outputPath = normalizeText(relativePath);
+  if (!outputPath) return "not_recorded";
+  if (!run.matterRoot) return "unknown";
+  try {
+    await access(resolveRelativeInside(run.matterRoot, outputPath));
+    return "present";
+  } catch (error) {
+    if (error?.code === "ENOENT") return "missing";
+    return "unknown";
+  }
 }
 
 function serializeStore(store) {

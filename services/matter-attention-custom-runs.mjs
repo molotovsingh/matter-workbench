@@ -1,3 +1,7 @@
+import {
+  CONFIGURABLE_SKILL_RUN_RECEIPT_STATES,
+} from "../shared/configurable-skill-run-receipts.mjs";
+
 const DEFAULT_CUSTOM_RUN_LIMIT = 100;
 
 export async function buildCustomSkillRunAttentionItems({
@@ -27,7 +31,8 @@ export async function buildCustomSkillRunAttentionItems({
   const items = [];
   const warningKeys = new Set();
   for (const run of runs) {
-    if (run.status === "failed") {
+    const receipt = receiptForRun(run);
+    if (receipt.receiptState === CONFIGURABLE_SKILL_RUN_RECEIPT_STATES.FAILED) {
       items.push({
         severity: "blocker",
         category: "custom_skill",
@@ -35,6 +40,36 @@ export async function buildCustomSkillRunAttentionItems({
         title: `Custom skill failed: ${run.title || run.slash || "unknown skill"}`,
         detail: run.errorMessage || "The run receipt is marked failed.",
         action: "Inspect the custom skill receipt and rerun after fixing the cause.",
+        evidence: outputEvidence(run),
+        occurredAt: run.finishedAt || run.startedAt || "",
+      });
+    } else if (receipt.receiptState === CONFIGURABLE_SKILL_RUN_RECEIPT_STATES.OUTPUT_MISSING) {
+      const outputNotRecorded = receipt.outputFileStatus === "not_recorded";
+      items.push({
+        severity: "warning",
+        category: "custom_skill",
+        code: "custom_skill_output_missing",
+        title: `Custom skill output missing: ${run.title || run.slash || "unknown skill"}`,
+        detail: outputNotRecorded
+          ? "The run receipt says this skill completed, but the output document was not recorded."
+          : "The run receipt says this skill completed, but the output document is no longer present in the matter folder.",
+        action: outputNotRecorded
+          ? "Rerun the skill so the output document is written and tracked."
+          : "Rerun the skill if this output is still needed, or ignore it if the matter was intentionally reset.",
+        evidence: outputEvidence(run),
+        occurredAt: run.finishedAt || run.startedAt || "",
+      });
+    } else if (
+      receipt.receiptState === CONFIGURABLE_SKILL_RUN_RECEIPT_STATES.UNKNOWN
+      && receipt.needsAttention
+    ) {
+      items.push({
+        severity: "warning",
+        category: "custom_skill",
+        code: "custom_skill_receipt_unavailable",
+        title: `Custom skill receipt unavailable: ${run.title || run.slash || "unknown skill"}`,
+        detail: "The custom skill run is missing its canonical receipt.",
+        action: "Refresh Activity or inspect configurable-skill-runs.json.",
         evidence: outputEvidence(run),
         occurredAt: run.finishedAt || run.startedAt || "",
       });
@@ -64,4 +99,18 @@ export async function buildCustomSkillRunAttentionItems({
 function outputEvidence(run) {
   if (run.outputPaths?.markdown) return [{ path: run.outputPaths.markdown, runId: run.id }];
   return [{ runId: run.id }];
+}
+
+function receiptForRun(run = {}) {
+  return run.receipt || {
+    receiptState: CONFIGURABLE_SKILL_RUN_RECEIPT_STATES.UNKNOWN,
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: true,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+  };
 }

@@ -10,9 +10,11 @@ import { getErrorMessage } from './lib/errors';
 import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
+import { formatIntentDiscoveryGuidance } from './lib/skillIntentRouting';
 import { localAssistantReply } from './lib/assistantSmallTalk';
 import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
 import { useLatestValue } from './hooks/useLatestValue';
+import { humanizeArtifactPath } from './lib/presentationLabels';
 import type { ActiveView } from './types';
 
 function AppShell() {
@@ -256,14 +258,32 @@ function AppShell() {
         if (matchedResolution) {
           setActiveView(matchedResolution.view);
           dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(matchedResolution.command) });
+        } else if (result.matched_skill_card?.configurable) {
+          if (!matterName) {
+            dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before running this skill.' });
+            return;
+          }
+          const skillLabel = result.matched_skill_card.display?.action || result.matched_skill_card.title || cleanCommandLabel(result.matched_skill);
+          appendTerminal([`[skill] running ${skillLabel} on ${matterName}…`]);
+          const run = await api.runConfigurableSkill({ slash: result.matched_skill, overwrite: false, matterName });
+          if (activeMatterNameRef.current !== matterName) return;
+          if (run.state === 'requires_overwrite') {
+            const artifact = run.artifactPath || run.outputPaths?.markdown || 'the existing output';
+            const message = `${skillLabel} already has output at ${humanizeArtifactPath(artifact)}. Open Skills to review or rerun it.`;
+            dispatch({ type: 'SET_COMMAND_COPY', payload: message });
+            appendTerminal([`[skill] ${skillLabel} output exists — overwrite not confirmed`]);
+          } else {
+            dispatch({ type: 'SET_COMMAND_COPY', payload: `${skillLabel} complete.` });
+            appendTerminal([`[skill] ${skillLabel} completed`]);
+          }
         } else {
-          dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action || `Run ${result.matched_skill}` });
+          dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(result) || `Run ${result.matched_skill}` });
         }
       } else if (result.decision === 'transient_copilot') {
         appendTerminal(['[cmd] routed to copilot answer']);
         await answerMatterQuestion(cmd, { matterName, manageRunning: false });
       } else if (result.suggested_next_action) {
-        dispatch({ type: 'SET_COMMAND_COPY', payload: result.suggested_next_action });
+        dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(result) });
       }
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;

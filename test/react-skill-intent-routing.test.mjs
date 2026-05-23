@@ -39,6 +39,124 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
     routing.formatIntentDiscoveryGuidance({ decision: "transient_copilot" }),
     /answer from the active matter context/i,
   );
+  assert.match(
+    routing.formatIntentDiscoveryGuidance({
+      decision: "new_skill",
+      user_gate_required: true,
+      suggested_next_action: "Ask the user whether they want to create a separate reusable skill.",
+    }),
+    /should I answer this once.*reusable skill/i,
+  );
+  assert.doesNotMatch(
+    routing.formatIntentDiscoveryGuidance({
+      decision: "new_skill",
+      user_gate_required: true,
+      suggested_next_action: "Ask the user whether they want to create a separate reusable skill.",
+    }),
+    /Ask the user/i,
+  );
+  const modificationGuidance = routing.formatIntentDiscoveryGuidance({
+    decision: "modify_existing_skill",
+    recommended_action: "modify_existing_skill",
+    matched_skill: "/party_officer_map",
+    matched_skill_card: { configurable: true },
+    user_gate_required: true,
+    reason: "Tell the user to approve changing /party_officer_map.",
+    suggested_next_action: "Ask the user to approve modifying /party_officer_map.",
+  });
+  assert.match(modificationGuidance, /change to \/party_officer_map/i);
+  assert.doesNotMatch(modificationGuidance, /tell the user|ask the user/i);
+
+  assert.deepEqual(
+    routing.intentChoiceLabels({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/party_officer_map",
+      matched_skill_card: { configurable: true },
+      user_gate_required: true,
+    }),
+    {
+      primary: "Improve existing skill",
+      secondary: "Create separate skill",
+    },
+  );
+  assert.deepEqual(
+    routing.intentChoiceLabels({
+      decision: "new_skill",
+      user_gate_required: true,
+    }),
+    {
+      primary: "Answer once",
+      secondary: "Build reusable skill",
+    },
+  );
+  assert.deepEqual(
+    routing.intentChoiceLabels({
+      decision: "needs_user_approval",
+      recommended_action: "run_existing_skill",
+      matched_skill: "/create_listofdates",
+      matched_skill_card: { configurable: false },
+      user_gate_required: true,
+    }),
+    {
+      primary: "Use existing skill",
+      secondary: "Create separate skill",
+    },
+  );
+  assert.equal(
+    routing.isConfigurableExistingSkillChoice({
+      decision: "needs_user_approval",
+      recommended_action: "run_existing_skill",
+      matched_skill: "/create_listofdates",
+      matched_skill_card: { configurable: false },
+      user_gate_required: true,
+    }),
+    false,
+  );
+  assert.equal(
+    routing.shouldAutoStartConfigurableSkillImprovement({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/the_story",
+      matched_skill_card: { configurable: true, title: "The Story" },
+      user_gate_required: false,
+    }, "improve The Story make it like a story no need to ground it in evidence for it"),
+    true,
+  );
+  assert.equal(
+    routing.shouldAutoStartConfigurableSkillImprovement({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/the_story",
+      matched_skill_card: { configurable: true, title: "The Story" },
+      user_gate_required: false,
+    }, "create another story skill"),
+    false,
+  );
+  assert.equal(
+    routing.shouldAutoStartConfigurableSkillImprovement({
+      decision: "modify_existing_skill",
+      recommended_action: "modify_existing_skill",
+      matched_skill: "/create_listofdates",
+      matched_skill_card: { configurable: false, title: "List of Dates" },
+      user_gate_required: false,
+    }, "improve List of Dates"),
+    false,
+  );
+  assert.equal(
+    routing.formatIntentDiscoveryReason(
+      "Tell the user to approve changing /party_officer_map.",
+      "Review the existing skill before creating another one.",
+    ),
+    "Review the existing skill before creating another one.",
+  );
+  assert.doesNotMatch(
+    routing.formatIntentDiscoveryGuidance({
+      decision: "other",
+      reason: "Tell the user to approve changing the skill.",
+    }),
+    /tell the user|ask the user/i,
+  );
 });
 
 test("React command panel checks backend intent before opening Skill Factory for skill-like text", async () => {
@@ -48,8 +166,23 @@ test("React command panel checks backend intent before opening Skill Factory for
   assert.match(source, /api\.checkIntent\(\{ userRequest: cmd, matterName: matterName \?\? undefined \}\)/);
   assert.match(source, /shouldStartSkillIdeaSessionFromIntent\(decision\)/);
   assert.match(source, /formatIntentDiscoveryGuidance\(decision\)/);
+  assert.match(source, /shouldAutoStartConfigurableSkillImprovement\(decision, cmd\)/);
+  assert.match(source, /setPendingIntentChoice\(\{ command: cmd, decision \}\)/);
+  assert.match(source, /intentChoiceLabels\(pendingIntentChoice\.decision\)/);
+  assert.match(source, /isConfigurableExistingSkillChoice\(pendingIntentChoice\.decision\)/);
+  assert.match(source, /onCommand\(matchedSkill\)/);
+  assert.match(source, /buildPendingIntentSkill\(choiceLabels\.secondary\)/);
   assert.match(source, /do not remember earlier chat/i);
   assert.doesNotMatch(source, /if \(ideaParsed !== null\) \{\s*setSkillIdeaInput\(cmd\);/);
+});
+
+test("React skill overlap gate sanitizes router guidance before rendering", async () => {
+  const source = await readFile(new URL("../react-ui/src/components/command/SkillIdeaSession.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /formatIntentDiscoveryGuidance/);
+  assert.match(source, /formatIntentDiscoveryReason/);
+  assert.doesNotMatch(source, /decision\.suggested_next_action \|\|/);
+  assert.doesNotMatch(source, /<dd>\{session\.overlapGate\.decision\.reason\}<\/dd>/);
 });
 
 async function importReactIntentRouting() {

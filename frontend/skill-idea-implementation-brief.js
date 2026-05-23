@@ -3,6 +3,7 @@ import {
   SKILL_IDEA_STATUS,
   normalizeSkillIdeaStatus,
 } from "../shared/skill-idea-statuses.mjs";
+import { calculateSkillIdeaReadiness } from "../shared/skill-idea-design-brief.mjs";
 
 const KNOWN_TARGETS = [
   {
@@ -476,12 +477,11 @@ function normalizeReadiness(readiness, brief) {
       totalCount: Number(readiness.totalCount || readiness.items.length),
     };
   }
-  const keys = ["intendedUser", "problem", "expectedInputs", "expectedOutputArtifact", "targetLane", "paidPosture", "riskLevel", "notes"];
-  const passedCount = keys.filter((key) => Boolean(brief[key])).length;
+  const calculated = calculateSkillIdeaReadiness(brief);
   return {
-    ready: passedCount === keys.length,
-    passedCount,
-    totalCount: keys.length,
+    ready: calculated.ready,
+    passedCount: calculated.passedCount,
+    totalCount: calculated.totalCount,
   };
 }
 

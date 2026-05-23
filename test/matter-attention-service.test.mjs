@@ -127,6 +127,15 @@ test("matter attention aggregates developer blockers from existing matter traces
             errorMessage: "source packet missing",
             finishedAt: "2026-05-16T10:07:00.000Z",
             outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
+            receipt: skillRunReceipt({
+              receiptState: "failed",
+              statusLabel: "Failed",
+              statusClass: "failed",
+              resultText: "Failed",
+              needsAttention: true,
+              outputFileStatus: "present",
+              outputFileStatusLabel: "Present in matter folder",
+            }),
           },
           {
             id: "run_warning_new",
@@ -137,6 +146,7 @@ test("matter attention aggregates developer blockers from existing matter traces
             warnings: ["Omitted 20 evidence block(s) due to maxBlocks=70"],
             finishedAt: "2026-05-16T10:06:00.000Z",
             outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
+            receipt: completedSkillRunReceipt(),
           },
           {
             id: "run_warning_old",
@@ -147,6 +157,7 @@ test("matter attention aggregates developer blockers from existing matter traces
             warnings: ["Omitted 20 evidence block(s) due to maxBlocks=70"],
             finishedAt: "2026-05-16T09:06:00.000Z",
             outputPaths: { markdown: "20_Workshop/Party and Officer Map.md" },
+            receipt: completedSkillRunReceipt(),
           },
         ],
       }),
@@ -317,4 +328,32 @@ function assertAttentionCode(attention, code) {
     attention.items.some((item) => item.code === code),
     `Expected attention item with code ${code}`,
   );
+}
+
+function completedSkillRunReceipt() {
+  return skillRunReceipt({
+    receiptState: "completed",
+    statusLabel: "Completed",
+    statusClass: "present",
+    resultText: "Created output document",
+    isCompletedWork: true,
+    canOpenOutput: true,
+    outputFileStatus: "present",
+    outputFileStatusLabel: "Present in matter folder",
+  });
+}
+
+function skillRunReceipt(overrides = {}) {
+  return {
+    receiptState: "unknown",
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: false,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+    ...overrides,
+  };
 }

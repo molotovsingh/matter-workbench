@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { escapeHtml } from "../frontend/dom-utils.js";
 import {
@@ -471,6 +472,7 @@ test("skills page renders custom skill version lineage from configurable store",
           outputPaths: {
             markdown: "20_Workshop/Party and Officer Map.md",
           },
+          receipt: completedReceipt(),
         },
         {
           id: "run_party_v2",
@@ -484,6 +486,7 @@ test("skills page renders custom skill version lineage from configurable store",
           outputPaths: {
             markdown: "20_Workshop/Party and Officer Map.md",
           },
+          receipt: completedReceipt(),
         },
       ],
     },
@@ -535,9 +538,9 @@ test("skills page renders custom skill version lineage from configurable store",
   assert.match(customSection, /data-skill-card-command="\/party_officer_map modify"/);
   assert.match(customSection, /include relationship confidence and unresolved aliases/);
   assert.match(customSection, /discover formal party names, officers, aliases, and relationships/);
-  assert.match(customSection, /<dt>Latest run<\/dt><dd>Mehta vs Skyline - Succeeded<\/dd>/);
+  assert.match(customSection, /<dt>Latest run<\/dt><dd>Mehta vs Skyline - Completed<\/dd>/);
   assert.match(customSection, /<dt>Review matter<\/dt><dd>Mehta vs Skyline<\/dd>/);
-  assert.match(customSection, /<dt>Last run<\/dt><dd>Ayesha Vs Japan Airlines - Succeeded<\/dd>/);
+  assert.match(customSection, /<dt>Last run<\/dt><dd>Ayesha Vs Japan Airlines - Completed<\/dd>/);
   assert.match(customSection, /<dt>Validation<\/dt><dd>Unknown<\/dd>/);
   assert.doesNotMatch(customSection, /Create draft skill|Activate draft|Generate prompt/);
 });
@@ -565,6 +568,9 @@ test("activity page renders custom skill run receipts separately from skills gov
           model: "gpt-5.4",
         },
         overwrite: "approved",
+        receipt: completedReceipt({
+          resultText: "Replaced existing output document",
+        }),
       },
       {
         id: "run_party_2",
@@ -581,6 +587,14 @@ test("activity page renders custom skill run receipts separately from skills gov
           json: "20_Workshop/Party and Officer Map.json",
         },
         overwrite: "cancelled",
+        receipt: receipt({
+          receiptState: "cancelled",
+          statusLabel: "Cancelled",
+          statusClass: "not-run",
+          resultText: "Cancelled - kept existing output document",
+          outputFileStatus: "present",
+          outputFileStatusLabel: "Present in matter folder",
+        }),
       },
     ],
   };
@@ -622,6 +636,56 @@ test("activity page renders custom skill run receipts separately from skills gov
   assert.doesNotMatch(html, /API_KEY|\.env|raw source text|# should not appear/i);
 });
 
+test("activity page flags completed receipts whose output file is missing", () => {
+  const runs = {
+    schema_version: "configurable-skill-runs/v1",
+    runs: [
+      {
+        id: "run_missing_output",
+        skillId: "skill_party",
+        slash: "/party_officer_map",
+        title: "Party and Officer Map",
+        matterName: "Ayesha Vs Japan Airlines",
+        matterFolder: "Ayesha Vs Japan Airlines",
+        status: "succeeded",
+        startedAt: "2026-05-14T10:00:00.000Z",
+        finishedAt: "2026-05-14T10:01:00.000Z",
+        outputPaths: {
+          markdown: "20_Workshop/Party and Officer Map.md",
+          json: "20_Workshop/Party and Officer Map.json",
+        },
+        outputAvailability: {
+          markdown: "missing",
+          json: "missing",
+        },
+        receipt: receipt({
+          receiptState: "output_missing",
+          statusLabel: "Output missing",
+          statusClass: "warning",
+          resultText: "Output file missing from matter folder",
+          needsAttention: true,
+          outputFileStatus: "missing",
+          outputFileStatusLabel: "Missing from matter folder",
+        }),
+      },
+    ],
+  };
+  const summary = activityPageSummary(runs);
+  const html = renderActivityPageHtml({
+    configurableSkillRuns: runs,
+    activeMatter: { folderName: "Ayesha Vs Japan Airlines" },
+  }, escapeHtml);
+
+  assert.equal(summary.succeeded, 0);
+  assert.equal(summary.missingOutput, 1);
+  assert.match(html, /Needs Attention/);
+  assert.match(html, /1 output missing/);
+  assert.match(html, /Output missing/);
+  assert.match(html, /Output file missing from matter folder/);
+  assert.match(html, /Missing from matter folder/);
+  assert.doesNotMatch(html, /data-activity-open-output/);
+});
+
 test("custom skill run report is copyable and excludes work product", () => {
   const report = formatConfigurableSkillRunReport({
     id: "run_party_1",
@@ -645,10 +709,14 @@ test("custom skill run report is copyable and excludes work product", () => {
     warnings: ["bounded context omitted 10 blocks"],
     sampleMarkdown: "# should not appear",
     rawSourceText: "should not appear",
+    receipt: completedReceipt({
+      resultText: "Replaced existing output document",
+    }),
   });
 
   assert.match(report, /^# Custom Skill Run Report/);
-  assert.match(report, /- Status: succeeded/);
+  assert.match(report, /- Status: Completed/);
+  assert.match(report, /- Receipt state: completed/);
   assert.match(report, /- Skill: Party and Officer Map v2/);
   assert.match(report, /- Slash command: \/party_officer_map/);
   assert.match(report, /- Provider\/model: openai-direct \/ gpt-5\.4/);
@@ -658,6 +726,21 @@ test("custom skill run report is copyable and excludes work product", () => {
   assert.match(report, /bounded context omitted 10 blocks/);
   assert.match(report, /does not include raw source text, full extraction records/i);
   assert.doesNotMatch(report, /should not appear|API_KEY|\.env/i);
+});
+
+test("legacy skill activity views consume backend receipts without local derivation", async () => {
+  const activitySource = await readFile(new URL("../frontend/views/activity-page.js", import.meta.url), "utf8");
+  const cardsSource = await readFile(new URL("../frontend/views/skills-page-cards.js", import.meta.url), "utf8");
+  const reportSource = await readFile(new URL("../frontend/views/configurable-skill-run-report.js", import.meta.url), "utf8");
+
+  for (const source of [activitySource, cardsSource, reportSource]) {
+    assert.doesNotMatch(source, /deriveConfigurableSkillRunReceipt/);
+    assert.doesNotMatch(source, /formatConfigurableSkillRunOutputAvailability/);
+    assert.doesNotMatch(source, /outputAvailability\?\.markdown/);
+  }
+  assert.match(activitySource, /receiptForRun\(run\)\.needsAttention/);
+  assert.match(cardsSource, /receiptForRun\(run\)\.statusLabel/);
+  assert.match(reportSource, /Receipt unavailable/);
 });
 
 test("skill idea implementation brief classifies client-update email as a new skill", () => {
@@ -884,3 +967,32 @@ test("skills page supports no-matter planning mode without an error", () => {
   assert.match(html, /\/extract/);
   assert.doesNotMatch(html, /form-error/);
 });
+
+function completedReceipt(overrides = {}) {
+  return receipt({
+    receiptState: "completed",
+    statusLabel: "Completed",
+    statusClass: "present",
+    resultText: "Created output document",
+    isCompletedWork: true,
+    canOpenOutput: true,
+    outputFileStatus: "present",
+    outputFileStatusLabel: "Present in matter folder",
+    ...overrides,
+  });
+}
+
+function receipt(overrides = {}) {
+  return {
+    receiptState: "unknown",
+    statusLabel: "Receipt unavailable",
+    statusClass: "warning",
+    resultText: "Run receipt is unavailable",
+    needsAttention: false,
+    isCompletedWork: false,
+    canOpenOutput: false,
+    outputFileStatus: "unknown",
+    outputFileStatusLabel: "Not checked",
+    ...overrides,
+  };
+}

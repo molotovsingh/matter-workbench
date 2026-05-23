@@ -14,6 +14,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     matterCopilotService,
     matterContextService,
     matterStore,
+    matterStoryService,
     matterStatusService,
     prepareMatterService,
   } = services;
@@ -81,6 +82,13 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await refreshListOfDatesSourceLabels({
           matterRoot: root,
           dryRun: Boolean(body.dryRun),
+        }));
+      }),
+      exactRoute("POST", "/api/matter-story", async () => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await matterStoryService.runDisputeStory({
+          matterName: body.matterName,
+          overwrite: Boolean(body.overwrite),
         }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
