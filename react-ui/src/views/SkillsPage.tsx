@@ -101,8 +101,11 @@ export default function SkillsPage() {
 
   const activeIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) !== SKILL_IDEA_STATUS.DISMISSED);
   const dismissedIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) === SKILL_IDEA_STATUS.DISMISSED);
-  const visibleCustomSkills = customSkills.filter((skill) => skill.status !== 'archived');
+  const builtinRegistrySkills = registrySkills.filter((skill) => !skill.configurable);
+  const visibleCustomSkills = customSkills.filter((skill) => skill.status === 'active' || skill.status === 'suspended');
+  const draftCustomSkills = customSkills.filter((skill) => skill.status === 'draft');
   const archivedCustomSkills = customSkills.filter((skill) => skill.status === 'archived');
+  const previousVersionCustomSkills = customSkills.filter((skill) => skill.status === 'disabled');
 
   return (
     <div className="skills-page">
@@ -129,9 +132,9 @@ export default function SkillsPage() {
 
       {/* Summary */}
       <div className="skills-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-        {registrySkills.length > 0 && (
+        {builtinRegistrySkills.length > 0 && (
           <span className="pipeline-state present">
-            {registrySkills.length} built-in workflow{registrySkills.length !== 1 ? 's' : ''}
+            {builtinRegistrySkills.length} built-in workflow{builtinRegistrySkills.length !== 1 ? 's' : ''}
           </span>
         )}
         {visibleCustomSkills.length > 0 && (
@@ -211,6 +214,44 @@ export default function SkillsPage() {
         </div>
       )}
 
+      {draftCustomSkills.length > 0 && (
+        <div className="skills-section">
+          <details>
+            <summary>Draft custom skills ({draftCustomSkills.length})</summary>
+            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
+              {draftCustomSkills.map((skill) => (
+                <div key={skill.id} className="active-custom-skill-card">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
+                      <div style={{ marginTop: 6 }}>
+                        <span className="pipeline-state pending">Draft</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                      {lifecycleActionsFor(skill.status).map((action) => (
+                        <button
+                          key={action}
+                          className="run-skill-button secondary"
+                          type="button"
+                          onClick={() => { void handleLifecycleAction(skill, action); }}
+                          disabled={Boolean(loadingLifecycle)}
+                        >
+                          {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {skill.description && (
+                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
+
       {archivedCustomSkills.length > 0 && (
         <div className="skills-section">
           <details>
@@ -237,6 +278,31 @@ export default function SkillsPage() {
                           {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                  {skill.description && (
+                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
+
+      {previousVersionCustomSkills.length > 0 && (
+        <div className="skills-section">
+          <details>
+            <summary>Previous versions ({previousVersionCustomSkills.length})</summary>
+            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
+              {previousVersionCustomSkills.map((skill) => (
+                <div key={skill.id} className="active-custom-skill-card">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
+                      <div style={{ marginTop: 6 }}>
+                        <span className="pipeline-state not-run">Previous version</span>
+                      </div>
                     </div>
                   </div>
                   {skill.description && (
@@ -281,7 +347,7 @@ export default function SkillsPage() {
       )}
 
       {/* Built-in skills by category */}
-      {Object.entries(groupByCategory(registrySkills)).map(([category, skills]) => (
+      {Object.entries(groupByCategory(builtinRegistrySkills)).map(([category, skills]) => (
         <div key={category} className="skills-section">
           <h2>{category}</h2>
           <div className="builtin-skills-list">

@@ -22,7 +22,15 @@ test("React custom skill lifecycle controls are scoped to custom skills", async 
   assert.match(skillsSource, /Archive/);
   assert.match(skillsSource, /Restore to paused/);
   assert.match(skillsSource, /Delete/);
+  assert.match(skillsSource, /skill\.status === 'active' \|\| skill\.status === 'suspended'/);
+  assert.match(skillsSource, /draftCustomSkills/);
+  assert.match(skillsSource, /Draft custom skills/);
+  assert.match(skillsSource, /previousVersionCustomSkills/);
+  assert.match(skillsSource, /Previous versions/);
   assert.match(skillsSource, /Archived custom skills/);
+  assert.match(skillsSource, /const builtinRegistrySkills = registrySkills\.filter\(\(skill\) => !skill\.configurable\);/);
+  assert.match(skillsSource, /groupByCategory\(builtinRegistrySkills\)/);
+  assert.doesNotMatch(skillsSource, /groupByCategory\(registrySkills\)/);
   assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
   assert.doesNotMatch(skillsSource, /updateConfigurableSkillLifecycle\([^)]*skill\.slash/);
 });
