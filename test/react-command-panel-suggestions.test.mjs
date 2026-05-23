@@ -14,6 +14,8 @@ test("React command panel suggestions include custom skills and a larger command
   assert.match(source, /onClose=\{resetCommandPanel\}/);
   assert.match(source, /status !== 'active'/);
   assert.match(source, /skill\.slash/);
+  assert.match(source, /customSkill\?: boolean/);
+  assert.match(source, /customSkill: true/);
   assert.match(source, /setSuggestions\(matched\.slice\(0, 12\)\)/);
   assert.doesNotMatch(source, /setSuggestions\(matched\.slice\(0, 5\)\)/);
 });

@@ -167,6 +167,8 @@ test("React command panel checks backend intent before opening Skill Factory for
   assert.match(source, /shouldStartSkillIdeaSessionFromIntent\(decision\)/);
   assert.match(source, /formatIntentDiscoveryGuidance\(decision\)/);
   assert.match(source, /shouldAutoStartConfigurableSkillImprovement\(decision, cmd\)/);
+  assert.match(source, /looksLikeCustomSkillModification\(cmd, baseSuggestions\)/);
+  assert.match(source, /const shouldCheckIntent = ideaParsed !== null \|\| looksLikeCustomSkillModification\(cmd, baseSuggestions\)/);
   assert.match(source, /setPendingIntentChoice\(\{ command: cmd, decision \}\)/);
   assert.match(source, /intentChoiceLabels\(pendingIntentChoice\.decision\)/);
   assert.match(source, /isConfigurableExistingSkillChoice\(pendingIntentChoice\.decision\)/);
@@ -181,6 +183,8 @@ test("React skill overlap gate sanitizes router guidance before rendering", asyn
 
   assert.match(source, /formatIntentDiscoveryGuidance/);
   assert.match(source, /formatIntentDiscoveryReason/);
+  assert.match(source, /Improve existing skill/);
+  assert.match(source, /Save updates/);
   assert.doesNotMatch(source, /decision\.suggested_next_action \|\|/);
   assert.doesNotMatch(source, /<dd>\{session\.overlapGate\.decision\.reason\}<\/dd>/);
 });

@@ -28,6 +28,21 @@ interface CommandSuggestion {
   label: string;
   description: string;
   command: string;
+  customSkill?: boolean;
+}
+
+const CUSTOM_SKILL_MODIFICATION_RE = /\b(improve|change|update|modify|revise|refine|adjust|tweak|rewrite|rework)\b/i;
+
+function looksLikeCustomSkillModification(input: string, suggestions: CommandSuggestion[]): boolean {
+  if (!CUSTOM_SKILL_MODIFICATION_RE.test(input)) return false;
+  const lowerInput = input.toLowerCase();
+  return suggestions.some((suggestion) => {
+    if (!suggestion.customSkill) return false;
+    const slash = suggestion.command.toLowerCase();
+    const label = suggestion.label.toLowerCase();
+    return Boolean(slash && lowerInput.includes(slash))
+      || Boolean(label && lowerInput.includes(label));
+  });
 }
 
 const STATIC_SUGGESTIONS: CommandSuggestion[] = [
@@ -106,6 +121,7 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
           label: skill.title || skill.slash,
           description: skill.description || 'Run this custom skill',
           command: skill.slash,
+          customSkill: true,
         }));
       setBaseSuggestions([...STATIC_SUGGESTIONS, ...customSuggestions]);
     } catch (error) {
@@ -289,7 +305,8 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
     }
 
     const ideaParsed = parseSkillIdeaText(cmd);
-    if (ideaParsed !== null) {
+    const shouldCheckIntent = ideaParsed !== null || looksLikeCustomSkillModification(cmd, baseSuggestions);
+    if (shouldCheckIntent) {
       if (ideaParsed === '') {
         setSkillIdeaInput(cmd);
         return;
@@ -330,7 +347,7 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
     } catch { /* fire-and-forget */ }
-  }, [input, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
+  }, [input, baseSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
 
   return (
     <aside className="command-panel" aria-label="Command box">

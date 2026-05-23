@@ -16,6 +16,7 @@ interface Props {
 }
 
 export default function SkillIdeaSession({ initialInput, onClose, onInputOverride }: Props) {
+  const isImprovementSession = /^Improve\s+\//i.test(initialInput.trim());
   const {
     session,
     currentQuestion,
@@ -27,7 +28,7 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     <div className="skill-idea-session">
       <div className="skill-idea-header">
         <div className="skill-idea-kicker">Skill Factory</div>
-        <h3>New skill idea</h3>
+        <h3>{isImprovementSession ? 'Improve existing skill' : 'New skill idea'}</h3>
         <button type="button" className="skill-idea-close" onClick={actions.closeSession} aria-label="Close">
           ×
         </button>
@@ -96,14 +97,20 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
 
       {session.phase === 'ready' && (
         <div className="skill-idea-ready">
-          <p>All questions answered. Save this idea to generate a sample output.</p>
+          <p>
+            {isImprovementSession
+              ? 'All questions answered. Save these updates to generate a sample output.'
+              : 'All questions answered. Save this idea to generate a sample output.'}
+          </p>
           {session.defaultAssumptions.length > 0 && (
             <ul className="skill-idea-sample-warnings">
               {session.defaultAssumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
             </ul>
           )}
           <div className="skill-idea-actions">
-            <button type="button" onClick={() => { void actions.handleSave(); }}>Save idea</button>
+            <button type="button" onClick={() => { void actions.handleSave(); }}>
+              {isImprovementSession ? 'Save updates' : 'Save idea'}
+            </button>
             <button type="button" className="secondary" onClick={actions.handleEditAnswers}>Edit answers</button>
           </div>
         </div>
