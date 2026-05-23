@@ -412,6 +412,32 @@ test("configurable skill lifecycle rejects previous versions and resume slash co
   );
 });
 
+test("configurable skill lifecycle rejects invalid transitions without mutating status", async () => {
+  const { service } = await makeServiceHarness();
+  const created = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  await assert.rejects(
+    () => service.updateSkillLifecycle({ skillId: created.skill.id, action: "restore" }),
+    /Cannot restore a custom skill with status active/i,
+  );
+  assert.equal((await service.listSkills()).skills.find((skill) => skill.id === created.skill.id).status, "active");
+
+  await service.updateSkillLifecycle({ skillId: created.skill.id, action: "suspend" });
+  await assert.rejects(
+    () => service.updateSkillLifecycle({ skillId: created.skill.id, action: "restore" }),
+    /Cannot restore a custom skill with status suspended/i,
+  );
+  assert.equal((await service.listSkills()).skills.find((skill) => skill.id === created.skill.id).status, "suspended");
+
+  await service.updateSkillLifecycle({ skillId: created.skill.id, action: "delete" });
+  await assert.rejects(
+    () => service.updateSkillLifecycle({ skillId: created.skill.id, action: "resume" }),
+    /Deleted custom skills cannot be changed/i,
+  );
+  const withDeleted = await service.listSkills({ includeDeleted: true });
+  assert.equal(withDeleted.skills.find((skill) => skill.id === created.skill.id).status, "deleted");
+});
+
 async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequence = null, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "configurable-skills-test-"));
   const appDir = path.join(tmp, "app");

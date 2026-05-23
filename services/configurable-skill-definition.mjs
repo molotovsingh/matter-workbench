@@ -7,7 +7,7 @@ export const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 const MAX_PROMPT_LENGTH = 8000;
 const MAX_OUTPUT_LENGTH = 80_000;
 const MAX_SLASH_ALLOCATION_ATTEMPTS = 1000;
-const CONFIGURABLE_SKILL_STATUSES = new Set(["draft", "active", "disabled", "suspended", "archived", "deleted"]);
+export const CONFIGURABLE_SKILL_STATUSES = new Set(["draft", "active", "disabled", "suspended", "archived", "deleted"]);
 const RAW_SOURCE_HANDLE_INSTRUCTION = [
   "For source-backed outputs, keep readable source labels in normal lawyer-facing prose.",
   "Also include an internal audit/source-handles section with raw FILE-NNNN pX.bY citations for material factual assertions and recommendations.",

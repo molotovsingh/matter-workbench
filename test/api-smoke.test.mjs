@@ -427,6 +427,8 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(pausedCustomSkill.skill.status, "suspended");
     const skillsAfterPause = await getJson(baseUrl, "/api/skills");
     assert.equal(skillsAfterPause.skills.some((skill) => skill.slash === "/party_officer_map"), false);
+    const healthAfterPause = await getJson(baseUrl, "/api/skill-factory-health");
+    assert.equal(healthAfterPause.state, "ok");
     const pausedRunResponse = await fetch(`${baseUrl}/api/configurable-skills/run`, {
       method: "POST",
       headers: { "content-type": "application/json" },

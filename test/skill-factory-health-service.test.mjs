@@ -94,6 +94,86 @@ test("skill factory health accepts one active version in a valid skill family", 
   assert.ok(health.checks.some((check) => check.id === "skill_versions" && check.state === "ok"));
 });
 
+test("skill factory health accepts lifecycle statuses used by custom skill controls", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-lifecycle-statuses-"));
+  const designBrief = partyBrief();
+  const hash = hashDesignBrief(designBrief);
+  await writeStores(appDir, {
+    ideas: [
+      { id: "idea_paused", designBrief },
+      { id: "idea_archived", designBrief },
+      { id: "idea_deleted", designBrief },
+    ],
+    samples: [
+      { id: "sample_paused", ideaId: "idea_paused", approved: true, designBriefHash: hash },
+      { id: "sample_archived", ideaId: "idea_archived", approved: true, designBriefHash: hash },
+      { id: "sample_deleted", ideaId: "idea_deleted", approved: true, designBriefHash: hash },
+    ],
+    skills: [{
+      id: "skill_paused",
+      slash: "/paused_skill",
+      status: "suspended",
+      sourceIdeaId: "idea_paused",
+      sourceSampleId: "sample_paused",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Paused Skill.md",
+      validation: { status: "passed" },
+    }, {
+      id: "skill_archived",
+      slash: "/archived_skill",
+      status: "archived",
+      sourceIdeaId: "idea_archived",
+      sourceSampleId: "sample_archived",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Archived Skill.md",
+      validation: { status: "passed" },
+    }, {
+      id: "skill_deleted",
+      slash: "/deleted_skill",
+      status: "deleted",
+      sourceIdeaId: "idea_deleted",
+      sourceSampleId: "sample_deleted",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Deleted Skill.md",
+      validation: { status: "passed" },
+    }],
+  });
+
+  const health = await createSkillFactoryHealthService({ appDir }).checkHealth();
+  const invalidStatusIssues = health.issues.filter((issue) => issue.code === "skill_invalid_status");
+
+  assert.equal(health.state, "ok");
+  assert.deepEqual(invalidStatusIssues, []);
+  assert.equal(health.summary.activeSkills, 0);
+});
+
+test("skill factory health ignores deleted custom skill tombstone links", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-deleted-tombstone-"));
+  await writeStores(appDir, {
+    ideas: [],
+    samples: [],
+    skills: [{
+      id: "skill_deleted",
+      slash: "/deleted_skill",
+      status: "deleted",
+      previousSkillId: "missing_previous",
+      replacedBySkillId: "missing_replacement",
+      sourceIdeaId: "missing_idea",
+      sourceSampleId: "missing_sample",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Deleted Skill.md",
+      validation: { status: "passed" },
+    }],
+  });
+
+  const health = await createSkillFactoryHealthService({ appDir }).checkHealth();
+
+  assert.equal(health.state, "ok");
+  assert.deepEqual(health.issues, []);
+  assert.equal(health.summary.configurableSkills, 1);
+  assert.equal(health.summary.activeSkills, 0);
+});
+
 test("skill factory health reports stale approved samples, missing links, duplicate slashes, and bad output lanes", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-factory-health-bad-"));
   await writeStores(appDir, {

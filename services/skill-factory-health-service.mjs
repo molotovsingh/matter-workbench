@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { BUILTIN_SKILL_COMMAND_SET } from "../shared/builtin-skill-commands.mjs";
+import { CONFIGURABLE_SKILL_STATUSES } from "./configurable-skill-definition.mjs";
 import { hashDesignBrief } from "./skill-samples-service.mjs";
 
 export const SKILL_FACTORY_HEALTH_SCHEMA_VERSION = "skill-factory-health/v1";
@@ -8,7 +9,6 @@ export const SKILL_FACTORY_HEALTH_SCHEMA_VERSION = "skill-factory-health/v1";
 const SKILL_IDEAS_SCHEMA_VERSION = "skill-ideas/v1";
 const SKILL_SAMPLES_SCHEMA_VERSION = "skill-samples/v1";
 const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
-const VALID_SKILL_STATUSES = new Set(["draft", "active", "disabled"]);
 const VALID_LANES = new Set(["10_Library", "20_Workshop", "30_Drafts", "40_Dispatch"]);
 
 export function createSkillFactoryHealthService({
@@ -133,12 +133,13 @@ async function readJsonStore(filePath, expectedSchema, arrayKey, label, issues) 
 
 function validateSkill(skill, { ideaById, sampleById, issues }) {
   if (!skill.id) addIssue(issues, "error", "skill_missing_id", "A configurable skill is missing an id.");
-  if (!VALID_SKILL_STATUSES.has(skill.status)) {
+  if (!CONFIGURABLE_SKILL_STATUSES.has(skill.status)) {
     addIssue(issues, "error", "skill_invalid_status", `Skill ${skill.id || skill.slash || "(missing id)"} has invalid status ${skill.status || "(blank)"}.`);
   }
   if (!skill.slash || !skill.slash.startsWith("/")) {
     addIssue(issues, "error", "skill_invalid_slash", `Skill ${skill.id || "(missing id)"} has invalid slash ${skill.slash || "(blank)"}.`);
   }
+  if (isDeletedSkill(skill)) return;
   if (!skill.sourceIdeaId || !ideaById.has(skill.sourceIdeaId)) {
     addIssue(issues, "error", "skill_missing_idea", `Skill ${skill.slash || skill.id || "(missing skill)"} points to a missing source idea ${skill.sourceIdeaId || "(blank)"}.`);
   }
@@ -174,8 +175,13 @@ function isFailedDraft(skill = {}) {
   return skill.status === "draft" && skill.validation?.status === "failed";
 }
 
+function isDeletedSkill(skill = {}) {
+  return skill.status === "deleted";
+}
+
 function validateSkillVersionLinks(skills, { skillById, issues }) {
   for (const skill of skills) {
+    if (isDeletedSkill(skill)) continue;
     if (skill.previousSkillId && !skillById.has(skill.previousSkillId)) {
       addIssue(issues, "error", "skill_missing_previous_version", `Skill ${skill.slash || skill.id} points to missing previous version ${skill.previousSkillId}.`);
     }
