@@ -433,7 +433,9 @@ function improvementIdeaChangeText(skill, idea) {
 
 function customSkillStatusLabel(status) {
   if (status === "active") return "Active";
-  if (status === "disabled") return "Disabled";
+  if (status === "suspended") return "Paused";
+  if (status === "archived") return "Archived";
+  if (status === "disabled") return "Previous version";
   return "Draft";
 }
 
@@ -444,7 +446,7 @@ function customSkillDisplayStatusLabel(skill = {}) {
 
 function customSkillStatusClass(status) {
   if (status === "active") return "present";
-  if (status === "disabled") return "not-run";
+  if (status === "disabled" || status === "archived") return "not-run";
   return "pending";
 }
 

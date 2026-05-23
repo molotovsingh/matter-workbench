@@ -529,10 +529,10 @@ test("skills page renders custom skill version lineage from configurable store",
     ["skill_party_v2", "active", 2],
   ]);
   assert.match(customSection, /Active/);
-  assert.match(customSection, /Disabled/);
+  assert.match(customSection, /Previous version/);
   assert.match(customSection, /<span>v2<\/span>/);
   assert.match(customSection, /<h3>Party and Officer Map<\/h3>/);
-  assert.match(customSection, /<strong>v1 - Disabled<\/strong>/);
+  assert.match(customSection, /<strong>v1 - Previous version<\/strong>/);
   assert.match(customSection, /Version history/);
   assert.match(customSection, /Latest runnable version: Party and Officer Map v2\. Use the Run button to run it/);
   assert.match(customSection, /data-skill-card-command="\/party_officer_map modify"/);

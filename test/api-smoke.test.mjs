@@ -419,6 +419,36 @@ test("server API smoke test keeps public routes stable", async () => {
     const customCard = skillsAfterCustom.skills.find((skill) => skill.slash === "/party_officer_map");
     assert.equal(customCard.configurable, true);
     assert.equal(customCard.status, "active");
+    const pausedCustomSkill = await postJson(
+      baseUrl,
+      `/api/configurable-skills/${encodeURIComponent(createdCustomSkill.skill.id)}/lifecycle`,
+      { action: "suspend", reason: "Smoke pause" },
+    );
+    assert.equal(pausedCustomSkill.skill.status, "suspended");
+    const skillsAfterPause = await getJson(baseUrl, "/api/skills");
+    assert.equal(skillsAfterPause.skills.some((skill) => skill.slash === "/party_officer_map"), false);
+    const pausedRunResponse = await fetch(`${baseUrl}/api/configurable-skills/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slash: "/party_officer_map" }),
+    });
+    const pausedRun = await pausedRunResponse.json();
+    assert.equal(pausedRunResponse.status, 409);
+    assert.match(pausedRun.error, /paused/i);
+    const missingLifecycleResponse = await fetch(`${baseUrl}/api/configurable-skills/${encodeURIComponent("extract")}/lifecycle`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "suspend" }),
+    });
+    const missingLifecycle = await missingLifecycleResponse.json();
+    assert.equal(missingLifecycleResponse.status, 404);
+    assert.match(missingLifecycle.error, /Custom skill not found/);
+    const resumedCustomSkill = await postJson(
+      baseUrl,
+      `/api/configurable-skills/${encodeURIComponent(createdCustomSkill.skill.id)}/lifecycle`,
+      { action: "resume" },
+    );
+    assert.equal(resumedCustomSkill.skill.status, "active");
     const skillFactoryHealth = await getJson(baseUrl, "/api/skill-factory-health");
     assert.equal(skillFactoryHealth.schema_version, "skill-factory-health/v1");
     assert.equal(skillFactoryHealth.state, "ok");

@@ -115,8 +115,25 @@ export interface ConfigurableSkill {
   slash: string;
   status?: string;
   createdAt?: string;
+  updatedAt?: string;
+  lifecycle?: {
+    statusChangedAt?: string;
+    statusChangedBy?: string;
+    reason?: string;
+    previousStatus?: string;
+  };
   lastRunAt?: string;
   runCount?: number;
+}
+
+export interface ConfigurableSkillLifecycleRequest {
+  action: 'suspend' | 'resume' | 'archive' | 'restore' | 'delete';
+  reason?: string;
+}
+
+export interface ConfigurableSkillLifecycleResponse {
+  schema_version?: string;
+  skill: ConfigurableSkill;
 }
 
 export interface SkillRun {

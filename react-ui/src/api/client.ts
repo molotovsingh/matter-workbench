@@ -10,6 +10,8 @@ import type {
   ConfigurableSkill,
   ConfigurableSkillCancelRequest,
   ConfigurableSkillCreateResponse,
+  ConfigurableSkillLifecycleRequest,
+  ConfigurableSkillLifecycleResponse,
   ConfigurableSkillRunRequest,
   ConfigurableSkillRunResult,
   CommandInteractionRequest,
@@ -224,6 +226,8 @@ export const api = {
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),
+  updateConfigurableSkillLifecycle: (skillId: string, body: ConfigurableSkillLifecycleRequest) =>
+    postJson<ConfigurableSkillLifecycleResponse>(`/api/configurable-skills/${encodeURIComponent(skillId)}/lifecycle`, body),
   runConfigurableSkill: (body: ConfigurableSkillRunRequest) => postJson<ConfigurableSkillRunResult>('/api/configurable-skills/run', body),
   getSkillRuns: (limit = 100) => getJson<{ schema_version?: string; runs: SkillRun[] }>(`/api/configurable-skills/runs?limit=${limit}`),
   cancelSkillRun: (body: ConfigurableSkillCancelRequest) => postJson('/api/configurable-skills/runs/cancelled', body),

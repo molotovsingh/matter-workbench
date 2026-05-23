@@ -15,6 +15,7 @@ export default function SkillsPage() {
   const [ideas, setIdeas] = useState<SkillIdea[]>([]);
   const [health, setHealth] = useState<SkillFactoryHealth | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
+  const [loadingLifecycle, setLoadingLifecycle] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
 
   const recordLoadError = useCallback((label: string, error: unknown) => {
@@ -70,8 +71,38 @@ export default function SkillsPage() {
     }
   }
 
+  async function refreshCustomSkills() {
+    const result = await api.getConfigurableSkills();
+    setCustomSkills(result.skills || []);
+  }
+
+  async function handleLifecycleAction(
+    skill: ConfigurableSkill,
+    action: 'suspend' | 'resume' | 'archive' | 'restore' | 'delete',
+  ) {
+    if (action === 'delete') {
+      const ok = window.confirm('Delete this custom skill? Past run records and matter files stay.');
+      if (!ok) return;
+    }
+    setLoadingLifecycle(`${skill.id}:${action}`);
+    try {
+      await api.updateConfigurableSkillLifecycle(skill.id, {
+        action,
+        reason: lifecycleReason(action),
+      });
+      await refreshCustomSkills();
+      appendTerminal([`[skills] ${lifecyclePastLabel(action)} ${skill.title || skill.slash}`]);
+    } catch (e) {
+      appendTerminal([`[skills] lifecycle error: ${getErrorMessage(e)}`]);
+    } finally {
+      setLoadingLifecycle(null);
+    }
+  }
+
   const activeIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) !== SKILL_IDEA_STATUS.DISMISSED);
   const dismissedIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) === SKILL_IDEA_STATUS.DISMISSED);
+  const visibleCustomSkills = customSkills.filter((skill) => skill.status !== 'archived');
+  const archivedCustomSkills = customSkills.filter((skill) => skill.status === 'archived');
 
   return (
     <div className="skills-page">
@@ -103,9 +134,9 @@ export default function SkillsPage() {
             {registrySkills.length} built-in workflow{registrySkills.length !== 1 ? 's' : ''}
           </span>
         )}
-        {customSkills.length > 0 && (
+        {visibleCustomSkills.length > 0 && (
           <span className="pipeline-state present">
-            {customSkills.length} custom skill{customSkills.length !== 1 ? 's' : ''}
+            {visibleCustomSkills.length} custom skill{visibleCustomSkills.length !== 1 ? 's' : ''}
           </span>
         )}
         {activeIdeas.length > 0 && (
@@ -116,25 +147,46 @@ export default function SkillsPage() {
       </div>
 
       {/* Custom skills */}
-      {customSkills.length > 0 && (
+      {visibleCustomSkills.length > 0 && (
         <div className="skills-section">
           <h2>Your custom skills</h2>
           <div className="active-custom-skills-list">
-            {customSkills.map((skill) => (
+            {visibleCustomSkills.map((skill) => (
               <div key={skill.id} className="active-custom-skill-card">
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div>
                     <strong style={{ fontSize: 15 }}>{skill.title}</strong>
+                    <div style={{ marginTop: 6 }}>
+                      <span className={`pipeline-state ${customSkillStateClass(skill.status)}`}>
+                        {customSkillStateLabel(skill.status)}
+                      </span>
+                    </div>
                   </div>
-                  <button
-                    className="run-skill-button secondary"
-                    type="button"
-                    onClick={() => handleRunCustomSkill(skill)}
-                    disabled={loadingRun === skill.id}
-                    style={{ flexShrink: 0 }}
-                  >
-                    {loadingRun === skill.id ? 'Running…' : 'Run'}
-                  </button>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                    {skill.status === 'active' && (
+                      <button
+                        className="run-skill-button secondary"
+                        type="button"
+                        onClick={() => handleRunCustomSkill(skill)}
+                        disabled={loadingRun === skill.id}
+                        style={{ flexShrink: 0 }}
+                      >
+                        {loadingRun === skill.id ? 'Running…' : 'Run'}
+                      </button>
+                    )}
+                    {lifecycleActionsFor(skill.status).map((action) => (
+                      <button
+                        key={action}
+                        className="run-skill-button secondary"
+                        type="button"
+                        onClick={() => { void handleLifecycleAction(skill, action); }}
+                        disabled={Boolean(loadingLifecycle)}
+                        style={{ flexShrink: 0 }}
+                      >
+                        {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {skill.description && (
                   <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
@@ -147,9 +199,53 @@ export default function SkillsPage() {
                     {skill.lastRunAt && <span>last {new Date(skill.lastRunAt).toLocaleDateString()}</span>}
                   </div>
                 )}
+                {skill.lifecycle?.statusChangedAt && (
+                  <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+                    Last changed {new Date(skill.lifecycle.statusChangedAt).toLocaleDateString()}
+                    {skill.lifecycle.reason ? ` — ${skill.lifecycle.reason}` : ''}
+                  </p>
+                )}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {archivedCustomSkills.length > 0 && (
+        <div className="skills-section">
+          <details>
+            <summary>Archived custom skills ({archivedCustomSkills.length})</summary>
+            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
+              {archivedCustomSkills.map((skill) => (
+                <div key={skill.id} className="active-custom-skill-card">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
+                      <div style={{ marginTop: 6 }}>
+                        <span className="pipeline-state not-run">Archived</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                      {lifecycleActionsFor(skill.status).map((action) => (
+                        <button
+                          key={action}
+                          className="run-skill-button secondary"
+                          type="button"
+                          onClick={() => { void handleLifecycleAction(skill, action); }}
+                          disabled={Boolean(loadingLifecycle)}
+                        >
+                          {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {skill.description && (
+                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       )}
 
@@ -195,6 +291,7 @@ export default function SkillsPage() {
                   <h3>{skill.display?.action || skill.title}</h3>
                 </div>
                 <div className="builtin-skill-command">
+                  <span>Built-in · Managed by Matter Workbench</span>
                   {skill.paid_provider_call && <span className="pipeline-state pending">Uses AI</span>}
                   {!skill.paid_provider_call && <span className="pipeline-state present">Local</span>}
                 </div>
@@ -220,4 +317,54 @@ function groupByCategory(skills: Skill[]): Record<string, Skill[]> {
     (map[cat] ??= []).push(s);
   }
   return map;
+}
+
+type LifecycleAction = 'suspend' | 'resume' | 'archive' | 'restore' | 'delete';
+
+function lifecycleActionsFor(status?: string): LifecycleAction[] {
+  if (status === 'active') return ['suspend', 'archive', 'delete'];
+  if (status === 'suspended') return ['resume', 'archive', 'delete'];
+  if (status === 'archived') return ['restore', 'delete'];
+  if (status === 'draft') return ['delete'];
+  return [];
+}
+
+function lifecycleActionLabel(action: LifecycleAction): string {
+  if (action === 'suspend') return 'Pause';
+  if (action === 'resume') return 'Resume';
+  if (action === 'archive') return 'Archive';
+  if (action === 'restore') return 'Restore to paused';
+  return 'Delete';
+}
+
+function lifecyclePastLabel(action: LifecycleAction): string {
+  if (action === 'suspend') return 'paused';
+  if (action === 'resume') return 'resumed';
+  if (action === 'archive') return 'archived';
+  if (action === 'restore') return 'restored to paused';
+  return 'deleted';
+}
+
+function lifecycleReason(action: LifecycleAction): string {
+  if (action === 'suspend') return 'Paused from Skills page.';
+  if (action === 'resume') return 'Resumed from Skills page.';
+  if (action === 'archive') return 'Archived from Skills page.';
+  if (action === 'restore') return 'Restored to paused from Skills page.';
+  return 'Deleted from Skills page.';
+}
+
+function customSkillStateLabel(status?: string): string {
+  if (status === 'active') return 'Active';
+  if (status === 'suspended') return 'Paused';
+  if (status === 'archived') return 'Archived';
+  if (status === 'disabled') return 'Previous version';
+  if (status === 'draft') return 'Draft';
+  return 'Custom skill';
+}
+
+function customSkillStateClass(status?: string): string {
+  if (status === 'active') return 'present';
+  if (status === 'suspended' || status === 'draft') return 'pending';
+  if (status === 'archived' || status === 'disabled') return 'not-run';
+  return 'pending';
 }

@@ -122,6 +122,14 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       exactRoute("GET", "/api/configurable-skills", async () => {
         sendJson(response, 200, await configurableSkillsService.listSkills());
       }),
+      patternRoute("POST", /^\/api\/configurable-skills\/([^/]+)\/lifecycle$/, async ({ params }) => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await configurableSkillsService.updateSkillLifecycle({
+          skillId: decodeURIComponent(params[0]),
+          action: body.action,
+          reason: body.reason,
+        }));
+      }),
       exactRoute("GET", "/api/configurable-skills/runs", async () => {
         sendJson(response, 200, await configurableSkillRunsService.listRuns({
           slash: requestUrl.searchParams.get("slash") || "",

@@ -105,7 +105,7 @@ function configurableSkillToCard(skill = {}) {
 }
 
 function compareCustomSkills(a, b) {
-  const statusRank = { active: 0, draft: 1, disabled: 2 };
+  const statusRank = { active: 0, suspended: 1, draft: 2, archived: 3, disabled: 4 };
   const leftStatus = statusRank[a.status] ?? 9;
   const rightStatus = statusRank[b.status] ?? 9;
   if (leftStatus !== rightStatus) return leftStatus - rightStatus;

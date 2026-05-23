@@ -339,6 +339,79 @@ test("configurable skill service records overwrite cancellations", async () => {
   assert.equal(runs.runs[0].status, "cancelled");
 });
 
+test("configurable skill lifecycle pauses, archives, restores, and soft-deletes custom skills", async () => {
+  const { service, runLedger, matterRoot } = await makeServiceHarness();
+  const created = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  const firstRun = await service.runSkill({ slash: "/party_officer_map" });
+
+  const paused = await service.updateSkillLifecycle({
+    skillId: created.skill.id,
+    action: "suspend",
+    reason: "Pause during beta cleanup.",
+  });
+  assert.equal(paused.skill.status, "suspended");
+  assert.equal(paused.skill.lifecycle.reason, "Pause during beta cleanup.");
+  await assert.rejects(
+    () => service.runSkill({ slash: "/party_officer_map" }),
+    /paused/i,
+  );
+  assert.deepEqual((await service.activeSkillCards()).map((skill) => skill.slash), []);
+
+  const resumed = await service.updateSkillLifecycle({ skillId: created.skill.id, action: "resume" });
+  assert.equal(resumed.skill.status, "active");
+  assert.deepEqual((await service.activeSkillCards()).map((skill) => skill.slash), ["/party_officer_map"]);
+
+  const archived = await service.updateSkillLifecycle({ skillId: created.skill.id, action: "archive" });
+  assert.equal(archived.skill.status, "archived");
+  await assert.rejects(
+    () => service.runSkill({ slash: "/party_officer_map" }),
+    /archived/i,
+  );
+
+  const restored = await service.updateSkillLifecycle({ skillId: created.skill.id, action: "restore" });
+  assert.equal(restored.skill.status, "suspended");
+
+  const deleted = await service.updateSkillLifecycle({ skillId: created.skill.id, action: "delete" });
+  assert.equal(deleted.skill.status, "deleted");
+  assert.deepEqual((await service.listSkills()).skills, []);
+  const runs = await runLedger.listRuns({ slash: "/party_officer_map" });
+  assert.equal(runs.runs.length, 1);
+  assert.equal(runs.runs[0].id, firstRun.runRecord.id);
+  const markdown = await readFile(path.join(matterRoot, "20_Workshop", "Party and Officer Map.md"), "utf8");
+  assert.match(markdown, /^# Party and Officer Map/);
+});
+
+test("configurable skill lifecycle rejects previous versions and resume slash collisions", async () => {
+  const { service } = await makeServiceHarness();
+  const first = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  await service.createSkillFromApprovedSample({ ideaId: "idea_party_improve" });
+  const listed = await service.listSkills({ includeDeleted: true });
+  const previous = listed.skills.find((skill) => skill.id === first.skill.id);
+  const active = listed.skills.find((skill) => skill.status === "active" && skill.slash === "/party_officer_map");
+
+  assert.equal(previous.status, "disabled");
+  await assert.rejects(
+    () => service.updateSkillLifecycle({ skillId: previous.id, action: "suspend" }),
+    /previous versions/i,
+  );
+
+  await service.updateSkillLifecycle({ skillId: active.id, action: "suspend" });
+  const store = JSON.parse(await readFile(service.storePath, "utf8"));
+  store.skills.push({
+    ...store.skills.find((skill) => skill.id === active.id),
+    id: "skill_collision",
+    status: "active",
+    version: 99,
+    familyId: "skill_collision",
+  });
+  await writeFile(service.storePath, `${JSON.stringify(store, null, 2)}\n`);
+
+  await assert.rejects(
+    () => service.updateSkillLifecycle({ skillId: active.id, action: "resume" }),
+    /already uses \/party_officer_map/i,
+  );
+});
+
 async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequence = null, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "configurable-skills-test-"));
   const appDir = path.join(tmp, "app");

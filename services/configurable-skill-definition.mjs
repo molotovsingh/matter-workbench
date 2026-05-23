@@ -7,6 +7,7 @@ export const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 const MAX_PROMPT_LENGTH = 8000;
 const MAX_OUTPUT_LENGTH = 80_000;
 const MAX_SLASH_ALLOCATION_ATTEMPTS = 1000;
+const CONFIGURABLE_SKILL_STATUSES = new Set(["draft", "active", "disabled", "suspended", "archived", "deleted"]);
 const RAW_SOURCE_HANDLE_INSTRUCTION = [
   "For source-backed outputs, keep readable source labels in normal lawyer-facing prose.",
   "Also include an internal audit/source-handles section with raw FILE-NNNN pX.bY citations for material factual assertions and recommendations.",
@@ -82,7 +83,7 @@ export function normalizeStoredSkill(skill = {}) {
     slash: normalizeSlash(skill.slash),
     title: normalizeText(skill.title),
     description: normalizeText(skill.description),
-    status: ["draft", "active", "disabled"].includes(skill.status) ? skill.status : "draft",
+    status: CONFIGURABLE_SKILL_STATUSES.has(skill.status) ? skill.status : "draft",
     version: Number.isInteger(skill.version) && skill.version > 0 ? skill.version : 1,
     familyId: normalizeText(skill.familyId || id),
     previousSkillId: normalizeText(skill.previousSkillId),
@@ -114,6 +115,7 @@ export function normalizeStoredSkill(skill = {}) {
     createdAt: normalizeText(skill.createdAt),
     updatedAt: normalizeText(skill.updatedAt || skill.createdAt),
     activatedAt: normalizeText(skill.activatedAt),
+    lifecycle: normalizeLifecycle(skill.lifecycle),
   };
 }
 
@@ -129,6 +131,16 @@ export function publicSkill(skill) {
     previousSkillId: normalized.previousSkillId,
     outputArtifact: normalized.outputArtifact,
     targetLane: normalized.targetLane,
+    lifecycle: normalized.lifecycle,
+  };
+}
+
+function normalizeLifecycle(lifecycle = {}) {
+  return {
+    statusChangedAt: normalizeText(lifecycle.statusChangedAt),
+    statusChangedBy: normalizeText(lifecycle.statusChangedBy),
+    reason: normalizeText(lifecycle.reason),
+    previousStatus: normalizeText(lifecycle.previousStatus),
   };
 }
 
