@@ -48,6 +48,7 @@ export default function SkillsPage() {
   }, [recordLoadError]);
 
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
+    if (loadingRun || loadingLifecycle) return;
     if (!state.activeMatter) {
       appendTerminal(['[skill] select a matter first']);
       return;
@@ -67,7 +68,7 @@ export default function SkillsPage() {
       if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[skill] error: ${getErrorMessage(e)}`]);
     } finally {
-      if (activeMatterNameRef.current === matterName) setLoadingRun(null);
+      setLoadingRun(null);
     }
   }
 
@@ -80,6 +81,7 @@ export default function SkillsPage() {
     skill: ConfigurableSkill,
     action: 'suspend' | 'resume' | 'archive' | 'restore' | 'delete',
   ) {
+    if (loadingLifecycle || loadingRun) return;
     if (action === 'delete') {
       const ok = window.confirm('Delete this custom skill? Past run records and matter files stay.');
       if (!ok) return;
@@ -171,7 +173,7 @@ export default function SkillsPage() {
                         className="run-skill-button secondary"
                         type="button"
                         onClick={() => handleRunCustomSkill(skill)}
-                        disabled={loadingRun === skill.id}
+                        disabled={loadingRun === skill.id || Boolean(loadingLifecycle)}
                         style={{ flexShrink: 0 }}
                       >
                         {loadingRun === skill.id ? 'Running…' : 'Run'}
@@ -183,7 +185,7 @@ export default function SkillsPage() {
                         className="run-skill-button secondary"
                         type="button"
                         onClick={() => { void handleLifecycleAction(skill, action); }}
-                        disabled={Boolean(loadingLifecycle)}
+                        disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
                         style={{ flexShrink: 0 }}
                       >
                         {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
@@ -235,7 +237,7 @@ export default function SkillsPage() {
                           className="run-skill-button secondary"
                           type="button"
                           onClick={() => { void handleLifecycleAction(skill, action); }}
-                          disabled={Boolean(loadingLifecycle)}
+                          disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
                         >
                           {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
                         </button>
@@ -273,7 +275,7 @@ export default function SkillsPage() {
                           className="run-skill-button secondary"
                           type="button"
                           onClick={() => { void handleLifecycleAction(skill, action); }}
-                          disabled={Boolean(loadingLifecycle)}
+                          disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
                         >
                           {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
                         </button>

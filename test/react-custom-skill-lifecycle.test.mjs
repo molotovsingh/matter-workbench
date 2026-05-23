@@ -34,3 +34,28 @@ test("React custom skill lifecycle controls are scoped to custom skills", async 
   assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
   assert.doesNotMatch(skillsSource, /updateConfigurableSkillLifecycle\([^)]*skill\.slash/);
 });
+
+test("React custom skill lifecycle actions do not race custom skill runs", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(
+    skillsSource,
+    /disabled=\{loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/,
+    "Run should be disabled while any lifecycle action is in flight.",
+  );
+  assert.match(
+    skillsSource,
+    /disabled=\{Boolean\(loadingLifecycle\) \|\| Boolean\(loadingRun\)\}/,
+    "Lifecycle actions should be disabled while any custom skill run is in flight.",
+  );
+});
+
+test("React custom skill run loading state clears after stale matter switches", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(
+    skillsSource,
+    /finally \{\s*setLoadingRun\(null\);\s*\}/,
+    "A stale matter switch should suppress result text, but should not leave the Skills page stuck in Running state.",
+  );
+});
