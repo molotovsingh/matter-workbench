@@ -66,9 +66,9 @@ export function createCommandReportController({
       terminalLines: getLatestTerminalLines(),
     });
     try {
-      Promise.resolve(logCommandInteraction?.(body)).catch(() => {});
+      Promise.resolve(logCommandInteraction?.(body)).catch(ignoreCommandInteractionLogFailure);
     } catch {
-      // Local beta diagnostics must never block Command rail behavior.
+      ignoreCommandInteractionLogFailure();
     }
   }
 
@@ -196,4 +196,8 @@ export function createCommandReportController({
     startReport,
     updateReport,
   };
+}
+
+function ignoreCommandInteractionLogFailure() {
+  // Local beta diagnostics must never block Command rail behavior.
 }

@@ -6,6 +6,7 @@ export const CONFIGURABLE_SKILL_SCHEMA_VERSION = "configurable-skill/v1";
 
 const MAX_PROMPT_LENGTH = 8000;
 const MAX_OUTPUT_LENGTH = 80_000;
+const MAX_SLASH_ALLOCATION_ATTEMPTS = 1000;
 const RAW_SOURCE_HANDLE_INSTRUCTION = [
   "For source-backed outputs, keep readable source labels in normal lawyer-facing prose.",
   "Also include an internal audit/source-handles section with raw FILE-NNNN pX.bY citations for material factual assertions and recommendations.",
@@ -149,7 +150,7 @@ export function uniqueSlash(base, existing) {
   const normalized = normalizeSlash(base || "/custom_skill");
   const taken = new Set(existing.map(normalizeSlash));
   if (!taken.has(normalized)) return normalized;
-  for (let index = 2; index < 1000; index += 1) {
+  for (let index = 2; index < MAX_SLASH_ALLOCATION_ATTEMPTS; index += 1) {
     const candidate = `${normalized}_${index}`;
     if (!taken.has(candidate)) return candidate;
   }

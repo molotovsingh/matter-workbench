@@ -10,7 +10,11 @@ export async function writeFileAtomic(filePath, contents, options = {}) {
     await writeFile(tempPath, contents, { ...options, flag: "wx" });
     await rename(tempPath, filePath);
   } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => {});
+    await rm(tempPath, { force: true }).catch(ignoreTempCleanupFailure);
     throw error;
   }
+}
+
+function ignoreTempCleanupFailure() {
+  // Preserve the original write/rename error.
 }

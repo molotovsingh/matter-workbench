@@ -1,7 +1,7 @@
 import { getJson } from "../api-client.js";
 import { escapeHtml, validateMetadata } from "../dom-utils.js";
 import { lawyerActionLabel, lawyerActionPill, lawyerArtifactLabel } from "../lawyer-labels.js";
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../../shared/listofdates-dependency-states.mjs";
 import {
   renderMatterAttentionLoading,
   renderMatterAttentionStatus,

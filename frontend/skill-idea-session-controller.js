@@ -4,7 +4,7 @@ import {
   buildSkillIdeaPayloadFromInterview,
   parseAdaptiveSkillIdeaInput,
 } from "./skill-idea-interview.js";
-import { classifySkillIdeaSessionInput } from "./skill-idea-session-commands.js";
+import { classifySkillIdeaSessionInput } from "../shared/skill-idea-session-commands.mjs";
 import {
   answerCurrentSkillIdeaQuestion,
   buildSkillIdeaPlannerTerminal,

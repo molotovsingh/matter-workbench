@@ -8,6 +8,8 @@ import { createDefaultMatterCopilotProvider } from "./matter-copilot-providers.m
 
 export const MATTER_COPILOT_ANSWER_SCHEMA_VERSION = "matter-copilot-answer/v1";
 
+const FULL_SNIPPET_OVERLAP_SCORE = 1000;
+
 export const MATTER_COPILOT_ANSWER_JSON_SCHEMA = Object.freeze({
   type: "object",
   additionalProperties: false,
@@ -312,7 +314,7 @@ function sourceMatchScore(snippet, blockText) {
   const snippetText = normalizeSourceReference(snippet);
   const evidenceText = normalizeSourceReference(blockText);
   if (!snippetText || !evidenceText) return 0;
-  if (evidenceText.includes(snippetText) || snippetText.includes(evidenceText)) return 1000;
+  if (evidenceText.includes(snippetText) || snippetText.includes(evidenceText)) return FULL_SNIPPET_OVERLAP_SCORE;
   const words = new Set(snippetText.split(" ").filter((word) => word.length > 4));
   if (!words.size) return 0;
   let score = 0;

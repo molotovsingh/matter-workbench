@@ -194,10 +194,7 @@ export function createConfigurableSkillsService({
         runRecord,
       };
     } catch (error) {
-      await runLedger.updateRun(runRecord.id, {
-        status: "failed",
-        errorMessage: error.message,
-      }).catch(() => {});
+      await preservePrimaryRunFailure(runLedger, runRecord.id, error);
       throw error;
     }
   }
@@ -259,5 +256,16 @@ async function exists(filePath) {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function preservePrimaryRunFailure(runLedger, runId, error) {
+  try {
+    await runLedger.updateRun(runId, {
+      status: "failed",
+      errorMessage: error.message,
+    });
+  } catch {
+    // Preserve the original provider/artifact error for the caller.
   }
 }

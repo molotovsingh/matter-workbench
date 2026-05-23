@@ -42,7 +42,6 @@ that every artifact has the same dependency semantics.
 Current code constants live in:
 
 - `shared/listofdates-dependency-states.mjs`;
-- `frontend/listofdates-dependency-state.js`;
 - `services/listofdates-dependency-state.mjs`.
 
 ## State Strings
@@ -185,7 +184,6 @@ Current code and tests connected to this contract include:
 - `services/listofdates-dependency-state.mjs`;
 - `services/matter-rerun-advice-service.mjs`;
 - `services/listofdates-label-refresh-service.mjs`;
-- `frontend/listofdates-dependency-state.js`;
 - `frontend/views/matter-overview.js`;
 - `react-ui/src/views/MatterOverview.tsx`;
 - `test/frontend-dependency-state.test.mjs`;

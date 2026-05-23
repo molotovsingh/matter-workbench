@@ -2,7 +2,7 @@ import { postJson } from "../api-client.js";
 import { writeClipboardText } from "../clipboard.js";
 import { escapeHtml } from "../dom-utils.js";
 import { lawyerActionCompleteLabel, lawyerActionLabel, lawyerActionRunningLabel } from "../lawyer-labels.js";
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "../listofdates-dependency-state.js";
+import { LIST_OF_DATES_DEPENDENCY_STATES } from "../../shared/listofdates-dependency-states.mjs";
 import { confirmCurrentArtifactRerun } from "../rerun-guardrails.js";
 import { listOfDatesSummary, renderListOfDatesResultHtml } from "../views/listofdates-result.js";
 import { readWorkspaceTextFile } from "../workspace-files.js";

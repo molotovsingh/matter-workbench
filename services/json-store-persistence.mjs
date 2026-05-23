@@ -12,7 +12,7 @@ export function createJsonStorePersistence({ storePath, serialize }) {
 
   function withStoreMutation(operation) {
     const run = mutationQueue.then(() => operation());
-    mutationQueue = run.catch(() => {});
+    mutationQueue = run.catch(continueStoreMutationQueueAfterFailure);
     return run;
   }
 
@@ -28,4 +28,8 @@ export async function writeJsonFileAtomic(filePath, contents) {
 
 export function formatJsonStore(payload) {
   return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function continueStoreMutationQueueAfterFailure() {
+  // Keep later store mutations from being blocked by the rejected operation returned to the caller.
 }

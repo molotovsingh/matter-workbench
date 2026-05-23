@@ -31,7 +31,7 @@ export function createCommandInteractionLogService({
       await mkdir(path.dirname(storePath), { recursive: true });
       await appendFile(storePath, `${JSON.stringify(record)}\n`, "utf8");
     });
-    appendQueue = write.catch(() => {});
+    appendQueue = write.catch(continueAppendQueueAfterFailure);
     await write;
     return result;
   }
@@ -180,4 +180,8 @@ function toPosix(value) {
 
 function redactSecrets(value) {
   return redactSensitiveText(value);
+}
+
+function continueAppendQueueAfterFailure() {
+  // Keep later command-log appends from being blocked by the rejected write returned to the caller.
 }

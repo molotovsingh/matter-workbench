@@ -26,7 +26,7 @@ const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   copilot: true,
 });
 
-export function createOpenAiMatterCopilotProvider({
+function createOpenAiMatterCopilotProvider({
   apiKey,
   endpoint,
   fetchImpl = fetch,
@@ -64,7 +64,7 @@ export function createOpenAiMatterCopilotProvider({
   };
 }
 
-export function createOpenRouterMatterCopilotProvider({
+function createOpenRouterMatterCopilotProvider({
   apiKey,
   endpoint,
   fetchImpl = fetch,

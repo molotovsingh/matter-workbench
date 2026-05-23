@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { toPosix } from "./path-utils.mjs";
+import { toPosix } from "./shared/safe-paths.mjs";
 import { toCsv } from "./shared/csv.mjs";
 import {
   classifyFile,

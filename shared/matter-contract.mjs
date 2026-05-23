@@ -122,17 +122,6 @@ export function normalizeMatterMetadata(rawMatter = {}, fallbackName = "") {
   };
 }
 
-export function metadataToMatterJsonFields(metadata = {}) {
-  return {
-    matter_name: metadata.matterName || "",
-    matter_type: metadata.matterType || "",
-    client_name: metadata.clientName || "",
-    opposite_party: metadata.oppositeParty || "",
-    jurisdiction: metadata.jurisdiction || "",
-    brief_description: metadata.briefDescription || "",
-  };
-}
-
 export function composeIntakeDirName(number, label, dateIso) {
   const padded = String(number).padStart(2, "0");
   if (number === 1 && !label) return INITIAL_INTAKE_DIR_NAME;
