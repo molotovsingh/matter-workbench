@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const runnerPath = new URL("../scripts/db-migrate.mjs", import.meta.url);
+const doctorPath = new URL("../scripts/db-doctor.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
+const readmePath = new URL("../README.md", import.meta.url);
+const dbReadmePath = new URL("../db/README.md", import.meta.url);
+const transitionDocPath = new URL("../docs/future-design-decisions/react-only-cutover-database-transition.md", import.meta.url);
 
 test("database migration runner discovers numbered SQL migrations", async () => {
   const {
@@ -88,4 +92,56 @@ test("package exposes database migration scripts", async () => {
   assert.equal(pkg.scripts["db:migrations:list"], "node scripts/db-migrate.mjs --list");
   assert.equal(pkg.scripts["db:migrations:check"], "node scripts/db-migrate.mjs --dry-run");
   assert.equal(pkg.scripts["db:migrate"], "node scripts/db-migrate.mjs");
+  assert.equal(pkg.scripts["db:doctor"], "node scripts/db-doctor.mjs");
+});
+
+test("database doctor reports readiness without leaking connection secrets", async () => {
+  const {
+    buildDoctorReport,
+    redactDatabaseUrl,
+  } = await import(doctorPath.href);
+
+  const redacted = redactDatabaseUrl("postgres://mw_user:secret_password@db.example.com:5432/mwb?sslmode=require");
+  assert.equal(redacted, "postgres://mw_user:***@db.example.com:5432/mwb?sslmode=require");
+
+  const report = buildDoctorReport({
+    databaseUrl: "postgres://mw_user:secret_password@db.example.com:5432/mwb?sslmode=require",
+    psql: { available: true, version: "psql (PostgreSQL) 16.9" },
+    migrations: [
+      { status: "pending", version: "001_control_plane", fileName: "001_control_plane.sql" },
+      { status: "pending", version: "002_tenant_rls", fileName: "002_tenant_rls.sql" },
+    ],
+  }).join("\n");
+
+  assert.match(report, /database_url: configured/);
+  assert.match(report, /database_url_redacted: postgres:\/\/mw_user:\*\*\*@db\.example\.com:5432\/mwb\?sslmode=require/);
+  assert.doesNotMatch(report, /secret_password/);
+  assert.match(report, /psql: available/);
+  assert.match(report, /001_control_plane\s+pending\s+001_control_plane\.sql/);
+  assert.match(report, /002_tenant_rls\s+pending\s+002_tenant_rls\.sql/);
+  assert.match(report, /ready_to_apply: yes/);
+});
+
+test("database doctor stays read-only and clear when no database URL is configured", async () => {
+  const { buildDoctorReport } = await import(doctorPath.href);
+
+  const report = buildDoctorReport({
+    databaseUrl: "",
+    psql: { available: false, error: "psql not found" },
+    migrations: [
+      { status: "unknown", version: "001_control_plane", fileName: "001_control_plane.sql" },
+    ],
+  }).join("\n");
+
+  assert.match(report, /database_url: missing/);
+  assert.match(report, /psql: unavailable - psql not found/);
+  assert.match(report, /001_control_plane\s+unknown\s+001_control_plane\.sql/);
+  assert.match(report, /ready_to_apply: no/);
+  assert.match(report, /next: Set MWB_DATABASE_URL or DATABASE_URL before applying migrations\./);
+});
+
+test("database transition docs expose the read-only doctor command", async () => {
+  assert.match(await readFile(readmePath, "utf8"), /npm run db:doctor/);
+  assert.match(await readFile(dbReadmePath, "utf8"), /npm run db:doctor/);
+  assert.match(await readFile(transitionDocPath, "utf8"), /npm run db:doctor/);
 });

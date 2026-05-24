@@ -119,14 +119,17 @@ Developer commands:
 ```bash
 npm run db:migrations:list
 npm run db:migrations:check
+npm run db:doctor
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
-available migration files with unknown status. With a database URL, the runner
-uses `psql`, records applied versions and SHA-256 checksums in
-`schema_migrations`, serializes each migration transaction with a Postgres
-advisory lock, and fails closed if an already-applied migration file is edited.
+available migration files with unknown status. `db:doctor` is the read-only
+handoff command: it checks URL presence, `psql`, and the migration plan while
+redacting connection secrets. With a database URL, the runner uses `psql`,
+records applied versions and SHA-256 checksums in `schema_migrations`,
+serializes each migration transaction with a Postgres advisory lock, and fails
+closed if an already-applied migration file is edited.
 
 ## Stop Rule
 

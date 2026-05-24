@@ -10,6 +10,7 @@
     "ui:accept": "npm run ui:build && npm run ui:smoke",
     "db:migrations:list": "node scripts/db-migrate.mjs --list",
     "db:migrations:check": "node scripts/db-migrate.mjs --dry-run",
+    "db:doctor": "node scripts/db-doctor.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "legal-updates:probe": "node scripts/legal-updates-probe.mjs",
     "matter-init:dry-run": "node matter-init-engine.mjs",

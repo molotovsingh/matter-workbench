@@ -20,11 +20,17 @@ migrations do not switch live matter storage to Postgres.
 ```sh
 npm run db:migrations:list
 npm run db:migrations:check
+npm run db:doctor
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
 known migration files with `unknown` status.
+
+`db:doctor` is a read-only deployment-prep check. It reports whether a database
+URL is configured, whether `psql` is available, and the migration plan if the
+database can be inspected. It redacts connection secrets and does not apply
+anything.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file

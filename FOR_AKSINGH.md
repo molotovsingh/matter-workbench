@@ -493,6 +493,7 @@ The migration runner is intentionally boring:
 ```sh
 npm run db:migrations:list
 npm run db:migrations:check
+npm run db:doctor
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 ```
 
@@ -500,11 +501,13 @@ It uses `psql` rather than adding a Postgres client library to the app runtime.
 That keeps the local workbench dependency-light while still giving deployment a
 repeatable migration path. If no database URL is present, the check command
 lists migrations with `unknown` status instead of pretending it inspected a
-database. When a migration is applied, the runner records a SHA-256 checksum in
-`schema_migrations` and uses a Postgres advisory lock inside the migration
-transaction. In plain English: if someone edits an already-applied migration,
-the deploy should stop and ask for a new migration instead of quietly pretending
-the database is still in a known state.
+database. `db:doctor` is the handover-friendly command: it is read-only, checks
+whether `psql` is available, says whether a database URL is configured, and
+redacts the URL before printing anything. When a migration is applied, the
+runner records a SHA-256 checksum in `schema_migrations` and uses a Postgres
+advisory lock inside the migration transaction. In plain English: if someone
+edits an already-applied migration, the deploy should stop and ask for a new
+migration instead of quietly pretending the database is still in a known state.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

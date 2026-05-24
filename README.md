@@ -54,15 +54,19 @@ To inspect or apply database migrations:
 ```bash
 npm run db:migrations:list
 npm run db:migrations:check
+npm run db:doctor
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 ```
 
 Applying migrations uses the local `psql` command-line client. The check command
-can still list migrations without a database URL. Applied migrations are recorded
-with a SHA-256 checksum so edited migration files fail closed instead of being
-treated as already applied. The baseline migration also adds one shared
-`updated_at` trigger helper for mutable control-plane rows, so future hosted
-state has reliable modification timestamps without app-side copy/paste.
+can still list migrations without a database URL. `db:doctor` is read-only: it
+checks whether a database URL is configured, whether `psql` is available, and
+what the migration plan looks like without printing connection secrets. Applied
+migrations are recorded with a SHA-256 checksum so edited migration files fail
+closed instead of being treated as already applied. The baseline migration also
+adds one shared `updated_at` trigger helper for mutable control-plane rows, so
+future hosted state has reliable modification timestamps without app-side
+copy/paste.
 The tenant RLS migration enables and forces row-level security for tenant-scoped
 tables; hosted DB sessions must set `app.tenant_id` before tenant legal data is
 visible.
@@ -225,9 +229,11 @@ Terminal 2:
 npm run ui:dev
 ```
 
-This starts the backend on `http://127.0.0.1:4191`, then serves the React UI at
-`http://127.0.0.1:5173/react/` and proxies `/api` to that backend. If you run the
-backend on a different port, set `VITE_API_TARGET` before `npm run ui:dev`.
+This explicitly starts the backend on `http://127.0.0.1:4191` for the React dev
+server. Plain `npm start` still uses the server default port (`4173`) unless
+`PORT` is set. Vite then serves the React UI at `http://127.0.0.1:5173/react/`
+and proxies `/api` to the selected backend. If you run the backend on a
+different port, set `VITE_API_TARGET` before `npm run ui:dev`.
 
 To build the React UI inside the main repo:
 
