@@ -472,6 +472,7 @@ db/migrations/003_tenant_reference_integrity.sql
 db/migrations/004_user_membership_integrity.sql
 db/migrations/005_storage_object_lifecycle.sql
 db/migrations/006_job_execution_leases.sql
+db/migrations/007_local_matter_import_ledger.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -524,9 +525,16 @@ retry, and expired-claim fields. That lets a future worker say "I have claimed
 this job for the next few minutes," and lets another worker recover it if the
 first one disappears.
 
+The seventh migration handles a practical beta reality: existing local matter
+folders will not magically appear in hosted Postgres. `matter_import_batches`
+and `matter_import_items` create a disciplined ledger for importing those
+folders later. The important rule is that old source identities are not silently
+renumbered. If an import collides or looks unsafe, the batch has somewhere to
+record that instead of hiding it.
+
 This is the right migration posture. First make identity, jobs, audit, and
-receipts durable, then make file custody and worker custody observable; only
-then move legal engines onto hosted workers.
+receipts durable, then make file custody, worker custody, and import custody
+observable; only then move legal engines onto hosted workers.
 
 The migration runner is intentionally boring:
 

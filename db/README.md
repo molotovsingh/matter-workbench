@@ -25,6 +25,9 @@ migrations do not switch live matter storage to Postgres.
   exports, and cleanup/orphan handling.
 - `006_job_execution_leases.sql` adds worker claim, heartbeat, retry, and
   expired-lock metadata to hosted processing jobs and outbox events.
+- `007_local_matter_import_ledger.sql` adds batch and per-file ledgers for
+  importing existing local matter folders without silent renumbering or dropped
+  import warnings.
 
 ## Commands
 
