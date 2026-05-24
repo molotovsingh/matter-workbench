@@ -111,6 +111,7 @@ The first schema baseline now lives at:
 - `db/migrations/008_job_worker_functions.sql`
 - `db/migrations/009_incident_helper_functions.sql`
 - `db/migrations/010_advisory_snapshot_functions.sql`
+- `db/migrations/011_custom_skill_lifecycle_functions.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -139,9 +140,11 @@ worker queue atomic inside Postgres. `009_incident_helper_functions.sql` adds
 canonical helpers for recording job failures, provider-run failures, and
 artifact-validation warnings as tenant-scoped incidents, and for resolving those
 incidents later. `010_advisory_snapshot_functions.sql` preserves append-only
-Preparation Advisory snapshots from open incidents and validation rows. None of
-these migrations switches the local runtime away from the filesystem-backed
-engines.
+Preparation Advisory snapshots from open incidents and validation rows.
+`011_custom_skill_lifecycle_functions.sql` adds database-owned lifecycle
+transitions for configurable skills only, keeping native skills read-only and
+app-owned. None of these migrations switches the local runtime away from the
+filesystem-backed engines.
 
 Developer commands:
 

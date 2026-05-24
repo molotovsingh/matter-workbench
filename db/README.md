@@ -35,6 +35,8 @@ migrations do not switch live matter storage to Postgres.
 - `010_advisory_snapshot_functions.sql` adds an append-only helper for
   preserving Preparation Advisory snapshots from canonical incidents and
   validation rows.
+- `011_custom_skill_lifecycle_functions.sql` adds tenant-scoped pause, resume,
+  archive, restore, and soft-delete transitions for configurable skills.
 
 ## Commands
 

@@ -32,6 +32,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "008_job_worker_functions.sql",
       "009_incident_helper_functions.sql",
       "010_advisory_snapshot_functions.sql",
+      "011_custom_skill_lifecycle_functions.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -44,6 +45,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("008_job_worker_functions.sql"), "008_job_worker_functions");
   assert.equal(migrationVersionFromFile("009_incident_helper_functions.sql"), "009_incident_helper_functions");
   assert.equal(migrationVersionFromFile("010_advisory_snapshot_functions.sql"), "010_advisory_snapshot_functions");
+  assert.equal(migrationVersionFromFile("011_custom_skill_lifecycle_functions.sql"), "011_custom_skill_lifecycle_functions");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 
@@ -156,6 +158,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
       { status: "pending", version: "008_job_worker_functions", fileName: "008_job_worker_functions.sql" },
       { status: "pending", version: "009_incident_helper_functions", fileName: "009_incident_helper_functions.sql" },
       { status: "pending", version: "010_advisory_snapshot_functions", fileName: "010_advisory_snapshot_functions.sql" },
+      { status: "pending", version: "011_custom_skill_lifecycle_functions", fileName: "011_custom_skill_lifecycle_functions.sql" },
     ],
   }).join("\n");
 
@@ -173,6 +176,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /008_job_worker_functions\s+pending\s+008_job_worker_functions\.sql/);
   assert.match(report, /009_incident_helper_functions\s+pending\s+009_incident_helper_functions\.sql/);
   assert.match(report, /010_advisory_snapshot_functions\s+pending\s+010_advisory_snapshot_functions\.sql/);
+  assert.match(report, /011_custom_skill_lifecycle_functions\s+pending\s+011_custom_skill_lifecycle_functions\.sql/);
   assert.match(report, /ready_to_apply: yes/);
 });
 
@@ -244,4 +248,5 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /008_job_worker_functions\.sql/);
   assert.match(docs, /009_incident_helper_functions\.sql/);
   assert.match(docs, /010_advisory_snapshot_functions\.sql/);
+  assert.match(docs, /011_custom_skill_lifecycle_functions\.sql/);
 });

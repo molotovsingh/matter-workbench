@@ -476,6 +476,7 @@ db/migrations/007_local_matter_import_ledger.sql
 db/migrations/008_job_worker_functions.sql
 db/migrations/009_incident_helper_functions.sql
 db/migrations/010_advisory_snapshot_functions.sql
+db/migrations/011_custom_skill_lifecycle_functions.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -549,6 +550,14 @@ snapshot is append-only: it records the open incidents and validation warnings
 that existed at the end of a preparation run. Later, if a user fixes the problem
 or a worker resolves an incident, the old snapshot does not rewrite history. The
 system can still answer, "what did we warn the beta user about at that time?"
+
+The eleventh migration applies the same idea to custom skills. Local V1 already
+lets a user pause, resume, archive, restore, or soft-delete custom skills. The
+hosted database should not leave that as a pile of handwritten `UPDATE`
+statements. `update_configurable_skill_lifecycle()` owns the allowed
+transitions, preserves the previous status and reason, blocks previous-version
+rows, and rejects a resume if another active custom skill already owns the same
+slash.
 
 The eighth migration turns the job tables from passive ledgers into a usable
 worker queue foundation. A future worker can atomically claim the next job,

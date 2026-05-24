@@ -53,6 +53,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [008_job_worker_functions.sql](db/migrations/008_job_worker_functions.sql) - atomic claim, heartbeat, and completion functions for hosted workers.
 - [009_incident_helper_functions.sql](db/migrations/009_incident_helper_functions.sql) - canonical incident recording and resolution helpers for hosted advisory projection.
 - [010_advisory_snapshot_functions.sql](db/migrations/010_advisory_snapshot_functions.sql) - append-only Preparation Advisory snapshot helper.
+- [011_custom_skill_lifecycle_functions.sql](db/migrations/011_custom_skill_lifecycle_functions.sql) - tenant-scoped custom skill lifecycle transitions.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -95,7 +96,9 @@ and artifact-validation failures as Matter Attention evidence instead of
 inventing separate advisory write paths. The advisory-snapshot migration creates
 an append-only record of what the Preparation Advisory showed after a run,
 derived from incidents and validation rows rather than a second mutable source
-of truth.
+of truth. The custom-skill lifecycle migration adds one database-owned pause,
+resume, archive, restore, and soft-delete transition helper for configurable
+skills, keeping native skills app-owned and untouched.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
