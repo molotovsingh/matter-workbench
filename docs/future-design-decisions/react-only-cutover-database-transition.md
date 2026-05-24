@@ -105,6 +105,7 @@ The first schema baseline now lives at:
 - `db/migrations/002_tenant_rls.sql`
 - `db/migrations/003_tenant_reference_integrity.sql`
 - `db/migrations/004_user_membership_integrity.sql`
+- `db/migrations/005_storage_object_lifecycle.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -118,8 +119,11 @@ tenant-consistent parent references so tenant-scoped rows cannot point at parent
 matter, job, artifact, incident, or skill rows owned by another tenant.
 `004_user_membership_integrity.sql` makes tenant-scoped user references point at
 tenant members and ties provider/cost approvals to tenant-local audit events.
-None of these migrations switches the local runtime away from the
-filesystem-backed engines.
+`005_storage_object_lifecycle.sql` adds a tenant-scoped storage object custody
+ledger for originals, extraction payloads, text payloads, artifacts, exports,
+and cleanup candidates while leaving existing object-key columns in place. None
+of these migrations switches the local runtime away from the filesystem-backed
+engines.
 
 Developer commands:
 

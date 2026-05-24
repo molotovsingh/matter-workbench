@@ -470,6 +470,7 @@ db/migrations/001_control_plane.sql
 db/migrations/002_tenant_rls.sql
 db/migrations/003_tenant_reference_integrity.sql
 db/migrations/004_user_membership_integrity.sql
+db/migrations/005_storage_object_lifecycle.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -483,8 +484,12 @@ local engines read from Postgres yet.
 
 The later preparatory migrations add the hosted safety rails around that
 backbone: tenant row-level security, tenant-consistent parent references, and
-tenant-member user references. In plainer terms, a row cannot say "I belong to
-Tenant A" while pointing at Tenant B's matter, artifact, skill, or user.
+tenant-member user references. They also add a storage-object custody ledger so
+hosted files and generated artifacts can be tracked as pending, uploaded,
+verified, failed, orphaned, or deleted without stuffing legal documents into
+Postgres. In plainer terms, a row cannot say "I belong to Tenant A" while
+pointing at Tenant B's matter, artifact, skill, or user, and an object cannot
+float around object storage without a database lifecycle record.
 
 The second migration enables and forces row-level security on tenant-scoped
 tables. In plain English: a hosted database session must set `app.tenant_id`
@@ -505,8 +510,15 @@ skill lifecycle change should not be able to name a user who is outside the
 tenant. It also makes cost/provider approvals point at tenant-local audit
 events, so "who approved this spend?" has a database-enforced answer.
 
+The fifth migration handles the object-storage transaction boundary. The app
+already knows large files and legal artifacts should live outside Postgres. The
+database still needs custody records for those objects: what was expected, what
+was uploaded, what was verified, what failed, and what became orphaned after an
+interruption. That is what `storage_objects` provides.
+
 This is the right migration posture. First make identity, jobs, audit, and
-receipts durable; only then move legal engines onto hosted workers.
+receipts durable, then make file custody observable; only then move legal
+engines onto hosted workers.
 
 The migration runner is intentionally boring:
 

@@ -20,6 +20,9 @@ migrations do not switch live matter storage to Postgres.
 - `004_user_membership_integrity.sql` makes tenant-scoped user references point
   at tenant members and ties provider/cost approvals to tenant-local audit
   events.
+- `005_storage_object_lifecycle.sql` adds a tenant-scoped storage-object ledger
+  for private originals, extraction payloads, text payloads, generated artifacts,
+  exports, and cleanup/orphan handling.
 
 ## Commands
 

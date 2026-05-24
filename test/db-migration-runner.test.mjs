@@ -26,12 +26,14 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "002_tenant_rls.sql",
       "003_tenant_reference_integrity.sql",
       "004_user_membership_integrity.sql",
+      "005_storage_object_lifecycle.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
   assert.equal(migrationVersionFromFile("002_tenant_rls.sql"), "002_tenant_rls");
   assert.equal(migrationVersionFromFile("003_tenant_reference_integrity.sql"), "003_tenant_reference_integrity");
   assert.equal(migrationVersionFromFile("004_user_membership_integrity.sql"), "004_user_membership_integrity");
+  assert.equal(migrationVersionFromFile("005_storage_object_lifecycle.sql"), "005_storage_object_lifecycle");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 
@@ -138,6 +140,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
       { status: "pending", version: "002_tenant_rls", fileName: "002_tenant_rls.sql" },
       { status: "pending", version: "003_tenant_reference_integrity", fileName: "003_tenant_reference_integrity.sql" },
       { status: "pending", version: "004_user_membership_integrity", fileName: "004_user_membership_integrity.sql" },
+      { status: "pending", version: "005_storage_object_lifecycle", fileName: "005_storage_object_lifecycle.sql" },
     ],
   }).join("\n");
 
@@ -149,6 +152,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /002_tenant_rls\s+pending\s+002_tenant_rls\.sql/);
   assert.match(report, /003_tenant_reference_integrity\s+pending\s+003_tenant_reference_integrity\.sql/);
   assert.match(report, /004_user_membership_integrity\s+pending\s+004_user_membership_integrity\.sql/);
+  assert.match(report, /005_storage_object_lifecycle\s+pending\s+005_storage_object_lifecycle\.sql/);
   assert.match(report, /ready_to_apply: yes/);
 });
 
@@ -214,4 +218,5 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /002_tenant_rls\.sql/);
   assert.match(docs, /003_tenant_reference_integrity\.sql/);
   assert.match(docs, /004_user_membership_integrity\.sql/);
+  assert.match(docs, /005_storage_object_lifecycle\.sql/);
 });
