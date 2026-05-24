@@ -32,6 +32,9 @@ migrations do not switch live matter storage to Postgres.
   retry functions for hosted processing jobs and outbox events.
 - `009_incident_helper_functions.sql` adds canonical helpers for recording and
   resolving job, provider-run, and artifact-validation incidents.
+- `010_advisory_snapshot_functions.sql` adds an append-only helper for
+  preserving Preparation Advisory snapshots from canonical incidents and
+  validation rows.
 
 ## Commands
 

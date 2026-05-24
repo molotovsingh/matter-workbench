@@ -475,6 +475,7 @@ db/migrations/006_job_execution_leases.sql
 db/migrations/007_local_matter_import_ledger.sql
 db/migrations/008_job_worker_functions.sql
 db/migrations/009_incident_helper_functions.sql
+db/migrations/010_advisory_snapshot_functions.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -542,6 +543,12 @@ artifact-validation warnings all become the same kind of tenant-scoped advisory
 evidence. That matters because Matter Attention should be a projection over
 real failures and validation results, not a second diary that drifts away from
 what actually happened.
+
+The tenth migration gives that projection a memory. A Preparation Advisory
+snapshot is append-only: it records the open incidents and validation warnings
+that existed at the end of a preparation run. Later, if a user fixes the problem
+or a worker resolves an incident, the old snapshot does not rewrite history. The
+system can still answer, "what did we warn the beta user about at that time?"
 
 The eighth migration turns the job tables from passive ledgers into a usable
 worker queue foundation. A future worker can atomically claim the next job,
