@@ -90,6 +90,15 @@ test("React Skills page uses an action-first MECE layout", async () => {
   assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*History/);
 });
 
+test("React Skills page keeps load failures local and retryable", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /const loadSkillData = useCallback/);
+  assert.match(skillsSource, /setLoadError\(''\)/);
+  assert.match(skillsSource, /Try again/);
+  assert.doesNotMatch(skillsSource, /\[skills\] load failed/);
+});
+
 test("React Skills page keeps custom lifecycle controls out of built-ins", async () => {
   const skillsSource = await readFile(skillsPagePath, "utf8");
   const builtInSection = skillsSource.slice(

@@ -8,8 +8,15 @@ test("React Settings ignores late page-load responses after unmount", async () =
   const source = await readFile(settingsPagePath, "utf8");
 
   assert.match(source, /let cancelled = false;/);
-  assert.match(source, /api\.getConfig\(\)\.then[\s\S]*if \(cancelled\) return;[\s\S]*setMattersHome/);
-  assert.match(source, /api\.getAiSettings\(\)\.then[\s\S]*if \(cancelled\) return;[\s\S]*setSettings/);
-  assert.match(source, /api\.getSkills\(\)\.then[\s\S]*if \(cancelled\) return;[\s\S]*setSkills/);
+  assert.match(source, /const loadSettingsData = useCallback/);
+  assert.match(source, /Promise\.allSettled\(\[/);
+  assert.match(source, /api\.getConfig\(\)/);
+  assert.match(source, /api\.getAiSettings\(\)/);
+  assert.match(source, /api\.getSkills\(\)/);
+  assert.match(source, /if \(isCancelled\(\)\) return;/);
+  assert.match(source, /void loadSettingsData\(\(\) => cancelled\);/);
+  assert.match(source, /setMattersHome/);
+  assert.match(source, /setSettings/);
+  assert.match(source, /setSkills/);
   assert.match(source, /return \(\) => \{\s*cancelled = true;\s*\};/);
 });

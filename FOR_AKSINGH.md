@@ -48,7 +48,7 @@ The shell now has two clear modes.
 
 This split matters because lawyers should always know what context the app is acting on. When there is no matter selected, the app should not pretend that matter-specific files, actions, or outputs are available.
 
-The visual theme is token-based in `styles.css`: dark navigation, warm work surface, quiet borders, restrained cards, and small legal-workbench accents. That lets Home, Skills, Activity, Settings, and matter pages share a design language without rewriting each feature surface.
+The visual theme is token-based in `react-ui/src/styles/global.css`: dark navigation, warm work surface, quiet borders, restrained cards, and small legal-workbench accents. That lets Home, Skills, Activity, Settings, and matter pages share a design language without rewriting each feature surface.
 
 ## The Current Beta State
 
@@ -462,6 +462,50 @@ Key endpoints include:
 
 The server is intentionally local-first. This is a confidentiality-friendly architecture: matters live on disk, not in a cloud database.
 
+The first database migration now exists, but it is deliberately a control-plane
+baseline rather than a runtime rewrite. It now has a second companion migration
+for hosted tenant isolation:
+
+```text
+db/migrations/001_control_plane.sql
+db/migrations/002_tenant_rls.sql
+```
+
+That migration sketches the hosted beta backbone: tenants, matters, document
+identity, object pointers, extraction records, jobs, provider runs, artifacts,
+incidents, advisory snapshots, cost events, audit events, skill ideas, skill
+samples, and configurable-skill ledgers. It also adds one shared `updated_at`
+trigger helper so mutable rows keep honest modification timestamps without every
+future service remembering to set them by hand. Notice what it does not do: it
+does not store PDFs or generated legal work inline, and it does not make the
+local engines read from Postgres yet.
+
+The second migration enables and forces row-level security on tenant-scoped
+tables. In plain English: a hosted database session must set `app.tenant_id`
+before it can see or write tenant legal data. If that context is missing, the
+database should deny access rather than hoping application code remembered every
+filter.
+This is the right migration posture. First make identity, jobs, audit, and
+receipts durable; only then move legal engines onto hosted workers.
+
+The migration runner is intentionally boring:
+
+```sh
+npm run db:migrations:list
+npm run db:migrations:check
+MWB_DATABASE_URL="postgres://..." npm run db:migrate
+```
+
+It uses `psql` rather than adding a Postgres client library to the app runtime.
+That keeps the local workbench dependency-light while still giving deployment a
+repeatable migration path. If no database URL is present, the check command
+lists migrations with `unknown` status instead of pretending it inspected a
+database. When a migration is applied, the runner records a SHA-256 checksum in
+`schema_migrations` and uses a Postgres advisory lock inside the migration
+transaction. In plain English: if someone edits an already-applied migration,
+the deploy should stop and ask for a new migration instead of quietly pretending
+the database is still in a known state.
+
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 
 - `skill-ideas.json` stores requests and design briefs.
@@ -473,17 +517,18 @@ The core lifecycle service is still `services/configurable-skills-service.mjs`, 
 
 ## The Frontend
 
-The default v1 frontend is now the React/Vite shell in `react-ui/`. The older
-plain browser JavaScript shell still exists, but it is no longer the normal
-door into the product.
+The v1 frontend is now the React/Vite shell in `react-ui/`. The older plain
+browser JavaScript shell still exists in the repository, but it is retired as a
+product surface. Treat the remaining old files as migration material: useful
+helpers can be promoted, old browser UX can be deleted.
 
 The React/Vite UI that was previously being explored in a separate local repo
 has now been absorbed into this repo under `react-ui/`, so there is one product
 codebase again.
 
 In plain English: we did not move into two houses. We brought the useful React
-prototype furniture into the main house, put it in one room, and left the old
-prototype house ready to be demolished later.
+prototype furniture into the main house, made that the front door, and started
+marking the old rooms for careful demolition.
 
 The current safe arrangement is:
 
@@ -493,7 +538,6 @@ The current safe arrangement is:
 - `react-dist/` is generated output and is ignored by git.
 - `npm start` first builds `react-dist/`, then starts `server.mjs`.
 - `npm run start:server` starts the backend without rebuilding when `react-dist/` is already current.
-- `npm run start:legacy` or `MWB_UI_SHELL=legacy npm run start:server` serves the previous plain-JS shell as an explicit fallback.
 - `npm run ui:dev` serves the React app on `http://127.0.0.1:5173/react/` while proxying API calls to the backend.
 - `npm run ui:build` type-checks and builds the React app.
 - `npm run ui:smoke` checks that the production React root and the live backend still agree on the API shapes React renders.
@@ -510,9 +554,9 @@ ignored, a fresh repo will not contain the compiled UI. If `npm start` only ran
 why `npm start` now builds React before starting the server, while
 `npm run start:server` remains available for fast local restarts.
 
-The legacy shell flag is now a release valve, not the main product path. It
-lets us compare behavior or recover quickly if a root-shell bug appears, without
-pretending we are still maintaining two equal frontends.
+The old shell flag is gone from the product path. React is the served browser
+surface at `/` and `/react/`; old plain-JS files now survive only when a tested
+helper has not yet moved to React, shared code, or a backend service.
 
 The React track has also been hardened against the exact kind of drift that
 usually makes frontend ports painful. The important fixes were not cosmetic.
@@ -621,10 +665,7 @@ Important files:
 - `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
 - `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
 - `scripts/react-ui-smoke.mjs` - live acceptance check for React/backend contract drift.
-- `index.html` - legacy app shell served only with `MWB_UI_SHELL=legacy`;
-- `styles.css` - legacy layout and visual system;
-- `frontend/event-wiring.js` - legacy user actions and skill dispatch;
-- `frontend/ai-command-box.js` - legacy Command rail facade;
+- `frontend/ai-command-box.js` - retired plain-JS Command rail facade kept only while helper/parity tests migrate;
 - `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
 - `frontend/skill-idea-session-state.js` - pure session initialization, planner terminal copy, and answer-advancement helpers;
 - `frontend/skill-idea-session-action-wiring.js` - button/action wiring for saved skill idea sessions;
@@ -635,13 +676,11 @@ Important files:
 - `frontend/created-skill-command-rail-actions.js` - the small "Skill Ready" rail after a custom skill is created;
 - `frontend/skill-idea-interview.js` - interview planning, planner fallback, and design-brief normalization;
 - `frontend/skill-idea-interview-templates.js` - deterministic interview templates, adjacent-native-skill patterns, and simple output-lane hints;
-- `frontend/matter-screens.js` - settings and matter screens;
 - `frontend/skills-page-actions.js` - Skills and Activity page copy/open/status button wiring;
 - `frontend/workspace-view.js` - workspace tree, lane opening, and generic file preview selection;
 - `frontend/listofdates-markdown-preview.js` - List of Dates markdown parsing, scannable chronology rendering, and copy/download actions;
 - `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
 - `frontend/api-client.js` - API helper;
-- `frontend/state.js` - shared state;
 - `frontend/status.js` - status output.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
@@ -904,12 +943,19 @@ What is still being developed?
 
 That is why the order is:
 
-1. **Your Skills** - active custom skills that can actually run.
-2. **Ideas** - saved skill requests that are still not runnable.
-3. **Built-in Skills** - code-backed app capabilities for reference.
-4. **Skill Factory Health** - a collapsed integrity check for developers and power users.
+1. **Your Skills** - active and paused custom skills the user controls.
+2. **Skills in Progress** - saved ideas and draft skills that are not yet normal runnable tools.
+3. **Built-in Workflows** - app-owned legal workflows, collapsed by default.
+4. **History** - archived skills, previous versions, and dismissed ideas.
 
-The important lesson is that technical health is valuable, but it should not become the product's main face. Factory health still exists because it protects the skill system. It is simply no longer the first thing a lawyer has to read.
+The important lesson is that technical health is valuable, but it should not become the product's main face. Skill factory health is now a small status signal, not the thing a lawyer has to parse before knowing what to do.
+
+The Skills page also learned a small but important loading lesson. It briefly
+had the right backend data but showed stale `Failed to fetch` messages in Recent
+Activity because transient page-load failures were logged globally. That is a
+bad first impression: a one-time refresh gap should not look like the skill
+system is permanently broken. Skills-page load errors now stay local to the
+page, show a **Try again** button, and disappear after a successful reload.
 
 ## Skill Sample Review Product Rule
 
@@ -1226,11 +1272,16 @@ That matched both the arrow submit button and every suggestion button inside the
 
 This is a good frontend lesson because nothing was wrong with the JavaScript. The DOM was rendering the right suggestions, but the CSS contract was too loose. In dense app shells, selectors should name the surface they intend to own; otherwise a later nested control quietly inherits styles meant for a completely different job.
 
-## Product Surface Lesson: Lead With The System's Native Work
+## Product Surface Lesson: Group By User Decision, Not Internal Type
 
-The Skills page briefly had the right data but the wrong first impression. It showed custom skills first, so the page looked like the product only had three skills even though the header counted native and built-in capabilities. That is a product hierarchy bug, not a data bug.
+The Skills page briefly had the right data but the wrong first impression. One version led with custom skills and hid the breadth of app-owned workflows; another made native workflows too prominent for a user who simply wanted to manage their own reusable tools.
 
-The fix was to put `Native Skills` first: Source Labels / Document Index and Create List of Dates. Custom skills now sit below them as user-created extensions, and setup/search/maintenance tools sit lower as supporting tools. This matches the product direction: the app should feel like a staged legal workbench with strong native workflows, not a blank skill registry where every slash command has equal weight.
+The better rule is MECE and action-first: show user-controlled custom skills at
+the top, keep unfinished ideas separate, collapse built-in workflows as
+app-owned reference material, and move archives and old versions into History.
+This matches the actual decisions a lawyer has to make: "what can I run now?",
+"what am I still creating?", "what does the app already provide?", and "what did
+I retire?"
 
 ## Policy Prompt Lesson: Models Are Replaceable, Legal Rules Are Not
 

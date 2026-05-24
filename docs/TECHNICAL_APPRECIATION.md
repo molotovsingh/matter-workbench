@@ -176,10 +176,10 @@ crossed from a prototype shell into a UI architecture that can carry more
 screens, async state, and workflow-specific components without every feature
 living in one browser file.
 
-The old plain-JS shell is still valuable, but now as a fallback and reference
-implementation. It taught the main lesson: even without a framework, the command
-surface must be decomposed by workflow instead of becoming one giant event
-handler.
+The old plain-JS shell is still valuable as a reference and migration inventory,
+but it is no longer a product fallback. It taught the main lesson: even without
+a framework, the command surface must be decomposed by workflow instead of
+becoming one giant event handler.
 
 ```
 React production shell
@@ -189,7 +189,7 @@ React production shell
   ├── RerunConfirmDialog.tsx         ← paid/replacing artifact guard
   └── filePreview.ts                 ← file loading + List of Dates preview
 
-Legacy fallback shell
+Retired plain-JS helper inventory
   ├── ai-command-box.js              ← facade
   ├── skill-idea-session-controller  ← interview → sample → approve
   ├── configurable-skill-run         ← run → review → replace

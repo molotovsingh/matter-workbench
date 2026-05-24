@@ -15,7 +15,7 @@ const contentTypes = new Map([
   [".jpeg", "image/jpeg"],
 ]);
 
-export function resolveStaticPath(appDir, urlPath, options = {}) {
+export function resolveStaticPath(appDir, urlPath) {
   let cleanPath;
   try {
     cleanPath = decodeURIComponent(urlPath.split("?")[0]);
@@ -23,10 +23,9 @@ export function resolveStaticPath(appDir, urlPath, options = {}) {
     return null;
   }
 
-  const uiShell = options.uiShell === "legacy" ? "legacy" : "react";
   const reactRoot = path.resolve(appDir, "react-dist");
 
-  if (uiShell === "react" && cleanPath === "/") {
+  if (cleanPath === "/") {
     return path.join(reactRoot, "index.html");
   }
 
@@ -39,14 +38,11 @@ export function resolveStaticPath(appDir, urlPath, options = {}) {
     return reactPath;
   }
 
-  const relativePath = cleanPath === "/" ? "index.html" : cleanPath.replace(/^\/+/, "");
-  const absolutePath = path.resolve(appDir, relativePath);
-  if (!isInsideRoot(appDir, absolutePath)) return null;
-  return absolutePath;
+  return null;
 }
 
-export async function serveStatic({ appDir, request, response, uiShell = "react" }) {
-  const filePath = resolveStaticPath(appDir, request.url || "/", { uiShell });
+export async function serveStatic({ appDir, request, response }) {
+  const filePath = resolveStaticPath(appDir, request.url || "/");
   if (!filePath) {
     response.writeHead(403);
     response.end("Forbidden");

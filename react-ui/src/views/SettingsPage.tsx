@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
@@ -36,46 +36,59 @@ export default function SettingsPage() {
 
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsError, setSkillsError] = useState('');
+  const [loadingSettings, setLoadingSettings] = useState(true);
+
+  const loadSettingsData = useCallback(async (isCancelled: () => boolean = () => false) => {
+    setLoadingSettings(true);
+    setMattersHomeError('');
+    setAiLoadError('');
+    setSkillsError('');
+
+    const [configResult, aiResult, skillsResult] = await Promise.allSettled([
+      api.getConfig(),
+      api.getAiSettings(),
+      api.getSkills(),
+    ]);
+
+    if (isCancelled()) return;
+
+    if (configResult.status === 'fulfilled') {
+      if (configResult.value.mattersHome) {
+        setMattersHome(configResult.value.mattersHome);
+        setMattersHomeEdit(configResult.value.mattersHome);
+      }
+    } else {
+      setMattersHomeError(getErrorMessage(configResult.reason));
+    }
+
+    if (aiResult.status === 'fulfilled') {
+      const nextSettings = aiResult.value;
+      setSettings(nextSettings);
+      if (nextSettings.provider) setFormProvider(nextSettings.provider);
+      if (nextSettings.model) setFormModel(nextSettings.model);
+      const task = findCopilotTask(nextSettings);
+      if (task?.provider) setCopilotProvider(task.provider);
+      if (task?.model) setCopilotModel(task.model);
+    } else {
+      setAiLoadError(getErrorMessage(aiResult.reason));
+    }
+
+    if (skillsResult.status === 'fulfilled') {
+      setSkills(skillsResult.value.skills ?? []);
+    } else {
+      setSkillsError(getErrorMessage(skillsResult.reason));
+    }
+
+    setLoadingSettings(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    api.getConfig().then((c) => {
-      if (cancelled) return;
-      if (c.mattersHome) {
-        setMattersHome(c.mattersHome);
-        setMattersHomeEdit(c.mattersHome);
-      }
-    }).catch((e) => {
-      if (cancelled) return;
-      const message = getErrorMessage(e);
-      setMattersHomeError(message);
-      appendTerminal([`[settings] config load failed: ${message}`]);
-    });
-
-    api.getAiSettings().then((s) => {
-      if (cancelled) return;
-      setSettings(s);
-      if (s.provider) setFormProvider(s.provider);
-      if (s.model) setFormModel(s.model);
-      applyCopilotSettings(s);
-    }).catch((e) => {
-      if (cancelled) return;
-      const message = getErrorMessage(e);
-      setAiLoadError(message);
-      appendTerminal([`[settings] AI settings load failed: ${message}`]);
-    });
-
-    api.getSkills().then((s) => {
-      if (cancelled) return;
-      setSkills(s.skills ?? []);
-    }).catch((e) => {
-      if (cancelled) return;
-      setSkillsError(getErrorMessage(e));
-    });
+    void loadSettingsData(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [appendTerminal]);
+  }, [loadSettingsData]);
 
   async function handleSaveMattersHome(e: React.FormEvent) {
     e.preventDefault();
@@ -188,6 +201,20 @@ export default function SettingsPage() {
           {overallReady ? 'All systems ready' : 'Configuration issues'}
         </div>
       </div>
+
+      {(aiLoadError || skillsError || (!mattersHome && mattersHomeError)) && (
+        <div className="run-failure-card" style={{ marginBottom: 18 }}>
+          <strong>Some settings data could not be loaded</strong>
+          <button
+            type="button"
+            className="run-skill-button secondary"
+            onClick={() => { void loadSettingsData(); }}
+            disabled={loadingSettings}
+          >
+            {loadingSettings ? 'Retrying…' : 'Retry loading settings'}
+          </button>
+        </div>
+      )}
 
       {/* ─── Matters Home ──────────────────────────── */}
       <div className="settings-section">

@@ -7,7 +7,7 @@ This folder holds parked product decisions, SME requirement capture, current loc
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 21 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 22 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -31,6 +31,7 @@ This README tracks the 21 decision documents in this folder. The README itself i
 | [Matter Developer Attention Surface](matter-developer-attention-surface.md) | Current local contract | High | New matter lifecycle traces, hosted incidents, advisory-history needs, or diagnostic UI changes | Keep matter-scoped; hosted beta should project from canonical incidents rather than making attention its own source of truth. Park durable Preparation Advisory history until database-backed incidents/jobs exist. |
 | [Custom Skill Run Critique](custom-skill-run-critique.md) | Current V0 accepted; critique action parked | Medium | User testing shows `Improve this skill` is too vague after weak outputs | Keep V0 actions; do not add critique mutation paths outside the governed sample/version flow. |
 | [Custom Skill Lifecycle Controls](custom-skill-lifecycle-controls.md) | Implementation contract draft | Medium | Users need to pause, archive, or delete custom skills during beta cleanup | Add lifecycle controls only for configurable/custom skills. Native skills remain app-owned and non-removable. Preserve run receipts and matter artifacts. |
+| [React-Only Cutover And Database Transition](react-only-cutover-database-transition.md) | Current local contract / transition prep | High | Any product-shell route, legacy frontend deletion, or database-first-slice work | Keep `/` React-only. Delete retired browser UX safely, but migrate useful helpers first. Use `db/migrations/001_control_plane.sql`, `db/migrations/002_tenant_rls.sql`, and `scripts/db-migrate.mjs` as the preparatory database baseline. |
 | [Hosted Beta Database Architecture](hosted-beta-database-architecture.md) | Implementation contract draft | High, but not first local polish | Hosted implementation begins | Keep as one broad contract for now. Split only when implementation starts. Enforce the stop rule before hosted legal engines move to workers. |
 | [Native Skill Implementation Contract](native-skill-implementation-contract.md) | Implementation contract draft | High | Native skill UI/contract work resumes | Promote repeated source-label, staleness, visibility, and dispatch rules into canonical contracts before broad implementation. |
 | [Native Skill Library Strategy](native-skill-library-strategy.md) | Working product note | High | Planning next native skill beyond current spine | Convert into an execution table: skill, lawyer question, inputs, outputs, source-backed fields, deterministic/model-heavy parts, cost risk, custom-skill demand replaced, status. |

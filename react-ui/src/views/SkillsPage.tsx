@@ -26,37 +26,65 @@ export default function SkillsPage() {
   const [health, setHealth] = useState<SkillFactoryHealth | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [loadingLifecycle, setLoadingLifecycle] = useState<string | null>(null);
+  const [loadingSkills, setLoadingSkills] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [introHidden, setIntroHidden] = useState(readSkillsIntroHidden);
 
-  const recordLoadError = useCallback((label: string, error: unknown) => {
-    const message = `${label}: ${getErrorMessage(error)}`;
-    setLoadError((current) => current ? `${current}\n${message}` : message);
-    appendTerminal([`[skills] load failed — ${message}`]);
-  }, [appendTerminal]);
+  const loadSkillData = useCallback(async (isCancelled: () => boolean = () => false) => {
+    setLoadingSkills(true);
+    setLoadError('');
+
+    const [
+      skillsResult,
+      customSkillsResult,
+      ideasResult,
+      healthResult,
+    ] = await Promise.allSettled([
+      api.getSkills(),
+      api.getConfigurableSkills(),
+      api.getSkillIdeas(),
+      api.getSkillFactoryHealth(),
+    ]);
+
+    if (isCancelled()) return;
+
+    const errors: string[] = [];
+
+    if (skillsResult.status === 'fulfilled') {
+      setRegistrySkills(skillsResult.value.skills ?? []);
+    } else {
+      errors.push(`built-in skills: ${getErrorMessage(skillsResult.reason)}`);
+    }
+
+    if (customSkillsResult.status === 'fulfilled') {
+      setCustomSkills(customSkillsResult.value.skills || []);
+    } else {
+      errors.push(`custom skills: ${getErrorMessage(customSkillsResult.reason)}`);
+    }
+
+    if (ideasResult.status === 'fulfilled') {
+      setIdeas(ideasResult.value.ideas || []);
+    } else {
+      errors.push(`skill ideas: ${getErrorMessage(ideasResult.reason)}`);
+    }
+
+    if (healthResult.status === 'fulfilled') {
+      setHealth(healthResult.value);
+    } else {
+      errors.push(`skill factory health: ${getErrorMessage(healthResult.reason)}`);
+    }
+
+    setLoadError(errors.join('\n'));
+    setLoadingSkills(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    api.getSkills().then((r) => {
-      if (cancelled) return;
-      setRegistrySkills(r.skills ?? []);
-    }).catch((e) => { if (!cancelled) recordLoadError('built-in skills', e); });
-    api.getConfigurableSkills().then((r) => {
-      if (cancelled) return;
-      setCustomSkills(r.skills || []);
-    }).catch((e) => { if (!cancelled) recordLoadError('custom skills', e); });
-    api.getSkillIdeas().then((r) => {
-      if (cancelled) return;
-      setIdeas(r.ideas || []);
-    }).catch((e) => { if (!cancelled) recordLoadError('skill ideas', e); });
-    api.getSkillFactoryHealth().then((payload) => {
-      if (cancelled) return;
-      setHealth(payload);
-    }).catch((e) => { if (!cancelled) recordLoadError('skill factory health', e); });
+    void loadSkillData(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [recordLoadError]);
+  }, [loadSkillData]);
 
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
     if (loadingRun || loadingLifecycle) return;
@@ -147,6 +175,14 @@ export default function SkillsPage() {
         <div className="run-failure-card" style={{ marginBottom: 18 }}>
           <strong>Some skill data could not be loaded</strong>
           <p style={{ whiteSpace: 'pre-line' }}>{loadError}</p>
+          <button
+            type="button"
+            className="run-skill-button secondary"
+            onClick={() => { void loadSkillData(); }}
+            disabled={loadingSkills}
+          >
+            {loadingSkills ? 'Trying…' : 'Try again'}
+          </button>
         </div>
       )}
 

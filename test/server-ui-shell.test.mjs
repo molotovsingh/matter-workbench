@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkbenchServer } from "../server.mjs";
 
-test("server defaults to React shell and keeps explicit legacy fallback", async () => {
+test("server always uses the React shell", async () => {
   const current = await createWorkbenchServer({ env: {}, port: 0 });
   assert.equal(current.uiShell, "react");
 
@@ -10,7 +10,7 @@ test("server defaults to React shell and keeps explicit legacy fallback", async 
   assert.equal(react.uiShell, "react");
 
   const legacy = await createWorkbenchServer({ env: { MWB_UI_SHELL: "legacy" }, port: 0 });
-  assert.equal(legacy.uiShell, "legacy");
+  assert.equal(legacy.uiShell, "react");
 
   const invalid = await createWorkbenchServer({ env: { MWB_UI_SHELL: "unknown" }, port: 0 });
   assert.equal(invalid.uiShell, "react");

@@ -10,38 +10,42 @@ test("static route containment rejects traversal and prefix sibling paths", () =
   const appDir = path.resolve("/tmp/matter-static-app");
 
   assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "react-dist", "index.html"));
-  assert.equal(resolveStaticPath(appDir, "/styles.css"), path.join(appDir, "styles.css"));
   assert.equal(resolveStaticPath(appDir, "/react"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(resolveStaticPath(appDir, "/react/"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(
     resolveStaticPath(appDir, "/react/assets/index.js"),
     path.join(appDir, "react-dist", "assets", "index.js"),
   );
+  assert.equal(resolveStaticPath(appDir, "/index.html"), null);
+  assert.equal(resolveStaticPath(appDir, "/app.js"), null);
+  assert.equal(resolveStaticPath(appDir, "/styles.css"), null);
+  assert.equal(resolveStaticPath(appDir, "/config.json"), null);
   assert.equal(resolveStaticPath(appDir, "/../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/../../etc/passwd"), null);
   assert.equal(resolveStaticPath(appDir, "/react/../../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/%E0%A4%A"), null);
 });
 
-test("static route can opt into legacy shell at root while React stays default", () => {
+test("static route ignores legacy shell opt-in and serves React at root", () => {
   const appDir = path.resolve("/tmp/matter-static-app");
 
   assert.equal(resolveStaticPath(appDir, "/"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(
     resolveStaticPath(appDir, "/", { uiShell: "legacy" }),
-    path.join(appDir, "index.html"),
+    path.join(appDir, "react-dist", "index.html"),
   );
   assert.equal(
     resolveStaticPath(appDir, "/react/assets/index.js", { uiShell: "react" }),
     path.join(appDir, "react-dist", "assets", "index.js"),
   );
-  assert.equal(resolveStaticPath(appDir, "/styles.css", { uiShell: "react" }), path.join(appDir, "styles.css"));
+  assert.equal(resolveStaticPath(appDir, "/styles.css", { uiShell: "react" }), null);
 });
 
-test("static route streams file content with no-store headers", async () => {
+test("static route streams React files with no-store headers", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-static-"));
   try {
-    await writeFile(path.join(appDir, "index.html"), "<h1>Home</h1>");
+    await mkdir(path.join(appDir, "react-dist"), { recursive: true });
+    await writeFile(path.join(appDir, "react-dist", "index.html"), "<h1>React</h1>");
     const response = new CaptureResponse();
 
     const handled = await serveStatic({
@@ -55,7 +59,7 @@ test("static route streams file content with no-store headers", async () => {
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
     assert.equal(response.headers["cache-control"], "no-store");
-    assert.equal(response.bodyText(), "<h1>Home</h1>");
+    assert.equal(response.bodyText(), "<h1>React</h1>");
   } finally {
     await rm(appDir, { recursive: true, force: true });
   }

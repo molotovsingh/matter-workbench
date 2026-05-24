@@ -41,6 +41,31 @@ receipts, and long-running native skills, see
 [docs/future-design-decisions/parallel-processing-latency.md](docs/future-design-decisions/parallel-processing-latency.md).
 For the future hosted beta database and tenancy architecture, see
 [docs/future-design-decisions/hosted-beta-database-architecture.md](docs/future-design-decisions/hosted-beta-database-architecture.md).
+The first preparatory Postgres migrations live in [db/migrations](db/migrations):
+
+- [001_control_plane.sql](db/migrations/001_control_plane.sql) - hosted control-plane tables and ledgers.
+- [002_tenant_rls.sql](db/migrations/002_tenant_rls.sql) - tenant row-level security policies for hosted beta.
+
+See [db/README.md](db/README.md) for the migration commands and runtime cutover
+stop rule.
+
+To inspect or apply database migrations:
+
+```bash
+npm run db:migrations:list
+npm run db:migrations:check
+MWB_DATABASE_URL="postgres://..." npm run db:migrate
+```
+
+Applying migrations uses the local `psql` command-line client. The check command
+can still list migrations without a database URL. Applied migrations are recorded
+with a SHA-256 checksum so edited migration files fail closed instead of being
+treated as already applied. The baseline migration also adds one shared
+`updated_at` trigger helper for mutable control-plane rows, so future hosted
+state has reliable modification timestamps without app-side copy/paste.
+The tenant RLS migration enables and forces row-level security for tenant-scoped
+tables; hosted DB sessions must set `app.tenant_id` before tenant legal data is
+visible.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
@@ -176,12 +201,10 @@ npm start
 should live and creates that folder for you. Use **+ New Matter** in the sidebar
 to create a matter, or pick an existing one from the **Matters** list.
 
-The React shell is now the default UI at `/`. To run the previous plain-JS shell
-as a fallback, use:
-
-```bash
-MWB_UI_SHELL=legacy npm run start:server
-```
+The React shell is now the only product UI. `/` and `/react/` both serve the
+compiled React app. The previous plain-JS browser shell is retired as a product
+fallback; its remaining files are kept only while tested helpers are migrated or
+deleted safely.
 
 ### React UI track
 
@@ -212,9 +235,8 @@ To build the React UI inside the main repo:
 npm run ui:build
 ```
 
-The build output goes to ignored `react-dist/`. The backend can serve that
-compiled UI at both `/` and `/react/`. The previous plain-JS v1 UI remains
-available only when `MWB_UI_SHELL=legacy` is set.
+The build output goes to ignored `react-dist/`. The backend serves that compiled
+UI at both `/` and `/react/`.
 
 Before accepting changes from a frontend experiment repo, run:
 
@@ -268,10 +290,8 @@ The active matter overview also renders a read-only Developer attention card fro
 
 - `react-ui/` - default React/Vite UI source
 - `react-dist/` - ignored generated build output for the React UI, served at `/` and `/react/`
-- `index.html` - previous plain-JS app shell, available with `MWB_UI_SHELL=legacy`
-- `styles.css` - previous plain-JS visual system and layout
-- `app.js` - previous plain-JS frontend composition, state bootstrapping, and built-in skill dispatch
-- `frontend/` - previous plain-JS command rail UI, screens, workspace views, and skill-specific frontend runners
+- `frontend/` - retired plain-JS UX plus temporary helper modules still covered by tests while they are migrated or deleted
+- Retired root shell files `index.html`, `styles.css`, and `app.js` have been removed; React is the only served product shell
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints
 - `routes/app-shell-routes.mjs` - app settings, matters, workspace, uploads, files, overlap checks, and command diagnostics

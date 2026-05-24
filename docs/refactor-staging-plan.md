@@ -224,8 +224,9 @@ Only do this when the next change naturally touches the same surface.
 - `frontend/skill-idea-session-action-wiring.js` now owns saved/interview skill
   idea button wiring. The session controller still owns the state machine.
 - `frontend/skills-page-actions.js` now owns Skills and Activity page
-  copy/open/status button wiring. `frontend/matter-screens.js` still loads data,
-  switches shell sections, and renders page HTML.
+  copy/open/status button wiring.
+- The React-only cutover retired `frontend/matter-screens.js`; React now owns
+  shell section switching, matter landing, and Settings page rendering.
 
 ### Rule
 

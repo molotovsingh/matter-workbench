@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 function read(path) {
@@ -42,3 +43,94 @@ test("reviewed magic numbers have names", () => {
   assert.match(read("services/configurable-skill-definition.mjs"), /MAX_SLASH_ALLOCATION_ATTEMPTS/);
   assert.match(read("services/matter-copilot-service.mjs"), /FULL_SNIPPET_OVERLAP_SCORE/);
 });
+
+test("legacy UI fallback stays retired from product docs and server config", () => {
+  assert.doesNotMatch(read("server.mjs"), /MWB_UI_SHELL/);
+  assert.doesNotMatch(read("package.json"), /start:legacy|MWB_UI_SHELL/);
+  assert.doesNotMatch(read("README.md"), /MWB_UI_SHELL=legacy/);
+  assert.doesNotMatch(read("docs/releases/v1.0.0-beta.2.md"), /MWB_UI_SHELL=legacy|legacy shell fallback/i);
+  assert.doesNotMatch(read("FOR_AKSINGH.md"), /legacy shell flag/i);
+  assert.doesNotMatch(read("FOR_AKSINGH.md"), /- `frontend\/matter-screens\.js`/);
+  assert.doesNotMatch(read("FOR_AKSINGH.md"), /- `frontend\/state\.js`/);
+  assert.doesNotMatch(read("FOR_AKSINGH.md"), /- `frontend\/event-wiring\.js`/);
+});
+
+test("retired root legacy shell files stay deleted", () => {
+  assert.equal(existsSync(new URL("../index.html", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../app.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../styles.css", import.meta.url)), false);
+});
+
+test("unimported legacy UX entrypoints stay deleted", () => {
+  assert.equal(existsSync(new URL("../frontend/event-wiring.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../frontend/state.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../frontend/matter-screens.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../frontend/views/settings-page.js", import.meta.url)), false);
+});
+
+test("retired legacy workflow modules stay deleted", () => {
+  const retiredWorkflowModules = [
+    "frontend/skills/context-preview.js",
+    "frontend/skills/context-search.js",
+    "frontend/skills/create-listofdates.js",
+    "frontend/skills/describe-sources.js",
+    "frontend/skills/doctor.js",
+    "frontend/skills/extract.js",
+    "frontend/skills/matter-init.js",
+    "frontend/skills/prepare-matter.js",
+    "frontend/views/add-files.js",
+    "frontend/views/extract-result.js",
+  ];
+
+  for (const retired of retiredWorkflowModules) {
+    assert.equal(existsSync(new URL(`../${retired}`, import.meta.url)), false, retired);
+  }
+});
+
+test("retired legacy UX entrypoints are not imported by product code", () => {
+  const retiredEntrypoints = [
+    "app.js",
+    "frontend/ai-command-box.js",
+    "frontend/event-wiring.js",
+    "frontend/matter-screens.js",
+    "frontend/state.js",
+    "frontend/views/skills-page.js",
+  ];
+  const productRoots = ["react-ui", "routes", "services", "shared", "scripts"];
+
+  for (const file of listSourceFiles(productRoots)) {
+    const source = read(file);
+    for (const retired of retiredEntrypoints) {
+      const retiredWithoutExtension = retired.replace(/\.js$/, "");
+      const escaped = escapeRegex(retiredWithoutExtension);
+      assert.doesNotMatch(source, new RegExp(`from ['"][^'"]*${escaped}(?:\\.js)?['"]`), `${file} imports ${retired}`);
+      assert.doesNotMatch(source, new RegExp(`import\\(['"][^'"]*${escaped}(?:\\.js)?['"]\\)`), `${file} imports ${retired}`);
+    }
+  }
+});
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function listSourceFiles(roots) {
+  const files = [];
+  for (const root of roots) walk(root, files);
+  return files.filter((file) => /\.(mjs|js|ts|tsx)$/.test(file));
+}
+
+function walk(relativeDir, files) {
+  const absoluteDir = new URL(`../${relativeDir}`, import.meta.url);
+  if (!existsSync(absoluteDir)) return;
+  for (const entry of readdirSync(absoluteDir)) {
+    if (entry === "node_modules" || entry === "react-dist") continue;
+    const relativePath = path.posix.join(relativeDir, entry);
+    const absolutePath = new URL(`../${relativePath}`, import.meta.url);
+    const stats = statSync(absolutePath);
+    if (stats.isDirectory()) {
+      walk(relativePath, files);
+    } else {
+      files.push(relativePath);
+    }
+  }
+}

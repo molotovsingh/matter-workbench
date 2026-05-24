@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { writeClipboardText } from '../lib/clipboard';
@@ -27,28 +27,28 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadActivityRuns = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoading(true);
     setLoadError('');
-    api.getSkillRuns(100)
-      .then((r) => {
-        if (cancelled) return;
-        setRuns(r.runs || []);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        const message = getErrorMessage(e);
-        setLoadError(message);
-        appendTerminal([`[activity] load failed: ${message}`]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    try {
+      const result = await api.getSkillRuns(100);
+      if (isCancelled()) return;
+      setRuns(result.runs || []);
+    } catch (e) {
+      if (isCancelled()) return;
+      setLoadError(getErrorMessage(e));
+    } finally {
+      if (!isCancelled()) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadActivityRuns(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [appendTerminal]);
+  }, [loadActivityRuns]);
 
   const activeMatterName = state.activeMatter?.name ?? '';
   const visibleRuns = activeMatterName
@@ -122,7 +122,16 @@ export default function ActivityPage() {
       {loading && <p className="muted">Loading activity…</p>}
       {loadError && (
         <div className="run-failure-card" style={{ marginBottom: 18 }}>
-          <strong>Activity could not be loaded</strong>{loadError}
+          <strong>Activity could not be loaded</strong>
+          <p>{loadError}</p>
+          <button
+            type="button"
+            className="run-skill-button secondary"
+            onClick={() => { void loadActivityRuns(); }}
+            disabled={loading}
+          >
+            {loading ? 'Trying…' : 'Try again'}
+          </button>
         </div>
       )}
 

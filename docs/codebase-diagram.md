@@ -12,24 +12,19 @@ Update this diagram when adding a new route, service, engine, persistent artifac
 
 ```mermaid
 flowchart LR
-  Browser["Browser UI<br/>React default shell<br/>react-ui/* -> react-dist/"]
-  LegacyBrowser["Legacy fallback UI<br/>index.html<br/>styles.css<br/>frontend/*.js<br/>MWB_UI_SHELL=legacy"]
+  Browser["Browser UI<br/>React-only shell<br/>react-ui/* -> react-dist/"]
   Server["Local Node server<br/>server.mjs"]
   Cli["CLI commands<br/>MATTER_ROOT=... node *.mjs --apply"]
 
   Browser -->|"HTTP JSON/file requests"| Server
-  LegacyBrowser -->|"HTTP JSON/file requests"| Server
 
-  subgraph FrontendControllers["Frontend surfaces"]
+  subgraph FrontendControllers["Frontend surface and temporary helper inventory"]
     ReactApp["react-ui/src/App.tsx<br/>default shell composition"]
     ReactContext["react-ui/src/store/AppContext.tsx<br/>active matter and workspace refresh owner"]
     ReactCommand["react-ui/src/components/command/CommandPanel.tsx<br/>command panel"]
     ReactWorkflowViews["react-ui/src/views/workflows/*.tsx<br/>native workflow views"]
     ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and List of Dates preview helpers"]
-    CommandFacade["frontend/ai-command-box.js<br/>legacy command rail facade"]
-    SkillIdeaSession["frontend/skill-idea-session-controller.js<br/>legacy interview, samples, approval"]
-    ConfigurableRunController["frontend/configurable-skill-run-controller.js<br/>legacy custom skill runs and output replacement"]
-    SkillsPageViews["frontend/views/skills-page*.js<br/>legacy Skills page sections"]
+    LegacyHelpers["frontend/*.js<br/>retired UX plus temporary tested helpers"]
   end
 
   Browser --> ReactApp
@@ -37,10 +32,6 @@ flowchart LR
   ReactApp --> ReactCommand
   ReactApp --> ReactWorkflowViews
   ReactApp --> ReactFilePreview
-  LegacyBrowser --> CommandFacade
-  CommandFacade --> SkillIdeaSession
-  CommandFacade --> ConfigurableRunController
-  LegacyBrowser --> SkillsPageViews
 
   subgraph Routes["Route/API layer"]
     ApiRoutes["routes/api-routes.mjs<br/>top-level API dispatcher"]
