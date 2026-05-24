@@ -108,6 +108,7 @@ The first schema baseline now lives at:
 - `db/migrations/005_storage_object_lifecycle.sql`
 - `db/migrations/006_job_execution_leases.sql`
 - `db/migrations/007_local_matter_import_ledger.sql`
+- `db/migrations/008_job_worker_functions.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -129,8 +130,11 @@ expired-lock metadata to `processing_jobs` and `job_outbox`, so hosted workers
 can be durable later without inventing an ad hoc queue outside Postgres.
 `007_local_matter_import_ledger.sql` adds batch and per-file ledgers for
 migrating existing local matter folders without silent source renumbering,
-dropped import warnings, or cross-tenant references. None of these migrations
-switches the local runtime away from the filesystem-backed engines.
+dropped import warnings, or cross-tenant references.
+`008_job_worker_functions.sql` adds database-side claim, heartbeat, completion,
+and retry functions for processing jobs and outbox events, keeping the future
+worker queue atomic inside Postgres. None of these migrations switches the local
+runtime away from the filesystem-backed engines.
 
 Developer commands:
 

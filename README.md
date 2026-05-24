@@ -50,6 +50,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [005_storage_object_lifecycle.sql](db/migrations/005_storage_object_lifecycle.sql) - object custody ledger for hosted files and artifacts.
 - [006_job_execution_leases.sql](db/migrations/006_job_execution_leases.sql) - worker lease and retry metadata for durable hosted jobs.
 - [007_local_matter_import_ledger.sql](db/migrations/007_local_matter_import_ledger.sql) - batch and per-file ledger for importing existing local matter folders.
+- [008_job_worker_functions.sql](db/migrations/008_job_worker_functions.sql) - atomic claim, heartbeat, and completion functions for hosted workers.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -84,7 +85,9 @@ migration gives hosted workers claim, heartbeat, retry, and expired-lock fields
 for long-running preparation stages without changing the local filesystem
 runtime. The local-import migration adds a controlled batch ledger for moving
 existing matter folders later without silent source renumbering or dropped
-warnings.
+warnings. The worker-functions migration adds database-side claim, heartbeat,
+completion, and retry primitives so future workers do not invent their own
+non-atomic queue behavior in application code.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

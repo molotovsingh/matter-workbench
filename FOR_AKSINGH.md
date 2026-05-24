@@ -473,6 +473,7 @@ db/migrations/004_user_membership_integrity.sql
 db/migrations/005_storage_object_lifecycle.sql
 db/migrations/006_job_execution_leases.sql
 db/migrations/007_local_matter_import_ledger.sql
+db/migrations/008_job_worker_functions.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -532,9 +533,16 @@ folders later. The important rule is that old source identities are not silently
 renumbered. If an import collides or looks unsafe, the batch has somewhere to
 record that instead of hiding it.
 
+The eighth migration turns the job tables from passive ledgers into a usable
+worker queue foundation. A future worker can atomically claim the next job,
+heartbeat while it is running, complete it, or put it back for retry. The same
+pattern applies to outbox events. This avoids the classic distributed-systems
+mistake where two workers both think they own the same legal extraction job.
+
 This is the right migration posture. First make identity, jobs, audit, and
 receipts durable, then make file custody, worker custody, and import custody
-observable; only then move legal engines onto hosted workers.
+observable, then make worker claims atomic; only then move legal engines onto
+hosted workers.
 
 The migration runner is intentionally boring:
 

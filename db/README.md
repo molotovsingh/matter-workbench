@@ -28,6 +28,8 @@ migrations do not switch live matter storage to Postgres.
 - `007_local_matter_import_ledger.sql` adds batch and per-file ledgers for
   importing existing local matter folders without silent renumbering or dropped
   import warnings.
+- `008_job_worker_functions.sql` adds atomic claim, heartbeat, completion, and
+  retry functions for hosted processing jobs and outbox events.
 
 ## Commands
 
