@@ -23,6 +23,8 @@ migrations do not switch live matter storage to Postgres.
 - `005_storage_object_lifecycle.sql` adds a tenant-scoped storage-object ledger
   for private originals, extraction payloads, text payloads, generated artifacts,
   exports, and cleanup/orphan handling.
+- `006_job_execution_leases.sql` adds worker claim, heartbeat, retry, and
+  expired-lock metadata to hosted processing jobs and outbox events.
 
 ## Commands
 

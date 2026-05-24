@@ -471,6 +471,7 @@ db/migrations/002_tenant_rls.sql
 db/migrations/003_tenant_reference_integrity.sql
 db/migrations/004_user_membership_integrity.sql
 db/migrations/005_storage_object_lifecycle.sql
+db/migrations/006_job_execution_leases.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -516,9 +517,16 @@ database still needs custody records for those objects: what was expected, what
 was uploaded, what was verified, what failed, and what became orphaned after an
 interruption. That is what `storage_objects` provides.
 
+The sixth migration handles the worker transaction boundary. Long-running
+hosted work cannot depend on a browser tab staying open or a single process
+remembering what it was doing. Jobs and outbox events now have lease, heartbeat,
+retry, and expired-claim fields. That lets a future worker say "I have claimed
+this job for the next few minutes," and lets another worker recover it if the
+first one disappears.
+
 This is the right migration posture. First make identity, jobs, audit, and
-receipts durable, then make file custody observable; only then move legal
-engines onto hosted workers.
+receipts durable, then make file custody and worker custody observable; only
+then move legal engines onto hosted workers.
 
 The migration runner is intentionally boring:
 

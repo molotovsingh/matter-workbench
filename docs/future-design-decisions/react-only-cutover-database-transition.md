@@ -106,6 +106,7 @@ The first schema baseline now lives at:
 - `db/migrations/003_tenant_reference_integrity.sql`
 - `db/migrations/004_user_membership_integrity.sql`
 - `db/migrations/005_storage_object_lifecycle.sql`
+- `db/migrations/006_job_execution_leases.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -121,8 +122,11 @@ matter, job, artifact, incident, or skill rows owned by another tenant.
 tenant members and ties provider/cost approvals to tenant-local audit events.
 `005_storage_object_lifecycle.sql` adds a tenant-scoped storage object custody
 ledger for originals, extraction payloads, text payloads, artifacts, exports,
-and cleanup candidates while leaving existing object-key columns in place. None
-of these migrations switches the local runtime away from the filesystem-backed
+and cleanup candidates while leaving existing object-key columns in place.
+`006_job_execution_leases.sql` adds worker claim, heartbeat, retry, and
+expired-lock metadata to `processing_jobs` and `job_outbox`, so hosted workers
+can be durable later without inventing an ad hoc queue outside Postgres. None of
+these migrations switches the local runtime away from the filesystem-backed
 engines.
 
 Developer commands:

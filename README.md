@@ -48,6 +48,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [003_tenant_reference_integrity.sql](db/migrations/003_tenant_reference_integrity.sql) - cross-tenant parent-link protection.
 - [004_user_membership_integrity.sql](db/migrations/004_user_membership_integrity.sql) - tenant-member user references and approval audit links.
 - [005_storage_object_lifecycle.sql](db/migrations/005_storage_object_lifecycle.sql) - object custody ledger for hosted files and artifacts.
+- [006_job_execution_leases.sql](db/migrations/006_job_execution_leases.sql) - worker lease and retry metadata for durable hosted jobs.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -77,7 +78,10 @@ visible. The tenant-reference migration then prevents a row from claiming one
 tenant while pointing at a parent matter, job, artifact, incident, or custom
 skill owned by another tenant. The object-lifecycle migration adds a tenant
 scoped custody ledger for pending, uploaded, verified, failed, orphaned, and
-deleted objects without moving large legal files into Postgres.
+deleted objects without moving large legal files into Postgres. The job-lease
+migration gives hosted workers claim, heartbeat, retry, and expired-lock fields
+for long-running preparation stages without changing the local filesystem
+runtime.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

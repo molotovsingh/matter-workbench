@@ -27,6 +27,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "003_tenant_reference_integrity.sql",
       "004_user_membership_integrity.sql",
       "005_storage_object_lifecycle.sql",
+      "006_job_execution_leases.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -34,6 +35,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("003_tenant_reference_integrity.sql"), "003_tenant_reference_integrity");
   assert.equal(migrationVersionFromFile("004_user_membership_integrity.sql"), "004_user_membership_integrity");
   assert.equal(migrationVersionFromFile("005_storage_object_lifecycle.sql"), "005_storage_object_lifecycle");
+  assert.equal(migrationVersionFromFile("006_job_execution_leases.sql"), "006_job_execution_leases");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 
@@ -141,6 +143,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
       { status: "pending", version: "003_tenant_reference_integrity", fileName: "003_tenant_reference_integrity.sql" },
       { status: "pending", version: "004_user_membership_integrity", fileName: "004_user_membership_integrity.sql" },
       { status: "pending", version: "005_storage_object_lifecycle", fileName: "005_storage_object_lifecycle.sql" },
+      { status: "pending", version: "006_job_execution_leases", fileName: "006_job_execution_leases.sql" },
     ],
   }).join("\n");
 
@@ -153,6 +156,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /003_tenant_reference_integrity\s+pending\s+003_tenant_reference_integrity\.sql/);
   assert.match(report, /004_user_membership_integrity\s+pending\s+004_user_membership_integrity\.sql/);
   assert.match(report, /005_storage_object_lifecycle\s+pending\s+005_storage_object_lifecycle\.sql/);
+  assert.match(report, /006_job_execution_leases\s+pending\s+006_job_execution_leases\.sql/);
   assert.match(report, /ready_to_apply: yes/);
 });
 
@@ -219,4 +223,5 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /003_tenant_reference_integrity\.sql/);
   assert.match(docs, /004_user_membership_integrity\.sql/);
   assert.match(docs, /005_storage_object_lifecycle\.sql/);
+  assert.match(docs, /006_job_execution_leases\.sql/);
 });
