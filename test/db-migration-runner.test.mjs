@@ -30,6 +30,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "006_job_execution_leases.sql",
       "007_local_matter_import_ledger.sql",
       "008_job_worker_functions.sql",
+      "009_incident_helper_functions.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -40,6 +41,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("006_job_execution_leases.sql"), "006_job_execution_leases");
   assert.equal(migrationVersionFromFile("007_local_matter_import_ledger.sql"), "007_local_matter_import_ledger");
   assert.equal(migrationVersionFromFile("008_job_worker_functions.sql"), "008_job_worker_functions");
+  assert.equal(migrationVersionFromFile("009_incident_helper_functions.sql"), "009_incident_helper_functions");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 
@@ -150,6 +152,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
       { status: "pending", version: "006_job_execution_leases", fileName: "006_job_execution_leases.sql" },
       { status: "pending", version: "007_local_matter_import_ledger", fileName: "007_local_matter_import_ledger.sql" },
       { status: "pending", version: "008_job_worker_functions", fileName: "008_job_worker_functions.sql" },
+      { status: "pending", version: "009_incident_helper_functions", fileName: "009_incident_helper_functions.sql" },
     ],
   }).join("\n");
 
@@ -165,6 +168,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /006_job_execution_leases\s+pending\s+006_job_execution_leases\.sql/);
   assert.match(report, /007_local_matter_import_ledger\s+pending\s+007_local_matter_import_ledger\.sql/);
   assert.match(report, /008_job_worker_functions\s+pending\s+008_job_worker_functions\.sql/);
+  assert.match(report, /009_incident_helper_functions\s+pending\s+009_incident_helper_functions\.sql/);
   assert.match(report, /ready_to_apply: yes/);
 });
 
@@ -234,4 +238,5 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /006_job_execution_leases\.sql/);
   assert.match(docs, /007_local_matter_import_ledger\.sql/);
   assert.match(docs, /008_job_worker_functions\.sql/);
+  assert.match(docs, /009_incident_helper_functions\.sql/);
 });

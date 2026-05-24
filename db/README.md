@@ -30,6 +30,8 @@ migrations do not switch live matter storage to Postgres.
   import warnings.
 - `008_job_worker_functions.sql` adds atomic claim, heartbeat, completion, and
   retry functions for hosted processing jobs and outbox events.
+- `009_incident_helper_functions.sql` adds canonical helpers for recording and
+  resolving job, provider-run, and artifact-validation incidents.
 
 ## Commands
 

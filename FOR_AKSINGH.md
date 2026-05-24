@@ -474,6 +474,7 @@ db/migrations/005_storage_object_lifecycle.sql
 db/migrations/006_job_execution_leases.sql
 db/migrations/007_local_matter_import_ledger.sql
 db/migrations/008_job_worker_functions.sql
+db/migrations/009_incident_helper_functions.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -532,6 +533,15 @@ and `matter_import_items` create a disciplined ledger for importing those
 folders later. The important rule is that old source identities are not silently
 renumbered. If an import collides or looks unsafe, the batch has somewhere to
 record that instead of hiding it.
+
+The eighth and ninth migrations prepare the hosted worker loop. The eighth adds
+atomic claim, heartbeat, completion, and retry functions so a future worker can
+take a job without two processes accidentally doing the same legal work. The
+ninth adds canonical incident helpers, so failed jobs, failed model calls, and
+artifact-validation warnings all become the same kind of tenant-scoped advisory
+evidence. That matters because Matter Attention should be a projection over
+real failures and validation results, not a second diary that drifts away from
+what actually happened.
 
 The eighth migration turns the job tables from passive ledgers into a usable
 worker queue foundation. A future worker can atomically claim the next job,
