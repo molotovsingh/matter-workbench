@@ -59,3 +59,47 @@ test("React custom skill run loading state clears after stale matter switches", 
     "A stale matter switch should suppress result text, but should not leave the Skills page stuck in Running state.",
   );
 });
+
+test("React Skills page uses an action-first MECE layout", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /SKILLS_INTRO_STORAGE_KEY = 'mwb\.skillsIntro\.hidden\.v1'/);
+  assert.match(skillsSource, /window\.localStorage\.getItem\(SKILLS_INTRO_STORAGE_KEY\) === '1'/);
+  assert.match(skillsSource, /window\.localStorage\.setItem\(SKILLS_INTRO_STORAGE_KEY, '1'\)/);
+  assert.match(skillsSource, /setIntroHidden\(true\)/);
+  assert.match(skillsSource, /New to skills\?/);
+  assert.match(skillsSource, /A skill is a repeatable work routine/);
+  assert.match(skillsSource, /Built-in skills/);
+  assert.match(skillsSource, /Your skills/);
+  assert.match(skillsSource, /Not a skill/);
+  assert.match(skillsSource, /Hide this note/);
+
+  assert.match(skillsSource, /<YourSkillsSection/);
+  assert.match(skillsSource, /<SkillsInProgressSection/);
+  assert.match(skillsSource, /<BuiltInWorkflowsSection/);
+  assert.match(skillsSource, /<SkillHistorySection/);
+
+  assert.match(skillsSource, /Your Skills/);
+  assert.match(skillsSource, /Skills in Progress/);
+  assert.match(skillsSource, /Built-in Workflows/);
+  assert.match(skillsSource, /History/);
+
+  assert.match(skillsSource, /<details className="skills-collapsible-section">[\s\S]*Built-in Workflows/);
+  assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*Built-in Workflows/);
+  assert.match(skillsSource, /<details className="skills-collapsible-section">[\s\S]*History/);
+  assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*History/);
+});
+
+test("React Skills page keeps custom lifecycle controls out of built-ins", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+  const builtInSection = skillsSource.slice(
+    skillsSource.indexOf("function BuiltInWorkflowsSection"),
+    skillsSource.indexOf("function SkillHistorySection"),
+  );
+
+  assert.match(skillsSource, /renderManageActions\(skill, \['suspend', 'archive', 'delete'\]\)/);
+  assert.match(skillsSource, /renderManageActions\(skill, \['archive', 'delete'\]\)/);
+  assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
+  assert.doesNotMatch(builtInSection, /handleLifecycleAction/);
+  assert.doesNotMatch(builtInSection, /renderManageActions/);
+});

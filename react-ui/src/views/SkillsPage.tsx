@@ -7,6 +7,16 @@ import { humanizeArtifactPath } from '../lib/presentationLabels';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
+const SKILLS_INTRO_STORAGE_KEY = 'mwb.skillsIntro.hidden.v1';
+
+type LifecycleAction = 'suspend' | 'resume' | 'archive' | 'restore' | 'delete';
+
+interface LifecycleRenderContext {
+  loadingLifecycle: string | null;
+  loadingRun: string | null;
+  onLifecycleAction: (skill: ConfigurableSkill, action: LifecycleAction) => void;
+}
+
 export default function SkillsPage() {
   const { state, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
@@ -17,6 +27,7 @@ export default function SkillsPage() {
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [loadingLifecycle, setLoadingLifecycle] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [introHidden, setIntroHidden] = useState(readSkillsIntroHidden);
 
   const recordLoadError = useCallback((label: string, error: unknown) => {
     const message = `${label}: ${getErrorMessage(error)}`;
@@ -79,7 +90,7 @@ export default function SkillsPage() {
 
   async function handleLifecycleAction(
     skill: ConfigurableSkill,
-    action: 'suspend' | 'resume' | 'archive' | 'restore' | 'delete',
+    action: LifecycleAction,
   ) {
     if (loadingLifecycle || loadingRun) return;
     if (action === 'delete') {
@@ -101,6 +112,11 @@ export default function SkillsPage() {
     }
   }
 
+  function hideIntro() {
+    persistSkillsIntroHidden();
+    setIntroHidden(true);
+  }
+
   const activeIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) !== SKILL_IDEA_STATUS.DISMISSED);
   const dismissedIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) === SKILL_IDEA_STATUS.DISMISSED);
   const builtinRegistrySkills = registrySkills.filter((skill) => !skill.configurable);
@@ -108,22 +124,24 @@ export default function SkillsPage() {
   const draftCustomSkills = customSkills.filter((skill) => skill.status === 'draft');
   const archivedCustomSkills = customSkills.filter((skill) => skill.status === 'archived');
   const previousVersionCustomSkills = customSkills.filter((skill) => skill.status === 'disabled');
+  const inProgressCount = activeIdeas.length + draftCustomSkills.length;
+  const historyCount = archivedCustomSkills.length + previousVersionCustomSkills.length + dismissedIdeas.length;
+  const lifecycleContext: LifecycleRenderContext = {
+    loadingLifecycle,
+    loadingRun,
+    onLifecycleAction: (skill, action) => { void handleLifecycleAction(skill, action); },
+  };
 
   return (
     <div className="skills-page">
       <div className="skills-hero">
         <div>
           <h1>Skills</h1>
-          <p>Built-in legal workflows and reviewed custom skills available in this workbench.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {health && (
-            <span className={`pipeline-state ${health.state === 'ok' ? 'present' : 'warning'}`}>
-              {health.state === 'ok' ? 'Skill setup ready' : 'Skill setup needs attention'}
-            </span>
-          )}
+          <p>Reusable matter work routines. Keep your own skills easy to run, and keep app-managed workflows out of the way until needed.</p>
         </div>
       </div>
+
+      {!introHidden && <SkillsIntroCard onDismiss={hideIntro} />}
 
       {loadError && (
         <div className="run-failure-card" style={{ marginBottom: 18 }}>
@@ -132,231 +150,219 @@ export default function SkillsPage() {
         </div>
       )}
 
-      {/* Summary */}
-      <div className="skills-summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-        {builtinRegistrySkills.length > 0 && (
-          <span className="pipeline-state present">
-            {builtinRegistrySkills.length} built-in workflow{builtinRegistrySkills.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        {visibleCustomSkills.length > 0 && (
-          <span className="pipeline-state present">
-            {visibleCustomSkills.length} custom skill{visibleCustomSkills.length !== 1 ? 's' : ''}
-          </span>
-        )}
-        {activeIdeas.length > 0 && (
-          <span className="pipeline-state pending">
-            {activeIdeas.length} idea{activeIdeas.length !== 1 ? 's' : ''}
-          </span>
-        )}
+      <SkillsStatusRow
+        yourSkillsCount={visibleCustomSkills.length}
+        inProgressCount={inProgressCount}
+        builtinCount={builtinRegistrySkills.length}
+        health={health}
+      />
+
+      <YourSkillsSection
+        skills={visibleCustomSkills}
+        loadingRun={loadingRun}
+        loadingLifecycle={loadingLifecycle}
+        onRunSkill={(skill) => { void handleRunCustomSkill(skill); }}
+        onLifecycleAction={(skill, action) => { void handleLifecycleAction(skill, action); }}
+        renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
+      />
+
+      {inProgressCount > 0 && (
+        <SkillsInProgressSection
+          ideas={activeIdeas}
+          draftCustomSkills={draftCustomSkills}
+          renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
+        />
+      )}
+
+      {builtinRegistrySkills.length > 0 && (
+        <BuiltInWorkflowsSection groupedSkills={groupByCategory(builtinRegistrySkills)} />
+      )}
+
+      {historyCount > 0 && (
+        <SkillHistorySection
+          archivedCustomSkills={archivedCustomSkills}
+          previousVersionCustomSkills={previousVersionCustomSkills}
+          dismissedIdeas={dismissedIdeas}
+          renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
+        />
+      )}
+
+      {registrySkills.length === 0 && customSkills.length === 0 && (
+        <div style={{ color: 'var(--muted)', fontSize: 14, marginTop: 24 }}>
+          Loading skills… Make sure the Matter Workbench server is running.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillsIntroCard({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="skills-intro-card">
+      <div>
+        <h2>New to skills?</h2>
+        <div className="skills-intro-grid">
+          <div>
+            <strong>A skill is a repeatable work routine.</strong>
+            <p>Use it when you want the same kind of legal output across matters.</p>
+          </div>
+          <div>
+            <strong>Built-in skills are app workflows.</strong>
+            <p>They are maintained by Matter Workbench and cannot be edited here.</p>
+          </div>
+          <div>
+            <strong>Your skills are under your control.</strong>
+            <p>Run, pause, archive, or delete custom skills without touching past matter files.</p>
+          </div>
+          <div>
+            <strong>Not a skill? Ask a one-off question.</strong>
+            <p>Use the Matter Assistant for a temporary answer that should not become a reusable workflow.</p>
+          </div>
+        </div>
       </div>
+      <button type="button" className="run-skill-button secondary" onClick={onDismiss}>
+        Hide this note
+      </button>
+    </div>
+  );
+}
 
-      {/* Custom skills */}
-      {visibleCustomSkills.length > 0 && (
-        <div className="skills-section">
-          <h2>Your custom skills</h2>
-          <div className="active-custom-skills-list">
-            {visibleCustomSkills.map((skill) => (
-              <div key={skill.id} className="active-custom-skill-card">
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <div>
-                    <strong style={{ fontSize: 15 }}>{skill.title}</strong>
-                    <div style={{ marginTop: 6 }}>
-                      <span className={`pipeline-state ${customSkillStateClass(skill.status)}`}>
-                        {customSkillStateLabel(skill.status)}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
-                    {skill.status === 'active' && (
-                      <button
-                        className="run-skill-button secondary"
-                        type="button"
-                        onClick={() => handleRunCustomSkill(skill)}
-                        disabled={loadingRun === skill.id || Boolean(loadingLifecycle)}
-                        style={{ flexShrink: 0 }}
-                      >
-                        {loadingRun === skill.id ? 'Running…' : 'Run'}
-                      </button>
-                    )}
-                    {lifecycleActionsFor(skill.status).map((action) => (
-                      <button
-                        key={action}
-                        className="run-skill-button secondary"
-                        type="button"
-                        onClick={() => { void handleLifecycleAction(skill, action); }}
-                        disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
-                        style={{ flexShrink: 0 }}
-                      >
-                        {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {skill.description && (
-                  <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
-                )}
-                {(skill.lastRunAt || skill.runCount !== undefined) && (
-                  <div className="active-custom-skill-run">
-                    {skill.runCount !== undefined && (
-                      <strong>{skill.runCount} run{skill.runCount !== 1 ? 's' : ''}</strong>
-                    )}{' '}
-                    {skill.lastRunAt && <span>last {new Date(skill.lastRunAt).toLocaleDateString()}</span>}
-                  </div>
-                )}
-                {skill.lifecycle?.statusChangedAt && (
-                  <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-                    Last changed {new Date(skill.lifecycle.statusChangedAt).toLocaleDateString()}
-                    {skill.lifecycle.reason ? ` — ${skill.lifecycle.reason}` : ''}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+function SkillsStatusRow({
+  yourSkillsCount,
+  inProgressCount,
+  builtinCount,
+  health,
+}: {
+  yourSkillsCount: number;
+  inProgressCount: number;
+  builtinCount: number;
+  health: SkillFactoryHealth | null;
+}) {
+  return (
+    <div className="skills-status-row">
+      <span>Your Skills: {yourSkillsCount}</span>
+      <span>Skills in Progress: {inProgressCount}</span>
+      <span>Built-in Workflows: {builtinCount}</span>
+      {health && (
+        <span className={`skills-health ${health.state === 'ok' ? 'is-ok' : 'needs-attention'}`}>
+          {health.state === 'ok' ? 'Setup ready' : 'Setup needs attention'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function YourSkillsSection({
+  skills,
+  loadingRun,
+  loadingLifecycle,
+  onRunSkill,
+  onLifecycleAction,
+  renderManageActions,
+}: {
+  skills: ConfigurableSkill[];
+  loadingRun: string | null;
+  loadingLifecycle: string | null;
+  onRunSkill: (skill: ConfigurableSkill) => void;
+  onLifecycleAction: (skill: ConfigurableSkill, action: LifecycleAction) => void;
+  renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
+}) {
+  return (
+    <section className="skills-section">
+      <h2>Your Skills</h2>
+      {skills.length === 0 ? (
+        <div className="skills-empty-state">
+          No custom skills yet. Use the Matter Assistant when a repeated legal workflow should become reusable.
+        </div>
+      ) : (
+        <div className="skills-row-list">
+          {skills.map((skill) => (
+            <CustomSkillRow
+              key={skill.id}
+              skill={skill}
+              primaryAction={skill.status === 'active' ? (
+                <button
+                  className="run-skill-button secondary"
+                  type="button"
+                  onClick={() => onRunSkill(skill)}
+                  disabled={loadingRun === skill.id || Boolean(loadingLifecycle)}
+                >
+                  {loadingRun === skill.id ? 'Running…' : 'Run'}
+                </button>
+              ) : (
+                <button
+                  className="run-skill-button secondary"
+                  type="button"
+                  onClick={() => onLifecycleAction(skill, 'resume')}
+                  disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
+                >
+                  {loadingLifecycle === `${skill.id}:resume` ? 'Working…' : 'Resume'}
+                </button>
+              )}
+              manageActions={skill.status === 'active'
+                ? renderManageActions(skill, ['suspend', 'archive', 'delete'])
+                : renderManageActions(skill, ['archive', 'delete'])}
+            />
+          ))}
         </div>
       )}
+    </section>
+  );
+}
 
-      {draftCustomSkills.length > 0 && (
-        <div className="skills-section">
-          <details>
-            <summary>Draft custom skills ({draftCustomSkills.length})</summary>
-            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
-              {draftCustomSkills.map((skill) => (
-                <div key={skill.id} className="active-custom-skill-card">
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
-                      <div style={{ marginTop: 6 }}>
-                        <span className="pipeline-state pending">Draft</span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
-                      {lifecycleActionsFor(skill.status).map((action) => (
-                        <button
-                          key={action}
-                          className="run-skill-button secondary"
-                          type="button"
-                          onClick={() => { void handleLifecycleAction(skill, action); }}
-                          disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
-                        >
-                          {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {skill.description && (
-                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
-        </div>
-      )}
+function SkillsInProgressSection({
+  ideas,
+  draftCustomSkills,
+  renderManageActions,
+}: {
+  ideas: SkillIdea[];
+  draftCustomSkills: ConfigurableSkill[];
+  renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
+}) {
+  return (
+    <section className="skills-section">
+      <h2>Skills in Progress</h2>
+      <div className="skills-row-list">
+        {draftCustomSkills.length > 0 && (
+          <div className="skills-subsection-label">Draft custom skills</div>
+        )}
+        {draftCustomSkills.map((skill) => (
+          <CustomSkillRow
+            key={skill.id}
+            skill={skill}
+            statusOverride="Draft"
+            manageActions={renderManageActions(skill, ['delete'])}
+          />
+        ))}
+        {ideas.length > 0 && (
+          <div className="skills-subsection-label">Skill ideas</div>
+        )}
+        {ideas.map((idea) => (
+          <SkillIdeaRow key={idea.id} idea={idea} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
-      {archivedCustomSkills.length > 0 && (
-        <div className="skills-section">
-          <details>
-            <summary>Archived custom skills ({archivedCustomSkills.length})</summary>
-            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
-              {archivedCustomSkills.map((skill) => (
-                <div key={skill.id} className="active-custom-skill-card">
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
-                      <div style={{ marginTop: 6 }}>
-                        <span className="pipeline-state not-run">Archived</span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
-                      {lifecycleActionsFor(skill.status).map((action) => (
-                        <button
-                          key={action}
-                          className="run-skill-button secondary"
-                          type="button"
-                          onClick={() => { void handleLifecycleAction(skill, action); }}
-                          disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
-                        >
-                          {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {skill.description && (
-                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
-        </div>
-      )}
-
-      {previousVersionCustomSkills.length > 0 && (
-        <div className="skills-section">
-          <details>
-            <summary>Previous versions ({previousVersionCustomSkills.length})</summary>
-            <div className="active-custom-skills-list" style={{ marginTop: 12 }}>
-              {previousVersionCustomSkills.map((skill) => (
-                <div key={skill.id} className="active-custom-skill-card">
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <strong style={{ fontSize: 15 }}>{skill.title}</strong>
-                      <div style={{ marginTop: 6 }}>
-                        <span className="pipeline-state not-run">Previous version</span>
-                      </div>
-                    </div>
-                  </div>
-                  {skill.description && (
-                    <p style={{ margin: 0, color: 'var(--muted-strong)', fontSize: 13 }}>{skill.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
-        </div>
-      )}
-
-      {/* Skill ideas */}
-      {activeIdeas.length > 0 && (
-        <div className="skills-section">
-          <h2>Skill ideas</h2>
-          <p className="muted" style={{ margin: '-6px 0 16px', fontSize: 13, maxWidth: 640 }}>
-            Ideas for new skills you've described. Use the command box to continue developing them.
-          </p>
-          <div className="skill-ideas-list">
-            {activeIdeas.map((idea) => (
-              <div key={idea.id} className="skill-idea-row">
-                <div className="skill-idea-row-main">
-                  <div>
-                    <p>{idea.text}</p>
-                    <div className="skill-idea-row-meta">
-                      <span>{skillIdeaStatusLabel(idea.status)}</span>
-                      <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
-                      {idea.sampleCount !== undefined && <span>{idea.sampleCount} sample{idea.sampleCount !== 1 ? 's' : ''}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {dismissedIdeas.length > 0 && (
-              <details className="skill-ideas-dismissed">
-                <summary>{dismissedIdeas.length} dismissed</summary>
-              </details>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Built-in skills by category */}
-      {Object.entries(groupByCategory(builtinRegistrySkills)).map(([category, skills]) => (
-        <div key={category} className="skills-section">
-          <h2>{category}</h2>
-          <div className="builtin-skills-list">
+function BuiltInWorkflowsSection({ groupedSkills }: { groupedSkills: Record<string, Skill[]> }) {
+  return (
+    <details className="skills-collapsible-section">
+      <summary>Built-in Workflows</summary>
+      <div className="builtin-skills-list">
+        {Object.entries(groupedSkills).map(([category, skills]) => (
+          <div key={category} className="builtin-skill-category">
+            <h3>{category}</h3>
             {skills.map((skill) => (
               <div key={skill.slash} className="builtin-skill-row">
                 <div>
-                  <h3>{skill.display?.action || skill.title}</h3>
+                  <strong>{skill.display?.action || skill.title}</strong>
+                  {skill.purpose && (
+                    <details className="skill-row-details">
+                      <summary>Details</summary>
+                      <p>{skill.purpose}</p>
+                    </details>
+                  )}
                 </div>
                 <div className="builtin-skill-command">
                   <span>Built-in · Managed by Matter Workbench</span>
@@ -366,15 +372,141 @@ export default function SkillsPage() {
               </div>
             ))}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </details>
+  );
+}
 
-      {registrySkills.length === 0 && customSkills.length === 0 && (
-        <div style={{ color: 'var(--muted)', fontSize: 14, marginTop: 24 }}>
-          Loading skills… Make sure the Matter Workbench server is running.
+function SkillHistorySection({
+  archivedCustomSkills,
+  previousVersionCustomSkills,
+  dismissedIdeas,
+  renderManageActions,
+}: {
+  archivedCustomSkills: ConfigurableSkill[];
+  previousVersionCustomSkills: ConfigurableSkill[];
+  dismissedIdeas: SkillIdea[];
+  renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
+}) {
+  return (
+    <details className="skills-collapsible-section">
+      <summary>History</summary>
+      <div className="skills-row-list">
+        {archivedCustomSkills.length > 0 && (
+          <div className="skills-subsection-label">Archived custom skills</div>
+        )}
+        {archivedCustomSkills.map((skill) => (
+          <CustomSkillRow
+            key={skill.id}
+            skill={skill}
+            statusOverride="Archived"
+            manageActions={renderManageActions(skill, ['restore', 'delete'])}
+          />
+        ))}
+        {previousVersionCustomSkills.length > 0 && (
+          <div className="skills-subsection-label">Previous versions</div>
+        )}
+        {previousVersionCustomSkills.map((skill) => (
+          <CustomSkillRow key={skill.id} skill={skill} statusOverride="Previous version" />
+        ))}
+        {dismissedIdeas.length > 0 && (
+          <div className="skills-subsection-label">Dismissed ideas</div>
+        )}
+        {dismissedIdeas.map((idea) => (
+          <SkillIdeaRow key={idea.id} idea={idea} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function CustomSkillRow({
+  skill,
+  primaryAction,
+  manageActions,
+  statusOverride,
+}: {
+  skill: ConfigurableSkill;
+  primaryAction?: JSX.Element;
+  manageActions?: JSX.Element | null;
+  statusOverride?: string;
+}) {
+  return (
+    <div className="skill-row">
+      <div className="skill-row-main">
+        <div className="skill-row-title">
+          <strong>{skill.title}</strong>
+          <span className={`pipeline-state ${customSkillStateClass(skill.status)}`}>
+            {statusOverride || customSkillStateLabel(skill.status)}
+          </span>
         </div>
-      )}
+        <div className="skill-row-meta">
+          <span>{skill.slash}</span>
+          {skill.runCount !== undefined && (
+            <span>{skill.runCount} run{skill.runCount !== 1 ? 's' : ''}</span>
+          )}
+          {skill.lastRunAt && <span>last {new Date(skill.lastRunAt).toLocaleDateString()}</span>}
+          {skill.lifecycle?.statusChangedAt && (
+            <span>changed {new Date(skill.lifecycle.statusChangedAt).toLocaleDateString()}</span>
+          )}
+        </div>
+        {skill.description && (
+          <details className="skill-row-details">
+            <summary>Details</summary>
+            <p>{skill.description}</p>
+            {skill.lifecycle?.reason && <p>{skill.lifecycle.reason}</p>}
+          </details>
+        )}
+      </div>
+      <div className="skill-row-actions">
+        {primaryAction}
+        {manageActions}
+      </div>
     </div>
+  );
+}
+
+function SkillIdeaRow({ idea }: { idea: SkillIdea }) {
+  return (
+    <div className="skill-row">
+      <div className="skill-row-main">
+        <div className="skill-row-title">
+          <strong>{idea.text}</strong>
+          <span className="pipeline-state pending">{skillIdeaStatusLabel(idea.status)}</span>
+        </div>
+        <div className="skill-row-meta">
+          <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
+          {idea.sampleCount !== undefined && <span>{idea.sampleCount} sample{idea.sampleCount !== 1 ? 's' : ''}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderManageActions(
+  skill: ConfigurableSkill,
+  actions: LifecycleAction[],
+  { loadingLifecycle, loadingRun, onLifecycleAction }: LifecycleRenderContext,
+): JSX.Element | null {
+  if (actions.length === 0) return null;
+  return (
+    <details className="skill-manage-menu">
+      <summary>Manage</summary>
+      <div>
+        {actions.map((action) => (
+          <button
+            key={action}
+            className="run-skill-button secondary"
+            type="button"
+            onClick={() => onLifecycleAction(skill, action)}
+            disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
+          >
+            {loadingLifecycle === `${skill.id}:${action}` ? 'Working…' : lifecycleActionLabel(action)}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -387,14 +519,22 @@ function groupByCategory(skills: Skill[]): Record<string, Skill[]> {
   return map;
 }
 
-type LifecycleAction = 'suspend' | 'resume' | 'archive' | 'restore' | 'delete';
+function readSkillsIntroHidden(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SKILLS_INTRO_STORAGE_KEY) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
 
-function lifecycleActionsFor(status?: string): LifecycleAction[] {
-  if (status === 'active') return ['suspend', 'archive', 'delete'];
-  if (status === 'suspended') return ['resume', 'archive', 'delete'];
-  if (status === 'archived') return ['restore', 'delete'];
-  if (status === 'draft') return ['delete'];
-  return [];
+function persistSkillsIntroHidden() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SKILLS_INTRO_STORAGE_KEY, '1');
+  } catch (_error) {
+    // Ignore private-mode storage failures; the note can reappear next load.
+  }
 }
 
 function lifecycleActionLabel(action: LifecycleAction): string {
