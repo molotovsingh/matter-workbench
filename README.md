@@ -46,6 +46,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [001_control_plane.sql](db/migrations/001_control_plane.sql) - hosted control-plane tables and ledgers.
 - [002_tenant_rls.sql](db/migrations/002_tenant_rls.sql) - tenant row-level security policies for hosted beta.
 - [003_tenant_reference_integrity.sql](db/migrations/003_tenant_reference_integrity.sql) - cross-tenant parent-link protection.
+- [004_user_membership_integrity.sql](db/migrations/004_user_membership_integrity.sql) - tenant-member user references and approval audit links.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -64,10 +65,11 @@ can still list migrations without a database URL. `db:doctor` is read-only: it
 checks whether a database URL is configured, whether `psql` is available, and
 what the migration plan looks like without printing connection secrets. Applied
 migrations are recorded with a SHA-256 checksum so edited migration files fail
-closed instead of being treated as already applied. The baseline migration also
-adds one shared `updated_at` trigger helper for mutable control-plane rows, so
-future hosted state has reliable modification timestamps without app-side
-copy/paste.
+closed instead of being treated as already applied. The runner also rejects
+missing migration numbers, so a deployment cannot silently skip from `001` to
+`003`. The baseline migration adds one shared `updated_at` trigger helper for
+mutable control-plane rows, so future hosted state has reliable modification
+timestamps without app-side copy/paste.
 The tenant RLS migration enables and forces row-level security for tenant-scoped
 tables; hosted DB sessions must set `app.tenant_id` before tenant legal data is
 visible. The tenant-reference migration then prevents a row from claiming one

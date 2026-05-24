@@ -44,9 +44,39 @@ export function migrationVersionFromFile(fileName) {
   return match[1];
 }
 
+export function migrationNumberFromFile(fileName) {
+  const version = migrationVersionFromFile(fileName);
+  return Number(version.slice(0, 3));
+}
+
+export function validateMigrationSequence(migrations) {
+  const seen = new Map();
+
+  for (const migration of migrations) {
+    const number = migrationNumberFromFile(migration.fileName);
+    const padded = String(number).padStart(3, "0");
+    const existing = seen.get(number);
+    if (existing) {
+      throw new Error(`Duplicate database migration number ${padded}: ${existing} and ${migration.fileName}`);
+    }
+    seen.set(number, migration.fileName);
+  }
+
+  for (let index = 0; index < migrations.length; index += 1) {
+    const expected = index + 1;
+    const actual = migrationNumberFromFile(migrations[index].fileName);
+    if (actual !== expected) {
+      const expectedPadded = String(expected).padStart(3, "0");
+      throw new Error(`Missing database migration number ${expectedPadded} before ${migrations[index].fileName}`);
+    }
+  }
+
+  return migrations;
+}
+
 export async function listMigrationFiles({ migrationsDir = defaultMigrationsDir } = {}) {
   const entries = await readdir(migrationsDir, { withFileTypes: true });
-  return entries
+  const migrations = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
     .map((entry) => ({
       fileName: entry.name,
@@ -54,6 +84,7 @@ export async function listMigrationFiles({ migrationsDir = defaultMigrationsDir 
       version: migrationVersionFromFile(entry.name),
     }))
     .sort((a, b) => a.fileName.localeCompare(b.fileName));
+  return validateMigrationSequence(migrations);
 }
 
 export function buildSchemaMigrationsSql() {

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 const runnerPath = new URL("../scripts/db-migrate.mjs", import.meta.url);
@@ -19,12 +21,35 @@ test("database migration runner discovers numbered SQL migrations", async () => 
 
   assert.deepEqual(
     migrations.map((migration) => migration.fileName),
-    ["001_control_plane.sql", "002_tenant_rls.sql", "003_tenant_reference_integrity.sql"],
+    [
+      "001_control_plane.sql",
+      "002_tenant_rls.sql",
+      "003_tenant_reference_integrity.sql",
+      "004_user_membership_integrity.sql",
+    ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
   assert.equal(migrationVersionFromFile("002_tenant_rls.sql"), "002_tenant_rls");
   assert.equal(migrationVersionFromFile("003_tenant_reference_integrity.sql"), "003_tenant_reference_integrity");
+  assert.equal(migrationVersionFromFile("004_user_membership_integrity.sql"), "004_user_membership_integrity");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
+});
+
+test("database migration runner rejects missing migration numbers", async () => {
+  const { listMigrationFiles } = await import(runnerPath.href);
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "mwb-migrations-"));
+
+  try {
+    await writeFile(path.join(tempDir, "001_control_plane.sql"), "select 1;\n");
+    await writeFile(path.join(tempDir, "003_tenant_reference_integrity.sql"), "select 3;\n");
+
+    await assert.rejects(
+      () => listMigrationFiles({ migrationsDir: tempDir }),
+      /Missing database migration number 002 before 003_tenant_reference_integrity\.sql/,
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("database migration runner builds idempotent schema_migrations SQL", async () => {
@@ -112,6 +137,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
       { status: "pending", version: "001_control_plane", fileName: "001_control_plane.sql" },
       { status: "pending", version: "002_tenant_rls", fileName: "002_tenant_rls.sql" },
       { status: "pending", version: "003_tenant_reference_integrity", fileName: "003_tenant_reference_integrity.sql" },
+      { status: "pending", version: "004_user_membership_integrity", fileName: "004_user_membership_integrity.sql" },
     ],
   }).join("\n");
 
@@ -122,6 +148,7 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /001_control_plane\s+pending\s+001_control_plane\.sql/);
   assert.match(report, /002_tenant_rls\s+pending\s+002_tenant_rls\.sql/);
   assert.match(report, /003_tenant_reference_integrity\s+pending\s+003_tenant_reference_integrity\.sql/);
+  assert.match(report, /004_user_membership_integrity\s+pending\s+004_user_membership_integrity\.sql/);
   assert.match(report, /ready_to_apply: yes/);
 });
 
@@ -159,4 +186,5 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /001_control_plane\.sql/);
   assert.match(docs, /002_tenant_rls\.sql/);
   assert.match(docs, /003_tenant_reference_integrity\.sql/);
+  assert.match(docs, /004_user_membership_integrity\.sql/);
 });

@@ -104,6 +104,7 @@ The first schema baseline now lives at:
 - `db/migrations/001_control_plane.sql`
 - `db/migrations/002_tenant_rls.sql`
 - `db/migrations/003_tenant_reference_integrity.sql`
+- `db/migrations/004_user_membership_integrity.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -114,9 +115,11 @@ on mutable control-plane tables. `002_tenant_rls.sql` enables and forces
 row-level security for tenant-scoped tables and denies access unless the DB
 session sets `app.tenant_id`. `003_tenant_reference_integrity.sql` adds
 tenant-consistent parent references so tenant-scoped rows cannot point at parent
-matter, job, artifact, incident, or skill rows owned by another tenant. None of
-these migrations switches the local runtime away from the filesystem-backed
-engines.
+matter, job, artifact, incident, or skill rows owned by another tenant.
+`004_user_membership_integrity.sql` makes tenant-scoped user references point at
+tenant members and ties provider/cost approvals to tenant-local audit events.
+None of these migrations switches the local runtime away from the
+filesystem-backed engines.
 
 Developer commands:
 
@@ -133,7 +136,9 @@ handoff command: it checks URL presence, `psql`, and the migration plan while
 redacting connection secrets. With a database URL, the runner uses `psql`,
 records applied versions and SHA-256 checksums in `schema_migrations`,
 serializes each migration transaction with a Postgres advisory lock, and fails
-closed if an already-applied migration file is edited.
+closed if an already-applied migration file is edited. The migration file
+sequence is also gapless: `001`, `002`, `003`, and so on. A missing number stops
+the runner before any deployment applies a later migration.
 
 ## Stop Rule
 

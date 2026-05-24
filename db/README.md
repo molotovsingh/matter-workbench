@@ -17,6 +17,9 @@ migrations do not switch live matter storage to Postgres.
 - `003_tenant_reference_integrity.sql` adds tenant-consistent parent references
   so child rows cannot point at matters, jobs, artifacts, incidents, or custom
   skills owned by another tenant.
+- `004_user_membership_integrity.sql` makes tenant-scoped user references point
+  at tenant members and ties provider/cost approvals to tenant-local audit
+  events.
 
 ## Commands
 
@@ -38,7 +41,8 @@ anything.
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file
 changes, the runner fails closed. Add a new numbered migration instead of editing
-an applied one.
+an applied one. Migration numbers must stay gapless from `001`; the runner
+rejects missing numbers before listing, checking, doctoring, or applying.
 
 ## Runtime Cutover Stop Rule
 
