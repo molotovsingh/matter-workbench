@@ -48,7 +48,8 @@ export function detectPsql({ spawn = spawnSync } = {}) {
 export function redactDatabaseUrl(databaseUrl) {
   return String(databaseUrl || "")
     .replace(/^([a-z][a-z0-9+.-]*:\/\/[^:@/?#\s]+):([^@/?#\s]+)@/i, "$1:***@")
-    .replace(/([?&](?:password|pass|pwd|token|sslpassword)=)[^&#]*/gi, "$1***");
+    .replace(/([?&](?:password|pass|pwd|token|sslpassword)=)[^&#]*/gi, "$1***")
+    .replace(/\b((?:password|pass|pwd|token|sslpassword)=)[^\s;,)]+/gi, "$1***");
 }
 
 export function buildDoctorReport({
@@ -105,7 +106,7 @@ export function buildDoctorReport({
   return lines;
 }
 
-export async function runDoctor({ argv = process.argv.slice(2), env = process.env, spawn = spawnSync } = {}) {
+export async function runDoctor({ argv = process.argv.slice(2), env = process.env, spawn = spawnSync, plan = planMigrations } = {}) {
   const args = parseDoctorArgs(argv);
   const databaseUrl = resolveDatabaseUrl({ cliUrl: args.databaseUrl, env });
   const psql = detectPsql({ spawn });
@@ -113,12 +114,16 @@ export async function runDoctor({ argv = process.argv.slice(2), env = process.en
   let migrations;
   let planError = "";
   try {
-    migrations = await planMigrations({
+    migrations = await plan({
       databaseUrl: databaseUrl && psql.available ? databaseUrl : "",
     });
   } catch (error) {
     planError = error.message;
-    migrations = await planMigrations({ databaseUrl: "" });
+    try {
+      migrations = await plan({ databaseUrl: "" });
+    } catch {
+      migrations = [];
+    }
   }
 
   return buildDoctorReport({ databaseUrl, psql, migrations, planError });

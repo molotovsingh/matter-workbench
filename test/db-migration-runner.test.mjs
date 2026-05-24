@@ -170,6 +170,33 @@ test("database doctor stays read-only and clear when no database URL is configur
   assert.match(report, /next: Set MWB_DATABASE_URL or DATABASE_URL before applying migrations\./);
 });
 
+test("database doctor reports migration inventory errors without throwing", async () => {
+  const { runDoctor } = await import(doctorPath.href);
+  let callCount = 0;
+
+  const lines = await runDoctor({
+    argv: [],
+    env: { MWB_DATABASE_URL: "postgres://mw_user:secret_password@db.example.com/mwb" },
+    spawn: () => ({ status: 0, stdout: "psql (PostgreSQL) 16.9" }),
+    plan: async ({ databaseUrl }) => {
+      callCount += 1;
+      if (databaseUrl) {
+        throw new Error("psql failed: password=secret_password");
+      }
+      return [
+        { status: "unknown", version: "001_control_plane", fileName: "001_control_plane.sql" },
+      ];
+    },
+  });
+
+  const report = lines.join("\n");
+  assert.equal(callCount, 2);
+  assert.match(report, /database_url: configured/);
+  assert.match(report, /database_inspection: failed - psql failed: password=\*\*\*/);
+  assert.doesNotMatch(report, /secret_password/);
+  assert.match(report, /ready_to_apply: no/);
+});
+
 test("database transition docs expose the read-only doctor command", async () => {
   assert.match(await readFile(readmePath, "utf8"), /npm run db:doctor/);
   assert.match(await readFile(dbReadmePath, "utf8"), /npm run db:doctor/);
