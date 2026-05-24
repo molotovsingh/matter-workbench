@@ -112,3 +112,12 @@ test("React Skills page keeps custom lifecycle controls out of built-ins", async
   assert.doesNotMatch(builtInSection, /handleLifecycleAction/);
   assert.doesNotMatch(builtInSection, /renderManageActions/);
 });
+
+test("React Skills page keeps technical custom skill slugs out of in-progress row summaries", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /showCommandInline\?: boolean/);
+  assert.match(skillsSource, /showCommandInline=\{false\}/);
+  assert.match(skillsSource, /Command: \{skill\.slash\}/);
+  assert.match(skillsSource, /\{showCommandInline && <span>\{skill\.slash\}<\/span>\}/);
+});

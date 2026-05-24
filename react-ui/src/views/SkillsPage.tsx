@@ -367,6 +367,7 @@ function SkillsInProgressSection({
             key={skill.id}
             skill={skill}
             statusOverride="Draft"
+            showCommandInline={false}
             manageActions={renderManageActions(skill, ['delete'])}
           />
         ))}
@@ -437,6 +438,7 @@ function SkillHistorySection({
             key={skill.id}
             skill={skill}
             statusOverride="Archived"
+            showCommandInline={false}
             manageActions={renderManageActions(skill, ['restore', 'delete'])}
           />
         ))}
@@ -444,7 +446,12 @@ function SkillHistorySection({
           <div className="skills-subsection-label">Previous versions</div>
         )}
         {previousVersionCustomSkills.map((skill) => (
-          <CustomSkillRow key={skill.id} skill={skill} statusOverride="Previous version" />
+          <CustomSkillRow
+            key={skill.id}
+            skill={skill}
+            statusOverride="Previous version"
+            showCommandInline={false}
+          />
         ))}
         {dismissedIdeas.length > 0 && (
           <div className="skills-subsection-label">Dismissed ideas</div>
@@ -462,11 +469,13 @@ function CustomSkillRow({
   primaryAction,
   manageActions,
   statusOverride,
+  showCommandInline = true,
 }: {
   skill: ConfigurableSkill;
   primaryAction?: JSX.Element;
   manageActions?: JSX.Element | null;
   statusOverride?: string;
+  showCommandInline?: boolean;
 }) {
   return (
     <div className="skill-row">
@@ -478,7 +487,7 @@ function CustomSkillRow({
           </span>
         </div>
         <div className="skill-row-meta">
-          <span>{skill.slash}</span>
+          {showCommandInline && <span>{skill.slash}</span>}
           {skill.runCount !== undefined && (
             <span>{skill.runCount} run{skill.runCount !== 1 ? 's' : ''}</span>
           )}
@@ -487,10 +496,11 @@ function CustomSkillRow({
             <span>changed {new Date(skill.lifecycle.statusChangedAt).toLocaleDateString()}</span>
           )}
         </div>
-        {skill.description && (
+        {(skill.description || !showCommandInline) && (
           <details className="skill-row-details">
             <summary>Details</summary>
-            <p>{skill.description}</p>
+            {!showCommandInline && <p>Command: {skill.slash}</p>}
+            {skill.description && <p>{skill.description}</p>}
             {skill.lifecycle?.reason && <p>{skill.lifecycle.reason}</p>}
           </details>
         )}

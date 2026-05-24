@@ -103,6 +103,7 @@ The first schema baseline now lives at:
 
 - `db/migrations/001_control_plane.sql`
 - `db/migrations/002_tenant_rls.sql`
+- `db/migrations/003_tenant_reference_integrity.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -111,8 +112,11 @@ runs, incidents, advisory snapshots, artifacts, costs, audit events, and
 configurable-skill ledgers. It also installs a shared `updated_at` trigger helper
 on mutable control-plane tables. `002_tenant_rls.sql` enables and forces
 row-level security for tenant-scoped tables and denies access unless the DB
-session sets `app.tenant_id`. Neither migration switches the local runtime away
-from the filesystem-backed engines.
+session sets `app.tenant_id`. `003_tenant_reference_integrity.sql` adds
+tenant-consistent parent references so tenant-scoped rows cannot point at parent
+matter, job, artifact, incident, or skill rows owned by another tenant. None of
+these migrations switches the local runtime away from the filesystem-backed
+engines.
 
 Developer commands:
 

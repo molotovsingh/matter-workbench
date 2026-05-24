@@ -45,6 +45,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 
 - [001_control_plane.sql](db/migrations/001_control_plane.sql) - hosted control-plane tables and ledgers.
 - [002_tenant_rls.sql](db/migrations/002_tenant_rls.sql) - tenant row-level security policies for hosted beta.
+- [003_tenant_reference_integrity.sql](db/migrations/003_tenant_reference_integrity.sql) - cross-tenant parent-link protection.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -69,7 +70,9 @@ future hosted state has reliable modification timestamps without app-side
 copy/paste.
 The tenant RLS migration enables and forces row-level security for tenant-scoped
 tables; hosted DB sessions must set `app.tenant_id` before tenant legal data is
-visible.
+visible. The tenant-reference migration then prevents a row from claiming one
+tenant while pointing at a parent matter, job, artifact, incident, or custom
+skill owned by another tenant.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

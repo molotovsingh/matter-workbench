@@ -14,6 +14,9 @@ migrations do not switch live matter storage to Postgres.
 - `002_tenant_rls.sql` enables and forces row-level security on tenant-scoped
   tables. Hosted sessions must set `app.tenant_id` before tenant legal data is
   visible.
+- `003_tenant_reference_integrity.sql` adds tenant-consistent parent references
+  so child rows cannot point at matters, jobs, artifacts, incidents, or custom
+  skills owned by another tenant.
 
 ## Commands
 

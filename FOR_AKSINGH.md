@@ -462,13 +462,13 @@ Key endpoints include:
 
 The server is intentionally local-first. This is a confidentiality-friendly architecture: matters live on disk, not in a cloud database.
 
-The first database migration now exists, but it is deliberately a control-plane
-baseline rather than a runtime rewrite. It now has a second companion migration
-for hosted tenant isolation:
+The first database migrations now exist, but they are deliberately a
+control-plane baseline rather than a runtime rewrite:
 
 ```text
 db/migrations/001_control_plane.sql
 db/migrations/002_tenant_rls.sql
+db/migrations/003_tenant_reference_integrity.sql
 ```
 
 That migration sketches the hosted beta backbone: tenants, matters, document
@@ -485,6 +485,14 @@ tables. In plain English: a hosted database session must set `app.tenant_id`
 before it can see or write tenant legal data. If that context is missing, the
 database should deny access rather than hoping application code remembered every
 filter.
+
+The third migration closes a quieter hosted-data bug. RLS checks the tenant on
+the row being read or written, but a child row could still point at a parent row
+from another tenant unless the database forbids that relationship. The
+tenant-reference migration adds composite parent links like `(matter_id,
+tenant_id) -> matters(id, tenant_id)` and equivalent links for jobs, artifacts,
+incidents, skill ideas, skill versions, and custom-skill runs.
+
 This is the right migration posture. First make identity, jobs, audit, and
 receipts durable; only then move legal engines onto hosted workers.
 
