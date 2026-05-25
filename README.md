@@ -16,7 +16,10 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
-Current release checkpoint: [Matter Workbench v1.0.0-beta.2](docs/releases/v1.0.0-beta.2.md).
+Current release checkpoint: [Matter Workbench v1.0.0-beta.3](docs/releases/v1.0.0-beta.3.md).
+
+For the practical supervised-local-beta runbook, see
+[docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
 
 For the current tester-facing workflow, command panel inputs, recommended
 local env, paid rerun behavior, and review checklist, see

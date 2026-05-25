@@ -12,8 +12,9 @@ equally authoritative.
 | --- | --- |
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
+| Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
 | Beta testing workflow | [Beta Testing List of Dates](beta-testing-list-of-dates.md) |
-| Current release notes | [v1.0.0-beta.2](releases/v1.0.0-beta.2.md) |
+| Current release notes | [v1.0.0-beta.3](releases/v1.0.0-beta.3.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
 
@@ -52,7 +53,9 @@ implementation plan.
 | Document | Role |
 | --- | --- |
 | [v1.0.0-beta.1](releases/v1.0.0-beta.1.md) | First beta release note. |
-| [v1.0.0-beta.2](releases/v1.0.0-beta.2.md) | Current beta release note. |
+| [v1.0.0-beta.2](releases/v1.0.0-beta.2.md) | React production-shell beta release note. |
+| [v1.0.0-beta.3](releases/v1.0.0-beta.3.md) | Current owner-accepted local beta release note. |
+| [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised-local-beta runbook. |
 | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) | Clean-slate real-matter acceptance evidence. |
 
 Historical model bakeoffs and runtime smokes are evidence notes. They are useful
