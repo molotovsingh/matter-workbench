@@ -26,3 +26,14 @@ test("React command panel keeps long copilot answers scrollable above the input"
   assert.match(copyRule, /scrollbar-width:\s*thin/);
   assert.match(css, /\.command-panel-copy::-webkit-scrollbar-thumb/);
 });
+
+test("React phone viewport does not reserve the desktop matter sidebar column", async () => {
+  const css = await readFile(reactCssPath, "utf8");
+  const phoneMedia = css.match(/@media \(max-width: 700px\) \{([\s\S]*?)\/\* ─── Skill Idea Session/m)?.[1] || "";
+
+  assert.match(phoneMedia, /\.app-shell,\s*\.app-shell\.home-mode \{ grid-template-columns: 48px minmax\(0,1fr\); \}/);
+  assert.match(phoneMedia, /\.sidebar \{ display: none; \}/);
+  assert.match(phoneMedia, /\.main-panel \{ grid-column: 2; \}/);
+  assert.match(phoneMedia, /\.titlebar \{[^}]*padding: 0 12px/);
+  assert.match(phoneMedia, /\.editor-content \{[^}]*padding: 30px 20px/);
+});

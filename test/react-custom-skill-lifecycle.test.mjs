@@ -40,8 +40,8 @@ test("React custom skill lifecycle actions do not race custom skill runs", async
 
   assert.match(
     skillsSource,
-    /disabled=\{loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/,
-    "Run should be disabled while any lifecycle action is in flight.",
+    /disabled=\{!hasActiveMatter \|\| loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/,
+    "Run should be disabled without a matter and while any lifecycle action is in flight.",
   );
   assert.match(
     skillsSource,
@@ -111,6 +111,14 @@ test("React Skills page keeps custom lifecycle controls out of built-ins", async
   assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
   assert.doesNotMatch(builtInSection, /handleLifecycleAction/);
   assert.doesNotMatch(builtInSection, /renderManageActions/);
+});
+
+test("React Skills page disables custom skill runs until a matter is selected", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /hasActiveMatter=\{Boolean\(state\.activeMatter\)\}/);
+  assert.match(skillsSource, /disabled=\{!hasActiveMatter \|\| loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/);
+  assert.match(skillsSource, /!hasActiveMatter \? 'Pick matter first' : loadingRun === skill\.id \? 'Running…' : 'Run'/);
 });
 
 test("React Skills page keeps technical custom skill slugs out of in-progress row summaries", async () => {

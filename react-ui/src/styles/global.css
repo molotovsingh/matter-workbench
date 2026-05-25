@@ -926,6 +926,20 @@ code { color: var(--code-text); }
   .builtin-skill-category .builtin-skill-row { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 700px) {
+  .app-shell, .app-shell.home-mode { grid-template-columns: 48px minmax(0,1fr); }
+  .sidebar { display: none; }
+  .main-panel { grid-column: 2; }
+  .titlebar { gap: 8px; padding: 0 12px; }
+  .title-left, .title-right { flex: 0 1 auto; width: auto; }
+  .active-matter-pill { max-width: 100%; padding: 4px 8px; }
+  .active-matter-label { display: none; }
+  .editor-content { padding: 30px 20px; }
+  .command-panel { padding: 24px 20px 20px; }
+  .command-panel-header { flex-wrap: wrap; }
+  .skills-status-row { gap: 8px; }
+}
+
 /* ─── Skill Idea Session ────────────── */
 .skill-idea-session { padding: 14px 0; }
 .skill-idea-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }

@@ -195,6 +195,7 @@ export default function SkillsPage() {
 
       <YourSkillsSection
         skills={visibleCustomSkills}
+        hasActiveMatter={Boolean(state.activeMatter)}
         loadingRun={loadingRun}
         loadingLifecycle={loadingLifecycle}
         onRunSkill={(skill) => { void handleRunCustomSkill(skill); }}
@@ -290,6 +291,7 @@ function SkillsStatusRow({
 
 function YourSkillsSection({
   skills,
+  hasActiveMatter,
   loadingRun,
   loadingLifecycle,
   onRunSkill,
@@ -297,6 +299,7 @@ function YourSkillsSection({
   renderManageActions,
 }: {
   skills: ConfigurableSkill[];
+  hasActiveMatter: boolean;
   loadingRun: string | null;
   loadingLifecycle: string | null;
   onRunSkill: (skill: ConfigurableSkill) => void;
@@ -321,9 +324,9 @@ function YourSkillsSection({
                   className="run-skill-button secondary"
                   type="button"
                   onClick={() => onRunSkill(skill)}
-                  disabled={loadingRun === skill.id || Boolean(loadingLifecycle)}
+                  disabled={!hasActiveMatter || loadingRun === skill.id || Boolean(loadingLifecycle)}
                 >
-                  {loadingRun === skill.id ? 'Running…' : 'Run'}
+                  {!hasActiveMatter ? 'Pick matter first' : loadingRun === skill.id ? 'Running…' : 'Run'}
                 </button>
               ) : (
                 <button
