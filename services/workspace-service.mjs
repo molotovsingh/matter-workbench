@@ -9,6 +9,7 @@ const maxTreeDepth = 6;
 const maxChildrenPerDirectory = 160;
 const maxPreviewBytes = 512 * 1024;
 const maxRawBytes = 50 * 1024 * 1024;
+const maxEmailPreviewChars = 80 * 1024;
 
 const hiddenMatterEntries = new Set([
   ".git",
@@ -22,6 +23,7 @@ const previewExtensions = new Set([
   ".log",
   ".md",
   ".mjs",
+  ".eml",
   ".txt",
 ]);
 
@@ -49,7 +51,17 @@ const rawContentTypes = new Map([
   [".txt", "text/plain; charset=utf-8"],
   [".log", "text/plain; charset=utf-8"],
   [".mjs", "text/javascript; charset=utf-8"],
+  [".eml", "message/rfc822; charset=utf-8"],
 ]);
+
+let mailparserModule = null;
+
+async function loadMailparser() {
+  if (!mailparserModule) {
+    mailparserModule = await import("mailparser");
+  }
+  return mailparserModule;
+}
 
 export function createWorkspaceService({ matterStore } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
@@ -144,7 +156,8 @@ export function createWorkspaceService({ matterStore } = {}) {
         fileCount += 1;
         const fileStat = await stat(absolutePath);
         const ext = path.extname(entry.name).toLowerCase();
-        const isText = previewExtensions.has(ext) && fileStat.size <= maxPreviewBytes;
+        const isEmail = ext === ".eml";
+        const isText = previewExtensions.has(ext) && fileStat.size <= (isEmail ? maxRawBytes : maxPreviewBytes);
         const isEmbeddable = embeddableExtensions.has(ext) && fileStat.size <= maxRawBytes;
         children.push({
           name: entry.name,
@@ -198,13 +211,65 @@ export function createWorkspaceService({ matterStore } = {}) {
 
     const extension = path.extname(filePath).toLowerCase();
     if (!previewExtensions.has(extension)) throw makeHttpError("File type is not previewable as text", 415);
+    if (extension === ".eml") return readEmailPreview(filePath, root, fileStat.size);
     if (fileStat.size > maxPreviewBytes) throw makeHttpError("File is too large to preview", 413);
 
     return {
       path: toMatterRelative(filePath, root),
       name: path.basename(filePath),
+      ext: extension.replace(/^\./, ""),
       content: await readFile(filePath, "utf8"),
     };
+  }
+
+  async function readEmailPreview(filePath, root, fileSize) {
+    if (fileSize > maxRawBytes) throw makeHttpError("Email file is too large to preview", 413);
+    const { simpleParser } = await loadMailparser();
+    let mail;
+    try {
+      mail = await simpleParser(createReadStream(filePath), { skipImageLinks: true, skipHtmlToText: false });
+    } catch (err) {
+      throw makeHttpError(`Email file could not be parsed for preview: ${err.message}`, 415);
+    }
+
+    const sections = [];
+    const subject = (mail.subject || "").trim();
+    if (subject) sections.push(`Subject: ${subject}`);
+
+    const headerLines = [];
+    if (mail.from?.text) headerLines.push(`From: ${mail.from.text}`);
+    if (mail.to?.text) headerLines.push(`To: ${mail.to.text}`);
+    if (mail.cc?.text) headerLines.push(`Cc: ${mail.cc.text}`);
+    if (mail.date) headerLines.push(`Date: ${mail.date.toISOString()}`);
+    if (headerLines.length) sections.push(headerLines.join("\n"));
+
+    const bodyText = String(mail.text || "").replace(/\r\n/g, "\n").trim();
+    if (bodyText) sections.push(bodyText);
+
+    const attachments = Array.isArray(mail.attachments) ? mail.attachments : [];
+    if (attachments.length) {
+      const lines = attachments.map((attachment) => {
+        const name = attachment.filename || attachment.cid || "(unnamed attachment)";
+        const size = typeof attachment.size === "number" ? ` (${attachment.size} bytes)` : "";
+        const contentType = attachment.contentType ? ` [${attachment.contentType}]` : "";
+        return `- ${name}${size}${contentType}`;
+      });
+      sections.push(`Attachments:\n${lines.join("\n")}`);
+    }
+
+    const content = truncatePreview(sections.filter(Boolean).join("\n\n"));
+    return {
+      path: toMatterRelative(filePath, root),
+      name: path.basename(filePath),
+      ext: "eml",
+      content: content || "(No email text found.)",
+    };
+  }
+
+  function truncatePreview(content) {
+    const normalized = String(content || "").trim();
+    if (normalized.length <= maxEmailPreviewChars) return normalized;
+    return `${normalized.slice(0, maxEmailPreviewChars).trimEnd()}\n\n[Preview truncated. Download the original email to inspect the full message and attachments.]`;
   }
 
   async function getRawFile(relativePath, root = matterStore.ensureMatterRoot()) {

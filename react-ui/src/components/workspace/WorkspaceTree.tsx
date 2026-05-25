@@ -24,20 +24,17 @@ function TreeNode({ file }: TreeNodeProps) {
   const { state, dispatch, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
 
-  async function handleFileClick(path: string, ext?: string) {
+  async function handleFileClick(path: string) {
     const matterName = state.activeMatter?.name ?? null;
     dispatch({ type: 'SET_ACTIVE_FILE', payload: path });
     dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(path) });
 
-    const isPdf = ext?.toLowerCase() === 'pdf';
-    const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext?.toLowerCase() ?? '');
-
-    if (isPdf || isImage) {
+    if (file.previewKind === 'pdf' || file.previewKind === 'image') {
       const rawUrl = api.getFileRawUrl(path, matterName ?? undefined);
       dispatch({ type: 'SET_COMMAND_COPY', payload: `Viewing: ${filePreviewTitle(path)}` });
-      dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: isPdf ? 'pdf' : 'image', url: rawUrl } });
+      dispatch({ type: 'SET_FILE_PREVIEW', payload: { path, type: file.previewKind === 'pdf' ? 'pdf' : 'image', url: rawUrl } });
       dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
-    } else {
+    } else if (file.previewKind === 'text') {
       try {
         const preview = await loadTextFilePreview(path, (filePath) => api.getFile(filePath, matterName ?? undefined));
         if (activeMatterNameRef.current !== matterName) return;
@@ -47,6 +44,9 @@ function TreeNode({ file }: TreeNodeProps) {
         if (activeMatterNameRef.current !== matterName) return;
         appendTerminal([`[file] error reading ${path}: ${getErrorMessage(e)}`]);
       }
+    } else {
+      const reason = file.previewable === false ? 'not previewable in the app' : 'not available for preview';
+      appendTerminal([`[file] ${path} is ${reason}`]);
     }
   }
 
@@ -75,7 +75,7 @@ function TreeNode({ file }: TreeNodeProps) {
       <button
         type="button"
         className={`tree-file-button${state.activeFilePath === file.path ? ' active' : ''}`}
-        onClick={() => handleFileClick(file.path, file.ext)}
+        onClick={() => handleFileClick(file.path)}
       >
         <span className={`tree-icon ${getFileIconClass(file.ext)}`} aria-hidden="true" />
         <span className="tree-name-wrap">

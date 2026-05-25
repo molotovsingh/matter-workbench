@@ -109,3 +109,22 @@ test("React Workspace tree ignores late text previews after matter changes", asy
   assert.match(source, /if \(activeMatterNameRef\.current !== matterName\) return;\s*dispatch\(\{ type: 'SET_FILE_PREVIEW', payload: preview \}\)/);
   assert.match(source, /catch \(e\) \{\s*if \(activeMatterNameRef\.current !== matterName\) return;/);
 });
+
+test("React workspace adapter preserves backend preview metadata", async () => {
+  const source = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
+  const types = await readFile(new URL("../react-ui/src/types/index.ts", import.meta.url), "utf8");
+
+  assert.match(types, /previewable\?: boolean/);
+  assert.match(types, /previewKind\?: string/);
+  assert.match(source, /previewable: node\.previewable/);
+  assert.match(source, /previewKind: node\.previewKind/);
+});
+
+test("React Workspace tree respects backend preview kind before fetching text", async () => {
+  const source = await readFile(reactWorkspaceTreePath, "utf8");
+
+  assert.match(source, /file\.previewKind === 'text'/);
+  assert.match(source, /file\.previewable === false/);
+  assert.match(source, /type: file\.previewKind === 'pdf' \? 'pdf' : 'image'/);
+  assert.doesNotMatch(source, /const isPdf = ext\?\.toLowerCase\(\) === 'pdf'/);
+});

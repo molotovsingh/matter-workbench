@@ -20,6 +20,8 @@ export interface WorkspaceFile {
   children?: WorkspaceFile[];
   isTechnical?: boolean;
   size?: number;
+  previewable?: boolean;
+  previewKind?: string | null;
 }
 
 export interface WorkspaceTree {

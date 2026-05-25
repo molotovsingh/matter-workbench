@@ -150,6 +150,8 @@ export interface AdaptedFile {
   children?: AdaptedFile[];
   isTechnical?: boolean;
   size?: number;
+  previewable?: boolean;
+  previewKind?: string | null;
 }
 
 function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
@@ -167,6 +169,8 @@ function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
     children: isDir && node.children ? node.children.map((c) => adaptTreeNode(c, depth + 1)) : undefined,
     isTechnical,
     size: node.size,
+    previewable: node.previewable,
+    previewKind: node.previewKind,
   };
 }
 
