@@ -273,11 +273,13 @@ test("legal updates probe assigns broad lazy categories for scannability", () =>
 
 test("legal updates probe calls Parallel Search with x-api-key and formats headline-link output", async () => {
   const requests = [];
+  const now = new Date("2026-05-22T10:00:00Z");
   const updates = await fetchLegalDevelopments({
     apiKey: "parallel-test-key",
     country: "India",
     days: 7,
     maxItems: 2,
+    now,
     fetchImpl: async (url, init) => {
       requests.push({ url, init });
       return {
@@ -309,7 +311,7 @@ test("legal updates probe calls Parallel Search with x-api-key and formats headl
   const digest = formatLegalDevelopmentsDigest(updates, {
     country: "India",
     days: 7,
-    now: new Date("2026-05-22T10:00:00Z"),
+    now,
   });
   assert.match(digest, /Here's what happened this week in legal developments: India/i);
   assert.match(digest, /Supreme Court of India issues procedural ruling/);

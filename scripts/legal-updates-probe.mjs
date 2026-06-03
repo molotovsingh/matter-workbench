@@ -79,6 +79,7 @@ export async function fetchLegalDevelopments({
   days = DEFAULT_DAYS,
   maxItems = DEFAULT_MAX_ITEMS,
   mode = DEFAULT_MODE,
+  now = new Date(),
   endpoint = DEFAULT_ENDPOINT,
   fetchImpl = fetch,
 } = {}) {
@@ -93,7 +94,7 @@ export async function fetchLegalDevelopments({
       "content-type": "application/json",
       "x-api-key": key,
     },
-    body: JSON.stringify(buildParallelSearchRequest({ country, days, maxItems, mode })),
+    body: JSON.stringify(buildParallelSearchRequest({ country, days, maxItems, mode, now })),
   });
 
   if (!response?.ok) {
@@ -101,7 +102,7 @@ export async function fetchLegalDevelopments({
     throw new Error(`Parallel Search failed with HTTP ${response?.status || "unknown"}${detail ? `: ${detail}` : ""}`);
   }
 
-  return normalizeParallelSearchResults(await response.json(), { maxItems, days, country });
+  return normalizeParallelSearchResults(await response.json(), { maxItems, days, country, now });
 }
 
 export function normalizeParallelSearchResults(payload, {
