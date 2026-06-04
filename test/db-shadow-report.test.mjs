@@ -6,7 +6,7 @@ const reportPath = new URL("../scripts/db-shadow-report.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 
-test("shadow DB report combines matter, skill, advisory, storage, and provider-run verification without leaking the database URL", async () => {
+test("shadow DB report combines matter, skill, advisory, storage, provider-run, and cost verification without leaking the database URL", async () => {
   const {
     buildShadowDbReport,
     renderShadowDbReport,
@@ -34,6 +34,10 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
     providerRunPlan: {
       tenant: { id: "tenant_local_shadow" },
       plannedRows: { providerRuns: 2 },
+    },
+    costEventPlan: {
+      tenant: { id: "tenant_local_shadow" },
+      plannedRows: { costEvents: 2 },
     },
     verifyMatter: ({ databaseUrl, plan }) => {
       calls.push(["verifyMatter", databaseUrl, plan.tenant.id]);
@@ -155,6 +159,25 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
         totals: { providerRuns: 2 },
       };
     },
+    verifyCostEvents: ({ databaseUrl, plan }) => {
+      calls.push(["verifyCostEvents", databaseUrl, plan.tenant.id]);
+      return {
+        matched: true,
+        expected: { cost_events: 2, provider_run_cost_links: 2 },
+        counts: { cost_events: 2, provider_run_cost_links: 2 },
+        mismatches: [],
+      };
+    },
+    inspectCostEvents: ({ databaseUrl, plan }) => {
+      calls.push(["inspectCostEvents", databaseUrl, plan.tenant.id]);
+      return {
+        groups: [
+          { scope: "matter", confidence: "actual", provider: "openrouter", model: "openai/gpt-4.1", count: 1, amount: 0.04 },
+          { scope: "tenant", confidence: "unknown", provider: "openai-direct", model: "gpt-5.4", count: 1, amount: null },
+        ],
+        totals: { costEvents: 2, actualAmount: 0.04 },
+      };
+    },
   });
 
   assert.equal(report.matched, true);
@@ -163,6 +186,7 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
   assert.equal(report.advisory.verification.matched, true);
   assert.equal(report.storage.verification.matched, true);
   assert.equal(report.providerRuns.verification.matched, true);
+  assert.equal(report.costEvents.verification.matched, true);
   assert.equal(report.matter.inspection.matters[0].matterName, "Atlas Construction vs Diptishree");
   assert.equal(report.skills.inspection.skills[0].slash, "/the_story");
   assert.deepEqual(calls.map((call) => call[0]), [
@@ -176,6 +200,8 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
     "inspectStorage",
     "verifyProviderRuns",
     "inspectProviderRuns",
+    "verifyCostEvents",
+    "inspectCostEvents",
   ]);
   assert.doesNotMatch(JSON.stringify(report), /secret|db\.example|matter_workbench_shadow/);
 
@@ -187,6 +213,7 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
   assert.match(rendered, /advisory_counts: matched/);
   assert.match(rendered, /storage_counts: matched/);
   assert.match(rendered, /provider_run_counts: matched/);
+  assert.match(rendered, /cost_event_counts: matched/);
   assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2/);
   assert.match(rendered, /\/the_story The Story status=active versions=1 runs=2/);
   assert.match(rendered, /Atlas Construction vs Diptishree blockers=0 warnings=2 info=0 incidents=2/);
@@ -194,6 +221,8 @@ test("shadow DB report combines matter, skill, advisory, storage, and provider-r
   assert.match(rendered, /source_working_copy: 1/);
   assert.match(rendered, /native_source_skill openrouter\/openai\/gpt-4.1: 1/);
   assert.match(rendered, /skill_creation openai-direct\/gpt-5.4: 1/);
+  assert.match(rendered, /matter actual openrouter\/openai\/gpt-4.1: count=1 amount=0.04/);
+  assert.match(rendered, /tenant unknown openai-direct\/gpt-5.4: count=1 amount=/);
 });
 
 test("package and database docs expose the combined shadow DB report command", async () => {

@@ -173,6 +173,10 @@ npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:costs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -216,11 +220,17 @@ metadata where available, then link each run back to its artifact, sample, or
 custom-skill run. They do not copy prompts, context packets, model outputs, or
 generated legal work product into Postgres.
 
+The `db:costs:*` commands rehearse cost-governance rows from the provider-run
+shadow ledger. They preserve known token and cost values where available, and
+record `unknown` confidence where the local metadata does not know spend. This
+is a visibility rehearsal for future budget/approval controls, not a billing
+backend.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
 matter metadata, skill-factory metadata, advisory snapshots, storage-custody
-rows, and provider-run links from the same tenant-scoped shadow database, so
-handoff review does not require stitching together separate matter, skill,
-advisory, storage, and provider-run command outputs.
+rows, provider-run links, and cost-event rows from the same tenant-scoped shadow
+database, so handoff review does not require stitching together separate matter,
+skill, advisory, storage, provider-run, and cost command outputs.
 
 ## Stop Rule
 

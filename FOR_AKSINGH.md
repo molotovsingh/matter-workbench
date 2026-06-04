@@ -597,6 +597,10 @@ npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:costs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -648,8 +652,8 @@ view over those facts.
 `db:shadow:report` is the useful operator shortcut once these tracks have been
 hydrated. It asks the shadow database two questions in one pass: do the row
 counts still match the local plans, and what matter, skill, advisory,
-storage-custody, and provider-run summaries are actually visible through the
-tenant-scoped database reads? Think of it as the dashboard check before a
+storage-custody, provider-run, and cost summaries are actually visible through
+the tenant-scoped database reads? Think of it as the dashboard check before a
 developer says "the database mirror is sane."
 
 The storage rehearsal is the bridge from "database knows the matter" to
@@ -673,6 +677,13 @@ artifact/sample/run it belongs to." It does not learn the prompt, the bounded
 matter packet, the model's full output, or the generated legal work product. In
 plain language: Postgres is learning the flight log, not swallowing the case
 file.
+
+The cost-event rehearsal is one layer above that flight log. For every mirrored
+provider run, the shadow database records a cost event with the known token and
+spend values, or marks the confidence as `unknown` when the local run metadata
+does not know the spend. That is not a billing system yet. It is the first
+honest budget ledger: "we know this model call happened; here is what we know,
+and here is what we do not."
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

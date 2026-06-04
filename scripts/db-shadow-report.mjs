@@ -29,6 +29,12 @@ import {
   inspectLocalProviderRunHydration,
   verifyLocalProviderRunHydration,
 } from "./db-hydrate-local-provider-runs.mjs";
+import {
+  buildShadowCostEventPlan,
+  collectLocalCostEventHydrationPlan,
+  inspectLocalCostEventHydration,
+  verifyLocalCostEventHydration,
+} from "./db-hydrate-local-cost-events.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -84,11 +90,13 @@ export async function buildShadowDbReport({
   advisoryPlan,
   storagePlan,
   providerRunPlan,
+  costEventPlan,
   collectMatterPlan = collectLocalMatterHydrationPlan,
   collectSkillPlan = collectLocalSkillHydrationPlan,
   collectAdvisoryPlan = collectLocalAdvisoryHydrationPlan,
   collectStoragePlan = collectLocalStorageHydrationPlan,
   collectProviderRunPlan = collectLocalProviderRunHydrationPlan,
+  collectCostEventPlan = collectLocalCostEventHydrationPlan,
   verifyMatter = verifyLocalMatterHydration,
   inspectMatter = inspectLocalMatterHydration,
   verifySkill = verifyLocalSkillHydration,
@@ -99,6 +107,8 @@ export async function buildShadowDbReport({
   inspectStorage = inspectLocalStorageHydration,
   verifyProviderRuns = verifyLocalProviderRunHydration,
   inspectProviderRuns = inspectLocalProviderRunHydration,
+  verifyCostEvents = verifyLocalCostEventHydration,
+  inspectCostEvents = inspectLocalCostEventHydration,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before running the shadow DB report.");
 
@@ -107,6 +117,11 @@ export async function buildShadowDbReport({
   const resolvedAdvisoryPlan = advisoryPlan || await collectAdvisoryPlan({ appDir, mattersHome, matter: matterQuery });
   const resolvedStoragePlan = storagePlan || await collectStoragePlan({ appDir, mattersHome });
   const resolvedProviderRunPlan = providerRunPlan || await collectProviderRunPlan({ appDir, mattersHome });
+  const resolvedCostEventPlan = costEventPlan || (
+    providerRunPlan
+      ? buildShadowCostEventPlan({ providerRunPlan: resolvedProviderRunPlan, appDir, mattersHome })
+      : await collectCostEventPlan({ appDir, mattersHome, providerRunPlan: resolvedProviderRunPlan })
+  );
   const matterVerification = verifyMatter({ databaseUrl, plan: resolvedMatterPlan });
   const matterInspection = inspectMatter({ databaseUrl, plan: resolvedMatterPlan, matterQuery });
   const skillVerification = verifySkill({ databaseUrl, plan: resolvedSkillPlan });
@@ -117,6 +132,8 @@ export async function buildShadowDbReport({
   const storageInspection = inspectStorage({ databaseUrl, plan: resolvedStoragePlan });
   const providerRunVerification = verifyProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
   const providerRunInspection = inspectProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
+  const costEventVerification = verifyCostEvents({ databaseUrl, plan: resolvedCostEventPlan });
+  const costEventInspection = inspectCostEvents({ databaseUrl, plan: resolvedCostEventPlan });
 
   return {
     matched: Boolean(
@@ -125,6 +142,7 @@ export async function buildShadowDbReport({
       && advisoryVerification.matched
       && storageVerification.matched
       && providerRunVerification.matched
+      && costEventVerification.matched
     ),
     filters: {
       matter: matterQuery || "",
@@ -149,6 +167,10 @@ export async function buildShadowDbReport({
     providerRuns: {
       verification: providerRunVerification,
       inspection: providerRunInspection,
+    },
+    costEvents: {
+      verification: costEventVerification,
+      inspection: costEventInspection,
     },
   };
 }
@@ -235,6 +257,19 @@ export function renderShadowDbReport(report = {}) {
     lines.push(`  ${group.taskClass} ${group.provider}/${group.model}: ${group.count}`);
   }
   if (!report.providerRuns?.inspection?.groups?.length) lines.push("  (none)");
+
+  lines.push(`cost_event_counts: ${report.costEvents?.verification?.matched ? "matched" : "mismatch"}`);
+  appendCounts(lines, report.costEvents?.verification);
+  appendMismatches(lines, report.costEvents?.verification);
+  const costEventTotals = report.costEvents?.inspection?.totals || {};
+  lines.push("cost_event_totals:");
+  lines.push(`  cost_events: ${costEventTotals.costEvents || 0}`);
+  lines.push(`  actual_amount: ${costEventTotals.actualAmount || 0}`);
+  lines.push("cost_event_groups:");
+  for (const group of report.costEvents?.inspection?.groups || []) {
+    lines.push(`  ${group.scope} ${group.confidence} ${group.provider}/${group.model}: count=${group.count} amount=${group.amount ?? ""}`);
+  }
+  if (!report.costEvents?.inspection?.groups?.length) lines.push("  (none)");
 
   return lines;
 }

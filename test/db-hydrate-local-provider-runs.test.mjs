@@ -38,6 +38,8 @@ test("local provider-run DB hydrator dry-run plans AI run rows without prompt or
   assert.equal(plan.providerRuns[0].inputTokens, 100);
   assert.equal(plan.providerRuns[0].outputTokens, 20);
   assert.equal(plan.providerRuns[0].costAmount, 0.04);
+  assert.equal(plan.providerRuns[1].costAmount, null);
+  assert.equal(plan.providerRuns[1].costConfidence, "unknown");
   assert.equal(plan.skillSampleLinks[0].sampleId, "sample_alpha");
   assert.equal(plan.configurableSkillRunLinks[0].runId, "00000000-0000-5000-8000-000000000014");
   assert.doesNotMatch(JSON.stringify(plan), /generated legal output|prompt body|sample markdown body/i);
