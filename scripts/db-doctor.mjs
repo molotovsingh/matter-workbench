@@ -87,9 +87,16 @@ export function buildDoctorReport({
     lines.push(`${migration.version}\t${migration.status}\t${migration.fileName}`);
   }
 
+  const migrationSummary = summarizeMigrationStatuses(migrations);
+  lines.push(`migration_summary: applied=${migrationSummary.applied} pending=${migrationSummary.pending} checksum_mismatch=${migrationSummary.checksum_mismatch} unknown=${migrationSummary.unknown}`);
+
   const hasChecksumMismatch = migrations.some((migration) => migration.status === "checksum_mismatch");
-  const readyToApply = Boolean(databaseUrl && psql.available && !planError && !hasChecksumMismatch);
+  const hasPending = migrationSummary.pending > 0;
+  const hasUnknown = migrationSummary.unknown > 0;
+  const readyToApply = Boolean(databaseUrl && psql.available && !planError && !hasChecksumMismatch && hasPending);
+  const readyToHydrate = Boolean(databaseUrl && psql.available && !planError && !hasChecksumMismatch && !hasPending && !hasUnknown && migrations.length > 0);
   lines.push(`ready_to_apply: ${readyToApply ? "yes" : "no"}`);
+  lines.push(`ready_to_hydrate: ${readyToHydrate ? "yes" : "no"}`);
 
   if (!databaseUrl) {
     lines.push("next: Set MWB_DATABASE_URL or DATABASE_URL before applying migrations.");
@@ -99,11 +106,30 @@ export function buildDoctorReport({
     lines.push("next: Fix database connectivity or credentials before applying migrations.");
   } else if (hasChecksumMismatch) {
     lines.push("next: Add a new migration instead of editing an already-applied migration.");
-  } else {
+  } else if (readyToHydrate) {
+    lines.push("next: Run shadow hydration or report with MWB_DATABASE_URL set.");
+  } else if (readyToApply) {
     lines.push("next: Apply with MWB_DATABASE_URL set and npm run db:migrate.");
+  } else {
+    lines.push("next: Review migration inventory before hydrating the shadow database.");
   }
 
   return lines;
+}
+
+function summarizeMigrationStatuses(migrations = []) {
+  const summary = {
+    applied: 0,
+    pending: 0,
+    checksum_mismatch: 0,
+    unknown: 0,
+  };
+  for (const migration of migrations) {
+    if (Object.hasOwn(summary, migration.status)) {
+      summary[migration.status] += 1;
+    }
+  }
+  return summary;
 }
 
 export async function runDoctor({ argv = process.argv.slice(2), env = process.env, spawn = spawnSync, plan = planMigrations } = {}) {

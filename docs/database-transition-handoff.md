@@ -61,6 +61,11 @@ still match. Use `db:shadow:snapshot` to preserve the combined report for
 handoff. New snapshots also record the repo branch, short commit, and whether
 the worktree was clean when the report was generated.
 
+`db:doctor` is the first sanity check. If it reports `ready_to_apply: yes`, run
+the migrations before hydrating. If it reports `ready_to_hydrate: yes`, the
+schema is already settled and the next useful step is shadow hydration, report,
+or snapshot.
+
 ## Current Snapshot Evidence
 
 The current checked-in snapshot is:

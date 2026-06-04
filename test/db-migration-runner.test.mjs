@@ -180,6 +180,25 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /ready_to_apply: yes/);
 });
 
+test("database doctor reports hydration readiness when migrations are already applied", async () => {
+  const { buildDoctorReport } = await import(doctorPath.href);
+
+  const report = buildDoctorReport({
+    databaseUrl: "postgres://mw_user:secret_password@db.example.com:5432/mwb",
+    psql: { available: true, version: "psql (PostgreSQL) 16.9" },
+    migrations: [
+      { status: "applied", version: "001_control_plane", fileName: "001_control_plane.sql" },
+      { status: "applied", version: "002_tenant_rls", fileName: "002_tenant_rls.sql" },
+    ],
+  }).join("\n");
+
+  assert.match(report, /migration_summary: applied=2 pending=0 checksum_mismatch=0 unknown=0/);
+  assert.match(report, /ready_to_apply: no/);
+  assert.match(report, /ready_to_hydrate: yes/);
+  assert.match(report, /next: Run shadow hydration or report with MWB_DATABASE_URL set\./);
+  assert.doesNotMatch(report, /secret_password/);
+});
+
 test("database doctor stays read-only and clear when no database URL is configured", async () => {
   const { buildDoctorReport } = await import(doctorPath.href);
 
@@ -227,7 +246,9 @@ test("database doctor reports migration inventory errors without throwing", asyn
 
 test("database transition docs expose the read-only doctor command", async () => {
   assert.match(await readFile(readmePath, "utf8"), /npm run db:doctor/);
-  assert.match(await readFile(dbReadmePath, "utf8"), /npm run db:doctor/);
+  const dbReadme = await readFile(dbReadmePath, "utf8");
+  assert.match(dbReadme, /npm run db:doctor/);
+  assert.match(dbReadme, /ready_to_hydrate/);
   assert.match(await readFile(transitionDocPath, "utf8"), /npm run db:doctor/);
 });
 

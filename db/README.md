@@ -94,7 +94,9 @@ known migration files with `unknown` status.
 `db:doctor` is a read-only deployment-prep check. It reports whether a database
 URL is configured, whether `psql` is available, and the migration plan if the
 database can be inspected. It redacts connection secrets and does not apply
-anything.
+anything. `ready_to_apply` means there are pending migrations and no detected
+blocker; `ready_to_hydrate` means the migrations are already applied and the
+shadow mirror can move on to hydration, verification, report, or snapshot.
 
 `db:hydrate:dry-run` is a shadow-hydration rehearsal. It scans the local matter
 folder, reads existing `matter.json`, `File Register.csv`, `Extraction Log.csv`,
