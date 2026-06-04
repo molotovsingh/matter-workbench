@@ -4,6 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_WORKBENCH_BASE_URL } from "../shared/local-server-defaults.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +15,7 @@ export async function runModeAAcceptance(options = {}) {
   if (!manifestPath) throw new Error("--manifest is required");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   const backupDir = path.dirname(manifestPath);
-  const baseUrl = String(options.baseUrl || "http://127.0.0.1:4191").replace(/\/$/, "");
+  const baseUrl = String(options.baseUrl || DEFAULT_WORKBENCH_BASE_URL).replace(/\/$/, "");
   const selected = selectMatters(manifest.matters || [], options);
   const reportPath = path.resolve(options.report || path.join(backupDir, "acceptance-report.json"));
   const report = {
@@ -296,7 +297,7 @@ async function writeReport(reportPath, report) {
 
 function parseArgs(argv) {
   const options = {
-    baseUrl: "http://127.0.0.1:4191",
+    baseUrl: DEFAULT_WORKBENCH_BASE_URL,
     manifest: "",
     matterNames: [],
     report: "",
@@ -328,7 +329,7 @@ function printHelp() {
     "Usage: node scripts/v1-beta-mode-a-acceptance.mjs --manifest <reset-manifest.json> [options]",
     "",
     "Options:",
-    "  --base-url <url>     Running app URL. Default: http://127.0.0.1:4191",
+    `  --base-url <url>     Running app URL. Default: ${DEFAULT_WORKBENCH_BASE_URL}`,
     "  --matter <name>      Run one named matter from the manifest. Repeatable.",
     "  --report <path>      Output JSON report path.",
     "  --help               Show help.",

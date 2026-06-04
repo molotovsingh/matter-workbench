@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { runModeAAcceptance } from "../scripts/v1-beta-mode-a-acceptance.mjs";
 import {
   DEFAULT_WORKBENCH_BASE_URL,
   DEFAULT_WORKBENCH_HOST,
@@ -25,4 +28,18 @@ test("React smoke script reads the shared local server default instead of hard-c
   assert.match(source, /DEFAULT_WORKBENCH_BASE_URL/);
   assert.doesNotMatch(source, /MWB_BACKEND_URL \|\| "http:\/\/127\.0\.0\.1:4191"/);
   assert.doesNotMatch(source, /MWB_UI_URL \|\| "http:\/\/127\.0\.0\.1:4191\//);
+});
+
+test("Mode A acceptance script uses the shared local server default", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-mode-a-default-"));
+  const manifestPath = path.join(root, "reset-manifest.json");
+  await writeFile(manifestPath, JSON.stringify({
+    schema_version: "v1-beta-mode-a-reset-manifest/v1",
+    mattersHome: root,
+    matters: [],
+  }));
+
+  const report = await runModeAAcceptance({ manifest: manifestPath });
+
+  assert.equal(report.baseUrl, DEFAULT_WORKBENCH_BASE_URL);
 });
