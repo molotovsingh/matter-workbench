@@ -2,6 +2,11 @@
   "schemaVersion": "shadow-db-snapshot/v1",
   "generatedAt": "2026-06-04T00:00:00.000Z",
   "matched": true,
+  "repo": {
+    "branch": "codex/matter-workbench-checkpoint-2026-05-17",
+    "commit": "1646265",
+    "clean": false
+  },
   "filters": {
     "matter": "",
     "slash": ""

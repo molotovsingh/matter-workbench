@@ -19,6 +19,11 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     outDir,
     timestamp: "2026-06-04T00:00:00.000Z",
+    repoMetadata: {
+      branch: "codex/test-branch",
+      commit: "abc1234",
+      clean: true,
+    },
     buildReport: async ({ databaseUrl, matterQuery, slashQuery }) => {
       calls.push({ databaseUrl, matterQuery, slashQuery });
       return {
@@ -45,9 +50,17 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
 
   assert.match(markdown, /# Matter Workbench Shadow DB Snapshot/);
   assert.match(markdown, /Matched: yes/);
+  assert.match(markdown, /Branch: codex\/test-branch/);
+  assert.match(markdown, /Commit: abc1234/);
+  assert.match(markdown, /Worktree clean: yes/);
   assert.match(markdown, /matter_counts: matched/);
   assert.equal(json.schemaVersion, "shadow-db-snapshot/v1");
   assert.equal(json.matched, true);
+  assert.deepEqual(json.repo, {
+    branch: "codex/test-branch",
+    commit: "abc1234",
+    clean: true,
+  });
   assert.equal(json.files.markdown, "shadow-db-snapshot-2026-06-04T00-00-00-000Z.md");
   assert.equal(json.files.json, "shadow-db-snapshot-2026-06-04T00-00-00-000Z.json");
   assert.deepEqual(json.reportLines, [
@@ -74,6 +87,32 @@ test("shadow DB snapshot refuses to run without a database URL", async () => {
     }),
     /Set MWB_DATABASE_URL or DATABASE_URL/,
   );
+});
+
+test("shadow DB snapshot repo metadata falls back safely outside git", async () => {
+  const {
+    collectGitRepoMetadata,
+  } = await import(snapshotPath.href);
+
+  const calls = [];
+  const repo = collectGitRepoMetadata({
+    cwd: "/tmp/not-a-repo",
+    spawn: (command, args, options = {}) => {
+      calls.push({ command, args, cwd: options.cwd });
+      return { status: 128, stdout: "", stderr: "not a git repo" };
+    },
+  });
+
+  assert.deepEqual(repo, {
+    branch: "unknown",
+    commit: "unknown",
+    clean: false,
+  });
+  assert.deepEqual(calls.map((call) => call.args.join(" ")), [
+    "rev-parse --abbrev-ref HEAD",
+    "rev-parse --short HEAD",
+    "status --porcelain",
+  ]);
 });
 
 test("package and database docs expose the shadow DB snapshot command", async () => {

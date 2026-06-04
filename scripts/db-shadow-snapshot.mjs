@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -74,6 +75,8 @@ export async function createShadowDbSnapshot({
   mattersHome = defaultMattersHome(),
   matterQuery = "",
   slashQuery = "",
+  repoMetadata,
+  collectRepoMetadata = collectGitRepoMetadata,
   buildReport = buildShadowDbReport,
   renderReport = renderShadowDbReport,
 } = {}) {
@@ -93,10 +96,12 @@ export async function createShadowDbSnapshot({
   const basename = `shadow-db-snapshot-${timestampSlug(generatedAt)}`;
   const markdownPath = path.join(safeOutDir, `${basename}.md`);
   const jsonPath = path.join(safeOutDir, `${basename}.json`);
+  const repo = normalizeRepoMetadata(repoMetadata || collectRepoMetadata({ cwd: appDir }));
   const snapshot = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt,
     matched,
+    repo,
     filters: {
       matter: matterQuery || "",
       slash: slashQuery || "",
@@ -121,6 +126,9 @@ export function renderShadowDbSnapshotMarkdown(snapshot = {}) {
     "",
     `Generated at: ${snapshot.generatedAt || ""}`,
     `Matched: ${snapshot.matched ? "yes" : "no"}`,
+    `Branch: ${snapshot.repo?.branch || "unknown"}`,
+    `Commit: ${snapshot.repo?.commit || "unknown"}`,
+    `Worktree clean: ${snapshot.repo?.clean ? "yes" : "no"}`,
   ];
   const matterFilter = snapshot.filters?.matter || "";
   const slashFilter = snapshot.filters?.slash || "";
@@ -148,6 +156,34 @@ function normalizeTimestamp(timestamp) {
 
 function timestampSlug(timestamp) {
   return timestamp.replace(/[:.]/g, "-");
+}
+
+export function collectGitRepoMetadata({ cwd = process.cwd(), spawn = spawnSync } = {}) {
+  const branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"], { cwd, spawn }) || "unknown";
+  const commit = runGit(["rev-parse", "--short", "HEAD"], { cwd, spawn }) || "unknown";
+  const status = runGit(["status", "--porcelain"], { cwd, spawn });
+  return normalizeRepoMetadata({
+    branch,
+    commit,
+    clean: status !== null && status === "",
+  });
+}
+
+function runGit(args, { cwd, spawn }) {
+  const result = spawn("git", args, {
+    cwd,
+    encoding: "utf8",
+  });
+  if (result.error || Number(result.status) !== 0) return null;
+  return String(result.stdout || "").trim();
+}
+
+function normalizeRepoMetadata(metadata = {}) {
+  return {
+    branch: redactSecret(metadata.branch || "unknown"),
+    commit: redactSecret(metadata.commit || "unknown"),
+    clean: Boolean(metadata.clean),
+  };
 }
 
 function toPortableSnapshot(snapshot) {

@@ -2,6 +2,9 @@
 
 Generated at: 2026-06-04T00:00:00.000Z
 Matched: yes
+Branch: codex/matter-workbench-checkpoint-2026-05-17
+Commit: 1646265
+Worktree clean: no
 
 This is a shadow-database handoff artifact. It records what the PostgreSQL control-plane mirror currently reports, without changing Matter Workbench runtime storage.
 

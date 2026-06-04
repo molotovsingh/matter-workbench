@@ -58,7 +58,8 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 Use `db:shadow:hydrate:dry-run` before writes to confirm what the local app will
 try to mirror. Use `db:shadow:hydrate:verify` after writes to confirm row counts
 still match. Use `db:shadow:snapshot` to preserve the combined report for
-handoff.
+handoff. New snapshots also record the repo branch, short commit, and whether
+the worktree was clean when the report was generated.
 
 ## Current Snapshot Evidence
 
