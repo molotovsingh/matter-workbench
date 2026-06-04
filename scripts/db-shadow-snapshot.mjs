@@ -11,6 +11,7 @@ import {
 } from "./db-shadow-report.mjs";
 import { runDoctor } from "./db-doctor.mjs";
 import { defaultMattersHome } from "./db-hydrate-local-matters.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "shadow-db-snapshot/v1";
@@ -212,9 +213,10 @@ function toPortableSnapshot(snapshot) {
 }
 
 function redactSecret(value) {
-  return String(value || "")
+  const locallyRedacted = String(value || "")
     .replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@")
     .replace(/secret/gi, "***");
+  return redactSensitiveText(locallyRedacted);
 }
 
 async function main() {

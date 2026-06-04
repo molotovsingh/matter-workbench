@@ -41,6 +41,7 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
     renderReport: () => [
       "Matter Workbench shadow DB report",
       "matched: yes",
+      "provider warning OPENAI_API_KEY=sk-test Authorization: Bearer sk-token",
       "matter_counts: matched",
     ],
   });
@@ -59,6 +60,8 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
   assert.match(markdown, /Branch: codex\/test-branch/);
   assert.match(markdown, /Commit: abc1234/);
   assert.match(markdown, /Worktree clean: yes/);
+  assert.match(markdown, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(markdown, /Bearer \[redacted-secret\]/);
   assert.match(markdown, /matter_counts: matched/);
   assert.equal(json.schemaVersion, "shadow-db-snapshot/v1");
   assert.equal(json.matched, true);
@@ -72,10 +75,13 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
   assert.deepEqual(json.reportLines, [
     "Matter Workbench shadow DB report",
     "matched: yes",
+    "provider warning OPENAI_API_KEY=[redacted-secret] Authorization: Bearer [redacted-secret]",
     "matter_counts: matched",
   ]);
-  assert.doesNotMatch(markdown, /secret|db\.example|matter_workbench_shadow/);
-  assert.doesNotMatch(JSON.stringify(json), /secret|db\.example|matter_workbench_shadow/);
+  assert.doesNotMatch(markdown, /mwb_user:secret|db\.example|matter_workbench_shadow/);
+  assert.doesNotMatch(JSON.stringify(json), /mwb_user:secret|db\.example|matter_workbench_shadow/);
+  assert.doesNotMatch(markdown, /sk-test|sk-token/);
+  assert.doesNotMatch(JSON.stringify(json), /sk-test|sk-token/);
   assert.doesNotMatch(JSON.stringify(json), new RegExp(escapeRegExp(outDir)));
 });
 
