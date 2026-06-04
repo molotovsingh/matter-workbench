@@ -9,6 +9,7 @@ import {
   buildShadowDbReport,
   renderShadowDbReport,
 } from "./db-shadow-report.mjs";
+import { runDoctor } from "./db-doctor.mjs";
 import { defaultMattersHome } from "./db-hydrate-local-matters.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,12 +78,22 @@ export async function createShadowDbSnapshot({
   slashQuery = "",
   repoMetadata,
   collectRepoMetadata = collectGitRepoMetadata,
+  preflightDoctor = runDoctor,
   buildReport = buildShadowDbReport,
   renderReport = renderShadowDbReport,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before creating a shadow DB snapshot.");
 
   const generatedAt = normalizeTimestamp(timestamp);
+  const doctorLines = await preflightDoctor({
+    env: {
+      ...process.env,
+      MWB_DATABASE_URL: databaseUrl,
+    },
+  });
+  if (!doctorReportsReadyToHydrate(doctorLines)) {
+    throw new Error("Shadow database is not ready to snapshot. Run db:migrate before creating a handoff snapshot.");
+  }
   const report = await buildReport({
     databaseUrl,
     appDir,
@@ -156,6 +167,10 @@ function normalizeTimestamp(timestamp) {
 
 function timestampSlug(timestamp) {
   return timestamp.replace(/[:.]/g, "-");
+}
+
+function doctorReportsReadyToHydrate(lines = []) {
+  return lines.some((line) => /\bready_to_hydrate:\s*yes\b/i.test(String(line)));
 }
 
 export function collectGitRepoMetadata({ cwd = process.cwd(), spawn = spawnSync } = {}) {

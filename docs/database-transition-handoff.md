@@ -59,7 +59,9 @@ Use `db:shadow:hydrate:dry-run` before writes to confirm what the local app will
 try to mirror. Use `db:shadow:hydrate:verify` after writes to confirm row counts
 still match. Use `db:shadow:snapshot` to preserve the combined report for
 handoff. New snapshots also record the repo branch, short commit, and whether
-the worktree was clean when the report was generated.
+the worktree was clean when the report was generated. `db:shadow:snapshot` runs
+a read-only `db:doctor` preflight and refuses to write snapshot files unless the
+doctor reports `ready_to_hydrate: yes`.
 
 `db:doctor` is the first sanity check. If it reports `ready_to_apply: yes`, run
 the migrations before hydrating. If it reports `ready_to_hydrate: yes`, the

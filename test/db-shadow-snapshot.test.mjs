@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,6 +7,7 @@ import test from "node:test";
 const snapshotPath = new URL("../scripts/db-shadow-snapshot.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
+const snapshotsReadmePath = new URL("../docs/shadow-db-snapshots/README.md", import.meta.url);
 
 test("shadow DB snapshot writes redacted markdown and JSON handoff files", async () => {
   const {
@@ -24,6 +25,11 @@ test("shadow DB snapshot writes redacted markdown and JSON handoff files", async
       commit: "abc1234",
       clean: true,
     },
+    preflightDoctor: async () => [
+      "Matter Workbench database doctor",
+      "ready_to_apply: no",
+      "ready_to_hydrate: yes",
+    ],
     buildReport: async ({ databaseUrl, matterQuery, slashQuery }) => {
       calls.push({ databaseUrl, matterQuery, slashQuery });
       return {
@@ -89,6 +95,36 @@ test("shadow DB snapshot refuses to run without a database URL", async () => {
   );
 });
 
+test("shadow DB snapshot stops before writing files when doctor says schema is not ready", async () => {
+  const {
+    createShadowDbSnapshot,
+  } = await import(snapshotPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-shadow-snapshot-blocked-"));
+  let buildReportCalled = false;
+
+  await assert.rejects(
+    () => createShadowDbSnapshot({
+      databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+      outDir,
+      timestamp: "2026-06-04T00:00:00.000Z",
+      preflightDoctor: async () => [
+        "Matter Workbench database doctor",
+        "ready_to_apply: yes",
+        "ready_to_hydrate: no",
+        "next: Apply with MWB_DATABASE_URL set and npm run db:migrate.",
+      ],
+      buildReport: async () => {
+        buildReportCalled = true;
+        return {};
+      },
+      renderReport: () => [],
+    }),
+    /shadow database is not ready to snapshot/i,
+  );
+  assert.equal(buildReportCalled, false);
+  assert.deepEqual(await readdir(outDir), []);
+});
+
 test("shadow DB snapshot repo metadata falls back safely outside git", async () => {
   const {
     collectGitRepoMetadata,
@@ -122,6 +158,17 @@ test("package and database docs expose the shadow DB snapshot command", async ()
   const readme = await readFile(dbReadmePath, "utf8");
   assert.match(readme, /npm run db:shadow:snapshot/);
   assert.match(readme, /docs\/shadow-db-snapshots/);
+  assert.match(readme, /db:shadow:snapshot[\s\S]*db:doctor[\s\S]*preflight/i);
+  assert.match(readme, /ready_to_hydrate:\s*yes/i);
+  assert.match(readme, /refuses to write/i);
+});
+
+test("shadow DB snapshot folder docs describe the doctor preflight", async () => {
+  const readme = await readFile(snapshotsReadmePath, "utf8");
+
+  assert.match(readme, /db:shadow:snapshot[\s\S]*db:doctor[\s\S]*preflight/i);
+  assert.match(readme, /ready_to_hydrate:\s*yes/i);
+  assert.match(readme, /refuses to write/i);
 });
 
 function escapeRegExp(value) {
