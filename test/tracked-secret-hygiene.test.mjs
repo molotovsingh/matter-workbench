@@ -46,5 +46,6 @@ test("local env variants are ignored while the example env remains trackable", a
   assert.equal(await isIgnored(".env.local"), true);
   assert.equal(await isIgnored(".env.shadow"), true);
   assert.equal(await isIgnored(".env.development"), true);
+  assert.equal(await isIgnored(".envrc"), true);
   assert.equal(await isIgnored(".env.example"), false);
 });
