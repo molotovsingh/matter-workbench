@@ -82,6 +82,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -182,6 +183,13 @@ storage-custody rows, provider-run links, cost-event rows, and audit-event rows,
 then prints a single summary of what the shadow database currently mirrors. Pass
 `-- --matter "name fragment"` or
 `-- --slash "/the_story"` to narrow the report.
+
+`db:shadow:snapshot` writes that combined report to timestamped Markdown and
+JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
+handoff artifact: the operator can hydrate or verify the VM shadow database,
+then preserve the exact mirror report without changing app runtime storage.
+Pass `-- --out-dir /path/to/folder` to write the files somewhere else, or
+`-- --timestamp 2026-06-04T00:00:00.000Z` for deterministic test/handoff names.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file

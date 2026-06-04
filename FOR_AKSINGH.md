@@ -613,6 +613,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
 
 It uses `psql` rather than adding a Postgres client library to the app runtime.
@@ -666,6 +667,13 @@ counts still match the local plans, and what matter, skill, advisory,
 storage-custody, provider-run, and cost summaries are actually visible through
 the tenant-scoped database reads? Think of it as the dashboard check before a
 developer says "the database mirror is sane."
+
+`db:shadow:snapshot` is the handoff version of that dashboard check. It writes
+the combined report into timestamped Markdown and JSON files under
+`docs/shadow-db-snapshots/`. That sounds small, but it is a useful habit: when a
+database rehearsal matters, do not leave the evidence trapped in yesterday's
+terminal scrollback. Preserve a dated snapshot so the next developer can see
+what matched, what did not, and which mirror state you were talking about.
 
 The storage rehearsal is the bridge from "database knows the matter" to
 "database knows where the matter's files live." `db:storage:hydrate:dry-run`

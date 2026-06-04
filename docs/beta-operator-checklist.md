@@ -242,7 +242,13 @@ MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
 npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
+
+`db:shadow:snapshot` writes a timestamped Markdown/JSON handoff bundle under
+`docs/shadow-db-snapshots/`. Use it after a VM shadow hydration or verify pass
+when you want a developer to see the exact control-plane mirror report without
+rerunning the database commands.
 
 ## Current Known Risks
 

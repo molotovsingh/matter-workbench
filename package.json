@@ -48,6 +48,7 @@
     "db:shadow:hydrate:dry-run": "node scripts/db-shadow-hydrate-all.mjs --dry-run",
     "db:shadow:hydrate": "node scripts/db-shadow-hydrate-all.mjs --apply",
     "db:shadow:hydrate:verify": "node scripts/db-shadow-hydrate-all.mjs --verify",
+    "db:shadow:snapshot": "node scripts/db-shadow-snapshot.mjs",
     "legal-updates:probe": "node scripts/legal-updates-probe.mjs",
     "matter-init:dry-run": "node matter-init-engine.mjs",
     "matter-init": "node matter-init-engine.mjs --apply",

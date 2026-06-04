@@ -189,6 +189,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
@@ -262,6 +263,12 @@ rows, provider-run links, job links, cost-event rows, and audit-event rows from
 the same tenant-scoped shadow database, so handoff review does not require
 stitching together separate matter, skill, advisory, storage, provider-run, job,
 cost, and audit command outputs.
+
+`db:shadow:snapshot` freezes that combined report into timestamped Markdown and
+JSON files under `docs/shadow-db-snapshots/`. This is the handoff artifact for
+the shadow database track: it lets a developer inspect exactly what the VM
+shadow database mirrored at a point in time, without making Postgres the runtime
+backend.
 
 ## Stop Rule
 
