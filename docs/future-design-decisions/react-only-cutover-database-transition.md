@@ -165,6 +165,10 @@ npm run db:advisory:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:shadow:inspect
+npm run db:storage:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -195,10 +199,17 @@ canonical incident rows, then append one advisory snapshot per mirrored matter.
 This keeps attention as a projection over incidents instead of turning it into a
 second durable truth source.
 
+The `db:storage:*` commands rehearse object-custody metadata. They mirror local
+file identities into `storage_objects` and `document_blobs`, then link extraction
+payloads, matter artifacts, and skill samples to storage-object rows. They do not
+upload source documents or generated work product, and they do not make the app
+read from object storage.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
-matter metadata, skill-factory metadata, and advisory snapshots from the same
-tenant-scoped shadow database, so handoff review does not require stitching
-together separate matter, skill, and advisory command outputs.
+matter metadata, skill-factory metadata, advisory snapshots, and storage-custody
+rows from the same tenant-scoped shadow database, so handoff review does not
+require stitching together separate matter, skill, advisory, and storage command
+outputs.
 
 ## Stop Rule
 

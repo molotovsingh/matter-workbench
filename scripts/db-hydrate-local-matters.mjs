@@ -700,6 +700,8 @@ function normalizeDocumentRow({ row, matterId, intakeId }) {
     fileId,
     fileNumber: fileNumber(fileId),
     sourcePath: stringValue(row.source_path),
+    originalPath: stringValue(row.original_path),
+    workingCopyPath: stringValue(row.working_copy_path),
     originalName: stringValue(row.original_name) || path.basename(stringValue(row.source_path)),
     category: stringValue(row.category),
     sha256: stringValue(row.sha256),

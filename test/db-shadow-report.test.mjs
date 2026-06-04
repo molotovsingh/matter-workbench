@@ -6,7 +6,7 @@ const reportPath = new URL("../scripts/db-shadow-report.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 
-test("shadow DB report combines matter and skill verification without leaking the database URL", async () => {
+test("shadow DB report combines matter, skill, advisory, and storage verification without leaking the database URL", async () => {
   const {
     buildShadowDbReport,
     renderShadowDbReport,
@@ -26,6 +26,10 @@ test("shadow DB report combines matter and skill verification without leaking th
     advisoryPlan: {
       tenant: { id: "tenant_local_shadow" },
       plannedRows: { incidents: 2 },
+    },
+    storagePlan: {
+      tenant: { id: "tenant_local_shadow" },
+      plannedRows: { storageObjects: 3 },
     },
     verifyMatter: ({ databaseUrl, plan }) => {
       calls.push(["verifyMatter", databaseUrl, plan.tenant.id]);
@@ -108,15 +112,45 @@ test("shadow DB report combines matter and skill verification without leaking th
         },
       };
     },
+    verifyStorage: ({ databaseUrl, plan }) => {
+      calls.push(["verifyStorage", databaseUrl, plan.tenant.id]);
+      return {
+        matched: true,
+        expected: { storage_objects: 3, document_blobs: 2 },
+        counts: { storage_objects: 3, document_blobs: 2 },
+        mismatches: [],
+      };
+    },
+    inspectStorage: ({ databaseUrl, plan }) => {
+      calls.push(["inspectStorage", databaseUrl, plan.tenant.id]);
+      return {
+        roles: [
+          { objectRole: "source_original", count: 1 },
+          { objectRole: "source_working_copy", count: 1 },
+          { objectRole: "matter_artifact", count: 1 },
+        ],
+        totals: { storageObjects: 3 },
+      };
+    },
   });
 
   assert.equal(report.matched, true);
   assert.equal(report.matter.verification.matched, true);
   assert.equal(report.skills.verification.matched, true);
   assert.equal(report.advisory.verification.matched, true);
+  assert.equal(report.storage.verification.matched, true);
   assert.equal(report.matter.inspection.matters[0].matterName, "Atlas Construction vs Diptishree");
   assert.equal(report.skills.inspection.skills[0].slash, "/the_story");
-  assert.deepEqual(calls.map((call) => call[0]), ["verifyMatter", "inspectMatter", "verifySkill", "inspectSkill", "verifyAdvisory", "inspectAdvisory"]);
+  assert.deepEqual(calls.map((call) => call[0]), [
+    "verifyMatter",
+    "inspectMatter",
+    "verifySkill",
+    "inspectSkill",
+    "verifyAdvisory",
+    "inspectAdvisory",
+    "verifyStorage",
+    "inspectStorage",
+  ]);
   assert.doesNotMatch(JSON.stringify(report), /secret|db\.example|matter_workbench_shadow/);
 
   const rendered = renderShadowDbReport(report).join("\n");
@@ -125,9 +159,12 @@ test("shadow DB report combines matter and skill verification without leaking th
   assert.match(rendered, /matter_counts: matched/);
   assert.match(rendered, /skill_counts: matched/);
   assert.match(rendered, /advisory_counts: matched/);
+  assert.match(rendered, /storage_counts: matched/);
   assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2/);
   assert.match(rendered, /\/the_story The Story status=active versions=1 runs=2/);
   assert.match(rendered, /Atlas Construction vs Diptishree blockers=0 warnings=2 info=0 incidents=2/);
+  assert.match(rendered, /source_original: 1/);
+  assert.match(rendered, /source_working_copy: 1/);
 });
 
 test("package and database docs expose the combined shadow DB report command", async () => {

@@ -589,6 +589,10 @@ npm run db:advisory:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:shadow:inspect
+npm run db:storage:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -639,10 +643,19 @@ view over those facts.
 
 `db:shadow:report` is the useful operator shortcut once these tracks have been
 hydrated. It asks the shadow database two questions in one pass: do the row
-counts still match the local plans, and what matter, skill, and advisory
-summaries are actually visible through the tenant-scoped database reads? Think
-of it as the dashboard check before a developer says "the database mirror is
-sane."
+counts still match the local plans, and what matter, skill, advisory, and
+storage-custody summaries are actually visible through the tenant-scoped
+database reads? Think of it as the dashboard check before a developer says "the
+database mirror is sane."
+
+The storage rehearsal is the bridge from "database knows the matter" to
+"database knows where the matter's files live." `db:storage:hydrate:dry-run`
+does not open the original PDFs, emails, or spreadsheets. It reads the existing
+registers and ledgers, then plans custody rows for source originals, working
+copies, extraction payloads, matter artifacts, and skill samples. The write and
+verify commands prove those pointers can be inserted idempotently. That is the
+right order: first prove the custody ledger, then later decide how actual cloud
+object storage should be mounted.
 
 One design choice is worth noticing: sample Markdown is not inserted as a giant
 inline blob. The shadow row stores a hash and object-key style pointer. That is

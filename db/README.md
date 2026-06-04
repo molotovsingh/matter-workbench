@@ -58,6 +58,10 @@ npm run db:advisory:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:advisory:shadow:inspect
+npm run db:storage:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -110,11 +114,19 @@ matter. `db:advisory:hydrate`, `db:advisory:hydrate:verify`, and
 advisory state. This still does not make the app read advisory state from
 Postgres.
 
+`db:storage:hydrate:dry-run` rehearses file-custody metadata without uploading
+or reading source file bodies. It creates shadow `storage_objects`,
+`document_blobs`, extraction-payload links, matter-artifact links, and
+skill-sample links from existing local registers and ledgers. `db:storage:hydrate`,
+`db:storage:hydrate:verify`, and `db:storage:shadow:inspect` apply, count-check,
+and inspect those object-custody rows. This is still a pointer/lifecycle
+rehearsal, not an object-storage runtime cutover.
+
 `db:shadow:report` is the one-command read-only operator view. It verifies and
-inspects matter control-plane rows, skill-factory rows, and advisory snapshots,
-then prints a single summary of what the shadow database currently mirrors.
-Pass `-- --matter "name fragment"` or `-- --slash "/the_story"` to narrow the
-report.
+inspects matter control-plane rows, skill-factory rows, advisory snapshots, and
+storage-custody rows, then prints a single summary of what the shadow database
+currently mirrors. Pass `-- --matter "name fragment"` or
+`-- --slash "/the_story"` to narrow the report.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file

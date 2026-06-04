@@ -19,6 +19,11 @@ import {
   inspectLocalAdvisoryHydration,
   verifyLocalAdvisoryHydration,
 } from "./db-hydrate-local-advisory.mjs";
+import {
+  collectLocalStorageHydrationPlan,
+  inspectLocalStorageHydration,
+  verifyLocalStorageHydration,
+} from "./db-hydrate-local-storage.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -72,30 +77,37 @@ export async function buildShadowDbReport({
   matterPlan,
   skillPlan,
   advisoryPlan,
+  storagePlan,
   collectMatterPlan = collectLocalMatterHydrationPlan,
   collectSkillPlan = collectLocalSkillHydrationPlan,
   collectAdvisoryPlan = collectLocalAdvisoryHydrationPlan,
+  collectStoragePlan = collectLocalStorageHydrationPlan,
   verifyMatter = verifyLocalMatterHydration,
   inspectMatter = inspectLocalMatterHydration,
   verifySkill = verifyLocalSkillHydration,
   inspectSkill = inspectLocalSkillHydration,
   verifyAdvisory = verifyLocalAdvisoryHydration,
   inspectAdvisory = inspectLocalAdvisoryHydration,
+  verifyStorage = verifyLocalStorageHydration,
+  inspectStorage = inspectLocalStorageHydration,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before running the shadow DB report.");
 
   const resolvedMatterPlan = matterPlan || await collectMatterPlan({ mattersHome });
   const resolvedSkillPlan = skillPlan || await collectSkillPlan({ appDir, mattersHome });
   const resolvedAdvisoryPlan = advisoryPlan || await collectAdvisoryPlan({ appDir, mattersHome, matter: matterQuery });
+  const resolvedStoragePlan = storagePlan || await collectStoragePlan({ appDir, mattersHome });
   const matterVerification = verifyMatter({ databaseUrl, plan: resolvedMatterPlan });
   const matterInspection = inspectMatter({ databaseUrl, plan: resolvedMatterPlan, matterQuery });
   const skillVerification = verifySkill({ databaseUrl, plan: resolvedSkillPlan });
   const skillInspection = inspectSkill({ databaseUrl, plan: resolvedSkillPlan, slashQuery });
   const advisoryVerification = verifyAdvisory({ databaseUrl, plan: resolvedAdvisoryPlan });
   const advisoryInspection = inspectAdvisory({ databaseUrl, plan: resolvedAdvisoryPlan });
+  const storageVerification = verifyStorage({ databaseUrl, plan: resolvedStoragePlan });
+  const storageInspection = inspectStorage({ databaseUrl, plan: resolvedStoragePlan });
 
   return {
-    matched: Boolean(matterVerification.matched && skillVerification.matched && advisoryVerification.matched),
+    matched: Boolean(matterVerification.matched && skillVerification.matched && advisoryVerification.matched && storageVerification.matched),
     filters: {
       matter: matterQuery || "",
       slash: slashQuery || "",
@@ -111,6 +123,10 @@ export async function buildShadowDbReport({
     advisory: {
       verification: advisoryVerification,
       inspection: advisoryInspection,
+    },
+    storage: {
+      verification: storageVerification,
+      inspection: storageInspection,
     },
   };
 }
@@ -173,6 +189,18 @@ export function renderShadowDbReport(report = {}) {
     lines.push(`  ${snapshot.matterName} blockers=${snapshot.blocker} warnings=${snapshot.warning} info=${snapshot.info} incidents=${snapshot.incidentCount}`);
   }
   if (!report.advisory?.inspection?.snapshots?.length) lines.push("  (none)");
+
+  lines.push(`storage_counts: ${report.storage?.verification?.matched ? "matched" : "mismatch"}`);
+  appendCounts(lines, report.storage?.verification);
+  appendMismatches(lines, report.storage?.verification);
+  const storageTotals = report.storage?.inspection?.totals || {};
+  lines.push("storage_totals:");
+  lines.push(`  storage_objects: ${storageTotals.storageObjects || 0}`);
+  lines.push("storage_roles:");
+  for (const role of report.storage?.inspection?.roles || []) {
+    lines.push(`  ${role.objectRole}: ${role.count}`);
+  }
+  if (!report.storage?.inspection?.roles?.length) lines.push("  (none)");
 
   return lines;
 }
