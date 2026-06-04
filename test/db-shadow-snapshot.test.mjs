@@ -8,6 +8,7 @@ const snapshotPath = new URL("../scripts/db-shadow-snapshot.mjs", import.meta.ur
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 const snapshotsReadmePath = new URL("../docs/shadow-db-snapshots/README.md", import.meta.url);
+const betaChecklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.url);
 
 test("shadow DB snapshot writes redacted markdown and JSON handoff files", async () => {
   const {
@@ -185,6 +186,14 @@ test("shadow DB snapshot folder docs explain snapshot freshness limits", async (
   assert.match(readme, /refresh[\s\S]*repo/i);
   assert.match(readme, /refresh[\s\S]*local matter/i);
   assert.match(readme, /refresh[\s\S]*shadow hydration/i);
+});
+
+test("beta operator checklist carries shadow snapshot freshness limits", async () => {
+  const checklist = await readFile(betaChecklistPath, "utf8");
+
+  assert.match(checklist, /db:shadow:snapshot[\s\S]*one[- ]run evidence/i);
+  assert.match(checklist, /db:shadow:snapshot[\s\S]*repo changes/i);
+  assert.match(checklist, /db:shadow:snapshot[\s\S]*local matter/i);
 });
 
 function escapeRegExp(value) {

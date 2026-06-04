@@ -246,9 +246,11 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
 
 `db:shadow:snapshot` writes a timestamped Markdown/JSON handoff bundle under
-`docs/shadow-db-snapshots/`. Use it after a VM shadow hydration or verify pass
-when you want a developer to see the exact control-plane mirror report without
-rerunning the database commands.
+`docs/shadow-db-snapshots/`. Treat it as one-run evidence, not live truth. Use
+it after a VM shadow hydration or verify pass when you want a developer to see
+the exact control-plane mirror report without rerunning the database commands.
+Refresh it after meaningful repo changes, local matter folder or skill-ledger
+changes, or another shadow hydration / verify pass.
 
 ## Current Known Risks
 
