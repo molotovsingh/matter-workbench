@@ -50,3 +50,9 @@ test("local env variants are ignored while the example env remains trackable", a
   assert.equal(await isIgnored(".direnv/"), true);
   assert.equal(await isIgnored(".env.example"), false);
 });
+
+test("repo-local Postgres credential helpers are ignored", async () => {
+  assert.equal(await isIgnored(".pgpass"), true);
+  assert.equal(await isIgnored(".pg_service.conf"), true);
+  assert.equal(await isIgnored(".psql_history"), true);
+});

@@ -7,6 +7,9 @@ react-ui/node_modules/
 !.env.example
 .envrc
 .direnv/
+.pgpass
+.pg_service.conf
+.psql_history
 .npm-cache/
 .playwright-cli/
 .local/
