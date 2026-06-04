@@ -44,7 +44,12 @@ migrations do not switch live matter storage to Postgres.
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect -- --matter "Atlas"
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -54,6 +59,27 @@ known migration files with `unknown` status.
 URL is configured, whether `psql` is available, and the migration plan if the
 database can be inspected. It redacts connection secrets and does not apply
 anything.
+
+`db:hydrate:dry-run` is a shadow-hydration rehearsal. It scans the local matter
+folder, reads existing `matter.json`, `File Register.csv`, `Extraction Log.csv`,
+`Source Index.json`, and `List of Dates.json` metadata, and reports the
+control-plane rows that would be needed. It does not connect to Postgres, does
+not read original source file bodies, and does not write database rows.
+
+`db:hydrate` is the write-side shadow rehearsal. It uses the same local metadata
+and inserts deterministic, idempotent control-plane rows into an already
+migrated shadow database. It still does not switch app runtime reads or writes
+to Postgres, does not store original source file bodies, and does not store
+generated legal artifact bodies inline.
+
+`db:hydrate:verify` compares the current shadow database row counts against the
+local metadata plan. It sets the same local shadow tenant context used during
+hydration and exits non-zero if any tenant-scoped control-plane count diverges.
+
+`db:shadow:inspect` is a read-only shadow inspection command. It lists hydrated
+matter control-plane summaries from Postgres using the local shadow tenant
+context. Pass `-- --matter "name fragment"` to inspect one matter family without
+switching app runtime reads to the database.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file

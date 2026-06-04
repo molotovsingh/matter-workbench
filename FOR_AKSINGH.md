@@ -576,7 +576,11 @@ The migration runner is intentionally boring:
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
 ```
 
 It uses `psql` rather than adding a Postgres client library to the app runtime.
@@ -593,6 +597,21 @@ migration instead of quietly pretending the database is still in a known state.
 It also refuses gaps in the numbering sequence. That small rule matters because
 missing `002` while applying `003` is exactly the kind of quiet deployment
 mistake that creates "the app worked on my machine" confusion later.
+
+The shadow hydration commands are the next rehearsal layer. `db:hydrate:dry-run`
+walks the local matter folders and counts only control-plane metadata: matter
+JSON, file registers, extraction logs, source labels, and List of Dates metadata.
+It deliberately does not read original document bodies or generated work-product
+bodies. `db:hydrate` writes deterministic rows into a migrated shadow database,
+and `db:hydrate:verify` asks whether those database row counts still match the
+filesystem plan. `db:shadow:inspect` is the human-friendly read-only query: it
+shows which matters are in the shadow database and how many documents,
+extractions, source descriptors, and artifact pointers they have.
+
+The important lesson is sequencing. We are not "moving to database" in one
+heroic rewrite. We are first proving that the database can mirror identity and
+workflow metadata without touching the running app. That gives us learning with
+low blast radius.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

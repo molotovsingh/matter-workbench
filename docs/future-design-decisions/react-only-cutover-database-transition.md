@@ -152,7 +152,11 @@ Developer commands:
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
@@ -164,6 +168,12 @@ serializes each migration transaction with a Postgres advisory lock, and fails
 closed if an already-applied migration file is edited. The migration file
 sequence is also gapless: `001`, `002`, `003`, and so on. A missing number stops
 the runner before any deployment applies a later migration.
+
+`db:hydrate:dry-run`, `db:hydrate`, `db:hydrate:verify`, and
+`db:shadow:inspect` are shadow-only transition commands. They rehearse metadata
+hydration from local matter folders into Postgres and then verify or inspect the
+result. They do not make Postgres the runtime storage backend, and they do not
+store original source files or generated legal work product inline.
 
 ## Stop Rule
 

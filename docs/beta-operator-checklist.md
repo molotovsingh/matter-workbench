@@ -211,6 +211,15 @@ npm run db:doctor
 npm run db:migrations:check
 ```
 
+If you are explicitly working on the database transition track, the shadow-only
+read-side checks are:
+
+```bash
+npm run db:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
+```
+
 ## Current Known Risks
 
 - Bad scans can still produce advisory warnings and require fresh copies from
