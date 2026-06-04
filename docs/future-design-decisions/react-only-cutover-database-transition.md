@@ -161,6 +161,10 @@ npm run db:skills:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
+npm run db:advisory:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -185,10 +189,16 @@ skill factory ledgers: skill ideas, skill samples, configurable skills,
 versions, and custom-skill run receipts. Sample Markdown is represented by hash
 and object-key style metadata rather than inline legal work product.
 
+The `db:advisory:*` commands perform the same shadow-only rehearsal for
+Preparation Advisory preservation. They map local matter attention items into
+canonical incident rows, then append one advisory snapshot per mirrored matter.
+This keeps attention as a projection over incidents instead of turning it into a
+second durable truth source.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
-both matter metadata and skill-factory metadata from the same tenant-scoped
-shadow database, so handoff review does not require stitching together separate
-matter and skill command outputs.
+matter metadata, skill-factory metadata, and advisory snapshots from the same
+tenant-scoped shadow database, so handoff review does not require stitching
+together separate matter, skill, and advisory command outputs.
 
 ## Stop Rule
 

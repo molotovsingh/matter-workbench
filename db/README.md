@@ -54,6 +54,10 @@ npm run db:skills:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
+npm run db:advisory:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:advisory:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -98,10 +102,19 @@ putting sample work product into Postgres.
 counterparts for that skill-factory shadow data. They are still shadow-only and
 do not make the app read custom skills from Postgres.
 
+`db:advisory:hydrate:dry-run` rehearses Preparation Advisory preservation. It
+reads the current local matter attention projection, maps each item to a
+canonical incident row, and plans one append-only advisory snapshot per mirrored
+matter. `db:advisory:hydrate`, `db:advisory:hydrate:verify`, and
+`db:advisory:shadow:inspect` apply, count-check, and inspect that shadow-only
+advisory state. This still does not make the app read advisory state from
+Postgres.
+
 `db:shadow:report` is the one-command read-only operator view. It verifies and
-inspects both matter control-plane rows and skill-factory rows, then prints a
-single summary of what the shadow database currently mirrors. Pass
-`-- --matter "name fragment"` or `-- --slash "/the_story"` to narrow the report.
+inspects matter control-plane rows, skill-factory rows, and advisory snapshots,
+then prints a single summary of what the shadow database currently mirrors.
+Pass `-- --matter "name fragment"` or `-- --slash "/the_story"` to narrow the
+report.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file
