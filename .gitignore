@@ -29,6 +29,9 @@ id_ed25519
 *.tfstate.*
 *.tfvars
 .pulumi/
+.npmrc
+.pnpmrc
+.yarnrc
 .npm-cache/
 .playwright-cli/
 .local/

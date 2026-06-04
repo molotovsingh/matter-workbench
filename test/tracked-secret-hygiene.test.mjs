@@ -85,3 +85,9 @@ test("repo-local infrastructure state is ignored", async () => {
   assert.equal(await isIgnored("local.tfvars"), true);
   assert.equal(await isIgnored(".pulumi/"), true);
 });
+
+test("repo-local package manager auth files are ignored", async () => {
+  assert.equal(await isIgnored(".npmrc"), true);
+  assert.equal(await isIgnored(".pnpmrc"), true);
+  assert.equal(await isIgnored(".yarnrc"), true);
+});
