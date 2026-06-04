@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DEFAULT_WORKBENCH_BASE_URL,
@@ -16,4 +17,12 @@ test("local server and smoke defaults share one workbench URL", async () => {
 
   assert.equal(app.host, DEFAULT_WORKBENCH_HOST);
   assert.equal(app.port, DEFAULT_WORKBENCH_PORT);
+});
+
+test("React smoke script reads the shared local server default instead of hard-coding a port", async () => {
+  const source = await readFile(new URL("../scripts/react-ui-smoke.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /DEFAULT_WORKBENCH_BASE_URL/);
+  assert.doesNotMatch(source, /MWB_BACKEND_URL \|\| "http:\/\/127\.0\.0\.1:4191"/);
+  assert.doesNotMatch(source, /MWB_UI_URL \|\| "http:\/\/127\.0\.0\.1:4191\//);
 });
