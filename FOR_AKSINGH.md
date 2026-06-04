@@ -581,6 +581,10 @@ MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
+npm run db:skills:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
 ```
 
 It uses `psql` rather than adding a Postgres client library to the app runtime.
@@ -612,6 +616,20 @@ The important lesson is sequencing. We are not "moving to database" in one
 heroic rewrite. We are first proving that the database can mirror identity and
 workflow metadata without touching the running app. That gives us learning with
 low blast radius.
+
+The next rehearsal mirrors the custom-skill factory. `db:skills:hydrate:dry-run`
+reads the app-level skill JSON stores, `db:skills:hydrate` writes ideas,
+samples, configurable skills, versions, and run receipts into the shadow
+database, and `db:skills:hydrate:verify` checks that row counts match. This
+matters because custom skills are not just UI preferences; they are user-shaped
+workflow behavior. The database should learn to preserve them before the app
+ever depends on it.
+
+One design choice is worth noticing: sample Markdown is not inserted as a giant
+inline blob. The shadow row stores a hash and object-key style pointer. That is
+the same discipline we want for matter artifacts: the database owns identity,
+relationships, status, and receipts; bulky legal work product remains a file or
+object-storage payload.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

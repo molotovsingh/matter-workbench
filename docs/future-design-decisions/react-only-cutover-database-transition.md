@@ -157,6 +157,10 @@ MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
+npm run db:skills:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
@@ -174,6 +178,11 @@ the runner before any deployment applies a later migration.
 hydration from local matter folders into Postgres and then verify or inspect the
 result. They do not make Postgres the runtime storage backend, and they do not
 store original source files or generated legal work product inline.
+
+The `db:skills:*` commands perform the same shadow-only rehearsal for app-level
+skill factory ledgers: skill ideas, skill samples, configurable skills,
+versions, and custom-skill run receipts. Sample Markdown is represented by hash
+and object-key style metadata rather than inline legal work product.
 
 ## Stop Rule
 

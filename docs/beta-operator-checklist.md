@@ -218,6 +218,9 @@ read-side checks are:
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
+npm run db:skills:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
 ```
 
 ## Current Known Risks

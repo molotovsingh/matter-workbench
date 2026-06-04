@@ -50,6 +50,10 @@ MWB_DATABASE_URL="postgres://..." npm run db:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect -- --matter "Atlas"
+npm run db:skills:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -80,6 +84,18 @@ hydration and exits non-zero if any tenant-scoped control-plane count diverges.
 matter control-plane summaries from Postgres using the local shadow tenant
 context. Pass `-- --matter "name fragment"` to inspect one matter family without
 switching app runtime reads to the database.
+
+`db:skills:hydrate:dry-run` rehearses app-level skill factory hydration from the
+local JSON stores: `skill-ideas.json`, `skill-samples.json`,
+`configurable-skills.json`, and `configurable-skill-runs.json`. It plans skill
+ideas, generated samples, configurable skills, skill versions, and run receipts.
+It stores hashes/object-key style references for sample Markdown rather than
+putting sample work product into Postgres.
+
+`db:skills:hydrate`, `db:skills:hydrate:verify`, and
+`db:skills:shadow:inspect` are the write, count-check, and read-only inspection
+counterparts for that skill-factory shadow data. They are still shadow-only and
+do not make the app read custom skills from Postgres.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file
