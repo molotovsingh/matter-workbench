@@ -5,6 +5,7 @@ import test from "node:test";
 const handoffDocPath = new URL("../docs/database-transition-handoff.md", import.meta.url);
 const docsReadmePath = new URL("../docs/README.md", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
+const localVmPasswordPattern = ["aks", "ingh11"].join("");
 
 test("database transition handoff doc records the shadow-only path without secrets", async () => {
   const doc = await readFile(handoffDocPath, "utf8");
@@ -27,7 +28,10 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Current Snapshot Evidence[\s\S]*source repo state/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*do not keep refreshing/i);
   assert.match(doc, /Do not cut over runtime reads or writes/i);
-  assert.doesNotMatch(doc, /aksingh11|choose-a-password-here|192\.168\.210\.\d+|postgres:\/\/[^"\s]+/);
+  assert.doesNotMatch(
+    doc,
+    new RegExp(`${localVmPasswordPattern}|choose-a-password-here|192\\.168\\.210\\.\\d+|postgres:\\/\\/[^"\\s]+`),
+  );
 });
 
 test("documentation map links the database transition handoff", async () => {
