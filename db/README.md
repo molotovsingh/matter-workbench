@@ -182,6 +182,8 @@ provider runs, provider-backed jobs, costs, and audit events. Apply and verify
 modes run a read-only `db:doctor` preflight first, stop before writes unless the
 doctor reports `ready_to_hydrate: yes`, and then finish with
 `db:shadow:report`. These commands still do not make the app read from Postgres.
+If a failed stage stops the shortcut, the rendered result includes redacted
+stdout/stderr snippets for operator handoff debugging.
 
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,

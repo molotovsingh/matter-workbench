@@ -146,6 +146,37 @@ test("shadow hydration pipeline stops at the first failed step", async () => {
   assert.doesNotMatch(JSON.stringify(result), /secret/);
 });
 
+test("shadow hydration pipeline preserves redacted failure evidence for handoff debugging", async () => {
+  const {
+    parseArgs,
+    runShadowHydrationPipeline,
+    renderShadowHydrationPipelineResult,
+  } = await import(pipelinePath.href);
+  const calls = [];
+
+  const result = runShadowHydrationPipeline({
+    args: parseArgs(["--verify"]),
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    spawn: fakeSpawn(calls, {
+      failScript: "db:jobs:hydrate:verify",
+      failStdout: "checked postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+      failStderr: "provider error secret token",
+    }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.failedStep.script, "db:jobs:hydrate:verify");
+  assert.match(result.failedStep.stdout, /postgres:\/\/mwb_user:\*\*\*@db\.example/);
+  assert.match(result.failedStep.stderr, /provider error \*\*\* token/);
+  assert.doesNotMatch(JSON.stringify(result), /secret|matter_workbench_shadow/);
+
+  const rendered = renderShadowHydrationPipelineResult(result).join("\n");
+  assert.match(rendered, /db:jobs:hydrate:verify: failed/);
+  assert.match(rendered, /stdout: checked postgres:\/\/mwb_user:\*\*\*@db\.example/);
+  assert.match(rendered, /stderr: provider error \*\*\* token/);
+  assert.doesNotMatch(rendered, /secret|matter_workbench_shadow/);
+});
+
 test("package and database docs expose all-shadow hydration commands", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
 
@@ -157,9 +188,10 @@ test("package and database docs expose all-shadow hydration commands", async () 
   assert.match(readme, /npm run db:shadow:hydrate:dry-run/);
   assert.match(readme, /npm run db:shadow:hydrate:verify/);
   assert.match(readme, /db:doctor.*preflight/i);
+  assert.match(readme, /failed stage[\s\S]*redacted/i);
 });
 
-function fakeSpawn(calls, { failScript = "" } = {}) {
+function fakeSpawn(calls, { failScript = "", failStdout = "", failStderr = "failed with secret" } = {}) {
   return (command, args, options = {}) => {
     const scriptIndex = args.indexOf("run") + 1;
     const script = args[scriptIndex];
@@ -172,7 +204,7 @@ function fakeSpawn(calls, { failScript = "" } = {}) {
       };
     }
     if (script === failScript) {
-      return { status: 1, stdout: "", stderr: "failed with secret" };
+      return { status: 1, stdout: failStdout, stderr: failStderr };
     }
     return { status: 0, stdout: `${script}: ok\n`, stderr: "" };
   };

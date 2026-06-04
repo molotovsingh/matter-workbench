@@ -134,6 +134,12 @@ function buildStep({ script, result, okOverride, fallbackError = "" }) {
   };
   if (result.error) step.error = redactSecret(result.error.message);
   else if (!ok && fallbackError) step.error = redactSecret(fallbackError);
+  if (!ok) {
+    const stdout = compactOutput(result.stdout);
+    const stderr = compactOutput(result.stderr);
+    if (stdout) step.stdout = stdout;
+    if (stderr) step.stderr = stderr;
+  }
   return step;
 }
 
@@ -146,14 +152,22 @@ export function renderShadowHydrationPipelineResult(result = {}) {
   ];
   for (const step of result.steps || []) {
     lines.push(`  ${step.script}: ${step.ok ? "ok" : "failed"}`);
+    if (!step.ok && step.stdout) lines.push(`    stdout: ${step.stdout}`);
+    if (!step.ok && step.stderr) lines.push(`    stderr: ${step.stderr}`);
+    if (!step.ok && step.error) lines.push(`    error: ${step.error}`);
   }
   if (result.failedStep) lines.push(`failed_step: ${result.failedStep.script}`);
   return lines;
 }
 
+function compactOutput(value) {
+  return redactSecret(String(value || "").trim().replace(/\s+/g, " ")).slice(0, 500);
+}
+
 function redactSecret(value) {
   return String(value || "")
-    .replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@")
+    .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@([^/\s]+)\/[^\s]+/g, "postgres://$1:***@$3")
+    .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@/g, "postgres://$1:***@")
     .replace(/secret/gi, "***");
 }
 
