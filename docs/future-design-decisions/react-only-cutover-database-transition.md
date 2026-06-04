@@ -161,6 +161,7 @@ npm run db:skills:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
@@ -183,6 +184,11 @@ The `db:skills:*` commands perform the same shadow-only rehearsal for app-level
 skill factory ledgers: skill ideas, skill samples, configurable skills,
 versions, and custom-skill run receipts. Sample Markdown is represented by hash
 and object-key style metadata rather than inline legal work product.
+
+`db:shadow:report` is the combined read-only report. It verifies and inspects
+both matter metadata and skill-factory metadata from the same tenant-scoped
+shadow database, so handoff review does not require stitching together separate
+matter and skill command outputs.
 
 ## Stop Rule
 

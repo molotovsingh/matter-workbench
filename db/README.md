@@ -54,6 +54,7 @@ npm run db:skills:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -96,6 +97,11 @@ putting sample work product into Postgres.
 `db:skills:shadow:inspect` are the write, count-check, and read-only inspection
 counterparts for that skill-factory shadow data. They are still shadow-only and
 do not make the app read custom skills from Postgres.
+
+`db:shadow:report` is the one-command read-only operator view. It verifies and
+inspects both matter control-plane rows and skill-factory rows, then prints a
+single summary of what the shadow database currently mirrors. Pass
+`-- --matter "name fragment"` or `-- --slash "/the_story"` to narrow the report.
 
 `db:migrate` requires `psql` and records applied migrations in
 `schema_migrations` with SHA-256 checksums. If an already-applied migration file

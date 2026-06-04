@@ -585,6 +585,7 @@ npm run db:skills:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:skills:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:skills:shadow:inspect
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
 It uses `psql` rather than adding a Postgres client library to the app runtime.
@@ -624,6 +625,12 @@ database, and `db:skills:hydrate:verify` checks that row counts match. This
 matters because custom skills are not just UI preferences; they are user-shaped
 workflow behavior. The database should learn to preserve them before the app
 ever depends on it.
+
+`db:shadow:report` is the useful operator shortcut once both tracks have been
+hydrated. It asks the shadow database two questions in one pass: do the row
+counts still match the local plans, and what matter/skill summaries are
+actually visible through the tenant-scoped database reads? Think of it as the
+dashboard check before a developer says "the database mirror is sane."
 
 One design choice is worth noticing: sample Markdown is not inserted as a giant
 inline blob. The shadow row stores a hash and object-key style pointer. That is
