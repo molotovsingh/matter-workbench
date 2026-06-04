@@ -6,6 +6,7 @@ react-ui/node_modules/
 .env.*
 !.env.example
 .envrc
+.direnv/
 .npm-cache/
 .playwright-cli/
 .local/
