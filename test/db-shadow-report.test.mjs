@@ -6,7 +6,7 @@ const reportPath = new URL("../scripts/db-shadow-report.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 
-test("shadow DB report combines matter, skill, advisory, and storage verification without leaking the database URL", async () => {
+test("shadow DB report combines matter, skill, advisory, storage, and provider-run verification without leaking the database URL", async () => {
   const {
     buildShadowDbReport,
     renderShadowDbReport,
@@ -30,6 +30,10 @@ test("shadow DB report combines matter, skill, advisory, and storage verificatio
     storagePlan: {
       tenant: { id: "tenant_local_shadow" },
       plannedRows: { storageObjects: 3 },
+    },
+    providerRunPlan: {
+      tenant: { id: "tenant_local_shadow" },
+      plannedRows: { providerRuns: 2 },
     },
     verifyMatter: ({ databaseUrl, plan }) => {
       calls.push(["verifyMatter", databaseUrl, plan.tenant.id]);
@@ -132,6 +136,25 @@ test("shadow DB report combines matter, skill, advisory, and storage verificatio
         totals: { storageObjects: 3 },
       };
     },
+    verifyProviderRuns: ({ databaseUrl, plan }) => {
+      calls.push(["verifyProviderRuns", databaseUrl, plan.tenant.id]);
+      return {
+        matched: true,
+        expected: { provider_runs: 2, skill_sample_ai_run_links: 1 },
+        counts: { provider_runs: 2, skill_sample_ai_run_links: 1 },
+        mismatches: [],
+      };
+    },
+    inspectProviderRuns: ({ databaseUrl, plan }) => {
+      calls.push(["inspectProviderRuns", databaseUrl, plan.tenant.id]);
+      return {
+        groups: [
+          { taskClass: "native_source_skill", provider: "openrouter", model: "openai/gpt-4.1", count: 1 },
+          { taskClass: "skill_creation", provider: "openai-direct", model: "gpt-5.4", count: 1 },
+        ],
+        totals: { providerRuns: 2 },
+      };
+    },
   });
 
   assert.equal(report.matched, true);
@@ -139,6 +162,7 @@ test("shadow DB report combines matter, skill, advisory, and storage verificatio
   assert.equal(report.skills.verification.matched, true);
   assert.equal(report.advisory.verification.matched, true);
   assert.equal(report.storage.verification.matched, true);
+  assert.equal(report.providerRuns.verification.matched, true);
   assert.equal(report.matter.inspection.matters[0].matterName, "Atlas Construction vs Diptishree");
   assert.equal(report.skills.inspection.skills[0].slash, "/the_story");
   assert.deepEqual(calls.map((call) => call[0]), [
@@ -150,6 +174,8 @@ test("shadow DB report combines matter, skill, advisory, and storage verificatio
     "inspectAdvisory",
     "verifyStorage",
     "inspectStorage",
+    "verifyProviderRuns",
+    "inspectProviderRuns",
   ]);
   assert.doesNotMatch(JSON.stringify(report), /secret|db\.example|matter_workbench_shadow/);
 
@@ -160,11 +186,14 @@ test("shadow DB report combines matter, skill, advisory, and storage verificatio
   assert.match(rendered, /skill_counts: matched/);
   assert.match(rendered, /advisory_counts: matched/);
   assert.match(rendered, /storage_counts: matched/);
+  assert.match(rendered, /provider_run_counts: matched/);
   assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2/);
   assert.match(rendered, /\/the_story The Story status=active versions=1 runs=2/);
   assert.match(rendered, /Atlas Construction vs Diptishree blockers=0 warnings=2 info=0 incidents=2/);
   assert.match(rendered, /source_original: 1/);
   assert.match(rendered, /source_working_copy: 1/);
+  assert.match(rendered, /native_source_skill openrouter\/openai\/gpt-4.1: 1/);
+  assert.match(rendered, /skill_creation openai-direct\/gpt-5.4: 1/);
 });
 
 test("package and database docs expose the combined shadow DB report command", async () => {

@@ -24,6 +24,11 @@ import {
   inspectLocalStorageHydration,
   verifyLocalStorageHydration,
 } from "./db-hydrate-local-storage.mjs";
+import {
+  collectLocalProviderRunHydrationPlan,
+  inspectLocalProviderRunHydration,
+  verifyLocalProviderRunHydration,
+} from "./db-hydrate-local-provider-runs.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -78,10 +83,12 @@ export async function buildShadowDbReport({
   skillPlan,
   advisoryPlan,
   storagePlan,
+  providerRunPlan,
   collectMatterPlan = collectLocalMatterHydrationPlan,
   collectSkillPlan = collectLocalSkillHydrationPlan,
   collectAdvisoryPlan = collectLocalAdvisoryHydrationPlan,
   collectStoragePlan = collectLocalStorageHydrationPlan,
+  collectProviderRunPlan = collectLocalProviderRunHydrationPlan,
   verifyMatter = verifyLocalMatterHydration,
   inspectMatter = inspectLocalMatterHydration,
   verifySkill = verifyLocalSkillHydration,
@@ -90,6 +97,8 @@ export async function buildShadowDbReport({
   inspectAdvisory = inspectLocalAdvisoryHydration,
   verifyStorage = verifyLocalStorageHydration,
   inspectStorage = inspectLocalStorageHydration,
+  verifyProviderRuns = verifyLocalProviderRunHydration,
+  inspectProviderRuns = inspectLocalProviderRunHydration,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before running the shadow DB report.");
 
@@ -97,6 +106,7 @@ export async function buildShadowDbReport({
   const resolvedSkillPlan = skillPlan || await collectSkillPlan({ appDir, mattersHome });
   const resolvedAdvisoryPlan = advisoryPlan || await collectAdvisoryPlan({ appDir, mattersHome, matter: matterQuery });
   const resolvedStoragePlan = storagePlan || await collectStoragePlan({ appDir, mattersHome });
+  const resolvedProviderRunPlan = providerRunPlan || await collectProviderRunPlan({ appDir, mattersHome });
   const matterVerification = verifyMatter({ databaseUrl, plan: resolvedMatterPlan });
   const matterInspection = inspectMatter({ databaseUrl, plan: resolvedMatterPlan, matterQuery });
   const skillVerification = verifySkill({ databaseUrl, plan: resolvedSkillPlan });
@@ -105,9 +115,17 @@ export async function buildShadowDbReport({
   const advisoryInspection = inspectAdvisory({ databaseUrl, plan: resolvedAdvisoryPlan });
   const storageVerification = verifyStorage({ databaseUrl, plan: resolvedStoragePlan });
   const storageInspection = inspectStorage({ databaseUrl, plan: resolvedStoragePlan });
+  const providerRunVerification = verifyProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
+  const providerRunInspection = inspectProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
 
   return {
-    matched: Boolean(matterVerification.matched && skillVerification.matched && advisoryVerification.matched && storageVerification.matched),
+    matched: Boolean(
+      matterVerification.matched
+      && skillVerification.matched
+      && advisoryVerification.matched
+      && storageVerification.matched
+      && providerRunVerification.matched
+    ),
     filters: {
       matter: matterQuery || "",
       slash: slashQuery || "",
@@ -127,6 +145,10 @@ export async function buildShadowDbReport({
     storage: {
       verification: storageVerification,
       inspection: storageInspection,
+    },
+    providerRuns: {
+      verification: providerRunVerification,
+      inspection: providerRunInspection,
     },
   };
 }
@@ -201,6 +223,18 @@ export function renderShadowDbReport(report = {}) {
     lines.push(`  ${role.objectRole}: ${role.count}`);
   }
   if (!report.storage?.inspection?.roles?.length) lines.push("  (none)");
+
+  lines.push(`provider_run_counts: ${report.providerRuns?.verification?.matched ? "matched" : "mismatch"}`);
+  appendCounts(lines, report.providerRuns?.verification);
+  appendMismatches(lines, report.providerRuns?.verification);
+  const providerRunTotals = report.providerRuns?.inspection?.totals || {};
+  lines.push("provider_run_totals:");
+  lines.push(`  provider_runs: ${providerRunTotals.providerRuns || 0}`);
+  lines.push("provider_run_groups:");
+  for (const group of report.providerRuns?.inspection?.groups || []) {
+    lines.push(`  ${group.taskClass} ${group.provider}/${group.model}: ${group.count}`);
+  }
+  if (!report.providerRuns?.inspection?.groups?.length) lines.push("  (none)");
 
   return lines;
 }

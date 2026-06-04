@@ -468,6 +468,7 @@ function normalizeSample({ sample = {}, matterIndex, tenantId }) {
     designBriefHash: stringValue(sample.designBriefHash),
     sampleMarkdownObjectKey: sampleMarkdown ? `local-skill-samples/${stringValue(sample.id || sample.sample_id)}.md` : "",
     sampleHash: sampleMarkdown ? sha256(sampleMarkdown) : "",
+    aiRun: normalizeAiRun(sample.aiRun || sample.ai_run || sample.rawSample?.ai_run),
     feedback: stringValue(sample.feedback, 2000),
     warnings: normalizeWarnings(sample.warnings),
     rawSample: omitWorkProduct({
@@ -562,6 +563,28 @@ function normalizeRun({ run = {}, skillByLocalId, matterIndex, tenantId }) {
     finishedAt: timestampOrEmpty(run.finishedAt),
     errorCode: status === "failed" ? "local_skill_run_failed" : "",
     errorMessage: stringValue(run.errorMessage, 800),
+    aiRun: normalizeAiRun(run.aiRun || run.ai_run),
+  };
+}
+
+function normalizeAiRun(value) {
+  const source = objectValue(value);
+  const usage = objectValue(source.usage);
+  return {
+    provider: stringValue(source.provider),
+    model: stringValue(source.model),
+    task: stringValue(source.task),
+    policyPromptVersion: stringValue(source.policyPromptVersion),
+    policyVersion: stringValue(source.policyVersion),
+    promptVersion: stringValue(source.promptVersion),
+    returnedModel: stringValue(source.returnedModel),
+    returnedProvider: stringValue(source.returnedProvider),
+    usage: {
+      promptTokens: positiveIntegerOrNull(usage.promptTokens ?? usage.inputTokens),
+      completionTokens: positiveIntegerOrNull(usage.completionTokens ?? usage.outputTokens),
+      totalTokens: positiveIntegerOrNull(usage.totalTokens),
+      cost: numberOrNull(usage.cost ?? usage.costAmount),
+    },
   };
 }
 
@@ -748,6 +771,16 @@ function timestampOrEmpty(value) {
 function positiveInteger(value, fallback = 1) {
   const number = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function positiveIntegerOrNull(value) {
+  const number = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function deterministicUuid(seed) {

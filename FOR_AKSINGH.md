@@ -593,6 +593,10 @@ npm run db:storage:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
+npm run db:provider-runs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -643,10 +647,10 @@ view over those facts.
 
 `db:shadow:report` is the useful operator shortcut once these tracks have been
 hydrated. It asks the shadow database two questions in one pass: do the row
-counts still match the local plans, and what matter, skill, advisory, and
-storage-custody summaries are actually visible through the tenant-scoped
-database reads? Think of it as the dashboard check before a developer says "the
-database mirror is sane."
+counts still match the local plans, and what matter, skill, advisory,
+storage-custody, and provider-run summaries are actually visible through the
+tenant-scoped database reads? Think of it as the dashboard check before a
+developer says "the database mirror is sane."
 
 The storage rehearsal is the bridge from "database knows the matter" to
 "database knows where the matter's files live." `db:storage:hydrate:dry-run`
@@ -662,6 +666,13 @@ inline blob. The shadow row stores a hash and object-key style pointer. That is
 the same discipline we want for matter artifacts: the database owns identity,
 relationships, status, and receipts; bulky legal work product remains a file or
 object-storage payload.
+
+The provider-run rehearsal extends the same discipline to AI calls. The shadow
+database now learns "which provider/model/task ran, what status it had, and what
+artifact/sample/run it belongs to." It does not learn the prompt, the bounded
+matter packet, the model's full output, or the generated legal work product. In
+plain language: Postgres is learning the flight log, not swallowing the case
+file.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

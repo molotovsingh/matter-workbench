@@ -169,6 +169,10 @@ npm run db:storage:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:storage:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
+npm run db:provider-runs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -205,11 +209,18 @@ payloads, matter artifacts, and skill samples to storage-object rows. They do no
 upload source documents or generated work product, and they do not make the app
 read from object storage.
 
+The `db:provider-runs:*` commands rehearse the AI run ledger from metadata
+already attached to source-backed artifacts, skill samples, and custom-skill run
+receipts. They mirror provider, model, task class, status, token, and cost
+metadata where available, then link each run back to its artifact, sample, or
+custom-skill run. They do not copy prompts, context packets, model outputs, or
+generated legal work product into Postgres.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
-matter metadata, skill-factory metadata, advisory snapshots, and storage-custody
-rows from the same tenant-scoped shadow database, so handoff review does not
-require stitching together separate matter, skill, advisory, and storage command
-outputs.
+matter metadata, skill-factory metadata, advisory snapshots, storage-custody
+rows, and provider-run links from the same tenant-scoped shadow database, so
+handoff review does not require stitching together separate matter, skill,
+advisory, storage, and provider-run command outputs.
 
 ## Stop Rule
 

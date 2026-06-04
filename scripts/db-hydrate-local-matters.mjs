@@ -589,10 +589,14 @@ async function summarizeMatter(matterRoot) {
       sourceIndex: {
         present: sourceIndexPresent,
         path: sourceIndexPresent ? SOURCE_INDEX_RELATIVE.replaceAll(path.sep, "/") : "",
+        generatedAt: timestampOrEmpty(sourceIndex?.generated_at),
+        aiRun: normalizeAiRun(sourceIndex?.ai_run),
       },
       listOfDates: {
         present: listOfDatesPresent,
         path: listOfDatesPresent ? LIST_OF_DATES_JSON_RELATIVE.replaceAll(path.sep, "/") : "",
+        generatedAt: timestampOrEmpty(listOfDates?.generated_at),
+        aiRun: normalizeAiRun(listOfDates?.ai_run),
       },
     },
     warnings,
@@ -727,6 +731,27 @@ function normalizeExtractionRow({ row, matterId, intakeId }) {
   };
 }
 
+function normalizeAiRun(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const usage = source.usage && typeof source.usage === "object" && !Array.isArray(source.usage) ? source.usage : {};
+  return {
+    provider: stringValue(source.provider),
+    model: stringValue(source.model),
+    task: stringValue(source.task),
+    policyPromptVersion: stringValue(source.policyPromptVersion),
+    policyVersion: stringValue(source.policyVersion),
+    promptVersion: stringValue(source.promptVersion),
+    returnedModel: stringValue(source.returnedModel),
+    returnedProvider: stringValue(source.returnedProvider),
+    usage: {
+      promptTokens: positiveIntegerOrNull(usage.promptTokens ?? usage.inputTokens),
+      completionTokens: positiveIntegerOrNull(usage.completionTokens ?? usage.outputTokens),
+      totalTokens: positiveIntegerOrNull(usage.totalTokens),
+      cost: numberOrNull(usage.cost ?? usage.costAmount),
+    },
+  };
+}
+
 function normalizeSourceDescriptorRows({ sourceDescriptors, matterId, documents, extractions }) {
   return sourceDescriptors.map((source, index) => {
     const fileId = stringValue(source.file_id) || stringValue(source.source_id);
@@ -764,6 +789,18 @@ function fileNumber(fileId) {
 function positiveIntegerOrNull(value) {
   const number = Number.parseInt(String(value || ""), 10);
   return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function timestampOrEmpty(value) {
+  const text = stringValue(value);
+  if (!text) return "";
+  const time = Date.parse(text);
+  return Number.isFinite(time) ? new Date(time).toISOString() : "";
 }
 
 function validDateOrNull(value) {
