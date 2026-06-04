@@ -252,6 +252,15 @@ test("database transition docs expose the read-only doctor command", async () =>
   assert.match(await readFile(transitionDocPath, "utf8"), /npm run db:doctor/);
 });
 
+test("database transition docs describe shadow snapshot freshness limits", async () => {
+  const transitionDoc = await readFile(transitionDocPath, "utf8");
+
+  assert.match(transitionDoc, /db:shadow:snapshot[\s\S]*one[- ]run evidence/i);
+  assert.match(transitionDoc, /db:shadow:snapshot[\s\S]*not live truth/i);
+  assert.match(transitionDoc, /db:shadow:snapshot[\s\S]*repo changes/i);
+  assert.match(transitionDoc, /db:shadow:snapshot[\s\S]*local matter/i);
+});
+
 test("database transition docs list every preparatory migration", async () => {
   const docs = [
     await readFile(readmePath, "utf8"),

@@ -268,7 +268,9 @@ cost, and audit command outputs.
 JSON files under `docs/shadow-db-snapshots/`. This is the handoff artifact for
 the shadow database track: it lets a developer inspect exactly what the VM
 shadow database mirrored at a point in time, without making Postgres the runtime
-backend.
+backend. Treat each snapshot as one-run evidence, not live truth. Refresh it
+after meaningful repo changes, local matter folder or skill-ledger changes, or
+another shadow hydration / verify pass.
 
 ## Stop Rule
 
