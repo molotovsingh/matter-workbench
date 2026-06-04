@@ -66,3 +66,13 @@ test("repo-local private key material is ignored", async () => {
   assert.equal(await isIgnored("cert.p12"), true);
   assert.equal(await isIgnored("cert.pfx"), true);
 });
+
+test("repo-local cloud credential stores are ignored", async () => {
+  assert.equal(await isIgnored(".netrc"), true);
+  assert.equal(await isIgnored(".pypirc"), true);
+  assert.equal(await isIgnored(".aws/"), true);
+  assert.equal(await isIgnored(".gcloud/"), true);
+  assert.equal(await isIgnored(".azure/"), true);
+  assert.equal(await isIgnored(".kube/"), true);
+  assert.equal(await isIgnored(".docker/"), true);
+});

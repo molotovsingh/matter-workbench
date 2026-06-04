@@ -17,6 +17,13 @@ id_ed25519
 *.key
 *.p12
 *.pfx
+.netrc
+.pypirc
+.aws/
+.gcloud/
+.azure/
+.kube/
+.docker/
 .npm-cache/
 .playwright-cli/
 .local/
