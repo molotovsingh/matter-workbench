@@ -5,6 +5,9 @@ This folder is the preparatory database track for hosted beta.
 The local V1 app still runs from the filesystem-backed matter engines. These
 migrations do not switch live matter storage to Postgres.
 
+For the operator/developer handoff sequence, read
+[Database Transition Handoff](../docs/database-transition-handoff.md).
+
 ## Current Migrations
 
 - `001_control_plane.sql` creates the hosted control plane: tenants, matters,

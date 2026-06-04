@@ -675,6 +675,13 @@ database rehearsal matters, do not leave the evidence trapped in yesterday's
 terminal scrollback. Preserve a dated snapshot so the next developer can see
 what matched, what did not, and which mirror state you were talking about.
 
+`docs/database-transition-handoff.md` is the practical next-person note for
+this track. It says what to run, what the current snapshot means, and where the
+stop line is. The key lesson is that handoff is not only "here are the commands."
+It is also "here is what these commands do not prove yet." A good handoff
+protects the next engineer from accidentally treating a shadow mirror as a
+runtime database cutover.
+
 The storage rehearsal is the bridge from "database knows the matter" to
 "database knows where the matter's files live." `db:storage:hydrate:dry-run`
 does not open the original PDFs, emails, or spreadsheets. It reads the existing
