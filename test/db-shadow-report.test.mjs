@@ -6,7 +6,7 @@ const reportPath = new URL("../scripts/db-shadow-report.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 
-test("shadow DB report combines matter, skill, advisory, storage, provider-run, cost, and audit verification without leaking the database URL", async () => {
+test("shadow DB report combines matter, skill, advisory, storage, provider-run, job, cost, and audit verification without leaking the database URL", async () => {
   const {
     buildShadowDbReport,
     renderShadowDbReport,
@@ -34,6 +34,10 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
     providerRunPlan: {
       tenant: { id: "tenant_local_shadow" },
       plannedRows: { providerRuns: 2 },
+    },
+    jobPlan: {
+      tenant: { id: "tenant_local_shadow" },
+      plannedRows: { processingJobs: 2 },
     },
     costEventPlan: {
       tenant: { id: "tenant_local_shadow" },
@@ -163,6 +167,25 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
         totals: { providerRuns: 2 },
       };
     },
+    verifyJobs: ({ databaseUrl, plan }) => {
+      calls.push(["verifyJobs", databaseUrl, plan.tenant.id]);
+      return {
+        matched: true,
+        expected: { processing_jobs: 2, provider_run_job_links: 2 },
+        counts: { processing_jobs: 2, provider_run_job_links: 2 },
+        mismatches: [],
+      };
+    },
+    inspectJobs: ({ databaseUrl, plan }) => {
+      calls.push(["inspectJobs", databaseUrl, plan.tenant.id]);
+      return {
+        groups: [
+          { kind: "source_labels", status: "succeeded", count: 1 },
+          { kind: "custom_skill", status: "running", count: 1 },
+        ],
+        totals: { processingJobs: 2 },
+      };
+    },
     verifyCostEvents: ({ databaseUrl, plan }) => {
       calls.push(["verifyCostEvents", databaseUrl, plan.tenant.id]);
       return {
@@ -209,6 +232,7 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.equal(report.advisory.verification.matched, true);
   assert.equal(report.storage.verification.matched, true);
   assert.equal(report.providerRuns.verification.matched, true);
+  assert.equal(report.jobs.verification.matched, true);
   assert.equal(report.costEvents.verification.matched, true);
   assert.equal(report.auditEvents.verification.matched, true);
   assert.equal(report.matter.inspection.matters[0].matterName, "Atlas Construction vs Diptishree");
@@ -224,6 +248,8 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
     "inspectStorage",
     "verifyProviderRuns",
     "inspectProviderRuns",
+    "verifyJobs",
+    "inspectJobs",
     "verifyCostEvents",
     "inspectCostEvents",
     "verifyAuditEvents",
@@ -239,6 +265,7 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.match(rendered, /advisory_counts: matched/);
   assert.match(rendered, /storage_counts: matched/);
   assert.match(rendered, /provider_run_counts: matched/);
+  assert.match(rendered, /job_counts: matched/);
   assert.match(rendered, /cost_event_counts: matched/);
   assert.match(rendered, /audit_event_counts: matched/);
   assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2/);
@@ -248,6 +275,8 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.match(rendered, /source_working_copy: 1/);
   assert.match(rendered, /native_source_skill openrouter\/openai\/gpt-4.1: 1/);
   assert.match(rendered, /skill_creation openai-direct\/gpt-5.4: 1/);
+  assert.match(rendered, /source_labels succeeded: 1/);
+  assert.match(rendered, /custom_skill running: 1/);
   assert.match(rendered, /matter actual openrouter\/openai\/gpt-4.1: count=1 amount=0.04/);
   assert.match(rendered, /tenant unknown openai-direct\/gpt-5.4: count=1 amount=/);
   assert.match(rendered, /command\.sample_generated provider_invoked=true: 1/);

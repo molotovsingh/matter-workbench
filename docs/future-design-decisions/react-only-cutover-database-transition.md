@@ -173,6 +173,10 @@ npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:jobs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:shadow:inspect
 npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
@@ -224,6 +228,12 @@ metadata where available, then link each run back to its artifact, sample, or
 custom-skill run. They do not copy prompts, context packets, model outputs, or
 generated legal work product into Postgres.
 
+The `db:jobs:*` commands rehearse `processing_jobs` only where the local record
+has enough evidence: provider-run-backed work. They create shadow jobs for
+source labels, List of Dates, skill creation, and skill execution, then link
+`provider_runs.job_id`. They do not backfill a `job_outbox` or pretend local V1
+had a durable hosted queue.
+
 The `db:costs:*` commands rehearse cost-governance rows from the provider-run
 shadow ledger. They preserve known token and cost values where available, and
 record `unknown` confidence where the local metadata does not know spend. This
@@ -239,10 +249,10 @@ rehearsal, not a chat transcript database.
 
 `db:shadow:report` is the combined read-only report. It verifies and inspects
 matter metadata, skill-factory metadata, advisory snapshots, storage-custody
-rows, provider-run links, cost-event rows, and audit-event rows from the same
-tenant-scoped shadow database, so handoff review does not require stitching
-together separate matter, skill, advisory, storage, provider-run, cost, and audit
-command outputs.
+rows, provider-run links, job links, cost-event rows, and audit-event rows from
+the same tenant-scoped shadow database, so handoff review does not require
+stitching together separate matter, skill, advisory, storage, provider-run, job,
+cost, and audit command outputs.
 
 ## Stop Rule
 

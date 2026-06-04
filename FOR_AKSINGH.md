@@ -597,6 +597,10 @@ npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:jobs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:shadow:inspect
 npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
@@ -681,6 +685,15 @@ artifact/sample/run it belongs to." It does not learn the prompt, the bounded
 matter packet, the model's full output, or the generated legal work product. In
 plain language: Postgres is learning the flight log, not swallowing the case
 file.
+
+The job rehearsal is narrower than a full hosted worker system, and that is
+intentional. Local V1 did not have a durable job queue; it ran many things in the
+foreground. So `db:jobs:hydrate` only creates shadow `processing_jobs` where a
+provider run already proves that a unit of work happened. Source labels, List of
+Dates, skill samples, and custom-skill runs can get job rows. The app does not
+invent historical outbox events. Good engineers are careful with history: when
+the record is strong, mirror it; when the record is weak, mark the gap instead
+of making up a neat story.
 
 The cost-event rehearsal is one layer above that flight log. For every mirrored
 provider run, the shadow database records a cost event with the known token and

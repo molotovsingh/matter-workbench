@@ -66,6 +66,10 @@ npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:jobs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:shadow:inspect
 npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
@@ -140,6 +144,13 @@ custom-skill run receipts. It stores provider/model/task/status/token/cost
 metadata where available, and links rows back to the owning artifact, sample, or
 run. It does not store prompts, context packets, model outputs, or generated
 legal work product.
+
+`db:jobs:hydrate:dry-run` rehearses the processing-job ledger only where local
+evidence already exists: mirrored provider runs. It creates completed/running
+shadow `processing_jobs` rows for provider-backed source-label, List of Dates,
+skill-creation, and skill-execution work, then links `provider_runs.job_id`.
+It deliberately does not invent `job_outbox` rows or a full historical
+preparation queue, because local V1 does not have a durable worker queue ledger.
 
 `db:costs:hydrate:dry-run` rehearses cost-governance rows derived from the
 provider-run shadow plan. It creates one shadow `cost_events` row per mirrored

@@ -230,6 +230,9 @@ MWB_DATABASE_URL="postgres://..." npm run db:storage:shadow:inspect
 npm run db:provider-runs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:provider-runs:shadow:inspect
+npm run db:jobs:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:jobs:shadow:inspect
 npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect

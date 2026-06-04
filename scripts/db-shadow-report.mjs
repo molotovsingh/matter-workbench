@@ -30,6 +30,11 @@ import {
   verifyLocalProviderRunHydration,
 } from "./db-hydrate-local-provider-runs.mjs";
 import {
+  collectLocalJobHydrationPlan,
+  inspectLocalJobHydration,
+  verifyLocalJobHydration,
+} from "./db-hydrate-local-jobs.mjs";
+import {
   buildShadowCostEventPlan,
   collectLocalCostEventHydrationPlan,
   inspectLocalCostEventHydration,
@@ -95,6 +100,7 @@ export async function buildShadowDbReport({
   advisoryPlan,
   storagePlan,
   providerRunPlan,
+  jobPlan,
   costEventPlan,
   auditEventPlan,
   collectMatterPlan = collectLocalMatterHydrationPlan,
@@ -102,6 +108,7 @@ export async function buildShadowDbReport({
   collectAdvisoryPlan = collectLocalAdvisoryHydrationPlan,
   collectStoragePlan = collectLocalStorageHydrationPlan,
   collectProviderRunPlan = collectLocalProviderRunHydrationPlan,
+  collectJobPlan = collectLocalJobHydrationPlan,
   collectCostEventPlan = collectLocalCostEventHydrationPlan,
   collectAuditEventPlan = collectLocalAuditEventHydrationPlan,
   verifyMatter = verifyLocalMatterHydration,
@@ -114,6 +121,8 @@ export async function buildShadowDbReport({
   inspectStorage = inspectLocalStorageHydration,
   verifyProviderRuns = verifyLocalProviderRunHydration,
   inspectProviderRuns = inspectLocalProviderRunHydration,
+  verifyJobs = verifyLocalJobHydration,
+  inspectJobs = inspectLocalJobHydration,
   verifyCostEvents = verifyLocalCostEventHydration,
   inspectCostEvents = inspectLocalCostEventHydration,
   verifyAuditEvents = verifyLocalAuditEventHydration,
@@ -126,6 +135,12 @@ export async function buildShadowDbReport({
   const resolvedAdvisoryPlan = advisoryPlan || await collectAdvisoryPlan({ appDir, mattersHome, matter: matterQuery });
   const resolvedStoragePlan = storagePlan || await collectStoragePlan({ appDir, mattersHome });
   const resolvedProviderRunPlan = providerRunPlan || await collectProviderRunPlan({ appDir, mattersHome });
+  const resolvedJobPlan = jobPlan || await collectJobPlan({
+    appDir,
+    mattersHome,
+    matterPlan: resolvedMatterPlan,
+    providerRunPlan: resolvedProviderRunPlan,
+  });
   const resolvedCostEventPlan = costEventPlan || (
     providerRunPlan
       ? buildShadowCostEventPlan({ providerRunPlan: resolvedProviderRunPlan, appDir, mattersHome })
@@ -146,6 +161,8 @@ export async function buildShadowDbReport({
   const storageInspection = inspectStorage({ databaseUrl, plan: resolvedStoragePlan });
   const providerRunVerification = verifyProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
   const providerRunInspection = inspectProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
+  const jobVerification = verifyJobs({ databaseUrl, plan: resolvedJobPlan });
+  const jobInspection = inspectJobs({ databaseUrl, plan: resolvedJobPlan });
   const costEventVerification = verifyCostEvents({ databaseUrl, plan: resolvedCostEventPlan });
   const costEventInspection = inspectCostEvents({ databaseUrl, plan: resolvedCostEventPlan });
   const auditEventVerification = verifyAuditEvents({ databaseUrl, plan: resolvedAuditEventPlan });
@@ -158,6 +175,7 @@ export async function buildShadowDbReport({
       && advisoryVerification.matched
       && storageVerification.matched
       && providerRunVerification.matched
+      && jobVerification.matched
       && costEventVerification.matched
       && auditEventVerification.matched
     ),
@@ -184,6 +202,10 @@ export async function buildShadowDbReport({
     providerRuns: {
       verification: providerRunVerification,
       inspection: providerRunInspection,
+    },
+    jobs: {
+      verification: jobVerification,
+      inspection: jobInspection,
     },
     costEvents: {
       verification: costEventVerification,
@@ -278,6 +300,18 @@ export function renderShadowDbReport(report = {}) {
     lines.push(`  ${group.taskClass} ${group.provider}/${group.model}: ${group.count}`);
   }
   if (!report.providerRuns?.inspection?.groups?.length) lines.push("  (none)");
+
+  lines.push(`job_counts: ${report.jobs?.verification?.matched ? "matched" : "mismatch"}`);
+  appendCounts(lines, report.jobs?.verification);
+  appendMismatches(lines, report.jobs?.verification);
+  const jobTotals = report.jobs?.inspection?.totals || {};
+  lines.push("job_totals:");
+  lines.push(`  processing_jobs: ${jobTotals.processingJobs || 0}`);
+  lines.push("job_groups:");
+  for (const group of report.jobs?.inspection?.groups || []) {
+    lines.push(`  ${group.kind} ${group.status}: ${group.count}`);
+  }
+  if (!report.jobs?.inspection?.groups?.length) lines.push("  (none)");
 
   lines.push(`cost_event_counts: ${report.costEvents?.verification?.matched ? "matched" : "mismatch"}`);
   appendCounts(lines, report.costEvents?.verification);
