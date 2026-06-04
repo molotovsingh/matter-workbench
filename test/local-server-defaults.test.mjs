@@ -43,3 +43,11 @@ test("Mode A acceptance script uses the shared local server default", async () =
 
   assert.equal(report.baseUrl, DEFAULT_WORKBENCH_BASE_URL);
 });
+
+test("Mode A acceptance script source does not hard-code the old beta port default", async () => {
+  const source = await readFile(new URL("../scripts/v1-beta-mode-a-acceptance.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /DEFAULT_WORKBENCH_BASE_URL/);
+  assert.doesNotMatch(source, /baseUrl:\s*"http:\/\/127\.0\.0\.1:4191"/);
+  assert.doesNotMatch(source, /Default: http:\/\/127\.0\.0\.1:4191/);
+});
