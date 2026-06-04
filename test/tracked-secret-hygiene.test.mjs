@@ -56,3 +56,13 @@ test("repo-local Postgres credential helpers are ignored", async () => {
   assert.equal(await isIgnored(".pg_service.conf"), true);
   assert.equal(await isIgnored(".psql_history"), true);
 });
+
+test("repo-local private key material is ignored", async () => {
+  assert.equal(await isIgnored(".psqlrc"), true);
+  assert.equal(await isIgnored("id_rsa"), true);
+  assert.equal(await isIgnored("id_ed25519"), true);
+  assert.equal(await isIgnored("deploy.pem"), true);
+  assert.equal(await isIgnored("local.key"), true);
+  assert.equal(await isIgnored("cert.p12"), true);
+  assert.equal(await isIgnored("cert.pfx"), true);
+});

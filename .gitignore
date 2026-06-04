@@ -10,6 +10,13 @@ react-ui/node_modules/
 .pgpass
 .pg_service.conf
 .psql_history
+.psqlrc
+id_rsa
+id_ed25519
+*.pem
+*.key
+*.p12
+*.pfx
 .npm-cache/
 .playwright-cli/
 .local/
