@@ -76,3 +76,12 @@ test("repo-local cloud credential stores are ignored", async () => {
   assert.equal(await isIgnored(".kube/"), true);
   assert.equal(await isIgnored(".docker/"), true);
 });
+
+test("repo-local infrastructure state is ignored", async () => {
+  assert.equal(await isIgnored(".terraform/"), true);
+  assert.equal(await isIgnored("terraform.tfstate"), true);
+  assert.equal(await isIgnored("terraform.tfstate.backup"), true);
+  assert.equal(await isIgnored("secrets.auto.tfvars"), true);
+  assert.equal(await isIgnored("local.tfvars"), true);
+  assert.equal(await isIgnored(".pulumi/"), true);
+});

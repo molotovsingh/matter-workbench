@@ -24,6 +24,11 @@ id_ed25519
 .azure/
 .kube/
 .docker/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.pulumi/
 .npm-cache/
 .playwright-cli/
 .local/
