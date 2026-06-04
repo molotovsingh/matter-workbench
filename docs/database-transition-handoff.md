@@ -64,7 +64,9 @@ the worktree was clean when the report was generated.
 `db:doctor` is the first sanity check. If it reports `ready_to_apply: yes`, run
 the migrations before hydrating. If it reports `ready_to_hydrate: yes`, the
 schema is already settled and the next useful step is shadow hydration, report,
-or snapshot.
+or snapshot. The all-shadow apply and verify commands run this `db:doctor`
+preflight themselves and stop before writes unless the schema is ready to
+hydrate.
 
 ## Current Snapshot Evidence
 

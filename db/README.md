@@ -179,8 +179,9 @@ rows without changing the app runtime.
 `db:shadow:hydrate:verify` are operator shortcuts. They run the existing shadow
 hydrators in dependency order: matter metadata, skills, advisory, storage,
 provider runs, provider-backed jobs, costs, and audit events. Apply and verify
-modes finish with `db:shadow:report`. These commands still do not make the app
-read from Postgres.
+modes run a read-only `db:doctor` preflight first, stop before writes unless the
+doctor reports `ready_to_hydrate: yes`, and then finish with
+`db:shadow:report`. These commands still do not make the app read from Postgres.
 
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,

@@ -16,6 +16,7 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /npm run db:shadow:hydrate:verify/);
   assert.match(doc, /npm run db:shadow:snapshot/);
   assert.match(doc, /repo branch, short commit, and whether\s+the worktree was clean/i);
+  assert.match(doc, /db:doctor[\s\S]*preflight/i);
   assert.match(doc, /docs\/shadow-db-snapshots\/shadow-db-snapshot-2026-06-04T00-00-00-000Z\.md/);
   assert.match(doc, /Do not cut over runtime reads or writes/i);
   assert.doesNotMatch(doc, /aksingh11|choose-a-password-here|192\.168\.210\.\d+|postgres:\/\/[^"\s]+/);

@@ -67,20 +67,33 @@ export function runShadowHydrationPipeline({
   }
 
   const steps = [];
-  for (const script of scripts) {
-    const env = mode === "dry-run"
-      ? { ...process.env }
-      : { ...process.env, MWB_DATABASE_URL: databaseUrl };
-    const result = spawn("npm", ["run", script, "--silent"], {
-      encoding: "utf8",
-      env,
+  const env = mode === "dry-run"
+    ? { ...process.env }
+    : { ...process.env, MWB_DATABASE_URL: databaseUrl };
+
+  if (mode !== "dry-run") {
+    const doctor = runNpmScript("db:doctor", { spawn, env });
+    const readyToHydrate = /\bready_to_hydrate:\s*yes\b/i.test(doctor.stdout);
+    const doctorStep = buildStep({
+      script: "db:doctor",
+      result: doctor.result,
+      okOverride: readyToHydrate,
+      fallbackError: "shadow database is not ready to hydrate; run db:migrate first",
     });
-    const step = {
-      script,
-      status: Number(result.status) || 0,
-      ok: !result.error && Number(result.status) === 0,
-    };
-    if (result.error) step.error = redactSecret(result.error.message);
+    steps.push(doctorStep);
+    if (!doctorStep.ok) {
+      return {
+        mode,
+        success: false,
+        steps,
+        failedStep: doctorStep,
+      };
+    }
+  }
+
+  for (const script of scripts) {
+    const { result } = runNpmScript(script, { spawn, env });
+    const step = buildStep({ script, result });
     steps.push(step);
 
     if (!step.ok) {
@@ -99,6 +112,29 @@ export function runShadowHydrationPipeline({
     steps,
     failedStep: null,
   };
+}
+
+function runNpmScript(script, { spawn, env }) {
+  const result = spawn("npm", ["run", script, "--silent"], {
+    encoding: "utf8",
+    env,
+  });
+  return {
+    result,
+    stdout: String(result.stdout || ""),
+  };
+}
+
+function buildStep({ script, result, okOverride, fallbackError = "" }) {
+  const ok = !result.error && Number(result.status) === 0 && (okOverride === undefined || okOverride);
+  const step = {
+    script,
+    status: Number(result.status) || 0,
+    ok,
+  };
+  if (result.error) step.error = redactSecret(result.error.message);
+  else if (!ok && fallbackError) step.error = redactSecret(fallbackError);
+  return step;
 }
 
 export function renderShadowHydrationPipelineResult(result = {}) {
