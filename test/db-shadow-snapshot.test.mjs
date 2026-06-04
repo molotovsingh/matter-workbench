@@ -177,6 +177,16 @@ test("shadow DB snapshot folder docs describe the doctor preflight", async () =>
   assert.match(readme, /refuses to write/i);
 });
 
+test("shadow DB snapshot folder docs explain snapshot freshness limits", async () => {
+  const readme = await readFile(snapshotsReadmePath, "utf8");
+
+  assert.match(readme, /one[- ]run evidence/i);
+  assert.match(readme, /not live truth/i);
+  assert.match(readme, /refresh[\s\S]*repo/i);
+  assert.match(readme, /refresh[\s\S]*local matter/i);
+  assert.match(readme, /refresh[\s\S]*shadow hydration/i);
+});
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

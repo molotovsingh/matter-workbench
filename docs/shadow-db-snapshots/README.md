@@ -14,6 +14,12 @@ state that produced the report. It is evidence for a developer/operator that
 the Postgres shadow control-plane mirror currently matches, or does not match,
 the local filesystem-backed Matter Workbench state.
 
+Treat every snapshot as one-run evidence, not live truth. Refresh the snapshot
+after meaningful repo changes, local matter folder or skill-ledger changes, or a
+new shadow hydration / verify pass. The checked-in files are useful handoff
+evidence only when their repo provenance and generated-at time match the run you
+intend to discuss.
+
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight before writing files.
 It refuses to write snapshot files unless the doctor reports
 `ready_to_hydrate: yes`.
