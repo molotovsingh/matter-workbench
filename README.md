@@ -282,8 +282,14 @@ Before accepting changes from a frontend experiment repo, run:
 npm run ui:accept
 ```
 
-`ui:smoke` expects the backend and default React shell at
-`http://127.0.0.1:4191/`. For Vite dev-server testing, run:
+`ui:smoke` follows the plain `npm start` default backend at
+`http://127.0.0.1:4173/`. If you started the backend on `4191`, run:
+
+```bash
+MWB_BACKEND_URL=http://127.0.0.1:4191 MWB_UI_URL=http://127.0.0.1:4191/ npm run ui:smoke
+```
+
+For Vite dev-server testing, run:
 
 ```bash
 MWB_UI_URL=http://127.0.0.1:5173/react/ npm run ui:smoke

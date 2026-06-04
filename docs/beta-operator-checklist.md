@@ -77,13 +77,13 @@ The root path serves the React shell. `/react/` is only a compatibility alias.
 Run these before a serious test session:
 
 ```bash
-npm run ui:smoke --silent
+MWB_BACKEND_URL=http://127.0.0.1:4191 MWB_UI_URL=http://127.0.0.1:4191/ npm run ui:smoke --silent
 npm run db:doctor
 ```
 
 Expected posture:
 
-- `ui:smoke` should pass.
+- `ui:smoke` should pass against the same port where the app is running.
 - `db:doctor` may report that no database URL is configured. That is acceptable
   for local beta because the database is not yet the runtime backend.
 - Settings in the app should show provider routes clearly and should not expose
@@ -199,7 +199,7 @@ If the app appears stuck:
 2. Refresh the browser once.
 3. Check Recent Activity and Preparation Advisory.
 4. Restart the server with `PORT=4191 npm start`.
-5. Rerun `npm run ui:smoke --silent`.
+5. Rerun `MWB_BACKEND_URL=http://127.0.0.1:4191 MWB_UI_URL=http://127.0.0.1:4191/ npm run ui:smoke --silent`.
 6. Restore from matter-folder backup if a destructive test produced bad
    generated artifacts.
 

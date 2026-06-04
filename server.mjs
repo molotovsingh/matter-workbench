@@ -26,6 +26,7 @@ import { handleApiRequest } from "./routes/api-routes.mjs";
 import { sendJson } from "./routes/http-utils.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
+import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,8 +34,8 @@ const __dirname = path.dirname(__filename);
 export async function createWorkbenchServer(options = {}) {
   const appDir = options.appDir || __dirname;
   const env = options.env || (await loadLocalEnv({ appDir, override: true })).env;
-  const host = options.host || "127.0.0.1";
-  const port = Number(options.port ?? env.PORT ?? 4173);
+  const host = options.host || DEFAULT_WORKBENCH_HOST;
+  const port = Number(options.port ?? env.PORT ?? DEFAULT_WORKBENCH_PORT);
   const uiShell = "react";
 
   const configService = createConfigService({ appDir, env });
