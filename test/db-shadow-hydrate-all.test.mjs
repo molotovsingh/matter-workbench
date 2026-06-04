@@ -159,22 +159,26 @@ test("shadow hydration pipeline preserves redacted failure evidence for handoff 
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     spawn: fakeSpawn(calls, {
       failScript: "db:jobs:hydrate:verify",
-      failStdout: "checked postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-      failStderr: "provider error secret token",
+      failStdout: "checked postgres://mwb_user:secret@db.example/matter_workbench_shadow OPENAI_API_KEY=sk-test",
+      failStderr: "provider error secret token Authorization: Bearer sk-token",
     }),
   });
 
   assert.equal(result.success, false);
   assert.equal(result.failedStep.script, "db:jobs:hydrate:verify");
   assert.match(result.failedStep.stdout, /postgres:\/\/mwb_user:\*\*\*@db\.example/);
+  assert.match(result.failedStep.stdout, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.match(result.failedStep.stderr, /provider error \*\*\* token/);
-  assert.doesNotMatch(JSON.stringify(result), /secret|matter_workbench_shadow/);
+  assert.match(result.failedStep.stderr, /Bearer \[redacted-secret\]/);
+  assert.doesNotMatch(JSON.stringify(result), /matter_workbench_shadow|sk-test|sk-token|provider error secret|mwb_user:secret/);
 
   const rendered = renderShadowHydrationPipelineResult(result).join("\n");
   assert.match(rendered, /db:jobs:hydrate:verify: failed/);
   assert.match(rendered, /stdout: checked postgres:\/\/mwb_user:\*\*\*@db\.example/);
+  assert.match(rendered, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.match(rendered, /stderr: provider error \*\*\* token/);
-  assert.doesNotMatch(rendered, /secret|matter_workbench_shadow/);
+  assert.match(rendered, /Bearer \[redacted-secret\]/);
+  assert.doesNotMatch(rendered, /matter_workbench_shadow|sk-test|sk-token|provider error secret|mwb_user:secret/);
 });
 
 test("package and database docs expose all-shadow hydration commands", async () => {

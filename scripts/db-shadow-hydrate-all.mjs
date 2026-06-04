@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 
 const STEPS = {
@@ -165,10 +167,11 @@ function compactOutput(value) {
 }
 
 function redactSecret(value) {
-  return String(value || "")
+  const locallyRedacted = String(value || "")
     .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@([^/\s]+)\/[^\s]+/g, "postgres://$1:***@$3")
     .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@/g, "postgres://$1:***@")
     .replace(/secret/gi, "***");
+  return redactSensitiveText(locallyRedacted);
 }
 
 async function main() {
