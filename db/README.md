@@ -196,6 +196,9 @@ then prints a single summary of what the shadow database currently mirrors. Pass
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
 handoff artifact: the operator can hydrate or verify the VM shadow database,
 then preserve the exact mirror report without changing app runtime storage.
+Treat each snapshot as one-run evidence, not live truth. Refresh it after
+meaningful repo changes, local matter folder or skill-ledger changes, or another
+shadow hydration / verify pass.
 `db:shadow:snapshot` refuses to write handoff files unless its read-only
 `db:doctor` preflight reports `ready_to_hydrate: yes`.
 Pass `-- --out-dir /path/to/folder` to write the files somewhere else, or

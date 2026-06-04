@@ -168,6 +168,9 @@ test("package and database docs expose the shadow DB snapshot command", async ()
   assert.match(readme, /db:shadow:snapshot[\s\S]*db:doctor[\s\S]*preflight/i);
   assert.match(readme, /ready_to_hydrate:\s*yes/i);
   assert.match(readme, /refuses to write/i);
+  assert.match(readme, /db:shadow:snapshot[\s\S]*one[- ]run evidence/i);
+  assert.match(readme, /db:shadow:snapshot[\s\S]*repo changes/i);
+  assert.match(readme, /db:shadow:snapshot[\s\S]*local matter/i);
 });
 
 test("shadow DB snapshot folder docs describe the doctor preflight", async () => {
