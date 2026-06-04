@@ -6,6 +6,7 @@ const handoffDocPath = new URL("../docs/database-transition-handoff.md", import.
 const docsReadmePath = new URL("../docs/README.md", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 const localVmPasswordPattern = ["aks", "ingh11"].join("");
+const passwordPlaceholderPattern = ["choose", "a", "password", "here"].join("-");
 
 test("database transition handoff doc records the shadow-only path without secrets", async () => {
   const doc = await readFile(handoffDocPath, "utf8");
@@ -30,7 +31,7 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Do not cut over runtime reads or writes/i);
   assert.doesNotMatch(
     doc,
-    new RegExp(`${localVmPasswordPattern}|choose-a-password-here|192\\.168\\.210\\.\\d+|postgres:\\/\\/[^"\\s]+`),
+    new RegExp(`${localVmPasswordPattern}|${passwordPlaceholderPattern}|192\\.168\\.210\\.\\d+|postgres:\\/\\/[^"\\s]+`),
   );
 });
 

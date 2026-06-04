@@ -21,6 +21,8 @@ test("tracked files do not contain known local VM credentials", async () => {
   const trackedFiles = stdout.split("\n").filter(Boolean);
   const forbiddenPatterns = [
     ["local VM password", new RegExp(["aks", "ingh11"].join(""))],
+    ["password placeholder", new RegExp(["choose", "a", "password", "here"].join("-"))],
+    ["local VM subnet", /192\.168\.210\./],
   ];
   const matches = [];
 
