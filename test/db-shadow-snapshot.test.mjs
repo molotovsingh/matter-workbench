@@ -189,6 +189,8 @@ test("shadow DB snapshot folder docs explain snapshot freshness limits", async (
   assert.match(readme, /refresh[\s\S]*repo/i);
   assert.match(readme, /refresh[\s\S]*local matter/i);
   assert.match(readme, /refresh[\s\S]*shadow hydration/i);
+  assert.match(readme, /source repo state/i);
+  assert.match(readme, /do not keep refreshing/i);
 });
 
 test("beta operator checklist carries shadow snapshot freshness limits", async () => {

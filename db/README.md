@@ -198,7 +198,11 @@ handoff artifact: the operator can hydrate or verify the VM shadow database,
 then preserve the exact mirror report without changing app runtime storage.
 Treat each snapshot as one-run evidence, not live truth. Refresh it after
 meaningful repo changes, local matter folder or skill-ledger changes, or another
-shadow hydration / verify pass.
+shadow hydration / verify pass. The recorded commit is the source repo state
+that produced the report, before the snapshot files themselves are committed. Do
+not keep refreshing only to make a checked-in snapshot cite the commit that
+contains that same snapshot; that is a self-referential loop, not better
+evidence.
 `db:shadow:snapshot` refuses to write handoff files unless its read-only
 `db:doctor` preflight reports `ready_to_hydrate: yes`.
 Pass `-- --out-dir /path/to/folder` to write the files somewhere else, or

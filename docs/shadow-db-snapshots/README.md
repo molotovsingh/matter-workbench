@@ -20,6 +20,11 @@ new shadow hydration / verify pass. The checked-in files are useful handoff
 evidence only when their repo provenance and generated-at time match the run you
 intend to discuss.
 
+The recorded commit is the source repo state that produced the report, before
+the snapshot files themselves are committed. Do not keep refreshing only to make
+a checked-in snapshot cite the commit that contains that same snapshot; that is a
+self-referential loop, not better evidence.
+
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight before writing files.
 It refuses to write snapshot files unless the doctor reports
 `ready_to_hydrate: yes`.

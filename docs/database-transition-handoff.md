@@ -83,7 +83,11 @@ It reports `matched: yes` for the VM shadow database at the time it was
 generated. Treat it as one-run evidence, not live truth. It is not a promise
 that future repo changes, local matter folders, skill ledgers, or shadow
 hydration runs still match. Refresh the snapshot after any of those changes
-before using it as a developer handoff artifact.
+before using it as a developer handoff artifact. The recorded commit is the
+source repo state that produced the report, before the snapshot files themselves
+are committed. Do not keep refreshing only to make a checked-in snapshot cite
+the commit that contains that same snapshot; that is a self-referential loop,
+not better evidence.
 
 ## What A Developer Should Check Next
 
