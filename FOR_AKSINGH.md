@@ -609,6 +609,9 @@ npm run db:audit:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
+npm run db:shadow:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -710,6 +713,13 @@ keeps a whitelisted event record: action, matched matter when known,
 provider-invoked flag, status, planner source/model, and small routing metadata.
 Think of it as a courtroom diary entry that says "hearing held, issue noted,"
 not a verbatim recording of every privileged conversation.
+
+Once all these individual rehearsals existed, the next engineering move was to
+remove operator friction. `db:shadow:hydrate:dry-run` runs every planner in the
+right order. `db:shadow:hydrate` writes every shadow track and then runs the
+combined report. `db:shadow:hydrate:verify` runs every count check and then the
+same report. This is a good example of a small automation that does not change
+product behavior: the command is a checklist executor, not a new architecture.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

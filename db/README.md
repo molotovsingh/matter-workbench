@@ -78,6 +78,9 @@ npm run db:audit:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
+npm run db:shadow:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -165,6 +168,13 @@ does not store raw typed input, terminal lines, router reasoning, prompt text, o
 error details. `db:audit:hydrate`, `db:audit:hydrate:verify`, and
 `db:audit:shadow:inspect` apply, count-check, and inspect those shadow-only audit
 rows without changing the app runtime.
+
+`db:shadow:hydrate:dry-run`, `db:shadow:hydrate`, and
+`db:shadow:hydrate:verify` are operator shortcuts. They run the existing shadow
+hydrators in dependency order: matter metadata, skills, advisory, storage,
+provider runs, provider-backed jobs, costs, and audit events. Apply and verify
+modes finish with `db:shadow:report`. These commands still do not make the app
+read from Postgres.
 
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,

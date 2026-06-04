@@ -185,6 +185,9 @@ npm run db:audit:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
+npm run db:shadow:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -246,6 +249,12 @@ provider-invoked flags, and small routing/status metadata, but intentionally do
 not copy raw typed input, terminal lines, router reasoning, prompts, error
 details, or legal work product into Postgres. This is the first audit-trail
 rehearsal, not a chat transcript database.
+
+The `db:shadow:hydrate:*` commands are operator shortcuts over the same
+shadow-only tracks. Dry-run mode executes all planners without a database URL.
+Apply mode hydrates all rows in dependency order and then runs the combined
+report. Verify mode runs all count checks and then runs the combined report.
+This reduces handoff friction without adding a runtime database dependency.
 
 `db:shadow:report` is the combined read-only report. It verifies and inspects
 matter metadata, skill-factory metadata, advisory snapshots, storage-custody
