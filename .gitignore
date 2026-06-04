@@ -3,6 +3,8 @@ react-dist/
 react-ui/node_modules/
 .DS_Store
 .env
+.env.*
+!.env.example
 .npm-cache/
 .playwright-cli/
 .local/
