@@ -70,6 +70,10 @@ npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect
+npm run db:audit:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -143,10 +147,18 @@ provider run, including known token/cost values where available and `unknown`
 cost confidence where the local provider metadata lacks spend information. It is
 still a ledger rehearsal, not a billing system or approval workflow.
 
+`db:audit:hydrate:dry-run` rehearses privacy-safe audit-event rows from
+`.local/command-interactions.jsonl`. It mirrors command action metadata, matter
+links where they can be matched, and provider-invoked flags, but it deliberately
+does not store raw typed input, terminal lines, router reasoning, prompt text, or
+error details. `db:audit:hydrate`, `db:audit:hydrate:verify`, and
+`db:audit:shadow:inspect` apply, count-check, and inspect those shadow-only audit
+rows without changing the app runtime.
+
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,
-storage-custody rows, provider-run links, and cost-event rows, then prints a
-single summary of what the shadow database currently mirrors. Pass
+storage-custody rows, provider-run links, cost-event rows, and audit-event rows,
+then prints a single summary of what the shadow database currently mirrors. Pass
 `-- --matter "name fragment"` or
 `-- --slash "/the_story"` to narrow the report.
 

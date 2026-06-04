@@ -601,6 +601,10 @@ npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect
+npm run db:audit:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -684,6 +688,15 @@ spend values, or marks the confidence as `unknown` when the local run metadata
 does not know the spend. That is not a billing system yet. It is the first
 honest budget ledger: "we know this model call happened; here is what we know,
 and here is what we do not."
+
+The audit-event rehearsal adds the next important boundary: the database should
+learn that a command happened without turning into a transcript vault. The local
+command interaction log can contain typed user text, terminal snippets, router
+reasoning, and error detail. `db:audit:hydrate` does not copy those fields. It
+keeps a whitelisted event record: action, matched matter when known,
+provider-invoked flag, status, planner source/model, and small routing metadata.
+Think of it as a courtroom diary entry that says "hearing held, issue noted,"
+not a verbatim recording of every privileged conversation.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

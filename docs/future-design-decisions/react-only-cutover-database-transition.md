@@ -177,6 +177,10 @@ npm run db:costs:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:costs:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:costs:shadow:inspect
+npm run db:audit:hydrate:dry-run
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate
+MWB_DATABASE_URL="postgres://..." npm run db:audit:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 ```
 
@@ -226,11 +230,19 @@ record `unknown` confidence where the local metadata does not know spend. This
 is a visibility rehearsal for future budget/approval controls, not a billing
 backend.
 
+The `db:audit:*` commands rehearse privacy-safe audit-event rows from the local
+command interaction log. They mirror action names, matched matter links,
+provider-invoked flags, and small routing/status metadata, but intentionally do
+not copy raw typed input, terminal lines, router reasoning, prompts, error
+details, or legal work product into Postgres. This is the first audit-trail
+rehearsal, not a chat transcript database.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
 matter metadata, skill-factory metadata, advisory snapshots, storage-custody
-rows, provider-run links, and cost-event rows from the same tenant-scoped shadow
-database, so handoff review does not require stitching together separate matter,
-skill, advisory, storage, provider-run, and cost command outputs.
+rows, provider-run links, cost-event rows, and audit-event rows from the same
+tenant-scoped shadow database, so handoff review does not require stitching
+together separate matter, skill, advisory, storage, provider-run, cost, and audit
+command outputs.
 
 ## Stop Rule
 
