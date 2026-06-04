@@ -4,8 +4,8 @@
   "matched": true,
   "repo": {
     "branch": "codex/matter-workbench-checkpoint-2026-05-17",
-    "commit": "1646265",
-    "clean": false
+    "commit": "fd49ca7",
+    "clean": true
   },
   "filters": {
     "matter": "",
