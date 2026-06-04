@@ -675,6 +675,15 @@ database rehearsal matters, do not leave the evidence trapped in yesterday's
 terminal scrollback. Preserve a dated snapshot so the next developer can see
 what matched, what did not, and which mirror state you were talking about.
 
+There is one subtle trap here. The commit recorded inside a checked-in
+`db:shadow:snapshot` is the **source repo state** that produced the report,
+before the snapshot files themselves are committed. If you keep refreshing the
+snapshot just to make it cite the commit that contains that same snapshot, you
+create a self-referential loop. That is not stronger evidence; it is just a
+perpetual-motion machine made out of Git commits. The right rule is: refresh
+after meaningful repo, matter-folder, skill-ledger, or shadow-hydration changes,
+then commit the snapshot as evidence of that source state.
+
 `docs/database-transition-handoff.md` is the practical next-person note for
 this track. It says what to run, what the current snapshot means, and where the
 stop line is. The key lesson is that handoff is not only "here are the commands."

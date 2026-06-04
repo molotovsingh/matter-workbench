@@ -9,6 +9,7 @@ const packagePath = new URL("../package.json", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
 const snapshotsReadmePath = new URL("../docs/shadow-db-snapshots/README.md", import.meta.url);
 const betaChecklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.url);
+const forAksinghPath = new URL("../FOR_AKSINGH.md", import.meta.url);
 
 test("shadow DB snapshot writes redacted markdown and JSON handoff files", async () => {
   const {
@@ -199,6 +200,13 @@ test("beta operator checklist carries shadow snapshot freshness limits", async (
   assert.match(checklist, /db:shadow:snapshot[\s\S]*one[- ]run evidence/i);
   assert.match(checklist, /db:shadow:snapshot[\s\S]*repo changes/i);
   assert.match(checklist, /db:shadow:snapshot[\s\S]*local matter/i);
+});
+
+test("teaching doc explains shadow snapshot commit provenance", async () => {
+  const doc = await readFile(forAksinghPath, "utf8");
+
+  assert.match(doc, /db:shadow:snapshot[\s\S]*source repo state/i);
+  assert.match(doc, /db:shadow:snapshot[\s\S]*self-referential loop/i);
 });
 
 function escapeRegExp(value) {
