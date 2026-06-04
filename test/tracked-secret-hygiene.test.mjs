@@ -16,9 +16,13 @@ async function isIgnored(pathname) {
   }
 }
 
-test("tracked files do not contain known local VM credentials", async () => {
+async function listTrackedFiles() {
   const { stdout } = await execFileAsync("git", ["ls-files"]);
-  const trackedFiles = stdout.split("\n").filter(Boolean);
+  return stdout.split("\n").filter(Boolean);
+}
+
+test("tracked files do not contain known local VM credentials", async () => {
+  const trackedFiles = await listTrackedFiles();
   const forbiddenPatterns = [
     ["local VM password", new RegExp(["aks", "ingh11"].join(""))],
     ["password placeholder", new RegExp(["choose", "a", "password", "here"].join("-"))],
@@ -37,6 +41,29 @@ test("tracked files do not contain known local VM credentials", async () => {
       if (pattern.test(text)) matches.push(`${file}: ${label}`);
     }
   }
+
+  assert.deepEqual(matches, []);
+});
+
+test("tracked files do not include local secret artifact names", async () => {
+  const trackedFiles = await listTrackedFiles();
+  const allowedTrackedLocalFiles = new Set([".env.example"]);
+  const forbiddenPathPatterns = [
+    /(^|\/)\.env($|\.)/,
+    /(^|\/)\.envrc$/,
+    /(^|\/)\.direnv(\/|$)/,
+    /(^|\/)\.pgpass$/,
+    /(^|\/)\.pg_service\.conf$/,
+    /(^|\/)\.psql_history$/,
+    /(^|\/)\.psqlrc$/,
+    /(^|\/)(id_rsa|id_ed25519|\.netrc|\.pypirc|\.npmrc|\.pnpmrc|\.yarnrc)$/,
+    /\.(pem|key|p12|pfx|tfstate|tfvars)$/,
+    /(^|\/)(\.aws|\.gcloud|\.azure|\.kube|\.docker|\.terraform|\.pulumi)(\/|$)/,
+  ];
+  const matches = trackedFiles.filter((file) => {
+    if (allowedTrackedLocalFiles.has(file)) return false;
+    return forbiddenPathPatterns.some((pattern) => pattern.test(file));
+  });
 
   assert.deepEqual(matches, []);
 });
