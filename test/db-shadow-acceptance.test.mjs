@@ -58,7 +58,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.doesNotMatch(rendered, /incident_advisory_preservation_policy/);
 });
 
-test("shadow DB acceptance removes the PDF storage blocker when storage backup evidence is current", async () => {
+test("shadow DB acceptance removes storage blockers when current single-host storage evidence is accepted", async () => {
   const {
     buildShadowAcceptanceReport,
     renderShadowAcceptanceReport,
@@ -89,11 +89,12 @@ test("shadow DB acceptance removes the PDF storage blocker when storage backup e
   assert.equal(report.accepted, true);
   assert.equal(report.storageBackupEvidence.accepted, true);
   assert.ok(!report.runtimeCutoverBlockers.includes("pdf_storage_backup_restore_policy"));
-  assert.ok(report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
+  assert.ok(!report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");
   assert.match(rendered, /storage_backup_evidence: accepted/);
   assert.doesNotMatch(rendered, /pdf_storage_backup_restore_policy/);
+  assert.doesNotMatch(rendered, /object_storage_or_single_host_volume_policy/);
 });
 
 test("shadow DB acceptance fails closed before verify when schema is not ready", async () => {

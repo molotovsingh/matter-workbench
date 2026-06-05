@@ -191,8 +191,22 @@ It reports `Success: yes` for a local ignored storage backup generated at
 `2026-06-05T06:06:47.988Z`, with 168 checked PDF objects and 0 failed objects.
 This proves the local backup manifest can be read and the copied PDF objects are
 present and hash-matching. It does not decide the hosted object-storage provider
-or prove a multi-host deployment storage policy; that remains covered by the
-separate `object_storage_or_single_host_volume_policy` blocker.
+or prove a multi-host deployment storage policy.
+
+## Accepted Single-Host Storage Policy
+
+The shadow DB transition now has an accepted single-host storage policy for the
+private/local beta path. In this mode, shadow `storage_objects` may point to
+`local-filesystem` objects as long as the database backup travels with the
+matching storage backup manifest and hash-checked file copy. The current
+checked-in restore-check evidence proves that the DB-referenced PDF objects can
+be backed up and verified for this single-host path.
+
+This closes the separate `object_storage_or_single_host_volume_policy` blocker
+for local/private single-host rehearsal. It is not a multi-host or cloud object
+storage decision. A future hosted deployment still needs either durable object
+storage or an explicitly managed shared volume, plus deletion and restore
+procedures for that environment.
 
 ## Accepted Local Matter Import Policy
 
@@ -254,7 +268,8 @@ Before any real hosted or database-backed runtime work:
 Stop before runtime cutover if any of these are still unresolved:
 
 - hosted auth and tenant-session model;
-- object storage provider, bucket layout, and deletion policy;
+- for multi-host/cloud deployment, object storage provider, bucket layout, and
+  deletion policy;
 - backup and restore process for both Postgres and PDF/object storage;
 - worker process owner and failure recovery;
 - user-visible behavior when Postgres is unavailable.

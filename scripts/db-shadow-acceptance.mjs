@@ -122,7 +122,11 @@ export function renderShadowAcceptanceReport(report = {}) {
 
 function runtimeCutoverBlockers({ storageBackupAccepted = false } = {}) {
   return RUNTIME_CUTOVER_BLOCKERS.filter((blocker) => (
-    blocker !== "pdf_storage_backup_restore_policy" || !storageBackupAccepted
+    !storageBackupAccepted
+    || (
+      blocker !== "pdf_storage_backup_restore_policy"
+      && blocker !== "object_storage_or_single_host_volume_policy"
+    )
   ));
 }
 

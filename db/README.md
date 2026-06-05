@@ -271,6 +271,12 @@ matching local storage backup or an explicit migration to durable object storage
 otherwise a restore can produce valid control-plane rows that point at missing
 PDFs.
 
+For the private/local single-host path, the accepted storage policy is:
+`local-filesystem` storage is allowed only when the matching DB backup, storage
+backup manifest, and hash-checked file copy travel together. This closes the
+single-host storage policy gate for the shadow rehearsal. It does not decide a
+multi-host or hosted-cloud object-storage provider.
+
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,
 storage-custody rows, provider-run links, cost-event rows, and audit-event rows,
@@ -327,7 +333,7 @@ Do not wire production matter reads/writes to Postgres until these decisions are
 made explicitly:
 
 - hosted database URL and migration environment;
-- object storage provider and bucket layout;
+- for multi-host/cloud deployment, object storage provider and bucket layout;
 - tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
 - runtime ownership and recovery for worker jobs and provider-run failures.

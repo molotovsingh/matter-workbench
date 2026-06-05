@@ -804,8 +804,11 @@ copies the DB-referenced local PDFs into an ignored `.local` backup folder, and
 and hash-matching. That is the difference between "the database restored" and
 "the restored database still points at real documents." The runtime cutover
 guard now treats that as a separate proof: once storage backup evidence is
-current, the PDF backup/restore blocker can drop, but the larger object-storage
-or single-host-volume policy is still a real deployment decision.
+current, both the PDF backup/restore blocker and the local single-host storage
+policy blocker can drop. That is still not a cloud object-storage decision. It
+only means a private/local single-host deployment can honestly say, "the DB
+backup and the files it points at travel together." Multi-host or cloud hosting
+still needs durable object storage or a managed shared volume.
 The same cleanup happened for local matter import and advisory preservation.
 Those were originally kept as runtime cutover blockers, which was cautious but
 eventually too vague. The shadow DB now has import batches/items for existing
