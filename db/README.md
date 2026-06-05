@@ -102,6 +102,9 @@ The DB tools first honor `MWB_PSQL_BIN`, then try common PostgreSQL client
 locations such as Homebrew `libpq`, and finally fall back to `psql` on `PATH`.
 Use `MWB_PSQL_BIN=/absolute/path/to/psql` when the client is installed but not
 discoverable.
+DB scripts load `.env` first and then the ignored `.env.shadow` file. Shell
+variables still win. Use `.env.shadow` for local shadow database credentials
+when you do not want to mix rehearsal DB settings into the app's main `.env`.
 
 `db:shadow:preflight` is the one-command read-only readiness check for the
 shadow DB track. It runs `db:doctor`, then runs the full shadow hydration

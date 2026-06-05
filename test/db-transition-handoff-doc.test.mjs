@@ -23,6 +23,8 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /db:shadow:snapshot[\s\S]*refuses to write/i);
   assert.match(doc, /MWB_PSQL_BIN/);
   assert.match(doc, /Homebrew[\s\S]*libpq/i);
+  assert.match(doc, /\.env\.shadow/);
+  assert.match(doc, /\.env\.shadow[\s\S]*ignored/i);
   assert.match(doc, /docs\/shadow-db-snapshots\/shadow-db-snapshot-2026-06-04T00-00-00-000Z\.md/);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*one[- ]run evidence/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*not live truth/i);

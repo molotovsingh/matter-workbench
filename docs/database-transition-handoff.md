@@ -28,12 +28,18 @@ Use a PostgreSQL instance with the migration files applied. The local VM setup
 used for the current rehearsal had enough disk and memory for shadow hydration,
 but the handoff does not depend on that exact VM address.
 
-Set a database URL only in the shell or `.env`; do not write credentials into
-docs, snapshots, tests, or commits:
+Set a database URL only in the shell, `.env`, or the ignored `.env.shadow` file;
+do not write credentials into docs, snapshots, tests, or commits. Shell values
+remain authoritative; `.env.shadow` is only a local convenience for shadow DB
+credentials:
 
 ```bash
 export MWB_DATABASE_URL="<redacted-postgres-url>"
 ```
+
+The DB scripts load `.env` first and then `.env.shadow`. Because `.env.shadow`
+is git-ignored, it is a safer place for local VM or rehearsal database
+credentials than tracked docs or command history.
 
 If `psql` is installed through Homebrew on macOS, the operator may need:
 

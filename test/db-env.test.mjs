@@ -12,8 +12,12 @@ test("database script env loader reads local .env without overriding shell value
   const appDir = path.join(tmp, "app");
   await mkdir(appDir, { recursive: true });
   await writeFile(path.join(appDir, ".env"), [
-    "MWB_DATABASE_URL=postgres://mwb_user:local@127.0.0.1/matter_workbench_shadow",
     "MWB_PSQL_BIN=/custom/bin/psql",
+    "",
+  ].join("\n"));
+  await writeFile(path.join(appDir, ".env.shadow"), [
+    "MWB_DATABASE_URL=postgres://mwb_user:shadow@127.0.0.1/matter_workbench_shadow",
+    "MWB_PSQL_BIN=/shadow/bin/psql",
     "",
   ].join("\n"));
 
@@ -26,4 +30,26 @@ test("database script env loader reads local .env without overriding shell value
     loaded.loadedKeys.sort(),
     ["MWB_DATABASE_URL", "MWB_PSQL_BIN"].sort(),
   );
+  assert.deepEqual(
+    loaded.loadedPaths.map((loadedPath) => path.basename(loadedPath)).sort(),
+    [".env", ".env.shadow"].sort(),
+  );
+});
+
+test("database script env loader can read ignored .env.shadow for shadow-only credentials", async () => {
+  const { loadDatabaseScriptEnv } = await import(dbEnvPath.href);
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-db-env-shadow-"));
+  const appDir = path.join(tmp, "app");
+  await mkdir(appDir, { recursive: true });
+  await writeFile(path.join(appDir, ".env.shadow"), [
+    "MWB_DATABASE_URL=postgres://mwb_user:shadow@127.0.0.1/matter_workbench_shadow",
+    "",
+  ].join("\n"));
+
+  const targetEnv = {};
+  const loaded = await loadDatabaseScriptEnv({ appDir, targetEnv });
+
+  assert.equal(targetEnv.MWB_DATABASE_URL, "postgres://mwb_user:shadow@127.0.0.1/matter_workbench_shadow");
+  assert.deepEqual(loaded.loadedKeys, ["MWB_DATABASE_URL"]);
+  assert.deepEqual(loaded.loadedPaths.map((loadedPath) => path.basename(loadedPath)), [".env.shadow"]);
 });

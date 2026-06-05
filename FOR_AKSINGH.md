@@ -636,10 +636,13 @@ The database tools also learned a small deployment lesson: a good schema can
 still feel broken if the operator cannot find the `psql` binary. On this Mac,
 Homebrew's PostgreSQL client lived under `libpq`, not on the normal shell
 `PATH`. The tools now honor `MWB_PSQL_BIN`, auto-discover common `psql`
-locations, and load local `.env` values before resolving the database URL. This
-does not move the app to Postgres, but it removes a needless handoff trap. Good
-infrastructure work often looks like this: not a grand architecture rewrite, but
-one fewer "why does this work for you but not for me?" failure.
+locations, and load local `.env` values before resolving the database URL. The
+DB tools also load an ignored `.env.shadow` file after `.env`; shell values and
+main `.env` values still win, but `.env.shadow` gives the operator a cleaner
+place to keep rehearsal database credentials. This does not move the app to
+Postgres, but it removes a needless handoff trap. Good infrastructure work often
+looks like this: not a grand architecture rewrite, but one fewer "why does this
+work for you but not for me?" failure.
 
 The DB track now has a one-command preflight as well:
 `npm run db:shadow:preflight`. It is deliberately read-only. It runs the
