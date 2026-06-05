@@ -32,6 +32,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
       failedStep: null,
     }),
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -84,6 +85,7 @@ test("shadow DB acceptance removes storage blockers when current single-host sto
       missingCurrentObjects: 0,
       hashMismatches: 0,
     }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -95,6 +97,52 @@ test("shadow DB acceptance removes storage blockers when current single-host sto
   assert.match(rendered, /storage_backup_evidence: accepted/);
   assert.doesNotMatch(rendered, /pdf_storage_backup_restore_policy/);
   assert.doesNotMatch(rendered, /object_storage_or_single_host_volume_policy/);
+});
+
+test("shadow DB acceptance removes the Postgres unavailable blocker when local runtime policy is accepted", async () => {
+  const {
+    buildShadowAcceptanceReport,
+    renderShadowAcceptanceReport,
+  } = await import(acceptancePath.href);
+
+  const report = await buildShadowAcceptanceReport({
+    runDoctorFn: async () => [
+      "database_url: configured",
+      "psql: available - psql (PostgreSQL) 18.4",
+      "ready_to_apply: no",
+      "ready_to_hydrate: yes",
+    ],
+    runHydrationFn: () => ({
+      mode: "verify",
+      success: true,
+      steps: [{ script: "db:shadow:report", ok: true }],
+      failedStep: null,
+    }),
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({
+      accepted: true,
+      behavior: "local_filesystem_runtime_continues_without_postgres",
+    }),
+  });
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.postgresUnavailablePolicy.accepted, true);
+  assert.ok(!report.runtimeCutoverBlockers.includes("postgres_unavailable_user_behavior"));
+
+  const rendered = renderShadowAcceptanceReport(report).join("\n");
+  assert.match(rendered, /postgres_unavailable_policy: accepted/);
+  assert.match(rendered, /local_filesystem_runtime_continues_without_postgres/);
+  assert.doesNotMatch(rendered, /postgres_unavailable_user_behavior/);
+});
+
+test("Postgres-unavailable policy proves the local server ignores a bogus DB URL", async () => {
+  const { checkPostgresUnavailableRuntimePolicy } = await import(acceptancePath.href);
+
+  const report = await checkPostgresUnavailableRuntimePolicy();
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.behavior, "local_filesystem_runtime_continues_without_postgres");
+  assert.equal(report.reason, "");
 });
 
 test("shadow DB acceptance fails closed before verify when schema is not ready", async () => {
@@ -114,6 +162,7 @@ test("shadow DB acceptance fails closed before verify when schema is not ready",
       return { mode: "verify", success: true, steps: [], failedStep: null };
     },
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, false);
@@ -153,6 +202,7 @@ test("shadow DB acceptance redacts failed verify evidence", async () => {
       failedStep: { script: "db:shadow:report" },
     }),
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");

@@ -40,7 +40,7 @@ test("runtime cutover check fails closed while shadow acceptance still has block
   assert.match(rendered, /runtime remains filesystem-backed/i);
 });
 
-test("runtime cutover check carries the reduced blocker set after storage policy acceptance", async () => {
+test("runtime cutover check carries the reduced blocker set after storage and local runtime policy acceptance", async () => {
   const { buildRuntimeCutoverReport } = await import(runtimeCheckPath.href);
 
   const report = await buildRuntimeCutoverReport({
@@ -51,7 +51,6 @@ test("runtime cutover check carries the reduced blocker set after storage policy
       runtimeCutoverBlockers: [
         "hosted_auth_and_tenant_session_model",
         "worker_process_owner_and_recovery",
-        "postgres_unavailable_user_behavior",
       ],
       next: "Shadow database accepted for handoff evidence; runtime remains filesystem-backed.",
     }),
@@ -62,7 +61,6 @@ test("runtime cutover check carries the reduced blocker set after storage policy
   assert.deepEqual(report.blockers, [
     "hosted_auth_and_tenant_session_model",
     "worker_process_owner_and_recovery",
-    "postgres_unavailable_user_behavior",
   ]);
 });
 

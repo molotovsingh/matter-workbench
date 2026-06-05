@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
@@ -26,6 +26,7 @@ export async function buildShadowAcceptanceReport({
   runDoctorFn = runDoctor,
   runHydrationFn = runShadowHydrationPipeline,
   checkStorageBackupEvidenceFn = checkShadowStorageBackupEvidence,
+  checkPostgresUnavailableRuntimePolicyFn = checkPostgresUnavailableRuntimePolicy,
 } = {}) {
   const doctorLines = (await runDoctorFn({ argv: [], env })).map(redactLine);
   const readyToHydrateShadow = extractYesNo(doctorLines, "ready_to_hydrate");
@@ -59,6 +60,7 @@ export async function buildShadowAcceptanceReport({
   const verifyResult = runHydrationFn({ args: { mode: "verify" } });
   const verifySteps = (verifyResult.steps || []).map(redactStep);
   const storageBackupEvidence = await checkStorageBackupEvidenceFn({ env });
+  const postgresUnavailablePolicy = await checkPostgresUnavailableRuntimePolicyFn({ env });
   return {
     mode: "read-only verify",
     accepted: Boolean(verifyResult.success),
@@ -70,8 +72,10 @@ export async function buildShadowAcceptanceReport({
     runtimeCutoverReady: false,
     runtimeCutoverBlockers: runtimeCutoverBlockers({
       storageBackupAccepted: Boolean(storageBackupEvidence?.accepted),
+      postgresUnavailablePolicyAccepted: Boolean(postgresUnavailablePolicy?.accepted),
     }),
     storageBackupEvidence: storageBackupEvidence || { accepted: false },
+    postgresUnavailablePolicy: postgresUnavailablePolicy || { accepted: false },
     failedVerifyStep: verifyResult.failedStep?.script || "",
     next: verifyResult.success
       ? "Shadow database accepted for handoff evidence; runtime remains filesystem-backed."
@@ -101,6 +105,10 @@ export function renderShadowAcceptanceReport(report = {}) {
   if (storageEvidence.checkedObjects != null) lines.push(`  checked_objects: ${storageEvidence.checkedObjects}`);
   if (storageEvidence.missingCurrentObjects != null) lines.push(`  missing_current_objects: ${storageEvidence.missingCurrentObjects}`);
   if (storageEvidence.hashMismatches != null) lines.push(`  hash_mismatches: ${storageEvidence.hashMismatches}`);
+  const postgresPolicy = report.postgresUnavailablePolicy || {};
+  lines.push(`postgres_unavailable_policy: ${postgresPolicy.accepted ? "accepted" : "missing"}`);
+  if (postgresPolicy.behavior) lines.push(`  behavior: ${redactLine(postgresPolicy.behavior)}`);
+  if (postgresPolicy.reason) lines.push(`  reason: ${redactLine(postgresPolicy.reason)}`);
 
   lines.push("runtime_cutover_blockers:");
   for (const blocker of report.runtimeCutoverBlockers || []) {
@@ -120,14 +128,59 @@ export function renderShadowAcceptanceReport(report = {}) {
   return lines.map(redactLine);
 }
 
-function runtimeCutoverBlockers({ storageBackupAccepted = false } = {}) {
+function runtimeCutoverBlockers({
+  storageBackupAccepted = false,
+  postgresUnavailablePolicyAccepted = false,
+} = {}) {
   return RUNTIME_CUTOVER_BLOCKERS.filter((blocker) => (
-    !storageBackupAccepted
-    || (
-      blocker !== "pdf_storage_backup_restore_policy"
-      && blocker !== "object_storage_or_single_host_volume_policy"
+    !(
+      (storageBackupAccepted && (
+        blocker === "pdf_storage_backup_restore_policy"
+        || blocker === "object_storage_or_single_host_volume_policy"
+      ))
+      || (postgresUnavailablePolicyAccepted && blocker === "postgres_unavailable_user_behavior")
     )
   ));
+}
+
+export async function checkPostgresUnavailableRuntimePolicy({
+  appDir = process.cwd(),
+  createWorkbenchServerFn = null,
+  invalidDatabaseUrl = "postgres://mwb_user:invalid@127.0.0.1:1/matter_workbench_shadow",
+} = {}) {
+  try {
+    const createServerFn = createWorkbenchServerFn || await loadCreateWorkbenchServer(appDir);
+    const app = await createServerFn({
+      appDir,
+      env: {
+        NODE_ENV: "test",
+        PORT: "0",
+        MATTER_ROOT: "",
+        MWB_DATABASE_URL: invalidDatabaseUrl,
+        DATABASE_URL: invalidDatabaseUrl,
+      },
+      port: 0,
+    });
+
+    return {
+      accepted: app?.uiShell === "react",
+      behavior: app?.uiShell === "react"
+        ? "local_filesystem_runtime_continues_without_postgres"
+        : "local_runtime_created_with_unexpected_shell",
+      reason: app?.uiShell === "react" ? "" : `unexpected ui shell: ${app?.uiShell || "unknown"}`,
+    };
+  } catch (error) {
+    return {
+      accepted: false,
+      behavior: "local_runtime_creation_failed",
+      reason: error?.message || "runtime could not be created without Postgres",
+    };
+  }
+}
+
+async function loadCreateWorkbenchServer(appDir) {
+  const serverModule = await import(pathToFileURL(path.join(appDir, "server.mjs")).href);
+  return serverModule.createWorkbenchServer;
 }
 
 function extractDatabaseUrlStatus(lines) {

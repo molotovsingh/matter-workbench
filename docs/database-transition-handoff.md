@@ -208,6 +208,19 @@ storage decision. A future hosted deployment still needs either durable object
 storage or an explicitly managed shared volume, plus deletion and restore
 procedures for that environment.
 
+## Accepted Postgres-Unavailable Local Runtime Policy
+
+The local beta runtime has an accepted Postgres-unavailable behavior: it remains
+a local filesystem-backed runtime. The DB tools can use `MWB_DATABASE_URL`, but
+`server.mjs` does not use Postgres for product reads or writes. The acceptance
+check now proves this by creating the React/local server with a bogus database
+URL and confirming the runtime still initializes.
+
+This closes the `postgres_unavailable_user_behavior` blocker for the
+local/private shadow rehearsal. It is not a hosted outage policy. Once the app
+actually becomes database-backed in production, hosted deployment still needs a
+separate outage, degraded-mode, and rollback design.
+
 ## Accepted Local Matter Import Policy
 
 The shadow DB transition now has an accepted local matter import policy for the
@@ -260,8 +273,9 @@ Before any real hosted or database-backed runtime work:
    filesystem paths; restored DB rows can otherwise point to missing PDFs.
 5. Confirm worker lease/heartbeat behavior before long-running preparation
    moves out of the local foreground app.
-6. Confirm rollback: how to return to filesystem-backed local runtime if the DB
-   path misbehaves.
+6. Confirm hosted rollback/degraded-mode behavior before the product runtime
+   actually depends on Postgres. The local beta currently avoids this class of
+   outage by staying filesystem-backed.
 
 ## Stop Rule
 
@@ -272,7 +286,8 @@ Stop before runtime cutover if any of these are still unresolved:
   deletion policy;
 - backup and restore process for both Postgres and PDF/object storage;
 - worker process owner and failure recovery;
-- user-visible behavior when Postgres is unavailable.
+- hosted rollback/degraded-mode behavior once Postgres becomes live product
+  storage.
 
 The database is allowed to learn from the local app now. The local app should
 not depend on the database until those questions are closed.

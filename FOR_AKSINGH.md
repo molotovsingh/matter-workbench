@@ -809,6 +809,14 @@ policy blocker can drop. That is still not a cloud object-storage decision. It
 only means a private/local single-host deployment can honestly say, "the DB
 backup and the files it points at travel together." Multi-host or cloud hosting
 still needs durable object storage or a managed shared volume.
+The next subtle blocker was Postgres outage behavior. For the local beta, the
+answer is now deliberately boring: the app does not use Postgres as live storage
+yet, so a dead shadow database should not stop the lawyer-facing app. The
+acceptance check proves that by starting the local React/server path with a
+bogus database URL. DB scripts still fail closed when they need a database, but
+the product remains filesystem-backed. That is a good lesson: the safest
+fallback is often not a clever fallback at all; it is refusing to make an
+experimental mirror part of the live path too early.
 The same cleanup happened for local matter import and advisory preservation.
 Those were originally kept as runtime cutover blockers, which was cautious but
 eventually too vague. The shadow DB now has import batches/items for existing

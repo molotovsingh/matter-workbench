@@ -305,6 +305,13 @@ firm or organization account without changing the matter-control-plane shape.
 It does not remove the runtime cutover blocker for hosted auth and tenant
 session handling.
 
+Postgres-unavailable behavior is accepted for the local/private beta path: the
+product runtime remains filesystem-backed and does not read or write Postgres.
+`db:shadow:acceptance` proves this by creating the React/local server with a
+bogus database URL. DB scripts still fail closed when they need a real database,
+but the local product does not depend on the shadow DB being online. This is not
+a hosted outage policy for a future database-backed runtime.
+
 `db:shadow:snapshot` writes that combined report to timestamped Markdown and
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
 handoff artifact: the operator can hydrate or verify the VM shadow database,
@@ -336,4 +343,6 @@ made explicitly:
 - for multi-host/cloud deployment, object storage provider and bucket layout;
 - tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
-- runtime ownership and recovery for worker jobs and provider-run failures.
+- runtime ownership and recovery for worker jobs and provider-run failures;
+- hosted rollback/degraded-mode behavior once Postgres becomes live product
+  storage.
