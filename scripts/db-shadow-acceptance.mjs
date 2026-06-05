@@ -8,6 +8,15 @@ import { redactDatabaseUrl, runDoctor } from "./db-doctor.mjs";
 import { runShadowHydrationPipeline } from "./db-shadow-hydrate-all.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
+const RUNTIME_CUTOVER_BLOCKERS = Object.freeze([
+  "hosted_auth_and_tenant_session_model",
+  "object_storage_or_single_host_volume_policy",
+  "db_and_pdf_storage_restore_drill",
+  "worker_process_owner_and_recovery",
+  "incident_advisory_preservation_policy",
+  "local_matter_import_policy",
+  "postgres_unavailable_user_behavior",
+]);
 
 export async function buildShadowAcceptanceReport({
   env = process.env,
@@ -34,6 +43,8 @@ export async function buildShadowAcceptanceReport({
       readyToApplyMigrations,
       readyToHydrateShadow,
       verifySuccess: false,
+      runtimeCutoverReady: false,
+      runtimeCutoverBlockers: [...RUNTIME_CUTOVER_BLOCKERS],
       next: redactLine(next),
       verifySteps: [],
       doctorLines,
@@ -50,6 +61,8 @@ export async function buildShadowAcceptanceReport({
     readyToApplyMigrations,
     readyToHydrateShadow,
     verifySuccess: Boolean(verifyResult.success),
+    runtimeCutoverReady: false,
+    runtimeCutoverBlockers: [...RUNTIME_CUTOVER_BLOCKERS],
     failedVerifyStep: verifyResult.failedStep?.script || "",
     next: verifyResult.success
       ? "Shadow database accepted for handoff evidence; runtime remains filesystem-backed."
@@ -69,10 +82,17 @@ export function renderShadowAcceptanceReport(report = {}) {
     `ready_to_apply_migrations: ${report.readyToApplyMigrations ? "yes" : "no"}`,
     `ready_to_hydrate_shadow: ${report.readyToHydrateShadow ? "yes" : "no"}`,
     `verify_success: ${report.verifySuccess ? "yes" : "no"}`,
+    `runtime_cutover_ready: ${report.runtimeCutoverReady ? "yes" : "no"}`,
   ];
 
   if (report.failedVerifyStep) lines.push(`failed_verify_step: ${report.failedVerifyStep}`);
   if (report.next) lines.push(`next: ${redactLine(report.next)}`);
+
+  lines.push("runtime_cutover_blockers:");
+  for (const blocker of report.runtimeCutoverBlockers || []) {
+    lines.push(`  ${blocker}`);
+  }
+  if (!report.runtimeCutoverBlockers?.length) lines.push("  (none)");
 
   lines.push("verify_steps:");
   for (const step of report.verifySteps || []) {

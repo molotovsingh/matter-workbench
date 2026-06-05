@@ -38,6 +38,9 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.equal(report.psql, "available");
   assert.equal(report.readyToHydrateShadow, true);
   assert.equal(report.verifySuccess, true);
+  assert.equal(report.runtimeCutoverReady, false);
+  assert.ok(report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
+  assert.ok(report.runtimeCutoverBlockers.includes("db_and_pdf_storage_restore_drill"));
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");
   assert.match(rendered, /Matter Workbench shadow DB acceptance/);
@@ -45,6 +48,9 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.match(rendered, /mode: read-only verify/);
   assert.match(rendered, /db:hydrate:verify: ok/);
   assert.match(rendered, /db:shadow:report: ok/);
+  assert.match(rendered, /runtime_cutover_ready: no/);
+  assert.match(rendered, /object_storage_or_single_host_volume_policy/);
+  assert.match(rendered, /db_and_pdf_storage_restore_drill/);
 });
 
 test("shadow DB acceptance fails closed before verify when schema is not ready", async () => {
@@ -119,6 +125,8 @@ test("package and docs expose the shadow DB acceptance command", async () => {
   const dbReadme = await readFile(dbReadmePath, "utf8");
   assert.match(dbReadme, /npm run db:shadow:acceptance/);
   assert.match(dbReadme, /read-only acceptance/i);
+  assert.match(dbReadme, /runtime_cutover_ready/i);
+  assert.match(dbReadme, /runtime-cutover blockers/i);
 
   const handoffDoc = await readFile(handoffDocPath, "utf8");
   assert.match(handoffDoc, /npm run db:shadow:acceptance/);

@@ -214,7 +214,9 @@ has been hydrated. It runs `db:doctor`, refuses to continue unless the schema is
 ready to hydrate, then runs the verify pipeline and combined shadow report. It
 does not apply migrations, hydrate rows, write snapshots, or switch runtime
 storage. Use it when the question is "is this shadow database acceptable as
-handoff evidence right now?"
+handoff evidence right now?" The command also prints `runtime_cutover_ready`
+and a runtime-cutover blockers list so "shadow database accepted" is not
+mistaken for "product runtime is ready to use Postgres."
 
 `db:shadow:backup` creates a local ignored backup of the shadow database under
 `.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a
