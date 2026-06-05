@@ -382,6 +382,8 @@ test("local matter DB hydrator inspects shadow matter summaries without leaking 
             extraction_records: 57,
             source_descriptors: 57,
             matter_artifacts: 2,
+            matter_import_batches: 1,
+            matter_import_items: 57,
           },
         ]),
         stderr: "",
@@ -394,15 +396,21 @@ test("local matter DB hydrator inspects shadow matter summaries without leaking 
   assert.equal(result.matters.length, 1);
   assert.equal(result.totals.documents, 57);
   assert.equal(result.totals.matterArtifacts, 2);
+  assert.equal(result.totals.matterImportBatches, 1);
+  assert.equal(result.totals.matterImportItems, 57);
   assert.match(calls[0].command, /psql$/);
   assert.match(calls[0].input, /^select set_config\('app\.tenant_id'/);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
+  assert.match(calls[0].input, /matter_import_batches/);
+  assert.match(calls[0].input, /matter_import_items/);
   assert.match(calls[0].input, /Atlas/);
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 
   const rendered = renderHydrationInspection(result).join("\n");
   assert.match(rendered, /Matter Workbench shadow DB inspection/);
   assert.match(rendered, /matter_filter: Atlas/);
+  assert.match(rendered, /matter_import_batches: 1/);
+  assert.match(rendered, /matter_import_items: 57/);
   assert.match(rendered, /Atlas Construction vs Diptishree documents=57 extractions=57 source_descriptors=57 artifacts=2/);
 });
 

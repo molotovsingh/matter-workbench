@@ -295,13 +295,17 @@ export function buildShadowMatterInspectionSql({ tenantId, matterQuery = "" } = 
     "    count(distinct d.id)::int as documents,",
     "    count(distinct er.id)::int as extraction_records,",
     "    count(distinct sd.id)::int as source_descriptors,",
-    "    count(distinct ma.id)::int as matter_artifacts",
+    "    count(distinct ma.id)::int as matter_artifacts,",
+    "    count(distinct mib.id)::int as matter_import_batches,",
+    "    count(distinct mii.id)::int as matter_import_items",
     "  from matters m",
     "  left join matter_intakes mi on mi.matter_id = m.id",
     "  left join documents d on d.matter_id = m.id",
     "  left join extraction_records er on er.matter_id = m.id",
     "  left join source_descriptors sd on sd.matter_id = m.id",
     "  left join matter_artifacts ma on ma.matter_id = m.id",
+    "  left join matter_import_batches mib on mib.matter_id = m.id",
+    "  left join matter_import_items mii on mii.matter_id = m.id",
     `  ${whereClause}`,
     "  group by m.id, m.name, m.client_name, m.opposite_party, m.status, m.next_file_number",
     ")",
@@ -354,6 +358,8 @@ export function renderHydrationInspection(result = {}) {
   lines.push(`  extraction_records: ${totals.extractionRecords || 0}`);
   lines.push(`  source_descriptors: ${totals.sourceDescriptors || 0}`);
   lines.push(`  matter_artifacts: ${totals.matterArtifacts || 0}`);
+  lines.push(`  matter_import_batches: ${totals.matterImportBatches || 0}`);
+  lines.push(`  matter_import_items: ${totals.matterImportItems || 0}`);
   lines.push("matter_summaries:");
   for (const matter of result.matters || []) {
     lines.push([
@@ -362,6 +368,8 @@ export function renderHydrationInspection(result = {}) {
       `extractions=${matter.extractionRecords}`,
       `source_descriptors=${matter.sourceDescriptors}`,
       `artifacts=${matter.matterArtifacts}`,
+      `import_batches=${matter.matterImportBatches}`,
+      `import_items=${matter.matterImportItems}`,
       `next_file_number=${matter.nextFileNumber}`,
     ].join(" "));
   }
@@ -429,6 +437,8 @@ function normalizeInspectionMatter(row = {}) {
     extractionRecords: Number(row.extraction_records) || 0,
     sourceDescriptors: Number(row.source_descriptors) || 0,
     matterArtifacts: Number(row.matter_artifacts) || 0,
+    matterImportBatches: Number(row.matter_import_batches) || 0,
+    matterImportItems: Number(row.matter_import_items) || 0,
   };
 }
 
@@ -439,6 +449,8 @@ function inspectionTotals(matters = []) {
     acc.extractionRecords += matter.extractionRecords;
     acc.sourceDescriptors += matter.sourceDescriptors;
     acc.matterArtifacts += matter.matterArtifacts;
+    acc.matterImportBatches += matter.matterImportBatches;
+    acc.matterImportItems += matter.matterImportItems;
     return acc;
   }, {
     intakes: 0,
@@ -446,6 +458,8 @@ function inspectionTotals(matters = []) {
     extractionRecords: 0,
     sourceDescriptors: 0,
     matterArtifacts: 0,
+    matterImportBatches: 0,
+    matterImportItems: 0,
   });
 }
 

@@ -236,6 +236,8 @@ export function renderShadowDbReport(report = {}) {
   lines.push(`  extraction_records: ${matterTotals.extractionRecords || 0}`);
   lines.push(`  source_descriptors: ${matterTotals.sourceDescriptors || 0}`);
   lines.push(`  matter_artifacts: ${matterTotals.matterArtifacts || 0}`);
+  lines.push(`  matter_import_batches: ${matterTotals.matterImportBatches || 0}`);
+  lines.push(`  matter_import_items: ${matterTotals.matterImportItems || 0}`);
   lines.push("matter_summaries:");
   for (const matter of report.matter?.inspection?.matters || []) {
     lines.push([
@@ -244,6 +246,8 @@ export function renderShadowDbReport(report = {}) {
       `extractions=${matter.extractionRecords}`,
       `source_descriptors=${matter.sourceDescriptors}`,
       `artifacts=${matter.matterArtifacts}`,
+      `import_batches=${matter.matterImportBatches || 0}`,
+      `import_items=${matter.matterImportItems || 0}`,
       `next_file_number=${matter.nextFileNumber}`,
     ].join(" "));
   }

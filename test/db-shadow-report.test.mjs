@@ -65,6 +65,8 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
           extractionRecords: 9,
           sourceDescriptors: 9,
           matterArtifacts: 2,
+          matterImportBatches: 1,
+          matterImportItems: 9,
           nextFileNumber: 10,
         }],
         totals: {
@@ -72,6 +74,8 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
           extractionRecords: 9,
           sourceDescriptors: 9,
           matterArtifacts: 2,
+          matterImportBatches: 1,
+          matterImportItems: 9,
         },
       };
     },
@@ -261,6 +265,8 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.match(rendered, /Matter Workbench shadow DB report/);
   assert.match(rendered, /matched: yes/);
   assert.match(rendered, /matter_counts: matched/);
+  assert.match(rendered, /matter_import_batches: 1/);
+  assert.match(rendered, /matter_import_items: 9/);
   assert.match(rendered, /skill_counts: matched/);
   assert.match(rendered, /advisory_counts: matched/);
   assert.match(rendered, /storage_counts: matched/);
@@ -268,7 +274,7 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.match(rendered, /job_counts: matched/);
   assert.match(rendered, /cost_event_counts: matched/);
   assert.match(rendered, /audit_event_counts: matched/);
-  assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2/);
+  assert.match(rendered, /Atlas Construction vs Diptishree documents=9 extractions=9 source_descriptors=9 artifacts=2 import_batches=1 import_items=9/);
   assert.match(rendered, /\/the_story The Story status=active versions=1 runs=2/);
   assert.match(rendered, /Atlas Construction vs Diptishree blockers=0 warnings=2 info=0 incidents=2/);
   assert.match(rendered, /source_original: 1/);
