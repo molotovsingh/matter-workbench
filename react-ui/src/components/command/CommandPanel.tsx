@@ -212,6 +212,7 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
       setSkillIdeaInput(command);
       return;
     }
+    setSkillIdeaInput(null);
     onCommand(command);
     void api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
   }

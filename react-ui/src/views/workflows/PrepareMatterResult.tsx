@@ -332,8 +332,8 @@ export default function PrepareMatterResult() {
 
       {!plan && !loading && !error && (
         <p style={{ color: 'var(--muted-strong)', fontSize: 14, marginTop: 16 }}>
-          Prepare matter analyses what has already been done for this matter and runs the remaining
-          steps in order: metadata check, extraction, and source labeling.
+          Pick a matter first. Preparation can then set up the matter, read documents,
+          label sources, build the List of Dates, and check the advisory.
         </p>
       )}
     </div>

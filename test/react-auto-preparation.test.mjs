@@ -131,3 +131,15 @@ test("React matter overview presents preparation and advisory language", async (
   assert.doesNotMatch(overview, /Matter readiness/);
   assert.doesNotMatch(overview, /Developer attention/);
 });
+
+test("React prepare-matter empty state describes the full mandatory chain", async () => {
+  const prepareMatter = await readFile(prepareMatterPath, "utf8");
+
+  assert.match(prepareMatter, /Pick a matter first/);
+  assert.match(prepareMatter, /set up the matter/i);
+  assert.match(prepareMatter, /read documents/i);
+  assert.match(prepareMatter, /label sources/i);
+  assert.match(prepareMatter, /build the List of Dates/i);
+  assert.match(prepareMatter, /check the advisory/i);
+  assert.doesNotMatch(prepareMatter, /metadata check, extraction, and source labeling/);
+});

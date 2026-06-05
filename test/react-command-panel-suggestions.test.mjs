@@ -49,3 +49,15 @@ test("React command panel exposes New task and resets transient assistant state"
   assert.match(source, /lastActiveMatterNameRef/);
   assert.match(source, /state\.activeMatter\?\.name/);
 });
+
+test("React command quick actions clear stale skill sessions before native commands", async () => {
+  const source = await readFile(commandPanelPath, "utf8");
+  const functionStart = source.indexOf("function runExampleCommand(command: string)");
+  const functionEnd = source.indexOf("async function handleCopilotModelChange", functionStart);
+  const runExampleCommandSource = source.slice(functionStart, functionEnd);
+
+  assert.notEqual(functionStart, -1);
+  assert.notEqual(functionEnd, -1);
+  assert.match(runExampleCommandSource, /if \(command === 'new skill'\) \{[\s\S]*setSkillIdeaInput\(command\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(runExampleCommandSource, /setSkillIdeaInput\(null\);[\s\S]*onCommand\(command\);/);
+});
