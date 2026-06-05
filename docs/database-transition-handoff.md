@@ -135,8 +135,8 @@ hydrate rows, apply migrations, or write snapshots.
 The current checked-in snapshot is:
 
 ```text
-docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T08-09-17-718Z.md
-docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T08-09-17-718Z.json
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T13-39-26-825Z.md
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T13-39-26-825Z.json
 ```
 
 It reports `matched: yes` for the VM shadow database at the time it was
