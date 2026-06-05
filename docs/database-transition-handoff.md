@@ -118,22 +118,23 @@ hydrate.
 The current checked-in snapshot is:
 
 ```text
-docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T04-50-54-493Z.md
-docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T04-50-54-493Z.json
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T05-41-38-516Z.md
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T05-41-38-516Z.json
 ```
 
 It reports `matched: yes` for the VM shadow database at the time it was
 generated. The snapshot mirrors 15 matters, 180 documents, 180 extraction
 records, 125 source descriptors, 28 matter artifacts, 8 configurable skills,
 22 configurable-skill runs, 64 open local attention incidents, and 61 provider
-runs. Treat it as one-run evidence, not live truth. It is not a promise
-that future repo changes, local matter folders, skill ledgers, or shadow
-hydration runs still match. Refresh the snapshot after any of those changes
-before using it as a developer handoff artifact. The recorded commit is the
-source repo state that produced the report, before the snapshot files themselves
-are committed. Do not keep refreshing only to make a checked-in snapshot cite
-the commit that contains that same snapshot; that is a self-referential loop,
-not better evidence.
+runs. It also records `storage_custody: ok`, with 168 PDF storage objects
+checked and 0 missing local files. Treat it as one-run evidence, not live truth.
+It is not a promise that future repo changes, local matter folders, skill
+ledgers, or shadow hydration runs still match. Refresh the snapshot after any of
+those changes before using it as a developer handoff artifact. The recorded
+commit is the source repo state that produced the report, before the snapshot
+files themselves are committed. Do not keep refreshing only to make a checked-in
+snapshot cite the commit that contains that same snapshot; that is a
+self-referential loop, not better evidence.
 
 ## What A Developer Should Check Next
 
