@@ -17,7 +17,9 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /npm run db:shadow:hydrate/);
   assert.match(doc, /npm run db:shadow:hydrate:verify/);
   assert.match(doc, /npm run db:shadow:snapshot/);
-  assert.match(doc, /repo branch, short commit, and whether\s+the worktree was clean/i);
+  assert.match(doc, /repo branch, short\s+commit, and whether\s+the worktree was clean/i);
+  assert.match(doc, /npm run db:shadow:backup/);
+  assert.match(doc, /\.local\/shadow-db-backups/);
   assert.match(doc, /db:doctor[\s\S]*preflight/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*ready_to_hydrate:\s*yes/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*refuses to write/i);

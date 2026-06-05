@@ -773,6 +773,10 @@ handoff evidence. If the answer is no, it fails closed before anyone can confuse
 the mirror with a runtime cutover. This is the right mental model for the DB
 transition: prove the mirror, preserve evidence, then only later decide whether
 the app should depend on it.
+`db:shadow:backup` adds the next operational habit: before a future migration or
+handoff, take a local ignored `pg_dump` backup under `.local/shadow-db-backups/`.
+That backup is not product storage and it is not checked into Git. It is the
+"do not be clever with the only copy" rule in concrete form.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

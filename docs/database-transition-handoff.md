@@ -68,6 +68,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 ```
 
@@ -76,11 +77,13 @@ try to mirror. Use `db:shadow:hydrate:verify` after writes to confirm row counts
 still match. Use `db:shadow:acceptance` as the read-only acceptance gate before
 handoff: it requires the migrated schema to be ready to hydrate, runs the verify
 pipeline, and fails closed if the combined shadow report no longer matches. Use
-`db:shadow:snapshot` to preserve the combined report for handoff. New snapshots
-also record the repo branch, short commit, and whether the worktree was clean
-when the report was generated. `db:shadow:snapshot` runs a read-only `db:doctor`
-preflight and refuses to write snapshot files unless the doctor reports
-`ready_to_hydrate: yes`.
+`db:shadow:backup` to create a local ignored backup under
+`.local/shadow-db-backups/` before handing the VM database to another operator
+or before applying a new migration. Use `db:shadow:snapshot` to preserve the
+combined report for handoff. New snapshots also record the repo branch, short
+commit, and whether the worktree was clean when the report was generated.
+`db:shadow:snapshot` runs a read-only `db:doctor` preflight and refuses to write
+snapshot files unless the doctor reports `ready_to_hydrate: yes`.
 
 Use `db:shadow:preflight` as the first command when resuming this track. It is a
 read-only combined check: `db:doctor` plus the full shadow hydration dry-run. If

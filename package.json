@@ -47,6 +47,7 @@
     "db:audit:shadow:inspect": "node scripts/db-hydrate-local-audit-events.mjs --inspect",
     "db:shadow:preflight": "node scripts/db-shadow-preflight.mjs",
     "db:shadow:acceptance": "node scripts/db-shadow-acceptance.mjs",
+    "db:shadow:backup": "node scripts/db-shadow-backup.mjs",
     "db:shadow:hydrate:dry-run": "node scripts/db-shadow-hydrate-all.mjs --dry-run",
     "db:shadow:hydrate": "node scripts/db-shadow-hydrate-all.mjs --apply",
     "db:shadow:hydrate:verify": "node scripts/db-shadow-hydrate-all.mjs --verify",

@@ -49,6 +49,7 @@ npm run db:migrations:check
 npm run db:doctor
 npm run db:shadow:preflight
 npm run db:shadow:acceptance
+npm run db:shadow:backup
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -87,6 +88,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:acceptance
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:backup
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
@@ -211,6 +213,14 @@ ready to hydrate, then runs the verify pipeline and combined shadow report. It
 does not apply migrations, hydrate rows, write snapshots, or switch runtime
 storage. Use it when the question is "is this shadow database acceptable as
 handoff evidence right now?"
+
+`db:shadow:backup` creates a local ignored backup of the shadow database under
+`.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a
+small manifest with the dump hash and byte size. It is for rehearsal and
+handoff safety only: it does not restore data, apply migrations, hydrate rows,
+or switch runtime storage. The DB tools honor `MWB_PG_DUMP_BIN`, then discover
+common Homebrew/MacPorts/PostgreSQL `pg_dump` locations, then fall back to
+`pg_dump` on `PATH`.
 
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,

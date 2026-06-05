@@ -63,3 +63,46 @@ test("psql connection args split credentials into environment variables", async 
     },
   );
 });
+
+test("pg_dump resolver honors explicit MWB_PG_DUMP_BIN before discovered paths", async () => {
+  const { resolvePgDumpCommand } = await import(psqlPath.href);
+
+  assert.deepEqual(
+    resolvePgDumpCommand({
+      env: { MWB_PG_DUMP_BIN: "/custom/bin/pg_dump" },
+      exists: () => true,
+    }),
+    { command: "/custom/bin/pg_dump", source: "MWB_PG_DUMP_BIN" },
+  );
+});
+
+test("pg_dump connection args use password env and a caller-provided output file", async () => {
+  const { pgDumpConnectionArgs } = await import(psqlPath.href);
+
+  assert.deepEqual(
+    pgDumpConnectionArgs("postgres://mwb_user:pw%21@db.example:5433/matter_workbench_shadow", {
+      env: { MWB_PG_DUMP_BIN: "/custom/bin/pg_dump" },
+      outputPath: "/tmp/shadow.sql",
+    }),
+    {
+      command: "/custom/bin/pg_dump",
+      source: "MWB_PG_DUMP_BIN",
+      args: [
+        "-h",
+        "db.example",
+        "-p",
+        "5433",
+        "-U",
+        "mwb_user",
+        "-d",
+        "matter_workbench_shadow",
+        "--no-owner",
+        "--no-privileges",
+        "--format=plain",
+        "--file",
+        "/tmp/shadow.sql",
+      ],
+      env: { PGPASSWORD: "pw!" },
+    },
+  );
+});
