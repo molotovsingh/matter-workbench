@@ -43,6 +43,9 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Current Restore Drill Evidence[\s\S]*drop restore database:\s*ok/i);
   assert.match(doc, /Current Storage Restore-Check Evidence[\s\S]*168 checked PDF objects/i);
   assert.match(doc, /Current Storage Restore-Check Evidence[\s\S]*0 failed objects/i);
+  assert.match(doc, /Accepted Local Matter Import Policy[\s\S]*matter_import_batches/i);
+  assert.match(doc, /Accepted Local Matter Import Policy[\s\S]*local_matter_import_policy/i);
+  assert.doesNotMatch(doc, /Stop Rule[\s\S]*import policy for existing local matter folders/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*not live truth/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*repo changes/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*local matter/i);

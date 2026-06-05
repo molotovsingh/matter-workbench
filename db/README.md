@@ -275,6 +275,13 @@ then prints a single summary of what the shadow database currently mirrors. Pass
 `-- --matter "name fragment"` or
 `-- --slash "/the_story"` to narrow the report.
 
+Local matter import policy is accepted for the shadow-control-plane rehearsal:
+existing folders are represented through `matter_import_batches` and
+`matter_import_items` with deterministic IDs, expected/imported file counts,
+per-file storage links, and fail-closed collision handling. This does not switch
+the app runtime to Postgres; it only means the separate local-import blocker is
+closed for shadow evidence.
+
 `db:shadow:snapshot` writes that combined report to timestamped Markdown and
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
 handoff artifact: the operator can hydrate or verify the VM shadow database,
@@ -306,5 +313,4 @@ made explicitly:
 - object storage provider and bucket layout;
 - tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
-- import path from existing local matter folders;
 - observability for jobs, provider runs, incidents, and advisory snapshots.

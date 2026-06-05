@@ -194,6 +194,17 @@ present and hash-matching. It does not decide the hosted object-storage provider
 or prove a multi-host deployment storage policy; that remains covered by the
 separate `object_storage_or_single_host_volume_policy` blocker.
 
+## Accepted Local Matter Import Policy
+
+The shadow DB transition now has an accepted local matter import policy for the
+current filesystem-backed beta: existing matter folders are mirrored through
+`matter_import_batches` and `matter_import_items`, using deterministic IDs and a
+fail-closed collision policy. The import ledger preserves the local folder name,
+expected file counts, imported file counts, and per-file storage links without
+renumbering `FILE-NNNN` identities. This does not make Postgres the live matter
+runtime, but it closes the separate `local_matter_import_policy` cutover blocker
+for the shadow-control-plane rehearsal.
+
 ## What A Developer Should Check Next
 
 Before any real hosted or database-backed runtime work:
@@ -220,7 +231,6 @@ Stop before runtime cutover if any of these are still unresolved:
 - backup and restore process for both Postgres and PDF/object storage;
 - worker process owner and failure recovery;
 - incident/advisory preservation policy;
-- import policy for existing local matter folders;
 - user-visible behavior when Postgres is unavailable.
 
 The database is allowed to learn from the local app now. The local app should

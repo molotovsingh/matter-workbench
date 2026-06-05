@@ -42,6 +42,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.equal(report.runtimeCutoverReady, false);
   assert.ok(report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
   assert.ok(report.runtimeCutoverBlockers.includes("pdf_storage_backup_restore_policy"));
+  assert.ok(!report.runtimeCutoverBlockers.includes("local_matter_import_policy"));
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");
   assert.match(rendered, /Matter Workbench shadow DB acceptance/);
@@ -52,6 +53,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.match(rendered, /runtime_cutover_ready: no/);
   assert.match(rendered, /object_storage_or_single_host_volume_policy/);
   assert.match(rendered, /pdf_storage_backup_restore_policy/);
+  assert.doesNotMatch(rendered, /local_matter_import_policy/);
 });
 
 test("shadow DB acceptance removes the PDF storage blocker when storage backup evidence is current", async () => {
