@@ -62,7 +62,10 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Accepted Tenant Organization Profile[\s\S]*account_scope/i);
   assert.match(doc, /Accepted Tenant Organization Profile[\s\S]*organization_slug/i);
   assert.match(doc, /Accepted Tenant Organization Profile[\s\S]*primary_owner_user_id/i);
-  assert.match(doc, /Accepted Tenant Organization Profile[\s\S]*hosted auth and tenant-session model/i);
+  assert.match(doc, /Accepted Hosted Auth And Tenant Session Model[\s\S]*auth_identities/i);
+  assert.match(doc, /Accepted Hosted Auth And Tenant Session Model[\s\S]*tenant_sessions/i);
+  assert.match(doc, /Accepted Hosted Auth And Tenant Session Model[\s\S]*provider-neutral/i);
+  assert.match(doc, /Accepted Hosted Auth And Tenant Session Model[\s\S]*does not choose an auth provider/i);
   assert.doesNotMatch(doc, /Stop Rule[\s\S]*import policy for existing local matter folders/i);
   assert.doesNotMatch(doc, /Stop Rule[\s\S]*incident\/advisory preservation policy/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*not live truth/i);

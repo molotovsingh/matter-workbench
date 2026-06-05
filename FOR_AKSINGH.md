@@ -824,6 +824,16 @@ claim/heartbeat/complete functions. So the local rehearsal can close the worker
 policy blocker without pretending a hosted worker supervisor exists. The lesson
 is precision: "we know how local foreground work behaves" is true; "we have a
 production background-worker system" would be false.
+Finally, the DB now has the bare hosted auth/session model that was missing
+from the tenant story. `auth_identities` says "this external login belongs to
+this app user." `tenant_sessions` says "this user is operating inside this
+tenant right now, with this session hash and expiry." That matters because a
+firm account is not just a larger personal account; it needs a way to decide
+which tenant the request belongs to. We also tightened session row visibility
+to tenant plus user, because a firm tenant may contain many lawyers and a normal
+request should not see another lawyer's sessions. This still does not choose an
+auth product or issue cookies. It only gives a future hosted runtime the
+database contract it needs.
 The same cleanup happened for local matter import and advisory preservation.
 Those were originally kept as runtime cutover blockers, which was cautious but
 eventually too vague. The shadow DB now has import batches/items for existing

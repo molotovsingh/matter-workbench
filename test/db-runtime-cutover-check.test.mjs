@@ -62,6 +62,28 @@ test("runtime cutover check carries the reduced blocker set after local runtime 
   ]);
 });
 
+test("runtime cutover check can report no blockers while still requiring explicit runtime cutover approval", async () => {
+  const { buildRuntimeCutoverReport, renderRuntimeCutoverReport } = await import(runtimeCheckPath.href);
+
+  const report = await buildRuntimeCutoverReport({
+    buildAcceptanceReport: async () => ({
+      accepted: true,
+      verifySuccess: true,
+      runtimeCutoverReady: false,
+      runtimeCutoverBlockers: [],
+      next: "Shadow database accepted for handoff evidence; runtime remains filesystem-backed.",
+    }),
+  });
+
+  assert.equal(report.shadowEvidenceAccepted, true);
+  assert.equal(report.runtimeCutoverReady, false);
+  assert.deepEqual(report.blockers, []);
+
+  const rendered = renderRuntimeCutoverReport(report).join("\n");
+  assert.match(rendered, /runtime_cutover_ready: no/);
+  assert.match(rendered, /runtime_cutover_blockers:\n\s+\(none\)/);
+});
+
 test("runtime cutover check reports shadow acceptance failure as a blocker", async () => {
   const { buildRuntimeCutoverReport } = await import(runtimeCheckPath.href);
 

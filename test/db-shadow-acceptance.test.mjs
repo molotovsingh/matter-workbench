@@ -34,6 +34,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
     checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -88,6 +89,7 @@ test("shadow DB acceptance removes storage blockers when current single-host sto
     }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
     checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -126,6 +128,7 @@ test("shadow DB acceptance removes the Postgres unavailable blocker when local r
       behavior: "local_filesystem_runtime_continues_without_postgres",
     }),
     checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -163,6 +166,7 @@ test("shadow DB acceptance removes the worker blocker when local foreground poli
       accepted: true,
       behavior: "local_preparation_runs_foreground_db_worker_recovery_functions_exist",
     }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -173,6 +177,74 @@ test("shadow DB acceptance removes the worker blocker when local foreground poli
   assert.match(rendered, /worker_runtime_policy: accepted/);
   assert.match(rendered, /local_preparation_runs_foreground_db_worker_recovery_functions_exist/);
   assert.doesNotMatch(rendered, /worker_process_owner_and_recovery/);
+});
+
+test("shadow DB acceptance removes the hosted auth blocker when the session model is accepted", async () => {
+  const {
+    buildShadowAcceptanceReport,
+    renderShadowAcceptanceReport,
+  } = await import(acceptancePath.href);
+
+  const report = await buildShadowAcceptanceReport({
+    runDoctorFn: async () => [
+      "database_url: configured",
+      "psql: available - psql (PostgreSQL) 18.4",
+      "ready_to_apply: no",
+      "ready_to_hydrate: yes",
+    ],
+    runHydrationFn: () => ({
+      mode: "verify",
+      success: true,
+      steps: [{ script: "db:shadow:report", ok: true }],
+      failedStep: null,
+    }),
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({
+      accepted: true,
+      behavior: "provider_neutral_identity_maps_to_tenant_user_scoped_sessions",
+    }),
+  });
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.authSessionPolicy.accepted, true);
+  assert.ok(!report.runtimeCutoverBlockers.includes("hosted_auth_and_tenant_session_model"));
+
+  const rendered = renderShadowAcceptanceReport(report).join("\n");
+  assert.match(rendered, /auth_session_policy: accepted/);
+  assert.match(rendered, /provider_neutral_identity_maps_to_tenant_user_scoped_sessions/);
+  assert.doesNotMatch(rendered, /hosted_auth_and_tenant_session_model/);
+});
+
+test("hosted auth session policy proves provider identity and tenant session contracts", async () => {
+  const { checkHostedAuthSessionModelPolicy } = await import(acceptancePath.href);
+
+  const report = await checkHostedAuthSessionModelPolicy();
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.behavior, "provider_neutral_identity_maps_to_tenant_user_scoped_sessions");
+  assert.equal(report.reason, "");
+});
+
+test("hosted auth session policy fails when tenant session RLS is missing", async () => {
+  const { checkHostedAuthSessionModelPolicy } = await import(acceptancePath.href);
+
+  const report = await checkHostedAuthSessionModelPolicy({
+    readFileFn: async () => [
+      "create table if not exists auth_identities (",
+      "  user_id uuid not null references users(id),",
+      "  unique (provider, provider_subject)",
+      ");",
+      "create table if not exists tenant_sessions (",
+      "  tenant_id uuid not null references tenants(id),",
+      "  foreign key (tenant_id, user_id) references tenant_memberships (tenant_id, user_id)",
+      ");",
+    ].join("\n"),
+  });
+
+  assert.equal(report.accepted, false);
+  assert.match(report.reason, /tenant RLS contract is missing/);
 });
 
 test("local worker runtime policy proves foreground local runtime and prepared DB worker functions", async () => {
@@ -234,6 +306,7 @@ test("shadow DB acceptance fails closed before verify when schema is not ready",
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
     checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, false);
@@ -275,6 +348,7 @@ test("shadow DB acceptance redacts failed verify evidence", async () => {
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
     checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
+    checkHostedAuthSessionModelPolicyFn: async () => ({ accepted: false }),
   });
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");

@@ -28,6 +28,7 @@ export async function buildShadowAcceptanceReport({
   checkStorageBackupEvidenceFn = checkShadowStorageBackupEvidence,
   checkPostgresUnavailableRuntimePolicyFn = checkPostgresUnavailableRuntimePolicy,
   checkLocalWorkerRuntimePolicyFn = checkLocalWorkerRuntimePolicy,
+  checkHostedAuthSessionModelPolicyFn = checkHostedAuthSessionModelPolicy,
 } = {}) {
   const doctorLines = (await runDoctorFn({ argv: [], env })).map(redactLine);
   const readyToHydrateShadow = extractYesNo(doctorLines, "ready_to_hydrate");
@@ -63,6 +64,7 @@ export async function buildShadowAcceptanceReport({
   const storageBackupEvidence = await checkStorageBackupEvidenceFn({ env });
   const postgresUnavailablePolicy = await checkPostgresUnavailableRuntimePolicyFn({ env });
   const workerRuntimePolicy = await checkLocalWorkerRuntimePolicyFn();
+  const authSessionPolicy = await checkHostedAuthSessionModelPolicyFn();
   return {
     mode: "read-only verify",
     accepted: Boolean(verifyResult.success),
@@ -76,10 +78,12 @@ export async function buildShadowAcceptanceReport({
       storageBackupAccepted: Boolean(storageBackupEvidence?.accepted),
       postgresUnavailablePolicyAccepted: Boolean(postgresUnavailablePolicy?.accepted),
       workerRuntimePolicyAccepted: Boolean(workerRuntimePolicy?.accepted),
+      authSessionPolicyAccepted: Boolean(authSessionPolicy?.accepted),
     }),
     storageBackupEvidence: storageBackupEvidence || { accepted: false },
     postgresUnavailablePolicy: postgresUnavailablePolicy || { accepted: false },
     workerRuntimePolicy: workerRuntimePolicy || { accepted: false },
+    authSessionPolicy: authSessionPolicy || { accepted: false },
     failedVerifyStep: verifyResult.failedStep?.script || "",
     next: verifyResult.success
       ? "Shadow database accepted for handoff evidence; runtime remains filesystem-backed."
@@ -117,6 +121,10 @@ export function renderShadowAcceptanceReport(report = {}) {
   lines.push(`worker_runtime_policy: ${workerPolicy.accepted ? "accepted" : "missing"}`);
   if (workerPolicy.behavior) lines.push(`  behavior: ${redactLine(workerPolicy.behavior)}`);
   if (workerPolicy.reason) lines.push(`  reason: ${redactLine(workerPolicy.reason)}`);
+  const authPolicy = report.authSessionPolicy || {};
+  lines.push(`auth_session_policy: ${authPolicy.accepted ? "accepted" : "missing"}`);
+  if (authPolicy.behavior) lines.push(`  behavior: ${redactLine(authPolicy.behavior)}`);
+  if (authPolicy.reason) lines.push(`  reason: ${redactLine(authPolicy.reason)}`);
 
   lines.push("runtime_cutover_blockers:");
   for (const blocker of report.runtimeCutoverBlockers || []) {
@@ -140,6 +148,7 @@ function runtimeCutoverBlockers({
   storageBackupAccepted = false,
   postgresUnavailablePolicyAccepted = false,
   workerRuntimePolicyAccepted = false,
+  authSessionPolicyAccepted = false,
 } = {}) {
   return RUNTIME_CUTOVER_BLOCKERS.filter((blocker) => (
     !(
@@ -149,6 +158,7 @@ function runtimeCutoverBlockers({
       ))
       || (postgresUnavailablePolicyAccepted && blocker === "postgres_unavailable_user_behavior")
       || (workerRuntimePolicyAccepted && blocker === "worker_process_owner_and_recovery")
+      || (authSessionPolicyAccepted && blocker === "hosted_auth_and_tenant_session_model")
     )
   ));
 }
@@ -221,6 +231,41 @@ export async function checkLocalWorkerRuntimePolicy({
       accepted: false,
       behavior: "local_worker_runtime_policy_check_failed",
       reason: error?.message || "worker runtime policy could not be checked",
+    };
+  }
+}
+
+export async function checkHostedAuthSessionModelPolicy({
+  appDir = process.cwd(),
+  readFileFn = readFile,
+} = {}) {
+  try {
+    const sql = await readFileFn(path.join(appDir, "db", "migrations", "013_hosted_auth_session_model.sql"), "utf8");
+    const policySql = `${sql}\n${await readFileFn(path.join(appDir, "db", "migrations", "014_tenant_sessions_user_rls.sql"), "utf8")}`;
+    const hasAuthIdentities = /create table if not exists auth_identities/i.test(sql)
+      && /unique \(provider, provider_subject\)/i.test(sql)
+      && /user_id uuid not null references users\(id\)/i.test(sql);
+    const hasTenantSessions = /create table if not exists tenant_sessions/i.test(sql)
+      && /tenant_id uuid not null references tenants\(id\)/i.test(sql)
+      && /foreign key \(tenant_id, user_id\) references tenant_memberships \(tenant_id, user_id\)/i.test(sql);
+    const hasTenantContext = /create or replace function current_app_user_id\(\)/i.test(sql)
+      && /alter table tenant_sessions enable row level security/i.test(sql)
+      && /create policy tenant_sessions_tenant_isolation[\s\S]*tenant_id = current_app_tenant_id\(\) and user_id = current_app_user_id\(\)/i.test(policySql);
+
+    return {
+      accepted: Boolean(hasAuthIdentities && hasTenantSessions && hasTenantContext),
+      behavior: hasAuthIdentities && hasTenantSessions && hasTenantContext
+        ? "provider_neutral_identity_maps_to_tenant_user_scoped_sessions"
+        : "hosted_auth_session_model_incomplete",
+      reason: hasAuthIdentities && hasTenantSessions && hasTenantContext
+        ? ""
+        : "auth identity, tenant session, or tenant RLS contract is missing",
+    };
+  } catch (error) {
+    return {
+      accepted: false,
+      behavior: "hosted_auth_session_model_check_failed",
+      reason: error?.message || "hosted auth session model could not be checked",
     };
   }
 }

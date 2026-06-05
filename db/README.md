@@ -43,6 +43,10 @@ For the operator/developer handoff sequence, read
 - `012_tenant_org_profile.sql` makes the tenant row explicitly describe whether
   the account is single-user or organization-scoped, with an optional org slug,
   member capacity, and primary owner link.
+- `013_hosted_auth_session_model.sql` adds provider-neutral auth identities and
+  tenant/user-scoped session rows for future hosted middleware.
+- `014_tenant_sessions_user_rls.sql` tightens the session RLS policy for shadow
+  databases that applied the first auth/session migration during rehearsal.
 
 ## Commands
 
@@ -302,8 +306,15 @@ has `tenants.account_scope`, `tenants.organization_slug`,
 the existing `tenant_memberships` and `matter_memberships` tables. That means a
 future hosted beta can distinguish a single-user personal beta account from a
 firm or organization account without changing the matter-control-plane shape.
-It does not remove the runtime cutover blocker for hosted auth and tenant
-session handling.
+
+Hosted auth and tenant-session modeling is accepted at the database layer.
+`auth_identities` maps provider identities to app users, while
+`tenant_sessions` records the selected tenant, user, session hash, expiry, and
+membership enforcement. Session rows are scoped by tenant and user, not just by
+tenant, so a future firm account can contain multiple users without exposing
+one member's sessions to another normal member. This is provider-neutral: it
+does not choose or configure an auth provider, issue cookies, or wire the local
+runtime to Postgres.
 
 Postgres-unavailable behavior is accepted for the local/private beta path: the
 product runtime remains filesystem-backed and does not read or write Postgres.
@@ -348,8 +359,9 @@ made explicitly:
 
 - hosted database URL and migration environment;
 - for multi-host/cloud deployment, object storage provider and bucket layout;
-- tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
 - hosted runtime ownership and recovery for worker jobs and provider-run failures;
+- hosted web/session middleware that validates provider tokens and sets
+  `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.

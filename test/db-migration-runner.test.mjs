@@ -34,6 +34,8 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "010_advisory_snapshot_functions.sql",
       "011_custom_skill_lifecycle_functions.sql",
       "012_tenant_org_profile.sql",
+      "013_hosted_auth_session_model.sql",
+      "014_tenant_sessions_user_rls.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -48,6 +50,8 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("010_advisory_snapshot_functions.sql"), "010_advisory_snapshot_functions");
   assert.equal(migrationVersionFromFile("011_custom_skill_lifecycle_functions.sql"), "011_custom_skill_lifecycle_functions");
   assert.equal(migrationVersionFromFile("012_tenant_org_profile.sql"), "012_tenant_org_profile");
+  assert.equal(migrationVersionFromFile("013_hosted_auth_session_model.sql"), "013_hosted_auth_session_model");
+  assert.equal(migrationVersionFromFile("014_tenant_sessions_user_rls.sql"), "014_tenant_sessions_user_rls");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 
@@ -334,4 +338,6 @@ test("database transition docs list every preparatory migration", async () => {
   assert.match(docs, /010_advisory_snapshot_functions\.sql/);
   assert.match(docs, /011_custom_skill_lifecycle_functions\.sql/);
   assert.match(docs, /012_tenant_org_profile\.sql/);
+  assert.match(docs, /013_hosted_auth_session_model\.sql/);
+  assert.match(docs, /014_tenant_sessions_user_rls\.sql/);
 });

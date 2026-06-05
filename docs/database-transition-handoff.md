@@ -268,10 +268,27 @@ account row itself.
 
 This means the shadow schema can represent both a single-user personal beta
 tenant and a future firm or organization tenant without reshaping matter,
-document, job, advisory, or skill tables. It does not close the hosted auth and
-tenant-session model blocker. A future runtime still needs a sign-in/session
-layer that chooses the active tenant, sets `app.tenant_id`, and prevents users
-from acting outside their active membership.
+document, job, advisory, or skill tables.
+
+## Accepted Hosted Auth And Tenant Session Model
+
+The shadow DB transition now has a provider-neutral hosted auth and tenant
+session model. `auth_identities` maps an external identity provider and subject
+to an app `users` row. `tenant_sessions` records the selected tenant, user,
+session hash, expiry, revocation status, and membership enforcement through the
+existing `(tenant_id, user_id)` tenant membership key. `tenant_sessions` is
+tenant/user-scoped with row-level security, and `current_app_user_id()` mirrors
+`current_app_tenant_id()` for future request context. The user binding matters
+because a future firm tenant can contain many lawyers; a normal request should
+not see another member's session rows merely because both users belong to the
+same tenant.
+
+This closes the `hosted_auth_and_tenant_session_model` blocker as a database
+model. It does not choose an auth provider, issue browser cookies, or make the
+local product runtime database-backed. A future hosted runtime still needs the
+web/session middleware that validates a provider token, selects the active
+tenant, sets `app.tenant_id` and `app.user_id`, and refuses inactive or
+cross-tenant memberships.
 
 ## What A Developer Should Check Next
 
@@ -295,11 +312,12 @@ Before any real hosted or database-backed runtime work:
 
 Stop before runtime cutover if any of these are still unresolved:
 
-- hosted auth and tenant-session model;
 - for multi-host/cloud deployment, object storage provider, bucket layout, and
   deletion policy;
 - backup and restore process for both Postgres and PDF/object storage;
 - hosted worker process owner and failure recovery;
+- hosted web/session middleware that validates provider tokens and sets
+  `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.
 
