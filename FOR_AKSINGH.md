@@ -777,6 +777,12 @@ the app should depend on it.
 handoff, take a local ignored `pg_dump` backup under `.local/shadow-db-backups/`.
 That backup is not product storage and it is not checked into Git. It is the
 "do not be clever with the only copy" rule in concrete form.
+`db:shadow:restore-drill` then tests whether that backup is real. It restores
+the dump into a temporary database whose name must start with
+`matter_workbench_shadow_restore_`, runs the same combined shadow report, and
+drops the temporary database unless the operator explicitly keeps it. This is
+how a serious engineer treats backups: a backup you have not restored is only a
+hopeful file.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

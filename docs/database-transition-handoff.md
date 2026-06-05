@@ -69,6 +69,7 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 ```
 
@@ -79,7 +80,15 @@ handoff: it requires the migrated schema to be ready to hydrate, runs the verify
 pipeline, and fails closed if the combined shadow report no longer matches. Use
 `db:shadow:backup` to create a local ignored backup under
 `.local/shadow-db-backups/` before handing the VM database to another operator
-or before applying a new migration. Use `db:shadow:snapshot` to preserve the
+or before applying a new migration. Use `db:shadow:restore-drill` to prove that
+backup can restore into a temporary restore database and still pass the combined
+shadow report; the restore database name is forced to a
+`matter_workbench_shadow_restore_` prefix and is dropped after the drill unless
+the operator explicitly keeps it. This restore drill is a backup proof, not a
+runtime cutover. The database host must allow the DB user to connect to that
+temporary restore database in `pg_hba.conf`; allowing only the live
+`matter_workbench_shadow` database is enough for hydration and backup, but not
+for a restore drill. Use `db:shadow:snapshot` to preserve the
 combined report for handoff. New snapshots also record the repo branch, short
 commit, and whether the worktree was clean when the report was generated.
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight and refuses to write
