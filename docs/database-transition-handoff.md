@@ -17,9 +17,13 @@ The database work is a mirror, not the live backend.
   and run receipts.
 - Local matter folders still own originals, generated legal artifacts, JSON
   ledgers, and lawyer-facing output files.
+- The shadow database stores local file pointers and hashes for PDFs, not PDF
+  bytes. A database backup without the matching local storage backup can restore
+  DB rows that point to missing PDFs.
 - The app does not read matters, skills, advisory state, or receipts from
   Postgres at runtime.
-- Do not cut over runtime reads or writes until auth, object storage, backups,
+- Do not cut over runtime reads or writes until auth, durable object storage or
+  an explicit single-host volume policy, backups for both DB and file custody,
   job workers, and rollback behavior are explicitly approved.
 
 ## Environment Needed
@@ -140,7 +144,9 @@ Before any real hosted or database-backed runtime work:
    bodies or generated legal work-product bodies.
 3. Confirm tenant isolation with `002_tenant_rls.sql` and tenant-reference
    checks from later migrations.
-4. Confirm object-storage custody rules before any upload path moves hosted.
+4. Confirm object-storage custody rules before any upload path moves hosted. A
+   database backup alone is not enough while storage objects still point at local
+   filesystem paths; restored DB rows can otherwise point to missing PDFs.
 5. Confirm worker lease/heartbeat behavior before long-running preparation
    moves out of the local foreground app.
 6. Confirm rollback: how to return to filesystem-backed local runtime if the DB
@@ -152,7 +158,7 @@ Stop before runtime cutover if any of these are still unresolved:
 
 - hosted auth and tenant-session model;
 - object storage provider, bucket layout, and deletion policy;
-- backup and restore process;
+- backup and restore process for both Postgres and PDF/object storage;
 - worker process owner and failure recovery;
 - incident/advisory preservation policy;
 - import policy for existing local matter folders;

@@ -23,6 +23,9 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /db:doctor[\s\S]*preflight/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*ready_to_hydrate:\s*yes/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*refuses to write/i);
+  assert.match(doc, /restored DB rows[\s\S]*missing PDFs/i);
+  assert.match(doc, /database backup[\s\S]*local storage/i);
+  assert.match(doc, /durable object storage/i);
   assert.match(doc, /MWB_PSQL_BIN/);
   assert.match(doc, /Homebrew[\s\S]*libpq/i);
   assert.match(doc, /\.env\.shadow/);

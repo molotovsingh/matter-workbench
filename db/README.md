@@ -231,6 +231,13 @@ database names must start with `matter_workbench_shadow_restore_`; the command
 will not restore into the live shadow database name. This is the first practical
 backup/restore proof for the DB transition, not a runtime cutover.
 
+The shadow database stores PDF custody as metadata: storage provider, bucket,
+object key, hash, and lifecycle rows. It does not store PDF bytes inline. If
+storage still points at `local-filesystem`, a database backup must travel with a
+matching local storage backup or an explicit migration to durable object storage;
+otherwise a restore can produce valid control-plane rows that point at missing
+PDFs.
+
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,
 storage-custody rows, provider-run links, cost-event rows, and audit-event rows,
