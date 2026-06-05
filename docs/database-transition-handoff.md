@@ -216,6 +216,22 @@ source of truth. This closes the separate
 `incident_advisory_preservation_policy` blocker for the shadow-control-plane
 rehearsal while keeping runtime matter behavior filesystem-backed.
 
+## Accepted Tenant Organization Profile
+
+The shadow DB transition now has an explicit tenant organization profile:
+`tenants.account_scope`, `tenants.organization_slug`,
+`tenants.max_member_count`, and `tenants.primary_owner_user_id`. The existing
+`tenant_memberships` and `matter_memberships` tables already carried the
+multi-user shape; these tenant fields make the product posture visible at the
+account row itself.
+
+This means the shadow schema can represent both a single-user personal beta
+tenant and a future firm or organization tenant without reshaping matter,
+document, job, advisory, or skill tables. It does not close the hosted auth and
+tenant-session model blocker. A future runtime still needs a sign-in/session
+layer that chooses the active tenant, sets `app.tenant_id`, and prevents users
+from acting outside their active membership.
+
 ## What A Developer Should Check Next
 
 Before any real hosted or database-backed runtime work:

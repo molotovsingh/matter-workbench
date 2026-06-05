@@ -57,6 +57,7 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [009_incident_helper_functions.sql](db/migrations/009_incident_helper_functions.sql) - canonical incident recording and resolution helpers for hosted advisory projection.
 - [010_advisory_snapshot_functions.sql](db/migrations/010_advisory_snapshot_functions.sql) - append-only Preparation Advisory snapshot helper.
 - [011_custom_skill_lifecycle_functions.sql](db/migrations/011_custom_skill_lifecycle_functions.sql) - tenant-scoped custom skill lifecycle transitions.
+- [012_tenant_org_profile.sql](db/migrations/012_tenant_org_profile.sql) - explicit single-user vs organization tenant profile fields.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -101,7 +102,11 @@ an append-only record of what the Preparation Advisory showed after a run,
 derived from incidents and validation rows rather than a second mutable source
 of truth. The custom-skill lifecycle migration adds one database-owned pause,
 resume, archive, restore, and soft-delete transition helper for configurable
-skills, keeping native skills app-owned and untouched.
+skills, keeping native skills app-owned and untouched. The tenant org-profile
+migration then makes the account shape explicit with `account_scope`,
+`organization_slug`, `max_member_count`, and `primary_owner_user_id`, so the
+schema visibly supports both single-user beta tenants and future firm or
+organization tenants without pretending the hosted auth/session layer is done.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

@@ -40,6 +40,9 @@ For the operator/developer handoff sequence, read
   validation rows.
 - `011_custom_skill_lifecycle_functions.sql` adds tenant-scoped pause, resume,
   archive, restore, and soft-delete transitions for configurable skills.
+- `012_tenant_org_profile.sql` makes the tenant row explicitly describe whether
+  the account is single-user or organization-scoped, with an optional org slug,
+  member capacity, and primary owner link.
 
 ## Commands
 
@@ -286,6 +289,15 @@ Incident/advisory preservation is also accepted for the shadow rehearsal:
 Matter Attention items are mirrored into canonical incidents, and append-only
 advisory snapshots preserve the advisory projection for each mirrored matter.
 The snapshot is evidence, not a second source of truth.
+
+Tenant organization posture is explicit but still preparatory. The schema now
+has `tenants.account_scope`, `tenants.organization_slug`,
+`tenants.max_member_count`, and `tenants.primary_owner_user_id` in addition to
+the existing `tenant_memberships` and `matter_memberships` tables. That means a
+future hosted beta can distinguish a single-user personal beta account from a
+firm or organization account without changing the matter-control-plane shape.
+It does not remove the runtime cutover blocker for hosted auth and tenant
+session handling.
 
 `db:shadow:snapshot` writes that combined report to timestamped Markdown and
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer

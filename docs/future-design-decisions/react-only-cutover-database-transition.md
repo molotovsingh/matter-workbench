@@ -112,13 +112,19 @@ The first schema baseline now lives at:
 - `db/migrations/009_incident_helper_functions.sql`
 - `db/migrations/010_advisory_snapshot_functions.sql`
 - `db/migrations/011_custom_skill_lifecycle_functions.sql`
+- `db/migrations/012_tenant_org_profile.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
 the hosted control-plane shape for tenancy, document identity, jobs, provider
 runs, incidents, advisory snapshots, artifacts, costs, audit events, and
 configurable-skill ledgers. It also installs a shared `updated_at` trigger helper
-on mutable control-plane tables. `002_tenant_rls.sql` enables and forces
+on mutable control-plane tables. `012_tenant_org_profile.sql` keeps that tenancy
+model honest by making the tenant row itself say whether it is a single-user
+account or an organization-scoped account, with optional organization slug,
+member capacity, and primary owner fields. It does not implement hosted sign-in;
+it prevents the database shape from looking accidentally single-user.
+`002_tenant_rls.sql` enables and forces
 row-level security for tenant-scoped tables and denies access unless the DB
 session sets `app.tenant_id`. `003_tenant_reference_integrity.sql` adds
 tenant-consistent parent references so tenant-scoped rows cannot point at parent

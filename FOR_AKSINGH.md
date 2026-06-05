@@ -477,6 +477,7 @@ db/migrations/008_job_worker_functions.sql
 db/migrations/009_incident_helper_functions.sql
 db/migrations/010_advisory_snapshot_functions.sql
 db/migrations/011_custom_skill_lifecycle_functions.sql
+db/migrations/012_tenant_org_profile.sql
 ```
 
 The baseline sketches the hosted beta backbone: tenants, matters, document
@@ -515,6 +516,17 @@ matter, upload, job, label confirmation, acknowledgement, audit actor, or custom
 skill lifecycle change should not be able to name a user who is outside the
 tenant. It also makes cost/provider approvals point at tenant-local audit
 events, so "who approved this spend?" has a database-enforced answer.
+
+The twelfth migration adds a small but important product signal to the tenant
+row itself. Earlier migrations already had `tenant_memberships` and
+`matter_memberships`, so the database was technically multi-user capable. But
+that capability was easy to miss. `012_tenant_org_profile.sql` adds
+`account_scope`, `organization_slug`, `max_member_count`, and
+`primary_owner_user_id`. That lets the system later distinguish "one lawyer's
+private beta account" from "a firm or organization account with more seats"
+without rebuilding matter tables. The lesson is subtle: if the product will
+grow from solo users to organizations, make that shape explicit early, even if
+the first beta still behaves like one user on one machine.
 
 The fifth migration handles the object-storage transaction boundary. The app
 already knows large files and legal artifacts should live outside Postgres. The
