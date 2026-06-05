@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "shadow-storage-restore-check/v1",
+  "generatedAt": "2026-06-05T06:08:44.843Z",
+  "sourceBackupGeneratedAt": "2026-06-05T06:06:47.988Z",
+  "success": true,
+  "manifest": "manifest.json",
+  "checkedObjects": 168,
+  "failedObjects": 0,
+  "failures": []
+}

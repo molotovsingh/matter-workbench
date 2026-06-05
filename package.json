@@ -50,6 +50,8 @@
     "db:runtime-cutover-check": "node scripts/db-runtime-cutover-check.mjs",
     "db:shadow:backup": "node scripts/db-shadow-backup.mjs",
     "db:shadow:restore-drill": "node scripts/db-shadow-restore-drill.mjs",
+    "db:shadow:storage-backup": "node scripts/db-shadow-storage-backup.mjs",
+    "db:shadow:storage-restore-check": "node scripts/db-shadow-storage-restore-check.mjs",
     "db:shadow:hydrate:dry-run": "node scripts/db-shadow-hydrate-all.mjs --dry-run",
     "db:shadow:hydrate": "node scripts/db-shadow-hydrate-all.mjs --apply",
     "db:shadow:hydrate:verify": "node scripts/db-shadow-hydrate-all.mjs --verify",

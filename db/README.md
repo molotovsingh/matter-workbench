@@ -53,6 +53,8 @@ npm run db:runtime-cutover-check
 npm run db:shadow:backup
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
+npm run db:shadow:storage-backup
+npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -94,6 +96,8 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:acceptance
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:backup
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
+npm run db:shadow:storage-backup
+npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
@@ -243,6 +247,19 @@ will not restore into the live shadow database name. This is the first practical
 backup/restore proof for the DB transition, not a runtime cutover. Pass
 `--out-dir docs/shadow-db-restore-drills` to preserve a redacted Markdown/JSON
 handoff artifact for a successful drill.
+
+`db:shadow:storage-backup` creates a local ignored backup of DB-referenced PDF
+storage objects under `.local/shadow-storage-backups/`. It copies the PDF bytes
+that shadow `storage_objects` currently point at, then writes a redacted
+`manifest.json` with object keys, sizes, and SHA-256 hashes. It does not write
+file bodies to Git, change database rows, hydrate anything, or switch runtime
+storage.
+
+`db:shadow:storage-restore-check -- --manifest
+.local/shadow-storage-backups/<backup>/manifest.json` verifies that every
+backed-up PDF named in the manifest is present and hash-matching. Use it with
+the database restore drill when proving that the shadow control plane and the
+local file custody it references can travel together.
 
 The shadow database stores PDF custody as metadata: storage provider, bucket,
 object key, hash, and lifecycle rows. It does not store PDF bytes inline. If

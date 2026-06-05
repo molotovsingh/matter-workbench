@@ -783,6 +783,17 @@ the dump into a temporary database whose name must start with
 drops the temporary database unless the operator explicitly keeps it. This is
 how a serious engineer treats backups: a backup you have not restored is only a
 hopeful file.
+The next lesson is that a database backup is not a matter backup when the
+database only stores file pointers. The shadow DB now has `storage_objects` and
+`document_blobs` rows that say "this PDF should exist here, with this hash," but
+the PDF bytes themselves still live outside Postgres. So `db:shadow:storage-backup`
+copies the DB-referenced local PDFs into an ignored `.local` backup folder, and
+`db:shadow:storage-restore-check` proves those copied files are still present
+and hash-matching. That is the difference between "the database restored" and
+"the restored database still points at real documents." The runtime cutover
+guard now treats that as a separate proof: once storage backup evidence is
+current, the PDF backup/restore blocker can drop, but the larger object-storage
+or single-host-volume policy is still a real deployment decision.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

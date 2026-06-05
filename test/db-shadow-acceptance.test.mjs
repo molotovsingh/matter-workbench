@@ -31,6 +31,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
       ],
       failedStep: null,
     }),
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -53,6 +54,44 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.match(rendered, /pdf_storage_backup_restore_policy/);
 });
 
+test("shadow DB acceptance removes the PDF storage blocker when storage backup evidence is current", async () => {
+  const {
+    buildShadowAcceptanceReport,
+    renderShadowAcceptanceReport,
+  } = await import(acceptancePath.href);
+
+  const report = await buildShadowAcceptanceReport({
+    runDoctorFn: async () => [
+      "database_url: configured",
+      "psql: available - psql (PostgreSQL) 18.4",
+      "ready_to_apply: no",
+      "ready_to_hydrate: yes",
+    ],
+    runHydrationFn: () => ({
+      mode: "verify",
+      success: true,
+      steps: [{ script: "db:shadow:report", ok: true }],
+      failedStep: null,
+    }),
+    checkStorageBackupEvidenceFn: async () => ({
+      accepted: true,
+      manifest: "manifest.json",
+      checkedObjects: 168,
+      missingCurrentObjects: 0,
+      hashMismatches: 0,
+    }),
+  });
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.storageBackupEvidence.accepted, true);
+  assert.ok(!report.runtimeCutoverBlockers.includes("pdf_storage_backup_restore_policy"));
+  assert.ok(report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
+
+  const rendered = renderShadowAcceptanceReport(report).join("\n");
+  assert.match(rendered, /storage_backup_evidence: accepted/);
+  assert.doesNotMatch(rendered, /pdf_storage_backup_restore_policy/);
+});
+
 test("shadow DB acceptance fails closed before verify when schema is not ready", async () => {
   const { buildShadowAcceptanceReport } = await import(acceptancePath.href);
   let verifyCalled = false;
@@ -69,6 +108,7 @@ test("shadow DB acceptance fails closed before verify when schema is not ready",
       verifyCalled = true;
       return { mode: "verify", success: true, steps: [], failedStep: null };
     },
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, false);
@@ -107,6 +147,7 @@ test("shadow DB acceptance redacts failed verify evidence", async () => {
       ],
       failedStep: { script: "db:shadow:report" },
     }),
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
   });
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");

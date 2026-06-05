@@ -19,7 +19,10 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /npm run db:shadow:snapshot/);
   assert.match(doc, /repo branch, short\s+commit, and whether\s+the worktree was clean/i);
   assert.match(doc, /npm run db:shadow:backup/);
+  assert.match(doc, /npm run db:shadow:storage-backup/);
+  assert.match(doc, /npm run db:shadow:storage-restore-check/);
   assert.match(doc, /\.local\/shadow-db-backups/);
+  assert.match(doc, /\.local\/shadow-storage-backups/);
   assert.match(doc, /db:doctor[\s\S]*preflight/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*ready_to_hydrate:\s*yes/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*refuses to write/i);
@@ -32,11 +35,14 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /\.env\.shadow[\s\S]*ignored/i);
   assert.match(doc, /docs\/shadow-db-snapshots\/shadow-db-snapshot-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
   assert.match(doc, /docs\/shadow-db-restore-drills\/shadow-db-restore-drill-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
+  assert.match(doc, /docs\/shadow-storage-restore-checks\/shadow-storage-restore-check-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
   assert.match(doc, /15 matters, 180 documents, 180 extraction\s+records, 125 source descriptors/i);
   assert.match(doc, /8 configurable skills,\s+22 configurable-skill runs/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*one[- ]run evidence/i);
   assert.match(doc, /Current Restore Drill Evidence[\s\S]*temporary\s+PostgreSQL\s+database/i);
   assert.match(doc, /Current Restore Drill Evidence[\s\S]*drop restore database:\s*ok/i);
+  assert.match(doc, /Current Storage Restore-Check Evidence[\s\S]*168 checked PDF objects/i);
+  assert.match(doc, /Current Storage Restore-Check Evidence[\s\S]*0 failed objects/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*not live truth/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*repo changes/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*local matter/i);

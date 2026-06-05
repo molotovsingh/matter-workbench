@@ -76,6 +76,8 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime-cutover-check
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
+npm run db:shadow:storage-backup
+npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 ```
 
@@ -96,6 +98,12 @@ temporary restore database in `pg_hba.conf`; allowing only the live
 `matter_workbench_shadow` database is enough for hydration and backup, but not
 for a restore drill. Pass `--out-dir docs/shadow-db-restore-drills` to preserve
 a redacted Markdown/JSON restore-drill proof for handoff. Use
+`db:shadow:storage-backup` to copy the DB-referenced local PDF objects into an
+ignored `.local/shadow-storage-backups/` folder and write a hash manifest. Use
+`db:shadow:storage-restore-check` against that manifest to prove the copied PDF
+objects are present and hash-matching. This storage backup travels with the DB
+backup during local/single-host rehearsal; it is not a hosted object-storage
+provider decision. Use
 `db:shadow:snapshot` to preserve the combined report for handoff. New snapshots
 also record the repo branch, short commit, and whether the worktree was clean
 when the report was generated.
@@ -169,6 +177,22 @@ drop restore database: ok
 This proves the Postgres shadow backup can be restored and checked. It does not
 prove PDF/object-storage backup and restore; local PDF custody remains a separate
 runtime-cutover concern.
+
+## Current Storage Restore-Check Evidence
+
+The current checked-in storage restore-check evidence is:
+
+```text
+docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-05T06-08-44-843Z.md
+docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-05T06-08-44-843Z.json
+```
+
+It reports `Success: yes` for a local ignored storage backup generated at
+`2026-06-05T06:06:47.988Z`, with 168 checked PDF objects and 0 failed objects.
+This proves the local backup manifest can be read and the copied PDF objects are
+present and hash-matching. It does not decide the hosted object-storage provider
+or prove a multi-host deployment storage policy; that remains covered by the
+separate `object_storage_or_single_host_volume_policy` blocker.
 
 ## What A Developer Should Check Next
 
