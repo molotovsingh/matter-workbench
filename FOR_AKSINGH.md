@@ -794,6 +794,14 @@ and hash-matching. That is the difference between "the database restored" and
 guard now treats that as a separate proof: once storage backup evidence is
 current, the PDF backup/restore blocker can drop, but the larger object-storage
 or single-host-volume policy is still a real deployment decision.
+The same cleanup happened for local matter import and advisory preservation.
+Those were originally kept as runtime cutover blockers, which was cautious but
+eventually too vague. The shadow DB now has import batches/items for existing
+matter folders, and it has canonical incidents plus append-only advisory
+snapshots for Matter Attention. Once those are verified in the shadow report,
+they are no longer open policy questions for the rehearsal. Good engineering
+does not keep old blockers forever; it turns them into evidence, then narrows
+the remaining stop rule to the decisions that are genuinely still open.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

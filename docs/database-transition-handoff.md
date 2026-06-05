@@ -205,6 +205,17 @@ renumbering `FILE-NNNN` identities. This does not make Postgres the live matter
 runtime, but it closes the separate `local_matter_import_policy` cutover blocker
 for the shadow-control-plane rehearsal.
 
+## Accepted Incident And Advisory Preservation
+
+The shadow DB transition now has an accepted incident/advisory preservation path
+for the current local beta: Matter Attention items are mirrored as canonical
+incident rows, and each mirrored matter receives an append-only advisory
+snapshot derived from those incidents and validation rows. The snapshot is
+evidence of what the advisory surface showed at that time; it is not a second
+source of truth. This closes the separate
+`incident_advisory_preservation_policy` blocker for the shadow-control-plane
+rehearsal while keeping runtime matter behavior filesystem-backed.
+
 ## What A Developer Should Check Next
 
 Before any real hosted or database-backed runtime work:
@@ -230,7 +241,6 @@ Stop before runtime cutover if any of these are still unresolved:
 - object storage provider, bucket layout, and deletion policy;
 - backup and restore process for both Postgres and PDF/object storage;
 - worker process owner and failure recovery;
-- incident/advisory preservation policy;
 - user-visible behavior when Postgres is unavailable.
 
 The database is allowed to learn from the local app now. The local app should

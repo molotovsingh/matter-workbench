@@ -18,7 +18,6 @@ const RUNTIME_CUTOVER_BLOCKERS = Object.freeze([
   "object_storage_or_single_host_volume_policy",
   "pdf_storage_backup_restore_policy",
   "worker_process_owner_and_recovery",
-  "incident_advisory_preservation_policy",
   "postgres_unavailable_user_behavior",
 ]);
 

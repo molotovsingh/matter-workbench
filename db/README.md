@@ -282,6 +282,11 @@ per-file storage links, and fail-closed collision handling. This does not switch
 the app runtime to Postgres; it only means the separate local-import blocker is
 closed for shadow evidence.
 
+Incident/advisory preservation is also accepted for the shadow rehearsal:
+Matter Attention items are mirrored into canonical incidents, and append-only
+advisory snapshots preserve the advisory projection for each mirrored matter.
+The snapshot is evidence, not a second source of truth.
+
 `db:shadow:snapshot` writes that combined report to timestamped Markdown and
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
 handoff artifact: the operator can hydrate or verify the VM shadow database,
@@ -313,4 +318,4 @@ made explicitly:
 - object storage provider and bucket layout;
 - tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
-- observability for jobs, provider runs, incidents, and advisory snapshots.
+- runtime ownership and recovery for worker jobs and provider-run failures.
