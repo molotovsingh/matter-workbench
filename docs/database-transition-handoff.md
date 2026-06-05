@@ -75,6 +75,7 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime-cutover-check
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 ```
 
@@ -93,9 +94,11 @@ the operator explicitly keeps it. This restore drill is a backup proof, not a
 runtime cutover. The database host must allow the DB user to connect to that
 temporary restore database in `pg_hba.conf`; allowing only the live
 `matter_workbench_shadow` database is enough for hydration and backup, but not
-for a restore drill. Use `db:shadow:snapshot` to preserve the
-combined report for handoff. New snapshots also record the repo branch, short
-commit, and whether the worktree was clean when the report was generated.
+for a restore drill. Pass `--out-dir docs/shadow-db-restore-drills` to preserve
+a redacted Markdown/JSON restore-drill proof for handoff. Use
+`db:shadow:snapshot` to preserve the combined report for handoff. New snapshots
+also record the repo branch, short commit, and whether the worktree was clean
+when the report was generated.
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight and refuses to write
 snapshot files unless the doctor reports `ready_to_hydrate: yes`.
 
@@ -141,6 +144,31 @@ commit is the source repo state that produced the report, before the snapshot
 files themselves are committed. Do not keep refreshing only to make a checked-in
 snapshot cite the commit that contains that same snapshot; that is a
 self-referential loop, not better evidence.
+
+## Current Restore Drill Evidence
+
+The current checked-in restore drill evidence is:
+
+```text
+docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-05T05-53-07-036Z.md
+docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-05T05-53-07-036Z.json
+```
+
+It reports `Success: yes` for restoring
+`shadow-db-backup-2026-06-05T05-15-34-455Z.sql` into a temporary PostgreSQL
+database, verifying the restored shadow report, and cleaning up the temporary
+database. The recorded drill steps were:
+
+```text
+create restore database: ok
+restore backup: ok
+verify restored database: ok
+drop restore database: ok
+```
+
+This proves the Postgres shadow backup can be restored and checked. It does not
+prove PDF/object-storage backup and restore; local PDF custody remains a separate
+runtime-cutover concern.
 
 ## What A Developer Should Check Next
 

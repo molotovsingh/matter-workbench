@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const RUNTIME_CUTOVER_BLOCKERS = Object.freeze([
   "hosted_auth_and_tenant_session_model",
   "object_storage_or_single_host_volume_policy",
-  "db_and_pdf_storage_restore_drill",
+  "pdf_storage_backup_restore_policy",
   "worker_process_owner_and_recovery",
   "incident_advisory_preservation_policy",
   "local_matter_import_policy",

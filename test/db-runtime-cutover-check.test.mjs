@@ -20,7 +20,7 @@ test("runtime cutover check fails closed while shadow acceptance still has block
       runtimeCutoverReady: false,
       runtimeCutoverBlockers: [
         "object_storage_or_single_host_volume_policy",
-        "db_and_pdf_storage_restore_drill",
+        "pdf_storage_backup_restore_policy",
       ],
       next: "Shadow database accepted for handoff evidence; runtime remains filesystem-backed.",
     }),
@@ -30,7 +30,7 @@ test("runtime cutover check fails closed while shadow acceptance still has block
   assert.equal(report.runtimeCutoverReady, false);
   assert.deepEqual(report.blockers, [
     "object_storage_or_single_host_volume_policy",
-    "db_and_pdf_storage_restore_drill",
+    "pdf_storage_backup_restore_policy",
   ]);
 
   const rendered = renderRuntimeCutoverReport(report).join("\n");

@@ -52,6 +52,7 @@ npm run db:shadow:acceptance
 npm run db:runtime-cutover-check
 npm run db:shadow:backup
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -92,6 +93,7 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:acceptance
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:backup
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
@@ -238,7 +240,9 @@ runs the combined shadow DB report against that restored
 database, then drops the temporary database unless `--keep` is passed. Restore
 database names must start with `matter_workbench_shadow_restore_`; the command
 will not restore into the live shadow database name. This is the first practical
-backup/restore proof for the DB transition, not a runtime cutover.
+backup/restore proof for the DB transition, not a runtime cutover. Pass
+`--out-dir docs/shadow-db-restore-drills` to preserve a redacted Markdown/JSON
+handoff artifact for a successful drill.
 
 The shadow database stores PDF custody as metadata: storage provider, bucket,
 object key, hash, and lifecycle rows. It does not store PDF bytes inline. If

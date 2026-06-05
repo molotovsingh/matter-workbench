@@ -40,7 +40,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.equal(report.verifySuccess, true);
   assert.equal(report.runtimeCutoverReady, false);
   assert.ok(report.runtimeCutoverBlockers.includes("object_storage_or_single_host_volume_policy"));
-  assert.ok(report.runtimeCutoverBlockers.includes("db_and_pdf_storage_restore_drill"));
+  assert.ok(report.runtimeCutoverBlockers.includes("pdf_storage_backup_restore_policy"));
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");
   assert.match(rendered, /Matter Workbench shadow DB acceptance/);
@@ -50,7 +50,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
   assert.match(rendered, /db:shadow:report: ok/);
   assert.match(rendered, /runtime_cutover_ready: no/);
   assert.match(rendered, /object_storage_or_single_host_volume_policy/);
-  assert.match(rendered, /db_and_pdf_storage_restore_drill/);
+  assert.match(rendered, /pdf_storage_backup_restore_policy/);
 });
 
 test("shadow DB acceptance fails closed before verify when schema is not ready", async () => {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -44,6 +45,44 @@ test("shadow DB restore drill restores a backup into a temporary database, verif
   assert.match(rendered, /success: yes/);
   assert.match(rendered, /cleanup: yes/);
   assert.doesNotMatch(rendered, /pw!|postgres:\/\//);
+});
+
+test("shadow DB restore drill can write redacted handoff evidence files", async () => {
+  const { runShadowRestoreDrill } = await import(restorePath.href);
+  const backupPath = await writeFakeBackup();
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-shadow-restore-evidence-"));
+
+  const result = await runShadowRestoreDrill({
+    databaseUrl: "postgres://mwb_user:pw%21@db.example:5432/matter_workbench_shadow",
+    backupPath,
+    outDir,
+    timestamp: "2026-06-05T00:00:00.000Z",
+    spawn: () => ({ status: 0, stdout: "ok", stderr: "" }),
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(result.files.markdown.endsWith("shadow-db-restore-drill-2026-06-05T00-00-00-000Z.md"));
+  assert.ok(result.files.json.endsWith("shadow-db-restore-drill-2026-06-05T00-00-00-000Z.json"));
+  assert.equal(existsSync(result.files.markdown), true);
+  assert.equal(existsSync(result.files.json), true);
+
+  const markdown = await readFile(result.files.markdown, "utf8");
+  const json = JSON.parse(await readFile(result.files.json, "utf8"));
+
+  assert.match(markdown, /Matter Workbench Shadow DB Restore Drill/);
+  assert.match(markdown, /Success: yes/);
+  assert.match(markdown, /restore backup: ok/);
+  assert.doesNotMatch(markdown, /pw!|postgres:\/\//);
+  assert.equal(json.schemaVersion, "shadow-db-restore-drill/v1");
+  assert.equal(json.success, true);
+  assert.equal(json.backup, path.basename(backupPath));
+  assert.equal(json.cleanup, true);
+  assert.deepEqual(json.steps.map((step) => `${step.label}:${step.ok}`), [
+    "create restore database:true",
+    "restore backup:true",
+    "verify restored database:true",
+    "drop restore database:true",
+  ]);
 });
 
 test("shadow DB restore drill rejects unsafe or live database names", async () => {
@@ -108,12 +147,14 @@ test("package and docs expose the shadow DB restore drill command", async () => 
   const dbReadme = await readFile(dbReadmePath, "utf8");
   assert.match(dbReadme, /npm run db:shadow:restore-drill/);
   assert.match(dbReadme, /temporary restore database/i);
+  assert.match(dbReadme, /--out-dir docs\/shadow-db-restore-drills/);
 
   const handoffDoc = await readFile(handoffDocPath, "utf8");
   assert.match(handoffDoc, /npm run db:shadow:restore-drill/);
   assert.match(handoffDoc, /restore drill/i);
   assert.match(handoffDoc, /pg_hba\.conf/i);
   assert.match(handoffDoc, /temporary restore database/i);
+  assert.match(handoffDoc, /docs\/shadow-db-restore-drills/);
 });
 
 async function writeFakeBackup() {

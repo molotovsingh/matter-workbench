@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { access } from "node:fs/promises";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -17,6 +17,7 @@ export function parseRestoreDrillArgs(argv = []) {
     backupPath: "",
     restoredDatabase: "",
     timestamp: "",
+    outDir: "",
     keep: false,
   };
 
@@ -37,6 +38,11 @@ export function parseRestoreDrillArgs(argv = []) {
       if (!value) throw new Error("--timestamp requires a value");
       parsed.timestamp = value;
       i += 1;
+    } else if (arg === "--out-dir") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--out-dir requires a value");
+      parsed.outDir = path.resolve(value);
+      i += 1;
     } else if (arg === "--keep") {
       parsed.keep = true;
     } else {
@@ -52,6 +58,7 @@ export async function runShadowRestoreDrill({
   backupPath,
   restoredDatabase = "",
   timestamp = new Date().toISOString(),
+  outDir = "",
   keep = false,
   env = process.env,
   spawn = spawnSync,
@@ -122,7 +129,9 @@ export async function runShadowRestoreDrill({
     }
   }
 
-  return finish({ generatedAt, restoreName, backupPath, keep, steps });
+  const result = finish({ generatedAt, restoreName, backupPath, keep, steps });
+  if (outDir) await writeRestoreDrillEvidence(result, { outDir });
+  return result;
 }
 
 export function renderShadowRestoreDrillResult(result = {}) {
@@ -161,6 +170,76 @@ function finish({ generatedAt, restoreName, backupPath, keep, steps }) {
     steps,
     failedStep,
   };
+}
+
+async function writeRestoreDrillEvidence(result, { outDir }) {
+  const safeOutDir = path.resolve(outDir);
+  const basename = `shadow-db-restore-drill-${fileTimestampSlug(result.generatedAt)}`;
+  const markdownPath = path.join(safeOutDir, `${basename}.md`);
+  const jsonPath = path.join(safeOutDir, `${basename}.json`);
+  const portable = toPortableEvidence(result, {
+    markdownPath,
+    jsonPath,
+  });
+
+  await mkdir(safeOutDir, { recursive: true });
+  await writeFile(markdownPath, renderRestoreDrillEvidenceMarkdown(portable), "utf8");
+  await writeFile(jsonPath, `${JSON.stringify(portable, null, 2)}\n`, "utf8");
+
+  result.files = {
+    markdown: markdownPath,
+    json: jsonPath,
+  };
+}
+
+function toPortableEvidence(result, { markdownPath, jsonPath }) {
+  return {
+    schemaVersion: "shadow-db-restore-drill/v1",
+    generatedAt: result.generatedAt || "",
+    success: Boolean(result.success),
+    backup: path.basename(result.backupPath || ""),
+    restoredDatabase: result.restoredDatabase || "",
+    cleanup: Boolean(result.cleanup),
+    keep: Boolean(result.keep),
+    failedStep: result.failedStep?.label || "",
+    steps: (result.steps || []).map((step) => ({
+      label: step.label || "",
+      ok: Boolean(step.ok),
+      stdout: step.stdout || "",
+      stderr: step.stderr || "",
+      error: step.error || "",
+    })),
+    files: {
+      markdown: path.basename(markdownPath || ""),
+      json: path.basename(jsonPath || ""),
+    },
+  };
+}
+
+function renderRestoreDrillEvidenceMarkdown(evidence = {}) {
+  const lines = [
+    "# Matter Workbench Shadow DB Restore Drill",
+    "",
+    `Generated at: ${evidence.generatedAt || ""}`,
+    `Success: ${evidence.success ? "yes" : "no"}`,
+    `Backup: ${evidence.backup || ""}`,
+    `Restored database: ${evidence.restoredDatabase || ""}`,
+    `Cleanup: ${evidence.cleanup ? "yes" : "no"}`,
+    "",
+    "This is a shadow-database restore-drill handoff artifact. It proves a local shadow backup can be restored into a temporary PostgreSQL database and verified without switching Matter Workbench runtime storage.",
+    "",
+    "```text",
+  ];
+
+  for (const step of evidence.steps || []) {
+    lines.push(`  ${step.label}: ${step.ok ? "ok" : "failed"}`);
+    if (!step.ok && step.stdout) lines.push(`    stdout: ${step.stdout}`);
+    if (!step.ok && step.stderr) lines.push(`    stderr: ${step.stderr}`);
+    if (!step.ok && step.error) lines.push(`    error: ${step.error}`);
+  }
+  if (evidence.failedStep) lines.push(`failed_step: ${evidence.failedStep}`);
+  lines.push("```", "");
+  return redactLine(lines.join("\n"));
 }
 
 function runCommand({ label, command, args, env, spawn }) {
@@ -206,6 +285,10 @@ function quoteIdentifier(value) {
 
 function timestampSlug(value) {
   return String(value || new Date().toISOString()).replace(/[-:.]/g, "_");
+}
+
+function fileTimestampSlug(value) {
+  return String(value || new Date().toISOString()).replace(/[:.]/g, "-");
 }
 
 function compactOutput(value) {
