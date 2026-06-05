@@ -221,6 +221,20 @@ local/private shadow rehearsal. It is not a hosted outage policy. Once the app
 actually becomes database-backed in production, hosted deployment still needs a
 separate outage, degraded-mode, and rollback design.
 
+## Accepted Local Foreground Worker Policy
+
+The local beta also has an accepted worker policy: long-running preparation is a
+foreground local app action, not a database-claimed worker process. The shadow
+DB contains `processing_jobs` and `job_outbox` rows, and the migrations include
+claim/heartbeat/complete functions for future hosted workers, but the current
+product runtime does not consume those queues.
+
+This closes the `worker_process_owner_and_recovery` blocker for the
+local/private shadow rehearsal. It is not a hosted worker supervisor decision.
+Once extraction, source labels, List of Dates, or custom skill execution move
+into background workers, deployment still needs a process owner, restart policy,
+dead-worker recovery, and operator visibility.
+
 ## Accepted Local Matter Import Policy
 
 The shadow DB transition now has an accepted local matter import policy for the
@@ -271,7 +285,7 @@ Before any real hosted or database-backed runtime work:
 4. Confirm object-storage custody rules before any upload path moves hosted. A
    database backup alone is not enough while storage objects still point at local
    filesystem paths; restored DB rows can otherwise point to missing PDFs.
-5. Confirm worker lease/heartbeat behavior before long-running preparation
+5. Confirm hosted worker process ownership before long-running preparation
    moves out of the local foreground app.
 6. Confirm hosted rollback/degraded-mode behavior before the product runtime
    actually depends on Postgres. The local beta currently avoids this class of
@@ -285,7 +299,7 @@ Stop before runtime cutover if any of these are still unresolved:
 - for multi-host/cloud deployment, object storage provider, bucket layout, and
   deletion policy;
 - backup and restore process for both Postgres and PDF/object storage;
-- worker process owner and failure recovery;
+- hosted worker process owner and failure recovery;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.
 

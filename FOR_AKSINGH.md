@@ -817,6 +817,13 @@ bogus database URL. DB scripts still fail closed when they need a database, but
 the product remains filesystem-backed. That is a good lesson: the safest
 fallback is often not a clever fallback at all; it is refusing to make an
 experimental mirror part of the live path too early.
+The worker blocker got the same treatment. The local beta does not have a
+separate job worker; preparation still runs in the foreground app flow. The DB
+does have the future worker ingredients: `processing_jobs`, `job_outbox`, and
+claim/heartbeat/complete functions. So the local rehearsal can close the worker
+policy blocker without pretending a hosted worker supervisor exists. The lesson
+is precision: "we know how local foreground work behaves" is true; "we have a
+production background-worker system" would be false.
 The same cleanup happened for local matter import and advisory preservation.
 Those were originally kept as runtime cutover blockers, which was cautious but
 eventually too vague. The shadow DB now has import batches/items for existing

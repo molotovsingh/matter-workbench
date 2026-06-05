@@ -33,6 +33,7 @@ test("shadow DB acceptance passes when doctor is hydrated and verify pipeline su
     }),
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -86,6 +87,7 @@ test("shadow DB acceptance removes storage blockers when current single-host sto
       hashMismatches: 0,
     }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -123,6 +125,7 @@ test("shadow DB acceptance removes the Postgres unavailable blocker when local r
       accepted: true,
       behavior: "local_filesystem_runtime_continues_without_postgres",
     }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, true);
@@ -133,6 +136,73 @@ test("shadow DB acceptance removes the Postgres unavailable blocker when local r
   assert.match(rendered, /postgres_unavailable_policy: accepted/);
   assert.match(rendered, /local_filesystem_runtime_continues_without_postgres/);
   assert.doesNotMatch(rendered, /postgres_unavailable_user_behavior/);
+});
+
+test("shadow DB acceptance removes the worker blocker when local foreground policy is accepted", async () => {
+  const {
+    buildShadowAcceptanceReport,
+    renderShadowAcceptanceReport,
+  } = await import(acceptancePath.href);
+
+  const report = await buildShadowAcceptanceReport({
+    runDoctorFn: async () => [
+      "database_url: configured",
+      "psql: available - psql (PostgreSQL) 18.4",
+      "ready_to_apply: no",
+      "ready_to_hydrate: yes",
+    ],
+    runHydrationFn: () => ({
+      mode: "verify",
+      success: true,
+      steps: [{ script: "db:shadow:report", ok: true }],
+      failedStep: null,
+    }),
+    checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
+    checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({
+      accepted: true,
+      behavior: "local_preparation_runs_foreground_db_worker_recovery_functions_exist",
+    }),
+  });
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.workerRuntimePolicy.accepted, true);
+  assert.ok(!report.runtimeCutoverBlockers.includes("worker_process_owner_and_recovery"));
+
+  const rendered = renderShadowAcceptanceReport(report).join("\n");
+  assert.match(rendered, /worker_runtime_policy: accepted/);
+  assert.match(rendered, /local_preparation_runs_foreground_db_worker_recovery_functions_exist/);
+  assert.doesNotMatch(rendered, /worker_process_owner_and_recovery/);
+});
+
+test("local worker runtime policy proves foreground local runtime and prepared DB worker functions", async () => {
+  const { checkLocalWorkerRuntimePolicy } = await import(acceptancePath.href);
+
+  const report = await checkLocalWorkerRuntimePolicy();
+
+  assert.equal(report.accepted, true);
+  assert.equal(report.behavior, "local_preparation_runs_foreground_db_worker_recovery_functions_exist");
+  assert.equal(report.reason, "");
+});
+
+test("local worker runtime policy fails if the local server couples itself to DB job queues", async () => {
+  const { checkLocalWorkerRuntimePolicy } = await import(acceptancePath.href);
+
+  const report = await checkLocalWorkerRuntimePolicy({
+    readFileFn: async (filePath) => {
+      if (String(filePath).endsWith("server.mjs")) return "claim_next_processing_job()";
+      return [
+        "create or replace function claim_next_processing_job(",
+        "create or replace function heartbeat_processing_job(",
+        "create or replace function complete_processing_job(",
+        "create or replace function claim_next_job_outbox_event(",
+        "create or replace function complete_job_outbox_event(",
+      ].join("\n");
+    },
+  });
+
+  assert.equal(report.accepted, false);
+  assert.match(report.reason, /coupled to DB worker queues/);
 });
 
 test("Postgres-unavailable policy proves the local server ignores a bogus DB URL", async () => {
@@ -163,6 +233,7 @@ test("shadow DB acceptance fails closed before verify when schema is not ready",
     },
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   assert.equal(report.accepted, false);
@@ -203,6 +274,7 @@ test("shadow DB acceptance redacts failed verify evidence", async () => {
     }),
     checkStorageBackupEvidenceFn: async () => ({ accepted: false }),
     checkPostgresUnavailableRuntimePolicyFn: async () => ({ accepted: false }),
+    checkLocalWorkerRuntimePolicyFn: async () => ({ accepted: false }),
   });
 
   const rendered = renderShadowAcceptanceReport(report).join("\n");

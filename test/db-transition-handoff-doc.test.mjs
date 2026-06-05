@@ -51,6 +51,10 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*bogus\s+database\s+URL/i);
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*postgres_unavailable_user_behavior/i);
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*not a hosted outage/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*foreground/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*claim\/heartbeat\/complete/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*worker_process_owner_and_recovery/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*not a hosted worker supervisor/i);
   assert.match(doc, /Accepted Local Matter Import Policy[\s\S]*matter_import_batches/i);
   assert.match(doc, /Accepted Local Matter Import Policy[\s\S]*local_matter_import_policy/i);
   assert.match(doc, /Accepted Incident And Advisory Preservation[\s\S]*canonical\s+incident rows/i);

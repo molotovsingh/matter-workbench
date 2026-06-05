@@ -312,6 +312,13 @@ bogus database URL. DB scripts still fail closed when they need a real database,
 but the local product does not depend on the shadow DB being online. This is not
 a hosted outage policy for a future database-backed runtime.
 
+Worker runtime behavior is accepted for the local/private beta path: preparation
+still runs as a foreground local app action, not from DB-claimed worker queues.
+The shadow DB has `processing_jobs`, `job_outbox`, and claim/heartbeat/complete
+functions ready for hosted workers, but the product runtime does not consume
+those queues yet. This closes the local worker policy gate without deciding a
+hosted process supervisor or restart strategy.
+
 `db:shadow:snapshot` writes that combined report to timestamped Markdown and
 JSON files under `docs/shadow-db-snapshots/`. It is intended as a developer
 handoff artifact: the operator can hydrate or verify the VM shadow database,
@@ -343,6 +350,6 @@ made explicitly:
 - for multi-host/cloud deployment, object storage provider and bucket layout;
 - tenant/session auth model that sets `app.tenant_id`;
 - backup, restore, and deletion policy;
-- runtime ownership and recovery for worker jobs and provider-run failures;
+- hosted runtime ownership and recovery for worker jobs and provider-run failures;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.

@@ -27,6 +27,7 @@ export async function buildShadowAcceptanceReport({
   runHydrationFn = runShadowHydrationPipeline,
   checkStorageBackupEvidenceFn = checkShadowStorageBackupEvidence,
   checkPostgresUnavailableRuntimePolicyFn = checkPostgresUnavailableRuntimePolicy,
+  checkLocalWorkerRuntimePolicyFn = checkLocalWorkerRuntimePolicy,
 } = {}) {
   const doctorLines = (await runDoctorFn({ argv: [], env })).map(redactLine);
   const readyToHydrateShadow = extractYesNo(doctorLines, "ready_to_hydrate");
@@ -61,6 +62,7 @@ export async function buildShadowAcceptanceReport({
   const verifySteps = (verifyResult.steps || []).map(redactStep);
   const storageBackupEvidence = await checkStorageBackupEvidenceFn({ env });
   const postgresUnavailablePolicy = await checkPostgresUnavailableRuntimePolicyFn({ env });
+  const workerRuntimePolicy = await checkLocalWorkerRuntimePolicyFn();
   return {
     mode: "read-only verify",
     accepted: Boolean(verifyResult.success),
@@ -73,9 +75,11 @@ export async function buildShadowAcceptanceReport({
     runtimeCutoverBlockers: runtimeCutoverBlockers({
       storageBackupAccepted: Boolean(storageBackupEvidence?.accepted),
       postgresUnavailablePolicyAccepted: Boolean(postgresUnavailablePolicy?.accepted),
+      workerRuntimePolicyAccepted: Boolean(workerRuntimePolicy?.accepted),
     }),
     storageBackupEvidence: storageBackupEvidence || { accepted: false },
     postgresUnavailablePolicy: postgresUnavailablePolicy || { accepted: false },
+    workerRuntimePolicy: workerRuntimePolicy || { accepted: false },
     failedVerifyStep: verifyResult.failedStep?.script || "",
     next: verifyResult.success
       ? "Shadow database accepted for handoff evidence; runtime remains filesystem-backed."
@@ -109,6 +113,10 @@ export function renderShadowAcceptanceReport(report = {}) {
   lines.push(`postgres_unavailable_policy: ${postgresPolicy.accepted ? "accepted" : "missing"}`);
   if (postgresPolicy.behavior) lines.push(`  behavior: ${redactLine(postgresPolicy.behavior)}`);
   if (postgresPolicy.reason) lines.push(`  reason: ${redactLine(postgresPolicy.reason)}`);
+  const workerPolicy = report.workerRuntimePolicy || {};
+  lines.push(`worker_runtime_policy: ${workerPolicy.accepted ? "accepted" : "missing"}`);
+  if (workerPolicy.behavior) lines.push(`  behavior: ${redactLine(workerPolicy.behavior)}`);
+  if (workerPolicy.reason) lines.push(`  reason: ${redactLine(workerPolicy.reason)}`);
 
   lines.push("runtime_cutover_blockers:");
   for (const blocker of report.runtimeCutoverBlockers || []) {
@@ -131,6 +139,7 @@ export function renderShadowAcceptanceReport(report = {}) {
 function runtimeCutoverBlockers({
   storageBackupAccepted = false,
   postgresUnavailablePolicyAccepted = false,
+  workerRuntimePolicyAccepted = false,
 } = {}) {
   return RUNTIME_CUTOVER_BLOCKERS.filter((blocker) => (
     !(
@@ -139,6 +148,7 @@ function runtimeCutoverBlockers({
         || blocker === "object_storage_or_single_host_volume_policy"
       ))
       || (postgresUnavailablePolicyAccepted && blocker === "postgres_unavailable_user_behavior")
+      || (workerRuntimePolicyAccepted && blocker === "worker_process_owner_and_recovery")
     )
   ));
 }
@@ -181,6 +191,38 @@ export async function checkPostgresUnavailableRuntimePolicy({
 async function loadCreateWorkbenchServer(appDir) {
   const serverModule = await import(pathToFileURL(path.join(appDir, "server.mjs")).href);
   return serverModule.createWorkbenchServer;
+}
+
+export async function checkLocalWorkerRuntimePolicy({
+  appDir = process.cwd(),
+  readFileFn = readFile,
+} = {}) {
+  try {
+    const serverSource = await readFileFn(path.join(appDir, "server.mjs"), "utf8");
+    const workerFunctionsSql = await readFileFn(path.join(appDir, "db", "migrations", "008_job_worker_functions.sql"), "utf8");
+    const localRuntimeAvoidsDbWorker = !/\bclaim_next_processing_job\b|\bclaim_next_job_outbox_event\b|\bprocessing_jobs\b|\bjob_outbox\b/i.test(serverSource);
+    const dbWorkerRecoveryPrepared = /create or replace function claim_next_processing_job\(/i.test(workerFunctionsSql)
+      && /create or replace function heartbeat_processing_job\(/i.test(workerFunctionsSql)
+      && /create or replace function complete_processing_job\(/i.test(workerFunctionsSql)
+      && /create or replace function claim_next_job_outbox_event\(/i.test(workerFunctionsSql)
+      && /create or replace function complete_job_outbox_event\(/i.test(workerFunctionsSql);
+
+    return {
+      accepted: Boolean(localRuntimeAvoidsDbWorker && dbWorkerRecoveryPrepared),
+      behavior: localRuntimeAvoidsDbWorker && dbWorkerRecoveryPrepared
+        ? "local_preparation_runs_foreground_db_worker_recovery_functions_exist"
+        : "local_worker_runtime_policy_incomplete",
+      reason: localRuntimeAvoidsDbWorker
+        ? dbWorkerRecoveryPrepared ? "" : "database worker recovery functions are incomplete"
+        : "local runtime is already coupled to DB worker queues",
+    };
+  } catch (error) {
+    return {
+      accepted: false,
+      behavior: "local_worker_runtime_policy_check_failed",
+      reason: error?.message || "worker runtime policy could not be checked",
+    };
+  }
 }
 
 function extractDatabaseUrlStatus(lines) {
