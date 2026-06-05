@@ -78,14 +78,16 @@ Run these before a serious test session:
 
 ```bash
 MWB_BACKEND_URL=http://127.0.0.1:4191 MWB_UI_URL=http://127.0.0.1:4191/ npm run ui:smoke --silent
-npm run db:doctor
+npm run db:shadow:preflight
 ```
 
 Expected posture:
 
 - `ui:smoke` should pass against the same port where the app is running.
-- `db:doctor` may report that no database URL is configured. That is acceptable
-  for local beta because the database is not yet the runtime backend.
+- `db:shadow:preflight` may report that the database URL is missing. That is
+  acceptable for local beta because the database is not yet the runtime backend.
+  A useful local-beta result is: `psql` available, dry-run planning successful,
+  and waiting for database URL / credential setup before live migration.
 - Settings in the app should show provider routes clearly and should not expose
   API key values.
 
@@ -207,6 +209,7 @@ For database checks, use only read-only doctor commands unless you are
 explicitly working on the database transition:
 
 ```bash
+npm run db:shadow:preflight
 npm run db:doctor
 npm run db:migrations:check
 ```
@@ -215,6 +218,7 @@ If you are explicitly working on the database transition track, the shadow-only
 read-side checks are:
 
 ```bash
+npm run db:shadow:preflight
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:inspect

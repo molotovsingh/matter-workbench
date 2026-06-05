@@ -197,6 +197,8 @@ test("shadow DB snapshot folder docs explain snapshot freshness limits", async (
 test("beta operator checklist carries shadow snapshot freshness limits", async () => {
   const checklist = await readFile(betaChecklistPath, "utf8");
 
+  assert.match(checklist, /npm run db:shadow:preflight/);
+  assert.match(checklist, /database URL[\s\S]*missing[\s\S]*acceptable/i);
   assert.match(checklist, /db:shadow:snapshot[\s\S]*one[- ]run evidence/i);
   assert.match(checklist, /db:shadow:snapshot[\s\S]*repo changes/i);
   assert.match(checklist, /db:shadow:snapshot[\s\S]*local matter/i);
