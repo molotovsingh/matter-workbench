@@ -45,6 +45,7 @@ import {
   inspectLocalAuditEventHydration,
   verifyLocalAuditEventHydration,
 } from "./db-hydrate-local-audit-events.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -359,6 +360,7 @@ function appendMismatches(lines, verification = {}) {
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const databaseUrl = process.env.MWB_DATABASE_URL || process.env.DATABASE_URL || "";
   const report = await buildShadowDbReport({

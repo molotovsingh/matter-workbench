@@ -6,6 +6,9 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import process from "node:process";
 
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { resolvePsqlCommand } from "./db-psql.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appDir = path.resolve(__dirname, "..");
@@ -123,10 +126,12 @@ export async function loadMigrationSql(migration) {
   return readFile(migration.path, "utf8");
 }
 
-export function runPsql({ databaseUrl, sql }) {
-  const result = spawnSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1"], {
+export function runPsql({ databaseUrl, sql, env = process.env, spawn = spawnSync } = {}) {
+  const psql = resolvePsqlCommand({ env });
+  const result = spawn(psql.command, [databaseUrl, "-v", "ON_ERROR_STOP=1"], {
     input: sql,
     encoding: "utf8",
+    env,
   });
 
   if (result.error) {
@@ -139,14 +144,15 @@ export function runPsql({ databaseUrl, sql }) {
   return result.stdout;
 }
 
-export function readAppliedVersions({ databaseUrl }) {
-  return new Set([...readAppliedMigrations({ databaseUrl }).keys()]);
+export function readAppliedVersions({ databaseUrl, env = process.env, spawn = spawnSync } = {}) {
+  return new Set([...readAppliedMigrations({ databaseUrl, env, spawn }).keys()]);
 }
 
-export function readAppliedMigrations({ databaseUrl }) {
-  const ensure = runPsql({ databaseUrl, sql: buildSchemaMigrationsSql() });
+export function readAppliedMigrations({ databaseUrl, env = process.env, spawn = spawnSync } = {}) {
+  const ensure = runPsql({ databaseUrl, sql: buildSchemaMigrationsSql(), env, spawn });
   void ensure;
-  const result = spawnSync("psql", [
+  const psql = resolvePsqlCommand({ env });
+  const result = spawn(psql.command, [
     databaseUrl,
     "-v",
     "ON_ERROR_STOP=1",
@@ -239,6 +245,7 @@ async function hydrateMigrationChecksums(migrations) {
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const databaseUrl = resolveDatabaseUrl({ cliUrl: args.databaseUrl });
 

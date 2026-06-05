@@ -7,6 +7,8 @@ import {
   planMigrations,
   resolveDatabaseUrl,
 } from "./db-migrate.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { resolvePsqlCommand } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -28,20 +30,29 @@ export function parseDoctorArgs(argv) {
   return parsed;
 }
 
-export function detectPsql({ spawn = spawnSync } = {}) {
-  const result = spawn("psql", ["--version"], { encoding: "utf8" });
+export function detectPsql({
+  spawn = spawnSync,
+  env = process.env,
+  resolve = resolvePsqlCommand,
+} = {}) {
+  const psql = resolve({ env });
+  const result = spawn(psql.command, ["--version"], { encoding: "utf8" });
   if (result.error) {
-    return { available: false, error: result.error.message };
+    return { available: false, error: result.error.message, command: psql.command, source: psql.source };
   }
   if (result.status !== 0) {
     return {
       available: false,
       error: result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`,
+      command: psql.command,
+      source: psql.source,
     };
   }
   return {
     available: true,
     version: result.stdout?.trim() || result.stderr?.trim() || "psql available",
+    command: psql.command,
+    source: psql.source,
   };
 }
 
@@ -73,6 +84,8 @@ export function buildDoctorReport({
   } else {
     lines.push(`psql: unavailable - ${psql.error || "not found"}`);
   }
+  lines.push(`psql_command: ${psql.command || "psql"}`);
+  lines.push(`psql_source: ${psql.source || "unknown"}`);
 
   if (planError) {
     lines.push(`database_inspection: failed - ${redactDatabaseUrl(planError)}`);
@@ -135,7 +148,7 @@ function summarizeMigrationStatuses(migrations = []) {
 export async function runDoctor({ argv = process.argv.slice(2), env = process.env, spawn = spawnSync, plan = planMigrations } = {}) {
   const args = parseDoctorArgs(argv);
   const databaseUrl = resolveDatabaseUrl({ cliUrl: args.databaseUrl, env });
-  const psql = detectPsql({ spawn });
+  const psql = detectPsql({ spawn, env });
 
   let migrations;
   let planError = "";
@@ -156,7 +169,7 @@ export async function runDoctor({ argv = process.argv.slice(2), env = process.en
 }
 
 if (process.argv[1] === __filename) {
-  runDoctor().then((lines) => {
+  loadDatabaseScriptEnv().then(() => runDoctor()).then((lines) => {
     for (const line of lines) console.log(line);
   }).catch((error) => {
     console.error(error.message);

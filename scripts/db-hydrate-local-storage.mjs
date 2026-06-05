@@ -10,6 +10,8 @@ import {
   defaultMattersHome,
 } from "./db-hydrate-local-matters.mjs";
 import { collectLocalSkillHydrationPlan } from "./db-hydrate-local-skills.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const STORAGE_PROVIDER = "local-filesystem";
@@ -169,8 +171,8 @@ export function applyLocalStorageHydrationPlan({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying storage shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: buildLocalStorageHydrationSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -217,8 +219,8 @@ export function verifyLocalStorageHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying storage shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: buildStorageHydrationCountSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -258,8 +260,8 @@ export function inspectLocalStorageHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting storage shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: buildStorageInspectionSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -619,31 +621,12 @@ function sqlIntegerOrNull(value) {
   return value === null || value === undefined ? "null" : sqlInteger(value, 0);
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalStorageHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
   if (args.inspect) {

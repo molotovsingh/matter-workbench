@@ -97,6 +97,10 @@ database can be inspected. It redacts connection secrets and does not apply
 anything. `ready_to_apply` means there are pending migrations and no detected
 blocker; `ready_to_hydrate` means the migrations are already applied and the
 shadow mirror can move on to hydration, verification, report, or snapshot.
+The DB tools first honor `MWB_PSQL_BIN`, then try common PostgreSQL client
+locations such as Homebrew `libpq`, and finally fall back to `psql` on `PATH`.
+Use `MWB_PSQL_BIN=/absolute/path/to/psql` when the client is installed but not
+discoverable.
 
 `db:hydrate:dry-run` is a shadow-hydration rehearsal. It scans the local matter
 folder, reads existing `matter.json`, `File Register.csv`, `Extraction Log.csv`,

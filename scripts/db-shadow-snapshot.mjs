@@ -12,6 +12,7 @@ import {
 import { runDoctor } from "./db-doctor.mjs";
 import { defaultMattersHome } from "./db-hydrate-local-matters.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "shadow-db-snapshot/v1";
@@ -220,6 +221,7 @@ function redactSecret(value) {
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const databaseUrl = process.env.MWB_DATABASE_URL || process.env.DATABASE_URL || "";
   const snapshot = await createShadowDbSnapshot({

@@ -195,12 +195,14 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 `db:migrations:check` can run without a database URL; in that case it lists the
 available migration files with unknown status. `db:doctor` is the read-only
 handoff command: it checks URL presence, `psql`, and the migration plan while
-redacting connection secrets. With a database URL, the runner uses `psql`,
-records applied versions and SHA-256 checksums in `schema_migrations`,
-serializes each migration transaction with a Postgres advisory lock, and fails
-closed if an already-applied migration file is edited. The migration file
-sequence is also gapless: `001`, `002`, `003`, and so on. A missing number stops
-the runner before any deployment applies a later migration.
+redacting connection secrets. The tools honor `MWB_PSQL_BIN`, auto-discover
+common PostgreSQL client paths such as Homebrew `libpq`, and finally fall back
+to `psql` on `PATH`. With a database URL, the runner records applied versions
+and SHA-256 checksums in `schema_migrations`, serializes each migration
+transaction with a Postgres advisory lock, and fails closed if an
+already-applied migration file is edited. The migration file sequence is also
+gapless: `001`, `002`, `003`, and so on. A missing number stops the runner
+before any deployment applies a later migration.
 
 `db:hydrate:dry-run`, `db:hydrate`, `db:hydrate:verify`, and
 `db:shadow:inspect` are shadow-only transition commands. They rehearse metadata

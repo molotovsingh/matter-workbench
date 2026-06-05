@@ -257,7 +257,7 @@ test("local matter DB hydrator apply mode uses psql and reports inserted row cou
   assert.equal(result.databaseWrites, true);
   assert.equal(result.insertedRows.documents, 1);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].command, "psql");
+  assert.match(calls[0].command, /psql$/);
   assert.ok(calls[0].args.includes("-v"));
   assert.ok(calls[0].args.includes("ON_ERROR_STOP=1"));
   assert.match(calls[0].input, /select set_config\('app\.tenant_id'/i);
@@ -325,7 +325,7 @@ test("local matter DB hydrator verifies shadow row counts against local metadata
   assert.equal(ok.matched, true);
   assert.deepEqual(ok.mismatches, []);
   assert.equal(ok.counts.documents, 5);
-  assert.equal(calls[0].command, "psql");
+  assert.match(calls[0].command, /psql$/);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 
@@ -394,7 +394,7 @@ test("local matter DB hydrator inspects shadow matter summaries without leaking 
   assert.equal(result.matters.length, 1);
   assert.equal(result.totals.documents, 57);
   assert.equal(result.totals.matterArtifacts, 2);
-  assert.equal(calls[0].command, "psql");
+  assert.match(calls[0].command, /psql$/);
   assert.match(calls[0].input, /^select set_config\('app\.tenant_id'/);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
   assert.match(calls[0].input, /Atlas/);

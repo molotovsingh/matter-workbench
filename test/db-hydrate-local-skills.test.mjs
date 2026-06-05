@@ -81,7 +81,7 @@ test("local skill DB hydrator apply, verify, and inspect use psql without leakin
 
   assert.equal(applied.databaseWrites, true);
   assert.equal(applied.insertedRows.configurableSkillRuns, 1);
-  assert.equal(calls[0].command, "psql");
+  assert.match(calls[0].command, /psql$/);
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 
   const verified = verifyLocalSkillHydration({

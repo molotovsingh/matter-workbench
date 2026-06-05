@@ -41,6 +41,14 @@ If `psql` is installed through Homebrew on macOS, the operator may need:
 export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 ```
 
+The repo tools also auto-discover common `psql` locations, including Homebrew
+`libpq`. If the client lives somewhere else, set an explicit command path
+without committing it:
+
+```bash
+export MWB_PSQL_BIN="/absolute/path/to/psql"
+```
+
 ## Reproduce The Shadow Mirror
 
 From the repo root:

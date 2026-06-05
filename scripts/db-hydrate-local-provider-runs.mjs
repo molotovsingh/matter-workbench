@@ -10,6 +10,8 @@ import {
   defaultMattersHome,
 } from "./db-hydrate-local-matters.mjs";
 import { collectLocalSkillHydrationPlan } from "./db-hydrate-local-skills.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -161,8 +163,8 @@ export function applyLocalProviderRunHydrationPlan({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying provider-run shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: buildLocalProviderRunHydrationSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -206,8 +208,8 @@ export function verifyLocalProviderRunHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying provider-run shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: buildProviderRunHydrationCountSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -247,8 +249,8 @@ export function inspectLocalProviderRunHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting provider-run shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: buildProviderRunInspectionSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -622,31 +624,12 @@ function sqlTimestampOrNull(value) {
   return text ? `${sqlString(text)}::timestamptz` : "null";
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalProviderRunHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
   if (args.inspect) {

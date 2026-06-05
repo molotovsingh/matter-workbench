@@ -166,6 +166,8 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /database_url_redacted: postgres:\/\/mw_user:\*\*\*@db\.example\.com:5432\/mwb\?sslmode=require/);
   assert.doesNotMatch(report, /secret_password/);
   assert.match(report, /psql: available/);
+  assert.match(report, /psql_command: psql/);
+  assert.match(report, /psql_source: unknown/);
   assert.match(report, /001_control_plane\s+pending\s+001_control_plane\.sql/);
   assert.match(report, /002_tenant_rls\s+pending\s+002_tenant_rls\.sql/);
   assert.match(report, /003_tenant_reference_integrity\s+pending\s+003_tenant_reference_integrity\.sql/);
@@ -178,6 +180,52 @@ test("database doctor reports readiness without leaking connection secrets", asy
   assert.match(report, /010_advisory_snapshot_functions\s+pending\s+010_advisory_snapshot_functions\.sql/);
   assert.match(report, /011_custom_skill_lifecycle_functions\s+pending\s+011_custom_skill_lifecycle_functions\.sql/);
   assert.match(report, /ready_to_apply: yes/);
+});
+
+test("database doctor uses the resolved psql command", async () => {
+  const { detectPsql } = await import(doctorPath.href);
+  const calls = [];
+
+  const psql = detectPsql({
+    env: {},
+    resolve: () => ({ command: "/opt/homebrew/opt/libpq/bin/psql", source: "discovered" }),
+    spawn: (command, args) => {
+      calls.push({ command, args });
+      return { status: 0, stdout: "psql (PostgreSQL) 17.10\n", stderr: "" };
+    },
+  });
+
+  assert.deepEqual(calls, [
+    { command: "/opt/homebrew/opt/libpq/bin/psql", args: ["--version"] },
+  ]);
+  assert.equal(psql.available, true);
+  assert.equal(psql.command, "/opt/homebrew/opt/libpq/bin/psql");
+  assert.equal(psql.source, "discovered");
+});
+
+test("database migration runner uses the resolved psql command", async () => {
+  const { runPsql } = await import(runnerPath.href);
+  const calls = [];
+
+  const stdout = runPsql({
+    databaseUrl: "postgres://example",
+    sql: "select 1;",
+    env: { MWB_PSQL_BIN: "/custom/bin/psql" },
+    spawn: (command, args, options = {}) => {
+      calls.push({ command, args, input: options.input, env: options.env });
+      return { status: 0, stdout: "ok\n", stderr: "" };
+    },
+  });
+
+  assert.equal(stdout, "ok\n");
+  assert.deepEqual(calls, [
+    {
+      command: "/custom/bin/psql",
+      args: ["postgres://example", "-v", "ON_ERROR_STOP=1"],
+      input: "select 1;",
+      env: { MWB_PSQL_BIN: "/custom/bin/psql" },
+    },
+  ]);
 });
 
 test("database doctor reports hydration readiness when migrations are already applied", async () => {
@@ -249,7 +297,9 @@ test("database transition docs expose the read-only doctor command", async () =>
   const dbReadme = await readFile(dbReadmePath, "utf8");
   assert.match(dbReadme, /npm run db:doctor/);
   assert.match(dbReadme, /ready_to_hydrate/);
+  assert.match(dbReadme, /MWB_PSQL_BIN/);
   assert.match(await readFile(transitionDocPath, "utf8"), /npm run db:doctor/);
+  assert.match(await readFile(transitionDocPath, "utf8"), /MWB_PSQL_BIN/);
 });
 
 test("database transition docs describe shadow snapshot freshness limits", async () => {

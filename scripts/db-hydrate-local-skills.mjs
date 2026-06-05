@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { deriveConfigurableSkillRunReceipt } from "../shared/configurable-skill-run-receipts.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -211,8 +213,8 @@ export function applyLocalSkillHydrationPlan({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying skill shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: buildLocalSkillHydrationSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -248,8 +250,8 @@ export function verifyLocalSkillHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying skill shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: buildSkillHydrationCountSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -301,8 +303,8 @@ export function inspectLocalSkillHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting skill shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: buildSkillInspectionSql({ tenantId: plan?.tenant?.id, slashQuery }),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -832,31 +834,12 @@ function toSnakeCase(value) {
   return String(value).replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalSkillHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
   if (args.inspect) {

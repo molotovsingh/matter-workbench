@@ -12,6 +12,8 @@ import {
 import {
   collectLocalProviderRunHydrationPlan,
 } from "./db-hydrate-local-provider-runs.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -172,8 +174,8 @@ export function applyLocalJobHydrationPlan({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying job shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: buildLocalJobHydrationSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -211,8 +213,8 @@ export function verifyLocalJobHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying job shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: buildJobHydrationCountSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -252,8 +254,8 @@ export function inspectLocalJobHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting job shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: buildJobInspectionSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -479,31 +481,12 @@ function sqlTimestampOrNull(value) {
   return text ? `${sqlString(text)}::timestamptz` : "null";
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalJobHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
   if (args.inspect) {

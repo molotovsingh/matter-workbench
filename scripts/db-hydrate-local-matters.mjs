@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { parseCsv } from "../shared/csv.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -169,8 +171,8 @@ export function applyLocalMatterHydrationPlan({
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying shadow hydration.");
   const sql = buildLocalMatterHydrationSql(plan);
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: sql,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -209,8 +211,8 @@ export function verifyLocalMatterHydration({
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying shadow hydration.");
   const sql = buildShadowHydrationCountSql(plan);
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: sql,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -317,8 +319,8 @@ export function inspectLocalMatterHydration({
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting shadow hydration.");
   const tenantId = plan?.tenant?.id;
   const sql = buildShadowMatterInspectionSql({ tenantId, matterQuery });
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: sql,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -873,31 +875,12 @@ function toSnakeCase(value) {
   return String(value).replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalMatterHydrationPlan({ mattersHome: args.mattersHome });
   if (args.inspect) {

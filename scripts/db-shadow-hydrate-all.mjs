@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -175,6 +176,7 @@ function redactSecret(value) {
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const result = runShadowHydrationPipeline({ args });
   if (args.json) console.log(JSON.stringify(result, null, 2));

@@ -10,6 +10,8 @@ import {
   buildShadowProviderRunPlan,
   collectLocalProviderRunHydrationPlan,
 } from "./db-hydrate-local-provider-runs.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -144,8 +146,8 @@ export function applyLocalCostEventHydrationPlan({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before applying cost-event shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1"], {
     input: buildLocalCostEventHydrationSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -183,8 +185,8 @@ export function verifyLocalCostEventHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before verifying cost-event shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "|"], {
     input: buildCostEventHydrationCountSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -224,8 +226,8 @@ export function inspectLocalCostEventHydration({
   spawn = spawnSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before inspecting cost-event shadow hydration.");
-  const { args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn("psql", [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+  const { command, args, env } = psqlConnectionArgs(databaseUrl);
+  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
     input: buildCostEventInspectionSql(plan),
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -449,31 +451,12 @@ function sqlTimestampOrNow(value) {
   return text ? `${sqlString(text)}::timestamptz` : "now()";
 }
 
-function psqlConnectionArgs(databaseUrl) {
-  const url = new URL(databaseUrl);
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
-  return {
-    args: [
-      "-h",
-      url.hostname,
-      "-p",
-      url.port || "5432",
-      "-U",
-      decodeURIComponent(url.username),
-      "-d",
-      database,
-    ],
-    env: {
-      ...(url.password ? { PGPASSWORD: decodeURIComponent(url.password) } : {}),
-    },
-  };
-}
-
 function redactSecret(value) {
   return String(value || "").replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@");
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
   const plan = await collectLocalCostEventHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
   if (args.inspect) {

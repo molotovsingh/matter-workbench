@@ -631,6 +631,15 @@ It also refuses gaps in the numbering sequence. That small rule matters because
 missing `002` while applying `003` is exactly the kind of quiet deployment
 mistake that creates "the app worked on my machine" confusion later.
 
+The database tools also learned a small deployment lesson: a good schema can
+still feel broken if the operator cannot find the `psql` binary. On this Mac,
+Homebrew's PostgreSQL client lived under `libpq`, not on the normal shell
+`PATH`. The tools now honor `MWB_PSQL_BIN`, auto-discover common `psql`
+locations, and load local `.env` values before resolving the database URL. This
+does not move the app to Postgres, but it removes a needless handoff trap. Good
+infrastructure work often looks like this: not a grand architecture rewrite, but
+one fewer "why does this work for you but not for me?" failure.
+
 The shadow hydration commands are the next rehearsal layer. `db:hydrate:dry-run`
 walks the local matter folders and counts only control-plane metadata: matter
 JSON, file registers, extraction logs, source labels, and List of Dates metadata.
