@@ -72,6 +72,7 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime-cutover-check
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
@@ -112,6 +113,11 @@ schema is already settled and the next useful step is shadow hydration, report,
 or snapshot. The all-shadow apply and verify commands run this `db:doctor`
 preflight themselves and stop before writes unless the schema is ready to
 hydrate.
+
+Use `db:runtime-cutover-check` only when asking whether the product runtime may
+start depending on Postgres. It consumes `db:shadow:acceptance` and fails closed
+while runtime cutover blockers remain. It does not switch runtime storage,
+hydrate rows, apply migrations, or write snapshots.
 
 ## Current Snapshot Evidence
 

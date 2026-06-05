@@ -49,6 +49,7 @@ npm run db:migrations:check
 npm run db:doctor
 npm run db:shadow:preflight
 npm run db:shadow:acceptance
+npm run db:runtime-cutover-check
 npm run db:shadow:backup
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 npm run db:hydrate:dry-run
@@ -217,6 +218,12 @@ storage. Use it when the question is "is this shadow database acceptable as
 handoff evidence right now?" The command also prints `runtime_cutover_ready`
 and a runtime-cutover blockers list so "shadow database accepted" is not
 mistaken for "product runtime is ready to use Postgres."
+
+`db:runtime-cutover-check` is the stop-check before any product runtime wiring.
+It consumes the shadow acceptance result and fails closed while runtime-cutover
+blockers remain. It does not switch runtime storage, apply migrations, hydrate
+rows, or write snapshots. Use it when the question is "are we allowed to make
+the app depend on Postgres yet?"
 
 `db:shadow:backup` creates a local ignored backup of the shadow database under
 `.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a
