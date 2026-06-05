@@ -152,6 +152,7 @@ Developer commands:
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:shadow:preflight
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -195,14 +196,18 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 `db:migrations:check` can run without a database URL; in that case it lists the
 available migration files with unknown status. `db:doctor` is the read-only
 handoff command: it checks URL presence, `psql`, and the migration plan while
-redacting connection secrets. The tools honor `MWB_PSQL_BIN`, auto-discover
-common PostgreSQL client paths such as Homebrew `libpq`, and finally fall back
-to `psql` on `PATH`. With a database URL, the runner records applied versions
-and SHA-256 checksums in `schema_migrations`, serializes each migration
-transaction with a Postgres advisory lock, and fails closed if an
-already-applied migration file is edited. The migration file sequence is also
-gapless: `001`, `002`, `003`, and so on. A missing number stops the runner
-before any deployment applies a later migration.
+redacting connection secrets. `db:shadow:preflight` is the one-command
+read-only readiness check that combines `db:doctor` with the full shadow
+hydration dry-run. If it says `psql` is available and dry-run planning works
+but the database URL is missing, the repo-side DB path is waiting for database
+URL / credential setup rather than another code change. The tools honor
+`MWB_PSQL_BIN`, auto-discover common PostgreSQL client paths such as Homebrew
+`libpq`, and finally fall back to `psql` on `PATH`. With a database URL, the
+runner records applied versions and SHA-256 checksums in `schema_migrations`,
+serializes each migration transaction with a Postgres advisory lock, and fails
+closed if an already-applied migration file is edited. The migration file
+sequence is also gapless: `001`, `002`, `003`, and so on. A missing number stops
+the runner before any deployment applies a later migration.
 
 `db:hydrate:dry-run`, `db:hydrate`, `db:hydrate:verify`, and
 `db:shadow:inspect` are shadow-only transition commands. They rehearse metadata

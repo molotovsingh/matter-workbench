@@ -47,6 +47,7 @@ For the operator/developer handoff sequence, read
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:shadow:preflight
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -101,6 +102,16 @@ The DB tools first honor `MWB_PSQL_BIN`, then try common PostgreSQL client
 locations such as Homebrew `libpq`, and finally fall back to `psql` on `PATH`.
 Use `MWB_PSQL_BIN=/absolute/path/to/psql` when the client is installed but not
 discoverable.
+
+`db:shadow:preflight` is the one-command read-only readiness check for the
+shadow DB track. It runs `db:doctor`, then runs the full shadow hydration
+dry-run, and prints a compact status: whether the database URL is configured,
+whether `psql` is available, whether dry-run planning works, whether migrations
+are ready to apply, whether the shadow schema is ready to hydrate, and the next
+operator action. With no database URL it should still be useful: `psql`
+availability plus a successful dry-run means the repo-side planners are ready
+and the handoff is waiting for database URL / credential setup. If the dry-run
+fails, the rendered result includes redacted failed stage evidence for handoff.
 
 `db:hydrate:dry-run` is a shadow-hydration rehearsal. It scans the local matter
 folder, reads existing `matter.json`, `File Register.csv`, `Extraction Log.csv`,

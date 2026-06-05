@@ -54,6 +54,7 @@ export MWB_PSQL_BIN="/absolute/path/to/psql"
 From the repo root:
 
 ```bash
+npm run db:shadow:preflight
 npm run db:doctor
 npm run db:migrations:check
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:migrate
@@ -70,6 +71,14 @@ handoff. New snapshots also record the repo branch, short commit, and whether
 the worktree was clean when the report was generated. `db:shadow:snapshot` runs
 a read-only `db:doctor` preflight and refuses to write snapshot files unless the
 doctor reports `ready_to_hydrate: yes`.
+
+Use `db:shadow:preflight` as the first command when resuming this track. It is a
+read-only combined check: `db:doctor` plus the full shadow hydration dry-run. If
+it reports that `psql` is available and dry-run planning works but the database
+URL is missing, the repo-side preparation is ready and the operator is only
+waiting for database URL / credential setup. If it reports `ready_to_apply`, run
+`db:migrate`. If it reports `ready_to_hydrate`, proceed to shadow hydration,
+verification, report, or snapshot.
 
 `db:doctor` is the first sanity check. If it reports `ready_to_apply: yes`, run
 the migrations before hydrating. If it reports `ready_to_hydrate: yes`, the

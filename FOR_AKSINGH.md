@@ -576,6 +576,7 @@ The migration runner is intentionally boring:
 npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
+npm run db:shadow:preflight
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -639,6 +640,15 @@ locations, and load local `.env` values before resolving the database URL. This
 does not move the app to Postgres, but it removes a needless handoff trap. Good
 infrastructure work often looks like this: not a grand architecture rewrite, but
 one fewer "why does this work for you but not for me?" failure.
+
+The DB track now has a one-command preflight as well:
+`npm run db:shadow:preflight`. It is deliberately read-only. It runs the
+doctor, then runs the full shadow hydration dry-run, and gives a plain status:
+database URL missing or configured, `psql` available or not, dry-run works or
+not, migrations ready to apply or already ready to hydrate. This is the
+operator equivalent of checking the tyres and fuel before starting a long drive.
+It does not move the car; it tells you whether the next action is code, schema,
+credentials, or hydration.
 
 The shadow hydration commands are the next rehearsal layer. `db:hydrate:dry-run`
 walks the local matter folders and counts only control-plane metadata: matter

@@ -43,7 +43,7 @@ test("psql connection args split credentials into environment variables", async 
   const { psqlConnectionArgs } = await import(psqlPath.href);
 
   assert.deepEqual(
-    psqlConnectionArgs("postgres://mwb_user:pw%21@192.168.210.128:5432/matter_workbench_shadow", {
+    psqlConnectionArgs("postgres://mwb_user:pw%21@db.example:5432/matter_workbench_shadow", {
       env: { MWB_PSQL_BIN: "/custom/bin/psql" },
     }),
     {
@@ -51,7 +51,7 @@ test("psql connection args split credentials into environment variables", async 
       source: "MWB_PSQL_BIN",
       args: [
         "-h",
-        "192.168.210.128",
+        "db.example",
         "-p",
         "5432",
         "-U",
