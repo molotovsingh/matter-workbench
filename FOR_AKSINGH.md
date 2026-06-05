@@ -766,6 +766,13 @@ right order. `db:shadow:hydrate` writes every shadow track and then runs the
 combined report. `db:shadow:hydrate:verify` runs every count check and then the
 same report. This is a good example of a small automation that does not change
 product behavior: the command is a checklist executor, not a new architecture.
+`db:shadow:acceptance` is the final read-only gate for this rehearsal. It asks,
+"is the migrated shadow database ready to hydrate, and does every mirrored
+track still verify?" If the answer is yes, the shadow database is acceptable as
+handoff evidence. If the answer is no, it fails closed before anyone can confuse
+the mirror with a runtime cutover. This is the right mental model for the DB
+transition: prove the mirror, preserve evidence, then only later decide whether
+the app should depend on it.
 
 The custom skill factory follows the same local-first instinct, but uses app-level JSON stores instead of matter folders:
 

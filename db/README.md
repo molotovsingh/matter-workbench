@@ -48,6 +48,7 @@ npm run db:migrations:list
 npm run db:migrations:check
 npm run db:doctor
 npm run db:shadow:preflight
+npm run db:shadow:acceptance
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -85,6 +86,7 @@ MWB_DATABASE_URL="postgres://..." npm run db:audit:shadow:inspect
 npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:acceptance
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 ```
@@ -202,6 +204,13 @@ doctor reports `ready_to_hydrate: yes`, and then finish with
 `db:shadow:report`. These commands still do not make the app read from Postgres.
 If a failed stage stops the shortcut, the rendered result includes redacted
 stdout/stderr snippets for operator handoff debugging.
+
+`db:shadow:acceptance` is the read-only acceptance check after a shadow database
+has been hydrated. It runs `db:doctor`, refuses to continue unless the schema is
+ready to hydrate, then runs the verify pipeline and combined shadow report. It
+does not apply migrations, hydrate rows, write snapshots, or switch runtime
+storage. Use it when the question is "is this shadow database acceptable as
+handoff evidence right now?"
 
 `db:shadow:report` is the one-command read-only operator view. It verifies and
 inspects matter control-plane rows, skill-factory rows, advisory snapshots,

@@ -25,7 +25,9 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Homebrew[\s\S]*libpq/i);
   assert.match(doc, /\.env\.shadow/);
   assert.match(doc, /\.env\.shadow[\s\S]*ignored/i);
-  assert.match(doc, /docs\/shadow-db-snapshots\/shadow-db-snapshot-2026-06-04T00-00-00-000Z\.md/);
+  assert.match(doc, /docs\/shadow-db-snapshots\/shadow-db-snapshot-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
+  assert.match(doc, /15 matters, 180 documents, 180 extraction\s+records, 125 source descriptors/i);
+  assert.match(doc, /8 configurable skills,\s+22 configurable-skill runs/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*one[- ]run evidence/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*not live truth/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*repo changes/i);
