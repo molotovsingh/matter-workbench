@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -128,6 +129,7 @@ export async function buildShadowDbReport({
   inspectCostEvents = inspectLocalCostEventHydration,
   verifyAuditEvents = verifyLocalAuditEventHydration,
   inspectAuditEvents = inspectLocalAuditEventHydration,
+  storageExists = existsSync,
 } = {}) {
   if (!databaseUrl) throw new Error("Set MWB_DATABASE_URL or DATABASE_URL before running the shadow DB report.");
 
@@ -160,6 +162,11 @@ export async function buildShadowDbReport({
   const advisoryInspection = inspectAdvisory({ databaseUrl, plan: resolvedAdvisoryPlan });
   const storageVerification = verifyStorage({ databaseUrl, plan: resolvedStoragePlan });
   const storageInspection = inspectStorage({ databaseUrl, plan: resolvedStoragePlan });
+  const storageCustody = checkLocalPdfStorageCustody({
+    storagePlan: resolvedStoragePlan,
+    mattersHome,
+    storageExists,
+  });
   const providerRunVerification = verifyProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
   const providerRunInspection = inspectProviderRuns({ databaseUrl, plan: resolvedProviderRunPlan });
   const jobVerification = verifyJobs({ databaseUrl, plan: resolvedJobPlan });
@@ -175,6 +182,7 @@ export async function buildShadowDbReport({
       && skillVerification.matched
       && advisoryVerification.matched
       && storageVerification.matched
+      && storageCustody.matched
       && providerRunVerification.matched
       && jobVerification.matched
       && costEventVerification.matched
@@ -199,6 +207,7 @@ export async function buildShadowDbReport({
     storage: {
       verification: storageVerification,
       inspection: storageInspection,
+      custody: storageCustody,
     },
     providerRuns: {
       verification: providerRunVerification,
@@ -293,6 +302,16 @@ export function renderShadowDbReport(report = {}) {
     lines.push(`  ${role.objectRole}: ${role.count}`);
   }
   if (!report.storage?.inspection?.roles?.length) lines.push("  (none)");
+  const storageCustody = report.storage?.custody || {};
+  lines.push(`storage_custody: ${storageCustody.matched === false ? "missing" : "ok"}`);
+  lines.push(`  checked_pdf_objects: ${storageCustody.checkedPdfObjects || 0}`);
+  lines.push(`  missing_pdf_objects: ${storageCustody.missingPdfObjects || 0}`);
+  if (storageCustody.missing?.length) {
+    lines.push("missing_storage_objects:");
+    for (const missing of storageCustody.missing) {
+      lines.push(`  ${missing.objectRole || "unknown"} ${missing.objectKey || ""}`);
+    }
+  }
 
   lines.push(`provider_run_counts: ${report.providerRuns?.verification?.matched ? "matched" : "mismatch"}`);
   appendCounts(lines, report.providerRuns?.verification);
@@ -361,6 +380,44 @@ function appendMismatches(lines, verification = {}) {
   for (const mismatch of verification.mismatches) {
     lines.push(`  ${mismatch.key}: expected=${mismatch.expected} actual=${mismatch.actual}`);
   }
+}
+
+export function checkLocalPdfStorageCustody({
+  storagePlan = {},
+  mattersHome = "",
+  storageExists = existsSync,
+} = {}) {
+  const missing = [];
+  let checkedPdfObjects = 0;
+
+  for (const object of storagePlan.storageObjects || []) {
+    if (!isLocalPdfStorageObject(object)) continue;
+    checkedPdfObjects += 1;
+    const objectKey = String(object.objectKey || "").replaceAll("\\", "/").replace(/^\/+/, "");
+    const localPath = path.join(mattersHome || "", objectKey);
+    if (storageExists(localPath)) continue;
+    missing.push({
+      id: object.id || "",
+      objectKey,
+      objectRole: object.objectRole || "",
+      bucket: object.bucket || "",
+      storageProvider: object.storageProvider || "",
+    });
+  }
+
+  return {
+    matched: missing.length === 0,
+    checkedPdfObjects,
+    missingPdfObjects: missing.length,
+    missing,
+  };
+}
+
+function isLocalPdfStorageObject(object = {}) {
+  if (object.storageProvider !== "local-filesystem") return false;
+  const objectKey = String(object.objectKey || "").toLowerCase();
+  const mimeType = String(object.mimeType || "").toLowerCase();
+  return mimeType === "application/pdf" || objectKey.endsWith(".pdf");
 }
 
 async function main() {

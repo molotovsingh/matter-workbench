@@ -289,6 +289,77 @@ test("shadow DB report combines matter, skill, advisory, storage, provider-run, 
   assert.match(rendered, /command\.ran provider_invoked=false: 1/);
 });
 
+test("shadow DB report fails when local-filesystem PDF custody points at missing files", async () => {
+  const {
+    buildShadowDbReport,
+    renderShadowDbReport,
+  } = await import(reportPath.href);
+
+  const report = await buildShadowDbReport({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    mattersHome: "/tmp/matters-home",
+    matterPlan: minimalPlan(),
+    skillPlan: minimalPlan(),
+    advisoryPlan: minimalPlan(),
+    storagePlan: {
+      tenant: { id: "tenant_local_shadow" },
+      plannedRows: { storageObjects: 2 },
+      storageObjects: [
+        {
+          id: "storage_present",
+          objectKey: "Alpha Matter/00_Inbox/Intake 01/Originals/present.pdf",
+          storageProvider: "local-filesystem",
+          bucket: "local-shadow",
+          objectRole: "source_original",
+          mimeType: "application/pdf",
+        },
+        {
+          id: "storage_missing",
+          objectKey: "Alpha Matter/00_Inbox/Intake 01/Originals/missing.pdf",
+          storageProvider: "local-filesystem",
+          bucket: "local-shadow",
+          objectRole: "source_original",
+          mimeType: "application/pdf",
+        },
+      ],
+    },
+    providerRunPlan: minimalPlan(),
+    jobPlan: minimalPlan(),
+    costEventPlan: minimalPlan(),
+    auditEventPlan: minimalPlan(),
+    verifyMatter: matchedVerification,
+    inspectMatter: emptyMatterInspection,
+    verifySkill: matchedVerification,
+    inspectSkill: emptySkillInspection,
+    verifyAdvisory: matchedVerification,
+    inspectAdvisory: emptyAdvisoryInspection,
+    verifyStorage: matchedVerification,
+    inspectStorage: () => ({ roles: [], totals: { storageObjects: 2 } }),
+    verifyProviderRuns: matchedVerification,
+    inspectProviderRuns: emptyProviderRunInspection,
+    verifyJobs: matchedVerification,
+    inspectJobs: emptyJobInspection,
+    verifyCostEvents: matchedVerification,
+    inspectCostEvents: emptyCostEventInspection,
+    verifyAuditEvents: matchedVerification,
+    inspectAuditEvents: emptyAuditEventInspection,
+    storageExists: (filePath) => !filePath.endsWith("/missing.pdf"),
+  });
+
+  assert.equal(report.matched, false);
+  assert.equal(report.storage.verification.matched, true);
+  assert.equal(report.storage.custody.matched, false);
+  assert.equal(report.storage.custody.missingPdfObjects, 1);
+  assert.equal(report.storage.custody.checkedPdfObjects, 2);
+  assert.match(report.storage.custody.missing[0].objectKey, /missing\.pdf$/);
+
+  const rendered = renderShadowDbReport(report).join("\n");
+  assert.match(rendered, /matched: no/);
+  assert.match(rendered, /storage_custody: missing/);
+  assert.match(rendered, /missing_pdf_objects: 1/);
+  assert.match(rendered, /Alpha Matter\/00_Inbox\/Intake 01\/Originals\/missing\.pdf/);
+});
+
 test("package and database docs expose the combined shadow DB report command", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["db:shadow:report"], "node scripts/db-shadow-report.mjs");
@@ -296,3 +367,47 @@ test("package and database docs expose the combined shadow DB report command", a
   const readme = await readFile(dbReadmePath, "utf8");
   assert.match(readme, /npm run db:shadow:report/);
 });
+
+function minimalPlan() {
+  return {
+    tenant: { id: "tenant_local_shadow" },
+    plannedRows: {},
+  };
+}
+
+function matchedVerification() {
+  return {
+    matched: true,
+    expected: {},
+    counts: {},
+    mismatches: [],
+  };
+}
+
+function emptyMatterInspection() {
+  return { matters: [], totals: {} };
+}
+
+function emptySkillInspection() {
+  return { skills: [], totals: {} };
+}
+
+function emptyAdvisoryInspection() {
+  return { snapshots: [], totals: {} };
+}
+
+function emptyProviderRunInspection() {
+  return { groups: [], totals: {} };
+}
+
+function emptyJobInspection() {
+  return { groups: [], totals: {} };
+}
+
+function emptyCostEventInspection() {
+  return { groups: [], totals: {} };
+}
+
+function emptyAuditEventInspection() {
+  return { groups: [], totals: {} };
+}
