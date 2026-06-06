@@ -26,7 +26,7 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /docs\/runtime-db-write-smokes\/runtime-db-write-smoke-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
   assert.match(doc, /runtime write smoke[\s\S]*\/api\/matters\/new/i);
   assert.match(doc, /rollback_verified:\s*yes/);
-  assert.match(doc, /cleanup_archived:\s*yes/);
+  assert.match(doc, /cleanup_deleted:\s*yes/);
   assert.match(doc, /repo branch, short\s+commit, and whether\s+the worktree was clean/i);
   assert.match(doc, /npm run db:shadow:backup/);
   assert.match(doc, /npm run db:shadow:storage-backup/);
@@ -50,7 +50,8 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /docs\/shadow-db-restore-drills\/shadow-db-restore-drill-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
   assert.match(doc, /docs\/shadow-storage-restore-checks\/shadow-storage-restore-check-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
   assert.match(doc, /15 matters, 180 documents, 180 extraction\s+records, 125 source descriptors/i);
-  assert.match(doc, /8 configurable skills,\s+22 configurable-skill runs/i);
+  assert.match(doc, /8 configurable skills,\s+35 configurable-skill runs/i);
+  assert.match(doc, /legacy `gpt-5\.4` model labels/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*one[- ]run evidence/i);
   assert.match(doc, /Current Restore Drill Evidence[\s\S]*temporary\s+PostgreSQL\s+database/i);
   assert.match(doc, /Current Restore Drill Evidence[\s\S]*drop restore database:\s*ok/i);

@@ -194,8 +194,13 @@ export function applyLocalMatterHydrationPlan({
 export function buildShadowHydrationCountSql(plan = {}) {
   const tenantId = plan?.tenant?.id;
   if (!tenantId) throw new Error("Hydration plan is missing tenant.id.");
-  const countQueries = shadowHydrationCountKeys().map(([key, tableName]) => (
-    `select ${sqlString(key)} as key, count(*)::int as count from ${tableName}`
+  const matterIdsSql = sqlUuidArray(plannedMatterIds(plan));
+  const countQueries = shadowHydrationCountKeys().map(([key, tableName, matterColumn]) => (
+    [
+      `select ${sqlString(key)} as key, count(*)::int as count from ${tableName}`,
+      "where tenant_id = current_app_tenant_id()",
+      `  and ${matterColumn} = any (${matterIdsSql})`,
+    ].join("\n")
   ));
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
@@ -479,15 +484,21 @@ function parsePsqlJsonArray(stdout = "") {
 
 function shadowHydrationCountKeys() {
   return [
-    ["matters", "matters"],
-    ["matter_intakes", "matter_intakes"],
-    ["documents", "documents"],
-    ["extraction_records", "extraction_records"],
-    ["source_descriptors", "source_descriptors"],
-    ["matter_artifacts", "matter_artifacts"],
-    ["matter_import_batches", "matter_import_batches"],
-    ["matter_import_items", "matter_import_items"],
+    ["matters", "matters", "id"],
+    ["matter_intakes", "matter_intakes", "matter_id"],
+    ["documents", "documents", "matter_id"],
+    ["extraction_records", "extraction_records", "matter_id"],
+    ["source_descriptors", "source_descriptors", "matter_id"],
+    ["matter_artifacts", "matter_artifacts", "matter_id"],
+    ["matter_import_batches", "matter_import_batches", "matter_id"],
+    ["matter_import_items", "matter_import_items", "matter_id"],
   ];
+}
+
+function plannedMatterIds(plan = {}) {
+  return (plan.matters || [])
+    .map((matter) => stringValue(matter.id))
+    .filter(Boolean);
 }
 
 function expectedShadowHydrationCounts(plan = {}) {
@@ -861,6 +872,11 @@ function deterministicUuid(seed) {
 
 function sqlString(value) {
   return `'${String(value ?? "").replaceAll("'", "''")}'`;
+}
+
+function sqlUuidArray(values = []) {
+  const quoted = values.map(sqlString).join(", ");
+  return `array[${quoted}]::uuid[]`;
 }
 
 function sqlStringOrNull(value) {

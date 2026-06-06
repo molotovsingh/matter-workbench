@@ -7,10 +7,10 @@ import {
   runRuntimeDbWriteSmoke,
 } from "../scripts/db-runtime-write-smoke.mjs";
 
-test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and archives cleanup", async () => {
+test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and deletes cleanup matter", async () => {
   const sqlCalls = [];
   const fetchCalls = [];
-  let archived = false;
+  let deleted = false;
   const app = {
     server: {
       listen(_port, _host, callback) {
@@ -67,14 +67,14 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and arc
       }
       if (/select 1 \/ 0/.test(sql)) throw new Error("division by zero");
       if (/rollbackProbeRows/.test(sql)) return { rollbackProbeRows: 0 };
-      if (/update matters/.test(sql)) {
-        archived = true;
+      if (/delete from matters/.test(sql)) {
+        deleted = true;
         return {};
       }
       if (/matterCount/.test(sql)) {
         return {
-          matterCount: 1,
-          activeMatterCount: archived ? 0 : 1,
+          matterCount: deleted ? 0 : 1,
+          activeMatterCount: deleted ? 0 : 1,
           documents: 1,
           storageObjects: 2,
           payloadRows: 2,
@@ -92,8 +92,9 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and arc
   assert.equal(report.uploadCreated, true);
   assert.equal(report.dbRowsVerified, true);
   assert.equal(report.rollbackVerified, true);
-  assert.equal(report.cleanupArchived, true);
+  assert.equal(report.cleanupDeleted, true);
   assert.equal(sqlCalls.some((call) => /begin;\ndo \$mwb_runtime_role_guard\$/.test(call.sql)), true);
+  assert.equal(sqlCalls.some((call) => /delete from matters/i.test(call.sql)), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/matters/new")), true);
 });
 

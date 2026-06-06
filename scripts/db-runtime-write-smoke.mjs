@@ -43,7 +43,7 @@ export async function runRuntimeDbWriteSmoke({
     rawFileReadable: false,
     dbRowsVerified: false,
     rollbackVerified: false,
-    cleanupArchived: false,
+    cleanupDeleted: false,
     counts: {},
     error: "",
   };
@@ -113,13 +113,13 @@ export async function runRuntimeDbWriteSmoke({
 
     await execSql({
       databaseUrl,
-      sql: buildArchiveSmokeMatterSql({ tenantId, matterName }),
+      sql: buildDeleteSmokeMatterSql({ tenantId, matterName }),
     });
     const cleanup = await execSql({
       databaseUrl,
       sql: buildWriteSmokeCountsSql({ tenantId, matterName }),
     });
-    report.cleanupArchived = Boolean(cleanup?.activeMatterCount === 0);
+    report.cleanupDeleted = Boolean(cleanup?.matterCount === 0 && cleanup?.activeMatterCount === 0);
 
     report.passed = Boolean(
       report.roleGuardPassed
@@ -129,7 +129,7 @@ export async function runRuntimeDbWriteSmoke({
       && report.rawFileReadable
       && report.dbRowsVerified
       && report.rollbackVerified
-      && report.cleanupArchived
+      && report.cleanupDeleted
     );
     if (!report.passed) report.error = "Runtime DB write smoke did not satisfy every acceptance check.";
     return report;
@@ -155,7 +155,7 @@ export function renderRuntimeDbWriteSmokeReport(report = {}) {
     `raw_file_readable: ${report.rawFileReadable ? "yes" : "no"}`,
     `db_rows_verified: ${report.dbRowsVerified ? "yes" : "no"}`,
     `rollback_verified: ${report.rollbackVerified ? "yes" : "no"}`,
-    `cleanup_archived: ${report.cleanupArchived ? "yes" : "no"}`,
+    `cleanup_deleted: ${report.cleanupDeleted ? "yes" : "no"}`,
     `counts: ${JSON.stringify(report.counts || {})}`,
   ];
   if (report.error) lines.push(`error: ${report.error}`);
@@ -284,13 +284,41 @@ function buildRollbackProbeCountSql({ tenantId, testRunId }) {
   ].join("\n"));
 }
 
-function buildArchiveSmokeMatterSql({ tenantId, matterName }) {
+function buildDeleteSmokeMatterSql({ tenantId, matterName }) {
   return wrapRuntimeDbWriteTransaction([
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
-    "update matters",
-    "set status = 'archived', archived_at = now(), updated_at = now()",
+    "create temporary table mwb_runtime_smoke_target on commit drop as",
+    "select id",
+    "from matters",
     "where tenant_id = current_app_tenant_id()",
-    `  and name = ${sqlString(matterName)};`,
+    `  and name = ${sqlString(matterName)}`,
+    "  and name like 'Runtime DB Write Smoke %';",
+    "delete from cost_events ce using mwb_runtime_smoke_target t where ce.tenant_id = current_app_tenant_id() and ce.matter_id = t.id;",
+    "delete from configurable_skill_runs csr using mwb_runtime_smoke_target t where csr.tenant_id = current_app_tenant_id() and csr.matter_id = t.id;",
+    "delete from skill_samples ss using mwb_runtime_smoke_target t where ss.tenant_id = current_app_tenant_id() and ss.matter_id = t.id;",
+    "delete from skill_ideas si using mwb_runtime_smoke_target t where si.tenant_id = current_app_tenant_id() and si.matter_id = t.id;",
+    "delete from source_descriptors sd using mwb_runtime_smoke_target t where sd.tenant_id = current_app_tenant_id() and sd.matter_id = t.id;",
+    "delete from document_text_blocks dtb using mwb_runtime_smoke_target t where dtb.tenant_id = current_app_tenant_id() and dtb.matter_id = t.id;",
+    "delete from extraction_records er using mwb_runtime_smoke_target t where er.tenant_id = current_app_tenant_id() and er.matter_id = t.id;",
+    "delete from artifact_validation_results avr using mwb_runtime_smoke_target t where avr.tenant_id = current_app_tenant_id() and avr.matter_id = t.id;",
+    "delete from preparation_advisory_snapshots pas using mwb_runtime_smoke_target t where pas.tenant_id = current_app_tenant_id() and pas.matter_id = t.id;",
+    "delete from attention_acknowledgements aa using incidents i, mwb_runtime_smoke_target t where aa.tenant_id = current_app_tenant_id() and aa.incident_id = i.id and i.matter_id = t.id;",
+    "delete from incidents i using mwb_runtime_smoke_target t where i.tenant_id = current_app_tenant_id() and i.matter_id = t.id;",
+    "delete from provider_runs pr using mwb_runtime_smoke_target t where pr.tenant_id = current_app_tenant_id() and pr.matter_id = t.id;",
+    "delete from job_outbox jo using processing_jobs pj, mwb_runtime_smoke_target t where jo.tenant_id = current_app_tenant_id() and jo.job_id = pj.id and pj.matter_id = t.id;",
+    "delete from processing_jobs pj using mwb_runtime_smoke_target t where pj.tenant_id = current_app_tenant_id() and pj.matter_id = t.id;",
+    "delete from matter_artifacts ma using mwb_runtime_smoke_target t where ma.tenant_id = current_app_tenant_id() and ma.matter_id = t.id;",
+    "delete from storage_object_payloads sop using mwb_runtime_smoke_target t where sop.tenant_id = current_app_tenant_id() and sop.matter_id = t.id;",
+    "delete from matter_import_items mii using mwb_runtime_smoke_target t where mii.tenant_id = current_app_tenant_id() and mii.matter_id = t.id;",
+    "delete from matter_import_batches mib using mwb_runtime_smoke_target t where mib.tenant_id = current_app_tenant_id() and mib.matter_id = t.id;",
+    "delete from document_blobs db using mwb_runtime_smoke_target t where db.tenant_id = current_app_tenant_id() and db.matter_id = t.id;",
+    "delete from storage_objects so using mwb_runtime_smoke_target t where so.tenant_id = current_app_tenant_id() and so.matter_id = t.id;",
+    "delete from documents d using mwb_runtime_smoke_target t where d.tenant_id = current_app_tenant_id() and d.matter_id = t.id;",
+    "delete from upload_sessions us using mwb_runtime_smoke_target t where us.tenant_id = current_app_tenant_id() and us.matter_id = t.id;",
+    "delete from matter_memberships mm using mwb_runtime_smoke_target t where mm.tenant_id = current_app_tenant_id() and mm.matter_id = t.id;",
+    "delete from matter_intakes mi using mwb_runtime_smoke_target t where mi.tenant_id = current_app_tenant_id() and mi.matter_id = t.id;",
+    "delete from audit_events ae using mwb_runtime_smoke_target t where ae.tenant_id = current_app_tenant_id() and ae.matter_id = t.id;",
+    "delete from matters m using mwb_runtime_smoke_target t where m.tenant_id = current_app_tenant_id() and m.id = t.id;",
     "select '{}'::jsonb::text;",
   ].join("\n"));
 }

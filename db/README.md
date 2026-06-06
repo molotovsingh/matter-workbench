@@ -332,7 +332,8 @@ Use `npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes`
 as the live write acceptance check. It creates a disposable matter through the
 real upload API, reads the DB-backed workspace and payload bytes, verifies
 matter/document/storage/payload rows, proves a forced transaction rollback, and
-archives the smoke matter afterward.
+deletes the disposable smoke matter afterward so exact shadow-hydration
+verification is not polluted by smoke-test rows.
 
 For the private/local single-host path, the accepted storage policy is:
 `local-filesystem` storage is allowed only when the matching DB backup, storage

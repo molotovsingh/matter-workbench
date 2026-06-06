@@ -280,14 +280,14 @@ role. The script created a disposable matter through the real
 `/api/matters/new` upload route, read the DB-backed workspace, previewed and
 streamed the uploaded source payload from Postgres, verified matter/document/
 storage/payload/import rows, intentionally exercised a failing transaction and
-confirmed rollback, then archived the smoke matter so it no longer appears as
-an active matter.
+confirmed rollback, then deleted the disposable smoke matter so it no longer
+pollutes the active matter list or exact shadow-hydration verification counts.
 
 Current checked-in write-smoke evidence:
 
 ```text
-docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T06-33-29-053Z.md
-docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T06-33-29-053Z.json
+docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T08-45-48-055Z.md
+docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T08-45-48-055Z.json
 ```
 
 ```text
@@ -300,7 +300,7 @@ file_preview_readable: yes
 raw_file_readable: yes
 db_rows_verified: yes
 rollback_verified: yes
-cleanup_archived: yes
+cleanup_deleted: yes
 counts: {"documents":1,"matterCount":1,"payloadRows":2,"payloadBytes":514,"importBatches":1,"storageObjects":2,"activeMatterCount":1}
 ```
 
@@ -346,8 +346,8 @@ docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-06T01-28-18-726Z.json
 The 2026-06-06 snapshot is the latest handoff evidence. It reports
 `matched: yes` for the VM shadow database at the time it was generated. It
 mirrors 15 matters, 180 documents, 180 extraction records, 125 source descriptors,
-28 matter artifacts, 8 configurable skills, 22 configurable-skill runs, 64 open
-local attention incidents, and 61 provider runs. It also records
+28 matter artifacts, 8 configurable skills, 35 configurable-skill runs, 72 open
+local attention incidents, and 74 provider runs. It also records
 `storage_custody: ok`, with 168 PDF storage objects checked and 0 missing local
 files. Treat it as one-run evidence, not live truth.
 It is not a promise that future repo changes, local matter folders, skill
@@ -357,6 +357,14 @@ commit is the source repo state that produced the report, before the snapshot
 files themselves are committed. Do not keep refreshing only to make a checked-in
 snapshot cite the commit that contains that same snapshot; that is a
 self-referential loop, not better evidence.
+
+One provider-run audit caveat remains intentionally quarantined from runtime DB
+readiness: historical local ledgers still include legacy `gpt-5.4` model labels
+and unknown-cost rows. The runtime DB role, RLS, payload custody, shadow
+acceptance, and read/write smokes are green despite that. Do not wire billing,
+spend limits, or model-catalog compliance to those historical rows until the
+cost-governance cleanup normalizes legacy model aliases and marks unknown-cost
+runs explicitly.
 
 ## Current Restore Drill Evidence
 

@@ -1934,7 +1934,8 @@ Then we added the missing acceptance proof. The live runtime write smoke creates
 a disposable matter through the actual upload API, reads the resulting workspace
 and source file from Postgres payload bytes, verifies matter/document/storage/
 payload/import rows, deliberately runs a failing transaction and proves rollback,
-then archives the smoke matter so it does not pollute the active matter list.
+then deletes the disposable smoke matter so it does not pollute either the
+active matter list or the exact shadow-hydration verification counts.
 That is the difference between "the code looks right" and "the runtime path
 actually worked against Postgres". The checked-in evidence is under
 `docs/runtime-db-write-smokes/`.

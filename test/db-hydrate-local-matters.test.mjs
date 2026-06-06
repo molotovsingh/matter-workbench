@@ -294,7 +294,10 @@ test("local matter DB hydrator verifies shadow row counts against local metadata
       matterImportBatches: 2,
       matterImportItems: 5,
     },
-    matters: [],
+    matters: [
+      { id: "11111111-1111-5111-8111-111111111111" },
+      { id: "22222222-2222-5222-8222-222222222222" },
+    ],
   };
 
   const ok = verifyLocalMatterHydration({
@@ -327,6 +330,8 @@ test("local matter DB hydrator verifies shadow row counts against local metadata
   assert.equal(ok.counts.documents, 5);
   assert.match(calls[0].command, /psql$/);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
+  assert.match(calls[0].input, /where tenant_id = current_app_tenant_id\(\)/i);
+  assert.match(calls[0].input, /matter_id = any \(array\['/i);
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 
   const mismatch = verifyLocalMatterHydration({
