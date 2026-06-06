@@ -24,8 +24,25 @@ test("React command handling can invoke configurable skills returned by intent r
   const source = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
 
   assert.match(source, /result\.matched_skill_card\?\.configurable/);
-  assert.match(source, /api\.runConfigurableSkill\(\{ slash: result\.matched_skill/);
+  assert.match(source, /runConfigurableSkillFromCommand\(\{[\s\S]*slash: result\.matched_skill/);
+  assert.match(source, /api\.runConfigurableSkill\(\{ slash, overwrite, matterName \}\)/);
   assert.match(source, /run\.state === 'requires_overwrite'/);
+});
+
+test("React command rail exposes custom skill overwrite confirmation actions", async () => {
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+  const appSource = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
+
+  assert.match(commandPanelSource, /pendingConfigurableOverwrite/);
+  assert.match(commandPanelSource, /onConfirmConfigurableOverwrite/);
+  assert.match(commandPanelSource, /onCancelConfigurableOverwrite/);
+  assert.match(commandPanelSource, />\s*Run again\s*</);
+  assert.match(commandPanelSource, />\s*Keep existing output\s*</);
+
+  assert.match(appSource, /setPendingConfigurableOverwrite/);
+  assert.match(appSource, /runConfigurableSkillFromCommand\(\{[\s\S]*slash: pendingConfigurableOverwrite\.slash[\s\S]*matterName: pendingConfigurableOverwrite\.matterName[\s\S]*overwrite: true/);
+  assert.match(appSource, /api\.cancelSkillRun\(\{/);
+  assert.doesNotMatch(appSource, /Open Skills to review or rerun it/);
 });
 
 test("React command suggestions overlay the command input instead of reflowing the panel", async () => {

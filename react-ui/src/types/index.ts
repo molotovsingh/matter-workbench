@@ -525,6 +525,7 @@ export interface ConfigurableSkillCancelRequest {
   runId?: string;
   skillId?: string;
   slash?: string;
+  artifactPath?: string;
   matterName?: string;
   reason?: string;
 }

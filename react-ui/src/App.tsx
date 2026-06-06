@@ -17,9 +17,17 @@ import { useLatestValue } from './hooks/useLatestValue';
 import { humanizeArtifactPath } from './lib/presentationLabels';
 import type { ActiveView } from './types';
 
+interface PendingConfigurableOverwrite {
+  slash: string;
+  skillLabel: string;
+  matterName: string;
+  artifactPath?: string | null;
+}
+
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace, clearActiveMatter } = useApp();
   const [reportText, setReportText] = useState<string | null>(null);
+  const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const preparationRunSeqRef = useRef(0);
   const setActiveView = useCallback((view: ActiveView) => {
@@ -177,6 +185,10 @@ function AppShell() {
     setTheme(state.theme);
   }, [setTheme, state.theme]);
 
+  useEffect(() => {
+    setPendingConfigurableOverwrite(null);
+  }, [state.activeMatter?.name]);
+
   // Bootstrap: load config and matter list once on app start.
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +216,82 @@ function AppShell() {
       cancelled = true;
     };
   }, [appendTerminal, dispatch]);
+
+  const runConfigurableSkillFromCommand = useCallback(async ({
+    slash,
+    skillLabel,
+    matterName,
+    overwrite = false,
+  }: {
+    slash: string;
+    skillLabel: string;
+    matterName: string;
+    overwrite?: boolean;
+  }) => {
+    appendTerminal([`[skill] ${overwrite ? 'overwriting' : 'running'} ${skillLabel} on ${matterName}…`]);
+    const run = await api.runConfigurableSkill({ slash, overwrite, matterName });
+    if (activeMatterNameRef.current !== matterName) return;
+    if (run.state === 'requires_overwrite') {
+      const artifact = run.artifactPath || run.outputPaths?.markdown || null;
+      setPendingConfigurableOverwrite({ slash, skillLabel, matterName, artifactPath: artifact });
+      const artifactLabel = artifact ? ` at ${humanizeArtifactPath(artifact)}` : '';
+      dispatch({
+        type: 'SET_COMMAND_COPY',
+        payload: `${skillLabel} already has output${artifactLabel}. Run again to replace it, or keep the existing output.`,
+      });
+      appendTerminal([`[skill] ${skillLabel} output exists — overwrite confirmation shown`]);
+      return;
+    }
+    setPendingConfigurableOverwrite((current) => (
+      current?.slash === slash && current?.matterName === matterName ? null : current
+    ));
+    dispatch({ type: 'SET_COMMAND_COPY', payload: `${skillLabel} complete.` });
+    appendTerminal([`[skill] ${skillLabel} completed`]);
+  }, [activeMatterNameRef, appendTerminal, dispatch]);
+
+  const confirmConfigurableOverwrite = useCallback(async () => {
+    if (!pendingConfigurableOverwrite || state.isCommandRunning) return;
+    dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    try {
+      await runConfigurableSkillFromCommand({
+        slash: pendingConfigurableOverwrite.slash,
+        skillLabel: pendingConfigurableOverwrite.skillLabel,
+        matterName: pendingConfigurableOverwrite.matterName,
+        overwrite: true,
+      });
+    } catch (e) {
+      if (activeMatterNameRef.current !== pendingConfigurableOverwrite.matterName) return;
+      const message = getErrorMessage(e);
+      appendTerminal([`[skill] overwrite failed: ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Could not rerun ${pendingConfigurableOverwrite.skillLabel}: ${message}` });
+    } finally {
+      dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, pendingConfigurableOverwrite, runConfigurableSkillFromCommand, state.isCommandRunning]);
+
+  const cancelConfigurableOverwrite = useCallback(async () => {
+    if (!pendingConfigurableOverwrite || state.isCommandRunning) return;
+    dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    try {
+      await api.cancelSkillRun({
+        slash: pendingConfigurableOverwrite.slash,
+        artifactPath: pendingConfigurableOverwrite.artifactPath || undefined,
+        matterName: pendingConfigurableOverwrite.matterName,
+        reason: 'User kept existing output from the command rail.',
+      });
+      if (activeMatterNameRef.current !== pendingConfigurableOverwrite.matterName) return;
+      setPendingConfigurableOverwrite(null);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `${pendingConfigurableOverwrite.skillLabel} was not rerun. Existing output kept.` });
+      appendTerminal([`[skill] ${pendingConfigurableOverwrite.skillLabel} overwrite cancelled`]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== pendingConfigurableOverwrite.matterName) return;
+      const message = getErrorMessage(e);
+      appendTerminal([`[skill] cancel failed: ${message}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Could not record the cancellation: ${message}` });
+    } finally {
+      dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, pendingConfigurableOverwrite, state.isCommandRunning]);
 
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
@@ -264,18 +352,12 @@ function AppShell() {
             return;
           }
           const skillLabel = result.matched_skill_card.display?.action || result.matched_skill_card.title || cleanCommandLabel(result.matched_skill);
-          appendTerminal([`[skill] running ${skillLabel} on ${matterName}…`]);
-          const run = await api.runConfigurableSkill({ slash: result.matched_skill, overwrite: false, matterName });
-          if (activeMatterNameRef.current !== matterName) return;
-          if (run.state === 'requires_overwrite') {
-            const artifact = run.artifactPath || run.outputPaths?.markdown || 'the existing output';
-            const message = `${skillLabel} already has output at ${humanizeArtifactPath(artifact)}. Open Skills to review or rerun it.`;
-            dispatch({ type: 'SET_COMMAND_COPY', payload: message });
-            appendTerminal([`[skill] ${skillLabel} output exists — overwrite not confirmed`]);
-          } else {
-            dispatch({ type: 'SET_COMMAND_COPY', payload: `${skillLabel} complete.` });
-            appendTerminal([`[skill] ${skillLabel} completed`]);
-          }
+          await runConfigurableSkillFromCommand({
+            slash: result.matched_skill,
+            skillLabel,
+            matterName,
+            overwrite: false,
+          });
         } else {
           dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(result) || `Run ${result.matched_skill}` });
         }
@@ -293,7 +375,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder]);
+  }, [state.activeMatter, state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand]);
 
   function handleSlashSkill(command: string) {
     handleCommand(command);
@@ -366,6 +448,9 @@ function AppShell() {
             onTransientCopilotQuestion={(question) => answerMatterQuestion(question, { manageRunning: false })}
             reportText={reportText}
             onCopyReport={handleCopyReport}
+            pendingConfigurableOverwrite={pendingConfigurableOverwrite}
+            onConfirmConfigurableOverwrite={confirmConfigurableOverwrite}
+            onCancelConfigurableOverwrite={cancelConfigurableOverwrite}
           />
         }
       />

@@ -21,6 +21,7 @@ import {
   copilotShortLabel,
   findCopilotPreset,
 } from '../../lib/copilotModels';
+import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import type { ConfigurableSkill } from '../../types';
 import type { SkillRouterDecision } from '../../types';
 
@@ -56,6 +57,9 @@ interface Props {
   onTransientCopilotQuestion?: (question: string) => Promise<void> | void;
   reportText?: string | null;
   onCopyReport?: () => void;
+  pendingConfigurableOverwrite?: PendingConfigurableOverwrite | null;
+  onConfirmConfigurableOverwrite?: () => void;
+  onCancelConfigurableOverwrite?: () => void;
 }
 
 interface PendingIntentChoice {
@@ -63,7 +67,22 @@ interface PendingIntentChoice {
   decision: SkillRouterDecision;
 }
 
-export default function CommandPanel({ onCommand, onTransientCopilotQuestion, reportText, onCopyReport }: Props) {
+interface PendingConfigurableOverwrite {
+  slash: string;
+  skillLabel: string;
+  matterName: string;
+  artifactPath?: string | null;
+}
+
+export default function CommandPanel({
+  onCommand,
+  onTransientCopilotQuestion,
+  reportText,
+  onCopyReport,
+  pendingConfigurableOverwrite = null,
+  onConfirmConfigurableOverwrite,
+  onCancelConfigurableOverwrite,
+}: Props) {
   const { state, dispatch, appendTerminal, commandPanelRef } = useApp();
   const [input, setInput] = useState('');
   const [baseSuggestions, setBaseSuggestions] = useState<CommandSuggestion[]>(STATIC_SUGGESTIONS);
@@ -396,6 +415,34 @@ export default function CommandPanel({ onCommand, onTransientCopilotQuestion, re
       <p className="command-panel-copy" style={{ order: 2 }}>
         {state.commandCopyText}
       </p>
+
+      {pendingConfigurableOverwrite && (
+        <div className="intent-choice-panel configurable-overwrite-panel" style={{ order: 3 }}>
+          <div className="intent-choice-title">Existing output found</div>
+          <p>
+            {pendingConfigurableOverwrite.skillLabel} already has output
+            {pendingConfigurableOverwrite.artifactPath
+              ? ` at ${humanizeArtifactPath(pendingConfigurableOverwrite.artifactPath)}`
+              : ''}.
+          </p>
+          <div className="intent-choice-actions">
+            <button
+              type="button"
+              onClick={onConfirmConfigurableOverwrite}
+              disabled={state.isCommandRunning || !onConfirmConfigurableOverwrite}
+            >
+              Run again
+            </button>
+            <button
+              type="button"
+              onClick={onCancelConfigurableOverwrite}
+              disabled={state.isCommandRunning || !onCancelConfigurableOverwrite}
+            >
+              Keep existing output
+            </button>
+          </div>
+        </div>
+      )}
 
       {pendingIntentChoice && choiceLabels && (
         <div className="intent-choice-panel" style={{ order: 3 }}>
