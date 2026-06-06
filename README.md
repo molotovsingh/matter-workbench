@@ -16,10 +16,13 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
-Current release checkpoint: [Matter Workbench v1.0.0-beta.4](docs/releases/v1.0.0-beta.4.md).
+Current release checkpoint: [Matter Workbench v1.0.0-beta.5](docs/releases/v1.0.0-beta.5.md).
 
 For the practical supervised local/private beta runbook, see
 [docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
+For the private beta release-candidate closure command,
+`npm run private-beta:rc-closure-pack`, see
+[docs/private-beta-rc-closure-pack.md](docs/private-beta-rc-closure-pack.md).
 For runtime DB browser acceptance evidence, see
 [docs/runtime-db-browser-acceptance-pack.md](docs/runtime-db-browser-acceptance-pack.md).
 For representative intake/file-type acceptance evidence, see

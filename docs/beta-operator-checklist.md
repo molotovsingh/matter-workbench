@@ -1,6 +1,6 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.4` supervised local/private beta
+Status: Current checklist for `v1.0.0-beta.5` supervised local/private beta
 
 This is the practical runbook for operating Matter Workbench as a private local
 or local/private runtime-DB beta. It is written for one trusted operator, not
@@ -27,13 +27,14 @@ Confirm the repo is on the release checkpoint. Once the tag has been cut:
 
 ```bash
 git fetch origin --tags
-git checkout v1.0.0-beta.4
+git checkout v1.0.0-beta.5
 ```
 
-Before the tag exists, use the accepted baseline commit from the release note:
+Before the tag exists, stay on the current release-candidate branch and confirm
+the commit recorded by the closure pack:
 
 ```bash
-git checkout 1b9c6a3
+npm run private-beta:rc-closure-pack
 ```
 
 Install dependencies if this is a fresh machine:
@@ -104,10 +105,16 @@ Expected posture:
 For a release-confidence check:
 
 ```bash
+npm run private-beta:rc-closure-pack
 npm run ui:typecheck --silent
 npm run ui:build --silent
 npm test --silent
 ```
+
+The RC closure pack is the current release-candidate bundle. It aggregates
+local verification, runtime DB browser acceptance, private VM service health,
+ops/security checks, and recoverability evidence. Use it when deciding whether
+the current checkpoint is acceptable for supervised private beta.
 
 ## Matter Data And Backups
 
@@ -297,6 +304,6 @@ unacceptable.
 
 ## Release Reference
 
-Current accepted local beta:
+Current accepted local/private beta:
 
-[Matter Workbench v1.0.0-beta.4](releases/v1.0.0-beta.4.md)
+[Matter Workbench v1.0.0-beta.5](releases/v1.0.0-beta.5.md)

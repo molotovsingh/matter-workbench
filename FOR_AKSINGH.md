@@ -2099,3 +2099,17 @@ class of failure. A route can return correct JSON while the page is blank, a DB
 matter can exist while the sidebar cannot navigate to it, and a storage payload
 can be valid while the preview affordance is broken. The acceptance pack is the
 bridge between "the backend works" and "a beta operator can use the thing."
+
+The private beta RC closure pack is the final layer in that same pattern. It is
+not another feature and it is not magic certification. It is a conductor's
+clipboard. One command, `npm run private-beta:rc-closure-pack`, asks the local
+code, runtime DB browser path, private VM service, ops pack, security check, and
+recoverability pack to show their papers in one place. If any of those pieces
+fail, the pack fails. That is healthier than having confidence scattered across
+old terminal scrollback and memory.
+
+The lesson is that beta readiness should become repeatable before it becomes
+ambitious. A team can argue forever about whether the app "feels ready." It is
+much harder to argue with a closure bundle that records the commit, branch,
+local tests, browser behavior, service health, rollback posture, and recovery
+proof. This is how good engineers turn a release from a mood into an artifact.
