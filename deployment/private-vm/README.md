@@ -92,3 +92,8 @@ temporary restore database:
 npm run db:shadow:restore-drill -- --backup "$HOME/matter-workbench-backups/db/<backup>.sql" --out-dir "$HOME/matter-workbench-backups/restore-drills"
 ```
 
+On the first service-pack rehearsal, the SQL restore itself succeeded but the
+verification phase failed because `db:hydrate:verify` expects the original
+source matter folder tree at `/home/aks/matters-matter-workbench`. That is a
+known source-host verifier limit. For the private VM runtime, service health is
+proved by `private-vm:service-check` plus `db:runtime:write-smoke`.

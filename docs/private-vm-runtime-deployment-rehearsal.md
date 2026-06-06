@@ -250,3 +250,94 @@ The follow-up private VM service pack adds:
 Once installed, the VM claim can move from "works under `nohup`" to "runs as a
 private user-level service." It is still not a public production deployment
 until HTTPS, auth, backups, and hosted-worker recovery are complete.
+
+## Service Pack Evidence
+
+The service-pack checkpoint was installed on the VM from commit `aff9fea`:
+
+```text
+deploy path: /home/aks/matter-workbench-deployments/aff9fea/app
+current symlink: /home/aks/matter-workbench-deployments/current -> /home/aks/matter-workbench-deployments/aff9fea
+service unit: /home/aks/.config/systemd/user/matter-workbench-runtime.service
+runtime env: /home/aks/.config/matter-workbench/runtime.env
+runtime env mode: 0600
+linger: yes
+```
+
+User-level `systemd` reported:
+
+```text
+is-active: active
+is-enabled: enabled
+ActiveState: active
+SubState: running
+```
+
+VM-local service check:
+
+```text
+npm run private-vm:service-check -- --base-url http://127.0.0.1:4191
+passed: yes
+runtime_db_enabled: yes
+matters_home: null
+matter_count: 15
+workspace_readable: yes
+file_preview_readable: yes
+```
+
+Mac-to-VM service check:
+
+```text
+GET http://172.16.37.128:4191/ -> 200
+npm run private-vm:service-check -- --base-url http://172.16.37.128:4191
+passed: yes
+runtime_db_enabled: yes
+matters_home: null
+matter_count: 15
+workspace_readable: yes
+file_preview_readable: yes
+```
+
+The in-app browser reloaded `http://172.16.37.128:4191/` after the service
+install, showed the React Home screen with 15 matters, and had no relevant
+console warnings or errors.
+
+The controlled runtime write smoke also passed from the service-pack deployment:
+
+```text
+test_run_id: runtime-db-write-smoke-2026-06-06T13-03-38-908Z
+passed: yes
+role_guard_passed: yes
+upload_created: yes
+workspace_readable: yes
+file_preview_readable: yes
+raw_file_readable: yes
+db_rows_verified: yes
+rollback_verified: yes
+cleanup_deleted: yes
+```
+
+Database backup succeeded:
+
+```text
+backup: /home/aks/matter-workbench-backups/db/shadow-db-backup-2026-06-06T13-03-39-182Z.sql
+bytes: 513494035
+sha256: 0981a33b9290f9e0f3d2d14d6693f7e043c49a5e8f427c922ffa82549fe1683e
+```
+
+Restore drill status:
+
+```text
+create restore database: ok
+restore backup: ok
+verify restored database: failed
+drop restore database: ok
+failed_step: verify restored database
+reason: ENOENT: no such file or directory, scandir '/home/aks/matters-matter-workbench'
+```
+
+The restore drill proved that the SQL backup can be restored into a temporary
+database and cleaned up. Its verification phase still uses the old source-folder
+shadow verifier, so it fails on the VM for the same known reason described
+above: the VM runtime is DB-payload-backed and does not have the original matter
+folder tree.

@@ -1992,3 +1992,11 @@ that still does not make the app safe for the public internet. Production needs
 auth, TLS, network hardening, backup restore drills, and worker recovery. The VM
 service pack closes the private-operator gap; it does not pretend to close the
 cloud gap.
+
+The backup rehearsal exposed the same verifier lesson in a second place. The
+VM made a large Postgres backup and restored it into a temporary database, but
+the restore drill's final verification failed because the verifier wanted the
+old source folder tree. In plain language: the backup could be restored, but the
+old comparison tool still wanted to inspect files that are no longer part of
+the VM runtime truth. That is not a reason to distrust the service. It is a
+reason to write a DB-payload-native restore verifier next.

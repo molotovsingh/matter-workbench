@@ -556,6 +556,23 @@ runtime env file at `$HOME/.config/matter-workbench/runtime.env` and a deploymen
 symlink at `$HOME/matter-workbench-deployments/current`. This is still a private
 single-host service posture, not a hosted multi-user service.
 
+Installed service-pack evidence from the Debian VM:
+
+```text
+checkpoint: aff9fea
+systemd user service: active and enabled
+linger: yes
+runtime env mode: 0600
+VM-local service check: passed
+Mac-to-VM service check: passed
+runtime write-smoke: passed
+database backup: succeeded
+restore drill: restore ok, verification failed on missing source matter folder
+```
+
+The restore-drill verification failure is the same source-host shadow-verifier
+boundary noted above. Do not treat it as a runtime DB serving failure.
+
 ## What A Developer Should Check Next
 
 Before the next hosted DB-worker or cloud runtime slice:
