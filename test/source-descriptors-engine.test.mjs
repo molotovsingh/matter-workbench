@@ -205,6 +205,116 @@ test("source descriptors retry transient provider failures per batch", async () 
   assert.equal(attemptsByBatch.get("FILE-0003"), 1);
 });
 
+test("source descriptors retry rate-limit and server provider failures per batch", async () => {
+  for (const statusCode of [429, 500]) {
+    const root = await makeMatterRoot();
+    const attemptsByBatch = new Map();
+
+    const result = await runSourceDescriptors({
+      matterRoot: root,
+      sourceBatchSize: 2,
+      provider: async ({ sources }) => {
+        const key = sources.map((source) => source.file_id).join(",");
+        attemptsByBatch.set(key, (attemptsByBatch.get(key) || 0) + 1);
+        if (key === "FILE-0001,FILE-0002" && attemptsByBatch.get(key) === 1) {
+          const error = new Error(`temporary upstream ${statusCode}`);
+          error.statusCode = statusCode;
+          throw error;
+        }
+        return { sources: validDescriptors(sources) };
+      },
+    });
+
+    assert.equal(result.counts.descriptors, 3);
+    assert.equal(attemptsByBatch.get("FILE-0001,FILE-0002"), 2, `status ${statusCode} should be retried`);
+    assert.equal(attemptsByBatch.get("FILE-0003"), 1);
+  }
+});
+
+test("source descriptors preserve successful batches and mark a hard-failed batch needs review", async () => {
+  const root = await makeMatterRoot();
+  const attemptsByBatch = new Map();
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    sourceBatchSize: 2,
+    sourceMaxAttempts: 2,
+    provider: async ({ sources }) => {
+      const key = sources.map((source) => source.file_id).join(",");
+      attemptsByBatch.set(key, (attemptsByBatch.get(key) || 0) + 1);
+      if (key === "FILE-0003") {
+        const error = new Error("upstream exhausted");
+        error.statusCode = 500;
+        throw error;
+      }
+      return { sources: validDescriptors(sources) };
+    },
+  });
+
+  assert.equal(result.counts.descriptors, 3);
+  assert.equal(attemptsByBatch.get("FILE-0001,FILE-0002"), 1);
+  assert.equal(attemptsByBatch.get("FILE-0003"), 2);
+
+  const email = result.sources.find((source) => source.file_id === "FILE-0001");
+  assert.equal(email.display_label, "Email from Sharma to Mehta dated 20 April 2026");
+  assert.equal(email.label_status, "suggested");
+
+  const failed = result.sources.find((source) => source.file_id === "FILE-0003");
+  assert.equal(failed.source_id, "FILE-0003");
+  assert.equal(failed.sha256, "3333333333333333333333333333333333333333333333333333333333333333");
+  assert.equal(failed.source_path, "00_Inbox/Intake 01 - Initial/By Type/Images/FILE-0003__2021-01-01-important.png");
+  assert.equal(failed.document_type, "unknown");
+  assert.equal(failed.document_date, null);
+  assert.equal(failed.date_basis, "unknown");
+  assert.equal(failed.label_status, "needs_review");
+  assert.equal(failed.needs_review, true);
+  assert.match(failed.warnings.join(" "), /Source descriptor batch 2\/2 failed/);
+  assert.match(failed.label_reason, /Source label needs lawyer review/);
+  assert.deepEqual(failed.evidence, [
+    {
+      citation: "FILE-0003 p1.b1",
+      reason: "Source label could not be generated reliably; review this source manually.",
+    },
+  ]);
+
+  assert.equal(result.aiRun.batchCount, 2);
+  assert.equal(result.aiRun.batches[1].status, "failed");
+  assert.match(result.outputLines.join("\n"), /1 source descriptor batch\(es\) need lawyer review/);
+
+  const artifact = JSON.parse(await readFile(path.join(root, "10_Library", "Source Index.json"), "utf8"));
+  assert.equal(artifact.schema_version, "source-index/v1");
+  assert.equal(artifact.sources.length, 3);
+  assert.equal(artifact.sources.find((source) => source.file_id === "FILE-0003").label_status, "needs_review");
+});
+
+test("source descriptors salvage invalid descriptors as needs-review rows without discarding valid ones", async () => {
+  const root = await makeMatterRoot();
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    sourceBatchSize: 3,
+    provider: async ({ sources }) => {
+      const descriptors = validDescriptors(sources);
+      descriptors[0].display_label = "FILE-0001 email copied from model";
+      return { sources: descriptors };
+    },
+  });
+
+  assert.equal(result.counts.descriptors, 3);
+
+  const invalid = result.sources.find((source) => source.file_id === "FILE-0001");
+  assert.equal(invalid.label_status, "needs_review");
+  assert.equal(invalid.needs_review, true);
+  assert.equal(invalid.document_type, "unknown");
+  assert.match(invalid.warnings.join(" "), /display_label for FILE-0001 must not include FILE-NNNN identifiers/);
+  assert.match(invalid.display_label, /Source label needs review/);
+
+  const valid = result.sources.find((source) => source.file_id === "FILE-0002");
+  assert.equal(valid.display_label, "Order of the Delhi High Court dated 3 March 2024");
+  assert.equal(valid.label_status, "suggested");
+  assert.equal(valid.document_type, "court_order");
+});
+
 test("source descriptors treat model-copied sha256 and source_path as server-owned", () => {
   const packets = buildSourcePackets(extractionRecords());
   const descriptors = validDescriptors(packets);
@@ -383,134 +493,130 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(result.sources.length, 3);
 });
 
-test("source descriptors default OpenRouter provider times out hung requests", async () => {
+test("source descriptors default OpenRouter provider records hung request timeout as needs-review output", async () => {
   const root = await makeMatterRoot();
   let called = false;
 
-  await assert.rejects(
-    () => runSourceDescriptors({
-      matterRoot: root,
-      apiKey: "sk-openrouter-test",
-      env: {
-        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
-      },
-      fetchImpl: async (_endpoint, init) => {
-        called = true;
-        return new Promise((_resolve, reject) => {
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openrouter-test",
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+    },
+    fetchImpl: async (_endpoint, init) => {
+      called = true;
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener("abort", () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+    },
+  });
+
+  assert.equal(called, true);
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.sources[0].label_status, "needs_review");
+  assert.match(result.sources[0].warnings.join(" "), /timed out after 5ms/);
+  assert.equal(result.aiRun.status, "failed");
+  assert.equal(result.aiRun.error.statusCode, 504);
+});
+
+test("source descriptors default OpenRouter provider records stalled response timeout as needs-review output", async () => {
+  const root = await makeMatterRoot();
+  let called = false;
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openrouter-test",
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+    },
+    fetchImpl: async (_endpoint, init) => {
+      called = true;
+      return {
+        ok: true,
+        json: async () => new Promise((_resolve, reject) => {
           init.signal.addEventListener("abort", () => {
-            const error = new Error("aborted");
+            const error = new Error("aborted body");
             error.name = "AbortError";
             reject(error);
           });
-        });
-      },
-    }),
-    (error) => {
-      assert.equal(error.statusCode, 504);
-      assert.match(error.message, /timed out after 5ms/);
-      return true;
+        }),
+      };
     },
-  );
+  });
+
   assert.equal(called, true);
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.sources[0].label_status, "needs_review");
+  assert.match(result.sources[0].warnings.join(" "), /timed out after 5ms/);
+  assert.equal(result.aiRun.status, "failed");
+  assert.equal(result.aiRun.error.statusCode, 504);
 });
 
-test("source descriptors default OpenRouter provider times out stalled response bodies", async () => {
+test("source descriptors default OpenRouter provider records malformed JSON as needs-review output", async () => {
   const root = await makeMatterRoot();
-  let called = false;
 
-  await assert.rejects(
-    () => runSourceDescriptors({
-      matterRoot: root,
-      apiKey: "sk-openrouter-test",
-      env: {
-        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
-      },
-      fetchImpl: async (_endpoint, init) => {
-        called = true;
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openrouter-test",
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
         return {
-          ok: true,
-          json: async () => new Promise((_resolve, reject) => {
-            init.signal.addEventListener("abort", () => {
-              const error = new Error("aborted body");
-              error.name = "AbortError";
-              reject(error);
-            });
-          }),
+          choices: [{ message: { content: "{not json" } }],
         };
       },
     }),
-    (error) => {
-      assert.equal(error.statusCode, 504);
-      assert.match(error.message, /timed out after 5ms/);
-      return true;
-    },
-  );
-  assert.equal(called, true);
+  });
+
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.sources[0].label_status, "needs_review");
+  assert.match(result.sources[0].warnings.join(" "), /OpenRouter response did not include valid JSON message content/);
+  assert.equal(result.aiRun.status, "failed");
+  assert.equal(result.aiRun.error.statusCode, 502);
 });
 
-test("source descriptors default OpenRouter provider maps malformed JSON to provider error", async () => {
+test("source descriptors default OpenRouter provider records upstream error details in needs-review output", async () => {
   const root = await makeMatterRoot();
 
-  await assert.rejects(
-    () => runSourceDescriptors({
-      matterRoot: root,
-      apiKey: "sk-openrouter-test",
-      env: {
-        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-      },
-      fetchImpl: async () => ({
-        ok: true,
-        async json() {
-          return {
-            choices: [{ message: { content: "{not json" } }],
-          };
-        },
-      }),
-    }),
-    (error) => {
-      assert.equal(error.statusCode, 502);
-      assert.match(error.message, /OpenRouter response did not include valid JSON message content/);
-      return true;
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openrouter-test",
+    env: {
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
     },
-  );
-});
-
-test("source descriptors default OpenRouter provider includes upstream error details", async () => {
-  const root = await makeMatterRoot();
-
-  await assert.rejects(
-    () => runSourceDescriptors({
-      matterRoot: root,
-      apiKey: "sk-openrouter-test",
-      env: {
-        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-      },
-      fetchImpl: async () => ({
-        ok: false,
-        status: 503,
-        async json() {
-          return {
-            error: {
-              message: "Provider returned error",
-              metadata: {
-                provider_name: "test-provider",
-                raw: JSON.stringify({ error: { message: "upstream overloaded" } }),
-              },
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      async json() {
+        return {
+          error: {
+            message: "Provider returned error",
+            metadata: {
+              provider_name: "test-provider",
+              raw: JSON.stringify({ error: { message: "upstream overloaded" } }),
             },
-          };
-        },
-      }),
+          },
+        };
+      },
     }),
-    (error) => {
-      assert.equal(error.statusCode, 503);
-      assert.match(error.message, /Provider returned error/);
-      assert.match(error.message, /provider: test-provider/);
-      assert.match(error.message, /upstream: upstream overloaded/);
-      return true;
-    },
-  );
+  });
+
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.sources[0].label_status, "needs_review");
+  assert.match(result.sources[0].warnings.join(" "), /Provider returned error/);
+  assert.match(result.sources[0].warnings.join(" "), /provider: test-provider/);
+  assert.match(result.sources[0].warnings.join(" "), /upstream: upstream overloaded/);
+  assert.equal(result.aiRun.status, "failed");
+  assert.equal(result.aiRun.error.statusCode, 503);
 });
 
 test("source descriptors reject FILE identifiers in human labels", () => {

@@ -23,7 +23,7 @@ const ENGINE_VERSION = "source-descriptors-v1-skeleton";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
 const DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE = 8;
 const DEFAULT_SOURCE_DESCRIPTOR_MAX_ATTEMPTS = 2;
-const SOURCE_DESCRIPTOR_RETRY_STATUS_CODES = new Set([503, 504]);
+const SOURCE_DESCRIPTOR_RETRY_STATUS_CODES = new Set([429, 500, 503, 504]);
 
 export { createOpenRouterSourceDescriptorProvider } from "./source-descriptors-provider.mjs";
 export { buildSourcePackets } from "./source-descriptors-packets.mjs";
@@ -54,8 +54,9 @@ export async function runSourceDescriptors(options = {}) {
   const maxAttempts = resolveSourceMaxAttempts(options);
   const providerResponses = [];
   const descriptors = [];
+  const reviewMessages = [];
   for (const [index, batch] of sourceBatches.entries()) {
-    const providerResponse = await describeSourceBatchWithRetry({
+    const batchResult = await describeSourceBatchResilient({
       provider,
       matter,
       schema: SOURCE_INDEX_OUTPUT_SCHEMA,
@@ -64,11 +65,9 @@ export async function runSourceDescriptors(options = {}) {
       batchCount: sourceBatches.length,
       maxAttempts,
     });
-    providerResponses.push({
-      source_count: batch.length,
-      ai_run: providerResponse.ai_run,
-    });
-    descriptors.push(...validateAndSortDescriptors(providerResponse, batch));
+    providerResponses.push(batchResult.providerResponse);
+    descriptors.push(...batchResult.descriptors);
+    reviewMessages.push(...batchResult.reviewMessages);
   }
   const aiRun = options.aiRun || mergeSourceDescriptorAiRunMetadata(providerSetup.aiRun, providerResponses);
   const generatedAt = options.generatedAt || new Date().toISOString();
@@ -111,11 +110,186 @@ export async function runSourceDescriptors(options = {}) {
       `[source-index] read ${records.length} extraction record(s)`,
       `[source-index] built ${sourcePackets.length} bounded source packet(s)`,
       sourceBatches.length > 1 ? `[source-index] described sources in ${sourceBatches.length} batch(es)` : "",
+      reviewMessages.length ? `[source-index] ${reviewMessages.length} source descriptor batch(es) need lawyer review` : "",
       dryRun
         ? `[source-index] dry run only. Re-run with apply to write ${SOURCE_INDEX_FILENAME}.`
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
     ].filter(Boolean),
   };
+}
+
+async function describeSourceBatchResilient({
+  provider,
+  matter,
+  schema,
+  batch,
+  batchIndex,
+  batchCount,
+  maxAttempts,
+}) {
+  try {
+    const providerResponse = await describeSourceBatchWithRetry({
+      provider,
+      matter,
+      schema,
+      batch,
+      batchIndex,
+      batchCount,
+      maxAttempts,
+    });
+    const validationResult = validateSourceBatchResilient(providerResponse, batch);
+    return {
+      descriptors: validationResult.descriptors,
+      reviewMessages: validationResult.reviewMessages.length ? [`batch ${batchIndex}/${batchCount}`] : [],
+      providerResponse: {
+        source_count: batch.length,
+        status: validationResult.reviewMessages.length ? "needs_review" : "completed",
+        ai_run: providerResponse.ai_run,
+        warnings: validationResult.reviewMessages,
+      },
+    };
+  } catch (error) {
+    if (isUnrecoverableSourceDescriptorError(error)) throw error;
+    const wrapped = isSourceDescriptorBatchError(error)
+      ? error
+      : sourceDescriptorBatchError({
+        error,
+        batchIndex,
+        batchCount,
+        attempt: maxAttempts,
+        maxAttempts,
+      });
+    return {
+      descriptors: batch.map((packet) => fallbackSourceDescriptor(packet, wrapped.message)),
+      reviewMessages: [`batch ${batchIndex}/${batchCount}`],
+      providerResponse: {
+        source_count: batch.length,
+        status: "failed",
+        error: {
+          statusCode: wrapped.statusCode || 502,
+          message: wrapped.message,
+        },
+      },
+    };
+  }
+}
+
+function validateSourceBatchResilient(providerResponse, batch) {
+  if (!providerResponse || !Array.isArray(providerResponse.sources)) {
+    const reason = "Source descriptor provider returned an invalid payload: expected sources[]";
+    return {
+      descriptors: batch.map((packet) => fallbackSourceDescriptor(packet, reason)),
+      reviewMessages: [reason],
+    };
+  }
+
+  const byFileId = new Map();
+  const unexpected = [];
+  const expectedFileIds = new Set(batch.map((packet) => packet.file_id));
+  for (const descriptor of providerResponse.sources) {
+    const fileId = typeof descriptor?.file_id === "string" ? descriptor.file_id : "";
+    if (!expectedFileIds.has(fileId)) {
+      unexpected.push(fileId || "(missing file_id)");
+      continue;
+    }
+    const candidates = byFileId.get(fileId) || [];
+    candidates.push(descriptor);
+    byFileId.set(fileId, candidates);
+  }
+
+  const descriptors = [];
+  const reviewMessages = [];
+  if (unexpected.length) {
+    reviewMessages.push(`Ignored unexpected source descriptor file_id(s): ${unexpected.join(", ")}`);
+  }
+  for (const packet of batch) {
+    const candidates = byFileId.get(packet.file_id) || [];
+    if (!candidates.length) {
+      const reason = `Source descriptor provider did not return a descriptor for ${packet.file_id}`;
+      descriptors.push(fallbackSourceDescriptor(packet, reason));
+      reviewMessages.push(reason);
+      continue;
+    }
+    if (candidates.length > 1) {
+      const reason = `Source descriptor provider returned duplicate descriptors for ${packet.file_id}`;
+      descriptors.push(fallbackSourceDescriptor(packet, reason));
+      reviewMessages.push(reason);
+      continue;
+    }
+    try {
+      descriptors.push(...validateAndSortDescriptors({ sources: candidates }, [packet]));
+    } catch (error) {
+      const reason = error?.message || String(error || "Source descriptor validation failed");
+      descriptors.push(fallbackSourceDescriptor(packet, reason));
+      reviewMessages.push(reason);
+    }
+  }
+
+  return {
+    descriptors: descriptors.sort((a, b) => a.file_id.localeCompare(b.file_id)),
+    reviewMessages,
+  };
+}
+
+function fallbackSourceDescriptor(packet, reason) {
+  const warning = String(reason || "Source descriptor needs lawyer review.");
+  const displayLabel = fallbackSourceLabel(packet);
+  return {
+    source_id: packet.file_id,
+    content_hash: packet.sha256,
+    file_id: packet.file_id,
+    sha256: packet.sha256,
+    source_path: packet.source_path,
+    display_label: displayLabel,
+    short_label: displayLabel,
+    suggested_label: displayLabel,
+    confirmed_label: "",
+    label_status: "needs_review",
+    label_source: "model",
+    label_reason: "Source label needs lawyer review because the model output could not be generated or validated.",
+    label_revision: 1,
+    confirmed_by: "",
+    confirmed_at: "",
+    document_type: "unknown",
+    document_date: null,
+    date_basis: "unknown",
+    parties: {
+      from: "",
+      to: [],
+      cc: [],
+      author: "",
+      court: "",
+      judge: "",
+      issuing_party: "",
+      recipient_party: "",
+      deponent: "",
+      signatory: "",
+    },
+    confidence: 0,
+    needs_review: true,
+    evidence: [
+      {
+        citation: firstEvidenceCitation(packet),
+        reason: "Source label could not be generated reliably; review this source manually.",
+      },
+    ],
+    warnings: [warning],
+  };
+}
+
+function fallbackSourceLabel(packet) {
+  const name = String(packet.original_name || packet.source_path || packet.file_id)
+    .replace(/FILE-\d{4,}/gi, "")
+    .replace(/\.[A-Za-z0-9]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name ? `Source label needs review: ${name}` : "Source label needs review";
+}
+
+function firstEvidenceCitation(packet) {
+  const citation = packet.blocks?.find((block) => typeof block?.citation === "string" && block.citation.trim())?.citation;
+  return citation || `${packet.file_id} p1.b1`;
 }
 
 function resolveSourceBatchSize(options = {}) {
@@ -164,6 +338,14 @@ function isRetryableSourceDescriptorError(error) {
   return SOURCE_DESCRIPTOR_RETRY_STATUS_CODES.has(error.statusCode);
 }
 
+function isSourceDescriptorBatchError(error) {
+  return /^Source descriptor batch \d+\/\d+ failed:/.test(error?.message || "");
+}
+
+function isUnrecoverableSourceDescriptorError(error) {
+  return /OPENROUTER_API_KEY is required for source description/i.test(error?.message || "");
+}
+
 function sourceDescriptorBatchError({ error, batchIndex, batchCount, attempt, maxAttempts }) {
   const message = [
     `Source descriptor batch ${batchIndex}/${batchCount} failed`,
@@ -185,11 +367,19 @@ function chunk(items, size) {
 
 function mergeSourceDescriptorAiRunMetadata(baseAiRun, providerResponses) {
   if (providerResponses.length === 1) {
-    return mergeAiRunMetadata(baseAiRun, providerResponses[0]?.ai_run);
+    const response = providerResponses[0] || {};
+    const diagnostics = {};
+    if (response.status && response.status !== "completed") diagnostics.status = response.status;
+    if (response.warnings?.length) diagnostics.warnings = response.warnings;
+    if (response.error) diagnostics.error = response.error;
+    return mergeAiRunMetadata({ ...baseAiRun, ...diagnostics }, response.ai_run);
   }
   const batchRuns = providerResponses.map((response, index) => ({
     batch: index + 1,
     sourceCount: response.source_count,
+    ...(response.status && response.status !== "completed" ? { status: response.status } : {}),
+    ...(response.warnings?.length ? { warnings: response.warnings } : {}),
+    ...(response.error ? { error: response.error } : {}),
     ...(response.ai_run && typeof response.ai_run === "object" ? response.ai_run : {}),
   }));
   const merged = {
