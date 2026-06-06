@@ -16,9 +16,9 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
-Current release checkpoint: [Matter Workbench v1.0.0-beta.3](docs/releases/v1.0.0-beta.3.md).
+Current release checkpoint: [Matter Workbench v1.0.0-beta.4](docs/releases/v1.0.0-beta.4.md).
 
-For the practical supervised-local-beta runbook, see
+For the practical supervised local/private beta runbook, see
 [docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
 
 For the current tester-facing workflow, command panel inputs, recommended
@@ -44,7 +44,7 @@ receipts, and long-running native skills, see
 [docs/future-design-decisions/parallel-processing-latency.md](docs/future-design-decisions/parallel-processing-latency.md).
 For the future hosted beta database and tenancy architecture, see
 [docs/future-design-decisions/hosted-beta-database-architecture.md](docs/future-design-decisions/hosted-beta-database-architecture.md).
-The first preparatory Postgres migrations live in [db/migrations](db/migrations):
+The Postgres migration track lives in [db/migrations](db/migrations):
 
 - [001_control_plane.sql](db/migrations/001_control_plane.sql) - hosted control-plane tables and ledgers.
 - [002_tenant_rls.sql](db/migrations/002_tenant_rls.sql) - tenant row-level security policies for hosted beta.
@@ -58,6 +58,9 @@ The first preparatory Postgres migrations live in [db/migrations](db/migrations)
 - [010_advisory_snapshot_functions.sql](db/migrations/010_advisory_snapshot_functions.sql) - append-only Preparation Advisory snapshot helper.
 - [011_custom_skill_lifecycle_functions.sql](db/migrations/011_custom_skill_lifecycle_functions.sql) - tenant-scoped custom skill lifecycle transitions.
 - [012_tenant_org_profile.sql](db/migrations/012_tenant_org_profile.sql) - explicit single-user vs organization tenant profile fields.
+- [013_hosted_auth_session_model.sql](db/migrations/013_hosted_auth_session_model.sql) - provider-neutral auth identity and tenant session rows.
+- [014_tenant_sessions_user_rls.sql](db/migrations/014_tenant_sessions_user_rls.sql) - tenant/user-scoped session RLS tightening.
+- [015_storage_object_payloads.sql](db/migrations/015_storage_object_payloads.sql) - optional byte custody for local/private runtime DB mode.
 
 See [db/README.md](db/README.md) for the migration commands and runtime cutover
 stop rule.
@@ -106,7 +109,12 @@ skills, keeping native skills app-owned and untouched. The tenant org-profile
 migration then makes the account shape explicit with `account_scope`,
 `organization_slug`, `max_member_count`, and `primary_owner_user_id`, so the
 schema visibly supports both single-user beta tenants and future firm or
-organization tenants without pretending the hosted auth/session layer is done.
+organization tenants. The hosted auth/session migrations add provider-neutral
+identity and tenant-session rows for future hosted middleware. The storage
+payload migration adds optional Postgres byte custody for local/private runtime
+DB mode, which is now accepted behind explicit runtime flags and a non-superuser
+runtime role. This is still distinct from hosted cloud deployment and durable
+background workers.
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
@@ -115,15 +123,15 @@ behind an explicit confirmation. Superseded planning contracts now live under
 
 ## Scope
 
-- Local legal matter workbench with a Matter Explorer, command panel, and durable disk artifacts
+- Local legal matter workbench with a Matter Explorer, command panel, and durable matter artifacts
 - Current built-in actions: `/prepare_matter`, `/matter-init`, `/extract`, `/describe_sources`, `/create_listofdates`, `/context_preview`, `/context_search`, and `/doctor`
 - Approved configurable skills can be created from reviewed samples and then run as their own slash commands
 - One active matter at a time, selected from the in-app Matters list or pinned by `MATTER_ROOT`
-- Matter context is read from the active matter's `matter.json`
+- Matter context is read from the active matter's `matter.json` in filesystem mode, or from materialized DB custody when runtime DB storage mode is explicitly enabled
 - The right-side command panel runs deterministic slash commands, opens workspace lanes, shows status, and keeps paid rerun guardrails
 - Matter metadata is captured before `/matter-init` runs
-- `server.mjs` enables local filesystem writes for deterministic intake, extraction, source labeling, and chronology engines
-- The Matter Explorer reflects the current matter root from disk
+- `server.mjs` enables local filesystem writes for deterministic intake, extraction, source labeling, and chronology engines; in runtime DB storage mode it materializes a scratch folder and persists changed outputs back into Postgres
+- The Matter Explorer reflects the current matter root from disk in normal local mode, or DB payload custody in explicit runtime DB mode
 
 ## Matter Intake Behavior
 

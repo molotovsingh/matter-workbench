@@ -33,7 +33,7 @@ A lawyer starts with a matter folder or creates a new matter in the app. Matter 
 - jurisdiction;
 - brief description.
 
-It then creates a stable matter structure on disk:
+In ordinary local mode it creates a stable matter structure on disk:
 
 ```text
 00_Inbox/      original intake batches and working copies
@@ -44,7 +44,11 @@ It then creates a stable matter structure on disk:
 matter.json    matter metadata and intake history
 ```
 
-The folder structure is deliberately boring. The app can show friendlier labels, but the disk contract stays stable so generated outputs, review tools, and future workflows have a reliable home.
+The folder structure is deliberately boring. The app can show friendlier labels,
+but the artifact contract stays stable so generated outputs, review tools, and
+future workflows have a reliable home. In explicit runtime DB mode, the same
+matter structure is represented through Postgres matter/storage/payload rows
+instead of relying on a live matter folder as the source of truth.
 
 ### 2. Preserves originals and creates a file register
 
@@ -73,7 +77,12 @@ Matter Workbench extracts readable text from supported source files, including f
 - RTF;
 - TXT / Markdown.
 
-For scanned PDFs, OCR can be enabled through a configured OCR provider. Extraction outputs become structured records under each intake's `_extracted/` folder.
+For PDFs, the current quality posture is OCR-first when OCR providers are
+configured: Mistral is the primary OCR path and Gemini can repair doubtful OCR
+output. PDF.js remains useful for page-count, text-layer diagnostics, and
+fallback. Extraction outputs become structured records under each intake's
+`_extracted/` folder in filesystem mode, or equivalent payload-backed records in
+runtime DB mode.
 
 Each extraction record preserves source location information so later outputs can cite source blocks like:
 

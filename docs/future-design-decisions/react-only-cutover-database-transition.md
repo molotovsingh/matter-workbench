@@ -1,7 +1,7 @@
 # React-Only Cutover And Database Transition
 
-Date: 2026-05-24
-Status: Current local contract / transition prep
+Date: 2026-06-06
+Status: Current local contract / runtime DB transition
 
 ## Decision
 
@@ -11,7 +11,9 @@ Matter Workbench V1 local beta is React-only.
 - `/react/` remains a React alias for compatibility and Vite-dev testing.
 - The previous plain-JS shell is retired as a product fallback.
 - Backend API route shapes remain unchanged.
-- Database migration is a separate control-plane track, not part of this UI cutover.
+- Database migration started as a separate control-plane track. It now also has
+  an accepted local/private runtime DB storage and write-bridge slice behind
+  explicit runtime flags. Hosted workers and cloud deployment remain separate.
 
 The point of this cutover is to stop maintaining two browser products while
 keeping useful helper code long enough to migrate or delete it safely.
@@ -79,11 +81,13 @@ the old frontend tree:
 
 No new product work should add imports from retired legacy UX entrypoints.
 
-## Database Transition First Slice
+## Database Transition Slices
 
-Do not combine the React-only cutover with a database rewrite.
+Do not confuse the React-only cutover with the database transition. The UI
+cutover removed the old browser product. The DB track started as a control
+plane, then added an explicit local/private runtime mode.
 
-The first database slice should be a control plane:
+The first database slice was a control plane:
 
 - matters and matter ownership;
 - document identity, source numbers, and checksums;
@@ -94,10 +98,10 @@ The first database slice should be a control plane:
 - custom skill definitions, lifecycle state, and version pointers;
 - custom skill run receipts.
 
-Files and generated artifacts can remain filesystem-backed locally and
-object-storage-backed when hosted. The database should point to those payloads
-and own their identity, lifecycle, and audit trail. It should not become the
-place where large source files or generated legal artifacts are stored inline.
+Files and generated artifacts can remain filesystem-backed in ordinary local
+mode and object-storage-backed when hosted. For local/private runtime DB mode,
+`storage_object_payloads` can store source and artifact bytes in Postgres so a
+DB backup does not merely restore object keys pointing at missing files.
 
 The first schema baseline now lives at:
 
@@ -113,6 +117,9 @@ The first schema baseline now lives at:
 - `db/migrations/010_advisory_snapshot_functions.sql`
 - `db/migrations/011_custom_skill_lifecycle_functions.sql`
 - `db/migrations/012_tenant_org_profile.sql`
+- `db/migrations/013_hosted_auth_session_model.sql`
+- `db/migrations/014_tenant_sessions_user_rls.sql`
+- `db/migrations/015_storage_object_payloads.sql`
 - `scripts/db-migrate.mjs`
 
 These migrations are intentionally preparatory. `001_control_plane.sql` creates
@@ -149,8 +156,11 @@ incidents later. `010_advisory_snapshot_functions.sql` preserves append-only
 Preparation Advisory snapshots from open incidents and validation rows.
 `011_custom_skill_lifecycle_functions.sql` adds database-owned lifecycle
 transitions for configurable skills only, keeping native skills read-only and
-app-owned. None of these migrations switches the local runtime away from the
-filesystem-backed engines.
+app-owned. `013_hosted_auth_session_model.sql` and
+`014_tenant_sessions_user_rls.sql` add provider-neutral auth identity/session
+rows for future hosted middleware. `015_storage_object_payloads.sql` adds
+optional tenant-scoped byte custody for the accepted local/private runtime DB
+mode.
 
 Developer commands:
 
@@ -197,6 +207,9 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
+npm run db:runtime:role-setup -- --write-env-shadow
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:smoke
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
 ```
 
 `db:migrations:check` can run without a database URL; in that case it lists the
@@ -216,10 +229,9 @@ sequence is also gapless: `001`, `002`, `003`, and so on. A missing number stops
 the runner before any deployment applies a later migration.
 
 `db:hydrate:dry-run`, `db:hydrate`, `db:hydrate:verify`, and
-`db:shadow:inspect` are shadow-only transition commands. They rehearse metadata
+`db:shadow:inspect` are shadow transition commands. They rehearse metadata
 hydration from local matter folders into Postgres and then verify or inspect the
-result. They do not make Postgres the runtime storage backend, and they do not
-store original source files or generated legal work product inline.
+result. They do not by themselves make Postgres the runtime storage backend.
 
 The `db:skills:*` commands perform the same shadow-only rehearsal for app-level
 skill factory ledgers: skill ideas, skill samples, configurable skills,
@@ -237,6 +249,12 @@ file identities into `storage_objects` and `document_blobs`, then link extractio
 payloads, matter artifacts, and skill samples to storage-object rows. They do not
 upload source documents or generated work product, and they do not make the app
 read from object storage.
+
+The `db:storage:payloads:*` commands are the local/private DB-custody bridge.
+They copy source, artifact, and skill-sample bytes into
+`storage_object_payloads`. Runtime DB storage mode reads workspace trees,
+previews, raw files, status, prepare state, and advisory snapshots from this
+payload custody.
 
 The `db:provider-runs:*` commands rehearse the AI run ledger from metadata
 already attached to source-backed artifacts, skill samples, and custom-skill run
@@ -270,6 +288,14 @@ Apply mode hydrates all rows in dependency order and then runs the combined
 report. Verify mode runs all count checks and then runs the combined report.
 This reduces handoff friction without adding a runtime database dependency.
 
+`db:runtime:role-setup` creates or updates the non-superuser runtime database
+role and can write `MWB_RUNTIME_DATABASE_URL` into ignored `.env.shadow`.
+`db:runtime:smoke` proves the accepted runtime read/storage path. The stronger
+`db:runtime:write-smoke` creates a disposable matter through the real upload
+API, verifies DB rows and payload bytes, proves rollback, and archives the
+smoke matter. These commands are the current local/private runtime acceptance
+path, not a hosted-worker proof.
+
 `db:shadow:report` is the combined read-only report. It verifies and inspects
 matter metadata, skill-factory metadata, advisory snapshots, storage-custody
 rows, provider-run links, job links, cost-event rows, and audit-event rows from
@@ -285,7 +311,7 @@ backend. Treat each snapshot as one-run evidence, not live truth. Refresh it
 after meaningful repo changes, local matter folder or skill-ledger changes, or
 another shadow hydration / verify pass.
 
-## Stop Rule
+## Hosted Stop Rule
 
 Do not start hosted legal-engine execution until the database/object-storage/job
 foundation proves:
@@ -299,4 +325,5 @@ foundation proves:
 - audit events.
 
 Until that foundation exists, keep legal engines on the local filesystem-backed
-path and keep the database work preparatory.
+or local/private runtime DB materialized path. Do not describe the accepted
+foreground bridge as a hosted worker supervisor.

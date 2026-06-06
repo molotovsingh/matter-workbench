@@ -1,9 +1,10 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.3` supervised local beta
+Status: Current checklist for `v1.0.0-beta.4` supervised local/private beta
 
 This is the practical runbook for operating Matter Workbench as a private local
-beta. It is written for one trusted operator, not for public SaaS support.
+or local/private runtime-DB beta. It is written for one trusted operator, not
+for public SaaS support.
 
 ## Beta Boundary
 
@@ -22,11 +23,17 @@ final dispatch.
 
 ## Before Starting
 
-Confirm the repo is on the tagged release:
+Confirm the repo is on the release checkpoint. Once the tag has been cut:
 
 ```bash
 git fetch origin --tags
-git checkout v1.0.0-beta.3
+git checkout v1.0.0-beta.4
+```
+
+Before the tag exists, use the accepted baseline commit from the release note:
+
+```bash
+git checkout 1b9c6a3
 ```
 
 Install dependencies if this is a fresh machine:
@@ -85,9 +92,12 @@ Expected posture:
 
 - `ui:smoke` should pass against the same port where the app is running.
 - `db:shadow:preflight` may report that the database URL is missing. That is
-  acceptable for local beta because the database is not yet the runtime backend.
-  A useful local-beta result is: `psql` available, dry-run planning successful,
-  and waiting for database URL / credential setup before live migration.
+  acceptable for ordinary filesystem-mode local beta. A useful filesystem-mode
+  result is: `psql` available, dry-run planning successful, and waiting for
+  database URL / credential setup before live migration.
+- If you are intentionally running the local/private runtime DB mode, run the
+  dedicated DB checks in the database section below instead of treating
+  `db:shadow:preflight` as the full acceptance proof.
 - Settings in the app should show provider routes clearly and should not expose
   API key values.
 
@@ -205,8 +215,8 @@ If the app appears stuck:
 6. Restore from matter-folder backup if a destructive test produced bad
    generated artifacts.
 
-For database checks, use only read-only doctor commands unless you are
-explicitly working on the database transition:
+For ordinary filesystem-mode beta, use only read-only doctor commands unless
+you are explicitly working on the database transition:
 
 ```bash
 npm run db:shadow:preflight
@@ -214,7 +224,7 @@ npm run db:doctor
 npm run db:migrations:check
 ```
 
-If you are explicitly working on the database transition track, the shadow-only
+If you are explicitly working on the database transition track, the shadow
 read-side checks are:
 
 ```bash
@@ -256,14 +266,31 @@ the exact control-plane mirror report without rerunning the database commands.
 Refresh it after meaningful repo changes, local matter folder or skill-ledger
 changes, or another shadow hydration / verify pass.
 
+If you are explicitly running the accepted local/private runtime DB mode, keep
+admin and runtime credentials separate:
+
+```bash
+export MWB_DATABASE_URL="<admin-or-migration-url>"
+npm run db:runtime:role-setup -- --write-env-shadow
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:smoke
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
+```
+
+`db:runtime:role-setup` writes an ignored `.env.shadow` entry for
+`MWB_RUNTIME_DATABASE_URL`. The runtime URL must be a normal PostgreSQL role:
+no superuser and no `BYPASSRLS`. The write-smoke creates and archives a
+disposable matter; do not run it against a database where that write is
+unacceptable.
+
 ## Current Known Risks
 
 - Bad scans can still produce advisory warnings and require fresh copies from
   the client.
 - Long-running jobs are still local/foreground; the hosted durable-job system is
   future work.
-- The database migrations are preparatory; local beta still primarily uses file
-  artifacts and JSON ledgers.
+- Filesystem mode is still the default. Runtime DB mode is accepted for
+  local/private beta only when the explicit runtime flags and safe runtime role
+  are used.
 - Copilot is one-question-at-a-time and does not own durable legal work.
 - Custom skills are useful beta tooling, but the native spine remains the legal
   reliability baseline.
@@ -272,4 +299,4 @@ changes, or another shadow hydration / verify pass.
 
 Current accepted local beta:
 
-[Matter Workbench v1.0.0-beta.3](releases/v1.0.0-beta.3.md)
+[Matter Workbench v1.0.0-beta.4](releases/v1.0.0-beta.4.md)

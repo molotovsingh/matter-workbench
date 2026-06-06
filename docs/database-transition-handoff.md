@@ -139,8 +139,8 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:dry-run
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
-MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime:smoke
 npm run db:runtime:role-setup -- --write-env-shadow
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:smoke
 MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
 ```
 
@@ -225,7 +225,6 @@ opt-in:
 MWB_RUNTIME_DB=postgres \
 MWB_RUNTIME_DB_STORAGE=postgres \
 MWB_DB_RUNTIME_CUTOVER_APPROVED=yes \
-MWB_DATABASE_URL="$MWB_DATABASE_URL" \
 npm run db:runtime:smoke
 ```
 
@@ -451,25 +450,26 @@ operator visibility for non-foreground execution.
 
 ## Accepted Local Matter Import Policy
 
-The shadow DB transition now has an accepted local matter import policy for the
-current filesystem-backed beta: existing matter folders are mirrored through
+The DB transition now has an accepted local matter import policy: existing
+matter folders can be mirrored through
 `matter_import_batches` and `matter_import_items`, using deterministic IDs and a
 fail-closed collision policy. The import ledger preserves the local folder name,
 expected file counts, imported file counts, and per-file storage links without
-renumbering `FILE-NNNN` identities. This does not make Postgres the live matter
-runtime, but it closes the separate `local_matter_import_policy` cutover blocker
-for the shadow-control-plane rehearsal.
+renumbering `FILE-NNNN` identities. In ordinary filesystem mode this is shadow
+evidence; in runtime DB storage mode it supports the accepted Postgres custody
+path. It closes the separate `local_matter_import_policy` cutover blocker for
+the local/private database track.
 
 ## Accepted Incident And Advisory Preservation
 
-The shadow DB transition now has an accepted incident/advisory preservation path
-for the current local beta: Matter Attention items are mirrored as canonical
-incident rows, and each mirrored matter receives an append-only advisory
-snapshot derived from those incidents and validation rows. The snapshot is
-evidence of what the advisory surface showed at that time; it is not a second
-source of truth. This closes the separate
-`incident_advisory_preservation_policy` blocker for the shadow-control-plane
-rehearsal while keeping runtime matter behavior filesystem-backed.
+The DB transition now has an accepted incident/advisory preservation path:
+Matter Attention items can be mirrored as canonical incident rows, and each
+mirrored matter receives an append-only advisory snapshot derived from those
+incidents and validation rows. Runtime DB storage mode can read the latest
+advisory snapshot from Postgres. The snapshot is evidence of what the advisory
+surface showed at that time; it is not a second source of truth. This closes
+the separate `incident_advisory_preservation_policy` blocker for the
+local/private database track.
 
 ## Accepted Tenant Organization Profile
 
@@ -528,7 +528,7 @@ Before the next hosted DB-worker or cloud runtime slice:
 
 ## Stop Rule
 
-Stop before runtime cutover if any of these are still unresolved:
+Stop before hosted/cloud runtime cutover if any of these are still unresolved:
 
 - for multi-host/cloud deployment, object storage provider, bucket layout, and
   deletion policy;

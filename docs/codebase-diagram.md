@@ -2,7 +2,12 @@
 
 This document maps the current Matter Workbench architecture as it exists in this repo. It is a maintenance artifact, not a roadmap. Keep future Unibox/v2 ideas out unless they are clearly marked as future work.
 
-Read the main diagram from left to right: the browser and CLI send actions into the local Node server or workflow engines, the engines use shared contracts and provider policies, and the result is written back as durable matter artifacts on disk.
+Read the main diagram from left to right: the browser and CLI send actions into
+the local Node server or workflow engines, the engines use shared contracts and
+provider policies, and the result is written back as durable matter artifacts.
+In ordinary local mode those artifacts live on disk. In explicit runtime DB
+storage mode, Postgres owns matter identity, payload custody, read surfaces, and
+materialized workflow writes.
 
 ## Maintenance Rule
 
@@ -57,6 +62,9 @@ flowchart LR
     MatterStore["services/matter-store.mjs<br/>active matter and overlap checks"]
     WorkspaceService["services/workspace-service.mjs<br/>tree and previews"]
     UploadService["services/upload-service.mjs<br/>new matters and add files"]
+    RuntimeDbMatterIndex["services/runtime-db-matter-index.mjs<br/>Postgres matter list and switch"]
+    RuntimeDbStorage["services/runtime-db-storage-service.mjs<br/>payload-backed workspace/files/status/advisory"]
+    RuntimeDbStores["services/runtime-db-*.mjs<br/>skill ideas, samples, custom skills, runs, command log"]
     AiSettingsService["services/ai-settings-service.mjs<br/>settings visibility"]
     SkillRegistryService["services/skill-registry-service.mjs"]
     SkillRouterService["services/skill-router-service.mjs"]
@@ -71,12 +79,15 @@ flowchart LR
   AppShellRoutes --> MatterStore
   AppShellRoutes --> WorkspaceService
   AppShellRoutes --> UploadService
+  AppShellRoutes --> RuntimeDbMatterIndex
+  AppShellRoutes --> RuntimeDbStorage
   AppShellRoutes --> AiSettingsService
   SkillFactoryRoutes --> SkillRegistryService
   SkillFactoryRoutes --> SkillRouterService
   SkillFactoryRoutes --> SkillIdeasService
   SkillFactoryRoutes --> SkillSamplesService
   SkillFactoryRoutes --> ConfigurableSkillsService
+  SkillFactoryRoutes --> RuntimeDbStores
   ConfigurableSkillsService --> ConfigurableSkillHelpers
   MatterWorkflowRoutes --> DoctorService
 
@@ -104,7 +115,9 @@ flowchart LR
     RtfExtract["extract-utils/rtf-extract.mjs"]
     TextExtract["extract-utils/text-extract.mjs"]
     OcrNormalize["extract-utils/ocr-normalize.mjs"]
-    MistralOcr["extract-utils/mistral-ocr-provider.mjs<br/>Mistral OCR opt-in"]
+    ChainedOcr["extract-utils/chained-ocr-provider.mjs<br/>Mistral primary + Gemini repair"]
+    MistralOcr["extract-utils/mistral-ocr-provider.mjs<br/>Mistral OCR primary"]
+    GeminiOcr["extract-utils/gemini-ocr-provider.mjs<br/>Gemini OCR repair"]
   end
 
   Extract --> PdfExtract
@@ -114,7 +127,9 @@ flowchart LR
   Extract --> RtfExtract
   Extract --> TextExtract
   PdfExtract --> OcrNormalize
-  PdfExtract --> MistralOcr
+  PdfExtract --> ChainedOcr
+  ChainedOcr --> MistralOcr
+  ChainedOcr --> GeminiOcr
 
   subgraph Shared["Shared contracts and AI policy"]
     MatterContract["shared/matter-contract.mjs<br/>folders, headers, categories"]
@@ -146,14 +161,16 @@ flowchart LR
     OpenAI["OpenAI direct<br/>Responses API"]
     OpenRouter["OpenRouter<br/>chat completions + strict JSON schema"]
     Mistral["Mistral OCR<br/>mistral-ocr-latest"]
+    Gemini["Google Gemini<br/>OCR repair"]
   end
 
   ResponsesClient --> OpenAI
   SourceDescriptors --> OpenRouter
   ListOfDates --> OpenRouter
   MistralOcr --> Mistral
+  GeminiOcr --> Gemini
 
-  subgraph Disk["Matter disk artifacts"]
+  subgraph Disk["Matter artifacts in filesystem mode"]
     MatterJson["matter.json"]
     Inbox["00_Inbox/"]
     FileRegister["00_Inbox/*/File Register.csv"]
@@ -200,6 +217,23 @@ flowchart LR
   ConfigurableSkillHelpers --> ConfigurableSkillsJson
   ConfigurableSkillsService --> SkillRunsJson
 
+  subgraph RuntimeDb["Runtime DB storage mode"]
+    Postgres["Postgres<br/>tenant-scoped matters, documents, artifacts, skills, receipts"]
+    Payloads["storage_object_payloads<br/>source/artifact/sample bytes"]
+    MaterializedScratch["temporary materialized matter folder<br/>scratch only"]
+  end
+
+  RuntimeDbMatterIndex --> Postgres
+  RuntimeDbStorage --> Postgres
+  RuntimeDbStorage --> Payloads
+  RuntimeDbStores --> Postgres
+  MatterWorkflowRoutes --> RuntimeDbStorage
+  RuntimeDbStorage --> MaterializedScratch
+  MaterializedScratch --> MatterInit
+  MaterializedScratch --> Extract
+  MaterializedScratch --> SourceDescriptors
+  MaterializedScratch --> ListOfDates
+
   subgraph Verification["Verification and supervision"]
     Tests["test/*.mjs<br/>node --test"]
     Evals["evals/*<br/>smoke + golden checks"]
@@ -225,7 +259,7 @@ flowchart TD
   RawMatter["Raw matter folder<br/>client files"]
   MatterInit["/matter-init<br/>preserve originals<br/>classify working copies<br/>register hashes"]
   InboxArtifacts["00_Inbox artifacts<br/>Originals<br/>By Type<br/>File Register.csv<br/>Intake Log.csv"]
-  Extract["/extract<br/>deterministic extractors<br/>Mistral OCR when enabled"]
+  Extract["/extract<br/>OCR-first PDFs when configured<br/>deterministic non-PDF extractors"]
   ExtractionRecords["extraction-record/v1<br/>_extracted/FILE-NNNN.json<br/>_extracted/FILE-NNNN.txt<br/>Extraction Log.csv"]
   DescribeSources["/describe_sources<br/>OpenRouter source labels<br/>local contract validation"]
   SourceIndex["10_Library/Source Index.json<br/>lawyer-readable source labels"]
@@ -252,7 +286,7 @@ These are not normal runtime routes. They are repo tools for checking provider b
 ```mermaid
 flowchart LR
   SourceEval["evals/source-descriptors/<br/>openrouter-source-descriptors-eval-check.mjs<br/>openrouter-source-descriptors-live.mjs"]
-  OcrSmoke["evals/ocr/<br/>mistral-ocr-smoke.mjs"]
+  OcrSmoke["evals/ocr/<br/>provider OCR smoke/bakeoff scripts"]
   LodEval["evals/listofdates/<br/>check-golden-listofdates.mjs<br/>openrouter-ocr-listofdates-smoke.mjs"]
 
   SourceEval -->|"synthetic fixtures + gated live OpenRouter"| SourceContract["Source descriptor contract"]
@@ -288,7 +322,7 @@ The implementation lives in:
 
 ## Current Provider Posture
 
-- `/extract` uses OCR-first PDF extraction when `MISTRAL_API_KEY` is configured. PDF.js remains available for page-count, text-layer diagnostics, and fallback.
+- `/extract` uses OCR-first PDF extraction when `MISTRAL_API_KEY` is configured. Mistral is the primary OCR provider; Gemini can be used as repair when configured and quality doubt is detected. PDF.js remains available for page-count, text-layer diagnostics, and fallback.
 - `/describe_sources` is implemented by `source-descriptors-engine.mjs` and uses OpenRouter with strict structured output and local validation.
 - `/create_listofdates` uses OpenAI direct by default, or OpenRouter when `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
 - OpenRouter routing remains explicit. Automatic fallback is not enabled for lawyer-facing artifacts.
@@ -319,3 +353,22 @@ During beta, reviewers should pay special attention to:
 - broken raw `FILE-NNNN pX.bY` citations;
 - weak source labels;
 - OCR quality on scanned PDFs.
+
+## Runtime DB Posture
+
+Filesystem mode remains the default local beta path. Runtime DB storage mode is
+explicit:
+
+```text
+MWB_RUNTIME_DB=postgres
+MWB_RUNTIME_DB_STORAGE=postgres
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
+MWB_RUNTIME_DATABASE_URL=<normal runtime role>
+```
+
+In that mode, Postgres is the source for matter listing/switching, workspace
+trees, file previews, raw file payloads, status, prepare/advisory reads, skill
+factory state, custom-skill run receipts, command interaction history, uploads,
+and foreground materialized workflow writes. Existing legal engines still run
+through temporary materialized folders; hosted DB-claimed workers remain future
+work.

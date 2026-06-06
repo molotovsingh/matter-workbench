@@ -119,7 +119,9 @@ npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:report
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
-MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes MWB_DATABASE_URL="postgres://..." npm run db:runtime:smoke
+npm run db:runtime:role-setup -- --write-env-shadow
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:smoke
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -423,7 +425,7 @@ explicitly:
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   write storage;
-- DB-backed legal-engine write path for preparation, extraction, source labels,
+- hosted DB-claimed worker path for preparation, extraction, source labels,
   List of Dates, copilot/context, and skill execution.
 
 After those decisions are approved, run the stop-check with an explicit approval
@@ -441,7 +443,6 @@ app or the smoke command with runtime DB mode explicitly enabled:
 MWB_RUNTIME_DB=postgres \
 MWB_RUNTIME_DB_STORAGE=postgres \
 MWB_DB_RUNTIME_CUTOVER_APPROVED=yes \
-MWB_DATABASE_URL="postgres://..." \
 npm run db:runtime:smoke
 ```
 
@@ -449,5 +450,6 @@ Expected storage-slice behavior: `/api/matters`, matter switching,
 `/api/workspace`, file previews, raw file delivery, matter status,
 `/api/prepare-matter`, and `/api/matter-attention` use Postgres. Preparation,
 extraction, source labels, List of Dates generation, copilot/context, doctor
-fixes, and skill execution remain blocked or filesystem-mode until the DB
-worker write path lands.
+fixes, and skill execution now use the local/private materialized DB write
+bridge when runtime DB storage mode is enabled. Hosted DB-claimed workers are
+still pending; do not describe the bridge as a hosted worker supervisor.

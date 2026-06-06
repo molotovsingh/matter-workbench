@@ -1776,6 +1776,14 @@ The React local-beta QA pass caught two useful polish lessons that normal API sm
 
 The release-closure lesson after `v1.0.0-beta.3` is that "beta passed" should become an operating contract, not just a happy chat message. The release note records the exact accepted checkpoint, while `docs/beta-operator-checklist.md` says how to run the local beta, what keys and checks matter, what write paths are safe, what to report, and when to stop relying on an output. That is how a project moves from "we have a promising app" to "we can operate this app without re-deciding the rules every morning."
 
+The release-closure lesson after `v1.0.0-beta.4` is narrower but just as
+important: a database migration is not real because tables exist. It becomes
+real when the app can use a safe runtime role, perform a live write through the
+actual API, read the resulting payloads back, prove rollback, and leave
+checked-in evidence that another developer can inspect. That is why the beta.4
+release note points to the runtime DB write-smoke artifact instead of merely
+listing migrations.
+
 The v2 model-tier work added a future lesson for this repo too: model choice should be governed by task risk, not by one global dropdown. A cheap model may eventually be fine for transient copilot answers, but durable skill design, skill modification, validation, and source-backed artifact generation must stay under app-owned model policy. That idea is now parked in `docs/future-design-decisions/model-to-app-task-policy.md` so future model-selector work starts from the right boundary.
 
 The deeper review found the practical bug that proves why this matters: the List of Dates API route still accepted a request-body `model` value on the OpenAI-direct path. The current UI did not use it, but the route boundary was too permissive for a durable artifact. We removed that bypass and added a smoke test proving `/api/create-listofdates` now ignores body-level model overrides and resolves the model from central task policy. This is how good policy docs earn trust: they must point back into the code and close the loopholes they reveal.
@@ -1930,3 +1938,8 @@ then archives the smoke matter so it does not pollute the active matter list.
 That is the difference between "the code looks right" and "the runtime path
 actually worked against Postgres". The checked-in evidence is under
 `docs/runtime-db-write-smokes/`.
+
+This completes the local/private runtime DB slice, not the hosted deployment
+story. Hosted auth, object storage, background workers, restart recovery, and
+degraded-mode policy remain separate. Good engineering is not only making
+progress; it is naming exactly which kind of progress was made.

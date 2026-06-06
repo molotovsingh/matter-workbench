@@ -51,12 +51,17 @@ The system cleanly distinguishes two categories of operations, enforced at the e
 | Deterministic (never calls AI) | Paid (calls AI with guardrails) |
 |-------------------------------|--------------------------------|
 | matter-init (hash, classify, copy) | describe_sources (labeling) |
-| extract (PDF/DOCX/XLSX/EML) | create_listofdates (chronology) |
+| non-PDF extraction and PDF diagnostics | OCR-first PDF extraction and repair |
+| local extraction/cache decisions | create_listofdates (chronology) |
 | context_preview (packet build) | configurable skills |
 | context_search (local grep) | skill interview planner |
 | doctor (structure scan) | skill sample generator |
 
-This matters because it gives the user a clear cost boundary. Intake and ordinary extraction are local. Provider-backed legal work is explicit, policy-routed, and recorded with provider/model metadata. Cost estimation is a planned surface, but the architectural point already holds: the system should not silently run paid legal work without a visible user action.
+This matters because it gives the user a clear cost boundary. Intake and
+ordinary non-PDF extraction are local. PDF OCR and provider-backed legal work
+are explicit, policy-routed, and recorded with provider/model metadata. Cost
+estimation is a planned surface, but the architectural point already holds: the
+system should not silently run paid legal work without a visible user action.
 
 ### 3. The Layered Policy Prompt System
 
@@ -103,9 +108,15 @@ At each stage, the system does something interesting:
 
 This is a **code generation workflow for non-programmers**, mediated by AI, with lawyer-in-the-loop approval gates at every stage where creativity meets legal judgment.
 
-### 6. Extraction Caching by Content Hash
+### 6. OCR-First Extraction With Content-Hash Discipline
 
-Extraction is expensive — especially OCR on scanned PDFs. The system caches extraction results by SHA-256 file hash:
+Extraction is expensive — especially OCR on scanned PDFs. The system now treats
+PDF extraction as quality-first: when OCR providers are configured, Mistral is
+the primary PDF extractor and Gemini can repair doubtful OCR output. PDF.js is
+still useful for page-count, text-layer diagnostics, and fallback, but embedded
+PDF text no longer suppresses OCR merely because it exists.
+
+The system still keeps content-hash discipline:
 
 ```
 extract(file) →
@@ -121,9 +132,28 @@ This means:
 - Uploading the same file again (duplicate) → instant skip
 - Re-uploading a corrected version → only the changed file is re-extracted
 - OCR results persist across restarts
-- No cache invalidation problem (content-addressed, not name-addressed)
+- Older PDF cache records can be invalidated when the OCR-first policy is safer
+- Missing confidence is treated as unknown rather than automatically bad
+- Extraction warnings become Preparation Advisory evidence instead of silent downstream risk
 
-### 7. Fail-Closed Provider Posture
+### 7. Runtime DB Mode Without Pretending Engines Are SQL-Native
+
+The database transition now has a real local/private runtime slice. In explicit
+runtime DB mode, Postgres can own matter selection, uploads, workspace/file
+reads, payload bytes, status/advisory reads, skill-factory state, custom-skill
+receipts, command logs, and foreground workflow writes.
+
+The important restraint is that the legal engines were not rewritten as SQL
+engines. They still run against a temporary materialized matter folder, then the
+server persists changed outputs back into Postgres. That bridge is honest: it
+lets the beta use the mature local engines while giving the runtime a database
+custody layer. It is not a hosted background worker system yet.
+
+The engineering lesson is simple: migration is safer when the interface changes
+before the engine internals. First make the runtime boundary testable; only then
+decide whether individual engines deserve deeper rewrites.
+
+### 8. Fail-Closed Provider Posture
 
 The system explicitly refuses automatic model fallback for lawyer-facing work. This is the opposite of "resilience" patterns in most SaaS products:
 
@@ -140,7 +170,7 @@ if (primaryProviderFails) {
 
 The reasoning: different models have different failure modes, hallucination rates, and formatting quirks. A lawyer reviewing output needs to know which model produced it. Silent fallback breaks that audit chain.
 
-### 8. Safe Path Containment Without a Sandbox
+### 9. Safe Path Containment Without a Sandbox
 
 The system operates on the user's real filesystem — it reads and writes to disk. Without path containment, this would be dangerous. The solution is a **validated path API layer**:
 
@@ -156,7 +186,7 @@ validatePath(candidate, matterRoot) →
 
 All file system operations (read, write, copy, list) go through helpers that validate the resolved path stays within the matter root. This is a simple constraint that eliminates path traversal attacks entirely — no regex filtering, no blocklists, just a prefix check on resolved absolute paths.
 
-### 9. Atomic Writes for Crash Safety
+### 10. Atomic Writes for Crash Safety
 
 Critical JSON and store writes use atomic writes:
 
@@ -169,7 +199,7 @@ writeAtomic(path, content) →
 
 This is a small detail that prevents a large class of bugs: no partial JSON files from interrupted writes and no half-written matter metadata in the stores that use the shared atomic persistence path. Combined with the extraction cache, the system can often recover from interruption by re-running from saved state.
 
-### 10. React Production Shell With Contract-Tested Legacy Lessons
+### 11. React Production Shell With Contract-Tested Legacy Lessons
 
 The production frontend is now React/Vite. That matters because the app has
 crossed from a prototype shell into a UI architecture that can carry more
