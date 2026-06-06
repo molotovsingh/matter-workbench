@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -22,6 +23,7 @@ export function parseArgs(argv = []) {
     dryRun: true,
     verify: false,
     inspect: false,
+    includePayloads: false,
     json: false,
     appDir: process.cwd(),
     mattersHome: defaultMattersHome(),
@@ -45,6 +47,8 @@ export function parseArgs(argv = []) {
       parsed.dryRun = true;
       parsed.verify = false;
       parsed.inspect = true;
+    } else if (arg === "--include-payloads") {
+      parsed.includePayloads = true;
     } else if (arg === "--json") {
       parsed.json = true;
     } else if (arg === "--app-dir") {
@@ -68,10 +72,13 @@ export function parseArgs(argv = []) {
 export async function collectLocalStorageHydrationPlan({
   appDir = process.cwd(),
   mattersHome = defaultMattersHome(),
+  includePayloads = false,
 } = {}) {
   const matterPlan = await collectLocalMatterHydrationPlan({ mattersHome });
   const skillPlan = await collectLocalSkillHydrationPlan({ appDir, mattersHome });
-  return buildShadowStoragePlan({ matterPlan, skillPlan, appDir, mattersHome });
+  const plan = buildShadowStoragePlan({ matterPlan, skillPlan, appDir, mattersHome });
+  if (includePayloads) await attachLocalStoragePayloads(plan, { appDir, mattersHome });
+  return plan;
 }
 
 export function buildShadowStoragePlan({
@@ -92,6 +99,7 @@ export function buildShadowStoragePlan({
     mattersHome,
     tenant,
     storageObjects: [],
+    storageObjectPayloads: [],
     documentBlobs: [],
     extractionLinks: [],
     matterArtifactLinks: [],
@@ -109,6 +117,7 @@ export function buildShadowStoragePlan({
 
   plan.totals = {
     storageObjects: plan.storageObjects.length,
+    storageObjectPayloads: plan.storageObjectPayloads.length,
     documentBlobs: plan.documentBlobs.length,
     extractionPayloads: plan.extractionLinks.length,
     matterArtifacts: plan.matterArtifactLinks.length,
@@ -117,6 +126,7 @@ export function buildShadowStoragePlan({
   };
   plan.plannedRows = {
     storageObjects: plan.storageObjects.length,
+    storageObjectPayloads: plan.storageObjectPayloads.length,
     documentBlobs: plan.documentBlobs.length,
     extractionStorageLinks: plan.extractionLinks.length,
     matterArtifactStorageLinks: plan.matterArtifactLinks.length,
@@ -147,6 +157,9 @@ export function buildLocalStorageHydrationSql(plan = {}) {
 
   for (const object of plan.storageObjects || []) {
     lines.push(storageObjectSql(object));
+  }
+  for (const payload of plan.storageObjectPayloads || []) {
+    lines.push(storageObjectPayloadSql(payload));
   }
   for (const blob of plan.documentBlobs || []) {
     lines.push(documentBlobSql(blob));
@@ -193,6 +206,7 @@ export function buildStorageHydrationCountSql(plan = {}) {
   const tenantId = plan?.tenant?.id;
   if (!tenantId) throw new Error("Storage hydration plan is missing tenant.id.");
   const storageIds = (plan.storageObjects || []).map((object) => object.id).filter(Boolean);
+  const payloadIds = (plan.storageObjectPayloads || []).map((payload) => payload.id).filter(Boolean);
   const blobIds = (plan.documentBlobs || []).map((blob) => blob.id).filter(Boolean);
   const extractionIds = (plan.extractionLinks || []).map((link) => link.id).filter(Boolean);
   const artifactIds = (plan.matterArtifactLinks || []).map((link) => link.id).filter(Boolean);
@@ -201,6 +215,8 @@ export function buildStorageHydrationCountSql(plan = {}) {
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     "select 'storage_objects' as key, count(*)::int as count from storage_objects where id = any (" + sqlUuidArray(storageIds) + ")",
+    "union all",
+    "select 'storage_object_payloads' as key, count(*)::int as count from storage_object_payloads where id = any (" + sqlUuidArray(payloadIds) + ")",
     "union all",
     "select 'document_blobs' as key, count(*)::int as count from document_blobs where id = any (" + sqlUuidArray(blobIds) + ")",
     "union all",
@@ -293,6 +309,7 @@ export function renderShadowStorageReport(report = {}) {
     `matters_home: ${report.mattersHome || ""}`,
     "totals:",
     `  storage_objects: ${totals.storageObjects || 0}`,
+    `  storage_object_payloads: ${totals.storageObjectPayloads || 0}`,
     `  document_blobs: ${totals.documentBlobs || 0}`,
     `  extraction_payloads: ${totals.extractionPayloads || 0}`,
     `  matter_artifacts: ${totals.matterArtifacts || 0}`,
@@ -300,6 +317,7 @@ export function renderShadowStorageReport(report = {}) {
     `  warnings: ${totals.warnings || 0}`,
     "planned_rows:",
     `  storage_objects: ${report.plannedRows?.storageObjects || 0}`,
+    `  storage_object_payloads: ${report.plannedRows?.storageObjectPayloads || 0}`,
     `  document_blobs: ${report.plannedRows?.documentBlobs || 0}`,
     `  extraction_storage_links: ${report.plannedRows?.extractionStorageLinks || 0}`,
     `  matter_artifact_storage_links: ${report.plannedRows?.matterArtifactStorageLinks || 0}`,
@@ -378,6 +396,72 @@ function appendMatterStorage(plan, { tenantId, matter, objectKeys }) {
 
   appendArtifactStorage(plan, { tenantId, matter, artifact: matter.artifacts?.sourceIndex, family: "source_index", format: "json", objectKeys });
   appendArtifactStorage(plan, { tenantId, matter, artifact: matter.artifacts?.listOfDates, family: "list_of_dates", format: "json", objectKeys });
+}
+
+export async function attachLocalStoragePayloads(plan, {
+  appDir = plan.appDir || process.cwd(),
+  mattersHome = plan.mattersHome || defaultMattersHome(),
+} = {}) {
+  const existing = new Set((plan.storageObjectPayloads || []).map((payload) => payload.storageObjectId));
+  for (const object of plan.storageObjects || []) {
+    if (!object?.id || existing.has(object.id)) continue;
+    const filePath = localFilePathForStorageObject(object, { appDir, mattersHome });
+    try {
+      const bytes = await readFile(filePath);
+      const payload = storageObjectPayload({ object, bytes });
+      plan.storageObjectPayloads.push(payload);
+      existing.add(object.id);
+    } catch (cause) {
+      const code = cause?.code ? ` (${cause.code})` : "";
+      plan.warnings.push(`payload missing for ${object.objectKey}${code}`);
+    }
+  }
+  refreshStoragePlanTotals(plan);
+  return plan;
+}
+
+function refreshStoragePlanTotals(plan) {
+  plan.totals = {
+    ...(plan.totals || emptyTotals()),
+    storageObjects: plan.storageObjects?.length || 0,
+    storageObjectPayloads: plan.storageObjectPayloads?.length || 0,
+    documentBlobs: plan.documentBlobs?.length || 0,
+    extractionPayloads: plan.extractionLinks?.length || 0,
+    matterArtifacts: plan.matterArtifactLinks?.length || 0,
+    skillSamples: plan.skillSampleLinks?.length || 0,
+    warnings: plan.warnings?.length || 0,
+  };
+  plan.plannedRows = {
+    ...(plan.plannedRows || {}),
+    storageObjects: plan.storageObjects?.length || 0,
+    storageObjectPayloads: plan.storageObjectPayloads?.length || 0,
+    documentBlobs: plan.documentBlobs?.length || 0,
+    extractionStorageLinks: plan.extractionLinks?.length || 0,
+    matterArtifactStorageLinks: plan.matterArtifactLinks?.length || 0,
+    skillSampleStorageLinks: plan.skillSampleLinks?.length || 0,
+  };
+}
+
+function localFilePathForStorageObject(object, { appDir, mattersHome }) {
+  const objectKey = normalizeRelativePath(object.objectKey);
+  const parts = objectKey.split("/").filter(Boolean);
+  if (object.objectRole === "skill_sample" && parts[0] === "local-skill-samples") {
+    return path.join(appDir, ...parts);
+  }
+  return path.join(mattersHome, ...parts);
+}
+
+function storageObjectPayload({ object, bytes }) {
+  return {
+    id: deterministicUuid(`storage-payload:${object.id}`),
+    tenantId: object.tenantId,
+    matterId: object.matterId,
+    storageObjectId: object.id,
+    objectKey: object.objectKey,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sizeBytes: bytes.length,
+    payloadHex: Buffer.from(bytes).toString("hex"),
+  };
 }
 
 function appendDocumentBlob(plan, { tenantId, matter, document, relativePath, blobKind, role, objectKeys }) {
@@ -487,9 +571,14 @@ function documentBlobSql(blob) {
   return `insert into document_blobs (id, tenant_id, matter_id, document_id, blob_kind, object_key, mime_type, size_bytes, sha256, state, storage_object_id, verified_at) values (${sqlUuid(blob.id)}, ${sqlUuid(blob.tenantId)}, ${sqlUuid(blob.matterId)}, ${sqlUuid(blob.documentId)}, ${sqlString(blob.blobKind)}, ${sqlString(blob.objectKey)}, ${sqlStringOrNull(blob.mimeType)}, ${sqlInteger(blob.sizeBytes, 0)}, ${sqlStringOrNull(blob.sha256)}, ${sqlString(blob.state)}, ${sqlUuid(blob.storageObjectId)}, now()) on conflict (tenant_id, object_key) do update set blob_kind = excluded.blob_kind, mime_type = excluded.mime_type, size_bytes = excluded.size_bytes, sha256 = excluded.sha256, state = excluded.state, storage_object_id = excluded.storage_object_id, verified_at = excluded.verified_at;`;
 }
 
+function storageObjectPayloadSql(payload) {
+  return `insert into storage_object_payloads (id, tenant_id, matter_id, storage_object_id, payload, sha256, size_bytes, verified_at) values (${sqlUuid(payload.id)}, ${sqlUuid(payload.tenantId)}, ${sqlUuidOrNull(payload.matterId)}, ${sqlUuid(payload.storageObjectId)}, decode(${sqlString(payload.payloadHex)}, 'hex'), ${sqlString(payload.sha256)}, ${sqlInteger(payload.sizeBytes, 0)}, now()) on conflict (tenant_id, storage_object_id) do update set matter_id = excluded.matter_id, payload = excluded.payload, sha256 = excluded.sha256, size_bytes = excluded.size_bytes, verified_at = excluded.verified_at;`;
+}
+
 function expectedStorageHydrationCounts(plan = {}) {
   return {
     storage_objects: plan.plannedRows?.storageObjects || 0,
+    storage_object_payloads: plan.plannedRows?.storageObjectPayloads || 0,
     document_blobs: plan.plannedRows?.documentBlobs || 0,
     extraction_storage_links: plan.plannedRows?.extractionStorageLinks || 0,
     matter_artifact_storage_links: plan.plannedRows?.matterArtifactStorageLinks || 0,
@@ -532,6 +621,7 @@ function parsePsqlJsonArray(stdout = "") {
 function emptyTotals() {
   return {
     storageObjects: 0,
+    storageObjectPayloads: 0,
     documentBlobs: 0,
     extractionPayloads: 0,
     matterArtifacts: 0,
@@ -628,7 +718,11 @@ function redactSecret(value) {
 async function main() {
   await loadDatabaseScriptEnv();
   const args = parseArgs(process.argv.slice(2));
-  const plan = await collectLocalStorageHydrationPlan({ appDir: args.appDir, mattersHome: args.mattersHome });
+  const plan = await collectLocalStorageHydrationPlan({
+    appDir: args.appDir,
+    mattersHome: args.mattersHome,
+    includePayloads: args.includePayloads,
+  });
   if (args.inspect) {
     const databaseUrl = process.env.MWB_DATABASE_URL || process.env.DATABASE_URL || "";
     const result = inspectLocalStorageHydration({ databaseUrl, plan });

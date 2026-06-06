@@ -36,6 +36,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "012_tenant_org_profile.sql",
       "013_hosted_auth_session_model.sql",
       "014_tenant_sessions_user_rls.sql",
+      "015_storage_object_payloads.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -52,6 +53,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("012_tenant_org_profile.sql"), "012_tenant_org_profile");
   assert.equal(migrationVersionFromFile("013_hosted_auth_session_model.sql"), "013_hosted_auth_session_model");
   assert.equal(migrationVersionFromFile("014_tenant_sessions_user_rls.sql"), "014_tenant_sessions_user_rls");
+  assert.equal(migrationVersionFromFile("015_storage_object_payloads.sql"), "015_storage_object_payloads");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

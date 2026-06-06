@@ -17,6 +17,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     matterStoryService,
     matterStatusService,
     prepareMatterService,
+    runtimeDbStorageService,
   } = services;
 
   return dispatchRoutes({
@@ -25,6 +26,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     response,
     routes: [
       exactRoute("POST", "/api/matter-init", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Set up matter");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runMatterInit({
@@ -38,6 +40,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/extract", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Extract documents");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runExtract({
@@ -50,6 +53,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/describe-sources", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Label sources");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await runSourceDescriptors({
@@ -60,6 +64,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/create-listofdates", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Create List of Dates");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         const env = services.env || {};
@@ -77,6 +82,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runCreateListOfDates(options));
       }),
       exactRoute("POST", "/api/create-listofdates/refresh-labels", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Refresh List of Dates labels");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await refreshListOfDatesSourceLabels({
@@ -85,6 +91,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/matter-story", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
         const body = await readRequestJson(request);
         sendJson(response, 200, await matterStoryService.runDisputeStory({
           matterName: body.matterName,
@@ -92,10 +99,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Scan matter");
         const body = await readRequestJson(request);
         sendJson(response, 200, await runDoctorScan(await matterRootForBody(matterStore, body)));
       }),
       exactRoute("POST", "/api/doctor/fix", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Fix matter");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         const fixIds = Array.isArray(body.fixIds) ? body.fixIds.filter((id) => typeof id === "string") : [];
@@ -107,10 +116,20 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runDoctorFix(root, fixIds));
       }),
       exactRoute("GET", "/api/matter-status", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          sendJson(response, 200, await runtimeDbStorageService.readMatterStatus(matter));
+          return;
+        }
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterStatusService.readMatterStatus(root));
       }),
       exactRoute("GET", "/api/matter-attention", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          sendJson(response, 200, await runtimeDbStorageService.readMatterAttention(matter));
+          return;
+        }
         const matterName = requestUrl.searchParams.get("matter") || "";
         if (matterName.trim()) {
           const { name, matterPath } = await matterStore.resolveExistingMatter(matterName);
@@ -120,10 +139,16 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await matterAttentionService.readMatterAttention());
       }),
       exactRoute("GET", "/api/prepare-matter", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl, { allowMissingActive: true });
+          sendJson(response, 200, await runtimeDbStorageService.readPrepareMatterPlan(matter));
+          return;
+        }
         const root = await matterRootForQuery(matterStore, requestUrl, { allowMissingActive: true });
         sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan(root));
       }),
       exactRoute("GET", "/api/matter-context/search", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Search matter context");
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterContextService.searchMatterContext({
           root,
@@ -131,10 +156,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("GET", "/api/matter-context", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Read matter context");
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterContextService.readMatterContextPreview(root));
       }),
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Matter copilot");
         const body = await readRequestJson(request);
         const root = await matterRootForBody(matterStore, body);
         sendJson(response, 200, await matterCopilotService.answerQuestion({
@@ -143,11 +170,36 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
+        assertFilesystemWorkflowAvailable(matterStore, "Read rerun advice");
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterStatusService.readRerunAdvice(requestUrl.searchParams.get("skill") || "", root));
       }),
     ],
   });
+}
+
+function usesRuntimeDbStorage(matterStore, runtimeDbStorageService) {
+  return Boolean(matterStore.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled);
+}
+
+function assertFilesystemWorkflowAvailable(matterStore, label) {
+  if (!matterStore.hasRuntimeDbStorageMode?.()) return;
+  const error = new Error(`${label} is not available in DB storage mode yet. Use DB-backed read surfaces or run this workflow in filesystem mode until the DB worker write path lands.`);
+  error.statusCode = 409;
+  throw error;
+}
+
+async function runtimeDbMatterForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (matterName) return matterStore.resolveExistingMatter(matterName);
+  const activeMatter = matterStore.getActiveMatterRecord?.();
+  if (activeMatter) return activeMatter;
+  if (allowMissingActive) {
+    matterStore.getMatterRoot?.();
+  } else {
+    matterStore.ensureMatterRoot();
+  }
+  return matterStore.getActiveMatterRecord?.();
 }
 
 async function matterRootForBody(matterStore, body = {}) {

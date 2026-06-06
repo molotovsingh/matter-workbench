@@ -22,6 +22,7 @@ export function createRuntimeDbMatterIndex({
   }
 
   const tenantId = String(env.MWB_RUNTIME_DB_TENANT_ID || defaultRuntimeDbTenantId()).trim();
+  const storageMode = isRuntimeDbStorageModeEnabled(env) ? "postgres" : "local-filesystem";
 
   async function listMatterFolders() {
     return queryMatterRows({ databaseUrl, tenantId, spawn }).map(normalizeMatterRow);
@@ -35,6 +36,7 @@ export function createRuntimeDbMatterIndex({
   return {
     enabled: true,
     databaseUrlRedacted: redactDatabaseUrl(databaseUrl),
+    storageMode,
     tenantId,
     listMatterFolders,
     findMatterFolder,
@@ -49,9 +51,14 @@ export function defaultRuntimeDbTenantId() {
   return deterministicUuid("tenant:local-shadow");
 }
 
+export function isRuntimeDbStorageModeEnabled(env = process.env) {
+  return String(env.MWB_RUNTIME_DB_STORAGE || "").trim().toLowerCase() === "postgres";
+}
+
 function disabledRuntimeMatterIndex() {
   return {
     enabled: false,
+    storageMode: "local-filesystem",
     async listMatterFolders() {
       return [];
     },

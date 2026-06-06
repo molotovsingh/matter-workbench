@@ -1,0 +1,178 @@
+import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
+import test from "node:test";
+
+import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
+
+const tenantId = "82dc5ad0-fb23-5c08-a06c-73232cd0281f";
+const matter = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "DB Matter",
+  matterName: "Legal Caption",
+  clientName: "Client A",
+  oppositeParty: "Other Side",
+  matterType: "Consumer",
+  jurisdiction: "India",
+};
+
+test("runtime DB storage service builds workspace tree from storage payload metadata", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, {
+      matter,
+      objects: [
+        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true),
+        storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true),
+        storageRow("DB Matter/00_Inbox/Intake 01/Originals/agreement.pdf", "source_original", "application/pdf", 1200, true),
+      ],
+    }),
+  });
+
+  const workspace = await service.readWorkspace(matter);
+
+  assert.equal(workspace.folderName, "DB Matter");
+  assert.equal(workspace.inputLabel, "postgres:DB Matter");
+  assert.equal(workspace.metadata.matterName, "Legal Caption");
+  assert.equal(workspace.fileCount, 3);
+  assert.equal(workspace.directoryCount, 4);
+  assert.deepEqual(workspace.tree.children.map((child) => child.name), ["00_Inbox", "10_Library"]);
+  assert.equal(workspace.tree.children[1].children[0].name, "List of Dates.md");
+  assert.equal(workspace.tree.children[1].children[0].previewKind, "text");
+  assert.match(calls[0].input, /set_config\('app\.tenant_id'/i);
+  assert.match(calls[0].input, /storage_object_payloads/i);
+  assert.doesNotMatch(JSON.stringify(calls), /secret/);
+});
+
+test("runtime DB storage service previews text from payload bytes", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], payloadRow("DB Matter/10_Library/List of Dates.md", "# List of Dates")),
+  });
+
+  const preview = await service.readFilePreview("10_Library/List of Dates.md", matter);
+
+  assert.equal(preview.path, "10_Library/List of Dates.md");
+  assert.equal(preview.name, "List of Dates.md");
+  assert.equal(preview.ext, "md");
+  assert.equal(preview.content, "# List of Dates");
+});
+
+test("runtime DB storage service streams raw payload bytes with content metadata", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], payloadRow("DB Matter/00_Inbox/Intake 01/Originals/agreement.pdf", "%PDF-1.7", "application/pdf")),
+  });
+
+  const raw = await service.getRawFile("00_Inbox/Intake 01/Originals/agreement.pdf", matter);
+  const chunks = [];
+  for await (const chunk of raw.stream) chunks.push(chunk);
+
+  assert.equal(raw.contentType, "application/pdf");
+  assert.equal(raw.fileSize, 8);
+  assert.equal(raw.safeFilename, "agreement.pdf");
+  assert.equal(Buffer.concat(chunks).toString("utf8"), "%PDF-1.7");
+});
+
+test("runtime DB storage service fails closed when payload row is missing", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      objectKey: "DB Matter/10_Library/List of Dates.md",
+      mimeType: "text/markdown",
+      sizeBytes: 12,
+      payloadBase64: "",
+      hasPayload: false,
+    }),
+  });
+
+  await assert.rejects(
+    () => service.readFilePreview("10_Library/List of Dates.md", matter),
+    /payload is missing/i,
+  );
+});
+
+test("runtime DB storage service derives matter status and preparation plan from DB payload objects", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      matter,
+      objects: [
+        storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true),
+        storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true),
+        storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true),
+        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true),
+      ],
+    }),
+  });
+
+  const status = await service.readMatterStatus(matter);
+  assert.equal(status.matterName, "DB Matter");
+  assert.equal(status.stages.find((stage) => stage.slash === "/matter-init").present, true);
+  assert.equal(status.stages.find((stage) => stage.slash === "/extract").present, true);
+  assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").present, true);
+  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").present, true);
+
+  const plan = await service.readPrepareMatterPlan(matter);
+  assert.equal(plan.schema_version, "prepare-matter-plan/v1");
+  assert.equal(plan.nextStep.state, "complete");
+  assert.equal(plan.stages.every((stage) => stage.state === "current"), true);
+});
+
+test("runtime DB storage service reads latest advisory snapshot from Postgres", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      schema_version: "matter-attention/v1",
+      generated_at: "2026-06-06T00:00:00.000Z",
+      matterName: "Legal Caption",
+      matterRoot: "postgres:DB Matter",
+      summary: { total: 1, blocker: 0, warning: 1, info: 0, state: "attention_needed" },
+      items: [{ id: "ocr-warning", severity: "warning", title: "OCR text needs review" }],
+    }),
+  });
+
+  const attention = await service.readMatterAttention(matter);
+
+  assert.equal(attention.schema_version, "matter-attention/v1");
+  assert.equal(attention.summary.warning, 1);
+  assert.equal(attention.items[0].title, "OCR text needs review");
+});
+
+function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload) {
+  return {
+    objectKey,
+    objectRole,
+    mimeType,
+    sizeBytes,
+    hasPayload,
+  };
+}
+
+function payloadRow(objectKey, text, mimeType = "text/markdown") {
+  const bytes = Buffer.from(text);
+  return {
+    objectKey,
+    mimeType,
+    sizeBytes: bytes.length,
+    payloadBase64: bytes.toString("base64"),
+    hasPayload: true,
+  };
+}
+
+function jsonSpawn(calls, payload) {
+  return (command, args, options = {}) => {
+    calls.push({ command, args, input: options.input });
+    return {
+      status: 0,
+      stdout: `${JSON.stringify(payload)}\n`,
+      stderr: "",
+    };
+  };
+}

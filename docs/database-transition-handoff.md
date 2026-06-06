@@ -1,30 +1,53 @@
 # Database Transition Handoff
 
-Status: shadow-only handoff for the PostgreSQL control-plane rehearsal
+Status: accepted runtime DB read/storage slice; DB write-side worker path pending
 
 This note is for a developer/operator taking over the database transition
-track. It deliberately does not describe a runtime cutover. Matter Workbench
-local beta still reads and writes matter state through the filesystem-backed
-engines.
+track. It now describes two different things that must not be blurred:
+
+- the older shadow-control-plane rehearsal, which mirrors local evidence into
+  Postgres for inspection and handoff; and
+- the new explicit runtime DB storage mode, which can serve matter selection,
+  workspace trees, file previews, file downloads, matter status, preparation
+  plans, and advisory snapshots from Postgres payload custody.
+
+Legal-engine writes are not yet DB-worker backed. In runtime DB storage mode the
+filesystem-dependent workflow routes fail closed until the DB write-side worker
+path lands.
 
 ## Current Boundary
 
-The database work is a mirror, not the live backend.
+The database can now be used as a live read/file-custody backend only when the
+operator explicitly opts in:
 
-- Postgres owns rehearsed control-plane rows: tenants, matters, document
-  identity, extraction records, source descriptors, artifact pointers, provider
-  runs, jobs, costs, audit events, advisory snapshots, custom skills, versions,
-  and run receipts.
-- Local matter folders still own originals, generated legal artifacts, JSON
-  ledgers, and lawyer-facing output files.
-- The shadow database stores local file pointers and hashes for PDFs, not PDF
-  bytes. A database backup without the matching local storage backup can restore
-  DB rows that point to missing PDFs.
-- The app does not read matters, skills, advisory state, or receipts from
-  Postgres at runtime.
-- Do not cut over runtime reads or writes until auth, durable object storage or
-  an explicit single-host volume policy, backups for both DB and file custody,
-  job workers, and rollback behavior are explicitly approved.
+```bash
+MWB_RUNTIME_DB=postgres
+MWB_RUNTIME_DB_STORAGE=postgres
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
+```
+
+Without those flags, the local beta remains filesystem-backed.
+
+- Postgres owns the control-plane rows rehearsed by the shadow track: tenants,
+  matters, document identity, extraction records, source descriptors, artifact
+  pointers, provider runs, jobs, costs, audit events, advisory snapshots, custom
+  skills, versions, and run receipts.
+- `storage_object_payloads` can now store local/private file and artifact bytes
+  in Postgres for runtime DB storage mode. This closes the earlier "DB pointer
+  without file bytes" problem for local/private single-host testing.
+- In `MWB_RUNTIME_DB_STORAGE=postgres`, the React shell can read workspace
+  trees, text previews, raw file streams, matter status, prepare-matter state,
+  and latest advisory snapshots from Postgres payload rows.
+- Local matter folders still act as the import/hydration source until a hosted
+  upload path exists. They are no longer the live read source in runtime DB
+  storage mode, but they are still needed to populate that mode.
+- Filesystem-dependent write engines are deliberately blocked in runtime DB
+  storage mode: setup, extraction, source labels, List of Dates generation,
+  doctor fixes, copilot/context search, and rerun advice need the next DB
+  worker/write slice before they can safely operate from Postgres custody.
+- Do not treat this as a hosted multi-user cutover until auth/session
+  middleware, object-storage policy, background workers, rollback, and backup
+  behavior are explicitly approved for that environment.
 
 ## Environment Needed
 
@@ -77,7 +100,11 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:dry-run
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime:smoke
 ```
 
 Use `db:shadow:hydrate:dry-run` before writes to confirm what the local app will
@@ -103,16 +130,23 @@ ignored `.local/shadow-storage-backups/` folder and write a hash manifest. Use
 objects are present and hash-matching. This storage backup travels with the DB
 backup during local/single-host rehearsal; it is not a hosted object-storage
 provider decision. Use
-`db:shadow:snapshot` to preserve the combined report for handoff. New snapshots
-also record the repo branch, short commit, and whether the worktree was clean
-when the report was generated.
+`db:storage:payloads:hydrate:*` after the storage-object metadata track when
+you need DB-backed file custody for local/private runtime testing. This command
+reads local source, artifact, and sample files and inserts their bytes into
+`storage_object_payloads`; unlike the older shadow storage metadata track, it is
+not pointer-only. Use `db:shadow:snapshot` to preserve the combined report for
+handoff. New snapshots also record the repo branch, short commit, and whether
+the worktree was clean when the report was generated.
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight and refuses to write
 snapshot files unless the doctor reports `ready_to_hydrate: yes`.
 
 The runtime cutover check is not part of shadow acceptance. Run it separately
 only when you are testing the runtime-cutover stop rule. Without
 `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`, it is expected to fail closed with
-`runtime_cutover_not_approved` even when the shadow mirror is accepted.
+`runtime_cutover_not_approved` even when the shadow mirror is accepted. The
+runtime smoke is the stronger practical check for the new DB read/storage slice:
+with `MWB_RUNTIME_DB_STORAGE=postgres`, it must prove DB workspace, file preview,
+raw file delivery, status, prepare state, and advisory reads.
 
 Use `db:shadow:preflight` as the first command when resuming this track. It is a
 read-only combined check: `db:doctor` plus the full shadow hydration dry-run. If
@@ -145,37 +179,83 @@ or write Postgres by itself.
 
 ## Accepted First Runtime Slice
 
-The first runtime DB slice is now implemented behind an explicit opt-in:
+The first runtime DB slice was the matter-index cutover. The stronger current
+slice is DB storage-backed runtime reads. It is implemented behind explicit
+opt-in:
 
 ```bash
 MWB_RUNTIME_DB=postgres \
+MWB_RUNTIME_DB_STORAGE=postgres \
 MWB_DB_RUNTIME_CUTOVER_APPROVED=yes \
 MWB_DATABASE_URL="$MWB_DATABASE_URL" \
 npm run db:runtime:smoke
 ```
 
-Scope is intentionally narrow. In this mode Postgres is the runtime source for:
+In this mode Postgres is the runtime source for:
 
 - `/api/matters`;
 - active matter resolution in `/api/switch-matter`;
-- resolving a legal matter name or local folder name to the local matter folder.
+- resolving a legal matter name or local folder name to the DB matter row;
+- `/api/workspace`;
+- `/api/file`;
+- `/api/file-raw`;
+- `/api/matter-status`;
+- `/api/prepare-matter`;
+- `/api/matter-attention`.
 
-The app still uses the filesystem/object-custody path for:
+The app still blocks or avoids filesystem-dependent runtime work in this mode:
 
-- original files and PDF bytes;
-- workspace tree and file previews;
-- preparation outputs;
-- source labels and List of Dates artifacts;
-- custom skill outputs and receipts.
+- `/api/matter-init`;
+- `/api/extract`;
+- `/api/describe-sources`;
+- `/api/create-listofdates`;
+- `/api/create-listofdates/refresh-labels`;
+- `/api/doctor/scan` and `/api/doctor/fix`;
+- matter context search and copilot answer routes;
+- rerun-advice routes that depend on live filesystem artifacts.
 
-This is the right first cutover because it proves that the product can depend
-on Postgres for a visible runtime decision without pretending that file custody,
-artifact writes, worker execution, or hosted auth have fully moved.
+That fail-closed behavior is intentional. It prevents the app from pretending a
+Postgres pseudo-root such as `postgres:<matter>` is a normal matter folder.
 
-On the local VM, the runtime smoke passed against the hydrated shadow database:
-15 active DB matters were visible, the app switched to a DB-listed matter, and
-the workspace remained readable from local storage. Treat that as current
-runtime-slice evidence, not a full database migration.
+On the local VM, the storage runtime smoke passed against the hydrated database:
+15 active DB matters were visible, the app switched to a DB-listed matter, the
+workspace was read from DB payload custody, a DB-backed text file preview loaded,
+and a raw file response streamed from Postgres bytes. Treat that as current
+read/storage-runtime evidence, not proof that legal-engine writes have moved.
+
+```text
+runtime_db_enabled: yes
+runtime_db_storage_mode: postgres
+matter_count: 15
+target_matter: Atlas Constuction vs Diptishree
+workspace_readable: yes
+storage_file_preview_readable: yes
+storage_raw_readable: yes
+```
+
+The payload hydration that fed this smoke inserted 512
+`storage_object_payloads` rows. The dry-run reported 70 missing local payload
+warnings, mostly for previously planned synthetic extraction/sample objects that
+did not have a corresponding file body. Runtime DB workspace reads therefore
+list only storage objects with actual payload rows.
+
+## Accepted DB Payload Custody Slice
+
+`015_storage_object_payloads.sql` adds the byte-custody table used by local DB
+runtime storage mode. It is tenant-scoped, row-level-security protected, and
+hash/size checked:
+
+- each payload belongs to one `storage_objects` row in the same tenant;
+- each payload may point to the owning matter in the same tenant;
+- `sha256` must be a 64-character lowercase hash;
+- `size_bytes` must match `octet_length(payload)`;
+- `(tenant_id, storage_object_id)` is unique.
+
+This is the local/private answer to the earlier concern that a database backup
+could restore object keys without the matching file bytes. For hosted or
+multi-host deployment, this table may be replaced or supplemented by durable
+object storage; the invariant is the same: DB records must never be backed up
+without the bytes or durable object references they depend on.
 
 ## Current Snapshot Evidence
 
@@ -266,10 +346,11 @@ procedures for that environment.
 ## Accepted Postgres-Unavailable Local Runtime Policy
 
 The local beta runtime has an accepted Postgres-unavailable behavior: it remains
-a local filesystem-backed runtime. The DB tools can use `MWB_DATABASE_URL`, but
-`server.mjs` does not use Postgres for product reads or writes. The acceptance
-check now proves this by creating the React/local server with a bogus database
-URL and confirming the runtime still initializes.
+a local filesystem-backed runtime unless DB runtime flags are explicitly set.
+The DB tools can use `MWB_DATABASE_URL`, but `server.mjs` does not depend on
+Postgres merely because that URL exists. The acceptance check proves this by
+creating the React/local server with a bogus database URL and confirming the
+runtime still initializes.
 
 This closes the `postgres_unavailable_user_behavior` blocker for the
 local/private shadow rehearsal. It is not a hosted outage policy. Once the app
@@ -286,9 +367,9 @@ product runtime does not consume those queues.
 
 This closes the `worker_process_owner_and_recovery` blocker for the
 local/private shadow rehearsal. It is not a hosted worker supervisor decision.
-Once extraction, source labels, List of Dates, or custom skill execution move
-into background workers, deployment still needs a process owner, restart policy,
-dead-worker recovery, and operator visibility.
+Once extraction, source labels, List of Dates, copilot/context, or custom skill
+execution move into DB-backed runtime work, deployment still needs a process
+owner, restart policy, dead-worker recovery, and operator visibility.
 
 ## Accepted Local Matter Import Policy
 
@@ -347,23 +428,28 @@ cross-tenant memberships.
 
 ## What A Developer Should Check Next
 
-Before any real hosted or database-backed runtime work:
+Before the next DB-backed write/runtime slice:
 
 1. Re-run the migration and shadow verification commands on the target database.
-2. Confirm the snapshot is secret-free and does not contain source document
-   bodies or generated legal work-product bodies.
-3. Confirm tenant isolation with `002_tenant_rls.sql` and tenant-reference
+2. Run `db:storage:payloads:hydrate:*` if the runtime will read file/artifact
+   bytes from Postgres.
+3. Confirm the snapshot is secret-free. Payload hydration intentionally stores
+   bytes in Postgres, so do not commit payload dumps, raw `bytea` output, or
+   generated legal work bodies into docs.
+4. Confirm tenant isolation with `002_tenant_rls.sql` and tenant-reference
    checks from later migrations.
-4. Confirm object-storage custody rules before any upload path moves hosted. A
-   database backup alone is not enough while storage objects still point at local
-   filesystem paths; restored DB rows can otherwise point to missing PDFs.
-5. Confirm hosted worker process ownership before long-running preparation
+5. Confirm object-storage custody rules before any upload path moves hosted.
+   Local/private DB payload custody is acceptable for this machine; hosted
+   deployment still needs object storage or a managed shared-volume policy.
+6. Confirm hosted worker process ownership before long-running preparation
    moves out of the local foreground app.
-6. Confirm hosted rollback/degraded-mode behavior before the product runtime
-   actually depends on Postgres. The local beta currently avoids this class of
-   outage by staying filesystem-backed.
-7. Run `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check`
-   only after the runtime-storage approval is explicit.
+7. Implement and test DB-backed write workers before enabling preparation,
+   extraction, source labels, List of Dates, copilot/context, or skill execution
+   in `MWB_RUNTIME_DB_STORAGE=postgres`.
+8. Confirm hosted rollback/degraded-mode behavior before the product runtime
+   depends on Postgres for writes.
+9. Run `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check`
+   only after runtime-storage approval is explicit.
 
 ## Stop Rule
 
@@ -376,10 +462,12 @@ Stop before runtime cutover if any of these are still unresolved:
 - hosted web/session middleware that validates provider tokens and sets
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
-  storage beyond the first matter-index slice.
+  storage beyond the accepted read/storage slice;
+- DB-backed legal-engine write path for preparation, extraction, source labels,
+  List of Dates, copilot/context, and skill execution;
 - explicit runtime-storage approval recorded before setting
   `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`.
 
 The database is allowed to learn from the local app now. The local app may
-depend on the database only for the approved matter-index runtime slice until
-the remaining hosted/runtime questions are closed.
+depend on the database for the approved read/storage runtime slice until the
+remaining write-side and hosted/runtime questions are closed.

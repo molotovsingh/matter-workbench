@@ -796,19 +796,23 @@ drops the temporary database unless the operator explicitly keeps it. This is
 how a serious engineer treats backups: a backup you have not restored is only a
 hopeful file.
 The next lesson is that a database backup is not a matter backup when the
-database only stores file pointers. The shadow DB now has `storage_objects` and
-`document_blobs` rows that say "this PDF should exist here, with this hash," but
-the PDF bytes themselves still live outside Postgres. So `db:shadow:storage-backup`
-copies the DB-referenced local PDFs into an ignored `.local` backup folder, and
-`db:shadow:storage-restore-check` proves those copied files are still present
-and hash-matching. That is the difference between "the database restored" and
-"the restored database still points at real documents." The runtime cutover
-guard now treats that as a separate proof: once storage backup evidence is
-current, both the PDF backup/restore blocker and the local single-host storage
-policy blocker can drop. That is still not a cloud object-storage decision. It
-only means a private/local single-host deployment can honestly say, "the DB
-backup and the files it points at travel together." Multi-host or cloud hosting
-still needs durable object storage or a managed shared volume.
+database only stores file pointers. The shadow DB first learned
+`storage_objects` and `document_blobs` rows that say "this PDF should exist
+here, with this hash." That exposed the real risk: the DB could restore cleanly
+while the PDF bytes were gone. The first answer was
+`db:shadow:storage-backup`, which copied DB-referenced local PDFs into an
+ignored `.local` backup folder and proved those copied files were hash-matching.
+That was good single-host evidence, but still not true DB custody.
+
+The stronger local/private answer is `storage_object_payloads`. In explicit DB
+payload mode, the hydrator copies source, artifact, and sample bytes into
+Postgres with size and SHA-256 checks. That means a DB runtime smoke can prove
+that workspace rows, text previews, and raw file streams are coming from
+Postgres payload rows, not from the live matter folder. This still does not
+decide the cloud object-storage provider. It says that for this machine and
+this private beta path, the database can now hold the bytes it points at.
+Multi-host or cloud hosting still needs durable object storage or a managed
+shared volume.
 The next subtle blocker was Postgres outage behavior. For the local beta, the
 answer is now deliberately boring: the app does not use Postgres as live storage
 yet, so a dead shadow database should not stop the lawyer-facing app. The
@@ -817,18 +821,20 @@ bogus database URL. DB scripts still fail closed when they need a database, but
 the product remains filesystem-backed. That is a good lesson: the safest
 fallback is often not a clever fallback at all; it is refusing to make an
 experimental mirror part of the live path too early.
-The first runtime DB slice changes that carefully, not dramatically. With
-`MWB_RUNTIME_DB=postgres` and explicit approval, Postgres now owns the matter
-index and active-matter resolution: the app asks the database, "which matters
-exist, and which local folder does this matter point to?" Then the existing
-filesystem path still opens the files, previews, preparation outputs, List of
-Dates, and custom-skill artifacts. Think of it as letting the database become
-the front desk before making it the whole building. The front desk can tell you
-which room to enter; the documents are still in the room. That is a meaningful
-runtime DB proof without taking custody risks with legal source files too early.
-`db:runtime:smoke` is the repeatable check for this slice: it starts the app in
-runtime DB mode, reads `/api/matters` from Postgres, switches one matter, and
-confirms the workspace still opens from local storage.
+The first runtime DB slice changed that carefully, not dramatically. With
+`MWB_RUNTIME_DB=postgres` and explicit approval, Postgres first owned the matter
+index and active-matter resolution. The app could ask the database, "which
+matters exist?" while the existing filesystem path still opened the documents.
+That was the front desk becoming database-backed.
+
+The next runtime slice moved the read/file-custody surfaces too. With
+`MWB_RUNTIME_DB_STORAGE=postgres`, the workspace tree, text file previews, raw
+file downloads, matter status, prepare plan, and advisory snapshot can all come
+from Postgres. The app also refuses to run folder-dependent legal engines in
+that mode until a proper DB worker/write path exists. That refusal is not a
+limitation to hide; it is a safety decision. A read-only DB runtime is honest.
+A write path that pretends `postgres:Some Matter` is a normal folder would be a
+future bug factory.
 The worker blocker got the same treatment. The local beta does not have a
 separate job worker; preparation still runs in the foreground app flow. The DB
 does have the future worker ingredients: `processing_jobs`, `job_outbox`, and
@@ -1775,3 +1781,39 @@ The v2 model-tier work added a future lesson for this repo too: model choice sho
 The deeper review found the practical bug that proves why this matters: the List of Dates API route still accepted a request-body `model` value on the OpenAI-direct path. The current UI did not use it, but the route boundary was too permissive for a durable artifact. We removed that bypass and added a smoke test proving `/api/create-listofdates` now ignores body-level model overrides and resolves the model from central task policy. This is how good policy docs earn trust: they must point back into the code and close the loopholes they reveal.
 
 This is a good example of accepting a small amount of duplication for a practical reason. The React app cannot naturally consume every server-side module without dragging bundling concerns into the browser build. But the contract values can still be treated as shared truth and checked at acceptance time. That gives us most of the safety without turning the build system into the main project.
+
+## Database Cutover Lesson: A Pointer Is Not Custody
+
+The first database track was deliberately a shadow mirror. Postgres knew about
+matters, documents, artifacts, jobs, provider runs, incidents, custom skills,
+and run receipts, but it mostly held pointers and hashes. That was useful for
+planning, but it carried a serious trap: if the database backup survived and
+the local files did not, the restored database would faithfully point at
+missing PDFs. In legal software, that is not "storage"; that is a broken audit
+trail wearing a storage costume.
+
+The next slice fixed that specific problem for local/private runtime testing.
+`db/migrations/015_storage_object_payloads.sql` adds a table where Postgres can
+hold the actual bytes for storage objects. The hydrator now has an explicit
+payload mode, so a local matter file, generated artifact, or skill sample can be
+copied into the database with its size and SHA-256 hash. In DB storage mode the
+React shell can read the matter list, workspace tree, file previews, raw file
+downloads, matter status, prepare plan, and advisory snapshot from Postgres
+instead of live matter folders.
+
+But this is still not the same as saying "the whole app is DB-native." The legal
+engines that write work product - setup, extraction, source labels, List of
+Dates, copilot/context, doctor fixes, and custom skill execution - were built to
+operate on a real matter folder. If we let them run against a fake path such as
+`postgres:Atlas`, they could fail in confusing ways or silently write to the
+wrong place. So DB storage mode does the disciplined thing: it serves the
+read/file-custody surfaces from Postgres and fails the filesystem-dependent
+write routes closed until a proper DB worker/write path exists.
+
+That is the engineering lesson: a migration is not one switch. It is a chain of
+ownership decisions. First the DB learned the shape of the app. Then it learned
+custody of file bytes. Next it must learn how to run long legal jobs, write new
+artifacts, preserve receipts, and recover from failures without falling back to
+the old folder as hidden truth. Moving slowly here is not hesitation; it is how
+you avoid building a system where half the app believes the database and the
+other half still obeys the filesystem.

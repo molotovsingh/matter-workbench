@@ -57,15 +57,34 @@ export async function runRuntimeDbSmoke({
     const workspace = await postJson(fetchImpl, baseUrl, "/api/switch-matter", { name: target.name });
     const config = await getJson(fetchImpl, baseUrl, "/api/config");
     const fileCount = Number(workspace.fileCount ?? countWorkspaceNodes(workspace.tree || workspace.files || []));
+    const runtimeDbStorageMode = app.runtimeMatterIndex.storageMode || "local-filesystem";
+    let filePreviewPath = "";
+    let storageFilePreviewReadable = false;
+    let storageRawReadable = false;
+    if (runtimeDbStorageMode === "postgres") {
+      filePreviewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
+      if (filePreviewPath) {
+        const query = new URLSearchParams({ path: filePreviewPath }).toString();
+        const preview = await getJson(fetchImpl, baseUrl, `/api/file?${query}`);
+        storageFilePreviewReadable = typeof preview.content === "string";
+        const rawResponse = await fetchImpl(`${baseUrl}/api/file-raw?${query}`);
+        storageRawReadable = rawResponse.ok && (await rawResponse.arrayBuffer()).byteLength >= 0;
+      }
+    }
+    const storageChecksPass = runtimeDbStorageMode !== "postgres" || (storageFilePreviewReadable && storageRawReadable);
     return {
-      passed: Boolean(config.activeMatterName && fileCount >= 0),
+      passed: Boolean(config.activeMatterName && fileCount >= 0 && storageChecksPass),
       runtimeDbEnabled: true,
+      runtimeDbStorageMode,
       tenantId: app.runtimeMatterIndex.tenantId || "",
       matterCount: matterRows.length,
       targetMatter: target.name || "",
       activeMatter: config.activeMatterName || "",
       workspaceReadable: Boolean(workspace.metadata || workspace.matter || Array.isArray(workspace.tree) || Array.isArray(workspace.files)),
       fileCount,
+      filePreviewPath,
+      storageFilePreviewReadable,
+      storageRawReadable,
       error: "",
     };
   } catch (error) {
@@ -83,12 +102,16 @@ export function renderRuntimeDbSmokeReport(report = {}) {
     "Matter Workbench runtime DB smoke",
     `passed: ${report.passed ? "yes" : "no"}`,
     `runtime_db_enabled: ${report.runtimeDbEnabled ? "yes" : "no"}`,
+    `runtime_db_storage_mode: ${report.runtimeDbStorageMode || ""}`,
     `tenant_id: ${report.tenantId || ""}`,
     `matter_count: ${report.matterCount || 0}`,
     `target_matter: ${report.targetMatter || ""}`,
     `active_matter: ${report.activeMatter || ""}`,
     `workspace_readable: ${report.workspaceReadable ? "yes" : "no"}`,
     `file_count: ${Number.isFinite(report.fileCount) ? report.fileCount : 0}`,
+    `file_preview_path: ${report.filePreviewPath || ""}`,
+    `storage_file_preview_readable: ${report.storageFilePreviewReadable ? "yes" : "no"}`,
+    `storage_raw_readable: ${report.storageRawReadable ? "yes" : "no"}`,
   ];
   if (report.error) lines.push(`error: ${report.error}`);
   return lines.map(redactRuntimeSmokeLine);
@@ -116,23 +139,42 @@ function failedReport(fields = {}) {
   return {
     passed: false,
     runtimeDbEnabled: Boolean(fields.runtimeDbEnabled),
+    runtimeDbStorageMode: fields.runtimeDbStorageMode || "",
     tenantId: fields.tenantId || "",
     matterCount: fields.matterCount || 0,
     targetMatter: fields.targetMatter || "",
     activeMatter: fields.activeMatter || "",
     workspaceReadable: false,
     fileCount: 0,
+    filePreviewPath: fields.filePreviewPath || "",
+    storageFilePreviewReadable: false,
+    storageRawReadable: false,
     error: fields.error || "Runtime DB smoke failed.",
   };
 }
 
 function countWorkspaceNodes(nodes = []) {
+  if (nodes && typeof nodes === "object" && !Array.isArray(nodes)) return countWorkspaceNodes(nodes.children || []);
   let count = 0;
   for (const node of nodes) {
     count += 1;
     if (Array.isArray(node.children)) count += countWorkspaceNodes(node.children);
   }
   return count;
+}
+
+function firstPreviewableFilePath(treeOrNodes = []) {
+  const nodes = Array.isArray(treeOrNodes)
+    ? treeOrNodes
+    : Array.isArray(treeOrNodes?.children)
+      ? treeOrNodes.children
+      : [];
+  for (const node of nodes) {
+    if (node?.kind === "file" && node.previewable && node.previewKind === "text" && node.path) return node.path;
+    const childPath = firstPreviewableFilePath(node?.children || []);
+    if (childPath) return childPath;
+  }
+  return "";
 }
 
 function redactRuntimeSmokeLine(value) {

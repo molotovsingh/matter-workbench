@@ -5,15 +5,19 @@ import {
   createRuntimeDbMatterIndex,
   defaultRuntimeDbTenantId,
   isRuntimeDbModeEnabled,
+  isRuntimeDbStorageModeEnabled,
 } from "../services/runtime-db-matter-index.mjs";
 
 test("runtime DB matter index is disabled unless explicitly requested", () => {
   assert.equal(isRuntimeDbModeEnabled({}), false);
   assert.equal(isRuntimeDbModeEnabled({ MWB_RUNTIME_DB: "filesystem" }), false);
   assert.equal(isRuntimeDbModeEnabled({ MWB_RUNTIME_DB: "postgres" }), true);
+  assert.equal(isRuntimeDbStorageModeEnabled({}), false);
+  assert.equal(isRuntimeDbStorageModeEnabled({ MWB_RUNTIME_DB_STORAGE: "postgres" }), true);
 
   const index = createRuntimeDbMatterIndex({ env: {} });
   assert.equal(index.enabled, false);
+  assert.equal(index.storageMode, "local-filesystem");
 });
 
 test("runtime DB matter index fails closed without cutover approval", () => {
@@ -47,6 +51,7 @@ test("runtime DB matter index lists active matter folders from Postgres JSON", a
       MWB_RUNTIME_DB: "postgres",
       MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
       MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+      MWB_RUNTIME_DB_STORAGE: "postgres",
     },
     spawn: (command, args, options) => {
       calls.push({ command, args, input: options.input, env: options.env });
@@ -66,6 +71,7 @@ test("runtime DB matter index lists active matter folders from Postgres JSON", a
   });
 
   assert.equal(index.enabled, true);
+  assert.equal(index.storageMode, "postgres");
   assert.deepEqual(await index.listMatterFolders(), [
     {
       id: "matter-1",

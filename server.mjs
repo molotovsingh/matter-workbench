@@ -14,6 +14,7 @@ import { createMatterAttentionService } from "./services/matter-attention-servic
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
+import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
@@ -57,6 +58,10 @@ export async function createWorkbenchServer(options = {}) {
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
+  const runtimeDbStorageService = options.runtimeDbStorageService || createRuntimeDbStorageService({
+    databaseUrl: String(env.MWB_DATABASE_URL || env.DATABASE_URL || ""),
+    tenantId: runtimeMatterIndex.tenantId || "",
+  });
   const uploadService = createUploadService({
     matterStore,
     workspaceService,
@@ -148,6 +153,7 @@ export async function createWorkbenchServer(options = {}) {
     matterContextService,
     matterStatusService,
     prepareMatterService,
+    runtimeDbStorageService,
     skillIdeasService,
     skillFactoryHealthService,
     skillInterviewPlannerService,

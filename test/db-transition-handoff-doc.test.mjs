@@ -8,15 +8,18 @@ const dbReadmePath = new URL("../db/README.md", import.meta.url);
 const localVmPasswordPattern = ["aks", "ingh11"].join("");
 const passwordPlaceholderPattern = ["choose", "a", "password", "here"].join("-");
 
-test("database transition handoff doc records the shadow-only path without secrets", async () => {
+test("database transition handoff doc records the runtime DB storage boundary without secrets", async () => {
   const doc = await readFile(handoffDocPath, "utf8");
 
   assert.match(doc, /# Database Transition Handoff/);
-  assert.match(doc, /shadow-only/i);
+  assert.match(doc, /runtime DB read\/storage slice/i);
+  assert.match(doc, /DB write-side worker path pending/i);
   assert.match(doc, /npm run db:migrate/);
   assert.match(doc, /npm run db:shadow:hydrate/);
   assert.match(doc, /npm run db:shadow:hydrate:verify/);
+  assert.match(doc, /npm run db:storage:payloads:hydrate/);
   assert.match(doc, /npm run db:shadow:snapshot/);
+  assert.match(doc, /MWB_RUNTIME_DB_STORAGE=postgres/);
   assert.match(doc, /repo branch, short\s+commit, and whether\s+the worktree was clean/i);
   assert.match(doc, /npm run db:shadow:backup/);
   assert.match(doc, /npm run db:shadow:storage-backup/);
@@ -26,9 +29,12 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /db:doctor[\s\S]*preflight/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*ready_to_hydrate:\s*yes/i);
   assert.match(doc, /db:shadow:snapshot[\s\S]*refuses to write/i);
-  assert.match(doc, /restored DB rows[\s\S]*missing PDFs/i);
-  assert.match(doc, /database backup[\s\S]*local storage/i);
-  assert.match(doc, /durable object storage/i);
+  assert.match(doc, /DB pointer[\s\S]*without file bytes/i);
+  assert.match(doc, /storage_object_payloads/i);
+  assert.match(doc, /Accepted DB Payload Custody Slice[\s\S]*size_bytes[\s\S]*octet_length/i);
+  assert.match(doc, /storage backup travels with the DB\s+backup/i);
+  assert.match(doc, /object-storage policy/i);
+  assert.match(doc, /object storage/i);
   assert.match(doc, /MWB_PSQL_BIN/);
   assert.match(doc, /Homebrew[\s\S]*libpq/i);
   assert.match(doc, /\.env\.shadow/);
@@ -73,7 +79,8 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Current Snapshot Evidence[\s\S]*local matter/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*source repo state/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*do not keep refreshing/i);
-  assert.match(doc, /Do not cut over runtime reads or writes/i);
+  assert.match(doc, /Do not treat this as a hosted multi-user cutover/i);
+  assert.match(doc, /DB-backed legal-engine write path/i);
   assert.match(doc, /runtime cutover check is not part of shadow acceptance/i);
   assert.match(doc, /expected to fail closed/i);
   assert.doesNotMatch(

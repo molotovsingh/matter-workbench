@@ -13,9 +13,14 @@ import {
 export function createMatterStore({ configService, initialMatterRoot = null, runtimeMatterIndex = null } = {}) {
   if (!configService) throw new Error("configService is required");
   let matterRoot = initialMatterRoot ? path.resolve(initialMatterRoot) : null;
+  let activeMatterRecord = null;
 
   function hasRuntimeMatterIndex() {
     return Boolean(runtimeMatterIndex?.enabled);
+  }
+
+  function hasRuntimeDbStorageMode() {
+    return hasRuntimeMatterIndex() && runtimeMatterIndex.storageMode === "postgres";
   }
 
   function getMattersHome() {
@@ -42,10 +47,12 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
 
   function setMatterRoot(nextRoot) {
     matterRoot = nextRoot ? path.resolve(nextRoot) : null;
+    activeMatterRecord = null;
   }
 
   function clearMatterRoot() {
     matterRoot = null;
+    activeMatterRecord = null;
   }
 
   function isInsideMattersHome(filePath) {
@@ -53,6 +60,7 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   function activeMatterNameWithinHome() {
+    if (hasRuntimeDbStorageMode() && activeMatterRecord?.name) return activeMatterRecord.name;
     const mattersHome = getMattersHome();
     if (!matterRoot || !mattersHome) return null;
     if (!isInsideRoot(mattersHome, matterRoot)) return null;
@@ -112,6 +120,14 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
     if (!matter) throw makeHttpError("Matter not found", 404);
 
     const name = validateMatterName(matter.name || matter.folderName);
+    if (hasRuntimeDbStorageMode()) {
+      return {
+        ...matter,
+        name,
+        matterPath: `postgres:${name}`,
+        runtimeStorageMode: "postgres",
+      };
+    }
     const mattersHome = ensureMattersHome();
     const matterPath = path.join(mattersHome, name);
     if (!isInsideRoot(mattersHome, matterPath) || path.dirname(matterPath) !== mattersHome) {
@@ -132,12 +148,17 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   async function switchMatter(rawName) {
-    const { matterPath } = await resolveExistingMatter(rawName);
+    const resolved = await resolveExistingMatter(rawName);
+    const { matterPath } = resolved;
     matterRoot = matterPath;
+    activeMatterRecord = resolved.runtimeStorageMode === "postgres" ? resolved : null;
     return matterRoot;
   }
 
   async function readMatterJson(root = ensureMatterRoot()) {
+    if (isRuntimeDbVirtualRoot(root) && activeMatterRecord) {
+      return matterJsonFromRuntimeMatter(activeMatterRecord);
+    }
     return JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
   }
 
@@ -151,6 +172,16 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   async function readExistingMatterMetadata(root = ensureMatterRoot()) {
+    if (isRuntimeDbVirtualRoot(root) && activeMatterRecord) {
+      return {
+        matterName: activeMatterRecord.matterName || activeMatterRecord.name || "",
+        matterType: activeMatterRecord.matterType || "",
+        clientName: activeMatterRecord.clientName || "",
+        oppositeParty: activeMatterRecord.oppositeParty || "",
+        jurisdiction: activeMatterRecord.jurisdiction || "",
+        briefDescription: activeMatterRecord.briefDescription || "",
+      };
+    }
     try {
       const raw = await readMatterJson(root);
       return {
@@ -203,6 +234,21 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
     return toPosix(path.relative(ensureMatterRoot(), filePath));
   }
 
+  function isRuntimeDbVirtualRoot(root) {
+    return hasRuntimeDbStorageMode() && String(root || "").startsWith("postgres:");
+  }
+
+  function matterJsonFromRuntimeMatter(matter = {}) {
+    return {
+      matter_name: matter.matterName || matter.name || "",
+      matter_type: matter.matterType || "",
+      client_name: matter.clientName || "",
+      opposite_party: matter.oppositeParty || "",
+      jurisdiction: matter.jurisdiction || "",
+      brief_description: matter.briefDescription || "",
+    };
+  }
+
   return {
     activeMatterNameWithinHome,
     clearMatterRoot,
@@ -210,7 +256,9 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
     ensureMattersHome,
     extractRegisterHashes,
     getMatterRoot: () => matterRoot,
+    getActiveMatterRecord: () => activeMatterRecord,
     getMattersHome,
+    hasRuntimeDbStorageMode,
     isInsideMattersHome,
     listIntakeFolders,
     listMattersHomeChildren,

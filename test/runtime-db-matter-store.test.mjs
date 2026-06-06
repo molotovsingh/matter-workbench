@@ -94,3 +94,42 @@ test("runtime DB matter index fails closed when local storage folder is missing"
     /Matter storage folder is missing/,
   );
 });
+
+test("runtime DB postgres storage mode resolves missing local folder as virtual active matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-virtual-storage-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+
+  const runtimeMatterIndex = {
+    enabled: true,
+    storageMode: "postgres",
+    listMatterFolders: async () => [{ name: "Missing Local Folder", matterName: "Legal Caption" }],
+    findMatterFolder: async () => ({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Missing Local Folder",
+      matterName: "Legal Caption",
+      clientName: "Client",
+    }),
+  };
+  const store = createMatterStore({
+    configService: configService(mattersHome),
+    runtimeMatterIndex,
+  });
+
+  const resolved = await store.resolveExistingMatter("Legal Caption");
+  assert.equal(resolved.name, "Missing Local Folder");
+  assert.equal(resolved.matterPath, "postgres:Missing Local Folder");
+  assert.equal(resolved.runtimeStorageMode, "postgres");
+
+  await store.switchMatter("Legal Caption");
+  assert.equal(store.getMatterRoot(), "postgres:Missing Local Folder");
+  assert.equal(store.activeMatterNameWithinHome(), "Missing Local Folder");
+  assert.deepEqual(store.getActiveMatterRecord(), {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Missing Local Folder",
+    matterName: "Legal Caption",
+    clientName: "Client",
+    runtimeStorageMode: "postgres",
+    matterPath: "postgres:Missing Local Folder",
+  });
+});

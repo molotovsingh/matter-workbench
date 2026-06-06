@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 const storageHydratorPath = new URL("../scripts/db-hydrate-local-storage.mjs", import.meta.url);
@@ -21,6 +24,7 @@ test("local storage DB hydrator dry-run plans custody rows without reading file 
   assert.equal(plan.databaseWrites, false);
   assert.deepEqual(plan.totals, {
     storageObjects: 5,
+    storageObjectPayloads: 0,
     documentBlobs: 2,
     extractionPayloads: 1,
     matterArtifacts: 1,
@@ -29,6 +33,7 @@ test("local storage DB hydrator dry-run plans custody rows without reading file 
   });
   assert.deepEqual(plan.plannedRows, {
     storageObjects: 5,
+    storageObjectPayloads: 0,
     documentBlobs: 2,
     extractionStorageLinks: 1,
     matterArtifactStorageLinks: 1,
@@ -72,6 +77,54 @@ test("local storage DB hydrator builds idempotent object custody SQL", async () 
   assert.doesNotMatch(sql, /sample markdown body/i);
 });
 
+test("local storage DB hydrator can attach runtime payload rows from local files", async () => {
+  const {
+    attachLocalStoragePayloads,
+    buildLocalStorageHydrationSql,
+    buildShadowStoragePlan,
+    buildStorageHydrationCountSql,
+  } = await import(storageHydratorPath.href);
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-storage-payloads-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const sourceBody = Buffer.from("source file body");
+  const workingBody = Buffer.from("working copy body");
+  const extractionBody = Buffer.from('{"fileId":"FILE-0001"}');
+  const sourceIndexBody = Buffer.from('{"sources":[]}');
+  const sampleBody = Buffer.from("# sample markdown body");
+
+  await writeHydrationFile(mattersHome, "Alpha Matter/00_Inbox/Intake 01/Originals/agreement.pdf", sourceBody);
+  await writeHydrationFile(mattersHome, "Alpha Matter/00_Inbox/Intake 01/By Type/PDFs/FILE-0001__agreement.pdf", workingBody);
+  await writeHydrationFile(mattersHome, "Alpha Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", extractionBody);
+  await writeHydrationFile(mattersHome, "Alpha Matter/10_Library/Source Index.json", sourceIndexBody);
+  await writeHydrationFile(appDir, "local-skill-samples/sample_alpha.md", sampleBody);
+
+  const plan = buildShadowStoragePlan({
+    matterPlan: matterPlanFixture(),
+    skillPlan: skillPlanFixture(),
+    appDir,
+    mattersHome,
+  });
+  await attachLocalStoragePayloads(plan, { appDir, mattersHome });
+
+  assert.equal(plan.storageObjectPayloads.length, 5);
+  assert.equal(plan.totals.storageObjectPayloads, 5);
+  assert.equal(plan.plannedRows.storageObjectPayloads, 5);
+
+  const sourcePayload = plan.storageObjectPayloads.find((payload) => payload.objectKey === "Alpha Matter/00_Inbox/Intake 01/Originals/agreement.pdf");
+  assert.equal(sourcePayload.sha256, sha256Hex(sourceBody));
+  assert.equal(sourcePayload.sizeBytes, sourceBody.length);
+  assert.equal(sourcePayload.payloadHex, sourceBody.toString("hex"));
+  assert.doesNotMatch(JSON.stringify(plan), /source file body/);
+
+  const sql = buildLocalStorageHydrationSql(plan);
+  const countSql = buildStorageHydrationCountSql(plan);
+  assert.match(sql, /insert into storage_object_payloads/i);
+  assert.match(sql, /decode\('[0-9a-f]+', 'hex'\)/i);
+  assert.match(sql, /on conflict \(tenant_id, storage_object_id\) do update/i);
+  assert.match(countSql, /storage_object_payloads/i);
+});
+
 test("local storage DB hydrator apply, verify, and inspect use psql without leaking secrets", async () => {
   const {
     applyLocalStorageHydrationPlan,
@@ -104,6 +157,7 @@ test("local storage DB hydrator apply, verify, and inspect use psql without leak
         "extraction_storage_links|1",
         "matter_artifact_storage_links|1",
         "skill_sample_storage_links|1",
+        "storage_object_payloads|0",
         "",
       ].join("\n"),
       stderr: "",
@@ -136,11 +190,15 @@ test("package and database docs expose local storage shadow hydration commands",
   assert.equal(pkg.scripts["db:storage:hydrate"], "node scripts/db-hydrate-local-storage.mjs --apply");
   assert.equal(pkg.scripts["db:storage:hydrate:verify"], "node scripts/db-hydrate-local-storage.mjs --verify");
   assert.equal(pkg.scripts["db:storage:shadow:inspect"], "node scripts/db-hydrate-local-storage.mjs --inspect");
+  assert.equal(pkg.scripts["db:storage:payloads:hydrate:dry-run"], "node scripts/db-hydrate-local-storage.mjs --dry-run --include-payloads");
+  assert.equal(pkg.scripts["db:storage:payloads:hydrate"], "node scripts/db-hydrate-local-storage.mjs --apply --include-payloads");
+  assert.equal(pkg.scripts["db:storage:payloads:hydrate:verify"], "node scripts/db-hydrate-local-storage.mjs --verify --include-payloads");
 
   const readme = await readFile(dbReadmePath, "utf8");
   assert.match(readme, /npm run db:storage:hydrate:dry-run/);
   assert.match(readme, /npm run db:storage:hydrate:verify/);
   assert.match(readme, /npm run db:storage:shadow:inspect/);
+  assert.match(readme, /npm run db:storage:payloads:hydrate/);
 });
 
 function buildShadowStoragePlanFixture() {
@@ -262,4 +320,14 @@ function storageObject(id, matterId, objectKey, objectRole) {
     sha256: "",
     idempotencyKey: `local-shadow:${objectKey}`,
   };
+}
+
+async function writeHydrationFile(root, relativePath, body) {
+  const filePath = path.join(root, ...relativePath.split("/"));
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, body);
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(value).digest("hex");
 }

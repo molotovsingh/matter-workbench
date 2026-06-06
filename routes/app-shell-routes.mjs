@@ -8,6 +8,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     commandInteractionLogService,
     configService,
     matterStore,
+    runtimeDbStorageService,
     uploadService,
     workspaceService,
   } = services;
@@ -64,6 +65,10 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       exactRoute("POST", "/api/switch-matter", async () => {
         const body = await readRequestJson(request);
         await matterStore.switchMatter(body.name);
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          sendJson(response, 200, await runtimeDbStorageService.readWorkspace(matterStore.getActiveMatterRecord()));
+          return;
+        }
         sendJson(response, 200, await workspaceService.readWorkspace());
       }),
       exactRoute("POST", "/api/matters/new", async () => {
@@ -104,14 +109,36 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, { warnings });
       }),
       exactRoute("GET", "/api/workspace", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          sendJson(response, 200, await runtimeDbStorageService.readWorkspace(matter));
+          return;
+        }
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await workspaceService.readWorkspace(root));
       }),
       exactRoute("GET", "/api/file", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          sendJson(response, 200, await runtimeDbStorageService.readFilePreview(requestUrl.searchParams.get("path") || "", matter));
+          return;
+        }
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await workspaceService.readFilePreview(requestUrl.searchParams.get("path") || "", root));
       }),
       exactRoute("GET", "/api/file-raw", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          const raw = await runtimeDbStorageService.getRawFile(requestUrl.searchParams.get("path") || "", matter);
+          response.writeHead(200, {
+            "content-type": raw.contentType,
+            "content-length": raw.fileSize,
+            "content-disposition": `inline; filename="${raw.safeFilename}"`,
+            "cache-control": "no-store",
+          });
+          raw.stream.pipe(response);
+          return;
+        }
         const root = await matterRootForQuery(matterStore, requestUrl);
         const raw = await workspaceService.getRawFile(requestUrl.searchParams.get("path") || "", root);
         response.writeHead(200, {
@@ -124,6 +151,19 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+function usesRuntimeDbStorage(matterStore, runtimeDbStorageService) {
+  return Boolean(matterStore.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled);
+}
+
+async function runtimeDbMatterForQuery(matterStore, requestUrl) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (matterName) return matterStore.resolveExistingMatter(matterName);
+  const activeMatter = matterStore.getActiveMatterRecord?.();
+  if (activeMatter) return activeMatter;
+  matterStore.ensureMatterRoot();
+  return matterStore.getActiveMatterRecord?.();
 }
 
 async function matterRootForQuery(matterStore, requestUrl) {
