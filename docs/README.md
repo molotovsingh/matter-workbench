@@ -15,6 +15,7 @@ equally authoritative.
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
 | Beta testing workflow | [Beta Testing List of Dates](beta-testing-list-of-dates.md) |
 | Database transition handoff | [Database Transition Handoff](database-transition-handoff.md) |
+| Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
 | Current release notes | [v1.0.0-beta.4](releases/v1.0.0-beta.4.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |

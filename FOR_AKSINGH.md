@@ -1940,6 +1940,17 @@ That is the difference between "the code looks right" and "the runtime path
 actually worked against Postgres". The checked-in evidence is under
 `docs/runtime-db-write-smokes/`.
 
+The browser rehearsal came next because script proof and product proof are not
+the same thing. We started the React app with explicit runtime DB flags, opened
+it at `127.0.0.1:4191`, selected a DB-backed matter, opened a DB-backed file
+preview, checked Activity, Settings, Skills, and Home navigation, and then ran a
+controlled write smoke outside the repo. We also started a second server with DB
+mode off to prove the filesystem local beta still works. That rehearsal is now
+recorded in `docs/runtime-db-cutover-rehearsal.md`. The main lesson: a database
+cutover is not only "can SQL rows be written?" It is "can the user still move
+through the actual app without feeling the storage layer changed underneath
+them?"
+
 This completes the local/private runtime DB slice, not the hosted deployment
 story. Hosted auth, object storage, background workers, restart recovery, and
 degraded-mode policy remain separate. Good engineering is not only making
