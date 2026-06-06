@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -34,6 +34,7 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     auditJsonPath: env.MWB_PRIVATE_VM_AUDIT_JSON || "",
     auditDispositionPath: env.MWB_PRIVATE_VM_AUDIT_DISPOSITION || "",
     mattersHome: env.MWB_PRIVATE_VM_MATTERS_HOME || "",
+    runtimeBrowserEvidenceJson: env.MWB_RUNTIME_DB_BROWSER_ACCEPTANCE_JSON || "",
     authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
     authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
     skipLocalGates: false,
@@ -73,6 +74,9 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     } else if (arg === "--matters-home") {
       parsed.mattersHome = path.resolve(requiredValue(argv, i, arg));
       i += 1;
+    } else if (arg === "--runtime-browser-evidence-json") {
+      parsed.runtimeBrowserEvidenceJson = path.resolve(requiredValue(argv, i, arg));
+      i += 1;
     } else if (arg === "--auth-username") {
       parsed.authUsername = requiredValue(argv, i, arg);
       i += 1;
@@ -109,6 +113,7 @@ export async function runPrivateBetaRcClosurePack({
   auditJsonPath = "",
   auditDispositionPath = "",
   mattersHome = "",
+  runtimeBrowserEvidenceJson = "",
   authUsername = "",
   authPassword = "",
   skipLocalGates = false,
@@ -148,7 +153,7 @@ export async function runPrivateBetaRcClosurePack({
     : await runStep("runtime_db_browser", async () => normalizeRuntimeBrowser(await runtimeBrowserPackFn({
       outDir: path.join(packDir, "runtime-db-browser"),
       timestamp: generatedAt,
-    })));
+    })), { evidenceJsonPath: runtimeBrowserEvidenceJson });
 
   const privateVmService = skipServiceCheck
     ? skippedSection("private_vm_service", "skipped by --skip-service-check")
@@ -272,12 +277,15 @@ async function runLocalGates({ localGateRunner }) {
   };
 }
 
-async function runStep(label, fn) {
+async function runStep(label, fn, options = {}) {
   try {
-    const result = await fn();
+    const result = options.evidenceJsonPath
+      ? await loadEvidenceJson(options.evidenceJsonPath)
+      : await fn();
     return {
       label,
       ok: Boolean(result.ok),
+      ...(options.evidenceJsonPath ? { evidenceJsonPath: options.evidenceJsonPath } : {}),
       ...result,
     };
   } catch (error) {
@@ -287,6 +295,14 @@ async function runStep(label, fn) {
       error: redactLine(error?.message || `${label} failed`),
     };
   }
+}
+
+async function loadEvidenceJson(evidenceJsonPath) {
+  const payload = JSON.parse(await readFile(evidenceJsonPath, "utf8"));
+  if (payload.schemaVersion === "runtime-db-browser-acceptance-pack/v1") {
+    return normalizeRuntimeBrowser(payload);
+  }
+  throw new Error(`Unsupported evidence JSON for closure pack: ${payload.schemaVersion || "missing schemaVersion"}`);
 }
 
 function normalizeRuntimeBrowser(report = {}) {

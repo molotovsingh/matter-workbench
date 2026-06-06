@@ -13,6 +13,7 @@ Useful options:
 ```bash
 npm run private-beta:rc-closure-pack -- --base-url http://172.16.37.128:4191
 npm run private-beta:rc-closure-pack -- --out-dir .local/private-beta-rc-closure-packs
+npm run private-beta:rc-closure-pack -- --runtime-browser-evidence-json /path/to/runtime-db-browser-acceptance-pack.json
 ```
 
 The pack answers one release question:
@@ -32,6 +33,12 @@ their internals:
 - private VM ops pack;
 - private VM security/access check;
 - private VM recoverability pack.
+
+On a private VM that does not have Playwright/Chrome installed, run
+`npm run db:runtime:browser-accept` from the Mac first, copy the resulting JSON
+to the VM, then pass it with `--runtime-browser-evidence-json`. The closure pack
+will treat that JSON as the browser-acceptance evidence instead of weakening the
+run with a skipped browser gate.
 
 It writes:
 

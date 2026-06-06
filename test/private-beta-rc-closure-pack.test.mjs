@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -188,6 +188,53 @@ test("private beta RC closure pack treats skipped required gates as incomplete",
   assert.equal(result.success, false);
   assert.equal(result.localGates.skipped, true);
   assert.match(result.failedChecks.join(","), /local_verification/);
+});
+
+test("private beta RC closure pack can consume existing runtime browser evidence", async () => {
+  const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-evidence-"));
+  const browserEvidencePath = path.join(outDir, "runtime-browser-evidence.json");
+  await writeFile(browserEvidencePath, JSON.stringify({
+    schemaVersion: "runtime-db-browser-acceptance-pack/v1",
+    passed: true,
+    runtimeDb: { enabled: true, mode: "postgres/postgres", storageMode: "postgres" },
+    writeSmoke: { passed: true },
+    browser: {
+      passed: true,
+      driver: "playwright",
+      checks: [{ key: "react_root_loaded", passed: true, detail: "React rendered" }],
+      consoleErrors: [],
+    },
+    files: { json: browserEvidencePath },
+  }), "utf8");
+
+  assert.equal(
+    parseRcClosurePackArgs(["--runtime-browser-evidence-json", browserEvidencePath], {}).runtimeBrowserEvidenceJson,
+    browserEvidencePath,
+  );
+
+  let browserRunnerCalled = false;
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    runtimeBrowserEvidenceJson: browserEvidencePath,
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => {
+      browserRunnerCalled = true;
+      return { passed: false };
+    },
+    serviceCheckFn: async () => ({ passed: true }),
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(browserRunnerCalled, false);
+  assert.equal(result.success, true);
+  assert.equal(result.runtimeDbBrowser.ok, true);
+  assert.equal(result.runtimeDbBrowser.browserDriver, "playwright");
+  assert.equal(result.runtimeDbBrowser.evidenceJsonPath, browserEvidencePath);
 });
 
 test("package and release docs expose the private beta RC closure pack", async () => {
