@@ -817,6 +817,18 @@ bogus database URL. DB scripts still fail closed when they need a database, but
 the product remains filesystem-backed. That is a good lesson: the safest
 fallback is often not a clever fallback at all; it is refusing to make an
 experimental mirror part of the live path too early.
+The first runtime DB slice changes that carefully, not dramatically. With
+`MWB_RUNTIME_DB=postgres` and explicit approval, Postgres now owns the matter
+index and active-matter resolution: the app asks the database, "which matters
+exist, and which local folder does this matter point to?" Then the existing
+filesystem path still opens the files, previews, preparation outputs, List of
+Dates, and custom-skill artifacts. Think of it as letting the database become
+the front desk before making it the whole building. The front desk can tell you
+which room to enter; the documents are still in the room. That is a meaningful
+runtime DB proof without taking custody risks with legal source files too early.
+`db:runtime:smoke` is the repeatable check for this slice: it starts the app in
+runtime DB mode, reads `/api/matters` from Postgres, switches one matter, and
+confirms the workspace still opens from local storage.
 The worker blocker got the same treatment. The local beta does not have a
 separate job worker; preparation still runs in the foreground app flow. The DB
 does have the future worker ingredients: `processing_jobs`, `job_outbox`, and

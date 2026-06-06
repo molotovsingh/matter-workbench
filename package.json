@@ -48,6 +48,7 @@
     "db:shadow:preflight": "node scripts/db-shadow-preflight.mjs",
     "db:shadow:acceptance": "node scripts/db-shadow-acceptance.mjs",
     "db:runtime-cutover-check": "node scripts/db-runtime-cutover-check.mjs",
+    "db:runtime:smoke": "node scripts/db-runtime-smoke.mjs",
     "db:shadow:backup": "node scripts/db-shadow-backup.mjs",
     "db:shadow:restore-drill": "node scripts/db-shadow-restore-drill.mjs",
     "db:shadow:storage-backup": "node scripts/db-shadow-storage-backup.mjs",

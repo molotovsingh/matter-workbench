@@ -10,9 +10,13 @@ import {
   registerHashSet,
 } from "./matter-store-intakes.mjs";
 
-export function createMatterStore({ configService, initialMatterRoot = null } = {}) {
+export function createMatterStore({ configService, initialMatterRoot = null, runtimeMatterIndex = null } = {}) {
   if (!configService) throw new Error("configService is required");
   let matterRoot = initialMatterRoot ? path.resolve(initialMatterRoot) : null;
+
+  function hasRuntimeMatterIndex() {
+    return Boolean(runtimeMatterIndex?.enabled);
+  }
 
   function getMattersHome() {
     return configService.getMattersHome();
@@ -57,6 +61,12 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
   }
 
   async function listMattersHomeChildren() {
+    if (hasRuntimeMatterIndex()) {
+      return (await runtimeMatterIndex.listMatterFolders()).map((matter) => {
+        const name = validateMatterName(matter.name || matter.folderName);
+        return { ...matter, name };
+      });
+    }
     const mattersHome = getMattersHome();
     if (!mattersHome) return [];
     try {
@@ -81,6 +91,9 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
   }
 
   async function resolveExistingMatter(rawName) {
+    if (hasRuntimeMatterIndex()) {
+      return resolveExistingRuntimeDbMatter(rawName);
+    }
     const target = matterPathForName(rawName);
     let targetStat;
     try {
@@ -91,6 +104,31 @@ export function createMatterStore({ configService, initialMatterRoot = null } = 
     }
     if (!targetStat.isDirectory()) throw makeHttpError("Not a directory", 400);
     return target;
+  }
+
+  async function resolveExistingRuntimeDbMatter(rawName) {
+    validateMatterName(rawName);
+    const matter = await runtimeMatterIndex.findMatterFolder(rawName);
+    if (!matter) throw makeHttpError("Matter not found", 404);
+
+    const name = validateMatterName(matter.name || matter.folderName);
+    const mattersHome = ensureMattersHome();
+    const matterPath = path.join(mattersHome, name);
+    if (!isInsideRoot(mattersHome, matterPath) || path.dirname(matterPath) !== mattersHome) {
+      throw makeHttpError("Invalid matter storage folder from runtime database", 500);
+    }
+
+    let targetStat;
+    try {
+      targetStat = await stat(matterPath);
+    } catch (cause) {
+      if (cause && cause.code === "ENOENT") {
+        throw makeHttpError(`Matter storage folder is missing for runtime DB matter: ${name}`, 409);
+      }
+      throw cause;
+    }
+    if (!targetStat.isDirectory()) throw makeHttpError("Matter storage path is not a directory", 409);
+    return { ...matter, name, matterPath };
   }
 
   async function switchMatter(rawName) {

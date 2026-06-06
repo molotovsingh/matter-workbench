@@ -1,0 +1,168 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  createRuntimeDbMatterIndex,
+  defaultRuntimeDbTenantId,
+  isRuntimeDbModeEnabled,
+} from "../services/runtime-db-matter-index.mjs";
+
+test("runtime DB matter index is disabled unless explicitly requested", () => {
+  assert.equal(isRuntimeDbModeEnabled({}), false);
+  assert.equal(isRuntimeDbModeEnabled({ MWB_RUNTIME_DB: "filesystem" }), false);
+  assert.equal(isRuntimeDbModeEnabled({ MWB_RUNTIME_DB: "postgres" }), true);
+
+  const index = createRuntimeDbMatterIndex({ env: {} });
+  assert.equal(index.enabled, false);
+});
+
+test("runtime DB matter index fails closed without cutover approval", () => {
+  assert.throws(
+    () => createRuntimeDbMatterIndex({
+      env: {
+        MWB_RUNTIME_DB: "postgres",
+        MWB_DATABASE_URL: "postgres://runtime:secret@example.test/mwb",
+      },
+    }),
+    /MWB_DB_RUNTIME_CUTOVER_APPROVED/,
+  );
+});
+
+test("runtime DB matter index fails closed without database URL", () => {
+  assert.throws(
+    () => createRuntimeDbMatterIndex({
+      env: {
+        MWB_RUNTIME_DB: "postgres",
+        MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      },
+    }),
+    /MWB_DATABASE_URL/,
+  );
+});
+
+test("runtime DB matter index lists active matter folders from Postgres JSON", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+    },
+    spawn: (command, args, options) => {
+      calls.push({ command, args, input: options.input, env: options.env });
+      return {
+        status: 0,
+        stdout: JSON.stringify([
+          {
+            id: "matter-1",
+            name: "Atlas Folder",
+            matterName: "Atlas Construction vs Diptishree",
+            clientName: "Diptishree",
+          },
+        ]),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.equal(index.enabled, true);
+  assert.deepEqual(await index.listMatterFolders(), [
+    {
+      id: "matter-1",
+      name: "Atlas Folder",
+      matterName: "Atlas Construction vs Diptishree",
+      clientName: "Diptishree",
+      oppositeParty: "",
+      matterType: "",
+      jurisdiction: "",
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
+  assert.match(calls[0].input, new RegExp(defaultRuntimeDbTenantId()));
+  assert.match(calls[0].input, /from matters m/i);
+  assert.match(calls[0].input, /matter_import_batches/i);
+  assert.equal(calls[0].env.PGPASSWORD, "secret");
+});
+
+test("runtime DB matter index can resolve by legal matter name or local folder name", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+      MWB_RUNTIME_DB_TENANT_ID: "11111111-1111-4111-8111-111111111111",
+    },
+    spawn: (command, args, options) => {
+      calls.push(options.input);
+      return {
+        status: 0,
+        stdout: JSON.stringify([{
+          id: "matter-2",
+          name: "Roma Folder",
+          matterName: "Taori Vs Roma Builders",
+        }]),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.deepEqual(await index.findMatterFolder("Taori Vs Roma Builders"), {
+    id: "matter-2",
+    name: "Roma Folder",
+    matterName: "Taori Vs Roma Builders",
+    clientName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+  });
+  assert.match(calls[0], /m\.name = 'Taori Vs Roma Builders'/);
+  assert.match(calls[0], /source_root_hint = 'Taori Vs Roma Builders'/);
+  assert.match(calls[0], /11111111-1111-4111-8111-111111111111/);
+});
+
+test("runtime DB matter index redacts database credentials from query failures", async () => {
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:top-secret@db.example/mwb",
+    },
+    spawn: () => ({
+      status: 1,
+      stdout: "",
+      stderr: "connection failed for postgres://runtime:top-secret@db.example/mwb",
+    }),
+  });
+
+  await assert.rejects(
+    () => index.listMatterFolders(),
+    (error) => {
+      assert.match(error.message, /runtime DB query failed/);
+      assert.doesNotMatch(error.message, /top-secret/);
+      assert.match(error.message, /\*\*\*/);
+      return true;
+    },
+  );
+});
+
+test("runtime DB matter index fails closed on malformed Postgres JSON", async () => {
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+    },
+    spawn: () => ({
+      status: 0,
+      stdout: "not-json",
+      stderr: "",
+    }),
+  });
+
+  await assert.rejects(
+    () => index.listMatterFolders(),
+    /runtime DB query returned no matter JSON/,
+  );
+});

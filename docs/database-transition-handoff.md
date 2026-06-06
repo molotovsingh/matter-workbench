@@ -143,6 +143,40 @@ MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check
 That flag allows the guard to report readiness. It does not make the app read
 or write Postgres by itself.
 
+## Accepted First Runtime Slice
+
+The first runtime DB slice is now implemented behind an explicit opt-in:
+
+```bash
+MWB_RUNTIME_DB=postgres \
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes \
+MWB_DATABASE_URL="$MWB_DATABASE_URL" \
+npm run db:runtime:smoke
+```
+
+Scope is intentionally narrow. In this mode Postgres is the runtime source for:
+
+- `/api/matters`;
+- active matter resolution in `/api/switch-matter`;
+- resolving a legal matter name or local folder name to the local matter folder.
+
+The app still uses the filesystem/object-custody path for:
+
+- original files and PDF bytes;
+- workspace tree and file previews;
+- preparation outputs;
+- source labels and List of Dates artifacts;
+- custom skill outputs and receipts.
+
+This is the right first cutover because it proves that the product can depend
+on Postgres for a visible runtime decision without pretending that file custody,
+artifact writes, worker execution, or hosted auth have fully moved.
+
+On the local VM, the runtime smoke passed against the hydrated shadow database:
+15 active DB matters were visible, the app switched to a DB-listed matter, and
+the workspace remained readable from local storage. Treat that as current
+runtime-slice evidence, not a full database migration.
+
 ## Current Snapshot Evidence
 
 The current checked-in snapshot is:
@@ -342,9 +376,10 @@ Stop before runtime cutover if any of these are still unresolved:
 - hosted web/session middleware that validates provider tokens and sets
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
-  storage.
+  storage beyond the first matter-index slice.
 - explicit runtime-storage approval recorded before setting
   `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`.
 
-The database is allowed to learn from the local app now. The local app should
-not depend on the database until those questions are closed.
+The database is allowed to learn from the local app now. The local app may
+depend on the database only for the approved matter-index runtime slice until
+the remaining hosted/runtime questions are closed.

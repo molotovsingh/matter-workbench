@@ -241,6 +241,15 @@ technical blockers remain, the command still fails closed until the operator
 sets `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes` after explicit runtime-storage
 approval.
 
+`db:runtime:smoke` is the first real runtime-DB proof. It starts the app with
+`MWB_RUNTIME_DB=postgres`, requires `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`, reads
+`/api/matters` from Postgres, switches to one DB-listed matter, and confirms the
+workspace can still read the local matter folder. This is a narrow runtime
+slice: Postgres owns the matter index and active-matter resolution, while file
+bytes, workspace browsing, and generated legal artifacts remain
+filesystem/object-backed. A passing smoke does not mean all app state has moved
+to Postgres.
+
 `db:shadow:backup` creates a local ignored backup of the shadow database under
 `.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a
 small manifest with the dump hash and byte size. It is for rehearsal and
@@ -377,4 +386,17 @@ MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check
 ```
 
 This flag only lets the guard report readiness. It does not switch runtime
-storage by itself.
+storage by itself. To exercise the approved first runtime slice, run the app or
+the smoke command with runtime DB mode explicitly enabled:
+
+```sh
+MWB_RUNTIME_DB=postgres \
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes \
+MWB_DATABASE_URL="postgres://..." \
+npm run db:runtime:smoke
+```
+
+Expected first-slice behavior: `/api/matters` and matter switching use the
+Postgres matter index; `/api/workspace`, file previews, preparation, source
+labels, List of Dates, and custom-skill artifacts still read/write the existing
+local matter folder.

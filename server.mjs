@@ -13,6 +13,7 @@ import { createMatterStoryService } from "./services/matter-story-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
+import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
@@ -40,10 +41,12 @@ export async function createWorkbenchServer(options = {}) {
 
   const configService = createConfigService({ appDir, env });
   await configService.load();
+  const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
 
   const matterStore = createMatterStore({
     configService,
     initialMatterRoot: options.matterRoot || env.MATTER_ROOT || null,
+    runtimeMatterIndex,
   });
   const matterCopilotService = createMatterCopilotService({
     matterStore,
@@ -184,6 +187,7 @@ export async function createWorkbenchServer(options = {}) {
     server,
     uiShell,
     services,
+    runtimeMatterIndex,
   };
 }
 
