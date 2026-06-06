@@ -127,8 +127,9 @@ hydrate.
 
 Use `db:runtime-cutover-check` only when asking whether the product runtime may
 start depending on Postgres. It consumes `db:shadow:acceptance` and fails closed
-while runtime cutover blockers remain. It does not switch runtime storage,
-hydrate rows, apply migrations, or write snapshots.
+unless the shadow evidence is accepted and a separate runtime-storage approval
+has been given. It does not switch runtime storage, hydrate rows, apply
+migrations, or write snapshots.
 
 ## Current Snapshot Evidence
 
@@ -137,14 +138,17 @@ The current checked-in snapshot is:
 ```text
 docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T13-39-26-825Z.md
 docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-05T13-39-26-825Z.json
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-06T01-28-18-726Z.md
+docs/shadow-db-snapshots/shadow-db-snapshot-2026-06-06T01-28-18-726Z.json
 ```
 
-It reports `matched: yes` for the VM shadow database at the time it was
-generated. The snapshot mirrors 15 matters, 180 documents, 180 extraction
-records, 125 source descriptors, 28 matter artifacts, 8 configurable skills,
-22 configurable-skill runs, 64 open local attention incidents, and 61 provider
-runs. It also records `storage_custody: ok`, with 168 PDF storage objects
-checked and 0 missing local files. Treat it as one-run evidence, not live truth.
+The 2026-06-06 snapshot is the latest handoff evidence. It reports
+`matched: yes` for the VM shadow database at the time it was generated. It
+mirrors 15 matters, 180 documents, 180 extraction records, 125 source descriptors,
+28 matter artifacts, 8 configurable skills, 22 configurable-skill runs, 64 open
+local attention incidents, and 61 provider runs. It also records
+`storage_custody: ok`, with 168 PDF storage objects checked and 0 missing local
+files. Treat it as one-run evidence, not live truth.
 It is not a promise that future repo changes, local matter folders, skill
 ledgers, or shadow hydration runs still match. Refresh the snapshot after any of
 those changes before using it as a developer handoff artifact. The recorded
@@ -160,12 +164,14 @@ The current checked-in restore drill evidence is:
 ```text
 docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-05T05-53-07-036Z.md
 docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-05T05-53-07-036Z.json
+docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-06T01-28-31-835Z.md
+docs/shadow-db-restore-drills/shadow-db-restore-drill-2026-06-06T01-28-31-835Z.json
 ```
 
-It reports `Success: yes` for restoring
-`shadow-db-backup-2026-06-05T05-15-34-455Z.sql` into a temporary PostgreSQL
-database, verifying the restored shadow report, and cleaning up the temporary
-database. The recorded drill steps were:
+The 2026-06-06 restore drill is the latest handoff evidence. It reports
+`Success: yes` for restoring `shadow-db-backup-2026-06-06T01-28-21-222Z.sql`
+into a temporary PostgreSQL database, verifying the restored shadow report, and
+cleaning up the temporary database. The recorded drill steps were:
 
 ```text
 create restore database: ok
@@ -185,10 +191,13 @@ The current checked-in storage restore-check evidence is:
 ```text
 docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-05T06-08-44-843Z.md
 docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-05T06-08-44-843Z.json
+docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-06T01-28-34-818Z.md
+docs/shadow-storage-restore-checks/shadow-storage-restore-check-2026-06-06T01-28-34-818Z.json
 ```
 
-It reports `Success: yes` for a local ignored storage backup generated at
-`2026-06-05T06:06:47.988Z`, with 168 checked PDF objects and 0 failed objects.
+The 2026-06-06 storage restore-check is the latest handoff evidence. It reports
+`Success: yes` for a local ignored storage backup generated at
+`2026-06-06T01:28:21.589Z`, with 168 checked PDF objects and 0 failed objects.
 This proves the local backup manifest can be read and the copied PDF objects are
 present and hash-matching. It does not decide the hosted object-storage provider
 or prove a multi-host deployment storage policy.
