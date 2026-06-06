@@ -512,6 +512,36 @@ web/session middleware that validates a provider token, selects the active
 tenant, sets `app.tenant_id` and `app.user_id`, and refuses inactive or
 cross-tenant memberships.
 
+## Private Debian VM Runtime Rehearsal
+
+The next deployment rehearsal ran the React app on the private Debian VM at
+`172.16.37.128` from checkpoint `12d8cd7` with explicit runtime DB mode:
+
+```text
+MWB_RUNTIME_DB=postgres
+MWB_RUNTIME_DB_STORAGE=postgres
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
+```
+
+The app was reachable from the Mac at `http://172.16.37.128:4191/`, served the
+React shell, returned 15 DB-backed matters with `mattersHome: null`, streamed an
+original PDF payload, previewed an extracted JSON payload, and passed
+`npm run db:runtime:write-smoke` from inside the VM deployment directory.
+
+This proves the local/private runtime DB app can run on a separate private host
+without using the Mac matter folder as live runtime truth.
+
+The rehearsal also found an important verifier boundary:
+`db:runtime-cutover-check` still depends on `db:hydrate:verify`, and that
+verification step expects the source matter folder tree to exist at
+`/home/aks/matters-matter-workbench`. On the VM, that folder is intentionally
+absent, so the shadow verifier fails even though runtime serving and runtime
+write smoke pass. Treat the shadow verifier as source-host hydration evidence,
+not as the final product-serving proof for a VM that runs from DB payload
+custody.
+
+See [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md).
+
 ## What A Developer Should Check Next
 
 Before the next hosted DB-worker or cloud runtime slice:

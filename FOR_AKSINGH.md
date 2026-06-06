@@ -1955,3 +1955,25 @@ This completes the local/private runtime DB slice, not the hosted deployment
 story. Hosted auth, object storage, background workers, restart recovery, and
 degraded-mode policy remain separate. Good engineering is not only making
 progress; it is naming exactly which kind of progress was made.
+
+The private VM rehearsal made that boundary even sharper. We copied the current
+app checkpoint to the Debian VM, built it there, pointed it at the runtime
+Postgres database, and opened it from the Mac at the VM IP. The app listed
+DB-backed matters, showed the React screens, previewed extracted JSON, streamed
+a PDF, and passed the runtime write smoke from inside the VM. That is a real
+deployment rehearsal, not just a local script succeeding on the development
+machine.
+
+It also exposed a healthy discomfort: the old shadow verifier failed because it
+expected `/home/aks/matters-matter-workbench` to exist on the VM. That does not
+mean the runtime DB app failed. It means the verifier was still comparing the
+database to original source folders, which is the wrong proof once the VM is
+supposed to run from database payload custody. This is a classic migration
+lesson. A tool that was correct in one phase can become misleading in the next
+phase if you forget what question it was designed to answer.
+
+The deployment claim is therefore precise: Matter Workbench can run as a private
+single-host VM app backed by Postgres runtime custody. It is not yet a
+production cloud service. Before that claim, the app still needs HTTPS,
+authentication, persistent service management, backup/restore runbooks, object
+storage or an accepted durable-volume policy, and hosted worker recovery.
