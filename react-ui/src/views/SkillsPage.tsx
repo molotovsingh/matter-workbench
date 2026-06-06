@@ -17,6 +17,12 @@ interface LifecycleRenderContext {
   onLifecycleAction: (skill: ConfigurableSkill, action: LifecycleAction) => void;
 }
 
+interface PendingOverwrite {
+  skillId: string;
+  matterName: string;
+  artifactPath?: string | null;
+}
+
 export default function SkillsPage() {
   const { state, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
@@ -29,6 +35,7 @@ export default function SkillsPage() {
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [introHidden, setIntroHidden] = useState(readSkillsIntroHidden);
+  const [pendingOverwrite, setPendingOverwrite] = useState<PendingOverwrite | null>(null);
 
   const loadSkillData = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoadingSkills(true);
@@ -86,6 +93,10 @@ export default function SkillsPage() {
     };
   }, [loadSkillData]);
 
+  useEffect(() => {
+    setPendingOverwrite(null);
+  }, [state.activeMatter?.name]);
+
   async function handleRunCustomSkill(skill: ConfigurableSkill) {
     if (loadingRun || loadingLifecycle) return;
     if (!state.activeMatter) {
@@ -93,14 +104,18 @@ export default function SkillsPage() {
       return;
     }
     const matterName = state.activeMatter.name;
+    const isOverwritePending = pendingOverwrite?.skillId === skill.id && pendingOverwrite?.matterName === matterName;
     setLoadingRun(skill.id);
-    appendTerminal([`[skill] running ${skill.title || 'custom skill'} on ${matterName}…`]);
+    appendTerminal([`[skill] ${isOverwritePending ? 'overwriting' : 'running'} ${skill.title || 'custom skill'} on ${matterName}…`]);
     try {
-      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: false, matterName });
+      const result = await api.runConfigurableSkill({ slash: skill.slash, overwrite: isOverwritePending, matterName });
       if (activeMatterNameRef.current !== matterName) return;
       if (result.state === 'requires_overwrite') {
-        appendTerminal([`[skill] ${skill.title || 'Custom skill'} output exists at ${humanizeArtifactPath(result.artifactPath)} — overwrite not confirmed`]);
+        const artifactPath = result.artifactPath || result.outputPaths?.markdown || null;
+        setPendingOverwrite({ skillId: skill.id, matterName, artifactPath: result.artifactPath || result.outputPaths?.markdown || null });
+        appendTerminal([`[skill] ${skill.title || 'Custom skill'} output exists at ${humanizeArtifactPath(artifactPath ?? '')} — click Run anyway / overwrite to replace it`]);
       } else {
+        if (isOverwritePending) setPendingOverwrite(null);
         appendTerminal([`[skill] ${skill.title} completed`]);
       }
     } catch (e) {
@@ -196,8 +211,10 @@ export default function SkillsPage() {
       <YourSkillsSection
         skills={visibleCustomSkills}
         hasActiveMatter={Boolean(state.activeMatter)}
+        activeMatterName={state.activeMatter?.name ?? null}
         loadingRun={loadingRun}
         loadingLifecycle={loadingLifecycle}
+        pendingOverwrite={pendingOverwrite}
         onRunSkill={(skill) => { void handleRunCustomSkill(skill); }}
         onLifecycleAction={(skill, action) => { void handleLifecycleAction(skill, action); }}
         renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
@@ -292,16 +309,20 @@ function SkillsStatusRow({
 function YourSkillsSection({
   skills,
   hasActiveMatter,
+  activeMatterName,
   loadingRun,
   loadingLifecycle,
+  pendingOverwrite,
   onRunSkill,
   onLifecycleAction,
   renderManageActions,
 }: {
   skills: ConfigurableSkill[];
   hasActiveMatter: boolean;
+  activeMatterName: string | null;
   loadingRun: string | null;
   loadingLifecycle: string | null;
+  pendingOverwrite: PendingOverwrite | null;
   onRunSkill: (skill: ConfigurableSkill) => void;
   onLifecycleAction: (skill: ConfigurableSkill, action: LifecycleAction) => void;
   renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
@@ -315,34 +336,46 @@ function YourSkillsSection({
         </div>
       ) : (
         <div className="skills-row-list">
-          {skills.map((skill) => (
-            <CustomSkillRow
-              key={skill.id}
-              skill={skill}
-              primaryAction={skill.status === 'active' ? (
-                <button
-                  className="run-skill-button secondary"
-                  type="button"
-                  onClick={() => onRunSkill(skill)}
-                  disabled={!hasActiveMatter || loadingRun === skill.id || Boolean(loadingLifecycle)}
-                >
-                  {!hasActiveMatter ? 'Pick matter first' : loadingRun === skill.id ? 'Running…' : 'Run'}
-                </button>
-              ) : (
-                <button
-                  className="run-skill-button secondary"
-                  type="button"
-                  onClick={() => onLifecycleAction(skill, 'resume')}
-                  disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
-                >
-                  {loadingLifecycle === `${skill.id}:resume` ? 'Working…' : 'Resume'}
-                </button>
-              )}
-              manageActions={skill.status === 'active'
-                ? renderManageActions(skill, ['suspend', 'archive', 'delete'])
-                : renderManageActions(skill, ['archive', 'delete'])}
-            />
-          ))}
+          {skills.map((skill) => {
+            const isOverwritePending = pendingOverwrite?.skillId === skill.id && pendingOverwrite?.matterName === activeMatterName;
+            return (
+              <CustomSkillRow
+                key={skill.id}
+                skill={skill}
+                primaryAction={skill.status === 'active' ? (
+                  <button
+                    className="run-skill-button secondary"
+                    type="button"
+                    onClick={() => onRunSkill(skill)}
+                    disabled={!hasActiveMatter || loadingRun === skill.id || Boolean(loadingLifecycle)}
+                    title={isOverwritePending && pendingOverwrite?.artifactPath
+                      ? `Replace ${humanizeArtifactPath(pendingOverwrite.artifactPath)}`
+                      : undefined}
+                  >
+                    {!hasActiveMatter
+                      ? 'Pick matter first'
+                      : loadingRun === skill.id
+                        ? 'Running…'
+                        : isOverwritePending
+                          ? 'Run anyway / overwrite'
+                          : 'Run'}
+                  </button>
+                ) : (
+                  <button
+                    className="run-skill-button secondary"
+                    type="button"
+                    onClick={() => onLifecycleAction(skill, 'resume')}
+                    disabled={Boolean(loadingLifecycle) || Boolean(loadingRun)}
+                  >
+                    {loadingLifecycle === `${skill.id}:resume` ? 'Working…' : 'Resume'}
+                  </button>
+                )}
+                manageActions={skill.status === 'active'
+                  ? renderManageActions(skill, ['suspend', 'archive', 'delete'])
+                  : renderManageActions(skill, ['archive', 'delete'])}
+              />
+            );
+          })}
         </div>
       )}
     </section>

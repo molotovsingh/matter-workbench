@@ -92,7 +92,7 @@ test("React label refresh and custom skill runs send the selected matter explici
   const typesSource = await readFile(new URL("../react-ui/src/types/index.ts", import.meta.url), "utf8");
 
   assert.match(listOfDatesSource, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
-  assert.match(skillsPageSource, /api\.runConfigurableSkill\(\{ slash: skill\.slash, overwrite: false, matterName \}\)/);
+  assert.match(skillsPageSource, /api\.runConfigurableSkill\(\{ slash: skill\.slash, overwrite: isOverwritePending, matterName \}\)/);
   assert.match(skillsPageSource, /activeMatterNameRef\.current !== matterName/);
   assert.match(typesSource, /export interface ConfigurableSkillRunRequest \{[\s\S]*matterName\?: string;/);
 });

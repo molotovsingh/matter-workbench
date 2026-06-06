@@ -118,7 +118,18 @@ test("React Skills page disables custom skill runs until a matter is selected", 
 
   assert.match(skillsSource, /hasActiveMatter=\{Boolean\(state\.activeMatter\)\}/);
   assert.match(skillsSource, /disabled=\{!hasActiveMatter \|\| loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/);
-  assert.match(skillsSource, /!hasActiveMatter \? 'Pick matter first' : loadingRun === skill\.id \? 'Running…' : 'Run'/);
+  assert.match(skillsSource, /!hasActiveMatter[\s\S]*\? 'Pick matter first'[\s\S]*loadingRun === skill\.id[\s\S]*\? 'Running…'[\s\S]*: 'Run'/);
+});
+
+test("React Skills page offers in-place overwrite confirmation for existing custom skill output", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /const \[pendingOverwrite, setPendingOverwrite\] = useState/);
+  assert.match(skillsSource, /result\.state === 'requires_overwrite'[\s\S]*setPendingOverwrite\(\{ skillId: skill\.id, matterName, artifactPath: result\.artifactPath/);
+  assert.match(skillsSource, /const isOverwritePending = pendingOverwrite\?\.skillId === skill\.id && pendingOverwrite\?\.matterName === activeMatterName/);
+  assert.match(skillsSource, /api\.runConfigurableSkill\(\{ slash: skill\.slash, overwrite: isOverwritePending, matterName \}\)/);
+  assert.match(skillsSource, /isOverwritePending[\s\S]*\? 'Run anyway \/ overwrite'[\s\S]*: 'Run'/);
+  assert.match(skillsSource, /setPendingOverwrite\(null\)/);
 });
 
 test("React Skills page keeps technical custom skill slugs out of in-progress row summaries", async () => {
