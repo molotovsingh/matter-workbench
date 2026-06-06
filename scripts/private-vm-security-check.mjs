@@ -17,6 +17,8 @@ export function parseSecurityCheckArgs(argv = [], env = process.env) {
     serviceUnitPath: env.MWB_PRIVATE_VM_SERVICE_UNIT || "deployment/private-vm/matter-workbench-runtime.service",
     auditJsonPath: env.MWB_PRIVATE_VM_AUDIT_JSON || "",
     auditDispositionPath: env.MWB_PRIVATE_VM_AUDIT_DISPOSITION || "",
+    authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
+    authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
     skipRuntimeEnv: false,
     skipServiceCheck: false,
   };
@@ -48,6 +50,16 @@ export function parseSecurityCheckArgs(argv = [], env = process.env) {
       if (!value) throw new Error("--audit-disposition requires a value");
       parsed.auditDispositionPath = value;
       i += 1;
+    } else if (arg === "--auth-username") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-username requires a value");
+      parsed.authUsername = value;
+      i += 1;
+    } else if (arg === "--auth-password") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-password requires a value");
+      parsed.authPassword = value;
+      i += 1;
     } else if (arg === "--skip-runtime-env") {
       parsed.skipRuntimeEnv = true;
     } else if (arg === "--skip-service-check") {
@@ -66,6 +78,8 @@ export async function runPrivateVmSecurityCheck({
   serviceUnitPath = "deployment/private-vm/matter-workbench-runtime.service",
   auditJsonPath = "",
   auditDispositionPath = "",
+  authUsername = "",
+  authPassword = "",
   skipRuntimeEnv = false,
   skipServiceCheck = false,
   serviceCheckFn = runPrivateVmServiceCheck,
@@ -81,7 +95,7 @@ export async function runPrivateVmSecurityCheck({
   if (skipServiceCheck) {
     checks.push(skippedCheck("live_service_smoke", "skipped by --skip-service-check"));
   } else {
-    checks.push(await analyzeLiveService({ baseUrl, serviceCheckFn }));
+    checks.push(await analyzeLiveService({ baseUrl, authUsername, authPassword, serviceCheckFn }));
   }
 
   return {
@@ -230,9 +244,9 @@ export function renderPrivateVmSecurityCheck(report = {}) {
   return lines.map((line) => redactSensitiveText(String(line || "")));
 }
 
-async function analyzeLiveService({ baseUrl, serviceCheckFn }) {
+async function analyzeLiveService({ baseUrl, authUsername, authPassword, serviceCheckFn }) {
   try {
-    const report = await serviceCheckFn({ baseUrl });
+    const report = await serviceCheckFn({ baseUrl, authUsername, authPassword });
     if (!report.passed) return failedCheck("live_service_smoke", report.error || "Private VM service check failed.");
     return passedCheck("live_service_smoke", `Live service check passed; ${report.matterCount || 0} matters visible.`, {
       details: report.targetMatter ? [`target matter: ${report.targetMatter}`] : [],

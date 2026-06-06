@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { FormEvent } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import ActivityBar from './components/layout/ActivityBar';
 import Sidebar from './components/layout/Sidebar';
@@ -24,8 +25,16 @@ interface PendingConfigurableOverwrite {
   artifactPath?: string | null;
 }
 
+interface AuthStatus {
+  enabled: boolean;
+  authenticated: boolean;
+  user: { username: string } | null;
+}
+
 function AppShell() {
   const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace, clearActiveMatter } = useApp();
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [authError, setAuthError] = useState('');
   const [reportText, setReportText] = useState<string | null>(null);
   const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
@@ -186,11 +195,31 @@ function AppShell() {
   }, [setTheme, state.theme]);
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadAuthStatus() {
+      try {
+        const status = await api.getAuthStatus();
+        if (!cancelled) setAuthStatus(status);
+      } catch (e) {
+        if (!cancelled) {
+          setAuthError(getErrorMessage(e));
+          setAuthStatus({ enabled: true, authenticated: false, user: null });
+        }
+      }
+    }
+    void loadAuthStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setPendingConfigurableOverwrite(null);
   }, [state.activeMatter?.name]);
 
   // Bootstrap: load config and matter list once on app start.
   useEffect(() => {
+    if (!authStatus?.authenticated) return undefined;
     let cancelled = false;
     async function bootstrap() {
       try {
@@ -215,7 +244,28 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [appendTerminal, dispatch]);
+  }, [appendTerminal, authStatus?.authenticated, dispatch]);
+
+  const handleLogin = useCallback(async ({ username, password }: { username: string; password: string }) => {
+    setAuthError('');
+    try {
+      const status = await api.login({ username, password });
+      setAuthStatus(status);
+      appendTerminal(['[auth] signed in']);
+    } catch (e) {
+      setAuthError(getErrorMessage(e));
+    }
+  }, [appendTerminal]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      const status = await api.logout();
+      setAuthStatus(status);
+      appendTerminal(['[auth] signed out']);
+    } catch (e) {
+      setAuthError(getErrorMessage(e));
+    }
+  }, [appendTerminal]);
 
   const runConfigurableSkillFromCommand = useCallback(async ({
     slash,
@@ -429,10 +479,23 @@ function AppShell() {
     }
   }
 
+  if (!authStatus) {
+    return <PrivateBetaAuthLoading error={authError} />;
+  }
+
+  if (authStatus.enabled && !authStatus.authenticated) {
+    return <PrivateBetaLogin error={authError} onLogin={handleLogin} />;
+  }
+
   const isHomeModeClass = !state.activeMatter ? 'home-mode' : '';
 
   return (
     <div className={`app-shell ${isHomeModeClass}`}>
+      {authStatus.enabled && authStatus.user && (
+        <button className="private-beta-logout" type="button" onClick={() => { void handleLogout(); }}>
+          Sign out
+        </button>
+      )}
       <ActivityBar />
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}
@@ -459,6 +522,73 @@ function AppShell() {
           />
         }
       />
+    </div>
+  );
+}
+
+function PrivateBetaAuthLoading({ error }: { error: string }) {
+  return (
+    <div className="private-beta-auth-screen">
+      <div className="private-beta-auth-card">
+        <div className="section-kicker">Matter Workbench</div>
+        <h1>Checking access</h1>
+        <p>Opening the private beta workspace…</p>
+        {error && <div className="form-error">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function PrivateBetaLogin({
+  error,
+  onLogin,
+}: {
+  error: string;
+  onLogin: (credentials: { username: string; password: string }) => Promise<void>;
+}) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onLogin({ username, password });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="private-beta-auth-screen">
+      <form className="private-beta-auth-card" onSubmit={(event) => { void handleSubmit(event); }}>
+        <div className="section-kicker">Private Beta</div>
+        <h1>Sign in to Matter Workbench</h1>
+        <p>This private VM is access-controlled. Use the operator credentials from the protected runtime env.</p>
+        <label>
+          <span>Username</span>
+          <input
+            autoComplete="username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>Password</span>
+          <input
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        {error && <div className="form-error">{error}</div>}
+        <button type="submit" disabled={submitting || !username.trim() || !password}>
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
     </div>
   );
 }

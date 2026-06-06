@@ -860,6 +860,17 @@ code { color: var(--code-text); }
 .run-failure-card { padding: 14px 16px; margin: 16px 0; background: var(--error-soft-bg); border: 1px solid var(--error-border); color: var(--error-text); }
 .run-failure-card strong { color: var(--error-strong-text); display: block; margin-bottom: 6px; }
 
+/* ─── Private beta auth ─────────────────────────────────── */
+.private-beta-auth-screen { align-items: center; background: var(--app-bg); color: var(--text); display: flex; min-height: 100vh; justify-content: center; padding: 32px; }
+.private-beta-auth-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-soft); display: grid; gap: 14px; max-width: 420px; padding: 28px; width: min(100%,420px); }
+.private-beta-auth-card h1 { font-family: var(--display-font); font-size: 28px; line-height: 1.05; margin: 0; }
+.private-beta-auth-card p { color: var(--muted-strong); font-size: 13px; line-height: 1.5; margin: 0; }
+.private-beta-auth-card label { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+.private-beta-auth-card input { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px; color: var(--text); font: inherit; font-size: 14px; letter-spacing: 0; padding: 9px 10px; text-transform: none; }
+.private-beta-auth-card button { background: var(--accent); border: 1px solid var(--accent); border-radius: 4px; color: var(--on-accent); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; padding: 10px 14px; }
+.private-beta-auth-card button:disabled { cursor: not-allowed; opacity: 0.55; }
+.private-beta-logout { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; color: var(--muted-strong); font-size: 11px; padding: 5px 9px; position: fixed; right: 14px; top: 12px; z-index: 20; }
+
 /* ─── File preview ──────────────────────────────────────── */
 .document-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .document-note { color: var(--muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 8px 0 0; }

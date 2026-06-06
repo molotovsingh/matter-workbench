@@ -25,6 +25,10 @@ test("security check args parse base URL, env path, audit JSON, and skips", () =
       "/tmp/audit.json",
       "--audit-disposition",
       "docs/security/npm-audit-disposition.md",
+      "--auth-username",
+      "operator",
+      "--auth-password",
+      "secret",
       "--skip-service-check",
     ], {}),
     {
@@ -33,6 +37,8 @@ test("security check args parse base URL, env path, audit JSON, and skips", () =
       serviceUnitPath: "deployment/private-vm/matter-workbench-runtime.service",
       auditJsonPath: "/tmp/audit.json",
       auditDispositionPath: "docs/security/npm-audit-disposition.md",
+      authUsername: "operator",
+      authPassword: "secret",
       skipRuntimeEnv: false,
       skipServiceCheck: true,
     },
@@ -42,7 +48,7 @@ test("security check args parse base URL, env path, audit JSON, and skips", () =
 test("access posture accepts loopback and RFC1918 URLs but rejects public hosts", () => {
   assert.equal(analyzeAccessPosture("http://127.0.0.1:4191").ok, true);
   assert.equal(analyzeAccessPosture("http://172.16.37.128:4191").ok, true);
-  assert.equal(analyzeAccessPosture("http://192.168.210.128:4191").ok, true);
+  assert.equal(analyzeAccessPosture("http://10.20.30.40:4191").ok, true);
   const publicResult = analyzeAccessPosture("http://203.0.113.20:4191");
   assert.equal(publicResult.ok, false);
   assert.match(publicResult.message, /not a private or loopback address/);
@@ -137,7 +143,13 @@ test("security check composes access, env, service, audit, DB role proof, and se
     baseUrl: "http://172.16.37.128:4191",
     runtimeEnvPath: envPath,
     auditJsonPath,
-    serviceCheckFn: async () => ({ passed: true, matterCount: 15, targetMatter: "Atlas" }),
+    authUsername: "operator",
+    authPassword: "secret",
+    serviceCheckFn: async ({ authUsername, authPassword }) => {
+      assert.equal(authUsername, "operator");
+      assert.equal(authPassword, "secret");
+      return { passed: true, matterCount: 15, targetMatter: "Atlas" };
+    },
   });
 
   assert.equal(report.passed, true);

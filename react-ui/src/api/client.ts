@@ -51,9 +51,11 @@ import type {
 
 class ApiError extends Error {
   statusCode: number;
+  authRequired: boolean;
   constructor(message: string, statusCode: number) {
     super(message);
     this.statusCode = statusCode;
+    this.authRequired = statusCode === 401;
   }
 }
 
@@ -86,7 +88,11 @@ async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {
 
 async function createApiError(res: Response, url: string): Promise<ApiError> {
   const payload = await readErrorPayload(res);
-  return new ApiError(formatApiErrorMessage(payload, res, url), res.status);
+  const error = new ApiError(formatApiErrorMessage(payload, res, url), res.status);
+  if (payload && typeof payload === 'object' && (payload as Record<string, unknown>).authRequired === true) {
+    error.authRequired = true;
+  }
+  return error;
 }
 
 async function readErrorPayload(res: Response): Promise<unknown> {
@@ -183,6 +189,12 @@ export function adaptTree(raw: WorkspaceApiNode): { name: string; path: string; 
 }
 
 export const api = {
+  // ─── Private beta auth ───────────────────
+  getAuthStatus: () => getJson<{ enabled: boolean; authenticated: boolean; user: { username: string } | null }>('/api/auth/status'),
+  login: (body: { username: string; password: string }) =>
+    postJson<{ enabled: boolean; authenticated: boolean; user: { username: string } | null }>('/api/auth/login', body),
+  logout: () => postJson<{ enabled: boolean; authenticated: boolean; user: null }>('/api/auth/logout'),
+
   // ─── Config ──────────────────────────────
   getConfig: () => getJson<AppConfig>('/api/config'),
   setConfig: (body: { mattersHome: string }) => postJson('/api/config', body),
@@ -255,3 +267,7 @@ export const api = {
   // ─── Logging ─────────────────────────────
   logCommandInteraction: (body: CommandInteractionRequest) => postJson('/api/command-interactions', body),
 };
+
+export function isAuthRequiredError(error: unknown): boolean {
+  return Boolean(error instanceof ApiError && error.authRequired);
+}

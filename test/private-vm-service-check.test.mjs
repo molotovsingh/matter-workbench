@@ -12,6 +12,8 @@ test("private VM service check parses base URL and matter", () => {
   assert.deepEqual(parseServiceCheckArgs(["--base-url", "http://vm:4191/", "--matter", "Atlas"], {}), {
     baseUrl: "http://vm:4191",
     matterName: "Atlas",
+    authUsername: "",
+    authPassword: "",
   });
 });
 
@@ -76,6 +78,36 @@ test("private VM service check verifies root, matters, workspace, and preview", 
   assert.equal(calls.length, 4);
 });
 
+test("private VM service check logs in when private beta credentials are supplied", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/auth/login") {
+      assert.equal(init.method, "POST");
+      assert.deepEqual(JSON.parse(init.body), { username: "operator", password: "secret" });
+      return jsonResponse({ authenticated: true }, 200, { "set-cookie": "mwb_private_beta_session=abc; Path=/; HttpOnly" });
+    }
+    assert.equal(init.headers?.cookie, "mwb_private_beta_session=abc");
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
+    if (parsed.pathname === "/api/switch-matter") return jsonResponse({ tree: { children: [{ kind: "file", path: "note.txt", previewable: true, previewKind: "text" }] } });
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "note" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({
+    baseUrl: "http://vm:4191",
+    authUsername: "operator",
+    authPassword: "secret",
+    fetchImpl,
+  });
+
+  assert.equal(report.passed, true);
+  assert.equal(report.authenticated, true);
+  assert.equal(calls.some((call) => call.url.includes("/api/auth/login")), true);
+});
+
 test("private VM service check reports missing previewable file", async () => {
   const fetchImpl = async (url, init = {}) => {
     const parsed = new URL(String(url));
@@ -94,10 +126,10 @@ test("private VM service check reports missing previewable file", async () => {
   assert.match(renderPrivateVmServiceCheck(report).join("\n"), /passed: no/);
 });
 
-function jsonResponse(payload, status = 200) {
+function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 

@@ -25,6 +25,10 @@ MWB_RUNTIME_DB_STORAGE=postgres
 MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
 MWB_RUNTIME_DATABASE_URL=<redacted runtime role URL>
 MWB_DATABASE_URL=<redacted admin or backup-capable URL, if needed for operator scripts>
+MWB_PRIVATE_BETA_AUTH=required
+MWB_PRIVATE_BETA_USERNAME=<operator username>
+MWB_PRIVATE_BETA_PASSWORD=<operator password>
+MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
 ```
 
 Do not commit `runtime.env`.
@@ -77,6 +81,10 @@ npm run private-vm:security-check -- \
   --audit-disposition docs/security/npm-audit-disposition.md
 ```
 
+If `MWB_PRIVATE_BETA_AUTH=required`, the service and security checks read
+`MWB_PRIVATE_BETA_USERNAME` and `MWB_PRIVATE_BETA_PASSWORD` from the shell/env
+and log in before checking product APIs.
+
 From the Mac, use the VM URL but skip the VM-local runtime env file check:
 
 ```bash
@@ -113,8 +121,8 @@ access beyond the current trusted operator.
 From the VM:
 
 ```bash
-npm run private-vm:service-check -- --base-url http://127.0.0.1:4191
 set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-vm:service-check -- --base-url http://127.0.0.1:4191
 MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir /tmp/mwb-vm-runtime-write-smoke
 ```
 
@@ -122,7 +130,8 @@ From the Mac:
 
 ```bash
 curl -sS -o /tmp/mwb-vm-root.html -w '%{http_code} %{size_download}\n' http://172.16.37.128:4191/
-npm run private-vm:service-check -- --base-url http://172.16.37.128:4191
+MWB_PRIVATE_BETA_USERNAME=<operator username> MWB_PRIVATE_BETA_PASSWORD=<operator password> \
+  npm run private-vm:service-check -- --base-url http://172.16.37.128:4191
 ```
 
 ## Backup Boundary

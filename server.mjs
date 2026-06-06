@@ -16,6 +16,7 @@ import { createMatterStoryService } from "./services/matter-story-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
+import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
@@ -32,6 +33,7 @@ import { createUploadService } from "./services/upload-service.mjs";
 import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
 import { sendJson } from "./routes/http-utils.mjs";
+import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
@@ -48,6 +50,7 @@ export async function createWorkbenchServer(options = {}) {
 
   const configService = createConfigService({ appDir, env });
   await configService.load();
+  const privateBetaAuthService = options.privateBetaAuthService || createPrivateBetaAuthService({ env });
   const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
 
   const matterStore = createMatterStore({
@@ -207,6 +210,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStatusService,
     matterStoryService,
     prepareMatterService,
+    privateBetaAuthService,
     runtimeDbStorageService,
     skillIdeasService,
     skillFactoryHealthService,
@@ -223,6 +227,8 @@ export async function createWorkbenchServer(options = {}) {
   const server = createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", `http://${request.headers.host || `${host}:${port}`}`);
+      if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
+      if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
       if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
       if (request.method === "GET") {

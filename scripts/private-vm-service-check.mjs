@@ -8,6 +8,8 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
   const parsed = {
     baseUrl: env.MWB_PRIVATE_VM_BASE_URL || "http://127.0.0.1:4191",
     matterName: env.MWB_PRIVATE_VM_SMOKE_MATTER || "",
+    authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
+    authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -22,6 +24,16 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
       if (!value) throw new Error("--matter requires a value");
       parsed.matterName = value;
       i += 1;
+    } else if (arg === "--auth-username") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-username requires a value");
+      parsed.authUsername = value;
+      i += 1;
+    } else if (arg === "--auth-password") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-password requires a value");
+      parsed.authPassword = value;
+      i += 1;
     } else {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -34,13 +46,16 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
 export async function runPrivateVmServiceCheck({
   baseUrl = "http://127.0.0.1:4191",
   matterName = "",
+  authUsername = "",
+  authPassword = "",
   fetchImpl = fetch,
 } = {}) {
-  const root = await fetchImpl(baseUrl);
+  const authSession = await createAuthenticatedFetch({ baseUrl, authUsername, authPassword, fetchImpl });
+  const root = await authSession.fetch(baseUrl);
   const rootText = root.ok ? await root.text() : "";
   if (!root.ok) return failedReport({ baseUrl, error: `Root returned HTTP ${root.status}` });
 
-  const mattersPayload = await getJson(fetchImpl, `${baseUrl}/api/matters`);
+  const mattersPayload = await getJson(authSession.fetch, `${baseUrl}/api/matters`);
   const matters = Array.isArray(mattersPayload.matters) ? mattersPayload.matters : [];
   if (!matters.length) return failedReport({ baseUrl, rootOk: true, rootBytes: rootText.length, error: "No matters returned by /api/matters." });
 
@@ -58,7 +73,7 @@ export async function runPrivateVmServiceCheck({
   }
 
   const targetName = target.name || target.matterName || "";
-  const workspace = await postJson(fetchImpl, `${baseUrl}/api/switch-matter`, { name: targetName });
+  const workspace = await postJson(authSession.fetch, `${baseUrl}/api/switch-matter`, { name: targetName });
   const previewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
   if (!previewPath) {
     return failedReport({
@@ -72,13 +87,14 @@ export async function runPrivateVmServiceCheck({
     });
   }
 
-  const preview = await getJson(fetchImpl, `${baseUrl}/api/file?${new URLSearchParams({ matterName: targetName, path: previewPath })}`);
+  const preview = await getJson(authSession.fetch, `${baseUrl}/api/file?${new URLSearchParams({ matterName: targetName, path: previewPath })}`);
   const content = typeof preview.content === "string" ? preview.content : "";
   const passed = Boolean(rootText.length && matters.length && targetName && content.length);
 
   return {
     passed,
     baseUrl,
+    authenticated: authSession.authenticated,
     rootOk: root.ok,
     rootBytes: rootText.length,
     runtimeDbEnabled: Boolean(mattersPayload.enabled),
@@ -98,6 +114,7 @@ export function renderPrivateVmServiceCheck(report = {}) {
     "Matter Workbench private VM service check",
     `passed: ${report.passed ? "yes" : "no"}`,
     `base_url: ${report.baseUrl || ""}`,
+    `authenticated: ${report.authenticated ? "yes" : "no"}`,
     `root_ok: ${report.rootOk ? "yes" : "no"}`,
     `root_bytes: ${report.rootBytes || 0}`,
     `runtime_db_enabled: ${report.runtimeDbEnabled ? "yes" : "no"}`,
@@ -132,6 +149,40 @@ async function getJson(fetchImpl, url) {
   const payload = await response.json();
   if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
   return payload;
+}
+
+async function createAuthenticatedFetch({ baseUrl, authUsername, authPassword, fetchImpl }) {
+  let cookie = "";
+  if (authUsername || authPassword) {
+    const response = await fetchImpl(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: authUsername, password: authPassword }),
+    });
+    if (!response.ok) {
+      const payload = await response.text().catch(() => "");
+      throw new Error(`Private beta login failed: ${payload || response.status}`);
+    }
+    cookie = firstCookie(response.headers?.get?.("set-cookie") || "");
+  }
+
+  return {
+    authenticated: Boolean(cookie),
+    fetch: (url, options = {}) => {
+      if (!cookie) return fetchImpl(url, options);
+      return fetchImpl(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          cookie,
+        },
+      });
+    },
+  };
+}
+
+function firstCookie(setCookieHeader = "") {
+  return String(setCookieHeader || "").split(";")[0].trim();
 }
 
 async function postJson(fetchImpl, url, body = {}) {

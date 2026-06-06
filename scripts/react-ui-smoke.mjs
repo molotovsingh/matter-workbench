@@ -51,6 +51,7 @@ const reactSkillSampleStatesPath = new URL("../react-ui/src/lib/skillSampleState
 const checks = [];
 let configPayload = null;
 let workspacePayload = null;
+let authCookie = "";
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
@@ -70,14 +71,14 @@ function assert(condition, label, detail) {
 }
 
 async function fetchText(url) {
-  const response = await fetch(url);
+  const response = await fetch(url, requestOptions());
   const text = await response.text();
   return { response, text };
 }
 
 async function fetchJson(pathname) {
   const url = `${backendBase}${pathname}`;
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetch(url, requestOptions({ headers: { Accept: "application/json" } }));
   const text = await response.text();
   let body = null;
   try {
@@ -93,11 +94,11 @@ async function fetchJson(pathname) {
 
 async function postJson(pathname, body = {}) {
   const url = `${backendBase}${pathname}`;
-  const response = await fetch(url, {
+  const response = await fetch(url, requestOptions({
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }));
   const text = await response.text();
   let parsed = null;
   try {
@@ -109,6 +110,54 @@ async function postJson(pathname, body = {}) {
     throw new Error(`${pathname} returned ${response.status}: ${text.slice(0, 240)}`);
   }
   return parsed;
+}
+
+function requestOptions(options = {}) {
+  if (!authCookie) return options;
+  return {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      cookie: authCookie,
+    },
+  };
+}
+
+async function authenticateIfConfigured() {
+  try {
+    const status = await fetchJson("/api/auth/status");
+    if (!status.enabled) {
+      pass("Private beta auth is disabled for this smoke run");
+      return;
+    }
+    if (status.authenticated) {
+      pass("Private beta auth already authenticated");
+      return;
+    }
+    const username = process.env.MWB_PRIVATE_BETA_USERNAME || "";
+    const password = process.env.MWB_PRIVATE_BETA_PASSWORD || "";
+    if (!username || !password) {
+      fail("Private beta auth requires credentials", "set MWB_PRIVATE_BETA_USERNAME and MWB_PRIVATE_BETA_PASSWORD for ui:smoke");
+      return;
+    }
+    const response = await fetch(`${backendBase}/api/auth/login`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) {
+      fail("Private beta auth login", `login returned ${response.status}`);
+      return;
+    }
+    authCookie = firstCookie(response.headers.get("set-cookie") || "");
+    assert(Boolean(authCookie), "Private beta auth login returned a session cookie");
+  } catch (error) {
+    fail("Private beta auth status API", error.message);
+  }
+}
+
+function firstCookie(setCookieHeader = "") {
+  return String(setCookieHeader || "").split(";")[0].trim();
 }
 
 async function run() {
@@ -305,6 +354,8 @@ async function run() {
   } catch (error) {
     fail("React UI is reachable", error.message);
   }
+
+  await authenticateIfConfigured();
 
   try {
     const config = await fetchJson("/api/config");

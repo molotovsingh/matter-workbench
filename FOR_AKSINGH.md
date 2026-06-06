@@ -2029,3 +2029,17 @@ the product claim. Today the honest claim is private VM local beta with runtime
 Postgres custody, recoverability evidence, and access/security checks. Public
 cloud production still needs HTTPS, authentication, session policy, hosted
 authorization, object-storage custody, and worker recovery.
+
+The access gate adds the next obvious lock. Until now, the VM was protected
+mostly by being on a private network. That is useful, but it is not the same as
+app-level access control. The private beta gate makes the app ask for operator
+credentials before product APIs load. It is intentionally small: one protected
+env username/password, an HttpOnly session cookie, logout, and tests that prove
+anonymous API calls are blocked. This is not "enterprise auth"; it is the right
+minimum lock for a private beta machine.
+
+The lesson is to match the security mechanism to the claim. For a private VM,
+an env-backed login gate is a reasonable next step. For public cloud, it would
+not be enough. Public cloud needs durable sessions, identity provider support,
+tenant membership checks on every request, HTTPS, rate limiting, audit logs, and
+proper secret rotation. Small does not mean sloppy. It means honest about scope.

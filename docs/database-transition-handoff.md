@@ -621,6 +621,22 @@ hardened, the runtime DB role proof command is in place, the live service smoke
 found 15 matters, and the `xlsx` high npm audit finding has the private-beta
 disposition in `docs/security/npm-audit-disposition.md`.
 
+The next local/private beta layer adds an application-level access gate:
+
+```text
+MWB_PRIVATE_BETA_AUTH=required
+MWB_PRIVATE_BETA_USERNAME=<operator username>
+MWB_PRIVATE_BETA_PASSWORD=<operator password>
+```
+
+When enabled, anonymous product APIs return `401 Login required`. The React shell
+loads a private-beta login screen, `/api/auth/login` issues an HttpOnly
+`SameSite=Strict` session cookie, and `/api/auth/logout` clears it. This is
+appropriate for the trusted private VM. It is not a hosted SaaS auth system:
+sessions are in-memory, credentials are env-backed, and public deployment still
+needs HTTPS, durable session policy, identity-provider integration, tenant-user
+provisioning, and audited authorization middleware.
+
 ## What A Developer Should Check Next
 
 Before the next hosted DB-worker or cloud runtime slice:
