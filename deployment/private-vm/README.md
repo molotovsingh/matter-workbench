@@ -58,6 +58,56 @@ systemctl --user stop matter-workbench-runtime.service
 journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager
 ```
 
+## Access And Security Check
+
+Do not expose this service to the public internet. This private VM pack assumes
+a trusted private network or local tunnel. Public access still requires a
+separate hosted security design: authentication, HTTPS, session controls,
+provider-token handling, rate limiting, logging policy, and object-storage
+custody.
+
+From the VM, run:
+
+```bash
+npm audit --omit=dev --json > /tmp/mwb-npm-audit-prod.json
+npm run private-vm:security-check -- \
+  --base-url http://127.0.0.1:4191 \
+  --runtime-env "$HOME/.config/matter-workbench/runtime.env" \
+  --audit-json /tmp/mwb-npm-audit-prod.json \
+  --audit-disposition docs/security/npm-audit-disposition.md
+```
+
+From the Mac, use the VM URL but skip the VM-local runtime env file check:
+
+```bash
+curl -sS -o /tmp/mwb-vm-root.html -w '%{http_code} %{size_download}\n' http://172.16.37.128:4191/
+npm run private-vm:security-check -- \
+  --base-url http://172.16.37.128:4191 \
+  --skip-runtime-env \
+  --skip-service-check
+```
+
+The security check verifies:
+
+- the service URL is loopback or RFC1918 private-network only;
+- `runtime.env` is a regular file with mode `0600` when checked on the VM;
+- the systemd template uses `EnvironmentFile`, restart policy, and basic
+  process hardening;
+- runtime DB least privilege is proved by `npm run db:runtime:write-smoke`,
+  which rejects superuser and `BYPASSRLS` runtime roles;
+- the live service check passes unless explicitly skipped;
+- npm audit JSON has no high or critical production vulnerabilities, or else
+  records a clear disposition requirement.
+
+Current audit disposition: `xlsx@0.18.5` has high advisories with no direct npm
+fix available. The disposition is documented in
+`docs/security/npm-audit-disposition.md` for private beta only. Revisit before
+public or wider hosted access.
+
+If any VM password, database URL, or provider key has been shared in chat,
+terminal history, screenshots, or handoff notes, rotate it before expanding
+access beyond the current trusted operator.
+
 ## Smoke Commands
 
 From the VM:

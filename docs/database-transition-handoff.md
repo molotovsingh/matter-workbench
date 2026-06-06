@@ -599,6 +599,28 @@ Postgres dump were backed up, the temporary restored database was verified with
 hash-checked, and the VM service check passed against
 `http://172.16.37.128:4191`.
 
+The access/security hardening layer adds a separate proof that the private VM is
+still private-operator beta posture, not public hosting:
+
+```bash
+npm run private-vm:security-check -- --base-url http://127.0.0.1:4191 --runtime-env "$HOME/.config/matter-workbench/runtime.env"
+```
+
+That check verifies private-network or loopback access, protected `runtime.env`
+permissions, the systemd template's `EnvironmentFile`/restart/process-hardening
+rules, the runtime DB role proof command, npm audit disposition when audit JSON
+is supplied, and the live service smoke. It intentionally does not claim HTTPS,
+authentication, browser session controls, public ingress, or multi-user hosted
+authorization.
+
+The first Mac-to-VM access/security check passed on
+`2026-06-06T15:16:04.101Z` against `http://172.16.37.128:4191` with
+`--skip-runtime-env` because the Mac cannot inspect the VM-local env file. It
+proved the URL is private-network scoped, the committed systemd template is
+hardened, the runtime DB role proof command is in place, the live service smoke
+found 15 matters, and the `xlsx` high npm audit finding has the private-beta
+disposition in `docs/security/npm-audit-disposition.md`.
+
 ## What A Developer Should Check Next
 
 Before the next hosted DB-worker or cloud runtime slice:

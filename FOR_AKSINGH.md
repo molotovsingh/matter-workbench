@@ -2014,3 +2014,18 @@ must be split-aware. If Postgres contains rows that point at local files, a DB
 backup alone is not enough. Either the bytes must live in Postgres payload
 custody, or the storage backup must travel with the DB backup. Anything else can
 restore a beautiful database full of pointers to files that are gone.
+
+The next private-VM lesson is security posture. A service can be recoverable and
+still not be safe to expose broadly. The access/security check is deliberately
+boring: is the URL private, is `runtime.env` locked to `0600`, is the service
+using a protected env file instead of inline secrets, does it restart on failure,
+does the runtime DB role avoid superuser and `BYPASSRLS`, and does npm audit
+need a disposition? This is the "front door" counterpart to the backup pack.
+One proves we can recover the house; the other checks that we have not left the
+door open.
+
+The practical takeaway: never let a successful deployment rehearsal inflate
+the product claim. Today the honest claim is private VM local beta with runtime
+Postgres custody, recoverability evidence, and access/security checks. Public
+cloud production still needs HTTPS, authentication, session policy, hosted
+authorization, object-storage custody, and worker recovery.
