@@ -2,7 +2,7 @@
 
 Date: 2026-06-06
 
-Status: private Debian VM runtime rehearsal passed with documented process-manager and shadow-verifier limits
+Status: private Debian VM runtime rehearsal passed; service-pack hardening added afterward
 
 This note records the first private-machine deployment rehearsal after the
 local/private runtime DB cutover. The purpose was not to create a public hosted
@@ -66,10 +66,11 @@ listener: 0.0.0.0:4191
 vm-local health: HTTP 200
 ```
 
-The app is not yet installed as a persistent service. User-level `systemd` is
-available on the VM, but no service file or linger setting was installed in this
-slice. Treat the current process as a rehearsal process, not a restart-proof
-deployment.
+At this checkpoint the app was not yet installed as a persistent service.
+User-level `systemd` was available on the VM, but no service file or linger
+setting had been installed in that slice. The follow-up service pack adds a
+committed user-service template and service-check script; see
+[Private VM Service Pack](../deployment/private-vm/README.md).
 
 ## Mac-To-VM Reachability
 
@@ -234,3 +235,18 @@ passes a controlled runtime DB write smoke from inside the VM.
 
 It should not yet be described as a production cloud deployment or a
 restart-proof service deployment.
+
+## Follow-Up Service Pack
+
+The follow-up private VM service pack adds:
+
+- `scripts/start-runtime-server.mjs` for the runtime DB server entrypoint;
+- `scripts/private-vm-service-check.mjs` for checking an already running VM app;
+- `deployment/private-vm/matter-workbench-runtime.service` for user-level
+  `systemd`;
+- `deployment/private-vm/README.md` for install, status, logs, smoke, and backup
+  commands.
+
+Once installed, the VM claim can move from "works under `nohup`" to "runs as a
+private user-level service." It is still not a public production deployment
+until HTTPS, auth, backups, and hosted-worker recovery are complete.

@@ -542,6 +542,20 @@ custody.
 
 See [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md).
 
+The service-pack layer adds the operational wrapper for that same private VM
+runtime:
+
+```bash
+npm run private-vm:serve
+npm run private-vm:service-check -- --base-url http://127.0.0.1:4191
+```
+
+The committed user-level `systemd` template lives at
+`deployment/private-vm/matter-workbench-runtime.service`. It expects a protected
+runtime env file at `$HOME/.config/matter-workbench/runtime.env` and a deployment
+symlink at `$HOME/matter-workbench-deployments/current`. This is still a private
+single-host service posture, not a hosted multi-user service.
+
 ## What A Developer Should Check Next
 
 Before the next hosted DB-worker or cloud runtime slice:

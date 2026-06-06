@@ -1977,3 +1977,18 @@ single-host VM app backed by Postgres runtime custody. It is not yet a
 production cloud service. Before that claim, the app still needs HTTPS,
 authentication, persistent service management, backup/restore runbooks, object
 storage or an accepted durable-volume policy, and hosted worker recovery.
+
+The next lesson was operational: a working process is not the same thing as an
+operator-safe service. `nohup node ...` is fine for proving a VM can run the app,
+but a beta operator needs boring commands: start, stop, restart, status, logs,
+and smoke. So the service pack adds a proper runtime entrypoint, a running-app
+service check, and a user-level `systemd` template. The shape is deliberately
+plain: a protected env file, a `current` deployment symlink, one unit file, and
+one smoke command. Deployment work is often best when it becomes less clever.
+
+This also teaches a useful distinction between "managed" and "production." A
+user-level service can restart after failure and be checked by `systemctl`, but
+that still does not make the app safe for the public internet. Production needs
+auth, TLS, network hardening, backup restore drills, and worker recovery. The VM
+service pack closes the private-operator gap; it does not pretend to close the
+cloud gap.
