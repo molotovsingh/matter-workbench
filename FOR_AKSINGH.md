@@ -2084,3 +2084,18 @@ fixture. That gives us a regression target for future work on spreadsheets,
 WhatsApp parsing, screenshots, archive unpacking, and email attachments. When
 one of those future slices lands, the support matrix should change because the
 app really changed, not because the wording got more optimistic.
+
+The runtime DB browser acceptance pack closes another evidence gap. Unit tests
+can prove the storage adapters, and API smoke can prove routes, but neither one
+answers the beta-user question: "does the React app actually render and navigate
+while DB custody is on?" The command `npm run db:runtime:browser-accept` starts
+a temporary runtime-DB server, runs the existing write-smoke, then opens the
+React app through a browser driver. It checks login when needed, the React root,
+DB matter listing, matter selection, workspace preview, Matter Attention,
+Activity, Settings, and console errors.
+
+The lesson is not that browser tests replace unit tests. They catch a different
+class of failure. A route can return correct JSON while the page is blank, a DB
+matter can exist while the sidebar cannot navigate to it, and a storage payload
+can be valid while the preview affordance is broken. The acceptance pack is the
+bridge between "the backend works" and "a beta operator can use the thing."

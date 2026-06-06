@@ -59,6 +59,7 @@
     "db:runtime:role-setup": "node scripts/db-runtime-role-setup.mjs",
     "db:runtime:smoke": "node scripts/db-runtime-smoke.mjs",
     "db:runtime:write-smoke": "node scripts/db-runtime-write-smoke.mjs",
+    "db:runtime:browser-accept": "node scripts/runtime-db-browser-acceptance-pack.mjs",
     "db:shadow:backup": "node scripts/db-shadow-backup.mjs",
     "db:shadow:restore-drill": "node scripts/db-shadow-restore-drill.mjs",
     "db:shadow:storage-backup": "node scripts/db-shadow-storage-backup.mjs",
