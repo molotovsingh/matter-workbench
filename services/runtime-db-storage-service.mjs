@@ -31,6 +31,7 @@ import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 const {
   maxRawBytes,
 } = WORKSPACE_PREVIEW_LIMITS;
+const DEFAULT_PSQL_MAX_BUFFER_BYTES = 128 * 1024 * 1024;
 
 export function createRuntimeDbStorageService({
   databaseUrl = "",
@@ -829,6 +830,7 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
     input: ensureRuntimeDbSafeRoleSql(sql),
     encoding: "utf8",
     env: { ...process.env, ...env },
+    maxBuffer: runtimeDbStoragePsqlMaxBuffer(),
   });
   if (result.error) {
     throw makeHttpError(`runtime DB storage query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
@@ -838,6 +840,11 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
     throw makeHttpError(`runtime DB storage query failed: ${redactRuntimeDbError(detail)}`, 503);
   }
   return parsePsqlJson(result.stdout || "");
+}
+
+function runtimeDbStoragePsqlMaxBuffer() {
+  const configured = Number(process.env.MWB_RUNTIME_DB_STORAGE_PSQL_MAX_BUFFER_BYTES);
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
 }
 
 function parsePsqlJson(stdout = "") {

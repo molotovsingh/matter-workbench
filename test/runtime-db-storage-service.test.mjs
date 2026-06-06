@@ -49,6 +49,27 @@ test("runtime DB storage service builds workspace tree from storage payload meta
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 });
 
+test("runtime DB storage service gives psql enough buffer for DB-backed payloads", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: (command, args, options = {}) => {
+      calls.push({ command, args, options });
+      return {
+        status: 0,
+        stdout: `${JSON.stringify({ matter, objects: [] })}\n`,
+        stderr: "",
+      };
+    },
+  });
+
+  await service.readWorkspace(matter);
+
+  assert.ok(calls[0].options.maxBuffer >= 64 * 1024 * 1024);
+  assert.equal(calls[0].options.encoding, "utf8");
+});
+
 test("runtime DB storage service previews text from payload bytes", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
