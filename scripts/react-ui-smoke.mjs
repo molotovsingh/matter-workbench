@@ -70,6 +70,11 @@ function assert(condition, label, detail) {
   else fail(label, detail);
 }
 
+function configHasMatterCustody(config) {
+  return (typeof config?.mattersHome === "string" && config.mattersHome.length > 0)
+    || config?.mattersHome === null;
+}
+
 async function fetchText(url) {
   const response = await fetch(url, requestOptions());
   const text = await response.text();
@@ -361,7 +366,11 @@ async function run() {
     const config = await fetchJson("/api/config");
     configPayload = config;
     assert(typeof config === "object" && config !== null, "Config API returns an object");
-    assert(typeof config.mattersHome === "string" && config.mattersHome.length > 0, "Config exposes matters home");
+    assert(
+      configHasMatterCustody(config),
+      "Config exposes matter custody",
+      config.mattersHome === null ? "runtime DB storage mode" : config.mattersHome,
+    );
     assert(typeof config.hasActiveMatter === "boolean", "Config exposes active-matter state");
   } catch (error) {
     fail("Config API contract", error.message);

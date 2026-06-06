@@ -30,6 +30,14 @@ test("React smoke script reads the shared local server default instead of hard-c
   assert.doesNotMatch(source, /MWB_UI_URL \|\| "http:\/\/127\.0\.0\.1:4191\//);
 });
 
+test("React smoke script accepts runtime DB matter custody without a filesystem matters home", async () => {
+  const source = await readFile(new URL("../scripts/react-ui-smoke.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /function configHasMatterCustody/);
+  assert.match(source, /config\?\.mattersHome === null/);
+  assert.doesNotMatch(source, /typeof config\.mattersHome === "string" && config\.mattersHome\.length > 0, "Config exposes matters home"/);
+});
+
 test("Mode A acceptance script uses the shared local server default", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "mwb-mode-a-default-"));
   const manifestPath = path.join(root, "reset-manifest.json");
