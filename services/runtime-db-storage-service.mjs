@@ -1,5 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
 import { Readable } from "node:stream";
 import path from "node:path";
 import process from "node:process";
@@ -53,6 +63,7 @@ export function createRuntimeDbStorageService({
   databaseUrl = "",
   tenantId = "",
   spawn = spawnSync,
+  tempRoot = os.tmpdir(),
 } = {}) {
   const enabled = Boolean(databaseUrl && tenantId);
 
@@ -217,6 +228,73 @@ export function createRuntimeDbStorageService({
     return emptyAttention(normalizedMatter);
   }
 
+  async function runMaterializedMatterWrite(matter, operation) {
+    ensureEnabled();
+    if (typeof operation !== "function") throw makeHttpError("Runtime DB write operation is required", 500);
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = await readWorkspace(normalizedMatter);
+    const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
+    const matterRoot = path.join(workDir, normalizedMatter.name);
+    const initialHashes = new Map();
+    try {
+      await mkdir(matterRoot, { recursive: true });
+      for (const item of workspaceFilePaths(workspace.tree)) {
+        const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
+        const absolutePath = path.join(matterRoot, ...item.path.split("/"));
+        await mkdir(path.dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, payload.bytes);
+        initialHashes.set(item.path, sha256Bytes(payload.bytes));
+      }
+
+      const operationResult = await operation({ matterRoot, matter: normalizedMatter });
+      const files = await listMatterFiles(matterRoot);
+      const changedFiles = [];
+      for (const file of files) {
+        const bytes = await readFile(path.join(matterRoot, ...file.relativePath.split("/")));
+        const sha256 = sha256Bytes(bytes);
+        if (initialHashes.get(file.relativePath) === sha256) continue;
+        changedFiles.push({
+          relativePath: file.relativePath,
+          bytes,
+          sha256,
+          sizeBytes: bytes.length,
+          objectRole: roleForMaterializedPath(file.relativePath),
+          mimeType: mimeTypeForPath(file.relativePath),
+        });
+      }
+      const persisted = changedFiles.length
+        ? persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: changedFiles })
+        : [];
+      return {
+        operationResult,
+        persisted,
+      };
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
+  async function runMaterializedMatterRead(matter, operation) {
+    ensureEnabled();
+    if (typeof operation !== "function") throw makeHttpError("Runtime DB read operation is required", 500);
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = await readWorkspace(normalizedMatter);
+    const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
+    const matterRoot = path.join(workDir, normalizedMatter.name);
+    try {
+      await mkdir(matterRoot, { recursive: true });
+      for (const item of workspaceFilePaths(workspace.tree)) {
+        const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
+        const absolutePath = path.join(matterRoot, ...item.path.split("/"));
+        await mkdir(path.dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, payload.bytes);
+      }
+      return operation({ matterRoot, matter: normalizedMatter });
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+
   function readPayloadRow({ matter, relativePath }) {
     const result = queryJson({
       databaseUrl,
@@ -253,6 +331,8 @@ export function createRuntimeDbStorageService({
     readPrepareMatterPlan,
     readFilePreview,
     readWorkspace,
+    runMaterializedMatterRead,
+    runMaterializedMatterWrite,
   };
 }
 
@@ -599,6 +679,107 @@ function currentAdvice(reason) {
   };
 }
 
+async function listMatterFiles(root, relativePrefix = "") {
+  const rows = [];
+  const directory = relativePrefix ? path.join(root, ...relativePrefix.split("/")) : root;
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const relativePath = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      rows.push(...await listMatterFiles(root, relativePath));
+      continue;
+    }
+    if (entry.isFile()) rows.push({ relativePath: normalizeObjectKey(relativePath) });
+  }
+  return rows;
+}
+
+function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {
+  const rows = [];
+  for (const file of files) {
+    const objectKey = `${normalizeObjectKey(matter.name)}/${normalizeObjectKey(file.relativePath)}`;
+    const storageObjectId = deterministicUuid(`runtime-storage:${matter.id}:${objectKey}`);
+    const payloadId = deterministicUuid(`runtime-storage-payload:${storageObjectId}`);
+    rows.push({
+      relativePath: file.relativePath,
+      objectKey,
+      storageObjectId,
+      payloadId,
+      objectRole: file.objectRole,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      sha256: file.sha256,
+      payloadHex: Buffer.from(file.bytes).toString("hex"),
+    });
+  }
+  const sql = [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    ...rows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
+    "select '{}'::jsonb::text;",
+    "",
+  ].join("\n");
+  queryJson({
+    databaseUrl,
+    tenantId,
+    spawn,
+    sql,
+  });
+  return rows.map(({ relativePath, objectKey, objectRole, sizeBytes, sha256 }) => ({
+    relativePath,
+    objectKey,
+    objectRole,
+    sizeBytes,
+    sha256,
+  }));
+}
+
+function materializedFileUpsertSql({ matter, row }) {
+  return [
+    "insert into storage_objects (id, tenant_id, matter_id, object_key, bucket, storage_provider, object_role, state, mime_type, size_bytes, sha256, idempotency_key, uploaded_at, verified_at)",
+    `values (${sqlUuid(row.storageObjectId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlString(row.objectKey)}, 'local-db-runtime', 'postgres', ${sqlString(row.objectRole)}, 'verified', ${sqlString(row.mimeType)}, ${sqlInteger(row.sizeBytes)}, ${sqlString(row.sha256)}, ${sqlString(`runtime-db:${row.objectKey}`)}, now(), now())`,
+    "on conflict (tenant_id, object_key) do update set",
+    "  matter_id = excluded.matter_id,",
+    "  bucket = excluded.bucket,",
+    "  storage_provider = excluded.storage_provider,",
+    "  object_role = excluded.object_role,",
+    "  state = excluded.state,",
+    "  mime_type = excluded.mime_type,",
+    "  size_bytes = excluded.size_bytes,",
+    "  sha256 = excluded.sha256,",
+    "  idempotency_key = excluded.idempotency_key,",
+    "  uploaded_at = excluded.uploaded_at,",
+    "  verified_at = excluded.verified_at;",
+    "insert into storage_object_payloads (id, tenant_id, matter_id, storage_object_id, payload, sha256, size_bytes, verified_at)",
+    `values (${sqlUuid(row.payloadId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(row.storageObjectId)}, decode(${sqlString(row.payloadHex)}, 'hex'), ${sqlString(row.sha256)}, ${sqlInteger(row.sizeBytes)}, now())`,
+    "on conflict (tenant_id, storage_object_id) do update set",
+    "  matter_id = excluded.matter_id,",
+    "  payload = excluded.payload,",
+    "  sha256 = excluded.sha256,",
+    "  size_bytes = excluded.size_bytes,",
+    "  verified_at = excluded.verified_at;",
+  ];
+}
+
+function roleForMaterializedPath(relativePath) {
+  const normalized = normalizeObjectKey(relativePath);
+  if (/(^|\/)_extracted\/[^/]+\.json$/i.test(normalized)) return "extraction_payload";
+  if (/^10_Library\//i.test(normalized) || /^20_Workshop\//i.test(normalized) || /^30_Drafts\//i.test(normalized) || /^40_Dispatch\//i.test(normalized)) {
+    return "matter_artifact";
+  }
+  if (/(^|\/)Originals\//i.test(normalized)) return "source_original";
+  if (/(^|\/)(Source Files|By Type)\//i.test(normalized)) return "source_working_copy";
+  return "other";
+}
+
+function mimeTypeForPath(relativePath) {
+  const extension = path.extname(relativePath).toLowerCase();
+  return rawContentTypes.get(extension) || "application/octet-stream";
+}
+
+function sha256Bytes(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 function emptyAttention(matter) {
   return {
     schema_version: "matter-attention/v1",
@@ -642,6 +823,11 @@ function sqlUuid(value) {
   return `${sqlString(value)}::uuid`;
 }
 
+function sqlInteger(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Math.trunc(number)) : "0";
+}
+
 function sqlTextArray(values = []) {
   if (!values.length) return "ARRAY[]::text[]";
   return `ARRAY[${values.map((value) => sqlString(value)).join(", ")}]::text[]`;
@@ -653,6 +839,14 @@ function sqlString(value) {
 
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function deterministicUuid(seed) {
+  const bytes = createHash("sha256").update(String(seed)).digest();
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.subarray(0, 16).toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 function redactRuntimeDbError(value) {

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
@@ -145,6 +148,71 @@ test("runtime DB storage service reads latest advisory snapshot from Postgres", 
   assert.equal(attention.items[0].title, "OCR text needs review");
 });
 
+test("runtime DB storage service materializes DB payloads and persists workflow artifacts", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
+      {},
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    const matterJson = await readFile(path.join(matterRoot, "matter.json"), "utf8");
+    assert.match(matterJson, /Legal Caption/);
+    await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+    await writeFile(path.join(matterRoot, "10_Library", "New Artifact.md"), "# New Artifact\n");
+    return { ok: true };
+  });
+
+  assert.deepEqual(result.operationResult, { ok: true });
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), ["10_Library/New Artifact.md"]);
+  const persistSql = calls.at(-1).input;
+  assert.match(persistSql, /insert into storage_objects/i);
+  assert.match(persistSql, /insert into storage_object_payloads/i);
+  assert.match(persistSql, /DB Matter\/10_Library\/New Artifact\.md/);
+  assert.match(persistSql, /matter_artifact/);
+  assert.doesNotMatch(persistSql, /secret/);
+});
+
+test("runtime DB storage service materializes DB payloads for read-only operations without persisting", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-read-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
+    const matterJson = await readFile(path.join(matterRoot, "matter.json"), "utf8");
+    return JSON.parse(matterJson);
+  });
+
+  assert.deepEqual(result, { matterName: "Legal Caption" });
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
+});
+
 function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload) {
   return {
     objectKey,
@@ -169,6 +237,20 @@ function payloadRow(objectKey, text, mimeType = "text/markdown") {
 function jsonSpawn(calls, payload) {
   return (command, args, options = {}) => {
     calls.push({ command, args, input: options.input });
+    return {
+      status: 0,
+      stdout: `${JSON.stringify(payload)}\n`,
+      stderr: "",
+    };
+  };
+}
+
+function jsonSpawnSequence(calls, payloads) {
+  let index = 0;
+  return (command, args, options = {}) => {
+    calls.push({ command, args, input: options.input });
+    const payload = payloads[Math.min(index, payloads.length - 1)];
+    index += 1;
     return {
       status: 0,
       stdout: `${JSON.stringify(payload)}\n`,

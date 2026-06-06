@@ -1817,3 +1817,23 @@ artifacts, preserve receipts, and recover from failures without falling back to
 the old folder as hidden truth. Moving slowly here is not hesitation; it is how
 you avoid building a system where half the app believes the database and the
 other half still obeys the filesystem.
+
+The next runtime slice taught a useful migration trick: instead of rewriting
+every legal engine at once, the server can materialize a temporary matter folder
+from Postgres payload rows, run the existing engine, then persist only the new or
+changed files back into Postgres. That keeps the old deterministic engines
+usable while making the database the source of file custody. The bridge now
+covers setup, extraction, source labels, List of Dates, label refresh, matter
+context, copilot answers, rerun advice, and doctor scan/fix routes in DB storage
+mode. The temporary folder is a workbench, not truth; Postgres remains the place
+where the resulting artifacts are stored.
+
+The important remaining warning is custom skills. A configurable skill run is
+not just a markdown file. It also creates a run receipt, overwrite state, output
+availability, warnings, and activity history. Those receipts still have their
+own filesystem JSON ledger today. So the correct next database slice is not "let
+custom skills write through the temporary folder and hope"; it is to move the
+custom-skill run ledger into the runtime DB path as well. Otherwise we would
+have DB-owned artifacts but filesystem-owned proof of how they were generated,
+which is exactly the kind of split-brain migration this project is trying to
+avoid.
