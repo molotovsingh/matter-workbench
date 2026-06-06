@@ -283,9 +283,10 @@ export function renderPrivateBetaRcClosurePackResult(result = {}) {
 
 async function runLocalGates({ localGateRunner }) {
   const checks = [];
+  const env = localGateEnv();
   for (const gate of DEFAULT_LOCAL_GATES) {
     checks.push(await runStep(gate.label, async () => {
-      const result = await localGateRunner(gate);
+      const result = await localGateRunner({ ...gate, env });
       return {
         ok: Boolean(result.ok),
         command: [gate.command, ...gate.args].join(" "),
@@ -300,6 +301,31 @@ async function runLocalGates({ localGateRunner }) {
     ok: checks.every((check) => check.ok),
     checks,
   };
+}
+
+function localGateEnv(sourceEnv = process.env) {
+  const env = { ...sourceEnv };
+  const exactKeys = [
+    "DATABASE_URL",
+    "MATTERS_HOME",
+    "MWB_DATABASE_URL",
+    "MWB_DB_RUNTIME_CUTOVER_APPROVED",
+    "MWB_MATTERS_HOME",
+    "MWB_RUNTIME_DATABASE_URL",
+    "MWB_RUNTIME_DB",
+    "MWB_RUNTIME_DB_STORAGE",
+    "MWB_RUNTIME_DB_TENANT_ID",
+    "PGDATABASE",
+    "PGHOST",
+    "PGPASSWORD",
+    "PGPORT",
+    "PGUSER",
+  ];
+  for (const key of exactKeys) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("MWB_PRIVATE_BETA_")) delete env[key];
+  }
+  return env;
 }
 
 async function runStep(label, fn, options = {}) {

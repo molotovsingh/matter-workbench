@@ -300,6 +300,54 @@ test("private beta RC closure pack passes auth and matters home to recoverabilit
   assert.equal(recoverabilityOptions.authPassword, "private-secret");
 });
 
+test("private beta RC closure pack sanitizes runtime env for local verification gates", async () => {
+  const { runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-local-env-"));
+  const gateEnvs = [];
+  const dirtyEnv = {
+    MWB_RUNTIME_DB: "postgres",
+    MWB_RUNTIME_DB_STORAGE: "postgres",
+    MWB_RUNTIME_DATABASE_URL: "postgres://runtime:secret@example/mwb",
+    MWB_PRIVATE_BETA_AUTH: "required",
+    MWB_PRIVATE_BETA_PASSWORD: "private-secret",
+  };
+  const previousEnv = Object.fromEntries(Object.keys(dirtyEnv).map((key) => [key, process.env[key]]));
+
+  let result;
+  try {
+    Object.assign(process.env, dirtyEnv);
+    result = await runPrivateBetaRcClosurePack({
+      outDir,
+      timestamp: "2026-06-06T22:00:00.000Z",
+      gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+      localGateRunner: async ({ env }) => {
+        gateEnvs.push(env);
+        return { ok: true, stdout: "", stderr: "", exitCode: 0 };
+      },
+      runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+      serviceCheckFn: async () => ({ passed: true }),
+      opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+      securityCheckFn: async () => ({ passed: true, checks: [] }),
+      recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+    });
+  } finally {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+
+  assert.equal(result.success, true);
+  assert.equal(gateEnvs.length, 3);
+  for (const env of gateEnvs) {
+    assert.equal(env.MWB_RUNTIME_DB, undefined);
+    assert.equal(env.MWB_RUNTIME_DB_STORAGE, undefined);
+    assert.equal(env.MWB_RUNTIME_DATABASE_URL, undefined);
+    assert.equal(env.MWB_PRIVATE_BETA_AUTH, undefined);
+    assert.equal(env.MWB_PRIVATE_BETA_PASSWORD, undefined);
+  }
+});
+
 test("package and release docs expose the private beta RC closure pack", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");
