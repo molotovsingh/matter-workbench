@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "shadow-db-restore-drill/v1",
+  "generatedAt": "2026-06-06T01:28:31.835Z",
+  "success": true,
+  "backup": "shadow-db-backup-2026-06-06T01-28-21-222Z.sql",
+  "restoredDatabase": "matter_workbench_shadow_restore_2026_06_06T01_28_31_835Z",
+  "cleanup": true,
+  "keep": false,
+  "failedStep": "",
+  "steps": [
+    {
+      "label": "create restore database",
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "error": ""
+    },
+    {
+      "label": "restore backup",
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "error": ""
+    },
+    {
+      "label": "verify restored database",
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "error": ""
+    },
+    {
+      "label": "drop restore database",
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "error": ""
+    }
+  ],
+  "files": {
+    "markdown": "shadow-db-restore-drill-2026-06-06T01-28-31-835Z.md",
+    "json": "shadow-db-restore-drill-2026-06-06T01-28-31-835Z.json"
+  }
+}
