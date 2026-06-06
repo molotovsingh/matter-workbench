@@ -86,6 +86,30 @@ test("runtime cutover check reports explicit approval blocker when shadow has no
   assert.match(rendered, /MWB_DB_RUNTIME_CUTOVER_APPROVED/);
 });
 
+test("runtime cutover check passes injected env to shadow acceptance", async () => {
+  const { buildRuntimeCutoverReport } = await import(runtimeCheckPath.href);
+  const injectedEnv = {
+    MWB_DATABASE_URL: "postgres://example",
+    MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+  };
+  let receivedEnv;
+
+  const report = await buildRuntimeCutoverReport({
+    buildAcceptanceReport: async ({ env } = {}) => {
+      receivedEnv = env;
+      return {
+        accepted: true,
+        verifySuccess: true,
+        runtimeCutoverBlockers: [],
+      };
+    },
+    env: injectedEnv,
+  });
+
+  assert.equal(receivedEnv, injectedEnv);
+  assert.equal(report.runtimeCutoverReady, true);
+});
+
 test("runtime cutover check reports ready only after explicit approval", async () => {
   const { buildRuntimeCutoverReport, renderRuntimeCutoverReport } = await import(runtimeCheckPath.href);
 

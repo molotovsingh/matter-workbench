@@ -13,7 +13,7 @@ export async function buildRuntimeCutoverReport({
   buildAcceptanceReport = buildShadowAcceptanceReport,
   env = process.env,
 } = {}) {
-  const acceptance = await buildAcceptanceReport();
+  const acceptance = await buildAcceptanceReport({ env });
   const technicalBlockers = uniqueStrings([
     ...(acceptance.accepted ? [] : ["shadow_database_not_accepted"]),
     ...(acceptance.runtimeCutoverBlockers || []),
