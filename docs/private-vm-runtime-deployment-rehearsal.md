@@ -393,3 +393,27 @@ service_target_matter: Atlas Constuction vs Diptishree
 The evidence files were written to a local ignored `/tmp` recoverability folder,
 not committed to the repository. The repo records only the summarized result so
 we keep the operational proof without committing backup payloads.
+
+## Ops Pack Follow-Up
+
+The ops pack adds the lighter daily/incident command that does not belong inside
+the backup proof:
+
+```text
+npm run private-vm:ops-pack -- --base-url http://127.0.0.1:4191 --out-dir "$HOME/matter-workbench-backups/ops-packs"
+```
+
+It captures:
+
+- current deployment symlink and commit label;
+- previous deployment candidate;
+- live service-check result;
+- disk and memory posture;
+- recent user-service logs;
+- a generated `rollback-plan.sh`.
+
+This command does not run a backup and does not perform rollback. It creates a
+redacted operator bundle for debugging or handoff, and gives the operator a
+reviewable rollback script if the current deployment needs to be backed out.
+Use `private-vm:ops-pack` for daily health and incidents. Use
+`private-vm:recoverability-pack` when proving backup and restore.

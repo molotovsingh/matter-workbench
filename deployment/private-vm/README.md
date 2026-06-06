@@ -62,6 +62,30 @@ systemctl --user stop matter-workbench-runtime.service
 journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager
 ```
 
+## Ops And Incident Bundle
+
+For routine beta operation or after a user reports a problem, create a
+lightweight ops pack first:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-vm:ops-pack -- \
+  --base-url http://127.0.0.1:4191 \
+  --out-dir "$HOME/matter-workbench-backups/ops-packs"
+```
+
+The ops pack writes:
+
+- `ops-pack.md` - readable operator summary;
+- `ops-pack.json` - redacted machine-readable evidence;
+- `rollback-plan.sh` - a generated rollback script for the previous deployment
+  candidate.
+
+Use the ops pack when you need a quick picture of service health, current
+deployment, rollback candidate, disk/memory posture, and recent service logs.
+It does not back up the database and it does not perform rollback by itself.
+Review `rollback-plan.sh` before running it.
+
 ## Access And Security Check
 
 Do not expose this service to the public internet. This private VM pack assumes
@@ -159,6 +183,10 @@ That command creates:
 The output folder contains `recoverability-pack.md` and
 `recoverability-pack.json`. Treat those files as the operator evidence bundle
 for a private VM recovery pass.
+
+Use `private-vm:ops-pack` for daily health, incident capture, and rollback
+planning. Use `private-vm:recoverability-pack` when proving that backup and
+restore actually work.
 
 The lower-level commands remain useful for focused debugging. When running the
 shadow backup tools:

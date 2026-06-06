@@ -2043,3 +2043,18 @@ an env-backed login gate is a reasonable next step. For public cloud, it would
 not be enough. Public cloud needs durable sessions, identity provider support,
 tenant membership checks on every request, HTTPS, rate limiting, audit logs, and
 proper secret rotation. Small does not mean sloppy. It means honest about scope.
+
+The next operator lesson is that backups and incident reports are not the same
+tool. When a beta user says "something broke," the first thing you need is not
+always a half-gigabyte database backup. You need a clean snapshot of the live
+state: which deployment is running, whether the service can still answer, how
+much disk is left, what recent logs say, and what rollback candidate exists.
+That is what `private-vm:ops-pack` does.
+
+Think of it like two different bags in a car. The recoverability pack is the
+spare tyre and jack: it proves you can recover after a serious failure. The ops
+pack is the dashboard and incident notebook: it tells you what is happening
+right now and gives you a reviewed rollback script without automatically
+touching the running service. This matters because rollback should be a human
+operator decision, not a side effect of "collect diagnostics." Good operations
+tools gather evidence first and mutate later.

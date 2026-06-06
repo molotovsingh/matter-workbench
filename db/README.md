@@ -72,6 +72,7 @@ npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sq
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
+npm run private-vm:ops-pack
 npm run private-vm:recoverability-pack
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
@@ -328,6 +329,13 @@ with `sql-summary` verification, a local storage-object backup, a storage
 restore/hash check, and an optional live service check. Use this before treating
 a private VM as recoverable; a DB-only backup is not enough if local storage
 objects are still part of the custody chain.
+
+`private-vm:ops-pack` is the lighter daily/incident command. It captures the
+current deployment symlink, rollback candidate, live service-check result,
+disk/memory posture, and recent user-service logs, then writes a redacted
+`ops-pack.md`, `ops-pack.json`, and `rollback-plan.sh`. Use it before debugging
+or after a beta user reports a problem. It does not perform a backup and it does
+not switch deployments automatically.
 
 `db:storage:payloads:hydrate:*` is the local/private DB-custody answer to that
 problem. It copies source, artifact, and skill-sample bytes into
