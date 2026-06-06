@@ -236,7 +236,10 @@ mistaken for "product runtime is ready to use Postgres."
 It consumes the shadow acceptance result and fails closed while runtime-cutover
 blockers remain. It does not switch runtime storage, apply migrations, hydrate
 rows, or write snapshots. Use it when the question is "are we allowed to make
-the app depend on Postgres yet?"
+the app depend on Postgres yet?" Even when shadow evidence is accepted and no
+technical blockers remain, the command still fails closed until the operator
+sets `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes` after explicit runtime-storage
+approval.
 
 `db:shadow:backup` creates a local ignored backup of the shadow database under
 `.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a
@@ -365,3 +368,13 @@ made explicitly:
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.
+
+After those decisions are approved, run the stop-check with an explicit approval
+flag:
+
+```sh
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check
+```
+
+This flag only lets the guard report readiness. It does not switch runtime
+storage by itself.

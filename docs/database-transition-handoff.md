@@ -129,7 +129,15 @@ Use `db:runtime-cutover-check` only when asking whether the product runtime may
 start depending on Postgres. It consumes `db:shadow:acceptance` and fails closed
 unless the shadow evidence is accepted and a separate runtime-storage approval
 has been given. It does not switch runtime storage, hydrate rows, apply
-migrations, or write snapshots.
+migrations, or write snapshots. After explicit runtime-storage approval, set
+`MWB_DB_RUNTIME_CUTOVER_APPROVED=yes` for the stop-check only:
+
+```bash
+MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check
+```
+
+That flag allows the guard to report readiness. It does not make the app read
+or write Postgres by itself.
 
 ## Current Snapshot Evidence
 
@@ -316,6 +324,8 @@ Before any real hosted or database-backed runtime work:
 6. Confirm hosted rollback/degraded-mode behavior before the product runtime
    actually depends on Postgres. The local beta currently avoids this class of
    outage by staying filesystem-backed.
+7. Run `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check`
+   only after the runtime-storage approval is explicit.
 
 ## Stop Rule
 
@@ -329,6 +339,8 @@ Stop before runtime cutover if any of these are still unresolved:
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage.
+- explicit runtime-storage approval recorded before setting
+  `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`.
 
 The database is allowed to learn from the local app now. The local app should
 not depend on the database until those questions are closed.

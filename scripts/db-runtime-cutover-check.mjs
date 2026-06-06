@@ -11,15 +11,23 @@ const __filename = fileURLToPath(import.meta.url);
 
 export async function buildRuntimeCutoverReport({
   buildAcceptanceReport = buildShadowAcceptanceReport,
+  env = process.env,
 } = {}) {
   const acceptance = await buildAcceptanceReport();
-  const blockers = uniqueStrings([
+  const technicalBlockers = uniqueStrings([
     ...(acceptance.accepted ? [] : ["shadow_database_not_accepted"]),
     ...(acceptance.runtimeCutoverBlockers || []),
   ]);
+  const runtimeCutoverApproved = isRuntimeCutoverApproved(env);
+  const blockers = uniqueStrings([
+    ...technicalBlockers,
+    ...(acceptance.accepted && technicalBlockers.length === 0 && !runtimeCutoverApproved
+      ? ["runtime_cutover_not_approved"]
+      : []),
+  ]);
   const runtimeCutoverReady = Boolean(
     acceptance.accepted
-    && acceptance.runtimeCutoverReady
+    && runtimeCutoverApproved
     && blockers.length === 0,
   );
 
@@ -27,12 +35,13 @@ export async function buildRuntimeCutoverReport({
     mode: "runtime cutover stop-check",
     shadowEvidenceAccepted: Boolean(acceptance.accepted),
     verifySuccess: Boolean(acceptance.verifySuccess),
+    runtimeCutoverApproved,
     runtimeCutoverReady,
     blockers,
     failedVerifyStep: acceptance.failedVerifyStep || "",
     next: runtimeCutoverReady
       ? "Runtime cutover guard is clear. Confirm deployment approvals before changing product storage."
-      : acceptance.next || "Resolve runtime cutover blockers before changing product storage.",
+      : deriveNextAction({ acceptance, blockers, runtimeCutoverApproved }),
   };
 }
 
@@ -42,6 +51,7 @@ export function renderRuntimeCutoverReport(report = {}) {
     `mode: ${report.mode || "runtime cutover stop-check"}`,
     `shadow_evidence_accepted: ${report.shadowEvidenceAccepted ? "yes" : "no"}`,
     `verify_success: ${report.verifySuccess ? "yes" : "no"}`,
+    `runtime_cutover_approved: ${report.runtimeCutoverApproved ? "yes" : "no"}`,
     `runtime_cutover_ready: ${report.runtimeCutoverReady ? "yes" : "no"}`,
   ];
   if (report.failedVerifyStep) lines.push(`failed_verify_step: ${report.failedVerifyStep}`);
@@ -54,6 +64,17 @@ export function renderRuntimeCutoverReport(report = {}) {
 
 function uniqueStrings(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function isRuntimeCutoverApproved(env = {}) {
+  return /^(1|true|yes|approved)$/i.test(String(env.MWB_DB_RUNTIME_CUTOVER_APPROVED || "").trim());
+}
+
+function deriveNextAction({ acceptance = {}, blockers = [], runtimeCutoverApproved = false } = {}) {
+  if (blockers.includes("runtime_cutover_not_approved") && !runtimeCutoverApproved) {
+    return "Set MWB_DB_RUNTIME_CUTOVER_APPROVED=yes only after explicit runtime-storage approval.";
+  }
+  return acceptance.next || "Resolve runtime cutover blockers before changing product storage.";
 }
 
 function redactLine(value) {

@@ -62,7 +62,31 @@ test("runtime cutover check carries the reduced blocker set after local runtime 
   ]);
 });
 
-test("runtime cutover check can report no blockers while still requiring explicit runtime cutover approval", async () => {
+test("runtime cutover check reports explicit approval blocker when shadow has no blockers", async () => {
+  const { buildRuntimeCutoverReport, renderRuntimeCutoverReport } = await import(runtimeCheckPath.href);
+
+  const report = await buildRuntimeCutoverReport({
+    buildAcceptanceReport: async () => ({
+      accepted: true,
+      verifySuccess: true,
+      runtimeCutoverReady: true,
+      runtimeCutoverBlockers: [],
+      next: "Shadow database accepted for handoff evidence; runtime remains filesystem-backed.",
+    }),
+    env: {},
+  });
+
+  assert.equal(report.shadowEvidenceAccepted, true);
+  assert.equal(report.runtimeCutoverReady, false);
+  assert.deepEqual(report.blockers, ["runtime_cutover_not_approved"]);
+
+  const rendered = renderRuntimeCutoverReport(report).join("\n");
+  assert.match(rendered, /runtime_cutover_ready: no/);
+  assert.match(rendered, /runtime_cutover_not_approved/);
+  assert.match(rendered, /MWB_DB_RUNTIME_CUTOVER_APPROVED/);
+});
+
+test("runtime cutover check reports ready only after explicit approval", async () => {
   const { buildRuntimeCutoverReport, renderRuntimeCutoverReport } = await import(runtimeCheckPath.href);
 
   const report = await buildRuntimeCutoverReport({
@@ -71,16 +95,16 @@ test("runtime cutover check can report no blockers while still requiring explici
       verifySuccess: true,
       runtimeCutoverReady: false,
       runtimeCutoverBlockers: [],
-      next: "Shadow database accepted for handoff evidence; runtime remains filesystem-backed.",
     }),
+    env: { MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes" },
   });
 
   assert.equal(report.shadowEvidenceAccepted, true);
-  assert.equal(report.runtimeCutoverReady, false);
+  assert.equal(report.runtimeCutoverReady, true);
   assert.deepEqual(report.blockers, []);
 
   const rendered = renderRuntimeCutoverReport(report).join("\n");
-  assert.match(rendered, /runtime_cutover_ready: no/);
+  assert.match(rendered, /runtime_cutover_ready: yes/);
   assert.match(rendered, /runtime_cutover_blockers:\n\s+\(none\)/);
 });
 
@@ -114,8 +138,10 @@ test("package and docs expose the runtime cutover stop check", async () => {
   assert.match(dbReadme, /npm run db:runtime-cutover-check/);
   assert.match(dbReadme, /fails closed/i);
   assert.match(dbReadme, /does not switch runtime/i);
+  assert.match(dbReadme, /MWB_DB_RUNTIME_CUTOVER_APPROVED/);
 
   const handoffDoc = await readFile(handoffDocPath, "utf8");
   assert.match(handoffDoc, /npm run db:runtime-cutover-check/);
   assert.match(handoffDoc, /runtime cutover/i);
+  assert.match(handoffDoc, /MWB_DB_RUNTIME_CUTOVER_APPROVED/);
 });
