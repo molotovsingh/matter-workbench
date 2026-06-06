@@ -18,48 +18,19 @@ import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { composeIntakeDirName } from "../shared/matter-contract.mjs";
 import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import {
+  WORKSPACE_PREVIEW_LIMITS,
+  classifyWorkspacePreview,
+  getWorkspaceRawContentType,
+  getWorkspaceTextPreviewLimit,
+  isWorkspaceTextPreviewExtension,
+} from "../shared/workspace-preview-policy.mjs";
 import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
-const maxPreviewBytes = 512 * 1024;
-const maxRawBytes = 50 * 1024 * 1024;
-
-const previewExtensions = new Set([
-  ".csv",
-  ".json",
-  ".log",
-  ".md",
-  ".mjs",
-  ".eml",
-  ".txt",
-]);
-
-const embeddableExtensions = new Set([
-  ".pdf",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".gif",
-  ".webp",
-  ".heic",
-]);
-
-const rawContentTypes = new Map([
-  [".pdf", "application/pdf"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".png", "image/png"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-  [".heic", "image/heic"],
-  [".csv", "text/csv; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
-  [".md", "text/markdown; charset=utf-8"],
-  [".txt", "text/plain; charset=utf-8"],
-  [".log", "text/plain; charset=utf-8"],
-  [".mjs", "text/javascript; charset=utf-8"],
-  [".eml", "message/rfc822; charset=utf-8"],
-]);
+const {
+  maxRawBytes,
+} = WORKSPACE_PREVIEW_LIMITS;
 
 export function createRuntimeDbStorageService({
   databaseUrl = "",
@@ -102,11 +73,11 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     const normalizedPath = normalizeMatterRelativePath(relativePath);
     const extension = path.extname(normalizedPath).toLowerCase();
-    if (!previewExtensions.has(extension)) {
+    if (!isWorkspaceTextPreviewExtension(normalizedPath)) {
       throw makeHttpError("File type is not previewable as text", 415);
     }
     const payload = readPayloadRow({ matter: normalizeMatter(matter), relativePath: normalizedPath });
-    if (payload.sizeBytes > maxPreviewBytes) throw makeHttpError("File is too large to preview", 413);
+    if (payload.sizeBytes > getWorkspaceTextPreviewLimit(normalizedPath)) throw makeHttpError("File is too large to preview", 413);
     return {
       path: normalizedPath,
       name: path.posix.basename(normalizedPath),
@@ -120,9 +91,8 @@ export function createRuntimeDbStorageService({
     const normalizedPath = normalizeMatterRelativePath(relativePath);
     const payload = readPayloadRow({ matter: normalizeMatter(matter), relativePath: normalizedPath });
     if (payload.sizeBytes > maxRawBytes) throw makeHttpError("File is too large to display inline", 413);
-    const extension = path.extname(normalizedPath).toLowerCase();
     return {
-      contentType: payload.mimeType || rawContentTypes.get(extension) || "application/octet-stream",
+      contentType: payload.mimeType || getWorkspaceRawContentType(normalizedPath),
       fileSize: payload.sizeBytes,
       safeFilename: path.posix.basename(normalizedPath).replace(/[\r\n"]/g, "_"),
       stream: Readable.from(payload.bytes),
@@ -609,17 +579,19 @@ function buildWorkspaceTree({ matter, objects }) {
         cursor = directory;
         continue;
       }
-      const ext = path.extname(name).toLowerCase();
       const size = object.sizeBytes || 0;
-      const isText = Boolean(object.hasPayload && previewExtensions.has(ext) && size <= maxPreviewBytes);
-      const isEmbeddable = Boolean(object.hasPayload && embeddableExtensions.has(ext) && size <= maxRawBytes);
+      const preview = classifyWorkspacePreview({
+        relativePath: cursorPath,
+        sizeBytes: size,
+        hasPayload: Boolean(object.hasPayload),
+      });
       cursor.children.push({
         name,
         kind: "file",
         path: cursorPath,
         size,
-        previewable: isText || isEmbeddable,
-        previewKind: isText ? "text" : isEmbeddable ? (ext === ".pdf" ? "pdf" : "image") : null,
+        previewable: preview.previewable,
+        previewKind: preview.previewKind,
       });
       fileCount += 1;
     }
@@ -1401,8 +1373,7 @@ function roleForMaterializedPath(relativePath) {
 }
 
 function mimeTypeForPath(relativePath) {
-  const extension = path.extname(relativePath).toLowerCase();
-  return rawContentTypes.get(extension) || "application/octet-stream";
+  return getWorkspaceRawContentType(relativePath);
 }
 
 function sha256Bytes(bytes) {

@@ -64,6 +64,33 @@ test("runtime DB storage service previews text from payload bytes", async () => 
   assert.equal(preview.content, "# List of Dates");
 });
 
+test("runtime DB storage service treats large EML payloads as text-previewable source records", async () => {
+  const largeEmail = [
+    "From: client@example.com",
+    "To: lawyer@example.com",
+    "Subject: Large calculation service",
+    "",
+    "Calculation row 1, row 2, row 3.\n".repeat(20000),
+  ].join("\n");
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      matter,
+      objects: [
+        storageRow("DB Matter/10_Library/Large Service Email.eml", "matter_artifact", "message/rfc822", Buffer.byteLength(largeEmail), true),
+      ],
+    }),
+  });
+
+  const workspace = await service.readWorkspace(matter);
+  const library = workspace.tree.children.find((node) => node.path === "10_Library");
+  const email = library.children.find((node) => node.name === "Large Service Email.eml");
+
+  assert.equal(email.previewable, true);
+  assert.equal(email.previewKind, "text");
+});
+
 test("runtime DB storage service streams raw payload bytes with content metadata", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",

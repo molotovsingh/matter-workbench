@@ -3,55 +3,26 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { INITIAL_INTAKE_DIR_NAME } from "../shared/matter-contract.mjs";
 import { assertInsideRoot, makeHttpError, toPosix } from "../shared/safe-paths.mjs";
+import {
+  WORKSPACE_PREVIEW_LIMITS,
+  classifyWorkspacePreview,
+  getWorkspaceRawContentType,
+  getWorkspaceTextPreviewLimit,
+  isWorkspaceTextPreviewExtension,
+} from "../shared/workspace-preview-policy.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
 const maxTreeDepth = 6;
 const maxChildrenPerDirectory = 160;
-const maxPreviewBytes = 512 * 1024;
-const maxRawBytes = 50 * 1024 * 1024;
-const maxEmailPreviewChars = 80 * 1024;
+const {
+  maxRawBytes,
+  maxEmailPreviewChars,
+} = WORKSPACE_PREVIEW_LIMITS;
 
 const hiddenMatterEntries = new Set([
   ".git",
   ".playwright-cli",
   "phase1_legal_workbench",
-]);
-
-const previewExtensions = new Set([
-  ".csv",
-  ".json",
-  ".log",
-  ".md",
-  ".mjs",
-  ".eml",
-  ".txt",
-]);
-
-const embeddableExtensions = new Set([
-  ".pdf",
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".gif",
-  ".webp",
-  ".heic",
-]);
-
-const rawContentTypes = new Map([
-  [".pdf", "application/pdf"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".png", "image/png"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-  [".heic", "image/heic"],
-  [".csv", "text/csv; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
-  [".md", "text/markdown; charset=utf-8"],
-  [".txt", "text/plain; charset=utf-8"],
-  [".log", "text/plain; charset=utf-8"],
-  [".mjs", "text/javascript; charset=utf-8"],
-  [".eml", "message/rfc822; charset=utf-8"],
 ]);
 
 let mailparserModule = null;
@@ -155,17 +126,14 @@ export function createWorkspaceService({ matterStore } = {}) {
       if (entry.isFile()) {
         fileCount += 1;
         const fileStat = await stat(absolutePath);
-        const ext = path.extname(entry.name).toLowerCase();
-        const isEmail = ext === ".eml";
-        const isText = previewExtensions.has(ext) && fileStat.size <= (isEmail ? maxRawBytes : maxPreviewBytes);
-        const isEmbeddable = embeddableExtensions.has(ext) && fileStat.size <= maxRawBytes;
+        const preview = classifyWorkspacePreview({ relativePath, sizeBytes: fileStat.size });
         children.push({
           name: entry.name,
           kind: "file",
           path: relativePath,
           size: fileStat.size,
-          previewable: isText || isEmbeddable,
-          previewKind: isText ? "text" : isEmbeddable ? (ext === ".pdf" ? "pdf" : "image") : null,
+          previewable: preview.previewable,
+          previewKind: preview.previewKind,
         });
       }
     }
@@ -210,9 +178,9 @@ export function createWorkspaceService({ matterStore } = {}) {
     if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
 
     const extension = path.extname(filePath).toLowerCase();
-    if (!previewExtensions.has(extension)) throw makeHttpError("File type is not previewable as text", 415);
+    if (!isWorkspaceTextPreviewExtension(filePath)) throw makeHttpError("File type is not previewable as text", 415);
     if (extension === ".eml") return readEmailPreview(filePath, root, fileStat.size);
-    if (fileStat.size > maxPreviewBytes) throw makeHttpError("File is too large to preview", 413);
+    if (fileStat.size > getWorkspaceTextPreviewLimit(filePath)) throw makeHttpError("File is too large to preview", 413);
 
     return {
       path: toMatterRelative(filePath, root),
@@ -278,9 +246,8 @@ export function createWorkspaceService({ matterStore } = {}) {
     if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
     if (fileStat.size > maxRawBytes) throw makeHttpError("File is too large to display inline", 413);
 
-    const extension = path.extname(filePath).toLowerCase();
     return {
-      contentType: rawContentTypes.get(extension) || "application/octet-stream",
+      contentType: getWorkspaceRawContentType(filePath),
       filePath,
       fileSize: fileStat.size,
       safeFilename: path.basename(filePath).replace(/[\r\n"]/g, "_"),
