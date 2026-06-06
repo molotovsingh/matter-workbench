@@ -64,6 +64,9 @@ test("runtime DB configurable skill run ledger writes and lists canonical receip
   assert.ok(calls.some((sql) => /insert into configurable_skill_runs/i.test(sql)));
   assert.ok(calls.some((sql) => /update configurable_skill_runs/i.test(sql)));
   assert.ok(calls.some((sql) => /from configurable_skill_runs csr/i.test(sql)));
+  assertTransactionWrapped(calls.find((sql) => /insert into configurable_skill_runs/i.test(sql)));
+  assertTransactionWrapped(calls.find((sql) => /update configurable_skill_runs/i.test(sql)));
+  assertSafeRuntimeRoleGuard(calls.find((sql) => /from configurable_skill_runs csr/i.test(sql)));
 });
 
 test("runtime DB configurable skill run ledger rechecks DB object availability on list", async () => {
@@ -79,6 +82,7 @@ test("runtime DB configurable skill run ledger rechecks DB object availability o
   assert.equal(listed.runs[0].outputAvailability.markdown, "missing");
   assert.equal(listed.runs[0].receipt.receiptState, "output_missing");
   assert.ok(calls.some((sql) => /from storage_objects so/i.test(sql)));
+  assertSafeRuntimeRoleGuard(calls.find((sql) => /from storage_objects so/i.test(sql)));
 });
 
 function fakeSpawn(calls, { listedMarkdownAvailability = "present" } = {}) {
@@ -133,4 +137,17 @@ function spawnResult(stdout) {
     stdout,
     stderr: "",
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql || "", /pg_roles/i);
+  assert.match(sql || "", /rolsuper/i);
+  assert.match(sql || "", /rolbypassrls/i);
+  assert.match(sql || "", /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql || "", /^\s*begin;/i);
+  assert.match(sql || "", /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

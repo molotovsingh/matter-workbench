@@ -7,6 +7,7 @@ import { normalizeAiRunMetadata, AI_RUN_LEDGER_FIELDS } from "../shared/ai-run-m
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { SKILL_SAMPLE_STATE } from "../shared/skill-sample-states.mjs";
 import { SKILL_SAMPLES_SCHEMA_VERSION, hashDesignBrief } from "./skill-samples-service.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 
 const MAX_SAMPLE_MARKDOWN_LENGTH = 60_000;
 
@@ -43,7 +44,7 @@ export function createRuntimeDbSkillSamplesService({
       warnings: sample.warnings,
       rawSample: { ...sample, sample_markdown: markdown },
     });
-    const row = queryJson(recordSampleSql({ tenantId, sample: stored }));
+    const row = queryJson(wrapRuntimeDbWriteTransaction(recordSampleSql({ tenantId, sample: stored })));
     return {
       schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
       sample: row?.id ? normalizeStoredSample(row) : stored,
@@ -57,12 +58,12 @@ export function createRuntimeDbSkillSamplesService({
     if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
     if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400);
     const currentHash = hashDesignBrief(designBrief);
-    const row = queryJson(approveSampleSql({
+    const row = queryJson(wrapRuntimeDbWriteTransaction(approveSampleSql({
       tenantId,
       ideaId: normalizedIdeaId,
       sampleId: normalizedSampleId,
       designBriefHash: currentHash,
-    }));
+    })));
     if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill sample not found", 404);
     return {
       schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
@@ -115,7 +116,7 @@ export function createRuntimeDbSkillSamplesService({
   function queryJson(sql) {
     const { command, args, env } = psqlConnectionArgs(databaseUrl);
     const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-      input: sql,
+      input: ensureRuntimeDbSafeRoleSql(sql),
       encoding: "utf8",
       env: { ...process.env, ...env },
     });

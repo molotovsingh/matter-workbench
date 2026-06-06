@@ -26,6 +26,7 @@ test("runtime DB command interaction log writes audit events", async () => {
   assert.equal(result.logged, true);
   assert.equal(result.path, "postgres:audit_events/command_interaction");
   const sql = calls[0].input;
+  assertTransactionWrapped(sql);
   assert.match(sql, /insert into audit_events/i);
   assert.match(sql, /command_interaction/);
   assert.match(sql, /Provider unavailable/);
@@ -53,6 +54,7 @@ test("runtime DB command interaction log reads recent audit events", async () =>
   assert.equal(rows.length, 1);
   assert.equal(rows[0].matched_command, "/describe_sources");
   assert.equal(rows[0].matter.folder_name, "DB Matter");
+  assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /from audit_events/i);
   assert.match(calls[0].input, /limit 5/i);
 });
@@ -66,4 +68,17 @@ function jsonSpawn(calls, payload) {
       stderr: "",
     };
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql, /pg_roles/i);
+  assert.match(sql, /rolsuper/i);
+  assert.match(sql, /rolbypassrls/i);
+  assert.match(sql, /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql, /^\s*begin;/i);
+  assert.match(sql, /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

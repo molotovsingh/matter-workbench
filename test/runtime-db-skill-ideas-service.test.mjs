@@ -30,6 +30,7 @@ test("runtime DB skill ideas service lists and normalizes DB ideas", async () =>
   assert.equal(result.ideas[0].status, "ready_for_review");
   assert.equal(result.ideas[0].matter.folderName, "Ayesha Vs Japan Airlines");
   assert.equal(result.ideas[0].readiness.ready, true);
+  assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /from skill_ideas/i);
   assert.doesNotMatch(calls[0].input, /secret/);
 });
@@ -60,6 +61,9 @@ test("runtime DB skill ideas service creates and updates ideas in Postgres", asy
   assert.equal(updated.idea.designBrief.notes, "Prefer concise issue-wise output.");
   assert.equal(parked.idea.status, "parked");
   const sql = calls.map((call) => call.input || "").join("\n");
+  assertTransactionWrapped(calls[0].input);
+  assertTransactionWrapped(calls[1].input);
+  assertTransactionWrapped(calls[2].input);
   assert.match(sql, /insert into skill_ideas/i);
   assert.match(sql, /update skill_ideas/i);
   assert.match(sql, /matter_folder_name/i);
@@ -103,4 +107,17 @@ function jsonSpawnSequence(calls, payloads) {
       stderr: "",
     };
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql, /pg_roles/i);
+  assert.match(sql, /rolsuper/i);
+  assert.match(sql, /rolbypassrls/i);
+  assert.match(sql, /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql, /^\s*begin;/i);
+  assert.match(sql, /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

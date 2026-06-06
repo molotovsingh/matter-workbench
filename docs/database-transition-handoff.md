@@ -50,6 +50,16 @@ Without those flags, the local beta remains filesystem-backed.
 - Custom skill ideas, generated samples, custom skill definitions/versions,
   custom skill run receipts, and command interaction history are DB-owned in
   runtime DB storage mode.
+- Runtime DB `psql` adapters now prepend a role-safety guard that refuses to run
+  when `current_user` is a PostgreSQL superuser or has `BYPASSRLS`. `FORCE ROW
+  LEVEL SECURITY` is only meaningful for a normal runtime role; do not point
+  `MWB_DATABASE_URL` at a superuser connection.
+- Runtime DB write adapters now wrap logical writes in one transaction. This
+  covers DB-backed uploads/add-files, materialized workflow output persistence,
+  configurable skill definitions, skill ideas, skill samples, custom-skill run
+  receipts, and command interaction audit rows. A statement failure should now
+  roll back the logical write instead of leaving a half-written matter or
+  receipt.
 - Local matter folders still act as the import/hydration source until a hosted
   upload path exists. They are no longer the live read source in runtime DB
   storage mode, but they are still needed to populate that mode.
@@ -238,9 +248,12 @@ On the local VM, the storage runtime smoke passed against the hydrated database:
 15 active DB matters were visible, the app switched to a DB-listed matter, the
 workspace was read from DB payload custody, a DB-backed text file preview loaded,
 and a raw file response streamed from Postgres bytes. Treat that as current
-read/storage-runtime evidence. Legal-engine write proof now lives in focused
-route/service tests for the materialization bridge; it is not proof of hosted
-background-worker recovery.
+read/storage-runtime evidence. Legal-engine write proof currently lives in
+focused route/service tests for the materialization bridge. Those tests verify
+the generated SQL carries the runtime-role guard and transaction boundary, but
+they still mock `psql`; they are not a substitute for a checked-in real-Postgres
+write-smoke artifact and they are not proof of hosted background-worker
+recovery.
 
 ```text
 runtime_db_enabled: yes

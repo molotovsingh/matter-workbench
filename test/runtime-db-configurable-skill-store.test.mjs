@@ -52,6 +52,7 @@ test("runtime DB configurable skill store reads DB rows as local skill definitio
   assert.equal(result.skills[0].version, 2);
   assert.equal(result.skills[0].sourceIdeaId, "idea_story");
   assert.equal(result.skills[0].sourceSampleId, "sample_story");
+  assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /configurable_skill_versions/i);
   assert.doesNotMatch(calls[0].input, /secret/);
 });
@@ -95,6 +96,7 @@ test("runtime DB configurable skill store writes mutated skills to skill and ver
 
   assert.deepEqual(result, { created: true });
   const sql = calls.map((call) => call.input || "").join("\n");
+  assertTransactionWrapped(calls[1].input);
   assert.match(sql, /insert into configurable_skills/i);
   assert.match(sql, /insert into configurable_skill_versions/i);
   assert.match(sql, /update configurable_skills\s+set current_version_id/i);
@@ -126,4 +128,17 @@ function jsonSpawnSequence(calls, payloads) {
       stderr: "",
     };
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql, /pg_roles/i);
+  assert.match(sql, /rolsuper/i);
+  assert.match(sql, /rolbypassrls/i);
+  assert.match(sql, /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql, /^\s*begin;/i);
+  assert.match(sql, /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

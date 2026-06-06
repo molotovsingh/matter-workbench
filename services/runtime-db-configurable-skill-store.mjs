@@ -6,6 +6,7 @@ import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { normalizeStoredSkill } from "./configurable-skill-definition.mjs";
 import { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 
 export function createRuntimeDbConfigurableSkillStore({
   databaseUrl = "",
@@ -27,12 +28,12 @@ export function createRuntimeDbConfigurableSkillStore({
   async function writeStore(store = {}) {
     ensureEnabled();
     const skills = Array.isArray(store.skills) ? store.skills.map(normalizeStoredSkill) : [];
-    const sql = [
+    const sql = wrapRuntimeDbWriteTransaction([
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
       ...skills.flatMap((skill) => configurableSkillUpsertSql(skill)),
       "select '{}'::jsonb::text;",
       "",
-    ].join("\n");
+    ].join("\n"));
     queryJson(sql);
   }
 
@@ -48,7 +49,7 @@ export function createRuntimeDbConfigurableSkillStore({
   function queryJson(sql) {
     const { command, args, env } = psqlConnectionArgs(databaseUrl);
     const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-      input: sql,
+      input: ensureRuntimeDbSafeRoleSql(sql),
       encoding: "utf8",
       env: { ...process.env, ...env },
     });

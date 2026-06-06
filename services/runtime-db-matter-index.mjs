@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { ensureRuntimeDbSafeRoleSql } from "./runtime-db-sql-safety.mjs";
 
 export function createRuntimeDbMatterIndex({
   env = process.env,
@@ -71,7 +72,7 @@ function disabledRuntimeMatterIndex() {
 function queryMatterRows({ databaseUrl, tenantId, spawn, name = "" } = {}) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: buildMatterRowsSql({ tenantId, name }),
+    input: ensureRuntimeDbSafeRoleSql(buildMatterRowsSql({ tenantId, name })),
     encoding: "utf8",
     env: { ...process.env, ...env },
   });

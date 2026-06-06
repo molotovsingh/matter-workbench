@@ -18,6 +18,7 @@ import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { composeIntakeDirName } from "../shared/matter-contract.mjs";
 import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
 const maxPreviewBytes = 512 * 1024;
@@ -217,7 +218,7 @@ export function createRuntimeDbStorageService({
       sizeBytes: file.bytes.length,
     }));
     const persistedRows = materializedRowsForFiles({ matter, files: filesToPersist });
-    const sql = [
+    const sql = wrapRuntimeDbWriteTransaction([
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
       ...createMatterUploadSql({
         matter,
@@ -239,7 +240,7 @@ export function createRuntimeDbStorageService({
       ...matterImportItemUpsertSqls({ matter, importBatchId, importItems, persistedRows }),
       "select '{}'::jsonb::text;",
       "",
-    ].join("\n");
+    ].join("\n"));
     queryJson({ databaseUrl, tenantId, spawn, sql });
     return matter;
   }
@@ -306,7 +307,7 @@ export function createRuntimeDbStorageService({
       sizeBytes: file.bytes.length,
     }));
     const persistedRows = materializedRowsForFiles({ matter: dbMatter, files: filesToPersist });
-    const sql = [
+    const sql = wrapRuntimeDbWriteTransaction([
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
       ...createMatterAddFilesSql({
         matter: dbMatter,
@@ -330,7 +331,7 @@ export function createRuntimeDbStorageService({
       ...matterImportItemUpsertSqls({ matter: dbMatter, importBatchId, importItems, persistedRows }),
       "select '{}'::jsonb::text;",
       "",
-    ].join("\n");
+    ].join("\n"));
     queryJson({ databaseUrl, tenantId, spawn, sql });
     return {
       intakeId,
@@ -853,7 +854,7 @@ function buildAdvisorySnapshotSql({ tenantId, matter }) {
 function queryJson({ databaseUrl, tenantId, spawn, sql }) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: sql,
+    input: ensureRuntimeDbSafeRoleSql(sql),
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -1037,7 +1038,7 @@ async function listMatterFiles(root, relativePrefix = "") {
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {
   const rows = materializedRowsForFiles({ matter, files });
-  const sql = [
+  const sql = wrapRuntimeDbWriteTransaction([
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     ...rows.flatMap((row) => [
       ...materializedFileUpsertSql({ matter, row }),
@@ -1047,7 +1048,7 @@ function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files 
     ]),
     "select '{}'::jsonb::text;",
     "",
-  ].join("\n");
+  ].join("\n"));
   queryJson({
     databaseUrl,
     tenantId,

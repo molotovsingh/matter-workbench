@@ -37,6 +37,7 @@ test("runtime DB skill samples service reads approved samples with payload markd
   assert.equal(sample.approved, true);
   assert.equal(sample.sampleMarkdown, "# The Story\n\nA source-backed story.");
   assert.equal(sample.aiRun.provider, "openai-direct");
+  assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /storage_object_payloads/i);
   assert.doesNotMatch(calls[0].input, /secret/);
 });
@@ -72,6 +73,8 @@ test("runtime DB skill samples service records and approves samples in Postgres"
   assert.equal(recorded.sample.version, 1);
   assert.equal(approved.sample.approved, true);
   const sql = calls.map((call) => call.input || "").join("\n");
+  assertTransactionWrapped(calls[0].input);
+  assertTransactionWrapped(calls[1].input);
   assert.match(sql, /insert into storage_objects/i);
   assert.match(sql, /insert into storage_object_payloads/i);
   assert.match(sql, /insert into skill_samples/i);
@@ -117,4 +120,17 @@ function jsonSpawnSequence(calls, payloads) {
       stderr: "",
     };
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql, /pg_roles/i);
+  assert.match(sql, /rolsuper/i);
+  assert.match(sql, /rolbypassrls/i);
+  assert.match(sql, /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql, /^\s*begin;/i);
+  assert.match(sql, /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

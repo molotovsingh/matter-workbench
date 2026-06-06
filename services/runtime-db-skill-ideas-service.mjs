@@ -14,6 +14,7 @@ import {
 } from "../shared/skill-idea-design-brief.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { SKILL_IDEAS_SCHEMA_VERSION } from "./skill-ideas-service.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 
 const SKILL_IDEA_STATUSES = new Set(SKILL_IDEA_STATUS_VALUES);
 const MAX_IDEA_TEXT_LENGTH = 2000;
@@ -59,7 +60,7 @@ export function createRuntimeDbSkillIdeasService({
       matter: normalizeMatterSummary(matter),
       designBrief,
     });
-    const row = queryJson(upsertIdeaSql({ tenantId, idea }));
+    const row = queryJson(wrapRuntimeDbWriteTransaction(upsertIdeaSql({ tenantId, idea })));
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
       idea: row?.id ? normalizeDbIdea(row) : idea,
@@ -72,12 +73,12 @@ export function createRuntimeDbSkillIdeasService({
     if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
     const normalizedDesignBrief = normalizeDesignBrief(designBrief);
     const readiness = calculateSkillIdeaReadiness(normalizedDesignBrief);
-    const row = queryJson(updateIdeaDesignBriefSql({
+    const row = queryJson(wrapRuntimeDbWriteTransaction(updateIdeaDesignBriefSql({
       tenantId,
       id: normalizedId,
       designBrief: normalizedDesignBrief,
       readiness,
-    }));
+    })));
     if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill idea not found", 404);
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
@@ -102,7 +103,7 @@ export function createRuntimeDbSkillIdeasService({
       const current = await getIdea(normalizedId);
       if (!current.readiness.ready) throw makeHttpError("Skill idea is not ready for review", 400);
     }
-    const row = queryJson(updateIdeaStatusSql({ tenantId, id: normalizedId, status: normalizedStatus }));
+    const row = queryJson(wrapRuntimeDbWriteTransaction(updateIdeaStatusSql({ tenantId, id: normalizedId, status: normalizedStatus })));
     if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill idea not found", 404);
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
@@ -117,7 +118,7 @@ export function createRuntimeDbSkillIdeasService({
   function queryJson(sql) {
     const { command, args, env } = psqlConnectionArgs(databaseUrl);
     const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-      input: sql,
+      input: ensureRuntimeDbSafeRoleSql(sql),
       encoding: "utf8",
       env: { ...process.env, ...env },
     });

@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import {
   COMMAND_INTERACTION_LOG_SCHEMA_VERSION,
   normalizeInteraction,
@@ -24,7 +25,7 @@ export function createRuntimeDbCommandInteractionLogService({
   async function appendInteraction(entry = {}) {
     ensureEnabled();
     const record = normalizeInteraction(entry, { now });
-    queryJson(appendInteractionSql({ tenantId, id: idFactory(), record }));
+    queryJson(wrapRuntimeDbWriteTransaction(appendInteractionSql({ tenantId, id: idFactory(), record })));
     return {
       schema_version: COMMAND_INTERACTION_LOG_SCHEMA_VERSION,
       logged: true,
@@ -42,7 +43,7 @@ export function createRuntimeDbCommandInteractionLogService({
   function queryJson(sql) {
     const { command, args, env } = psqlConnectionArgs(databaseUrl);
     const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-      input: sql,
+      input: ensureRuntimeDbSafeRoleSql(sql),
       encoding: "utf8",
       env: { ...process.env, ...env },
     });

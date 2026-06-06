@@ -12,6 +12,7 @@ import {
   CONFIGURABLE_SKILL_RUN_SCHEMA_VERSION,
   normalizeRunRecord,
 } from "./configurable-skill-runs-service.mjs";
+import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -124,13 +125,13 @@ export function createRuntimeDbConfigurableSkillRunsService({
   }
 
   function executeSql(sql) {
-    queryJson(`${sql}\nselect '{}'::jsonb::text;\n`);
+    queryJson(wrapRuntimeDbWriteTransaction(`${sql}\nselect '{}'::jsonb::text;\n`));
   }
 
   function queryJson(sql) {
     const { command, args, env } = psqlConnectionArgs(databaseUrl);
     const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-      input: sql,
+      input: ensureRuntimeDbSafeRoleSql(sql),
       encoding: "utf8",
       env: { ...process.env, ...env },
     });

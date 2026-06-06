@@ -43,6 +43,7 @@ test("runtime DB storage service builds workspace tree from storage payload meta
   assert.deepEqual(workspace.tree.children.map((child) => child.name), ["00_Inbox", "10_Library"]);
   assert.equal(workspace.tree.children[1].children[0].name, "List of Dates.md");
   assert.equal(workspace.tree.children[1].children[0].previewKind, "text");
+  assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/i);
   assert.match(calls[0].input, /storage_object_payloads/i);
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
@@ -178,6 +179,7 @@ test("runtime DB storage service materializes DB payloads and persists workflow 
   assert.deepEqual(result.operationResult, { ok: true });
   assert.deepEqual(result.persisted.map((item) => item.relativePath), ["10_Library/New Artifact.md"]);
   const persistSql = calls.at(-1).input;
+  assertTransactionWrapped(persistSql);
   assert.match(persistSql, /insert into storage_objects/i);
   assert.match(persistSql, /insert into storage_object_payloads/i);
   assert.match(persistSql, /insert into matter_artifacts/i);
@@ -298,6 +300,7 @@ test("runtime DB storage service creates matter upload custody rows with payload
   assert.equal(created.name, "DB Upload Matter");
   assert.equal(created.clientName, "Runtime Client");
   const sql = calls.map((call) => call.input || "").join("\n");
+  assertTransactionWrapped(calls[1].input);
   assert.match(sql, /insert into matters/i);
   assert.match(sql, /insert into matter_intakes/i);
   assert.match(sql, /insert into upload_sessions/i);
@@ -338,6 +341,7 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   assert.equal(intakeAdded.scanned, 1);
   assert.equal(intakeAdded.unique, 1);
   const sql = calls.map((call) => call.input || "").join("\n");
+  assertTransactionWrapped(calls[1].input);
   assert.match(sql, /max\s*\(/i);
   assert.match(sql, /insert into matter_intakes/i);
   assert.match(sql, /insert into upload_sessions/i);
@@ -465,4 +469,17 @@ function jsonSpawnSequence(calls, payloads) {
       stderr: "",
     };
   };
+}
+
+function assertSafeRuntimeRoleGuard(sql) {
+  assert.match(sql, /pg_roles/i);
+  assert.match(sql, /rolsuper/i);
+  assert.match(sql, /rolbypassrls/i);
+  assert.match(sql, /current_user/i);
+}
+
+function assertTransactionWrapped(sql) {
+  assert.match(sql, /^\s*begin;/i);
+  assert.match(sql, /\bcommit;\s*$/i);
+  assertSafeRuntimeRoleGuard(sql);
 }

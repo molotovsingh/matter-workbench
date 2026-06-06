@@ -84,6 +84,10 @@ test("runtime DB matter index lists active matter folders from Postgres JSON", a
     },
   ]);
   assert.equal(calls.length, 1);
+  assert.match(calls[0].input, /pg_roles/i);
+  assert.match(calls[0].input, /rolsuper/i);
+  assert.match(calls[0].input, /rolbypassrls/i);
+  assert.match(calls[0].input, /current_user/i);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/);
   assert.match(calls[0].input, new RegExp(defaultRuntimeDbTenantId()));
   assert.match(calls[0].input, /from matters m/i);

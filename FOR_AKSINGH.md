@@ -1903,3 +1903,22 @@ project. That bridge is acceptable only because it is temporary and because the
 changed files are persisted back into Postgres. The old matter folder is no
 longer supposed to be live truth in DB mode; it is either absent or a scratch
 surface used inside one operation.
+
+A later review forced an important correction: saying "the DB owns the write
+path" is too strong unless the write path is atomic and the runtime role is not
+able to bypass row-level security. The first runtime DB bridge used `psql` with
+`ON_ERROR_STOP`, but without an explicit transaction. In PostgreSQL that means
+statement 1 can commit even if statement 20 fails. That is not good enough for a
+legal workbench; half a matter is worse than no matter. The runtime DB adapters
+now wrap logical writes in `BEGIN`/`COMMIT`, and each DB script checks that
+`current_user` is not a superuser and does not have `BYPASSRLS`. The lesson is
+simple: RLS is not a magic sticker. It is a contract between schema, role, and
+runtime. If the app connects as a superuser, the contract is gone.
+
+That fix still does not make the hosted database story complete. The current
+automated tests prove that generated SQL carries the transaction and role guard,
+but most of those tests still mock `psql`. Before hosted deployment, we still
+need a real Postgres write-smoke artifact that creates a disposable matter,
+verifies row counts and payload bytes, intentionally exercises rollback, and
+records the result. Good engineers keep these distinctions sharp: code-level
+guards are progress, real-database evidence is acceptance.
