@@ -80,16 +80,17 @@ export async function runRuntimeDbWriteSmoke({
     await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
     try {
-      const created = await postSmokeMatter({ fetchImpl, baseUrl, matterName });
+      const smokeFetch = await createRuntimeSmokeFetch({ fetchImpl, baseUrl, env: smokeEnv });
+      const created = await postSmokeMatter({ fetchImpl: smokeFetch, baseUrl, matterName });
       report.uploadCreated = Boolean(created?.folderName === matterName || created?.inputLabel === `postgres:${matterName}`);
 
-      const workspace = await postJson(fetchImpl, baseUrl, "/api/switch-matter", { name: matterName });
+      const workspace = await postJson(smokeFetch, baseUrl, "/api/switch-matter", { name: matterName });
       report.workspaceReadable = Boolean(workspace?.metadata || workspace?.tree || workspace?.files);
 
-      const preview = await getJson(fetchImpl, baseUrl, `/api/file?${new URLSearchParams({ path: sourcePath })}`);
+      const preview = await getJson(smokeFetch, baseUrl, `/api/file?${new URLSearchParams({ path: sourcePath })}`);
       report.filePreviewReadable = /runtime DB write smoke source text/i.test(String(preview?.content || ""));
 
-      const raw = await fetchImpl(`${baseUrl}/api/file-raw?${new URLSearchParams({ path: sourcePath })}`);
+      const raw = await smokeFetch(`${baseUrl}/api/file-raw?${new URLSearchParams({ path: sourcePath })}`);
       report.rawFileReadable = Boolean(raw.ok && (await raw.text()).includes("runtime DB write smoke source text"));
     } finally {
       await new Promise((resolve) => app.server.close(resolve));
@@ -180,6 +181,40 @@ async function postSmokeMatter({ fetchImpl, baseUrl, matterName }) {
     "smoke.txt",
   );
   return await postMultipart(fetchImpl, baseUrl, "/api/matters/new", form);
+}
+
+async function createRuntimeSmokeFetch({ fetchImpl, baseUrl, env = {} }) {
+  const username = String(env.MWB_PRIVATE_BETA_USERNAME || "").trim();
+  const password = String(env.MWB_PRIVATE_BETA_PASSWORD || "");
+  if (!username && !password) return fetchImpl;
+  if (!username || !password) throw new Error("Runtime DB write smoke private-beta auth requires both username and password.");
+
+  const response = await fetchImpl(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) throw new Error(`/api/auth/login: ${payload?.error || response.status}`);
+  const cookie = firstCookie(response.headers?.get?.("set-cookie") || "");
+  if (!cookie) throw new Error("/api/auth/login returned no session cookie");
+
+  return (url, options = {}) => fetchImpl(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      cookie,
+    },
+  });
+}
+
+function firstCookie(value = "") {
+  return String(value).split(";")[0].trim();
 }
 
 async function getJson(fetchImpl, baseUrl, pathName) {

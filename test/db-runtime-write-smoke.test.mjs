@@ -29,6 +29,9 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
       MWB_RUNTIME_DATABASE_URL: "postgres://runtime:runtime-secret@db.example/mwb",
       MWB_DATABASE_URL: "postgres://admin:admin-secret@db.example/mwb",
       MWB_RUNTIME_DB_TENANT_ID: "11111111-1111-4111-8111-111111111111",
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "private-secret",
     },
     now: () => new Date("2026-06-06T10:00:00.000Z"),
     createServer: async (options) => {
@@ -39,21 +42,30 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
       return app;
     },
     fetchImpl: async (url, options = {}) => {
-      fetchCalls.push({ url: String(url), method: options.method || "GET", body: options.body });
+      fetchCalls.push({ url: String(url), method: options.method || "GET", body: options.body, headers: options.headers || {} });
       const pathName = new URL(String(url)).pathname;
+      if (pathName === "/api/auth/login") {
+        assert.equal(options.method, "POST");
+        assert.deepEqual(JSON.parse(options.body), { username: "operator", password: "private-secret" });
+        return jsonResponse(200, { authenticated: true }, "mwb_private_beta_session=test-session");
+      }
       if (pathName === "/api/matters/new") {
         assert.equal(options.method, "POST");
+        assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
         assert.equal(typeof options.body?.get, "function");
         const submittedName = String(options.body.get("name"));
         return jsonResponse(200, { folderName: submittedName, inputLabel: `postgres:${submittedName}` });
       }
       if (pathName === "/api/switch-matter") {
+        assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
         return jsonResponse(200, { metadata: { matterName: "Runtime DB Write Smoke -00-000Z" }, tree: [] });
       }
       if (pathName === "/api/file") {
+        assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
         return jsonResponse(200, { content: "runtime DB write smoke source text\n" });
       }
       if (pathName === "/api/file-raw") {
+        assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
         return textResponse(200, "runtime DB write smoke source text\n");
       }
       return jsonResponse(404, { error: pathName });
@@ -95,6 +107,7 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
   assert.equal(report.cleanupDeleted, true);
   assert.equal(sqlCalls.some((call) => /begin;\ndo \$mwb_runtime_role_guard\$/.test(call.sql)), true);
   assert.equal(sqlCalls.some((call) => /delete from matters/i.test(call.sql)), true);
+  assert.equal(fetchCalls.some((call) => call.url.includes("/api/auth/login")), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/matters/new")), true);
 });
 
@@ -132,10 +145,15 @@ test("runtime DB write smoke renderer and docs stay redacted and exposed", async
   assert.equal(pkg.scripts["db:runtime:write-smoke"], "node scripts/db-runtime-write-smoke.mjs");
 });
 
-function jsonResponse(status, payload) {
+function jsonResponse(status, payload, setCookie = "") {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: {
+      get(name) {
+        return String(name).toLowerCase() === "set-cookie" ? setCookie : "";
+      },
+    },
     async json() {
       return payload;
     },
