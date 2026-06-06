@@ -58,7 +58,7 @@ export async function runPrivateVmServiceCheck({
   }
 
   const targetName = target.name || target.matterName || "";
-  const workspace = await getJson(fetchImpl, `${baseUrl}/api/workspace?${new URLSearchParams({ matterName: targetName })}`);
+  const workspace = await postJson(fetchImpl, `${baseUrl}/api/switch-matter`, { name: targetName });
   const previewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
   if (!previewPath) {
     return failedReport({
@@ -134,6 +134,17 @@ async function getJson(fetchImpl, url) {
   return payload;
 }
 
+async function postJson(fetchImpl, url, body = {}) {
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
+  return payload;
+}
+
 function failedReport(fields = {}) {
   return {
     passed: false,
@@ -171,4 +182,3 @@ if (process.argv[1] === __filename) {
     process.exitCode = 1;
   });
 }
-

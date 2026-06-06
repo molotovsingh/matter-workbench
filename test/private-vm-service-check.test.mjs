@@ -32,7 +32,7 @@ test("private VM service check walks nested workspace tree for first text previe
 
 test("private VM service check verifies root, matters, workspace, and preview", async () => {
   const calls = [];
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, init = {}) => {
     calls.push(String(url));
     const parsed = new URL(String(url));
     if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
@@ -43,8 +43,9 @@ test("private VM service check verifies root, matters, workspace, and preview", 
         matters: [{ name: "Atlas", matterName: "Atlas" }],
       });
     }
-    if (parsed.pathname === "/api/workspace") {
-      assert.equal(parsed.searchParams.get("matterName"), "Atlas");
+    if (parsed.pathname === "/api/switch-matter") {
+      assert.equal(init?.method, "POST");
+      assert.equal(JSON.parse(init.body).name, "Atlas");
       return jsonResponse({
         tree: {
           children: [
@@ -76,11 +77,14 @@ test("private VM service check verifies root, matters, workspace, and preview", 
 });
 
 test("private VM service check reports missing previewable file", async () => {
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
     if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
-    if (parsed.pathname === "/api/workspace") return jsonResponse({ tree: { children: [] } });
+    if (parsed.pathname === "/api/switch-matter") {
+      assert.equal(init?.method, "POST");
+      return jsonResponse({ tree: { children: [] } });
+    }
     throw new Error(`Unexpected URL: ${url}`);
   };
 
@@ -103,4 +107,3 @@ function htmlResponse(payload, status = 200) {
     headers: { "content-type": "text/html" },
   });
 }
-
