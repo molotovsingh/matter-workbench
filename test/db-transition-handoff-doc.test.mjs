@@ -74,6 +74,8 @@ test("database transition handoff doc records the shadow-only path without secre
   assert.match(doc, /Current Snapshot Evidence[\s\S]*source repo state/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*do not keep refreshing/i);
   assert.match(doc, /Do not cut over runtime reads or writes/i);
+  assert.match(doc, /runtime cutover check is not part of shadow acceptance/i);
+  assert.match(doc, /expected to fail closed/i);
   assert.doesNotMatch(
     doc,
     new RegExp(`${localVmPasswordPattern}|${passwordPlaceholderPattern}|192\\.168\\.210\\.\\d+|postgres:\\/\\/[^"\\s]+`),

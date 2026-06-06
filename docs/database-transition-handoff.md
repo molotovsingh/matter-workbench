@@ -72,7 +72,6 @@ npm run db:shadow:hydrate:dry-run
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
-MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime-cutover-check
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
@@ -109,6 +108,11 @@ also record the repo branch, short commit, and whether the worktree was clean
 when the report was generated.
 `db:shadow:snapshot` runs a read-only `db:doctor` preflight and refuses to write
 snapshot files unless the doctor reports `ready_to_hydrate: yes`.
+
+The runtime cutover check is not part of shadow acceptance. Run it separately
+only when you are testing the runtime-cutover stop rule. Without
+`MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`, it is expected to fail closed with
+`runtime_cutover_not_approved` even when the shadow mirror is accepted.
 
 Use `db:shadow:preflight` as the first command when resuming this track. It is a
 read-only combined check: `db:doctor` plus the full shadow hydration dry-run. If
