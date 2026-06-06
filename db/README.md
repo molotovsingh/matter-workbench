@@ -320,6 +320,18 @@ problem. It copies source, artifact, and skill-sample bytes into
 `storage_object_payloads` with size and SHA-256 checks. Runtime DB storage mode
 uses only payload-backed storage rows for workspace/file reads.
 
+Runtime DB mode should use a dedicated runtime role through
+`MWB_RUNTIME_DATABASE_URL`. Keep `MWB_DATABASE_URL` for migration/hydration
+admin work if needed. Run `npm run db:runtime:role-setup -- --write-env-shadow`
+to create or update a non-superuser, non-`BYPASSRLS` runtime role and store the
+runtime URL in ignored `.env.shadow`.
+
+Use `npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes`
+as the live write acceptance check. It creates a disposable matter through the
+real upload API, reads the DB-backed workspace and payload bytes, verifies
+matter/document/storage/payload rows, proves a forced transaction rollback, and
+archives the smoke matter afterward.
+
 For the private/local single-host path, the accepted storage policy is:
 `local-filesystem` storage is allowed only when the matching DB backup, storage
 backup manifest, and hash-checked file copy travel together. This closes the

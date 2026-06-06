@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -186,6 +187,7 @@ function redactRuntimeSmokeLine(value) {
 }
 
 async function main() {
+  await loadDatabaseScriptEnv();
   const report = await runRuntimeDbSmoke();
   for (const line of renderRuntimeDbSmokeReport(report)) console.log(line);
   if (!report.passed) process.exitCode = 1;

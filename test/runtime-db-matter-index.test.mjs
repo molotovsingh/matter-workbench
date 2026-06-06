@@ -95,6 +95,29 @@ test("runtime DB matter index lists active matter folders from Postgres JSON", a
   assert.equal(calls[0].env.PGPASSWORD, "secret");
 });
 
+test("runtime DB matter index prefers a dedicated runtime database URL", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://admin:admin-secret@db.example/mwb",
+      MWB_RUNTIME_DATABASE_URL: "postgres://runtime:runtime-secret@db.example/mwb",
+    },
+    spawn: (command, args, options) => {
+      calls.push({ command, args, input: options.input, env: options.env });
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  });
+
+  assert.equal(index.enabled, true);
+  assert.equal(index.databaseUrlRedacted, "postgres://runtime:***@db.example/mwb");
+  assert.deepEqual(await index.listMatterFolders(), []);
+  assert.ok(calls[0].args.includes("-U"));
+  assert.equal(calls[0].args[calls[0].args.indexOf("-U") + 1], "runtime");
+  assert.equal(calls[0].env.PGPASSWORD, "runtime-secret");
+});
+
 test("runtime DB matter index can resolve by legal matter name or local folder name", async () => {
   const calls = [];
   const index = createRuntimeDbMatterIndex({

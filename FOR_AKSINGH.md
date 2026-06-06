@@ -1915,10 +1915,18 @@ now wrap logical writes in `BEGIN`/`COMMIT`, and each DB script checks that
 simple: RLS is not a magic sticker. It is a contract between schema, role, and
 runtime. If the app connects as a superuser, the contract is gone.
 
-That fix still does not make the hosted database story complete. The current
-automated tests prove that generated SQL carries the transaction and role guard,
-but most of those tests still mock `psql`. Before hosted deployment, we still
-need a real Postgres write-smoke artifact that creates a disposable matter,
-verifies row counts and payload bytes, intentionally exercises rollback, and
-records the result. Good engineers keep these distinctions sharp: code-level
-guards are progress, real-database evidence is acceptance.
+The next correction was to split "admin DB credentials" from "runtime DB
+credentials". Migrations and hydration may need an administrative role. The app
+runtime should not. The runtime now prefers `MWB_RUNTIME_DATABASE_URL`, while
+`MWB_DATABASE_URL` can remain the migration/hydration URL. We added a runtime
+role setup command that creates or updates a normal PostgreSQL role with table
+and function grants but no superuser and no `BYPASSRLS`.
+
+Then we added the missing acceptance proof. The live runtime write smoke creates
+a disposable matter through the actual upload API, reads the resulting workspace
+and source file from Postgres payload bytes, verifies matter/document/storage/
+payload/import rows, deliberately runs a failing transaction and proves rollback,
+then archives the smoke matter so it does not pollute the active matter list.
+That is the difference between "the code looks right" and "the runtime path
+actually worked against Postgres". The checked-in evidence is under
+`docs/runtime-db-write-smokes/`.

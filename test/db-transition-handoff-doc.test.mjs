@@ -20,6 +20,13 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /npm run db:storage:payloads:hydrate/);
   assert.match(doc, /npm run db:shadow:snapshot/);
   assert.match(doc, /MWB_RUNTIME_DB_STORAGE=postgres/);
+  assert.match(doc, /MWB_RUNTIME_DATABASE_URL/);
+  assert.match(doc, /npm run db:runtime:role-setup/);
+  assert.match(doc, /npm run db:runtime:write-smoke/);
+  assert.match(doc, /docs\/runtime-db-write-smokes\/runtime-db-write-smoke-\d{4}-\d{2}-\d{2}T[0-9-]+Z\.md/);
+  assert.match(doc, /runtime write smoke[\s\S]*\/api\/matters\/new/i);
+  assert.match(doc, /rollback_verified:\s*yes/);
+  assert.match(doc, /cleanup_archived:\s*yes/);
   assert.match(doc, /repo branch, short\s+commit, and whether\s+the worktree was clean/i);
   assert.match(doc, /npm run db:shadow:backup/);
   assert.match(doc, /npm run db:shadow:storage-backup/);

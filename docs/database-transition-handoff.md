@@ -86,6 +86,19 @@ credentials:
 export MWB_DATABASE_URL="<redacted-postgres-url>"
 ```
 
+Use a separate runtime URL for the app wherever possible:
+
+```bash
+export MWB_RUNTIME_DATABASE_URL="<redacted-runtime-postgres-url>"
+```
+
+`MWB_DATABASE_URL` may still point at an admin or migration-capable role for
+schema setup and hydration. `MWB_RUNTIME_DATABASE_URL` is the app runtime role
+and must be a normal PostgreSQL role: no superuser, no `BYPASSRLS`. If
+`MWB_RUNTIME_DATABASE_URL` is absent, runtime mode falls back to
+`MWB_DATABASE_URL`; that fallback is acceptable only for local diagnostics with
+a safe non-superuser role.
+
 The DB scripts load `.env` first and then `.env.shadow`. Because `.env.shadow`
 is git-ignored, it is a safer place for local VM or rehearsal database
 credentials than tracked docs or command history.
@@ -127,6 +140,8 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:snapshot
 MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:runtime:smoke
+npm run db:runtime:role-setup -- --write-env-shadow
+MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
 ```
 
 Use `db:shadow:hydrate:dry-run` before writes to confirm what the local app will
@@ -248,12 +263,7 @@ On the local VM, the storage runtime smoke passed against the hydrated database:
 15 active DB matters were visible, the app switched to a DB-listed matter, the
 workspace was read from DB payload custody, a DB-backed text file preview loaded,
 and a raw file response streamed from Postgres bytes. Treat that as current
-read/storage-runtime evidence. Legal-engine write proof currently lives in
-focused route/service tests for the materialization bridge. Those tests verify
-the generated SQL carries the runtime-role guard and transaction boundary, but
-they still mock `psql`; they are not a substitute for a checked-in real-Postgres
-write-smoke artifact and they are not proof of hosted background-worker
-recovery.
+read/storage-runtime evidence.
 
 ```text
 runtime_db_enabled: yes
@@ -264,6 +274,40 @@ workspace_readable: yes
 storage_file_preview_readable: yes
 storage_raw_readable: yes
 ```
+
+The runtime write smoke also passed against the local VM with
+`MWB_RUNTIME_DATABASE_URL` pointing at the non-superuser `mwb_user` runtime
+role. The script created a disposable matter through the real
+`/api/matters/new` upload route, read the DB-backed workspace, previewed and
+streamed the uploaded source payload from Postgres, verified matter/document/
+storage/payload/import rows, intentionally exercised a failing transaction and
+confirmed rollback, then archived the smoke matter so it no longer appears as
+an active matter.
+
+Current checked-in write-smoke evidence:
+
+```text
+docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T06-33-29-053Z.md
+docs/runtime-db-write-smokes/runtime-db-write-smoke-2026-06-06T06-33-29-053Z.json
+```
+
+```text
+passed: yes
+database_url_source: MWB_RUNTIME_DATABASE_URL
+role_guard_passed: yes
+upload_created: yes
+workspace_readable: yes
+file_preview_readable: yes
+raw_file_readable: yes
+db_rows_verified: yes
+rollback_verified: yes
+cleanup_archived: yes
+counts: {"documents":1,"matterCount":1,"payloadRows":2,"payloadBytes":514,"importBatches":1,"storageObjects":2,"activeMatterCount":1}
+```
+
+This is the first live Postgres write proof for runtime DB mode. It is still not
+proof of hosted background-worker recovery; the legal engines still run inside
+the foreground local app and persist results through the materialized bridge.
 
 The payload hydration that fed this smoke inserted 512
 `storage_object_payloads` rows. The dry-run reported 70 missing local payload

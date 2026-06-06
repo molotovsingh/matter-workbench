@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { runtimeDatabaseUrl } from "./runtime-db-config.mjs";
 import { ensureRuntimeDbSafeRoleSql } from "./runtime-db-sql-safety.mjs";
 
 export function createRuntimeDbMatterIndex({
@@ -17,9 +18,9 @@ export function createRuntimeDbMatterIndex({
     throw new Error("MWB_RUNTIME_DB=postgres requires MWB_DB_RUNTIME_CUTOVER_APPROVED=yes.");
   }
 
-  const databaseUrl = String(env.MWB_DATABASE_URL || env.DATABASE_URL || "").trim();
+  const databaseUrl = runtimeDatabaseUrl(env);
   if (!databaseUrl) {
-    throw new Error("MWB_RUNTIME_DB=postgres requires MWB_DATABASE_URL or DATABASE_URL.");
+    throw new Error("MWB_RUNTIME_DB=postgres requires MWB_RUNTIME_DATABASE_URL, MWB_DATABASE_URL, or DATABASE_URL.");
   }
 
   const tenantId = String(env.MWB_RUNTIME_DB_TENANT_ID || defaultRuntimeDbTenantId()).trim();

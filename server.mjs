@@ -18,6 +18,7 @@ import { createMatterStatusService } from "./services/matter-status-service.mjs"
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
+import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
 import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-ideas-service.mjs";
 import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-samples-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
@@ -63,9 +64,9 @@ export async function createWorkbenchServer(options = {}) {
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
-  const runtimeDatabaseUrl = String(env.MWB_DATABASE_URL || env.DATABASE_URL || "");
+  const runtimeDbUrl = runtimeDatabaseUrl(env);
   const runtimeDbStorageService = options.runtimeDbStorageService || createRuntimeDbStorageService({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const uploadService = createUploadService({
@@ -76,7 +77,7 @@ export async function createWorkbenchServer(options = {}) {
   });
   const aiSettingsService = createAiSettingsService({ appDir, env });
   const runtimeDbCommandInteractionLogService = options.runtimeDbCommandInteractionLogService || createRuntimeDbCommandInteractionLogService({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const commandInteractionLogService = options.commandInteractionLogService || (
@@ -88,11 +89,11 @@ export async function createWorkbenchServer(options = {}) {
       })
   );
   const runtimeDbSkillIdeasService = options.runtimeDbSkillIdeasService || createRuntimeDbSkillIdeasService({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const runtimeDbSkillSamplesService = options.runtimeDbSkillSamplesService || createRuntimeDbSkillSamplesService({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const skillIdeasService = options.skillIdeasService || (
@@ -112,7 +113,7 @@ export async function createWorkbenchServer(options = {}) {
       })
   );
   const runtimeDbConfigurableSkillRunsService = createRuntimeDbConfigurableSkillRunsService({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const configurableSkillRunsService = options.configurableSkillRunsService || (
@@ -124,7 +125,7 @@ export async function createWorkbenchServer(options = {}) {
       })
   );
   const runtimeDbConfigurableSkillStore = options.runtimeDbConfigurableSkillStore || createRuntimeDbConfigurableSkillStore({
-    databaseUrl: runtimeDatabaseUrl,
+    databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const configurableSkillStore = options.configurableSkillStore || (
