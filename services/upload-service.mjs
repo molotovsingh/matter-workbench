@@ -2,7 +2,7 @@ import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
-import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
+import { isInsideRoot, makeHttpError, validateMatterName } from "../shared/safe-paths.mjs";
 import {
   parseUploadJsonField,
   validateUploadPathList,
@@ -13,22 +13,49 @@ import {
   DEFAULT_MAX_UPLOAD_BYTES,
 } from "./multipart-upload.mjs";
 
-export function createUploadService({ matterStore, workspaceService, maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES } = {}) {
+export function createUploadService({
+  matterStore,
+  runtimeDbStorageService = null,
+  workspaceService,
+  maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES,
+} = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!workspaceService) throw new Error("workspaceService is required");
 
   const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
 
   async function createMatter(request) {
-    const mattersHome = matterStore.ensureMattersHome();
     const upload = await handleMultipartUpload(request);
     const { fields, files, tempDir } = upload;
     try {
-      const { name, matterPath } = matterStore.matterPathForName(fields.name);
+      const useRuntimeDbStorage = matterStore.hasRuntimeDbStorageMode?.()
+        && typeof runtimeDbStorageService?.createMatterFromUploadedFiles === "function";
+      const mattersHome = useRuntimeDbStorage ? null : matterStore.ensureMattersHome();
+      const { name, matterPath } = useRuntimeDbStorage
+        ? { name: validateMatterName(fields.name), matterPath: null }
+        : matterStore.matterPathForName(fields.name);
 
       const siblings = await matterStore.listMattersHomeChildren();
       const collision = siblings.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
       if (collision) throw makeHttpError(`A matter named "${collision.name}" already exists`, 409);
+
+      const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
+      const metadata = {
+        ...submittedMetadata,
+        matterName: String(submittedMetadata.matterName || name).trim() || name,
+      };
+      const relativePaths = validateUploadPathList(fields, files);
+
+      if (useRuntimeDbStorage) {
+        const matter = await runtimeDbStorageService.createMatterFromUploadedFiles({
+          name,
+          metadata,
+          files,
+          relativePaths,
+        });
+        await matterStore.switchMatter(name);
+        return await runtimeDbStorageService.readWorkspace(matter);
+      }
 
       try {
         await stat(matterPath);
@@ -38,12 +65,6 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
         if (cause.code !== "ENOENT") throw cause;
       }
 
-      const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
-      const metadata = {
-        ...submittedMetadata,
-        matterName: String(submittedMetadata.matterName || name).trim() || name,
-      };
-      const relativePaths = validateUploadPathList(fields, files);
       const evidenceDir = path.join(matterPath, "00_Inbox", "Intake 01 - Initial", "Source Files");
       if (!isInsideRoot(mattersHome, evidenceDir)) throw makeHttpError("Invalid matter path", 400);
       await writeUploadedFiles(files, relativePaths, evidenceDir, {
@@ -60,10 +81,26 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
   async function addFilesToMatter(request) {
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
-      const root = await resolveMatterRootForFields(fields);
       const label = validateIntakeLabel(fields.label);
       const relativePaths = validateUploadPathList(fields, files);
       if (!files.length) throw makeHttpError("No files attached", 400);
+
+      if (matterStore.hasRuntimeDbStorageMode?.() && typeof runtimeDbStorageService?.addUploadedFilesToMatter === "function") {
+        const matter = await resolveMatterRecordForFields(fields);
+        const intakeAdded = await runtimeDbStorageService.addUploadedFilesToMatter({
+          matter,
+          label,
+          files,
+          relativePaths,
+        });
+        await matterStore.switchMatter(matter.name);
+        return {
+          ...await runtimeDbStorageService.readWorkspace(matter),
+          intakeAdded,
+        };
+      }
+
+      const root = await resolveMatterRootForFields(fields);
 
       const intakeNumber = await matterStore.nextIntakeNumber(root);
       const fileIdStart = await matterStore.nextFileIdStart(root);
@@ -114,6 +151,13 @@ export function createUploadService({ matterStore, workspaceService, maxUploadBy
     if (!matterName) return matterStore.ensureMatterRoot();
     const { matterPath } = await matterStore.resolveExistingMatter(matterName);
     return matterPath;
+  }
+
+  async function resolveMatterRecordForFields(fields = {}) {
+    const matterName = String(fields.matterName || fields.matter || "").trim();
+    const target = matterName || matterStore.activeMatterNameWithinHome?.();
+    if (!target) throw makeHttpError("No matter is active — pick one before adding files.", 409);
+    return matterStore.resolveExistingMatter(target);
   }
 
   return {

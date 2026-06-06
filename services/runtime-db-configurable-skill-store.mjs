@@ -1,0 +1,312 @@
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import process from "node:process";
+
+import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
+import { makeHttpError } from "../shared/safe-paths.mjs";
+import { normalizeStoredSkill } from "./configurable-skill-definition.mjs";
+import { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
+
+export function createRuntimeDbConfigurableSkillStore({
+  databaseUrl = "",
+  tenantId = "",
+  spawn = spawnSync,
+} = {}) {
+  const enabled = Boolean(databaseUrl && tenantId);
+  const storePath = "postgres:configurable_skills";
+
+  async function readStore() {
+    ensureEnabled();
+    const rows = queryJson(readStoreSql({ tenantId }));
+    return {
+      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
+      skills: (Array.isArray(rows) ? rows : []).map(normalizeDbSkill),
+    };
+  }
+
+  async function writeStore(store = {}) {
+    ensureEnabled();
+    const skills = Array.isArray(store.skills) ? store.skills.map(normalizeStoredSkill) : [];
+    const sql = [
+      `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+      ...skills.flatMap((skill) => configurableSkillUpsertSql(skill)),
+      "select '{}'::jsonb::text;",
+      "",
+    ].join("\n");
+    queryJson(sql);
+  }
+
+  async function updateStore(mutator) {
+    ensureEnabled();
+    if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500);
+    const store = await readStore();
+    const result = await mutator(store);
+    await writeStore(store);
+    return result;
+  }
+
+  function queryJson(sql) {
+    const { command, args, env } = psqlConnectionArgs(databaseUrl);
+    const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
+      input: sql,
+      encoding: "utf8",
+      env: { ...process.env, ...env },
+    });
+    if (result.error) {
+      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+    }
+    if (result.status !== 0) {
+      const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
+      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(detail)}`, 503);
+    }
+    return parsePsqlJson(result.stdout || "");
+  }
+
+  function ensureEnabled() {
+    if (!enabled) throw makeHttpError("Runtime DB configurable skill store is not configured", 503);
+  }
+
+  return {
+    enabled,
+    readStore,
+    storePath,
+    updateStore,
+    writeStore,
+  };
+}
+
+function readStoreSql({ tenantId }) {
+  return [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    "with selected_versions as (",
+    "  select",
+    "    cs.id as skill_id,",
+    "    coalesce(current_version.id, latest_version.id) as version_id,",
+    "    coalesce(current_version.version_number, latest_version.version_number, 1) as version_number,",
+    "    coalesce(current_version.definition_json, latest_version.definition_json, '{}'::jsonb) as definition_json,",
+    "    coalesce(current_version.source_idea_id, latest_version.source_idea_id, '') as source_idea_id,",
+    "    coalesce(current_version.policy_prompt_version, latest_version.policy_prompt_version, '') as policy_prompt_version",
+    "  from configurable_skills cs",
+    "  left join configurable_skill_versions current_version",
+    "    on current_version.id = cs.current_version_id and current_version.tenant_id = cs.tenant_id",
+    "  left join lateral (",
+    "    select *",
+    "    from configurable_skill_versions candidate",
+    "    where candidate.tenant_id = cs.tenant_id and candidate.skill_id = cs.id",
+    "    order by candidate.version_number desc",
+    "    limit 1",
+    "  ) latest_version on true",
+    "  where cs.tenant_id = current_app_tenant_id()",
+    ")",
+    "select coalesce(jsonb_agg(jsonb_build_object(",
+    "  'id', cs.id::text,",
+    "  'title', cs.title,",
+    "  'slash', cs.slash,",
+    "  'status', cs.status,",
+    "  'previousStatus', coalesce(cs.previous_status, ''),",
+    "  'statusChangedAt', coalesce(cs.status_changed_at::text, ''),",
+    "  'statusChangeReason', coalesce(cs.status_change_reason, ''),",
+    "  'createdAt', cs.created_at::text,",
+    "  'updatedAt', cs.updated_at::text,",
+    "  'versionNumber', sv.version_number,",
+    "  'sourceIdeaId', coalesce(sv.source_idea_id, ''),",
+    "  'policyPromptVersion', coalesce(sv.policy_prompt_version, ''),",
+    "  'definitionJson', coalesce(sv.definition_json, '{}'::jsonb)",
+    ") order by cs.updated_at desc, cs.title asc), '[]'::jsonb)::text",
+    "from configurable_skills cs",
+    "left join selected_versions sv on sv.skill_id = cs.id",
+    "where cs.tenant_id = current_app_tenant_id();",
+    "",
+  ].join("\n");
+}
+
+function configurableSkillUpsertSql(skill = {}) {
+  const normalized = normalizeStoredSkill(skill);
+  const skillId = dbSkillId(normalized.id);
+  const versionId = dbSkillVersionId(normalized.id, normalized.version);
+  const definition = skillDefinitionJson(normalized);
+  return [
+    "insert into configurable_skills (id, tenant_id, title, slash, status, current_version_id, previous_status, status_changed_at, status_changed_by, status_change_reason, created_at, updated_at)",
+    `values (${sqlUuid(skillId)}, current_app_tenant_id(), ${sqlString(normalized.title)}, ${sqlString(normalized.slash)}, ${sqlString(normalized.status)}, null, ${sqlStringOrNull(normalized.lifecycle.previousStatus)}, ${sqlTimestampOrNull(normalized.lifecycle.statusChangedAt)}, null, ${sqlString(normalized.lifecycle.reason)}, ${sqlTimestampOrNow(normalized.createdAt)}, ${sqlTimestampOrNow(normalized.updatedAt)})`,
+    "on conflict (id) do update set",
+    "  title = excluded.title,",
+    "  slash = excluded.slash,",
+    "  status = excluded.status,",
+    "  previous_status = excluded.previous_status,",
+    "  status_changed_at = excluded.status_changed_at,",
+    "  status_change_reason = excluded.status_change_reason,",
+    "  updated_at = excluded.updated_at;",
+    "insert into configurable_skill_versions (id, tenant_id, skill_id, version_number, status, definition_json, source_idea_id, policy_prompt_version, created_at)",
+    `values (${sqlUuid(versionId)}, current_app_tenant_id(), ${sqlUuid(skillId)}, ${sqlInteger(normalized.version)}, ${sqlString(skillVersionStatus(normalized.status))}, ${sqlJson(definition)}, ${sqlStringOrNull(normalized.sourceIdeaId)}, ${sqlString(normalized.modelPolicy.policyPromptVersion)}, ${sqlTimestampOrNow(normalized.createdAt)})`,
+    "on conflict (skill_id, version_number) do update set",
+    "  status = excluded.status,",
+    "  definition_json = excluded.definition_json,",
+    "  source_idea_id = excluded.source_idea_id,",
+    "  policy_prompt_version = excluded.policy_prompt_version;",
+    "update configurable_skills",
+    `set current_version_id = ${sqlUuid(versionId)}`,
+    "where tenant_id = current_app_tenant_id()",
+    `  and id = ${sqlUuid(skillId)};`,
+  ];
+}
+
+function normalizeDbSkill(row = {}) {
+  const definition = objectValue(row.definitionJson);
+  const promptConfig = objectValue(definition.prompt_config);
+  const modelPolicy = objectValue(definition.model_policy);
+  const validation = objectValue(definition.validation);
+  const localId = stringValue(definition.local_id) || stringValue(row.id);
+  return normalizeStoredSkill({
+    id: localId,
+    title: row.title,
+    slash: row.slash,
+    description: definition.description,
+    status: row.status,
+    version: Number(row.versionNumber) || 1,
+    familyId: definition.family_id || localId,
+    previousSkillId: definition.previous_skill_id,
+    replacedBySkillId: definition.replaced_by_skill_id,
+    sourceIdeaId: row.sourceIdeaId,
+    sourceSampleId: definition.source_sample_id,
+    approvedSampleHash: definition.approved_sample_hash,
+    targetLane: definition.target_lane,
+    outputArtifact: definition.output_artifact,
+    matterRequired: definition.matter_required,
+    paidProviderCall: definition.paid_provider_call,
+    sourceBacked: definition.source_backed,
+    promptConfig: {
+      prompt: promptConfig.prompt,
+      citationPolicy: promptConfig.citationPolicy || promptConfig.citation_policy,
+    },
+    modelPolicy: {
+      ...modelPolicy,
+      policyPromptVersion: modelPolicy.policyPromptVersion || modelPolicy.policy_prompt_version || row.policyPromptVersion,
+    },
+    validation,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lifecycle: {
+      statusChangedAt: row.statusChangedAt,
+      statusChangedBy: row.statusChangedAt ? "local-user" : "",
+      reason: row.statusChangeReason,
+      previousStatus: row.previousStatus,
+    },
+  });
+}
+
+function skillDefinitionJson(skill = {}) {
+  const normalized = normalizeStoredSkill(skill);
+  return {
+    local_id: normalized.id,
+    family_id: normalized.familyId,
+    previous_skill_id: normalized.previousSkillId,
+    replaced_by_skill_id: normalized.replacedBySkillId,
+    description: normalized.description,
+    target_lane: normalized.targetLane,
+    output_artifact: normalized.outputArtifact,
+    matter_required: normalized.matterRequired,
+    paid_provider_call: normalized.paidProviderCall,
+    source_backed: normalized.sourceBacked,
+    prompt_config: normalized.promptConfig,
+    model_policy: normalized.modelPolicy,
+    validation: normalized.validation,
+    source_sample_id: normalized.sourceSampleId,
+    approved_sample_hash: normalized.approvedSampleHash,
+  };
+}
+
+function skillVersionStatus(skillStatus = "") {
+  return skillStatus === "draft" ? "draft" : skillStatus === "disabled" ? "disabled" : "active";
+}
+
+function dbSkillId(localId = "") {
+  const text = stringValue(localId);
+  return uuidValue(text) || deterministicUuid(`configurable-skill:${text}`);
+}
+
+function dbSkillVersionId(localId = "", version = 1) {
+  return deterministicUuid(`configurable-skill-version:${stringValue(localId)}:${positiveInteger(version, 1)}`);
+}
+
+function parsePsqlJson(stdout = "") {
+  const text = String(stdout || "").trim();
+  const objectStart = text.indexOf("{");
+  const arrayStart = text.indexOf("[");
+  const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+  if (!starts.length) throw makeHttpError("runtime DB skill store query returned no JSON.", 503);
+  const start = Math.min(...starts);
+  const objectEnd = text.lastIndexOf("}");
+  const arrayEnd = text.lastIndexOf("]");
+  const end = Math.max(objectEnd, arrayEnd);
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    throw makeHttpError("runtime DB skill store query returned invalid JSON.", 503);
+  }
+}
+
+function objectValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function uuidValue(value) {
+  const text = stringValue(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : "";
+}
+
+function positiveInteger(value, fallback = 1) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 1) return fallback;
+  return Math.trunc(number);
+}
+
+function sqlUuid(value) {
+  return `${sqlString(value)}::uuid`;
+}
+
+function sqlStringOrNull(value) {
+  const text = stringValue(value);
+  return text ? sqlString(text) : "null";
+}
+
+function sqlTimestampOrNow(value) {
+  const text = stringValue(value);
+  return text ? `${sqlString(text)}::timestamptz` : "now()";
+}
+
+function sqlTimestampOrNull(value) {
+  const text = stringValue(value);
+  return text ? `${sqlString(text)}::timestamptz` : "null";
+}
+
+function sqlInteger(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Math.trunc(number)) : "0";
+}
+
+function sqlJson(value) {
+  return `${sqlString(JSON.stringify(value ?? null))}::jsonb`;
+}
+
+function sqlString(value) {
+  return `'${String(value ?? "").replaceAll("'", "''")}'`;
+}
+
+function stringValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function deterministicUuid(seed) {
+  const bytes = createHash("sha256").update(String(seed)).digest();
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.subarray(0, 16).toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
+function redactRuntimeDbError(value) {
+  return String(value || "")
+    .replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@")
+    .replace(/\bsecret\b/gi, "***")
+    .replace(/\btop-secret\b/gi, "***");
+}

@@ -304,6 +304,38 @@ test("active configurable skill runs write only configured markdown and JSON art
   assert.deepEqual(runs.runs.map((run) => run.overwrite), ["approved", "not_needed"]);
 });
 
+test("active configurable skill runs can use a materialized runtime DB matter root", async () => {
+  const { service, matterRoot } = await makeServiceHarness();
+  await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+  const materializedMatterRoot = await mkdtemp(path.join(os.tmpdir(), "configurable-skill-db-materialized-"));
+  await writeFile(path.join(materializedMatterRoot, "matter.json"), `${JSON.stringify({
+    matter_name: "Runtime DB Matter",
+    client_name: "Runtime Client",
+    opposite_party: "Runtime Opposite",
+    matter_type: "consumer dispute",
+    jurisdiction: "India",
+    intakes: [],
+  }, null, 2)}\n`);
+
+  const result = await service.runSkill({
+    slash: "/party_officer_map",
+    matterName: "Runtime DB Matter",
+    matterRootOverride: materializedMatterRoot,
+    matterRecordOverride: {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Runtime DB Matter",
+      matterName: "Runtime DB Matter",
+      runtimeStorageMode: "postgres",
+    },
+  });
+
+  assert.equal(result.state, "written");
+  assert.equal(result.runRecord.matterFolder, "Runtime DB Matter");
+  assert.equal(result.runRecord.matterRoot, "postgres:Runtime DB Matter");
+  assert.equal(result.runRecord.receipt.receiptState, "completed");
+  assert.notEqual(matterRoot, materializedMatterRoot);
+});
+
 test("active configurable skill run failures update the ledger without writing success metadata", async () => {
   const { service, runLedger } = await makeServiceHarness({ failRuntimeAfterValidation: true });
   await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });

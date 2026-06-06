@@ -5,8 +5,11 @@ export async function readMatterSummary(matterStore, { matterName } = {}) {
   if (!requestedMatterName) return readActiveMatterSummary(matterStore);
 
   try {
-    const { matterPath } = await matterStore.resolveExistingMatter(requestedMatterName);
-    const folderName = path.basename(matterPath);
+    const resolved = await matterStore.resolveExistingMatter(requestedMatterName);
+    const { matterPath } = resolved;
+    const folderName = resolved.runtimeStorageMode === "postgres"
+      ? String(resolved.name || resolved.folderName || requestedMatterName).trim()
+      : path.basename(matterPath);
     let metadata = {};
     try {
       metadata = await matterStore.readMatterMetadata(matterPath);

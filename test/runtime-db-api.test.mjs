@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { hashDesignBrief } from "../services/skill-samples-service.mjs";
 
 async function getJson(baseUrl, pathName) {
   const response = await fetch(`${baseUrl}${pathName}`);
@@ -68,6 +69,43 @@ test("runtime DB matter index drives /api/matters and switch while workspace rea
 
     const config = await getJson(baseUrl, "/api/config");
     assert.equal(config.activeMatterName, "DB Listed Matter");
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode lists matters even when local matters home is unset", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-no-home-"));
+  const runtimeMatter = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "DB Listed Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  };
+  const app = await createWorkbenchServer({
+    appDir: tmp,
+    env: {},
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const matters = await getJson(baseUrl, "/api/matters");
+
+    assert.equal(matters.enabled, true);
+    assert.equal(matters.mattersHome, null);
+    assert.deepEqual(matters.matters, [runtimeMatter]);
   } finally {
     app.server.close();
   }
@@ -229,6 +267,65 @@ test("runtime DB postgres storage mode serves workspace and files without local 
       ["attention", "DB Listed Matter"],
       ["raw", "DB Listed Matter", "00_Inbox/Intake 01/Originals/agreement.pdf"],
     ]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode checks upload overlap from DB custody rows", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-overlap-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const duplicateHash = "a".repeat(64);
+  const runtimeMatter = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "DB Existing Matter",
+    matterName: "DB Existing Matter",
+    clientName: "Runtime Client",
+  };
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async checkUploadedFileOverlap(hashes) {
+        calls.push(["overlap", hashes]);
+        return {
+          warnings: [{
+            matterName: "DB Existing Matter",
+            overlapCount: 1,
+            totalIncoming: 1,
+            matterTotalFiles: 3,
+            overlapPercent: 100,
+          }],
+        };
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const result = await postJson(baseUrl, "/api/matters/check-overlap", {
+      hashes: [duplicateHash],
+    });
+
+    assert.deepEqual(calls, [["overlap", [duplicateHash]]]);
+    assert.deepEqual(result.warnings, [{
+      matterName: "DB Existing Matter",
+      overlapCount: 1,
+      totalIncoming: 1,
+      matterTotalFiles: 3,
+      overlapPercent: 100,
+    }]);
   } finally {
     app.server.close();
   }
@@ -832,6 +929,536 @@ test("runtime DB postgres storage mode runs doctor fix through materialized DB w
     assert.deepEqual(result.remaining, []);
     assert.deepEqual(result.dbPersistence.persisted, []);
     assert.deepEqual(calls, [["write", "DB Doctor Matter", "Legal Caption"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode runs configurable skills through materialized DB write service", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-custom-skill-"));
+  const mattersHome = path.join(tmp, "matters");
+  const appDir = path.join(tmp, "app");
+  await mkdir(mattersHome, { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  const configurableSkillRunsPath = path.join(appDir, "configurable-skill-runs.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify({
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_story",
+      slash: "/the_story",
+      title: "The Story",
+      description: "Tell the matter story for internal lawyer review.",
+      status: "active",
+      version: 1,
+      familyId: "skill_story",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/The Story.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Tell the story from the matter record.",
+        citationPolicy: "Use raw FILE citations.",
+      },
+      modelPolicy: {
+        task: "configurable_skill_run",
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
+      validation: { status: "passed", messages: [], validatedAt: "2026-06-06T00:00:00.000Z" },
+      createdAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    }],
+  }, null, 2)}\n`);
+  const runtimeMatter = {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "DB Skill Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  };
+  const calls = [];
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath,
+    configurableSkillRunProvider: async () => "# The Story\n\nRuntime Client signed the agreement. (FILE-0001 p1.b1)\n",
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Skill Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async runMaterializedMatterWrite(matter, operation) {
+        calls.push(["write", matter.name, matter.matterName]);
+        const matterRoot = path.join(tmp, "materialized", matter.name);
+        await writeExtractedTextMatter(matterRoot, matter);
+        const operationResult = await operation({ matterRoot, matter });
+        return {
+          operationResult,
+          persisted: [{ relativePath: "20_Workshop/The Story.md" }],
+        };
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/configurable-skills/run", {
+      slash: "/the_story",
+      matterName: "Legal Caption",
+    });
+
+    assert.equal(result.state, "written");
+    assert.equal(result.runRecord.matterRoot, "postgres:DB Skill Matter");
+    assert.equal(result.runRecord.receipt.receiptState, "completed");
+    assert.deepEqual(calls, [["write", "DB Skill Matter", "Legal Caption"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode runs matter story through materialized DB write service", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-matter-story-"));
+  const mattersHome = path.join(tmp, "matters");
+  const appDir = path.join(tmp, "app");
+  await mkdir(mattersHome, { recursive: true });
+  await mkdir(appDir, { recursive: true });
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify({
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_story",
+      slash: "/the_story",
+      title: "The Story",
+      description: "Tell the matter story for internal lawyer review.",
+      status: "active",
+      version: 1,
+      familyId: "skill_story",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/The Story.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Tell the story from the matter record.",
+        citationPolicy: "Use raw FILE citations.",
+      },
+      modelPolicy: {
+        task: "configurable_skill_run",
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
+      validation: { status: "passed", messages: [], validatedAt: "2026-06-06T00:00:00.000Z" },
+      createdAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    }],
+  }, null, 2)}\n`);
+  const runtimeMatter = {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "DB Story Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  };
+  const calls = [];
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath: path.join(appDir, "configurable-skill-runs.json"),
+    configurableSkillRunProvider: async () => [
+      "# The Story",
+      "",
+      "The dispute is about unpaid runtime invoices.",
+      "",
+      "## Internal audit/source handles",
+      "",
+      "- FILE-0001 p1.b1",
+      "",
+    ].join("\n"),
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Story Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async runMaterializedMatterWrite(matter, operation) {
+        calls.push(["write", matter.name, matter.matterName]);
+        const matterRoot = path.join(tmp, "materialized", matter.name);
+        await writeExtractedTextMatter(matterRoot, matter);
+        const operationResult = await operation({ matterRoot, matter });
+        const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+        return {
+          operationResult,
+          persisted: [{ relativePath: "matter.json", briefDescription: matterJson.brief_description }],
+        };
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/matter-story", {
+      matterName: "Legal Caption",
+      overwrite: true,
+    });
+
+    assert.equal(result.state, "updated");
+    assert.equal(result.description, "The dispute is about unpaid runtime invoices.");
+    assert.equal(result.runRecord.matterRoot, "postgres:DB Story Matter");
+    assert.deepEqual(calls, [["write", "DB Story Matter", "Legal Caption"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode reads configurable skills from the runtime DB skill store", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skills-store-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      tenantId: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
+    runtimeDbConfigurableSkillStore: {
+      enabled: true,
+      storePath: "postgres:configurable_skills",
+      async readStore() {
+        calls.push("read-db-skills");
+        return {
+          schema_version: "configurable-skills/v1",
+          skills: [{
+            id: "skill_story",
+            title: "The Story",
+            slash: "/the_story",
+            description: "Tell the dispute story.",
+            status: "active",
+            version: 1,
+            targetLane: "20_Workshop",
+            outputArtifact: "20_Workshop/The Story.md",
+            matterRequired: true,
+            paidProviderCall: true,
+            sourceBacked: "required",
+            promptConfig: { prompt: "Tell the story.", citationPolicy: "Use sources." },
+            modelPolicy: { task: "configurable_skill_run" },
+            validation: { status: "passed", messages: [] },
+            createdAt: "2026-06-06T00:00:00.000Z",
+            updatedAt: "2026-06-06T00:00:00.000Z",
+          }],
+        };
+      },
+      async updateStore() {
+        throw new Error("not used");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const result = await getJson(baseUrl, "/api/configurable-skills");
+
+    assert.equal(result.skills.length, 1);
+    assert.equal(result.skills[0].id, "skill_story");
+    assert.deepEqual(calls, ["read-db-skills"]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode reads skill ideas and samples from runtime DB services", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skill-factory-stores-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const calls = [];
+  const idea = {
+    id: "idea_route_plan",
+    text: "Recommend law and forum.",
+    status: "ready_for_review",
+    matter: { matterName: "DB Matter", folderName: "DB Matter" },
+    designBrief: {
+      intendedUser: "advocate",
+      problem: "Recommend law and forum.",
+      expectedInputs: "matter record",
+      expectedOutputArtifact: "20_Workshop/Filing Route Plan.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "medium",
+      notes: "Include next steps.",
+    },
+    readiness: { ready: true },
+    createdAt: "2026-06-06T00:00:00.000Z",
+    updatedAt: "2026-06-06T00:00:00.000Z",
+  };
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      tenantId: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
+    runtimeDbSkillIdeasService: {
+      enabled: true,
+      async listIdeas() {
+        calls.push("read-db-ideas");
+        return { schema_version: "skill-ideas/v1", ideas: [idea] };
+      },
+      async getIdea(id) {
+        calls.push(["get-db-idea", id]);
+        return idea;
+      },
+    },
+    runtimeDbSkillSamplesService: {
+      enabled: true,
+      async listSamplesForIdea({ ideaId }) {
+        calls.push(["read-db-samples", ideaId]);
+        return {
+          schema_version: "skill-samples/v1",
+          ideaId,
+          designBriefHash: "hash",
+          samples: [{ id: "sample_route_plan", ideaId, sampleMarkdown: "# Sample" }],
+        };
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const ideas = await getJson(baseUrl, "/api/skill-ideas");
+    const samples = await getJson(baseUrl, "/api/skill-ideas/idea_route_plan/samples");
+
+    assert.equal(ideas.ideas[0].id, "idea_route_plan");
+    assert.equal(samples.samples[0].id, "sample_route_plan");
+    assert.deepEqual(calls, ["read-db-ideas", ["get-db-idea", "idea_route_plan"], ["read-db-samples", "idea_route_plan"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode checks skill factory health from runtime DB services", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skill-factory-health-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const calls = [];
+  const designBrief = {
+    intendedUser: "advocate",
+    problem: "Recommend law and forum.",
+    expectedInputs: "matter record",
+    expectedOutputArtifact: "20_Workshop/Filing Route Plan.md",
+    targetLane: "20_Workshop",
+    paidPosture: "paid",
+    riskLevel: "medium",
+    notes: "Include next steps.",
+  };
+  const sampleHash = hashDesignBrief(designBrief);
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      tenantId: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
+    runtimeDbSkillIdeasService: {
+      enabled: true,
+      storePath: "postgres:skill_ideas",
+      async listIdeas() {
+        calls.push("db-ideas");
+        return {
+          schema_version: "skill-ideas/v1",
+          ideas: [{
+            id: "idea_route_plan",
+            text: "Recommend law and forum.",
+            status: "ready_for_review",
+            matter: { matterName: "DB Matter", folderName: "DB Matter" },
+            designBrief,
+            readiness: { ready: true },
+            createdAt: "2026-06-06T00:00:00.000Z",
+            updatedAt: "2026-06-06T00:00:00.000Z",
+          }],
+        };
+      },
+    },
+    runtimeDbSkillSamplesService: {
+      enabled: true,
+      storePath: "postgres:skill_samples",
+      async listSamples() {
+        calls.push("db-samples");
+        return {
+          schema_version: "skill-samples/v1",
+          samples: [{
+            id: "sample_route_plan",
+            ideaId: "idea_route_plan",
+            approved: true,
+            designBriefHash: sampleHash,
+          }],
+        };
+      },
+    },
+    runtimeDbConfigurableSkillStore: {
+      enabled: true,
+      storePath: "postgres:configurable_skills",
+      async readStore() {
+        calls.push("db-skills");
+        return {
+          schema_version: "configurable-skills/v1",
+          skills: [{
+            id: "skill_route_plan",
+            title: "Filing Route Plan",
+            slash: "/filing_route_plan",
+            description: "Recommend law and forum.",
+            status: "active",
+            version: 1,
+            familyId: "skill_route_plan",
+            sourceIdeaId: "idea_route_plan",
+            sourceSampleId: "sample_route_plan",
+            approvedSampleHash: sampleHash,
+            targetLane: "20_Workshop",
+            outputArtifact: "20_Workshop/Filing Route Plan.md",
+            matterRequired: true,
+            paidProviderCall: true,
+            sourceBacked: "required",
+            promptConfig: { prompt: "Recommend law and forum.", citationPolicy: "Use sources." },
+            modelPolicy: { task: "configurable_skill_run" },
+            validation: { status: "passed", messages: [] },
+            createdAt: "2026-06-06T00:00:00.000Z",
+            updatedAt: "2026-06-06T00:00:00.000Z",
+          }],
+        };
+      },
+      async updateStore() {
+        throw new Error("not used");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const health = await getJson(baseUrl, "/api/skill-factory-health");
+
+    assert.equal(health.schema_version, "skill-factory-health/v1");
+    assert.equal(health.state, "ok");
+    assert.equal(health.summary.ideas, 1);
+    assert.equal(health.summary.samples, 1);
+    assert.equal(health.summary.configurableSkills, 1);
+    assert.deepEqual(health.storePaths, {
+      ideas: "postgres:skill_ideas",
+      samples: "postgres:skill_samples",
+      skills: "postgres:configurable_skills",
+    });
+    assert.deepEqual(calls, ["db-ideas", "db-samples", "db-skills"]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode writes command interactions through runtime DB audit service", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-command-log-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const runtimeMatter = {
+    id: "77777777-7777-4777-8777-777777777777",
+    name: "DB Command Matter",
+    matterName: "DB Command Matter",
+    clientName: "Runtime Client",
+    runtimeStorageMode: "postgres",
+  };
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      tenantId: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
+    },
+    runtimeDbCommandInteractionLogService: {
+      enabled: true,
+      logPath: "postgres:audit_events/command_interaction",
+      async appendInteraction(entry) {
+        calls.push(entry);
+        return {
+          schema_version: "command-interaction-log/v1",
+          logged: true,
+          path: "postgres:audit_events/command_interaction",
+          timestamp: "2026-06-06T00:00:00.000Z",
+        };
+      },
+      async readRecentInteractions() {
+        return [];
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const result = await postJson(baseUrl, "/api/command-interactions", {
+      matterName: "DB Command Matter",
+      typed_input: "/describe_sources",
+      matched_command: "/describe_sources",
+      status: "failed",
+    });
+
+    assert.equal(result.path, "postgres:audit_events/command_interaction");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].matter.folderName, "DB Command Matter");
+    assert.equal(calls[0].matched_command, "/describe_sources");
   } finally {
     app.server.close();
   }

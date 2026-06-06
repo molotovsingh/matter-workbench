@@ -26,8 +26,13 @@ export function createMatterStoryService({
     };
   }
 
-  async function runDisputeStory({ matterName = "", overwrite = false } = {}) {
-    const matterRoot = await matterRootForName(matterName);
+  async function runDisputeStory({
+    matterName = "",
+    overwrite = false,
+    matterRootOverride = "",
+    matterRecordOverride = null,
+  } = {}) {
+    const matterRoot = await matterRootForName({ matterName, matterRootOverride });
     if (!await hasActiveDisputeStorySkill()) {
       return {
         schema_version: MATTER_STORY_SCHEMA_VERSION,
@@ -37,11 +42,14 @@ export function createMatterStoryService({
       };
     }
 
-    const skillRun = await configurableSkillsService.runSkill({
+    const skillRunRequest = {
       slash: DISPUTE_STORY_SKILL_SLASH,
       overwrite,
       matterName,
-    });
+    };
+    if (matterRootOverride) skillRunRequest.matterRootOverride = matterRootOverride;
+    if (matterRecordOverride) skillRunRequest.matterRecordOverride = matterRecordOverride;
+    const skillRun = await configurableSkillsService.runSkill(skillRunRequest);
     const artifactPath = skillRun.outputPaths?.markdown || skillRun.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE;
     const markdown = typeof skillRun.markdown === "string" && skillRun.markdown.trim()
       ? skillRun.markdown
@@ -73,7 +81,9 @@ export function createMatterStoryService({
       ));
   }
 
-  async function matterRootForName(rawMatterName = "") {
+  async function matterRootForName({ matterName: rawMatterName = "", matterRootOverride = "" } = {}) {
+    const overrideRoot = typeof matterRootOverride === "string" ? matterRootOverride.trim() : "";
+    if (overrideRoot) return overrideRoot;
     const matterName = typeof rawMatterName === "string" ? rawMatterName.trim() : "";
     if (!matterName) return matterStore.ensureMatterRoot();
     const { matterPath } = await matterStore.resolveExistingMatter(matterName);

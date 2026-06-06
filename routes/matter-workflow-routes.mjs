@@ -173,8 +173,22 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("POST", "/api/matter-story", async () => {
-        assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
         const body = await readRequestJson(request);
+        if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
+          sendJson(response, 200, await runRuntimeDbMaterializedWorkflow({
+            matterStore,
+            runtimeDbStorageService,
+            body,
+            runner: ({ matterRoot, matter }) => matterStoryService.runDisputeStory({
+              matterName: matter.name,
+              overwrite: Boolean(body.overwrite),
+              matterRootOverride: matterRoot,
+              matterRecordOverride: matter,
+            }),
+          }));
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
         sendJson(response, 200, await matterStoryService.runDisputeStory({
           matterName: body.matterName,
           overwrite: Boolean(body.overwrite),
@@ -358,7 +372,7 @@ async function runRuntimeDbMaterializedRead({
 
 function assertFilesystemWorkflowAvailable(matterStore, label) {
   if (!matterStore.hasRuntimeDbStorageMode?.()) return;
-  const error = new Error(`${label} is not available in DB storage mode yet. Use DB-backed read surfaces or run this workflow in filesystem mode until the DB worker write path lands.`);
+  const error = new Error(`${label} cannot run in DB storage mode because the runtime DB materialization adapter is not available. Check runtime DB storage service wiring or run this workflow in filesystem mode.`);
   error.statusCode = 409;
   throw error;
 }

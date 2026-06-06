@@ -830,11 +830,11 @@ That was the front desk becoming database-backed.
 The next runtime slice moved the read/file-custody surfaces too. With
 `MWB_RUNTIME_DB_STORAGE=postgres`, the workspace tree, text file previews, raw
 file downloads, matter status, prepare plan, and advisory snapshot can all come
-from Postgres. The app also refuses to run folder-dependent legal engines in
-that mode until a proper DB worker/write path exists. That refusal is not a
-limitation to hide; it is a safety decision. A read-only DB runtime is honest.
-A write path that pretends `postgres:Some Matter` is a normal folder would be a
-future bug factory.
+from Postgres. The app then learned a safer write bridge: materialize a
+temporary matter folder from DB payloads, run the existing engine, and persist
+the changed outputs back into Postgres. That temporary folder is not truth; it
+is a workbench. A direct write path that pretends `postgres:Some Matter` is a
+normal folder would be a future bug factory.
 The worker blocker got the same treatment. The local beta does not have a
 separate job worker; preparation still runs in the foreground app flow. The DB
 does have the future worker ingredients: `processing_jobs`, `job_outbox`, and
@@ -1806,17 +1806,18 @@ engines that write work product - setup, extraction, source labels, List of
 Dates, copilot/context, doctor fixes, and custom skill execution - were built to
 operate on a real matter folder. If we let them run against a fake path such as
 `postgres:Atlas`, they could fail in confusing ways or silently write to the
-wrong place. So DB storage mode does the disciplined thing: it serves the
-read/file-custody surfaces from Postgres and fails the filesystem-dependent
-write routes closed until a proper DB worker/write path exists.
+wrong place. So DB storage mode does the disciplined thing: it materializes a
+temporary folder from Postgres payloads, lets the existing engine work there,
+and then stores the results back into Postgres.
 
 That is the engineering lesson: a migration is not one switch. It is a chain of
 ownership decisions. First the DB learned the shape of the app. Then it learned
-custody of file bytes. Next it must learn how to run long legal jobs, write new
-artifacts, preserve receipts, and recover from failures without falling back to
-the old folder as hidden truth. Moving slowly here is not hesitation; it is how
-you avoid building a system where half the app believes the database and the
-other half still obeys the filesystem.
+custody of file bytes. Then it learned a foreground materialization bridge for
+new artifacts and receipts. Next it must learn how to run long legal jobs as
+hosted workers and recover from failures without falling back to the old folder
+as hidden truth. Moving slowly here is not hesitation; it is how you avoid
+building a system where half the app believes the database and the other half
+still obeys the filesystem.
 
 The next runtime slice taught a useful migration trick: instead of rewriting
 every legal engine at once, the server can materialize a temporary matter folder
@@ -1837,3 +1838,68 @@ custom-skill run ledger into the runtime DB path as well. Otherwise we would
 have DB-owned artifacts but filesystem-owned proof of how they were generated,
 which is exactly the kind of split-brain migration this project is trying to
 avoid.
+
+That next slice is now underway. Custom skill runs in DB storage mode use the
+same temporary-folder bridge for the matter files, but their run receipts are
+owned by Postgres through `configurable_skill_runs`. The service keeps the same
+API shape that React already understands - status, output paths, output
+availability, and the canonical receipt - while writing the durable run row into
+the database. `/api/configurable-skills/run` and `/api/matter-story` now run
+against materialized DB matter folders instead of trying to treat
+`postgres:Matter Name` as a real path.
+
+The subtle bug here was about names and roots. The engine needs the temporary
+folder to check whether `The Story.md` was actually written, but the user and
+the receipt must see the durable matter root: `postgres:Actual Matter`. We added
+an internal "availability root" for that check. A good migration often needs
+two names for the same thing: the temporary work surface used by legacy code,
+and the durable identity that the rest of the product should trust.
+
+The next DB runtime checkpoint moved the rest of the high-value local ledgers
+out of JSON files when Postgres storage mode is enabled. Skill ideas now come
+from `skill_ideas`, sample outputs from `skill_samples`, custom skill
+definitions from `configurable_skills` and `configurable_skill_versions`, custom
+skill run receipts from `configurable_skill_runs`, and command-box interaction
+history from `audit_events`. That matters because these are not decoration.
+They are the product memory around reusable legal tools: what the user asked
+for, what sample they approved, what skill exists, what run happened, and what
+the app showed as the receipt.
+
+Uploads also became a real DB-runtime path. Creating a matter or adding files in
+Postgres storage mode no longer creates a live matter folder as the source of
+truth. The upload path writes payload bytes into `storage_object_payloads`,
+custody rows into `storage_objects`, source-document identity into `documents`
+and `document_blobs`, and import history into `matter_import_batches` and
+`matter_import_items`. The app can now create a DB-backed matter even when no
+local `MATTERS_HOME` is configured. That is a small line of code with a big
+architectural meaning: the product can start acting like a database runtime,
+not merely a filesystem app with a reporting database attached.
+
+The duplicate-file warning had the same hidden assumption. The old check read
+`File Register.csv` from every local matter folder. In DB mode that silently
+missed duplicates because there might be no folder to scan. The DB runtime path
+now checks incoming SHA-256 values against `documents.sha256`. It deliberately
+preserves the count of selected files rather than collapsing duplicate hashes,
+because the user-facing question is "how many of the files I am uploading
+overlap?", not "how many unique hashes did a set operation find?"
+
+Generated workflow outputs now leave normalized DB breadcrumbs too. When a
+temporary materialized run writes files back, the storage service records
+`matter_artifacts` for Library/Draft/Workshop outputs, `extraction_records` for
+`_extracted/FILE-0001.json` payloads, and `source_descriptors` for
+`10_Library/Source Index.json`. The payload bytes remain in
+`storage_object_payloads`, but these normalized rows let the database answer
+future product questions without reparsing every file each time: what artifacts
+are current, which extraction output belongs to which document, and which source
+label was suggested or needs review.
+
+So the honest state is this: in Postgres storage mode, runtime matter custody,
+uploads, workspace/file reads, mandatory workflow materialization, custom skill
+ideas/samples/definitions/runs, command activity, and advisory snapshots are now
+DB-owned. The old filesystem engines still run through a temporary folder
+bridge, because rewriting extraction, source labels, List of Dates, doctor, and
+skill execution engines directly against SQL would be a much larger and riskier
+project. That bridge is acceptable only because it is temporary and because the
+changed files are persisted back into Postgres. The old matter folder is no
+longer supposed to be live truth in DB mode; it is either absent or a scratch
+surface used inside one operation.

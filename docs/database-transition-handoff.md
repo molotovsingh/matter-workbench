@@ -1,6 +1,6 @@
 # Database Transition Handoff
 
-Status: accepted runtime DB read/storage slice; DB write-side worker path pending
+Status: accepted runtime DB storage/write-bridge slice; hosted DB worker path pending
 
 This note is for a developer/operator taking over the database transition
 track. It now describes two different things that must not be blurred:
@@ -8,12 +8,14 @@ track. It now describes two different things that must not be blurred:
 - the older shadow-control-plane rehearsal, which mirrors local evidence into
   Postgres for inspection and handoff; and
 - the new explicit runtime DB storage mode, which can serve matter selection,
-  workspace trees, file previews, file downloads, matter status, preparation
-  plans, and advisory snapshots from Postgres payload custody.
+  uploads, workspace trees, file previews, file downloads, matter status,
+  preparation plans, advisory snapshots, skill-factory state, custom-skill run
+  receipts, and materialized workflow outputs from Postgres custody.
 
-Legal-engine writes are not yet DB-worker backed. In runtime DB storage mode the
-filesystem-dependent workflow routes fail closed until the DB write-side worker
-path lands.
+Legal-engine writes are now DB-runtime backed through a temporary materialized
+folder bridge. They are not yet DB-worker-native: long-running work still runs
+inside the foreground local app, and hosted claim/heartbeat/recovery remains a
+future worker slice.
 
 ## Current Boundary
 
@@ -38,13 +40,23 @@ Without those flags, the local beta remains filesystem-backed.
 - In `MWB_RUNTIME_DB_STORAGE=postgres`, the React shell can read workspace
   trees, text previews, raw file streams, matter status, prepare-matter state,
   and latest advisory snapshots from Postgres payload rows.
+- Uploads in runtime DB storage mode write source payloads, storage custody,
+  document identity, blob rows, and import history into Postgres without
+  creating a live matter folder.
+- Materialized preparation/workflow routes reconstruct a temporary matter
+  folder from Postgres payload rows, run the existing engine, and persist new or
+  changed outputs back into Postgres. The temporary folder is scratch, not the
+  source of truth.
+- Custom skill ideas, generated samples, custom skill definitions/versions,
+  custom skill run receipts, and command interaction history are DB-owned in
+  runtime DB storage mode.
 - Local matter folders still act as the import/hydration source until a hosted
   upload path exists. They are no longer the live read source in runtime DB
   storage mode, but they are still needed to populate that mode.
-- Filesystem-dependent write engines are deliberately blocked in runtime DB
-  storage mode: setup, extraction, source labels, List of Dates generation,
-  doctor fixes, copilot/context search, and rerun advice need the next DB
-  worker/write slice before they can safely operate from Postgres custody.
+- Existing legal engines are not SQL-native and are not hosted worker-backed.
+  Do not present the bridge as a production background-job system; it is a
+  controlled local/private runtime adapter that keeps Postgres as file custody
+  truth.
 - Do not treat this as a hosted multi-user cutover until auth/session
   middleware, object-storage policy, background workers, rollback, and backup
   behavior are explicitly approved for that environment.
@@ -177,10 +189,11 @@ MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check
 That flag allows the guard to report readiness. It does not make the app read
 or write Postgres by itself.
 
-## Accepted First Runtime Slice
+## Accepted Runtime DB Storage And Write Bridge
 
 The first runtime DB slice was the matter-index cutover. The stronger current
-slice is DB storage-backed runtime reads. It is implemented behind explicit
+slice is DB storage-backed runtime reads and foreground write materialization.
+It is implemented behind explicit
 opt-in:
 
 ```bash
@@ -201,10 +214,7 @@ In this mode Postgres is the runtime source for:
 - `/api/file-raw`;
 - `/api/matter-status`;
 - `/api/prepare-matter`;
-- `/api/matter-attention`.
-
-The app still blocks or avoids filesystem-dependent runtime work in this mode:
-
+- `/api/matter-attention`;
 - `/api/matter-init`;
 - `/api/extract`;
 - `/api/describe-sources`;
@@ -212,16 +222,25 @@ The app still blocks or avoids filesystem-dependent runtime work in this mode:
 - `/api/create-listofdates/refresh-labels`;
 - `/api/doctor/scan` and `/api/doctor/fix`;
 - matter context search and copilot answer routes;
-- rerun-advice routes that depend on live filesystem artifacts.
+- rerun-advice reads;
+- custom skill creation state and custom skill run receipts;
+- command interaction history.
 
-That fail-closed behavior is intentional. It prevents the app from pretending a
-Postgres pseudo-root such as `postgres:<matter>` is a normal matter folder.
+The write routes above are DB-backed through materialization, not direct SQL
+engines. The server reconstructs a temporary matter folder from DB payloads,
+runs the existing engine, then persists changed files back into Postgres as
+storage objects, payloads, artifacts, extraction records, source descriptors,
+run receipts, and audit events where applicable. This prevents the app from
+pretending a Postgres pseudo-root such as `postgres:<matter>` is a normal matter
+folder while still letting the local beta use the mature engines.
 
 On the local VM, the storage runtime smoke passed against the hydrated database:
 15 active DB matters were visible, the app switched to a DB-listed matter, the
 workspace was read from DB payload custody, a DB-backed text file preview loaded,
 and a raw file response streamed from Postgres bytes. Treat that as current
-read/storage-runtime evidence, not proof that legal-engine writes have moved.
+read/storage-runtime evidence. Legal-engine write proof now lives in focused
+route/service tests for the materialization bridge; it is not proof of hosted
+background-worker recovery.
 
 ```text
 runtime_db_enabled: yes
@@ -360,16 +379,18 @@ separate outage, degraded-mode, and rollback design.
 ## Accepted Local Foreground Worker Policy
 
 The local beta also has an accepted worker policy: long-running preparation is a
-foreground local app action, not a database-claimed worker process. The shadow
-DB contains `processing_jobs` and `job_outbox` rows, and the migrations include
-claim/heartbeat/complete functions for future hosted workers, but the current
-product runtime does not consume those queues.
+foreground local app action, not a database-claimed worker process. Runtime DB
+storage mode can now run those foreground actions through the materialized DB
+bridge, but the shadow DB's `processing_jobs` and `job_outbox` rows are still
+future hosted-worker ingredients. The current product runtime does not consume
+those queues.
 
 This closes the `worker_process_owner_and_recovery` blocker for the
-local/private shadow rehearsal. It is not a hosted worker supervisor decision.
-Once extraction, source labels, List of Dates, copilot/context, or custom skill
-execution move into DB-backed runtime work, deployment still needs a process
-owner, restart policy, dead-worker recovery, and operator visibility.
+local/private foreground runtime. It is not a hosted worker supervisor decision.
+Because extraction, source labels, List of Dates, copilot/context, and custom
+skill execution now have a DB-backed foreground bridge, the remaining hosted
+question is process ownership, restart policy, dead-worker recovery, and
+operator visibility for non-foreground execution.
 
 ## Accepted Local Matter Import Policy
 
@@ -428,7 +449,7 @@ cross-tenant memberships.
 
 ## What A Developer Should Check Next
 
-Before the next DB-backed write/runtime slice:
+Before the next hosted DB-worker or cloud runtime slice:
 
 1. Re-run the migration and shadow verification commands on the target database.
 2. Run `db:storage:payloads:hydrate:*` if the runtime will read file/artifact
@@ -443,12 +464,9 @@ Before the next DB-backed write/runtime slice:
    deployment still needs object storage or a managed shared-volume policy.
 6. Confirm hosted worker process ownership before long-running preparation
    moves out of the local foreground app.
-7. Implement and test DB-backed write workers before enabling preparation,
-   extraction, source labels, List of Dates, copilot/context, or skill execution
-   in `MWB_RUNTIME_DB_STORAGE=postgres`.
-8. Confirm hosted rollback/degraded-mode behavior before the product runtime
+7. Confirm hosted rollback/degraded-mode behavior before the product runtime
    depends on Postgres for writes.
-9. Run `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check`
+8. Run `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime-cutover-check`
    only after runtime-storage approval is explicit.
 
 ## Stop Rule
@@ -462,12 +480,12 @@ Stop before runtime cutover if any of these are still unresolved:
 - hosted web/session middleware that validates provider tokens and sets
   `app.tenant_id` / `app.user_id`;
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
-  storage beyond the accepted read/storage slice;
-- DB-backed legal-engine write path for preparation, extraction, source labels,
+  storage beyond the accepted local/private runtime bridge;
+- hosted DB-claimed worker path for preparation, extraction, source labels,
   List of Dates, copilot/context, and skill execution;
 - explicit runtime-storage approval recorded before setting
   `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`.
 
 The database is allowed to learn from the local app now. The local app may
-depend on the database for the approved read/storage runtime slice until the
-remaining write-side and hosted/runtime questions are closed.
+depend on the database for the approved storage/write-bridge runtime slice until
+the remaining hosted/runtime questions are closed.

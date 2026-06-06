@@ -16,22 +16,27 @@ export function createSkillFactoryHealthService({
   ideasPath,
   samplesPath,
   skillsPath,
+  skillIdeasService = null,
+  skillSamplesService = null,
+  configurableSkillsService = null,
   now = () => new Date(),
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePaths = {
-    ideas: ideasPath || path.join(root, "skill-ideas.json"),
-    samples: samplesPath || path.join(root, "skill-samples.json"),
-    skills: skillsPath || path.join(root, "configurable-skills.json"),
+    ideas: skillIdeasService?.storePath || ideasPath || path.join(root, "skill-ideas.json"),
+    samples: skillSamplesService?.storePath || samplesPath || path.join(root, "skill-samples.json"),
+    skills: configurableSkillsService?.storePath || skillsPath || path.join(root, "configurable-skills.json"),
   };
 
   async function checkHealth() {
     const issues = [];
-    const [ideasStore, samplesStore, skillsStore] = await Promise.all([
-      readJsonStore(storePaths.ideas, SKILL_IDEAS_SCHEMA_VERSION, "ideas", "ideas", issues),
-      readJsonStore(storePaths.samples, SKILL_SAMPLES_SCHEMA_VERSION, "samples", "samples", issues),
-      readJsonStore(storePaths.skills, CONFIGURABLE_SKILLS_SCHEMA_VERSION, "skills", "skills", issues),
-    ]);
+    const [ideasStore, samplesStore, skillsStore] = await readSkillFactoryStores({
+      configurableSkillsService,
+      issues,
+      skillIdeasService,
+      skillSamplesService,
+      storePaths,
+    });
     const ideas = Array.isArray(ideasStore.ideas) ? ideasStore.ideas.map(normalizeIdea) : [];
     const samples = Array.isArray(samplesStore.samples) ? samplesStore.samples.map(normalizeSample) : [];
     const skills = Array.isArray(skillsStore.skills) ? skillsStore.skills.map(normalizeSkill) : [];
@@ -110,6 +115,44 @@ export function createSkillFactoryHealthService({
     checkHealth,
     storePaths,
   };
+}
+
+async function readSkillFactoryStores({
+  configurableSkillsService = null,
+  issues,
+  skillIdeasService = null,
+  skillSamplesService = null,
+  storePaths,
+}) {
+  return Promise.all([
+    skillIdeasService?.listIdeas
+      ? readServiceStore(() => skillIdeasService.listIdeas(), SKILL_IDEAS_SCHEMA_VERSION, "ideas", "ideas", issues)
+      : readJsonStore(storePaths.ideas, SKILL_IDEAS_SCHEMA_VERSION, "ideas", "ideas", issues),
+    skillSamplesService?.listSamples
+      ? readServiceStore(() => skillSamplesService.listSamples(), SKILL_SAMPLES_SCHEMA_VERSION, "samples", "samples", issues)
+      : readJsonStore(storePaths.samples, SKILL_SAMPLES_SCHEMA_VERSION, "samples", "samples", issues),
+    configurableSkillsService?.listSkills
+      ? readServiceStore(() => configurableSkillsService.listSkills({ includeDeleted: true }), CONFIGURABLE_SKILLS_SCHEMA_VERSION, "skills", "skills", issues)
+      : readJsonStore(storePaths.skills, CONFIGURABLE_SKILLS_SCHEMA_VERSION, "skills", "skills", issues),
+  ]);
+}
+
+async function readServiceStore(read, expectedSchema, arrayKey, label, issues) {
+  try {
+    const result = await read();
+    if (result?.schema_version !== expectedSchema) {
+      addIssue(issues, "error", `${label}_schema`, `${label} service returned invalid schema_version ${result?.schema_version || "(blank)"}.`);
+      return { schema_version: expectedSchema, [arrayKey]: [] };
+    }
+    if (!Array.isArray(result[arrayKey])) {
+      addIssue(issues, "error", `${label}_shape`, `${label} service is missing ${arrayKey} array.`);
+      return { schema_version: expectedSchema, [arrayKey]: [] };
+    }
+    return result;
+  } catch (error) {
+    addIssue(issues, "error", `${label}_read`, `${label} service could not be read: ${error.message}`);
+    return { schema_version: expectedSchema, [arrayKey]: [] };
+  }
 }
 
 async function readJsonStore(filePath, expectedSchema, arrayKey, label, issues) {

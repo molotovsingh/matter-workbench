@@ -160,12 +160,12 @@ test("package and docs expose the runtime DB smoke command and storage-mode boun
   const dbReadme = await readFile(new URL("../db/README.md", import.meta.url), "utf8");
   assert.match(dbReadme, /npm run db:runtime:smoke/);
   assert.match(dbReadme, /read\/file-custody surfaces are DB-backed/i);
-  assert.match(dbReadme, /Legal\s+engine writes are still filesystem-mode only/i);
-  assert.match(dbReadme, /DB worker write path/i);
+  assert.match(dbReadme, /runtime DB materialization bridge/i);
+  assert.match(dbReadme, /foreground local actions/i);
   assert.match(dbReadme, /storage_object_payloads/i);
 
   const handoff = await readFile(new URL("../docs/database-transition-handoff.md", import.meta.url), "utf8");
-  assert.match(handoff, /Accepted First Runtime Slice/);
+  assert.match(handoff, /Accepted Runtime DB Storage And Write Bridge/);
   assert.match(handoff, /Accepted DB Payload Custody Slice/);
   assert.match(handoff, /\/api\/matters/);
   assert.match(handoff, /\/api\/workspace/);

@@ -53,6 +53,7 @@ export function createConfigurableSkillsService({
   skillIdeasService,
   skillSamplesService,
   configurableSkillRunsService,
+  skillStore = null,
   authoringProvider,
   runProvider,
   env = process.env,
@@ -69,7 +70,7 @@ export function createConfigurableSkillsService({
     readStore,
     storePath,
     updateStore,
-  } = createConfigurableSkillStore({ appDir, skillsPath });
+  } = skillStore || createConfigurableSkillStore({ appDir, skillsPath });
   const runLedger = configurableSkillRunsService || createNoopRunLedger();
   const lifecycleTransitions = {
     active: { suspend: "suspended", archive: "archived", delete: "deleted" },
@@ -119,11 +120,18 @@ export function createConfigurableSkillsService({
     return result;
   }
 
-  async function runSkill({ slash, overwrite = false, matterName = "" } = {}) {
+  async function runSkill({
+    slash,
+    overwrite = false,
+    matterName = "",
+    matterRootOverride = "",
+    matterRecordOverride = null,
+  } = {}) {
     const normalizedSlash = normalizeSlash(slash);
     const store = await readStore();
     const skill = findActiveSkillForRun(store.skills, normalizedSlash);
-    const matterRoot = await matterRootForName(matterName);
+    const matterContext = await matterContextForRun({ matterName, matterRootOverride, matterRecordOverride });
+    const matterRoot = matterContext.matterRoot;
     const { outputPaths, filePaths } = resolveConfigurableSkillRunArtifacts({ matterRoot, skill });
     if (!overwrite && await exists(filePaths.markdown)) {
       return {
@@ -153,12 +161,14 @@ export function createConfigurableSkillsService({
       skillId: skill.id,
       slash: skill.slash,
       title: skillRunTitle(skill),
-      matterName: path.basename(matterRoot),
-      matterFolder: path.basename(matterRoot),
-      matterRoot,
+      matterId: matterContext.matterId,
+      matterName: matterContext.matterName,
+      matterFolder: matterContext.matterFolder,
+      matterRoot: matterContext.ledgerMatterRoot,
       outputPaths,
       aiRun,
       overwrite: overwrite ? "approved" : "not_needed",
+      skillVersion: skill.version,
       startedAt: timestamp,
     });
     try {
@@ -188,6 +198,11 @@ export function createConfigurableSkillsService({
       runRecord = await runLedger.updateRun(runRecord.id, {
         status: "succeeded",
         ...matterSummary,
+        matterId: matterContext.matterId,
+        matterName: matterContext.matterName,
+        matterFolder: matterContext.matterFolder,
+        matterRoot: matterContext.ledgerMatterRoot,
+        availabilityMatterRoot: matterRoot,
         warnings,
         outputPaths,
       });
@@ -206,11 +221,17 @@ export function createConfigurableSkillsService({
     }
   }
 
-  async function recordCancelledRun({ slash, artifactPath = "", matterName = "" } = {}) {
+  async function recordCancelledRun({
+    slash,
+    artifactPath = "",
+    matterName = "",
+    matterRootOverride = "",
+    matterRecordOverride = null,
+  } = {}) {
     const normalizedSlash = normalizeSlash(slash);
     const store = await readStore();
     const skill = findActiveSkillForRun(store.skills, normalizedSlash);
-    const matterRoot = await matterRootForName(matterName);
+    const matterContext = await matterContextForRun({ matterName, matterRootOverride, matterRecordOverride });
     const outputArtifact = normalizeText(artifactPath) || normalizeArtifactPath(skill.outputArtifact, skill.targetLane);
     const outputJson = outputArtifact.endsWith(".md")
       ? outputArtifact.replace(/\.md$/i, ".json")
@@ -219,14 +240,18 @@ export function createConfigurableSkillsService({
       skillId: skill.id,
       slash: skill.slash,
       title: skillRunTitle(skill),
-      ...matterSummaryForRun(null, matterRoot),
-      matterRoot,
+      ...matterSummaryForRun(null, matterContext.matterRoot),
+      matterId: matterContext.matterId,
+      matterName: matterContext.matterName,
+      matterFolder: matterContext.matterFolder,
+      matterRoot: matterContext.ledgerMatterRoot,
       outputPaths: {
         markdown: outputArtifact,
         json: outputJson,
       },
       aiRun: {},
       overwrite: "cancelled",
+      skillVersion: skill.version,
     });
     const runRecord = await runLedger.annotateRun(record);
     return {
@@ -297,11 +322,43 @@ export function createConfigurableSkillsService({
     updateSkillLifecycle,
   };
 
-  async function matterRootForName(rawMatterName = "") {
+  async function matterContextForRun({
+    matterName: rawMatterName = "",
+    matterRootOverride = "",
+    matterRecordOverride = null,
+  } = {}) {
+    const overrideRoot = normalizeText(matterRootOverride, 10_000);
+    const record = matterRecordOverride && typeof matterRecordOverride === "object" ? matterRecordOverride : null;
+    if (overrideRoot) {
+      const name = normalizeText(record?.name || record?.folderName || rawMatterName || path.basename(overrideRoot));
+      const displayName = normalizeText(record?.matterName || name);
+      return {
+        matterId: normalizeText(record?.id),
+        matterRoot: overrideRoot,
+        matterName: displayName,
+        matterFolder: name,
+        ledgerMatterRoot: record?.runtimeStorageMode === "postgres" ? `postgres:${name}` : overrideRoot,
+      };
+    }
     const matterName = normalizeText(rawMatterName);
-    if (!matterName) return matterStore.ensureMatterRoot();
+    if (!matterName) {
+      const root = matterStore.ensureMatterRoot();
+      return {
+        matterId: "",
+        matterRoot: root,
+        matterName: path.basename(root),
+        matterFolder: path.basename(root),
+        ledgerMatterRoot: root,
+      };
+    }
     const { matterPath } = await matterStore.resolveExistingMatter(matterName);
-    return matterPath;
+    return {
+      matterId: "",
+      matterRoot: matterPath,
+      matterName: path.basename(matterPath),
+      matterFolder: path.basename(matterPath),
+      ledgerMatterRoot: matterPath,
+    };
   }
 }
 

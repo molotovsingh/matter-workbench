@@ -12,8 +12,8 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   const doc = await readFile(handoffDocPath, "utf8");
 
   assert.match(doc, /# Database Transition Handoff/);
-  assert.match(doc, /runtime DB read\/storage slice/i);
-  assert.match(doc, /DB write-side worker path pending/i);
+  assert.match(doc, /runtime DB storage\/write-bridge slice/i);
+  assert.match(doc, /hosted DB worker path pending/i);
   assert.match(doc, /npm run db:migrate/);
   assert.match(doc, /npm run db:shadow:hydrate/);
   assert.match(doc, /npm run db:shadow:hydrate:verify/);
@@ -58,7 +58,8 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*postgres_unavailable_user_behavior/i);
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*not a hosted outage/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*foreground/i);
-  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*claim\/heartbeat\/complete/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*materialized DB\s+bridge/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*future hosted-worker ingredients/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*worker_process_owner_and_recovery/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*not a hosted worker supervisor/i);
   assert.match(doc, /Accepted Local Matter Import Policy[\s\S]*matter_import_batches/i);
@@ -80,7 +81,9 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /Current Snapshot Evidence[\s\S]*source repo state/i);
   assert.match(doc, /Current Snapshot Evidence[\s\S]*do not keep refreshing/i);
   assert.match(doc, /Do not treat this as a hosted multi-user cutover/i);
-  assert.match(doc, /DB-backed legal-engine write path/i);
+  assert.match(doc, /hosted DB-claimed worker path/i);
+  assert.match(doc, /temporary matter folder from DB payloads/i);
+  assert.match(doc, /custom skill run receipts/i);
   assert.match(doc, /runtime cutover check is not part of shadow acceptance/i);
   assert.match(doc, /expected to fail closed/i);
   assert.doesNotMatch(

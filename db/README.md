@@ -2,10 +2,14 @@
 
 This folder is the database track for the local-to-hosted transition.
 
-The React local beta now has an explicit runtime DB mode for read-side matter
-selection and DB payload-backed workspace/file/status/advisory surfaces. Legal
-engine writes are still filesystem-mode only; in `MWB_RUNTIME_DB_STORAGE=postgres`
-the app fails those routes closed until the DB worker write path lands.
+The React local beta now has an explicit runtime DB mode for live matter
+storage. In `MWB_RUNTIME_DB_STORAGE=postgres`, Postgres owns matter selection,
+uploads, workspace/file reads, file payload custody, matter status,
+prepare/advisory reads, materialized workflow outputs, custom skill
+ideas/samples/definitions/runs, and command interaction history. Existing legal
+engines still execute through temporary materialized folders, but those folders
+are scratch workspaces; changed files and receipts are persisted back into
+Postgres. Hosted background workers remain a separate future slice.
 
 For the operator/developer handoff sequence, read
 [Database Transition Handoff](../docs/database-transition-handoff.md).
@@ -269,9 +273,10 @@ approval.
 `/api/matters` from Postgres, and switches to one DB-listed matter. With
 `MWB_RUNTIME_DB_STORAGE=postgres`, it also verifies DB payload-backed workspace
 listing, text file preview, raw file delivery, matter status, prepare-matter
-state, and latest advisory reads. A passing storage-mode smoke means the
-read/file-custody surfaces are DB-backed; it does not mean legal-engine write
-paths have moved to DB workers.
+state, and latest advisory reads. A passing storage-mode smoke proves the
+read/file-custody surfaces are DB-backed. Workflow and skill writes now use the
+runtime DB materialization bridge, but they are still foreground local actions,
+not hosted DB-claimed background jobs.
 
 `db:shadow:backup` creates a local ignored backup of the shadow database under
 `.local/shadow-db-backups/` using `pg_dump`. It writes a plain SQL dump plus a

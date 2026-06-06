@@ -15,7 +15,8 @@ import path from "node:path";
 import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
-import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
+import { composeIntakeDirName } from "../shared/matter-contract.mjs";
+import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
@@ -124,6 +125,239 @@ export function createRuntimeDbStorageService({
       fileSize: payload.sizeBytes,
       safeFilename: path.posix.basename(normalizedPath).replace(/[\r\n"]/g, "_"),
       stream: Readable.from(payload.bytes),
+    };
+  }
+
+  async function createMatterFromUploadedFiles({
+    name = "",
+    metadata = {},
+    files = [],
+    relativePaths = [],
+  } = {}) {
+    ensureEnabled();
+    const matterName = normalizeMatterName(name);
+    if (!matterName) throw makeHttpError("Matter name is required", 400);
+    if (!Array.isArray(files) || !files.length) throw makeHttpError("No files attached", 400);
+    if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
+      throw makeHttpError("paths array must match file count", 400);
+    }
+    const existing = queryJson({
+      databaseUrl,
+      tenantId,
+      spawn,
+      sql: buildMatterByNameSql({ tenantId, name: matterName }),
+    });
+    if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409);
+
+    const matter = {
+      id: deterministicUuid(`runtime-db-matter:${matterName}`),
+      name: matterName,
+      folderName: matterName,
+      matterName: stringValue(metadata.matterName) || matterName,
+      clientName: stringValue(metadata.clientName),
+      oppositeParty: stringValue(metadata.oppositeParty),
+      matterType: stringValue(metadata.matterType),
+      jurisdiction: stringValue(metadata.jurisdiction),
+      briefDescription: stringValue(metadata.briefDescription),
+      runtimeStorageMode: "postgres",
+    };
+    const intakeId = deterministicUuid(`runtime-db-intake:${matter.id}:1`);
+    const uploadSessionId = deterministicUuid(`runtime-db-upload-session:${matter.id}:1`);
+    const importBatchId = deterministicUuid(`runtime-db-import-batch:${matter.id}:1`);
+    const receivedDate = new Date().toISOString().slice(0, 10);
+    const intakeDirName = "Intake 01 - Initial";
+    const intakeDir = `00_Inbox/${intakeDirName}`;
+    const matterJson = {
+      matter_name: matter.matterName,
+      client_name: matter.clientName,
+      opposite_party: matter.oppositeParty,
+      matter_type: matter.matterType,
+      jurisdiction: matter.jurisdiction,
+      brief_description: matter.briefDescription,
+      intakes: [{
+        intake_id: "INTAKE-01",
+        intake_dir: intakeDir,
+        label: "Initial",
+        received_date: receivedDate,
+      }],
+    };
+
+    const storageFiles = [{
+      relativePath: "matter.json",
+      bytes: Buffer.from(`${JSON.stringify(matterJson, null, 2)}\n`),
+      objectRole: "matter_artifact",
+      mimeType: "application/json",
+    }];
+    const importItems = [];
+    const sortedFiles = [...files].sort((left, right) => left.index - right.index);
+    for (const file of sortedFiles) {
+      const safeRel = validateRelativePath(relativePaths[file.index]);
+      const bytes = await readFile(file.tempPath);
+      const fileNumber = importItems.length + 1;
+      const fileId = `FILE-${String(fileNumber).padStart(4, "0")}`;
+      const relativePath = `${intakeDir}/Source Files/${safeRel}`;
+      storageFiles.push({
+        relativePath,
+        bytes,
+        objectRole: "source_working_copy",
+        mimeType: mimeTypeForPath(relativePath),
+      });
+      importItems.push({
+        relativePath,
+        originalRelativePath: safeRel,
+        fileNumber,
+        fileId,
+        sha256: sha256Bytes(bytes),
+      });
+    }
+
+    const filesToPersist = storageFiles.map((file) => ({
+      ...file,
+      sha256: sha256Bytes(file.bytes),
+      sizeBytes: file.bytes.length,
+    }));
+    const persistedRows = materializedRowsForFiles({ matter, files: filesToPersist });
+    const sql = [
+      `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+      ...createMatterUploadSql({
+        matter,
+        intakeId,
+        uploadSessionId,
+        importBatchId,
+        importItems,
+        expectedFileCount: importItems.length,
+        receivedDate,
+      }),
+      ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
+      ...documentIdentityUpsertSqls({
+        matter,
+        intakeId,
+        uploadSessionId,
+        importItems,
+        persistedRows,
+      }),
+      ...matterImportItemUpsertSqls({ matter, importBatchId, importItems, persistedRows }),
+      "select '{}'::jsonb::text;",
+      "",
+    ].join("\n");
+    queryJson({ databaseUrl, tenantId, spawn, sql });
+    return matter;
+  }
+
+  async function addUploadedFilesToMatter({
+    matter = {},
+    label = "",
+    files = [],
+    relativePaths = [],
+  } = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400);
+    if (!Array.isArray(files) || !files.length) throw makeHttpError("No files attached", 400);
+    if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
+      throw makeHttpError("paths array must match file count", 400);
+    }
+
+    const state = queryJson({
+      databaseUrl,
+      tenantId,
+      spawn,
+      sql: buildMatterUploadStateSql({ tenantId, matter: normalizedMatter }),
+    });
+    if (!state?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404);
+    const dbMatter = normalizeMatter({ ...normalizedMatter, ...state.matter });
+    const intakeNumber = positiveInteger(state.nextIntakeNumber, 1);
+    const fileIdStart = positiveInteger(state.matter.nextFileNumber, 1);
+    const receivedDate = new Date().toISOString().slice(0, 10);
+    const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
+    const intakeDir = `00_Inbox/${intakeDirName}`;
+    const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
+    const intakeDbId = deterministicUuid(`runtime-db-intake:${dbMatter.id}:${intakeNumber}`);
+    const uploadSessionId = deterministicUuid(`runtime-db-upload-session:${dbMatter.id}:${intakeNumber}`);
+    const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakeNumber}`);
+
+    const storageFiles = [];
+    const importItems = [];
+    const sortedFiles = [...files].sort((left, right) => left.index - right.index);
+    for (const file of sortedFiles) {
+      const safeRel = validateRelativePath(relativePaths[file.index]);
+      const bytes = await readFile(file.tempPath);
+      const fileNumber = fileIdStart + importItems.length;
+      const fileId = `FILE-${String(fileNumber).padStart(4, "0")}`;
+      const relativePath = `${intakeDir}/Source Files/${safeRel}`;
+      storageFiles.push({
+        relativePath,
+        bytes,
+        objectRole: "source_working_copy",
+        mimeType: mimeTypeForPath(relativePath),
+      });
+      importItems.push({
+        relativePath,
+        originalRelativePath: safeRel,
+        fileNumber,
+        fileId,
+        sha256: sha256Bytes(bytes),
+      });
+    }
+
+    const filesToPersist = storageFiles.map((file) => ({
+      ...file,
+      sha256: sha256Bytes(file.bytes),
+      sizeBytes: file.bytes.length,
+    }));
+    const persistedRows = materializedRowsForFiles({ matter: dbMatter, files: filesToPersist });
+    const sql = [
+      `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+      ...createMatterAddFilesSql({
+        matter: dbMatter,
+        intakeDbId,
+        intakeNumber,
+        uploadSessionId,
+        importBatchId,
+        importItems,
+        expectedFileCount: importItems.length,
+        label,
+        receivedDate,
+      }),
+      ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter: dbMatter, row })),
+      ...documentIdentityUpsertSqls({
+        matter: dbMatter,
+        intakeId: intakeDbId,
+        uploadSessionId,
+        importItems,
+        persistedRows,
+      }),
+      ...matterImportItemUpsertSqls({ matter: dbMatter, importBatchId, importItems, persistedRows }),
+      "select '{}'::jsonb::text;",
+      "",
+    ].join("\n");
+    queryJson({ databaseUrl, tenantId, spawn, sql });
+    return {
+      intakeId,
+      intakeDirName,
+      receivedDate,
+      label,
+      scanned: importItems.length,
+      unique: importItems.length,
+      duplicatesInBatch: 0,
+      duplicatesOfPrior: 0,
+    };
+  }
+
+  async function checkUploadedFileOverlap(hashes = []) {
+    ensureEnabled();
+    const normalizedHashes = (Array.isArray(hashes) ? hashes : [])
+      .map((hash) => stringValue(hash).toLowerCase())
+      .filter((hash) => /^[0-9a-f]{64}$/i.test(hash));
+    if (!normalizedHashes.length) return { warnings: [] };
+    const result = queryJson({
+      databaseUrl,
+      tenantId,
+      spawn,
+      sql: buildUploadOverlapSql({ tenantId, hashes: normalizedHashes }),
+    });
+    return {
+      warnings: normalizeOverlapWarnings(result?.warnings),
     };
   }
 
@@ -324,7 +558,10 @@ export function createRuntimeDbStorageService({
   }
 
   return {
+    addUploadedFilesToMatter,
+    checkUploadedFileOverlap,
     enabled,
+    createMatterFromUploadedFiles,
     getRawFile,
     readMatterAttention,
     readMatterStatus,
@@ -450,6 +687,61 @@ function buildWorkspaceSql({ tenantId, matter }) {
   ].join("\n");
 }
 
+function buildMatterByNameSql({ tenantId, name }) {
+  return [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    "select coalesce((",
+    "  select jsonb_build_object('id', id::text, 'name', name)",
+    "  from matters",
+    "  where tenant_id = current_app_tenant_id()",
+    "    and status = 'active'",
+    `    and lower(name) = lower(${sqlString(name)})`,
+    "  limit 1",
+    "), '{}'::jsonb)::text;",
+    "",
+  ].join("\n");
+}
+
+function buildMatterUploadStateSql({ tenantId, matter }) {
+  return [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    "with target_matter as (",
+    "  select",
+    "    id, name, client_name, opposite_party, matter_type, jurisdiction, brief_description, next_file_number",
+    "  from matters",
+    "  where tenant_id = current_app_tenant_id()",
+    `    and id = ${sqlUuid(matter.id)}`,
+    "    and status = 'active'",
+    "), object_state as (",
+    "  select",
+    "    coalesce(max(nullif(substring(so.object_key from 'Intake ([0-9]+)'), '')::int), 0) as max_intake_number",
+    "  from storage_objects so",
+    "  where so.tenant_id = current_app_tenant_id()",
+    `    and so.matter_id = ${sqlUuid(matter.id)}`,
+    "    and so.object_key is not null",
+    ")",
+    "select coalesce((",
+    "  select jsonb_build_object(",
+    "    'matter', jsonb_build_object(",
+    "      'id', tm.id::text,",
+    "      'name', tm.name,",
+    "      'matterName', tm.name,",
+    "      'clientName', coalesce(tm.client_name, ''),",
+    "      'oppositeParty', coalesce(tm.opposite_party, ''),",
+    "      'matterType', coalesce(tm.matter_type, ''),",
+    "      'jurisdiction', coalesce(tm.jurisdiction, ''),",
+    "      'briefDescription', coalesce(tm.brief_description, ''),",
+    "      'nextFileNumber', coalesce(tm.next_file_number, 1)",
+    "    ),",
+    "    'nextIntakeNumber', greatest(coalesce(os.max_intake_number, 0) + 1, 1)",
+    "  )",
+    "  from target_matter tm",
+    "  cross join object_state os",
+    "), '{}'::jsonb)::text;",
+    "",
+  ].join("\n");
+}
+
 function buildPayloadSql({ tenantId, matter, relativePath }) {
   const keys = objectKeyCandidates({ matter, relativePath });
   return [
@@ -478,6 +770,55 @@ function buildPayloadSql({ tenantId, matter, relativePath }) {
     "  'hasPayload', has_payload,",
     "  'payloadBase64', payload_base64",
     ") from payload_rows), '{}'::jsonb)::text;",
+    "",
+  ].join("\n");
+}
+
+function buildUploadOverlapSql({ tenantId, hashes }) {
+  const incomingHashes = Array.isArray(hashes) ? hashes : [];
+  return [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    "with incoming as (",
+    "  select row_number() over () as ordinal, lower(value) as sha256",
+    `  from unnest(${sqlTextArray(incomingHashes)}) as value`,
+    "), incoming_count as (",
+    "  select count(*)::int as total_incoming from incoming",
+    "), matter_totals as (",
+    "  select matter_id, count(*)::int as matter_total_files",
+    "  from documents d",
+    "  where d.tenant_id = current_app_tenant_id()",
+    "    and d.status <> 'deleted_pending'",
+    "  group by matter_id",
+    "), overlap_rows as (",
+    "  select",
+    "    m.name as matter_name,",
+    "    count(i.ordinal)::int as overlap_count,",
+    "    coalesce(mt.matter_total_files, 0)::int as matter_total_files,",
+    "    ic.total_incoming",
+    "  from matters m",
+    "  cross join incoming_count ic",
+    "  join incoming i on exists (",
+    "    select 1",
+    "    from documents d",
+    "    where d.tenant_id = current_app_tenant_id()",
+    "      and d.matter_id = m.id",
+    "      and d.status <> 'deleted_pending'",
+    "      and lower(coalesce(d.sha256, '')) = i.sha256",
+    "  )",
+    "  left join matter_totals mt on mt.matter_id = m.id",
+    "  where m.tenant_id = current_app_tenant_id()",
+    "    and m.status = 'active'",
+    "  group by m.name, mt.matter_total_files, ic.total_incoming",
+    ")",
+    "select jsonb_build_object(",
+    "  'warnings', coalesce((select jsonb_agg(jsonb_build_object(",
+    "    'matterName', matter_name,",
+    "    'overlapCount', overlap_count,",
+    "    'totalIncoming', total_incoming,",
+    "    'matterTotalFiles', matter_total_files,",
+    "    'overlapPercent', case when total_incoming > 0 then round((overlap_count::numeric / total_incoming::numeric) * 100)::int else 0 end",
+    "  ) order by case when total_incoming > 0 then round((overlap_count::numeric / total_incoming::numeric) * 100)::int else 0 end desc, matter_name) from overlap_rows), '[]'::jsonb)",
+    ")::text;",
     "",
   ].join("\n");
 }
@@ -695,6 +1036,34 @@ async function listMatterFiles(root, relativePrefix = "") {
 }
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {
+  const rows = materializedRowsForFiles({ matter, files });
+  const sql = [
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    ...rows.flatMap((row) => [
+      ...materializedFileUpsertSql({ matter, row }),
+      ...matterArtifactUpsertSql({ matter, row }),
+      ...extractionRecordUpsertSql({ matter, row }),
+      ...sourceDescriptorUpsertSql({ matter, row }),
+    ]),
+    "select '{}'::jsonb::text;",
+    "",
+  ].join("\n");
+  queryJson({
+    databaseUrl,
+    tenantId,
+    spawn,
+    sql,
+  });
+  return rows.map(({ relativePath, objectKey, objectRole, sizeBytes, sha256 }) => ({
+    relativePath,
+    objectKey,
+    objectRole,
+    sizeBytes,
+    sha256,
+  }));
+}
+
+function materializedRowsForFiles({ matter, files }) {
   const rows = [];
   for (const file of files) {
     const objectKey = `${normalizeObjectKey(matter.name)}/${normalizeObjectKey(file.relativePath)}`;
@@ -712,25 +1081,133 @@ function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files 
       payloadHex: Buffer.from(file.bytes).toString("hex"),
     });
   }
-  const sql = [
-    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
-    ...rows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
-    "select '{}'::jsonb::text;",
-    "",
-  ].join("\n");
-  queryJson({
-    databaseUrl,
-    tenantId,
-    spawn,
-    sql,
+  return rows;
+}
+
+function createMatterUploadSql({
+  matter,
+  intakeId,
+  uploadSessionId,
+  importBatchId,
+  importItems,
+  expectedFileCount,
+  receivedDate,
+}) {
+  return [
+    "insert into matters (id, tenant_id, name, client_name, opposite_party, matter_type, jurisdiction, brief_description, status, next_file_number, created_at, updated_at)",
+    `values (${sqlUuid(matter.id)}, current_app_tenant_id(), ${sqlString(matter.name)}, ${sqlString(matter.clientName)}, ${sqlString(matter.oppositeParty)}, ${sqlString(matter.matterType)}, ${sqlString(matter.jurisdiction)}, ${sqlString(matter.briefDescription)}, 'active', ${sqlInteger(expectedFileCount + 1)}, now(), now())`,
+    "on conflict (id) do update set",
+    "  name = excluded.name,",
+    "  client_name = excluded.client_name,",
+    "  opposite_party = excluded.opposite_party,",
+    "  matter_type = excluded.matter_type,",
+    "  jurisdiction = excluded.jurisdiction,",
+    "  brief_description = excluded.brief_description,",
+    "  next_file_number = excluded.next_file_number,",
+    "  updated_at = excluded.updated_at;",
+    "insert into matter_intakes (id, tenant_id, matter_id, label, received_at, created_at)",
+    `values (${sqlUuid(intakeId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'Initial', ${sqlString(receivedDate)}::date, now())`,
+    "on conflict (id) do nothing;",
+    "insert into upload_sessions (id, tenant_id, matter_id, intake_id, idempotency_key, status, expected_file_count, created_at, finished_at)",
+    `values (${sqlUuid(uploadSessionId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeId)}, ${sqlString(`runtime-db-upload:${matter.id}:1`)}, 'verified', ${sqlInteger(expectedFileCount)}, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set status = excluded.status, expected_file_count = excluded.expected_file_count, finished_at = excluded.finished_at;",
+    "insert into matter_import_batches (id, tenant_id, matter_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
+    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'zip_upload', ${sqlString(matter.name)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:1`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",
+  ];
+}
+
+function createMatterAddFilesSql({
+  matter,
+  intakeDbId,
+  intakeNumber,
+  uploadSessionId,
+  importBatchId,
+  importItems,
+  expectedFileCount,
+  label,
+  receivedDate,
+}) {
+  const displayLabel = stringValue(label) || `Intake ${String(intakeNumber).padStart(2, "0")}`;
+  const nextFileNumber = importItems.reduce(
+    (highest, item) => Math.max(highest, Number(item.fileNumber) + 1),
+    1,
+  );
+  return [
+    "insert into matter_intakes (id, tenant_id, matter_id, label, received_at, created_at)",
+    `values (${sqlUuid(intakeDbId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlString(displayLabel)}, ${sqlString(receivedDate)}::date, now())`,
+    "on conflict (id) do nothing;",
+    "insert into upload_sessions (id, tenant_id, matter_id, intake_id, idempotency_key, status, expected_file_count, created_at, finished_at)",
+    `values (${sqlUuid(uploadSessionId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeDbId)}, ${sqlString(`runtime-db-upload:${matter.id}:${intakeNumber}`)}, 'verified', ${sqlInteger(expectedFileCount)}, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set status = excluded.status, expected_file_count = excluded.expected_file_count, finished_at = excluded.finished_at;",
+    "insert into matter_import_batches (id, tenant_id, matter_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
+    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'multipart_upload', ${sqlString(displayLabel)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:${intakeNumber}`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",
+    "update matters",
+    `set next_file_number = greatest(coalesce(next_file_number, 1), ${sqlInteger(nextFileNumber)}), updated_at = now()`,
+    "where tenant_id = current_app_tenant_id()",
+    `  and id = ${sqlUuid(matter.id)};`,
+  ];
+}
+
+function matterImportItemUpsertSqls({ matter, importBatchId, importItems, persistedRows }) {
+  const storageByRelativePath = new Map(persistedRows.map((row) => [row.relativePath, row]));
+  return importItems.map((item) => {
+    const row = storageByRelativePath.get(item.relativePath);
+    const documentId = documentIdForImportItem(matter, item);
+    return [
+      "insert into matter_import_items (id, tenant_id, import_batch_id, matter_id, document_id, storage_object_id, original_file_id, original_relative_path, source_sha256, target_file_number, target_file_id, status)",
+      `values (${sqlUuid(deterministicUuid(`runtime-db-import-item:${importBatchId}:${item.relativePath}`))}, current_app_tenant_id(), ${sqlUuid(importBatchId)}, ${sqlUuid(matter.id)}, ${sqlUuid(documentId)}, ${sqlUuid(row.storageObjectId)}, ${sqlString(item.fileId)}, ${sqlString(item.originalRelativePath)}, ${sqlString(item.sha256)}, ${sqlInteger(item.fileNumber)}, ${sqlString(item.fileId)}, 'imported')`,
+      "on conflict (tenant_id, import_batch_id, original_relative_path) do update set document_id = excluded.document_id, storage_object_id = excluded.storage_object_id, source_sha256 = excluded.source_sha256, target_file_number = excluded.target_file_number, target_file_id = excluded.target_file_id, status = excluded.status;",
+    ].join("\n");
   });
-  return rows.map(({ relativePath, objectKey, objectRole, sizeBytes, sha256 }) => ({
-    relativePath,
-    objectKey,
-    objectRole,
-    sizeBytes,
-    sha256,
-  }));
+}
+
+function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importItems, persistedRows }) {
+  const storageByRelativePath = new Map(persistedRows.map((row) => [row.relativePath, row]));
+  return importItems.flatMap((item) => {
+    const row = storageByRelativePath.get(item.relativePath);
+    const documentId = documentIdForImportItem(matter, item);
+    const blobId = documentBlobIdForImportItem(matter, item);
+    const originalName = path.posix.basename(normalizeObjectKey(item.originalRelativePath || item.relativePath));
+    return [
+      [
+        "insert into documents (id, tenant_id, matter_id, intake_id, upload_session_id, file_number, file_id, original_name, category, sha256, size_bytes, status)",
+        `values (${sqlUuid(documentId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeId)}, ${sqlUuid(uploadSessionId)}, ${sqlInteger(item.fileNumber)}, ${sqlString(item.fileId)}, ${sqlString(originalName)}, 'source_upload', ${sqlString(item.sha256)}, ${sqlInteger(row.sizeBytes)}, 'verified')`,
+        "on conflict (matter_id, file_id) do update set",
+        "  intake_id = excluded.intake_id,",
+        "  upload_session_id = excluded.upload_session_id,",
+        "  file_number = excluded.file_number,",
+        "  original_name = excluded.original_name,",
+        "  category = excluded.category,",
+        "  sha256 = excluded.sha256,",
+        "  size_bytes = excluded.size_bytes,",
+        "  status = excluded.status,",
+        "  updated_at = now();",
+      ].join("\n"),
+      [
+        "insert into document_blobs (id, tenant_id, matter_id, document_id, blob_kind, object_key, mime_type, size_bytes, sha256, state, storage_object_id, verified_at)",
+        `values (${sqlUuid(blobId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(documentId)}, 'original', ${sqlString(row.objectKey)}, ${sqlString(row.mimeType)}, ${sqlInteger(row.sizeBytes)}, ${sqlString(row.sha256)}, 'verified', ${sqlUuid(row.storageObjectId)}, now())`,
+        "on conflict (tenant_id, object_key) do update set",
+        "  document_id = excluded.document_id,",
+        "  blob_kind = excluded.blob_kind,",
+        "  mime_type = excluded.mime_type,",
+        "  size_bytes = excluded.size_bytes,",
+        "  sha256 = excluded.sha256,",
+        "  state = excluded.state,",
+        "  storage_object_id = excluded.storage_object_id,",
+        "  verified_at = excluded.verified_at;",
+      ].join("\n"),
+    ];
+  });
+}
+
+function documentIdForImportItem(matter, item) {
+  return deterministicUuid(`runtime-db-document:${matter.id}:${item.fileId}`);
+}
+
+function documentBlobIdForImportItem(matter, item) {
+  return deterministicUuid(`runtime-db-document-blob:${matter.id}:${item.fileId}:original`);
 }
 
 function materializedFileUpsertSql({ matter, row }) {
@@ -758,6 +1235,157 @@ function materializedFileUpsertSql({ matter, row }) {
     "  size_bytes = excluded.size_bytes,",
     "  verified_at = excluded.verified_at;",
   ];
+}
+
+function matterArtifactUpsertSql({ matter, row }) {
+  const artifact = artifactMetadataForRow(row);
+  if (!artifact) return [];
+  const artifactId = deterministicUuid(`runtime-db-artifact:${matter.id}:${row.objectKey}`);
+  return [
+    "update matter_artifacts",
+    "set is_current = false",
+    "where tenant_id = current_app_tenant_id()",
+    `  and matter_id = ${sqlUuid(matter.id)}`,
+    `  and artifact_family = ${sqlString(artifact.family)}`,
+    `  and mode = ${sqlString(artifact.mode)}`,
+    `  and profile_key = ${sqlString(artifact.profileKey)}`,
+    `  and format = ${sqlString(artifact.format)}`,
+    `  and id <> ${sqlUuid(artifactId)};`,
+    "insert into matter_artifacts (id, tenant_id, matter_id, artifact_family, mode, profile_key, format, object_key, content_hash, storage_object_id, is_current, created_at)",
+    `values (${sqlUuid(artifactId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlString(artifact.family)}, ${sqlString(artifact.mode)}, ${sqlString(artifact.profileKey)}, ${sqlString(artifact.format)}, ${sqlString(row.objectKey)}, ${sqlString(row.sha256)}, ${sqlUuid(row.storageObjectId)}, true, now())`,
+    "on conflict (id) do update set",
+    "  object_key = excluded.object_key,",
+    "  content_hash = excluded.content_hash,",
+    "  storage_object_id = excluded.storage_object_id,",
+    "  is_current = excluded.is_current;",
+  ];
+}
+
+function extractionRecordUpsertSql({ matter, row }) {
+  if (row.objectRole !== "extraction_payload") return [];
+  const fileId = fileIdForExtractionPayloadPath(row.relativePath);
+  if (!fileId) return [];
+  const extractionId = deterministicUuid(`runtime-db-extraction:${matter.id}:${fileId}:${row.objectKey}`);
+  return [
+    "insert into extraction_records (id, tenant_id, matter_id, document_id, document_blob_id, status, engine, ocr_applied, needs_review, payload_object_key, content_hash, storage_object_id, created_at)",
+    "values (",
+    `  ${sqlUuid(extractionId)},`,
+    "  current_app_tenant_id(),",
+    `  ${sqlUuid(matter.id)},`,
+    "  (select id from documents where tenant_id = current_app_tenant_id() and matter_id = " + sqlUuid(matter.id) + " and file_id = " + sqlString(fileId) + " limit 1),",
+    "  (select db.id from document_blobs db join documents d on d.id = db.document_id and d.tenant_id = db.tenant_id where db.tenant_id = current_app_tenant_id() and db.matter_id = " + sqlUuid(matter.id) + " and d.file_id = " + sqlString(fileId) + " and db.blob_kind = 'original' order by db.created_at desc limit 1),",
+    "  'succeeded',",
+    "  'materialized-extract',",
+    "  false,",
+    "  false,",
+    `  ${sqlString(row.objectKey)},`,
+    `  ${sqlString(row.sha256)},`,
+    `  ${sqlUuid(row.storageObjectId)},`,
+    "  now()",
+    ")",
+    "on conflict (id) do update set",
+    "  status = excluded.status,",
+    "  engine = excluded.engine,",
+    "  payload_object_key = excluded.payload_object_key,",
+    "  content_hash = excluded.content_hash,",
+    "  storage_object_id = excluded.storage_object_id;",
+  ];
+}
+
+function sourceDescriptorUpsertSql({ matter, row }) {
+  if (normalizeObjectKey(row.relativePath) !== "10_Library/Source Index.json") return [];
+  let artifact;
+  try {
+    artifact = JSON.parse(Buffer.from(row.payloadHex || "", "hex").toString("utf8"));
+  } catch {
+    return [];
+  }
+  const sources = Array.isArray(artifact?.sources) ? artifact.sources : [];
+  return sources.flatMap((source, index) => {
+    const fileId = stringValue(source.file_id || source.source_id).toUpperCase();
+    if (!/^FILE-\d{4}$/.test(fileId)) return [];
+    const descriptorId = deterministicUuid(`runtime-db-source-descriptor:${matter.id}:${fileId}`);
+    const labelStatus = normalizeSourceLabelStatus(source.label_status);
+    return [
+      "insert into source_descriptors (id, tenant_id, matter_id, document_id, extraction_record_id, suggested_label, confirmed_label, label_status, label_source, document_type, document_date, needs_review, storage_object_id, created_at, updated_at)",
+      "values (",
+      `  ${sqlUuid(descriptorId)},`,
+      "  current_app_tenant_id(),",
+      `  ${sqlUuid(matter.id)},`,
+      "  (select id from documents where tenant_id = current_app_tenant_id() and matter_id = " + sqlUuid(matter.id) + " and file_id = " + sqlString(fileId) + " limit 1),",
+      "  (select id from extraction_records where tenant_id = current_app_tenant_id() and matter_id = " + sqlUuid(matter.id) + " and document_id = (select id from documents where tenant_id = current_app_tenant_id() and matter_id = " + sqlUuid(matter.id) + " and file_id = " + sqlString(fileId) + " limit 1) order by created_at desc limit 1),",
+      `  ${sqlString(stringValue(source.source_label || source.suggested_label) || fileId)},`,
+      `  ${sqlNullableString(source.confirmed_label)},`,
+      `  ${sqlString(labelStatus)},`,
+      `  ${sqlString(stringValue(source.label_source) || "model")},`,
+      `  ${sqlString(stringValue(source.document_type))},`,
+      `  ${sqlDateOrNull(source.document_date)},`,
+      `  ${sqlBoolean(Boolean(source.needs_review) || labelStatus === "needs_review")},`,
+      `  ${sqlUuid(row.storageObjectId)},`,
+      "  now(),",
+      "  now()",
+      ")",
+      "on conflict (id) do update set",
+      "  extraction_record_id = excluded.extraction_record_id,",
+      "  suggested_label = excluded.suggested_label,",
+      "  confirmed_label = excluded.confirmed_label,",
+      "  label_status = excluded.label_status,",
+      "  label_source = excluded.label_source,",
+      "  document_type = excluded.document_type,",
+      "  document_date = excluded.document_date,",
+      "  needs_review = excluded.needs_review,",
+      "  storage_object_id = excluded.storage_object_id,",
+      "  updated_at = excluded.updated_at;",
+    ].join("\n");
+  });
+}
+
+function normalizeSourceLabelStatus(value) {
+  const status = stringValue(value);
+  if (["suggested", "confirmed", "overridden", "needs_review"].includes(status)) return status;
+  return "suggested";
+}
+
+function fileIdForExtractionPayloadPath(relativePath) {
+  const normalized = normalizeObjectKey(relativePath);
+  const match = normalized.match(/(^|\/)_extracted\/(FILE-\d{4})\.json$/i);
+  return match ? match[2].toUpperCase() : "";
+}
+
+function artifactMetadataForRow(row = {}) {
+  if (row.objectRole !== "matter_artifact") return null;
+  const relativePath = normalizeObjectKey(row.relativePath);
+  const format = artifactFormatForPath(relativePath);
+  if (!format) return null;
+  if (relativePath === "10_Library/Source Index.json") {
+    return { family: "source_index", mode: "default", profileKey: "default", format };
+  }
+  if (relativePath === "10_Library/List of Dates.md" || relativePath === "10_Library/List of Dates.json" || relativePath === "10_Library/List of Dates.csv") {
+    return { family: "list_of_dates", mode: "default", profileKey: "default", format };
+  }
+  if (/^30_Drafts\//i.test(relativePath)) {
+    return { family: "draft", mode: "default", profileKey: artifactProfileForPath(relativePath), format };
+  }
+  if (/^40_Dispatch\//i.test(relativePath)) {
+    return { family: "dispatch_copy", mode: "default", profileKey: artifactProfileForPath(relativePath), format };
+  }
+  if (/^10_Library\//i.test(relativePath) || /^20_Workshop\//i.test(relativePath)) {
+    return { family: "custom_skill_output", mode: "default", profileKey: artifactProfileForPath(relativePath), format };
+  }
+  return { family: "export", mode: "default", profileKey: artifactProfileForPath(relativePath), format };
+}
+
+function artifactProfileForPath(relativePath) {
+  const normalized = normalizeObjectKey(relativePath);
+  const extension = path.posix.extname(normalized);
+  const withoutExtension = extension ? normalized.slice(0, -extension.length) : normalized;
+  return withoutExtension || "default";
+}
+
+function artifactFormatForPath(relativePath) {
+  const extension = path.posix.extname(normalizeObjectKey(relativePath)).toLowerCase().replace(/^\./, "");
+  if (extension === "markdown") return "md";
+  return new Set(["json", "md", "csv", "pdf", "docx", "txt"]).has(extension) ? extension : "";
 }
 
 function roleForMaterializedPath(relativePath) {
@@ -795,6 +1423,14 @@ function normalizeObjectKey(value) {
   return String(value || "").replaceAll("\\", "/").replace(/^\/+/, "").trim();
 }
 
+function normalizeMatterName(value) {
+  const text = stringValue(value);
+  if (!text || text.startsWith(".") || text.includes("/") || text.includes("\\") || text.includes("..")) {
+    throw makeHttpError("Invalid matter name", 400);
+  }
+  return text;
+}
+
 function normalizeObjectRow(row = {}) {
   return {
     objectKey: stringValue(row.objectKey),
@@ -819,6 +1455,17 @@ function normalizeMatter(matter = {}) {
   };
 }
 
+function normalizeOverlapWarnings(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((warning) => ({
+    matterName: stringValue(warning.matterName),
+    overlapCount: Number(warning.overlapCount) || 0,
+    totalIncoming: Number(warning.totalIncoming) || 0,
+    matterTotalFiles: Number(warning.matterTotalFiles) || 0,
+    overlapPercent: Number(warning.overlapPercent) || 0,
+  })).filter((warning) => warning.matterName && warning.overlapCount > 0);
+}
+
 function sqlUuid(value) {
   return `${sqlString(value)}::uuid`;
 }
@@ -837,8 +1484,28 @@ function sqlString(value) {
   return `'${String(value ?? "").replaceAll("'", "''")}'`;
 }
 
+function sqlNullableString(value) {
+  const text = stringValue(value);
+  return text ? sqlString(text) : "null";
+}
+
+function sqlDateOrNull(value) {
+  const text = stringValue(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${sqlString(text)}::date` : "null";
+}
+
+function sqlBoolean(value) {
+  return value ? "true" : "false";
+}
+
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function positiveInteger(value, fallback = 1) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 1) return fallback;
+  return Math.trunc(number);
 }
 
 function deterministicUuid(seed) {

@@ -63,7 +63,8 @@ export function createConfigurableSkillRunsService({
       });
       store.runs[index] = next;
       await writeStore(store);
-      return next;
+      const availabilityMatterRoot = normalizeText(patch.availabilityMatterRoot);
+      return availabilityMatterRoot ? { ...next, availabilityMatterRoot } : next;
     });
   }
 
@@ -133,9 +134,10 @@ export function createConfigurableSkillRunsService({
 
 async function annotateRun(run = {}) {
   const normalized = normalizeRunRecord(run);
+  const availabilityMatterRoot = normalizeText(run.availabilityMatterRoot);
   const outputAvailability = {
-    markdown: await outputPathAvailability(normalized, normalized.outputPaths.markdown),
-    json: await outputPathAvailability(normalized, normalized.outputPaths.json),
+    markdown: await outputPathAvailability(normalized, normalized.outputPaths.markdown, { availabilityMatterRoot }),
+    json: await outputPathAvailability(normalized, normalized.outputPaths.json, { availabilityMatterRoot }),
   };
   const annotated = {
     ...normalized,
@@ -147,12 +149,13 @@ async function annotateRun(run = {}) {
   };
 }
 
-async function outputPathAvailability(run = {}, relativePath = "") {
+async function outputPathAvailability(run = {}, relativePath = "", { availabilityMatterRoot = "" } = {}) {
   const outputPath = normalizeText(relativePath);
   if (!outputPath) return "not_recorded";
-  if (!run.matterRoot) return "unknown";
+  const matterRoot = normalizeText(availabilityMatterRoot) || run.matterRoot;
+  if (!matterRoot) return "unknown";
   try {
-    await access(resolveRelativeInside(run.matterRoot, outputPath));
+    await access(resolveRelativeInside(matterRoot, outputPath));
     return "present";
   } catch (error) {
     if (error?.code === "ENOENT" || error?.statusCode === 400 || error?.statusCode === 403) return "missing";
@@ -171,7 +174,9 @@ export function normalizeRunRecord(record = {}) {
   return {
     schema_version: CONFIGURABLE_SKILL_RUN_SCHEMA_VERSION,
     id: normalizeText(record.id),
+    matterId: normalizeText(record.matterId),
     skillId: normalizeText(record.skillId),
+    skillVersion: normalizePositiveInteger(record.skillVersion, 1),
     slash: normalizeText(record.slash),
     title: normalizeText(record.title),
     matterName: normalizeText(record.matterName),
@@ -219,6 +224,12 @@ function normalizeLimit(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return DEFAULT_LIMIT;
   return Math.min(Math.floor(number), MAX_LIMIT);
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+  return Math.floor(number);
 }
 
 function compareRunsNewestFirst(a, b) {

@@ -5,7 +5,10 @@ import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createCommandInteractionLogService } from "./services/command-interaction-log-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
 import { createConfigurableSkillRunsService } from "./services/configurable-skill-runs-service.mjs";
+import { createRuntimeDbCommandInteractionLogService } from "./services/runtime-db-command-interaction-log-service.mjs";
+import { createRuntimeDbConfigurableSkillStore } from "./services/runtime-db-configurable-skill-store.mjs";
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
+import { createRuntimeDbConfigurableSkillRunsService } from "./services/runtime-db-configurable-skill-runs-service.mjs";
 import { createMatterCopilotService } from "./services/matter-copilot-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
@@ -15,6 +18,8 @@ import { createMatterStatusService } from "./services/matter-status-service.mjs"
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
+import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-ideas-service.mjs";
+import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-samples-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
@@ -58,38 +63,75 @@ export async function createWorkbenchServer(options = {}) {
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
+  const runtimeDatabaseUrl = String(env.MWB_DATABASE_URL || env.DATABASE_URL || "");
   const runtimeDbStorageService = options.runtimeDbStorageService || createRuntimeDbStorageService({
-    databaseUrl: String(env.MWB_DATABASE_URL || env.DATABASE_URL || ""),
+    databaseUrl: runtimeDatabaseUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const uploadService = createUploadService({
     matterStore,
+    runtimeDbStorageService,
     workspaceService,
     maxUploadBytes: options.maxUploadBytes,
   });
   const aiSettingsService = createAiSettingsService({ appDir, env });
-  const commandInteractionLogService = createCommandInteractionLogService({
-    appDir,
-    logPath: options.commandInteractionLogPath,
+  const runtimeDbCommandInteractionLogService = options.runtimeDbCommandInteractionLogService || createRuntimeDbCommandInteractionLogService({
+    databaseUrl: runtimeDatabaseUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
   });
-  const skillIdeasService = createSkillIdeasService({
-    appDir,
-    ideasPath: options.skillIdeasPath,
+  const commandInteractionLogService = options.commandInteractionLogService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbCommandInteractionLogService.enabled
+      ? runtimeDbCommandInteractionLogService
+      : createCommandInteractionLogService({
+        appDir,
+        logPath: options.commandInteractionLogPath,
+      })
+  );
+  const runtimeDbSkillIdeasService = options.runtimeDbSkillIdeasService || createRuntimeDbSkillIdeasService({
+    databaseUrl: runtimeDatabaseUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
   });
-  const skillSamplesService = createSkillSamplesService({
-    appDir,
-    samplesPath: options.skillSamplesPath,
+  const runtimeDbSkillSamplesService = options.runtimeDbSkillSamplesService || createRuntimeDbSkillSamplesService({
+    databaseUrl: runtimeDatabaseUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
   });
-  const skillFactoryHealthService = createSkillFactoryHealthService({
-    appDir,
-    ideasPath: options.skillIdeasPath,
-    samplesPath: options.skillSamplesPath,
-    skillsPath: options.configurableSkillsPath,
+  const skillIdeasService = options.skillIdeasService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbSkillIdeasService.enabled
+      ? runtimeDbSkillIdeasService
+      : createSkillIdeasService({
+        appDir,
+        ideasPath: options.skillIdeasPath,
+      })
+  );
+  const skillSamplesService = options.skillSamplesService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbSkillSamplesService.enabled
+      ? runtimeDbSkillSamplesService
+      : createSkillSamplesService({
+        appDir,
+        samplesPath: options.skillSamplesPath,
+      })
+  );
+  const runtimeDbConfigurableSkillRunsService = createRuntimeDbConfigurableSkillRunsService({
+    databaseUrl: runtimeDatabaseUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
   });
-  const configurableSkillRunsService = createConfigurableSkillRunsService({
-    appDir,
-    runsPath: options.configurableSkillRunsPath,
+  const configurableSkillRunsService = options.configurableSkillRunsService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbConfigurableSkillRunsService.enabled
+      ? runtimeDbConfigurableSkillRunsService
+      : createConfigurableSkillRunsService({
+        appDir,
+        runsPath: options.configurableSkillRunsPath,
+      })
+  );
+  const runtimeDbConfigurableSkillStore = options.runtimeDbConfigurableSkillStore || createRuntimeDbConfigurableSkillStore({
+    databaseUrl: runtimeDatabaseUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
   });
+  const configurableSkillStore = options.configurableSkillStore || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbConfigurableSkillStore.enabled
+      ? runtimeDbConfigurableSkillStore
+      : null
+  );
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
@@ -97,11 +139,21 @@ export async function createWorkbenchServer(options = {}) {
     skillIdeasService,
     skillSamplesService,
     configurableSkillRunsService,
+    skillStore: configurableSkillStore,
     authoringProvider: options.configurableSkillAuthoringProvider || null,
     runProvider: options.configurableSkillRunProvider || null,
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.configurableSkillEndpoint,
+  });
+  const skillFactoryHealthService = options.skillFactoryHealthService || createSkillFactoryHealthService({
+    appDir,
+    configurableSkillsService,
+    ideasPath: options.skillIdeasPath,
+    samplesPath: options.skillSamplesPath,
+    skillIdeasService,
+    skillSamplesService,
+    skillsPath: options.configurableSkillsPath,
   });
   const matterStoryService = createMatterStoryService({
     matterStore,
@@ -152,6 +204,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     matterContextService,
     matterStatusService,
+    matterStoryService,
     prepareMatterService,
     runtimeDbStorageService,
     skillIdeasService,

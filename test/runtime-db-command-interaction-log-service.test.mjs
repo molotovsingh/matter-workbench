@@ -1,0 +1,69 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { createRuntimeDbCommandInteractionLogService } from "../services/runtime-db-command-interaction-log-service.mjs";
+
+const tenantId = "82dc5ad0-fb23-5c08-a06c-73232cd0281f";
+
+test("runtime DB command interaction log writes audit events", async () => {
+  const calls = [];
+  const service = createRuntimeDbCommandInteractionLogService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    idFactory: () => "11111111-1111-4111-8111-111111111111",
+    now: () => new Date("2026-06-06T00:00:00.000Z"),
+    spawn: jsonSpawn(calls, {}),
+  });
+
+  const result = await service.appendInteraction({
+    typed_input: "/describe_sources",
+    matched_command: "/describe_sources",
+    status: "failed",
+    matter: { folderName: "DB Matter", matterName: "Legal Caption" },
+    errors: ["Provider unavailable"],
+  });
+
+  assert.equal(result.logged, true);
+  assert.equal(result.path, "postgres:audit_events/command_interaction");
+  const sql = calls[0].input;
+  assert.match(sql, /insert into audit_events/i);
+  assert.match(sql, /command_interaction/);
+  assert.match(sql, /Provider unavailable/);
+  assert.match(sql, /DB Matter/);
+  assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB command interaction log reads recent audit events", async () => {
+  const calls = [];
+  const service = createRuntimeDbCommandInteractionLogService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, [{
+      timestamp: "2026-06-06T00:00:00.000Z",
+      matter: { folder_name: "DB Matter", matter_name: "Legal Caption" },
+      typed_input: "/describe_sources",
+      matched_command: "/describe_sources",
+      status: "failed",
+      errors: ["Provider unavailable"],
+    }]),
+  });
+
+  const rows = await service.readRecentInteractions({ limit: 5 });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].matched_command, "/describe_sources");
+  assert.equal(rows[0].matter.folder_name, "DB Matter");
+  assert.match(calls[0].input, /from audit_events/i);
+  assert.match(calls[0].input, /limit 5/i);
+});
+
+function jsonSpawn(calls, payload) {
+  return (command, args, options = {}) => {
+    calls.push({ command, args, input: options.input });
+    return {
+      status: 0,
+      stdout: `${JSON.stringify(payload)}\n`,
+      stderr: "",
+    };
+  };
+}

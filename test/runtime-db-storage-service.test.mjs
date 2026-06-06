@@ -180,9 +180,217 @@ test("runtime DB storage service materializes DB payloads and persists workflow 
   const persistSql = calls.at(-1).input;
   assert.match(persistSql, /insert into storage_objects/i);
   assert.match(persistSql, /insert into storage_object_payloads/i);
+  assert.match(persistSql, /insert into matter_artifacts/i);
+  assert.match(persistSql, /storage_object_id/i);
   assert.match(persistSql, /DB Matter\/10_Library\/New Artifact\.md/);
   assert.match(persistSql, /matter_artifact/);
   assert.doesNotMatch(persistSql, /secret/);
+});
+
+test("runtime DB storage service records materialized extraction payloads", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-extract-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
+      {},
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "_extracted"), { recursive: true });
+    await writeFile(
+      path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"),
+      JSON.stringify({ file_id: "FILE-0001", status: "extracted", engine: "mistral-ocr", pages: [{ page: 1, text: "ok" }] }),
+    );
+    return { ok: true };
+  });
+
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), ["00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json"]);
+  const persistSql = calls.at(-1).input;
+  assert.match(persistSql, /insert into storage_objects/i);
+  assert.match(persistSql, /insert into extraction_records/i);
+  assert.match(persistSql, /FILE-0001/);
+  assert.match(persistSql, /storage_object_id/i);
+  assert.doesNotMatch(persistSql, /secret/);
+});
+
+test("runtime DB storage service records materialized source descriptors", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-source-descriptors-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
+      {},
+    ]),
+  });
+
+  await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+    await writeFile(
+      path.join(matterRoot, "10_Library", "Source Index.json"),
+      JSON.stringify({
+        schema_version: "source-index/v1",
+        sources: [{
+          file_id: "FILE-0001",
+          source_label: "Agreement dated 1 June 2014",
+          label_status: "suggested",
+          document_type: "agreement",
+          document_date: "2014-06-01",
+          needs_review: false,
+        }],
+      }),
+    );
+    return { ok: true };
+  });
+
+  const persistSql = calls.at(-1).input;
+  assert.match(persistSql, /insert into matter_artifacts/i);
+  assert.match(persistSql, /insert into source_descriptors/i);
+  assert.match(persistSql, /Agreement dated 1 June 2014/);
+  assert.match(persistSql, /FILE-0001/);
+  assert.doesNotMatch(persistSql, /secret/);
+});
+
+test("runtime DB storage service creates matter upload custody rows with payload bytes", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-create-upload-"));
+  const uploadedFile = path.join(tmp, "notice.txt");
+  await writeFile(uploadedFile, "Notice served on 1 January 2026.");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [{}, {}]),
+  });
+
+  const created = await service.createMatterFromUploadedFiles({
+    name: "DB Upload Matter",
+    metadata: {
+      matterName: "DB Upload Matter",
+      clientName: "Runtime Client",
+      oppositeParty: "Runtime Opposite",
+      matterType: "Consumer",
+      jurisdiction: "Delhi",
+      briefDescription: "Created through runtime DB upload.",
+    },
+    files: [{ index: 0, tempPath: uploadedFile, filename: "notice.txt", bytes: 31 }],
+    relativePaths: ["evidence/notice.txt"],
+  });
+
+  assert.equal(created.name, "DB Upload Matter");
+  assert.equal(created.clientName, "Runtime Client");
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /insert into matters/i);
+  assert.match(sql, /insert into matter_intakes/i);
+  assert.match(sql, /insert into upload_sessions/i);
+  assert.match(sql, /insert into matter_import_batches/i);
+  assert.match(sql, /insert into documents/i);
+  assert.match(sql, /insert into document_blobs/i);
+  assert.match(sql, /insert into storage_objects/i);
+  assert.match(sql, /insert into storage_object_payloads/i);
+  assert.match(sql, /document_id/i);
+  assert.match(sql, /DB Upload Matter\/matter\.json/);
+  assert.match(sql, /DB Upload Matter\/00_Inbox\/Intake 01 - Initial\/Source Files\/evidence\/notice\.txt/);
+  assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB storage service appends uploaded files to a new intake with payload bytes", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-add-upload-"));
+  const uploadedFile = path.join(tmp, "affidavit.pdf");
+  await writeFile(uploadedFile, "%PDF-1.7 supplemental affidavit");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      { matter: { ...matter, nextFileNumber: 3 }, nextIntakeNumber: 2 },
+      {},
+    ]),
+  });
+
+  const intakeAdded = await service.addUploadedFilesToMatter({
+    matter,
+    label: "Follow Up",
+    files: [{ index: 0, tempPath: uploadedFile, filename: "affidavit.pdf", bytes: 29 }],
+    relativePaths: ["supplement/affidavit.pdf"],
+  });
+
+  assert.equal(intakeAdded.intakeId, "INTAKE-02");
+  assert.equal(intakeAdded.label, "Follow Up");
+  assert.equal(intakeAdded.scanned, 1);
+  assert.equal(intakeAdded.unique, 1);
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /max\s*\(/i);
+  assert.match(sql, /insert into matter_intakes/i);
+  assert.match(sql, /insert into upload_sessions/i);
+  assert.match(sql, /insert into matter_import_batches/i);
+  assert.match(sql, /insert into matter_import_items/i);
+  assert.match(sql, /insert into documents/i);
+  assert.match(sql, /insert into document_blobs/i);
+  assert.match(sql, /insert into storage_objects/i);
+  assert.match(sql, /insert into storage_object_payloads/i);
+  assert.match(sql, /document_id/i);
+  assert.match(sql, /DB Matter\/00_Inbox\/Intake 02 - \d{4}-\d{2}-\d{2} Follow Up\/Source Files\/supplement\/affidavit\.pdf/);
+  assert.match(sql, /next_file_number\s*=\s*greatest[\s\S]*,\s*4\)/i);
+  assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB storage service checks upload overlap from document hashes", async () => {
+  const duplicateHash = "a".repeat(64);
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, {
+      warnings: [{
+        matterName: "DB Matter",
+        overlapCount: 1,
+        totalIncoming: 3,
+        matterTotalFiles: 3,
+        overlapPercent: 67,
+      }],
+    }),
+  });
+
+  const result = await service.checkUploadedFileOverlap([
+    duplicateHash,
+    duplicateHash,
+    "b".repeat(64),
+  ]);
+
+  assert.deepEqual(result.warnings, [{
+    matterName: "DB Matter",
+    overlapCount: 1,
+    totalIncoming: 3,
+    matterTotalFiles: 3,
+    overlapPercent: 67,
+  }]);
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.equal((sql.match(new RegExp(duplicateHash, "g")) || []).length, 2);
+  assert.match(sql, /from documents d/i);
+  assert.match(sql, /from matters m/i);
+  assert.match(sql, /d\.sha256/i);
+  assert.match(sql, /deleted_pending/i);
+  assert.doesNotMatch(sql, /File Register/i);
+  assert.doesNotMatch(sql, /secret/);
 });
 
 test("runtime DB storage service materializes DB payloads for read-only operations without persisting", async () => {

@@ -51,8 +51,9 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, result);
       }),
       exactRoute("GET", "/api/matters", async () => {
+        const isRuntimeDbStorage = usesRuntimeDbStorage(matterStore, runtimeDbStorageService);
         sendJson(response, 200, {
-          enabled: Boolean(configService.getMattersHome()),
+          enabled: Boolean(configService.getMattersHome()) || isRuntimeDbStorage,
           mattersHome: configService.getMattersHome() || null,
           active: matterStore.activeMatterNameWithinHome(),
           matters: await matterStore.listMattersHomeChildren(),
@@ -78,7 +79,8 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, await uploadService.addFilesToMatter(request));
       }),
       exactRoute("POST", "/api/matters/check-overlap", async () => {
-        if (!configService.getMattersHome()) {
+        const isRuntimeDbStorage = usesRuntimeDbStorage(matterStore, runtimeDbStorageService);
+        if (!configService.getMattersHome() && !isRuntimeDbStorage) {
           sendJson(response, 200, { warnings: [] });
           return;
         }
@@ -88,6 +90,10 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           : [];
         if (!incoming.length) {
           sendJson(response, 200, { warnings: [] });
+          return;
+        }
+        if (isRuntimeDbStorage && typeof runtimeDbStorageService.checkUploadedFileOverlap === "function") {
+          sendJson(response, 200, await runtimeDbStorageService.checkUploadedFileOverlap(incoming));
           return;
         }
         const warnings = [];
