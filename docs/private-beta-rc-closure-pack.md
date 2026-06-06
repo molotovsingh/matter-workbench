@@ -14,6 +14,7 @@ Useful options:
 npm run private-beta:rc-closure-pack -- --base-url http://172.16.37.128:4191
 npm run private-beta:rc-closure-pack -- --out-dir .local/private-beta-rc-closure-packs
 npm run private-beta:rc-closure-pack -- --runtime-browser-evidence-json /path/to/runtime-db-browser-acceptance-pack.json
+npm run private-beta:rc-closure-pack -- --git-branch codex/matter-workbench-checkpoint-2026-05-17 --git-commit 146c9c0
 ```
 
 The pack answers one release question:
@@ -44,6 +45,16 @@ It writes:
 
 - `private-beta-rc-closure-pack.md`
 - `private-beta-rc-closure-pack.json`
+
+If the VM deployment is a clean source artifact rather than a git checkout,
+pass `--git-branch` and `--git-commit` from the Mac checkout that produced the
+artifact. That records the release identity without requiring `.git` inside the
+private runtime directory.
+
+When the runtime uses `MWB_RUNTIME_DB_STORAGE=postgres`, the recoverability pack
+marks local filesystem storage backup as not applicable unless `--matters-home`
+is explicitly provided. In that mode the database restore drill is the storage
+payload recovery proof.
 
 ## What A Pass Means
 

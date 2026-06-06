@@ -5,6 +5,18 @@ import { promisify } from "node:util";
 import test from "node:test";
 
 const execFileAsync = promisify(execFile);
+const requiresGitWorktree = await isInsideGitWorktree()
+  ? false
+  : "requires a git checkout";
+
+async function isInsideGitWorktree() {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"]);
+    return stdout.trim() === "true";
+  } catch {
+    return false;
+  }
+}
 
 async function isIgnored(pathname) {
   try {
@@ -21,7 +33,7 @@ async function listTrackedFiles() {
   return stdout.split("\n").filter(Boolean);
 }
 
-test("tracked files do not contain known local VM credentials", async () => {
+test("tracked files do not contain known local VM credentials", { skip: requiresGitWorktree }, async () => {
   const trackedFiles = await listTrackedFiles();
   const forbiddenPatterns = [
     ["local VM password", new RegExp(["aks", "ingh11"].join(""))],
@@ -45,7 +57,7 @@ test("tracked files do not contain known local VM credentials", async () => {
   assert.deepEqual(matches, []);
 });
 
-test("tracked files do not include local secret artifact names", async () => {
+test("tracked files do not include local secret artifact names", { skip: requiresGitWorktree }, async () => {
   const trackedFiles = await listTrackedFiles();
   const allowedTrackedLocalFiles = new Set([".env.example"]);
   const forbiddenPathPatterns = [
@@ -68,7 +80,7 @@ test("tracked files do not include local secret artifact names", async () => {
   assert.deepEqual(matches, []);
 });
 
-test("local env variants are ignored while the example env remains trackable", async () => {
+test("local env variants are ignored while the example env remains trackable", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".env"), true);
   assert.equal(await isIgnored(".env.local"), true);
   assert.equal(await isIgnored(".env.shadow"), true);
@@ -78,13 +90,13 @@ test("local env variants are ignored while the example env remains trackable", a
   assert.equal(await isIgnored(".env.example"), false);
 });
 
-test("repo-local Postgres credential helpers are ignored", async () => {
+test("repo-local Postgres credential helpers are ignored", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".pgpass"), true);
   assert.equal(await isIgnored(".pg_service.conf"), true);
   assert.equal(await isIgnored(".psql_history"), true);
 });
 
-test("repo-local private key material is ignored", async () => {
+test("repo-local private key material is ignored", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".psqlrc"), true);
   assert.equal(await isIgnored("id_rsa"), true);
   assert.equal(await isIgnored("id_ed25519"), true);
@@ -94,7 +106,7 @@ test("repo-local private key material is ignored", async () => {
   assert.equal(await isIgnored("cert.pfx"), true);
 });
 
-test("repo-local cloud credential stores are ignored", async () => {
+test("repo-local cloud credential stores are ignored", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".netrc"), true);
   assert.equal(await isIgnored(".pypirc"), true);
   assert.equal(await isIgnored(".aws/"), true);
@@ -104,7 +116,7 @@ test("repo-local cloud credential stores are ignored", async () => {
   assert.equal(await isIgnored(".docker/"), true);
 });
 
-test("repo-local infrastructure state is ignored", async () => {
+test("repo-local infrastructure state is ignored", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".terraform/"), true);
   assert.equal(await isIgnored("terraform.tfstate"), true);
   assert.equal(await isIgnored("terraform.tfstate.backup"), true);
@@ -113,7 +125,7 @@ test("repo-local infrastructure state is ignored", async () => {
   assert.equal(await isIgnored(".pulumi/"), true);
 });
 
-test("repo-local package manager auth files are ignored", async () => {
+test("repo-local package manager auth files are ignored", { skip: requiresGitWorktree }, async () => {
   assert.equal(await isIgnored(".npmrc"), true);
   assert.equal(await isIgnored(".pnpmrc"), true);
   assert.equal(await isIgnored(".yarnrc"), true);

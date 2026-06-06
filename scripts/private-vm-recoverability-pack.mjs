@@ -21,6 +21,9 @@ export function parseRecoverabilityPackArgs(argv = [], env = process.env) {
     timestamp: "",
     baseUrl: env.MWB_PRIVATE_VM_BASE_URL || "http://127.0.0.1:4191",
     mattersHome: "",
+    storageMode: env.MWB_RUNTIME_DB_STORAGE || "",
+    authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
+    authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
     skipServiceCheck: false,
     skipDbRestore: false,
   };
@@ -47,6 +50,21 @@ export function parseRecoverabilityPackArgs(argv = [], env = process.env) {
       if (!value) throw new Error("--matters-home requires a value");
       parsed.mattersHome = path.resolve(value);
       i += 1;
+    } else if (arg === "--storage-mode") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--storage-mode requires a value");
+      parsed.storageMode = value;
+      i += 1;
+    } else if (arg === "--auth-username") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-username requires a value");
+      parsed.authUsername = value;
+      i += 1;
+    } else if (arg === "--auth-password") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--auth-password requires a value");
+      parsed.authPassword = value;
+      i += 1;
     } else if (arg === "--skip-service-check") {
       parsed.skipServiceCheck = true;
     } else if (arg === "--skip-db-restore") {
@@ -64,6 +82,9 @@ export async function runPrivateVmRecoverabilityPack({
   timestamp = new Date().toISOString(),
   baseUrl = "http://127.0.0.1:4191",
   mattersHome = "",
+  storageMode = process.env.MWB_RUNTIME_DB_STORAGE || "",
+  authUsername = "",
+  authPassword = "",
   skipServiceCheck = false,
   skipDbRestore = false,
   backupDbFn = runShadowBackup,
@@ -117,43 +138,48 @@ export async function runPrivateVmRecoverabilityPack({
       };
     });
 
-  steps.storageBackup = await runStep("storage_backup", async () => {
-    const options = {
-      outDir: path.join(packDir, "storage"),
-      timestamp: generatedAt,
-    };
-    if (mattersHome) options.mattersHome = mattersHome;
-    const result = await storageBackupFn(options);
-    return {
-      ok: Boolean(result.success),
-      backupDir: result.backupDir || "",
-      manifestPath: result.manifestPath || "",
-      pdfObjects: result.pdfObjects || 0,
-      objectsCopied: result.objectsCopied || 0,
-      failedObjects: result.failedObjects || 0,
-      error: result.success ? "" : summarizeFailures(result.failures) || "storage backup failed",
-    };
-  });
-
-  steps.storageRestoreCheck = await runStep("storage_restore_check", async () => {
-    if (!steps.storageBackup.ok) return { ok: false, error: "storage backup did not succeed" };
-    const result = await storageRestoreCheckFn({
-      manifestPath: steps.storageBackup.manifestPath,
-      outDir: path.join(packDir, "storage-restore-checks"),
-      timestamp: generatedAt,
+  const dbBackedStorage = String(storageMode || "").trim().toLowerCase() === "postgres" && !mattersHome;
+  steps.storageBackup = dbBackedStorage
+    ? skippedStep("storage_backup", "runtime DB storage mode is postgres; local filesystem storage backup is not required")
+    : await runStep("storage_backup", async () => {
+      const options = {
+        outDir: path.join(packDir, "storage"),
+        timestamp: generatedAt,
+      };
+      if (mattersHome) options.mattersHome = mattersHome;
+      const result = await storageBackupFn(options);
+      return {
+        ok: Boolean(result.success),
+        backupDir: result.backupDir || "",
+        manifestPath: result.manifestPath || "",
+        pdfObjects: result.pdfObjects || 0,
+        objectsCopied: result.objectsCopied || 0,
+        failedObjects: result.failedObjects || 0,
+        error: result.success ? "" : summarizeFailures(result.failures) || "storage backup failed",
+      };
     });
-    return {
-      ok: Boolean(result.success),
-      checkedObjects: result.checkedObjects || 0,
-      failedObjects: result.failedObjects || 0,
-      error: result.success ? "" : summarizeFailures(result.failures) || "storage restore check failed",
-    };
-  });
+
+  steps.storageRestoreCheck = dbBackedStorage
+    ? skippedStep("storage_restore_check", "runtime DB storage mode is postgres; database restore covers stored payloads")
+    : await runStep("storage_restore_check", async () => {
+      if (!steps.storageBackup.ok) return { ok: false, error: "storage backup did not succeed" };
+      const result = await storageRestoreCheckFn({
+        manifestPath: steps.storageBackup.manifestPath,
+        outDir: path.join(packDir, "storage-restore-checks"),
+        timestamp: generatedAt,
+      });
+      return {
+        ok: Boolean(result.success),
+        checkedObjects: result.checkedObjects || 0,
+        failedObjects: result.failedObjects || 0,
+        error: result.success ? "" : summarizeFailures(result.failures) || "storage restore check failed",
+      };
+    });
 
   steps.serviceCheck = skipServiceCheck
     ? skippedStep("service_check", "skipped by --skip-service-check")
     : await runStep("service_check", async () => {
-      const result = await serviceCheckFn({ baseUrl });
+      const result = await serviceCheckFn({ baseUrl, authUsername, authPassword });
       return {
         ok: Boolean(result.passed),
         baseUrl,

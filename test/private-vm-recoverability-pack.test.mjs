@@ -121,6 +121,65 @@ test("private VM recoverability pack fails closed when storage backup bytes do n
   assert.match(result.failedSteps.join(","), /storage_restore_check/);
 });
 
+test("private VM recoverability pack passes beta auth to service check", async () => {
+  const { parseRecoverabilityPackArgs, runPrivateVmRecoverabilityPack } = await import(packPath.href);
+  const parsed = parseRecoverabilityPackArgs([
+    "--auth-username",
+    "operator",
+    "--auth-password",
+    "private-secret",
+  ], {});
+  assert.equal(parsed.authUsername, "operator");
+  assert.equal(parsed.authPassword, "private-secret");
+
+  let serviceOptions = null;
+  const result = await runPrivateVmRecoverabilityPack({
+    outDir: await mkdtemp(path.join(os.tmpdir(), "mwb-recoverability-pack-auth-")),
+    timestamp: "2026-06-06T14:00:00.000Z",
+    authUsername: "operator",
+    authPassword: "private-secret",
+    backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
+    restoreDbFn: async () => ({ success: true, cleanup: true }),
+    storageBackupFn: async () => ({ success: true, manifestPath: "/tmp/storage/manifest.json", pdfObjects: 0, objectsCopied: 0, failedObjects: 0 }),
+    storageRestoreCheckFn: async () => ({ success: true, checkedObjects: 0, failedObjects: 0 }),
+    serviceCheckFn: async (options) => {
+      serviceOptions = options;
+      return { passed: true, matterCount: 2, targetMatter: "Atlas" };
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(serviceOptions.authUsername, "operator");
+  assert.equal(serviceOptions.authPassword, "private-secret");
+});
+
+test("private VM recoverability pack skips local storage backup in postgres storage mode", async () => {
+  const { parseRecoverabilityPackArgs, runPrivateVmRecoverabilityPack } = await import(packPath.href);
+  const parsed = parseRecoverabilityPackArgs(["--storage-mode", "postgres"], {});
+  assert.equal(parsed.storageMode, "postgres");
+
+  const result = await runPrivateVmRecoverabilityPack({
+    outDir: await mkdtemp(path.join(os.tmpdir(), "mwb-recoverability-pack-db-storage-")),
+    timestamp: "2026-06-06T14:00:00.000Z",
+    storageMode: "postgres",
+    skipServiceCheck: true,
+    backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
+    restoreDbFn: async () => ({ success: true, cleanup: true }),
+    storageBackupFn: async () => {
+      throw new Error("local storage backup should not run");
+    },
+    storageRestoreCheckFn: async () => {
+      throw new Error("local storage restore check should not run");
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.steps.storageBackup.ok, true);
+  assert.equal(result.steps.storageBackup.skipped, true);
+  assert.equal(result.steps.storageRestoreCheck.ok, true);
+  assert.equal(result.steps.storageRestoreCheck.skipped, true);
+});
+
 test("package and private VM docs expose the recoverability pack command", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["private-vm:recoverability-pack"], "node scripts/private-vm-recoverability-pack.mjs");

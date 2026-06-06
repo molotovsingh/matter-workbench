@@ -237,6 +237,69 @@ test("private beta RC closure pack can consume existing runtime browser evidence
   assert.equal(result.runtimeDbBrowser.evidenceJsonPath, browserEvidencePath);
 });
 
+test("private beta RC closure pack can use supplied git metadata for deployment artifacts", async () => {
+  const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-git-meta-"));
+
+  const parsed = parseRcClosurePackArgs([
+    "--git-branch",
+    "codex/release-candidate",
+    "--git-commit",
+    "146c9c0",
+  ], {});
+  assert.equal(parsed.gitBranch, "codex/release-candidate");
+  assert.equal(parsed.gitCommit, "146c9c0");
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitBranch: "codex/release-candidate",
+    gitCommit: "146c9c0",
+    gitInfoFn: async () => ({ branch: "", commit: "", statusShort: "", branchCommandOk: false, commitCommandOk: false, statusCommandOk: false }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    serviceCheckFn: async () => ({ passed: true }),
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.git.branch, "codex/release-candidate");
+  assert.equal(result.git.commit, "146c9c0");
+  assert.equal(result.git.branchCommandOk, false);
+  assert.equal(result.git.commitCommandOk, false);
+});
+
+test("private beta RC closure pack passes auth and matters home to recoverability pack", async () => {
+  const { runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-recovery-auth-"));
+  let recoverabilityOptions = null;
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    mattersHome: "/srv/mwb/matters",
+    authUsername: "operator",
+    authPassword: "private-secret",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    serviceCheckFn: async () => ({ passed: true }),
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async (options) => {
+      recoverabilityOptions = options;
+      return { success: true, steps: {} };
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(recoverabilityOptions.mattersHome, "/srv/mwb/matters");
+  assert.equal(recoverabilityOptions.authUsername, "operator");
+  assert.equal(recoverabilityOptions.authPassword, "private-secret");
+});
+
 test("package and release docs expose the private beta RC closure pack", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");

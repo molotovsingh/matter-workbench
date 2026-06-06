@@ -35,6 +35,9 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     auditDispositionPath: env.MWB_PRIVATE_VM_AUDIT_DISPOSITION || "",
     mattersHome: env.MWB_PRIVATE_VM_MATTERS_HOME || "",
     runtimeBrowserEvidenceJson: env.MWB_RUNTIME_DB_BROWSER_ACCEPTANCE_JSON || "",
+    gitBranch: env.MWB_PRIVATE_BETA_RC_GIT_BRANCH || "",
+    gitCommit: env.MWB_PRIVATE_BETA_RC_GIT_COMMIT || "",
+    gitStatusShort: env.MWB_PRIVATE_BETA_RC_GIT_STATUS_SHORT || "",
     authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
     authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
     skipLocalGates: false,
@@ -77,6 +80,15 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     } else if (arg === "--runtime-browser-evidence-json") {
       parsed.runtimeBrowserEvidenceJson = path.resolve(requiredValue(argv, i, arg));
       i += 1;
+    } else if (arg === "--git-branch") {
+      parsed.gitBranch = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--git-commit") {
+      parsed.gitCommit = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--git-status-short") {
+      parsed.gitStatusShort = requiredValue(argv, i, arg);
+      i += 1;
     } else if (arg === "--auth-username") {
       parsed.authUsername = requiredValue(argv, i, arg);
       i += 1;
@@ -114,6 +126,9 @@ export async function runPrivateBetaRcClosurePack({
   auditDispositionPath = "",
   mattersHome = "",
   runtimeBrowserEvidenceJson = "",
+  gitBranch = "",
+  gitCommit = "",
+  gitStatusShort = "",
   authUsername = "",
   authPassword = "",
   skipLocalGates = false,
@@ -137,10 +152,18 @@ export async function runPrivateBetaRcClosurePack({
 
   const git = sanitizeEvidence(await runStep("git_state", async () => {
     const info = await gitInfoFn();
-    return {
-      ok: Boolean(info.commit && info.branch),
+    const supplied = Boolean(gitBranch || gitCommit || gitStatusShort);
+    const merged = {
       ...info,
-      clean: !String(info.statusShort || "").trim(),
+      branch: gitBranch || info.branch || "",
+      commit: gitCommit || info.commit || "",
+      statusShort: supplied ? gitStatusShort : info.statusShort || "",
+      metadataSource: supplied ? "supplied" : "git",
+    };
+    return {
+      ok: Boolean(merged.commit && merged.branch),
+      ...merged,
+      clean: !String(merged.statusShort || "").trim(),
     };
   }));
 
@@ -198,6 +221,8 @@ export async function runPrivateBetaRcClosurePack({
         outDir: path.join(packDir, "private-vm-recoverability"),
         timestamp: generatedAt,
         baseUrl,
+        authUsername,
+        authPassword,
       };
       if (mattersHome) options.mattersHome = mattersHome;
       return normalizeRecoverabilityPack(await recoverabilityPackFn(options));
