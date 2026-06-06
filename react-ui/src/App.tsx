@@ -245,9 +245,14 @@ function AppShell() {
     setPendingConfigurableOverwrite((current) => (
       current?.slash === slash && current?.matterName === matterName ? null : current
     ));
+    await refreshActiveMatterWorkspace({
+      expectedMatterName: matterName,
+      failurePrefix: '[workspace] refresh failed after custom skill output',
+    });
+    if (activeMatterNameRef.current !== matterName) return;
     dispatch({ type: 'SET_COMMAND_COPY', payload: `${skillLabel} complete.` });
     appendTerminal([`[skill] ${skillLabel} completed`]);
-  }, [activeMatterNameRef, appendTerminal, dispatch]);
+  }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace]);
 
   const confirmConfigurableOverwrite = useCallback(async () => {
     if (!pendingConfigurableOverwrite || state.isCommandRunning) return;

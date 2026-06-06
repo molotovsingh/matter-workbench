@@ -24,7 +24,7 @@ interface PendingOverwrite {
 }
 
 export default function SkillsPage() {
-  const { state, appendTerminal } = useApp();
+  const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
   const [customSkills, setCustomSkills] = useState<ConfigurableSkill[]>([]);
@@ -116,6 +116,16 @@ export default function SkillsPage() {
         appendTerminal([`[skill] ${skill.title || 'Custom skill'} output exists at ${humanizeArtifactPath(artifactPath ?? '')} — click Run anyway / overwrite to replace it`]);
       } else {
         if (isOverwritePending) setPendingOverwrite(null);
+        try {
+          await refreshCustomSkills();
+        } catch (refreshError) {
+          appendTerminal([`[skills] could not refresh skill metadata: ${getErrorMessage(refreshError)}`]);
+        }
+        await refreshActiveMatterWorkspace({
+          expectedMatterName: matterName,
+          failurePrefix: '[workspace] refresh failed after custom skill output',
+        });
+        if (activeMatterNameRef.current !== matterName) return;
         appendTerminal([`[skill] ${skill.title} completed`]);
       }
     } catch (e) {

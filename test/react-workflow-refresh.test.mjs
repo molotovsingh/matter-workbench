@@ -97,6 +97,42 @@ test("React label refresh and custom skill runs send the selected matter explici
   assert.match(typesSource, /export interface ConfigurableSkillRunRequest \{[\s\S]*matterName\?: string;/);
 });
 
+test("React custom skill runs refresh workspace and skill metadata after successful writes", async () => {
+  const appSource = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
+  const skillsPageSource = await readFile(new URL("../react-ui/src/views/SkillsPage.tsx", import.meta.url), "utf8");
+
+  assert.match(
+    appSource,
+    /await refreshActiveMatterWorkspace\(\{[\s\S]*expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after custom skill output'/,
+    "Command-rail custom skill runs should refresh the active matter after writing output.",
+  );
+  assert.match(
+    skillsPageSource,
+    /await refreshCustomSkills\(\);/,
+    "Skills page custom skill runs should refresh run counts and last-run metadata after success.",
+  );
+  assert.match(
+    skillsPageSource,
+    /await refreshActiveMatterWorkspace\(\{[\s\S]*expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after custom skill output'/,
+    "Skills page custom skill runs should refresh the file tree after writing output.",
+  );
+  const appRefreshIndex = appSource.indexOf("failurePrefix: '[workspace] refresh failed after custom skill output'");
+  const appCompletionIndex = appSource.indexOf("payload: `${skillLabel} complete.`", appRefreshIndex);
+  const appPostRefreshGuardIndex = appSource.indexOf("if (activeMatterNameRef.current !== matterName) return;", appRefreshIndex);
+  assert.ok(
+    appPostRefreshGuardIndex > appRefreshIndex && appPostRefreshGuardIndex < appCompletionIndex,
+    "Command-rail custom skill runs should not report completion into a different active matter after refresh.",
+  );
+
+  const skillsRefreshIndex = skillsPageSource.indexOf("failurePrefix: '[workspace] refresh failed after custom skill output'");
+  const skillsCompletionIndex = skillsPageSource.indexOf("appendTerminal([`[skill] ${skill.title} completed`]);", skillsRefreshIndex);
+  const skillsPostRefreshGuardIndex = skillsPageSource.indexOf("if (activeMatterNameRef.current !== matterName) return;", skillsRefreshIndex);
+  assert.ok(
+    skillsPostRefreshGuardIndex > skillsRefreshIndex && skillsPostRefreshGuardIndex < skillsCompletionIndex,
+    "Skills page custom skill runs should not report completion into a different active matter after refresh.",
+  );
+});
+
 test("React read-side matter APIs pass the selected matter explicitly", async () => {
   const apiClientSource = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
   const overviewSource = await readFile(new URL("../react-ui/src/views/MatterOverview.tsx", import.meta.url), "utf8");
