@@ -2058,3 +2058,29 @@ right now and gives you a reviewed rollback script without automatically
 touching the running service. This matters because rollback should be a human
 operator decision, not a side effect of "collect diagnostics." Good operations
 tools gather evidence first and mutate later.
+
+The intake reliability pack adds the same kind of discipline to file ingestion.
+It is a small acceptance harness that creates a disposable matter and feeds the
+app the awkward file types lawyers actually bring in: PDFs, weak scans, EML
+emails, CSV/XLSX spreadsheets, WhatsApp-style text exports, screenshots,
+archives, and Outlook MSG files. The point is not to pretend the app understands
+everything. The point is to say, with evidence, which files are read, which are
+read but need review, and which are merely preserved.
+
+The most important product lesson is this: preserved is not the same as
+understood. A screenshot sitting in the file tree is useful custody, but it is
+not source-backed context until an extraction path reads it. A flattened
+spreadsheet can help, but formula logic, hidden rows, and visual grouping still
+need lawyer review. An EML email body can enter the record, but material
+attachments still need their own source-file handling. This is how good beta
+software earns trust: it names its limits in the same place it proves its
+capabilities.
+
+The engineering lesson is equally practical. Intake reliability should be a
+repeatable command, not a feeling after manually trying a few files. The command
+`npm run intake:reliability-pack` runs the current setup, extraction, advisory,
+preview-policy, and runtime-DB evidence boundary against a representative
+fixture. That gives us a regression target for future work on spreadsheets,
+WhatsApp parsing, screenshots, archive unpacking, and email attachments. When
+one of those future slices lands, the support matrix should change because the
+app really changed, not because the wording got more optimistic.

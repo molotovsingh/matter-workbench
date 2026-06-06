@@ -68,6 +68,7 @@
     "db:shadow:hydrate:verify": "node scripts/db-shadow-hydrate-all.mjs --verify",
     "db:shadow:snapshot": "node scripts/db-shadow-snapshot.mjs",
     "legal-updates:probe": "node scripts/legal-updates-probe.mjs",
+    "intake:reliability-pack": "node scripts/intake-reliability-pack.mjs",
     "matter-init:dry-run": "node matter-init-engine.mjs",
     "matter-init": "node matter-init-engine.mjs --apply",
     "extract:dry-run": "node extract-engine.mjs",
