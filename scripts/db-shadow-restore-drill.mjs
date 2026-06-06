@@ -18,6 +18,7 @@ export function parseRestoreDrillArgs(argv = []) {
     restoredDatabase: "",
     timestamp: "",
     outDir: "",
+    verificationMode: "report",
     keep: false,
   };
 
@@ -43,6 +44,11 @@ export function parseRestoreDrillArgs(argv = []) {
       if (!value) throw new Error("--out-dir requires a value");
       parsed.outDir = path.resolve(value);
       i += 1;
+    } else if (arg === "--verify-mode") {
+      const value = argv[i + 1];
+      if (!value) throw new Error("--verify-mode requires a value");
+      parsed.verificationMode = value;
+      i += 1;
     } else if (arg === "--keep") {
       parsed.keep = true;
     } else {
@@ -59,6 +65,7 @@ export async function runShadowRestoreDrill({
   restoredDatabase = "",
   timestamp = new Date().toISOString(),
   outDir = "",
+  verificationMode = "report",
   keep = false,
   env = process.env,
   spawn = spawnSync,
@@ -70,6 +77,7 @@ export async function runShadowRestoreDrill({
   const generatedAt = timestamp || new Date().toISOString();
   const restoreName = restoredDatabase || `${RESTORE_PREFIX}${timestampSlug(generatedAt)}`;
   assertSafeRestoreDatabaseName(restoreName);
+  assertVerificationMode(verificationMode);
 
   const maintenanceUrl = databaseUrl;
   const restoreUrl = databaseUrlForDatabase(databaseUrl, restoreName);
@@ -101,14 +109,25 @@ export async function runShadowRestoreDrill({
     }
 
     if (lastRequiredStepOk(steps)) {
-      const verify = runCommand({
-        label: "verify restored database",
-        command: "npm",
-        args: ["run", "db:shadow:report", "--silent"],
-        env: { ...process.env, MWB_DATABASE_URL: restoreUrl },
-        spawn,
-      });
-      steps.push(verify);
+      if (verificationMode === "sql-summary") {
+        const verify = runCommand({
+          label: "verify restored database",
+          command: restore.command,
+          args: [...restore.args, "-v", "ON_ERROR_STOP=1", "-t", "-A", "-c", RESTORED_DB_SUMMARY_SQL],
+          env: { ...process.env, ...restore.env },
+          spawn,
+        });
+        steps.push(verify);
+      } else {
+        const verify = runCommand({
+          label: "verify restored database",
+          command: "npm",
+          args: ["run", "db:shadow:report", "--silent"],
+          env: { ...process.env, MWB_DATABASE_URL: restoreUrl },
+          spawn,
+        });
+        steps.push(verify);
+      }
     }
   } finally {
     if (created && !keep) {
@@ -129,7 +148,7 @@ export async function runShadowRestoreDrill({
     }
   }
 
-  const result = finish({ generatedAt, restoreName, backupPath, keep, steps });
+  const result = finish({ generatedAt, restoreName, backupPath, verificationMode, keep, steps });
   if (outDir) await writeRestoreDrillEvidence(result, { outDir });
   return result;
 }
@@ -141,6 +160,7 @@ export function renderShadowRestoreDrillResult(result = {}) {
     `generated_at: ${result.generatedAt || ""}`,
     `backup: ${result.backupPath || ""}`,
     `restored_database: ${result.restoredDatabase || ""}`,
+    `verification_mode: ${result.verificationMode || "report"}`,
     `cleanup: ${result.cleanup ? "yes" : "no"}`,
   ];
 
@@ -154,7 +174,7 @@ export function renderShadowRestoreDrillResult(result = {}) {
   return lines.map(redactLine);
 }
 
-function finish({ generatedAt, restoreName, backupPath, keep, steps }) {
+function finish({ generatedAt, restoreName, backupPath, verificationMode, keep, steps }) {
   const requiredSteps = steps.filter((step) => step.label !== "drop restore database");
   const failedStep = requiredSteps.find((step) => !step.ok) || null;
   const cleanupStep = steps.find((step) => step.label === "drop restore database") || null;
@@ -165,6 +185,7 @@ function finish({ generatedAt, restoreName, backupPath, keep, steps }) {
     generatedAt,
     backupPath,
     restoredDatabase: restoreName,
+    verificationMode,
     cleanup,
     keep,
     steps,
@@ -199,6 +220,7 @@ function toPortableEvidence(result, { markdownPath, jsonPath }) {
     success: Boolean(result.success),
     backup: path.basename(result.backupPath || ""),
     restoredDatabase: result.restoredDatabase || "",
+    verificationMode: result.verificationMode || "report",
     cleanup: Boolean(result.cleanup),
     keep: Boolean(result.keep),
     failedStep: result.failedStep?.label || "",
@@ -224,6 +246,7 @@ function renderRestoreDrillEvidenceMarkdown(evidence = {}) {
     `Success: ${evidence.success ? "yes" : "no"}`,
     `Backup: ${evidence.backup || ""}`,
     `Restored database: ${evidence.restoredDatabase || ""}`,
+    `Verification mode: ${evidence.verificationMode || "report"}`,
     `Cleanup: ${evidence.cleanup ? "yes" : "no"}`,
     "",
     "This is a shadow-database restore-drill handoff artifact. It proves a local shadow backup can be restored into a temporary PostgreSQL database and verified without switching Matter Workbench runtime storage.",
@@ -272,6 +295,26 @@ function assertSafeRestoreDatabaseName(name) {
     throw new Error("Restore database name may only contain letters, numbers, and underscores");
   }
 }
+
+function assertVerificationMode(mode) {
+  if (!["report", "sql-summary"].includes(mode)) {
+    throw new Error("Restore verification mode must be report or sql-summary");
+  }
+}
+
+const RESTORED_DB_SUMMARY_SQL = `
+select json_build_object(
+  'tenants', (select count(*) from tenants),
+  'matters', (select count(*) from matters),
+  'documents', (select count(*) from documents),
+  'storage_objects', (select count(*) from storage_objects),
+  'storage_object_payloads', (select count(*) from storage_object_payloads),
+  'matter_artifacts', (select count(*) from matter_artifacts),
+  'configurable_skills', (select count(*) from configurable_skills),
+  'configurable_skill_runs', (select count(*) from configurable_skill_runs),
+  'preparation_advisory_snapshots', (select count(*) from preparation_advisory_snapshots)
+)::text as restore_summary;
+`;
 
 function databaseUrlForDatabase(databaseUrl, databaseName) {
   const url = new URL(databaseUrl);

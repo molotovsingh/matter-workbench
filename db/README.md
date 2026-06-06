@@ -68,9 +68,11 @@ npm run db:shadow:acceptance
 npm run db:runtime-cutover-check
 npm run db:shadow:backup
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --verify-mode sql-summary
 npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
+npm run private-vm:recoverability-pack
 npm run db:hydrate:dry-run
 MWB_DATABASE_URL="postgres://..." npm run db:migrate
 MWB_DATABASE_URL="postgres://..." npm run db:hydrate
@@ -114,6 +116,7 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:acceptance
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:backup
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --verify-mode sql-summary
 MWB_DATABASE_URL="postgres://..." npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
@@ -289,11 +292,13 @@ common Homebrew/MacPorts/PostgreSQL `pg_dump` locations, then fall back to
 `pg_dump` on `PATH`.
 
 `db:shadow:restore-drill` restores a local shadow backup into a temporary restore database,
-runs the combined shadow DB report against that restored
-database, then drops the temporary database unless `--keep` is passed. Restore
-database names must start with `matter_workbench_shadow_restore_`; the command
-will not restore into the live shadow database name. This is the first practical
-backup/restore proof for the DB transition, not a runtime cutover. Pass
+then verifies and drops the temporary database unless `--keep` is passed. By
+default it runs the combined shadow DB report against that restored database.
+Pass `--verify-mode sql-summary` to prove the restored SQL independently of the
+source matter folder tree. Restore database names must start with
+`matter_workbench_shadow_restore_`; the command will not restore into the live
+shadow database name. This is the first practical backup/restore proof for the
+DB transition, not a runtime cutover. Pass
 `--out-dir docs/shadow-db-restore-drills` to preserve a redacted Markdown/JSON
 handoff artifact for a successful drill.
 
@@ -316,6 +321,13 @@ If storage still points at `local-filesystem`, a database backup must travel wit
 a matching local storage backup or an explicit migration to durable object
 storage; otherwise a restore can produce valid control-plane rows that point at
 missing PDFs.
+
+`private-vm:recoverability-pack` is the private-VM operator command that ties
+the lower-level backup pieces together. It runs a DB backup, a DB restore drill
+with `sql-summary` verification, a local storage-object backup, a storage
+restore/hash check, and an optional live service check. Use this before treating
+a private VM as recoverable; a DB-only backup is not enough if local storage
+objects are still part of the custody chain.
 
 `db:storage:payloads:hydrate:*` is the local/private DB-custody answer to that
 problem. It copies source, artifact, and skill-sample bytes into

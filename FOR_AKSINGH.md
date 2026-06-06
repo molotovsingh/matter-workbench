@@ -2000,3 +2000,17 @@ old source folder tree. In plain language: the backup could be restored, but the
 old comparison tool still wanted to inspect files that are no longer part of
 the VM runtime truth. That is not a reason to distrust the service. It is a
 reason to write a DB-payload-native restore verifier next.
+
+The recoverability pack is that correction. It asks the practical operator
+question in one command: "if this VM breaks, do I have the database rows, the
+file bytes, and proof that both still match?" The command runs a Postgres
+backup, restores it into a temporary database using a DB-only summary check,
+copies the local PDF storage objects, verifies their hashes, and checks the live
+VM service. That is much closer to how a real beta operator thinks. A backup is
+not a prayer; it is a rehearsed recovery path.
+
+The engineering lesson is simple and important: when storage is split, recovery
+must be split-aware. If Postgres contains rows that point at local files, a DB
+backup alone is not enough. Either the bytes must live in Postgres payload
+custody, or the storage backup must travel with the DB backup. Anything else can
+restore a beautiful database full of pointers to files that are gone.

@@ -132,9 +132,11 @@ MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:hydrate:verify
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:acceptance
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:backup
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql
+MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --verify-mode sql-summary
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:shadow:restore-drill -- --backup .local/shadow-db-backups/<backup>.sql --out-dir docs/shadow-db-restore-drills
 npm run db:shadow:storage-backup
 npm run db:shadow:storage-restore-check -- --manifest .local/shadow-storage-backups/<backup>/manifest.json
+npm run private-vm:recoverability-pack -- --base-url http://127.0.0.1:4191
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:dry-run
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate
 MWB_DATABASE_URL="$MWB_DATABASE_URL" npm run db:storage:payloads:hydrate:verify
@@ -159,14 +161,20 @@ the operator explicitly keeps it. This restore drill is a backup proof, not a
 runtime cutover. The database host must allow the DB user to connect to that
 temporary restore database in `pg_hba.conf`; allowing only the live
 `matter_workbench_shadow` database is enough for hydration and backup, but not
-for a restore drill. Pass `--out-dir docs/shadow-db-restore-drills` to preserve
-a redacted Markdown/JSON restore-drill proof for handoff. Use
+for a restore drill. On a VM that does not carry the original local matter
+folder tree, pass `--verify-mode sql-summary`; the default report mode is a
+source-host verifier and may fail even when SQL restore succeeded. Pass
+`--out-dir docs/shadow-db-restore-drills` to preserve a redacted Markdown/JSON
+restore-drill proof for handoff. Use
 `db:shadow:storage-backup` to copy the DB-referenced local PDF objects into an
 ignored `.local/shadow-storage-backups/` folder and write a hash manifest. Use
 `db:shadow:storage-restore-check` against that manifest to prove the copied PDF
 objects are present and hash-matching. This storage backup travels with the DB
 backup during local/single-host rehearsal; it is not a hosted object-storage
 provider decision. Use
+`private-vm:recoverability-pack` on the private VM when you want the operator
+version of the same proof: DB backup, DB restore drill, storage backup, storage
+hash-check, and live service check in one evidence bundle. Use
 `db:storage:payloads:hydrate:*` after the storage-object metadata track when
 you need DB-backed file custody for local/private runtime testing. This command
 reads local source, artifact, and sample files and inserts their bytes into
@@ -572,6 +580,24 @@ restore drill: restore ok, verification failed on missing source matter folder
 
 The restore-drill verification failure is the same source-host shadow-verifier
 boundary noted above. Do not treat it as a runtime DB serving failure.
+
+The follow-up recoverability pack closes that operator gap:
+
+```bash
+npm run private-vm:recoverability-pack -- --base-url http://127.0.0.1:4191 --out-dir "$HOME/matter-workbench-backups/recoverability"
+```
+
+It runs the database backup, restores that backup into a temporary database
+using `--verify-mode sql-summary`, copies local PDF storage objects, verifies
+the storage manifest hashes, and checks the live VM service URL. That makes the
+recovery question explicit: do the database rows and the file bytes travel
+together?
+
+The first live run passed on `2026-06-06T15:06:20.446Z`: 513,494,009 bytes of
+Postgres dump were backed up, the temporary restored database was verified with
+`sql-summary` and dropped, 168 local PDF storage objects were copied, all 168
+hash-checked, and the VM service check passed against
+`http://172.16.37.128:4191`.
 
 ## What A Developer Should Check Next
 

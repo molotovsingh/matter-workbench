@@ -341,3 +341,55 @@ database and cleaned up. Its verification phase still uses the old source-folder
 shadow verifier, so it fails on the VM for the same known reason described
 above: the VM runtime is DB-payload-backed and does not have the original matter
 folder tree.
+
+## Recoverability Pack Follow-Up
+
+The recoverability pack adds the operator command that was missing from the
+first service-pack pass:
+
+```text
+npm run private-vm:recoverability-pack -- --base-url http://127.0.0.1:4191 --out-dir "$HOME/matter-workbench-backups/recoverability"
+```
+
+It runs the private VM recovery proof as one chain:
+
+- database backup;
+- restored-database drill with `--verify-mode sql-summary`;
+- local PDF storage backup;
+- storage restore/hash check;
+- live service check.
+
+This fixes the false-negative restore-drill problem above. The VM can prove the
+restored database with SQL summary checks even when the original source matter
+folders are absent. The separate storage backup still matters because DB rows
+that point at local filesystem bytes are not recoverable unless the matching
+bytes and hashes travel with the database backup.
+
+## Recoverability Pack Evidence
+
+The first live recoverability-pack run against the private VM passed:
+
+```text
+generated_at: 2026-06-06T15:06:20.446Z
+service_url: http://172.16.37.128:4191
+success: yes
+database_backup: ok
+database_backup_bytes: 513494009
+database_backup_sha256: fe5e2543e0d5bbc299b97522df9e6e29ec9554fb775523bdec72f6cc1e20ffb3
+database_restore_drill: ok
+database_restore_verification_mode: sql-summary
+database_restore_cleanup: ok
+storage_backup: ok
+storage_pdf_objects: 168
+storage_objects_copied: 168
+storage_restore_check: ok
+storage_checked_objects: 168
+storage_failed_objects: 0
+service_check: ok
+service_matter_count: 15
+service_target_matter: Atlas Constuction vs Diptishree
+```
+
+The evidence files were written to a local ignored `/tmp` recoverability folder,
+not committed to the repository. The repo records only the summarized result so
+we keep the operational proof without committing backup payloads.

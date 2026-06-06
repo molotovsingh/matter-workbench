@@ -78,7 +78,31 @@ npm run private-vm:service-check -- --base-url http://172.16.37.128:4191
 ## Backup Boundary
 
 For the private VM, Postgres is the runtime custody source in DB storage mode.
-The operator must back up the database. When running the shadow backup tools:
+The operator must back up the database. If storage rows still point at local
+filesystem paths, the matching file bytes must be backed up too. A DB-only
+backup can restore valid rows that point at missing PDFs.
+
+The preferred one-command operator check is:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-vm:recoverability-pack -- --base-url http://127.0.0.1:4191 --out-dir "$HOME/matter-workbench-backups/recoverability"
+```
+
+That command creates:
+
+- a database backup;
+- a restored-database drill using DB-only summary verification;
+- a storage backup for local PDF storage objects;
+- a storage restore/hash check;
+- a live private-VM service check.
+
+The output folder contains `recoverability-pack.md` and
+`recoverability-pack.json`. Treat those files as the operator evidence bundle
+for a private VM recovery pass.
+
+The lower-level commands remain useful for focused debugging. When running the
+shadow backup tools:
 
 ```bash
 set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
@@ -89,11 +113,16 @@ Run the restore drill whenever the database role and `pg_hba.conf` allow a
 temporary restore database:
 
 ```bash
-npm run db:shadow:restore-drill -- --backup "$HOME/matter-workbench-backups/db/<backup>.sql" --out-dir "$HOME/matter-workbench-backups/restore-drills"
+npm run db:shadow:restore-drill -- --backup "$HOME/matter-workbench-backups/db/<backup>.sql" --verify-mode sql-summary --out-dir "$HOME/matter-workbench-backups/restore-drills"
 ```
 
+Use `--verify-mode report` only when running the restore drill on the same
+source host that still has the original matter folder tree. The default report
+mode compares restored DB rows against local folders. The private VM
+recoverability pack uses `--verify-mode sql-summary` so a restored DB can be
+proved without requiring the source matter folders to exist.
+
 On the first service-pack rehearsal, the SQL restore itself succeeded but the
-verification phase failed because `db:hydrate:verify` expects the original
-source matter folder tree at `/home/aks/matters-matter-workbench`. That is a
-known source-host verifier limit. For the private VM runtime, service health is
-proved by `private-vm:service-check` plus `db:runtime:write-smoke`.
+old report verification phase failed because `db:hydrate:verify` expects the
+original source matter folder tree at `/home/aks/matters-matter-workbench`.
+That was a source-host verifier limit, not a SQL restore failure.
