@@ -126,6 +126,20 @@ test("private VM service check reports missing previewable file", async () => {
   assert.match(renderPrivateVmServiceCheck(report).join("\n"), /passed: no/);
 });
 
+test("private VM service check reports network failures as structured evidence", async () => {
+  const report = await runPrivateVmServiceCheck({
+    baseUrl: "http://172.16.37.128:4191",
+    fetchImpl: async () => {
+      throw new Error("fetch failed");
+    },
+  });
+
+  assert.equal(report.passed, false);
+  assert.equal(report.rootOk, false);
+  assert.match(report.error, /fetch failed/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /error: .*fetch failed/);
+});
+
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {
     status,

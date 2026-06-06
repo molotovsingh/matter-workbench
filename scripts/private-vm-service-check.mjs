@@ -51,11 +51,22 @@ export async function runPrivateVmServiceCheck({
   fetchImpl = fetch,
 } = {}) {
   const authSession = await createAuthenticatedFetch({ baseUrl, authUsername, authPassword, fetchImpl });
-  const root = await authSession.fetch(baseUrl);
+  const root = await fetchSafely(authSession.fetch, baseUrl);
+  if (root.error) return failedReport({ baseUrl, error: `Root fetch failed: ${root.error}` });
   const rootText = root.ok ? await root.text() : "";
   if (!root.ok) return failedReport({ baseUrl, error: `Root returned HTTP ${root.status}` });
 
-  const mattersPayload = await getJson(authSession.fetch, `${baseUrl}/api/matters`);
+  let mattersPayload;
+  try {
+    mattersPayload = await getJson(authSession.fetch, `${baseUrl}/api/matters`);
+  } catch (error) {
+    return failedReport({
+      baseUrl,
+      rootOk: true,
+      rootBytes: rootText.length,
+      error: error.message,
+    });
+  }
   const matters = Array.isArray(mattersPayload.matters) ? mattersPayload.matters : [];
   if (!matters.length) return failedReport({ baseUrl, rootOk: true, rootBytes: rootText.length, error: "No matters returned by /api/matters." });
 
@@ -73,7 +84,19 @@ export async function runPrivateVmServiceCheck({
   }
 
   const targetName = target.name || target.matterName || "";
-  const workspace = await postJson(authSession.fetch, `${baseUrl}/api/switch-matter`, { name: targetName });
+  let workspace;
+  try {
+    workspace = await postJson(authSession.fetch, `${baseUrl}/api/switch-matter`, { name: targetName });
+  } catch (error) {
+    return failedReport({
+      baseUrl,
+      rootOk: true,
+      rootBytes: rootText.length,
+      matterCount: matters.length,
+      targetMatter: targetName,
+      error: error.message,
+    });
+  }
   const previewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
   if (!previewPath) {
     return failedReport({
@@ -87,7 +110,21 @@ export async function runPrivateVmServiceCheck({
     });
   }
 
-  const preview = await getJson(authSession.fetch, `${baseUrl}/api/file?${new URLSearchParams({ matterName: targetName, path: previewPath })}`);
+  let preview;
+  try {
+    preview = await getJson(authSession.fetch, `${baseUrl}/api/file?${new URLSearchParams({ matterName: targetName, path: previewPath })}`);
+  } catch (error) {
+    return failedReport({
+      baseUrl,
+      rootOk: true,
+      rootBytes: rootText.length,
+      matterCount: matters.length,
+      targetMatter: targetName,
+      workspaceReadable: true,
+      previewPath,
+      error: error.message,
+    });
+  }
   const content = typeof preview.content === "string" ? preview.content : "";
   const passed = Boolean(rootText.length && matters.length && targetName && content.length);
 
@@ -149,6 +186,18 @@ async function getJson(fetchImpl, url) {
   const payload = await response.json();
   if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
   return payload;
+}
+
+async function fetchSafely(fetchImpl, url, options) {
+  try {
+    return await fetchImpl(url, options);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: error?.message || "fetch failed",
+    };
+  }
 }
 
 async function createAuthenticatedFetch({ baseUrl, authUsername, authPassword, fetchImpl }) {
