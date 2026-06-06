@@ -473,6 +473,44 @@ test("runtime DB storage service materializes DB payloads for read-only operatio
   assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
 });
 
+test("runtime DB storage service synthesizes matter.json when DB storage has no matter artifact", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-synthetic-matter-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 15, true),
+        ],
+      },
+      payloadRow("DB Matter/10_Library/List of Dates.md", "# Dates\n"),
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
+    const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+    const listOfDates = await readFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "utf8");
+    return { matterJson, listOfDates };
+  });
+
+  assert.deepEqual(result.matterJson, {
+    matter_name: "Legal Caption",
+    client_name: "Client A",
+    opposite_party: "Other Side",
+    matter_type: "Consumer",
+    jurisdiction: "India",
+    brief_description: "",
+    intakes: [],
+  });
+  assert.equal(result.listOfDates, "# Dates\n");
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
+});
+
 function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload) {
   return {
     objectKey,

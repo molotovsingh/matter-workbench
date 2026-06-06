@@ -444,14 +444,16 @@ export function createRuntimeDbStorageService({
     const initialHashes = new Map();
     try {
       await mkdir(matterRoot, { recursive: true });
-      for (const item of workspaceFilePaths(workspace.tree)) {
-        const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
-        const absolutePath = path.join(matterRoot, ...item.path.split("/"));
-        await mkdir(path.dirname(absolutePath), { recursive: true });
-        await writeFile(absolutePath, payload.bytes);
-        initialHashes.set(item.path, sha256Bytes(payload.bytes));
+      const materializedPaths = await materializeWorkspacePayloads({
+        matterRoot,
+        matter: normalizedMatter,
+        workspace,
+        readPayloadRow,
+      });
+      for (const relativePath of materializedPaths) {
+        const bytes = await readFile(path.join(matterRoot, ...relativePath.split("/")));
+        initialHashes.set(relativePath, sha256Bytes(bytes));
       }
-
       const operationResult = await operation({ matterRoot, matter: normalizedMatter });
       const files = await listMatterFiles(matterRoot);
       const changedFiles = [];
@@ -489,16 +491,38 @@ export function createRuntimeDbStorageService({
     const matterRoot = path.join(workDir, normalizedMatter.name);
     try {
       await mkdir(matterRoot, { recursive: true });
-      for (const item of workspaceFilePaths(workspace.tree)) {
-        const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
-        const absolutePath = path.join(matterRoot, ...item.path.split("/"));
-        await mkdir(path.dirname(absolutePath), { recursive: true });
-        await writeFile(absolutePath, payload.bytes);
-      }
+      await materializeWorkspacePayloads({
+        matterRoot,
+        matter: normalizedMatter,
+        workspace,
+        readPayloadRow,
+      });
       return operation({ matterRoot, matter: normalizedMatter });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
+  }
+
+  async function materializeWorkspacePayloads({
+    matterRoot,
+    matter,
+    workspace,
+    readPayloadRow,
+  }) {
+    const materializedPaths = [];
+    for (const item of workspaceFilePaths(workspace.tree)) {
+      const payload = readPayloadRow({ matter, relativePath: item.path });
+      const absolutePath = path.join(matterRoot, ...item.path.split("/"));
+      await mkdir(path.dirname(absolutePath), { recursive: true });
+      await writeFile(absolutePath, payload.bytes);
+      materializedPaths.push(item.path);
+    }
+    if (!materializedPaths.includes("matter.json")) {
+      const bytes = Buffer.from(`${JSON.stringify(runtimeMatterJson(matter), null, 2)}\n`);
+      await writeFile(path.join(matterRoot, "matter.json"), bytes);
+      materializedPaths.push("matter.json");
+    }
+    return materializedPaths;
   }
 
   function readPayloadRow({ matter, relativePath }) {
@@ -1431,6 +1455,18 @@ function normalizeMatter(matter = {}) {
     matterType: stringValue(matter.matterType),
     jurisdiction: stringValue(matter.jurisdiction),
     briefDescription: stringValue(matter.briefDescription),
+  };
+}
+
+function runtimeMatterJson(matter = {}) {
+  return {
+    matter_name: stringValue(matter.matterName || matter.name),
+    client_name: stringValue(matter.clientName),
+    opposite_party: stringValue(matter.oppositeParty),
+    matter_type: stringValue(matter.matterType),
+    jurisdiction: stringValue(matter.jurisdiction),
+    brief_description: stringValue(matter.briefDescription),
+    intakes: [],
   };
 }
 
