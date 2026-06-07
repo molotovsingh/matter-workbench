@@ -56,7 +56,7 @@ export async function createWorkbenchServer(options = {}) {
   const privateBetaAuthService = options.privateBetaAuthService || createPrivateBetaAuthService({ env });
   const privateBetaFeedbackService = options.privateBetaFeedbackService || createPrivateBetaFeedbackService({
     appDir,
-    feedbackPath: options.privateBetaFeedbackPath,
+    feedbackPath: options.privateBetaFeedbackPath || env.MWB_PRIVATE_BETA_FEEDBACK_PATH,
     syncUrl: env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL,
     syncToken: env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
     installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
@@ -65,7 +65,7 @@ export async function createWorkbenchServer(options = {}) {
   });
   const privateBetaSignalService = options.privateBetaSignalService || createPrivateBetaSignalService({
     appDir,
-    signalsPath: options.privateBetaSignalPath,
+    signalsPath: options.privateBetaSignalPath || env.MWB_PRIVATE_BETA_SIGNAL_PATH,
     syncUrl: env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL,
     syncToken: env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
     installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_SIGNAL_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,

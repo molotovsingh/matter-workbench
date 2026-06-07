@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -107,6 +108,47 @@ test("private beta signal API auto-captures failed jobs when jobs monitor is rea
     assert.equal(jobs.schema_version, "job-status-ledger/v1");
     assert.equal(captured.length, 1);
     assert.equal(captured[0].jobs[0].id, "job_failed");
+  } finally {
+    app.server.close();
+  }
+});
+
+test("private beta signal API honors stable signal ledger path from env", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-signal-api-env-path-"));
+  const appDir = path.join(tmp, "app");
+  const signalPath = path.join(tmp, "stable", "private-beta-signal-ledger.json");
+  await mkdir(appDir, { recursive: true });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    host: "127.0.0.1",
+    port: 0,
+    env: { MWB_PRIVATE_BETA_SIGNAL_PATH: signalPath },
+    jobStatusService: {
+      listJobs: async () => ({
+        schema_version: "job-status-ledger/v1",
+        jobs: [{
+          id: "job_failed_env_path",
+          kind: "custom_skill",
+          label: "Run test skill",
+          status: "failed",
+          matterName: "Signal Matter",
+          errorMessage: "Failed while testing stable signal path",
+        }],
+      }),
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await getJson(baseUrl, "/api/jobs?limit=5");
+
+    assert.equal(existsSync(signalPath), true);
+    assert.equal(existsSync(path.join(appDir, ".local", "private-beta-signal-ledger.json")), false);
+    const store = JSON.parse(await readFile(signalPath, "utf8"));
+    assert.equal(store.signals.length, 1);
+    assert.equal(store.signals[0].details.jobId, "job_failed_env_path");
   } finally {
     app.server.close();
   }

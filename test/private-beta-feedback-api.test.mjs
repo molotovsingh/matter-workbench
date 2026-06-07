@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -105,6 +106,37 @@ test("private beta feedback API exposes an operator retry route for queued sync"
     assert.equal(syncCalled, true);
     assert.equal(result.schema_version, "private-beta-feedback-sync-result/v1");
     assert.equal(result.sent, 1);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("private beta feedback API honors stable feedback ledger path from env", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-api-env-path-"));
+  const appDir = path.join(tmp, "app");
+  const feedbackPath = path.join(tmp, "stable", "private-beta-feedback-ledger.json");
+  await mkdir(appDir, { recursive: true });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MWB_PRIVATE_BETA_FEEDBACK_PATH: feedbackPath },
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const created = await postJson(baseUrl, "/api/private-beta/feedback", {
+      choice: "confused",
+      tryingToDo: "Find the feedback ledger",
+    });
+
+    assert.equal(created.feedback.choice, "confused");
+    assert.equal(existsSync(feedbackPath), true);
+    assert.equal(existsSync(path.join(appDir, ".local", "private-beta-feedback-ledger.json")), false);
+    const store = JSON.parse(await readFile(feedbackPath, "utf8"));
+    assert.equal(store.feedback[0].id, created.feedback.id);
   } finally {
     app.server.close();
   }

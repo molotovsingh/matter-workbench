@@ -27,10 +27,17 @@ MWB_RUNTIME_DATABASE_URL=<redacted runtime role URL>
 MWB_DATABASE_URL=<redacted admin or backup-capable URL, if needed for operator scripts>
 MWB_PRIVATE_BETA_AUTH=required
 MWB_PRIVATE_BETA_USERS_FILE=/home/aks/.config/matter-workbench/private-beta-users.json
+MWB_PRIVATE_BETA_FEEDBACK_PATH=/home/aks/.local/share/matter-workbench/private-beta-feedback-ledger.json
+MWB_PRIVATE_BETA_SIGNAL_PATH=/home/aks/.local/share/matter-workbench/private-beta-signal-ledger.json
 MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
 ```
 
 Do not commit `runtime.env`.
+
+Keep feedback and signal ledgers outside the deployment directory. If those
+paths are left at their app-default `.local/` locations, a new deployment can
+make tester feedback look empty because the service starts reading from the new
+commit folder.
 
 ## Install Or Refresh
 
