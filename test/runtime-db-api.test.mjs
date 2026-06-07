@@ -111,6 +111,41 @@ test("runtime DB postgres storage mode lists matters even when local matters hom
   }
 });
 
+test("runtime DB postgres storage mode exposes config custody label", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-config-mode-"));
+  const runtimeMatter = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "DB Listed Matter",
+    matterName: "Legal Caption",
+  };
+  const app = await createWorkbenchServer({
+    appDir: tmp,
+    env: {},
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const config = await getJson(baseUrl, "/api/config");
+
+    assert.equal(config.runtimeStorageMode, "postgres");
+    assert.equal(config.workspaceModeLabel, "DB workspace");
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode serves workspace and files without local matter folder", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-storage-"));
   const mattersHome = path.join(tmp, "matters");

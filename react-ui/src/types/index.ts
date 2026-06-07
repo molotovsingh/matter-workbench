@@ -35,6 +35,8 @@ export interface AppConfig {
   defaultMattersHome?: string;
   hasActiveMatter?: boolean;
   activeMatterName?: string;
+  runtimeStorageMode?: 'filesystem' | 'postgres';
+  workspaceModeLabel?: string;
   theme?: 'light' | 'dark';
 }
 

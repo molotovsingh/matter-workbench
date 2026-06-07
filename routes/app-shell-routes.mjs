@@ -46,11 +46,16 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
       exactRoute("GET", "/api/config", async () => {
         const activeMatterName = matterStore.activeMatterNameWithinHome();
+        const runtimeStorageMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+          ? "postgres"
+          : "filesystem";
         sendJson(response, 200, {
           mattersHome: configService.getMattersHome() || null,
           defaultMattersHome: configService.defaultMattersHome,
           hasActiveMatter: Boolean(matterStore.getMatterRoot()),
           activeMatterName,
+          runtimeStorageMode,
+          workspaceModeLabel: runtimeStorageMode === "postgres" ? "DB workspace" : "Local workspace",
         });
       }),
       exactRoute("POST", "/api/config", async () => {

@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext';
 export default function TitleBar() {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
+  const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
 
   return (
     <header className="titlebar">
@@ -19,7 +20,7 @@ export default function TitleBar() {
         )}
       </div>
       <div className="title-right">
-        <span className="workspace-mode">Local workspace</span>
+        <span className="workspace-mode">{workspaceModeLabel}</span>
         <button
           className="theme-toggle"
           type="button"

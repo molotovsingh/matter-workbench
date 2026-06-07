@@ -2178,3 +2178,16 @@ needs attention instead of a green "current" badge. The lesson is not "use a
 database and all freshness problems disappear." The lesson is that a database
 must preserve the dependency evidence that the filesystem used to imply through
 file timestamps and paths.
+
+The follow-up browser QA found a smaller but very real product-truth problem:
+the app was running from DB custody, but the React title bar still said `Local
+workspace`. The backend knew the runtime storage mode, the routes were serving
+matter files from Postgres custody, and the tests could prove DB reads and
+writes. But the visible shell still carried an old hardcoded label. That is how
+systems become confusing even when the core plumbing is correct.
+
+The fix was not to make React guess from matter names or paths. The server now
+exposes `runtimeStorageMode` and `workspaceModeLabel` through `/api/config`, and
+the title bar renders that label. The lesson is simple: when a product mode
+matters to the user's trust, make it an explicit contract. Do not leave the UI
+to infer it from side effects.
