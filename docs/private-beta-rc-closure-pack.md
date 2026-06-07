@@ -133,9 +133,9 @@ release reference.
 
 ## Latest Live VM Post-Beta.10 Closure
 
-The live private VM was later advanced to commit `131bb83` for private-beta
-operator/auth hardening after the `v1.0.0-beta.10` tag. That deployment was
-closed separately as `v1.0.0-beta.10+131bb83` and passed all closure gates:
+The live private VM was later advanced to commit `e7e9cad` for private-beta
+tester handoff closure after the `v1.0.0-beta.10` tag. That deployment was
+closed separately as `v1.0.0-beta.10+e7e9cad` and passed all closure gates:
 
 - local verification;
 - runtime DB browser acceptance;
@@ -147,5 +147,5 @@ closed separately as `v1.0.0-beta.10+131bb83` and passed all closure gates:
 
 Latest live VM evidence:
 
-- [2026-06-07 beta.10+131bb83 RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-24-29-328Z.md)
-- [2026-06-07 beta.10+131bb83 RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-24-29-328Z.json)
+- [2026-06-07 beta.10+e7e9cad RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-57-56-707Z.md)
+- [2026-06-07 beta.10+e7e9cad RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-57-56-707Z.json)
