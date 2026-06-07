@@ -2414,3 +2414,11 @@ envelope. This matters because "what did the AI run cost and return?" is not
 the same problem as "which dates belong in the chronology?" Keeping that ledger
 construction separate makes audit metadata easier to test and safer to evolve,
 especially as the app moves toward database-backed provider-run records.
+
+The seventh split was artifact writing: `listofdates/artifacts.mjs` now owns
+the `10_Library` output paths, the `List of Dates.json` envelope, CSV/Markdown
+writes, and the two-pass candidate-ledger file. This is the boring plumbing that
+lawyers never want to think about, but it is exactly where silent drift can
+become painful: one helper now defines where the artifacts live and how their
+metadata envelope is shaped. The engine can therefore read more like a conductor
+of the run instead of a clerk hand-writing every receipt.

@@ -1,18 +1,18 @@
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
-import { toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
-import { toPosix } from "./shared/safe-paths.mjs";
 import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
 import {
   CANDIDATE_SCHEMA,
-  CSV_HEADERS,
   OUTPUT_SCHEMA,
 } from "./listofdates/contracts.mjs";
+import {
+  createListOfDatesOutputPaths,
+  writeCandidateLedger,
+  writeListOfDatesArtifacts,
+} from "./listofdates/artifacts.mjs";
 import {
   compareEntries,
   matterSummary,
@@ -39,7 +39,6 @@ import {
 import {
   buildSourceBlocks,
   chunkBlocks,
-  createSourceSnapshot,
   filterChronologyCandidateBlocks,
   getIntakes,
   readExtractionRecords,
@@ -55,7 +54,6 @@ export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared
 export { createOpenAiProvider, createOpenRouterProvider } from "./listofdates/providers.mjs";
 export { renderListOfDatesMarkdown } from "./listofdates/rendering.mjs";
 const TWO_PASS_ENV_FLAG = "CREATE_LISTOFDATES_TWO_PASS_ENABLED";
-const CANDIDATE_LEDGER_FILE = "List of Dates Candidates.json";
 
 export async function runCreateListOfDates(options = {}) {
   const matterRoot = options.matterRoot
@@ -150,31 +148,18 @@ export async function runCreateListOfDates(options = {}) {
   const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
   const aiRun = mergeAiRunMetadata(baseAiRun, responseAiRuns);
 
-  const outputDir = path.join(matterRoot, "10_Library");
-  const outputPaths = {
-    directory: toPosix(path.relative(matterRoot, outputDir)),
-    json: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.json"))),
-    csv: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.csv"))),
-    markdown: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.md"))),
-  };
+  const outputPaths = createListOfDatesOutputPaths(matterRoot);
 
   if (!dryRun) {
-    await mkdir(outputDir, { recursive: true });
-    await writeJsonFile(
-      path.join(outputDir, "List of Dates.json"),
-      {
-        schema_version: "list-of-dates/v1",
-        engine_version: ENGINE_VERSION,
-        generated_at: new Date().toISOString(),
-        matter: matterSummary(matterJson),
-        ai_run: aiRun,
-        source_record_count: records.length,
-        source_snapshot: createSourceSnapshot(sourceIndex),
-        entries,
-      },
-    );
-    await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-    await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries));
+    await writeListOfDatesArtifacts({
+      matterRoot,
+      matterJson,
+      engineVersion: ENGINE_VERSION,
+      aiRun,
+      records,
+      sourceIndex,
+      entries,
+    });
   }
 
   outputLines.push(`[listofdates] accepted ${acceptedEntries.length} cited date event(s)`);
@@ -269,14 +254,7 @@ async function runCreateListOfDatesTwoPass({
 
   const pass1AiRun = mergeAiRunMetadata(pass1.baseAiRun, pass1ResponseAiRuns);
   const candidates = validateAndHydrateCandidates(rawCandidates, chronologyBlocks, sourceIndex);
-  const outputDir = path.join(matterRoot, "10_Library");
-  const outputPaths = {
-    directory: toPosix(path.relative(matterRoot, outputDir)),
-    candidates: toPosix(path.relative(matterRoot, path.join(outputDir, CANDIDATE_LEDGER_FILE))),
-    json: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.json"))),
-    csv: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.csv"))),
-    markdown: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.md"))),
-  };
+  const outputPaths = createListOfDatesOutputPaths(matterRoot, { includeCandidates: true });
   let candidateLedger = createCandidateLedger({
     matterJson,
     candidates,
@@ -288,8 +266,7 @@ async function runCreateListOfDatesTwoPass({
   });
 
   if (!dryRun) {
-    await mkdir(outputDir, { recursive: true });
-    await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
+    await writeCandidateLedger(matterRoot, candidateLedger);
   }
 
   try {
@@ -320,18 +297,18 @@ async function runCreateListOfDatesTwoPass({
     };
 
     if (!dryRun) {
-      const listJson = {
-        schema_version: "list-of-dates/v1",
-        engine_version: TWO_PASS_ENGINE_VERSION,
-        generation_mode: "two_pass",
-        candidate_ledger_path: outputPaths.candidates,
-        generated_at: new Date().toISOString(),
-        matter: matterSummary(matterJson),
-        ai_run: aiRun,
-        pass1_ai_run: pass1AiRun,
-        pass2_ai_run: pass2AiRun,
-        source_record_count: records.length,
-        source_snapshot: createSourceSnapshot(sourceIndex),
+      await writeListOfDatesArtifacts({
+        matterRoot,
+        matterJson,
+        engineVersion: TWO_PASS_ENGINE_VERSION,
+        markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
+        generationMode: "two_pass",
+        candidateLedgerPath: outputPaths.candidates,
+        aiRun,
+        pass1AiRun,
+        pass2AiRun,
+        records,
+        sourceIndex,
         validation: {
           candidate_count: candidates.length,
           accepted_entries: acceptedEntries.length,
@@ -339,11 +316,8 @@ async function runCreateListOfDatesTwoPass({
           clustered_entries: acceptedEntries.length - entries.length,
         },
         entries,
-      };
-      await writeJsonFile(path.join(outputDir, "List of Dates.json"), listJson);
-      await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-      await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, entries, TWO_PASS_ENGINE_VERSION));
-      await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), candidateLedger);
+      });
+      await writeCandidateLedger(matterRoot, candidateLedger);
     }
 
     outputLines.push(`[listofdates] pass 1 accepted ${candidates.length} candidate(s) into ${outputPaths.candidates}`);
@@ -384,7 +358,7 @@ async function runCreateListOfDatesTwoPass({
     };
   } catch (error) {
     if (!dryRun && candidateLedger?.candidates?.length) {
-      await writeJsonFile(path.join(outputDir, CANDIDATE_LEDGER_FILE), {
+      await writeCandidateLedger(matterRoot, {
         ...candidateLedger,
         status: "failed",
         finished_at: new Date().toISOString(),
@@ -417,10 +391,6 @@ function createConfiguredListOfDatesProvider({ task, options, env, prompt, injec
     prompt,
   });
   return { provider, baseAiRun };
-}
-
-async function writeJsonFile(filePath, value) {
-  await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 if (process.argv[1] === __filename) {
