@@ -1,6 +1,7 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
+import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
 
 export async function handleAppShellApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -9,6 +10,8 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     configService,
     jobStatusService,
     matterStore,
+    privateBetaFeedbackService,
+    privateBetaSignalService,
     runtimeDbStorageService,
     uploadService,
     workspaceService,
@@ -37,11 +40,58 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
       }),
       exactRoute("GET", "/api/jobs", async () => {
-        sendJson(response, 200, await jobStatusService.listJobs({
+        const jobs = await jobStatusService.listJobs({
           matterName: requestUrl.searchParams.get("matter") || "",
           kind: requestUrl.searchParams.get("kind") || "",
           status: requestUrl.searchParams.get("status") || "",
           limit: requestUrl.searchParams.get("limit") || undefined,
+        });
+        await safeCaptureBetaSignal(() => privateBetaSignalService?.captureJobSignals(jobs, {
+          runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
+        }));
+        sendJson(response, 200, jobs);
+      }),
+      exactRoute("GET", "/api/private-beta/feedback", async () => {
+        sendJson(response, 200, await privateBetaFeedbackService.listFeedback({
+          status: requestUrl.searchParams.get("status") || "",
+          classification: requestUrl.searchParams.get("classification") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
+        }));
+      }),
+      exactRoute("POST", "/api/private-beta/feedback", async () => {
+        const body = await readRequestJson(request);
+        const matter = await readMatterSummary(matterStore, { matterName: body.matterName || body.context?.activeMatterName });
+        const runtimeStorageMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+          ? "postgres"
+          : "filesystem";
+        const feedback = await privateBetaFeedbackService.createFeedback({
+          ...body,
+          context: {
+            ...(body.context || {}),
+            activeMatterName: matter?.folderName || body.context?.activeMatterName || "",
+            runtimeMode: body.context?.runtimeMode || runtimeStorageMode,
+          },
+        });
+        sendJson(response, 200, { schema_version: "private-beta-feedback-response/v1", feedback });
+      }),
+      exactRoute("POST", "/api/private-beta/feedback/sync", async () => {
+        const body = await readRequestJson(request).catch(() => ({}));
+        sendJson(response, 200, await privateBetaFeedbackService.syncQueuedFeedback({
+          limit: body.limit,
+        }));
+      }),
+      exactRoute("GET", "/api/private-beta/signals", async () => {
+        sendJson(response, 200, await privateBetaSignalService.listSignals({
+          source: requestUrl.searchParams.get("source") || "",
+          severity: requestUrl.searchParams.get("severity") || "",
+          syncStatus: requestUrl.searchParams.get("sync") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
+        }));
+      }),
+      exactRoute("POST", "/api/private-beta/signals/sync", async () => {
+        const body = await readRequestJson(request).catch(() => ({}));
+        sendJson(response, 200, await privateBetaSignalService.syncQueuedSignals({
+          limit: body.limit,
         }));
       }),
       exactRoute("GET", "/api/config", async () => {
@@ -171,10 +221,6 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
-}
-
-function usesRuntimeDbStorage(matterStore, runtimeDbStorageService) {
-  return Boolean(matterStore.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled);
 }
 
 async function runtimeDbMatterForQuery(matterStore, requestUrl) {

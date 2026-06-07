@@ -6,12 +6,9 @@ export interface CopilotModelPreset {
 }
 
 export const COPILOT_MODEL_PRESETS: CopilotModelPreset[] = [
-  { label: 'GPT-4.1', shortLabel: '4.1', provider: 'openrouter', model: 'openai/gpt-4.1' },
-  { label: 'Gemini 2.5 Pro', shortLabel: 'Gemini', provider: 'openrouter', model: 'google/gemini-2.5-pro' },
-  { label: 'GPT-5.4', shortLabel: '5.4', provider: 'openai-direct', model: 'gpt-5.4' },
-  { label: 'GPT-5.4 Mini', shortLabel: '5.4 Mini', provider: 'openai-direct', model: 'gpt-5.4-mini' },
-  { label: 'Claude Sonnet 4.6', shortLabel: 'Sonnet 4.6', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.6' },
-  { label: 'Claude Sonnet 4.5', shortLabel: 'Sonnet 4.5', provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5' },
+  { label: 'Low', shortLabel: 'Low', provider: 'openrouter', model: 'openai/gpt-4.1' },
+  { label: 'Medium', shortLabel: 'Medium', provider: 'openai-direct', model: 'gpt-5.4-mini' },
+  { label: 'High', shortLabel: 'High', provider: 'openai-direct', model: 'gpt-5.4' },
 ];
 
 export function copilotPresetValue(provider?: string, model?: string) {
@@ -23,5 +20,5 @@ export function findCopilotPreset(provider?: string, model?: string) {
 }
 
 export function copilotShortLabel(provider?: string, model?: string) {
-  return findCopilotPreset(provider, model)?.shortLabel || model || 'Copilot';
+  return findCopilotPreset(provider, model)?.shortLabel || 'Custom';
 }

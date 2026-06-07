@@ -18,6 +18,8 @@ import { createMatterAttentionService } from "./services/matter-attention-servic
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
+import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
+import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
@@ -52,6 +54,24 @@ export async function createWorkbenchServer(options = {}) {
   const configService = createConfigService({ appDir, env });
   await configService.load();
   const privateBetaAuthService = options.privateBetaAuthService || createPrivateBetaAuthService({ env });
+  const privateBetaFeedbackService = options.privateBetaFeedbackService || createPrivateBetaFeedbackService({
+    appDir,
+    feedbackPath: options.privateBetaFeedbackPath,
+    syncUrl: env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL,
+    syncToken: env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
+    installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
+    telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
+    fetchImpl: options.privateBetaFeedbackFetch,
+  });
+  const privateBetaSignalService = options.privateBetaSignalService || createPrivateBetaSignalService({
+    appDir,
+    signalsPath: options.privateBetaSignalPath,
+    syncUrl: env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL,
+    syncToken: env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
+    installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_SIGNAL_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
+    telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
+    fetchImpl: options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
+  });
   const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
 
   const matterStore = createMatterStore({
@@ -217,6 +237,8 @@ export async function createWorkbenchServer(options = {}) {
     matterStoryService,
     prepareMatterService,
     privateBetaAuthService,
+    privateBetaFeedbackService,
+    privateBetaSignalService,
     runtimeDbStorageService,
     skillIdeasService,
     skillFactoryHealthService,

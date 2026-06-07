@@ -60,6 +60,18 @@ export const SIMPLE_SKILL_IDEA_QUESTIONS: InterviewQuestion[] = [
   },
 ];
 
+export const SKILL_IDEA_KICKOFF_QUESTIONS: InterviewQuestion[] = [
+  {
+    id: 'problem',
+    label: 'What is the exact skill idea in one sentence?',
+    help: "Example: 'review limitation risk for a consumer complaint' or 'draft a client update email from the latest matter record'.",
+    examples: [
+      'review limitation risk for a consumer complaint',
+      'draft a client update email from the latest matter record',
+    ],
+  },
+];
+
 export function hasSkillIdeaTestMatter(activeMatter: ActiveMatter | null | undefined): boolean {
   return Boolean(activeMatter?.folderName);
 }
@@ -174,16 +186,11 @@ function ensureProblemQuestionForEmptyIdea(questions: InterviewQuestion[], fallb
     const id = String(question.id || '').toLowerCase();
     const label = String(question.label || '').toLowerCase();
     return /\b(problem|goal|job|task|purpose)\b/.test(id)
-      || /\b(what should this skill|what should the skill|what decision or task)\b/.test(label);
+      || /\b(what is the exact skill idea|what should this skill|what should the skill|what decision or task)\b/.test(label);
   });
   if (hasProblemQuestion) return questions;
   return [
-    {
-      id: 'problem',
-      label: 'What should this skill help you do?',
-      help: 'Name the legal job in plain language, for example evidence gaps, issue note, limitation review, or client update draft.',
-      examples: ['Find evidence gaps before drafting', 'Prepare an issue-wise internal note', 'Draft a client update email'],
-    },
+    SKILL_IDEA_KICKOFF_QUESTIONS[0],
     ...questions,
   ];
 }

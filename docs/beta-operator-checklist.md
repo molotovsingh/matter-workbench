@@ -120,16 +120,24 @@ the current checkpoint is acceptable for supervised private beta.
 
 Before giving a tester access:
 
-1. Run the release-confidence checks for the machine they will use.
-2. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
-3. Confirm the tester understands this is supervised beta, not final legal
+1. For web/VM tester access, run
+   [Private Web Beta Readiness Pack](private-web-beta-readiness-pack.md):
+
+   ```bash
+   npm run private-web:readiness-check
+   ```
+
+   Treat blocker checks as handoff blockers.
+2. Run the release-confidence checks for the machine they will use.
+3. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
+4. Confirm the tester understands this is supervised beta, not final legal
    output and not public web software.
-4. Back up any real matter folder before write testing.
-5. Keep provider keys, `.env`, database URLs, raw client files, and generated
+5. Back up any real matter folder before write testing.
+6. Keep provider keys, `.env`, database URLs, raw client files, and generated
    work product inside the trusted beta circle.
-6. For each bug, collect the tester's short report first, then run
+7. For each bug, collect the tester's short report first, then run
    `private-beta:bug-evidence-pack` if developer handoff needs more evidence.
-7. Do not widen access until the public/hosted requirements in the current
+8. Do not widen access until the public/hosted requirements in the current
    known risks are closed.
 
 After handoff, use the [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md)

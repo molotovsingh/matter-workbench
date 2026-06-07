@@ -7,6 +7,7 @@ import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
+import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
 
 export async function handleMatterWorkflowApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -18,6 +19,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     matterStoryService,
     matterStatusService,
     prepareMatterService,
+    privateBetaSignalService,
     runtimeDbStorageService,
   } = services;
 
@@ -291,16 +293,28 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       exactRoute("GET", "/api/matter-attention", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
-          sendJson(response, 200, await runtimeDbStorageService.readMatterAttention(matter));
+          const attention = await runtimeDbStorageService.readMatterAttention(matter);
+          await safeCaptureBetaSignal(() => privateBetaSignalService?.captureMatterAttention(attention, {
+            runtimeMode: "postgres",
+          }));
+          sendJson(response, 200, attention);
           return;
         }
         const matterName = requestUrl.searchParams.get("matter") || "";
         if (matterName.trim()) {
           const { name, matterPath } = await matterStore.resolveExistingMatter(matterName);
-          sendJson(response, 200, await matterAttentionService.readMatterAttention(matterPath, { matterName: name }));
+          const attention = await matterAttentionService.readMatterAttention(matterPath, { matterName: name });
+          await safeCaptureBetaSignal(() => privateBetaSignalService?.captureMatterAttention(attention, {
+            runtimeMode: "filesystem",
+          }));
+          sendJson(response, 200, attention);
           return;
         }
-        sendJson(response, 200, await matterAttentionService.readMatterAttention());
+        const attention = await matterAttentionService.readMatterAttention();
+        await safeCaptureBetaSignal(() => privateBetaSignalService?.captureMatterAttention(attention, {
+          runtimeMode: "filesystem",
+        }));
+        sendJson(response, 200, attention);
       }),
       exactRoute("GET", "/api/prepare-matter", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -382,10 +396,6 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
     ],
   });
-}
-
-function usesRuntimeDbStorage(matterStore, runtimeDbStorageService) {
-  return Boolean(matterStore.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled);
 }
 
 function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {

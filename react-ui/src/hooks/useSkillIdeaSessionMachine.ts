@@ -10,6 +10,7 @@ import {
   formatSkillIdeaPlannerTerminalLine,
   hasSkillIdeaTestMatter,
   normalizePlannedSkillIdeaInterview,
+  SKILL_IDEA_KICKOFF_QUESTIONS,
   SIMPLE_SKILL_IDEA_QUESTIONS,
   type InterviewQuestion,
 } from '../lib/skillIdeaSession';
@@ -65,16 +66,17 @@ export function useSkillIdeaSessionMachine({
 }: UseSkillIdeaSessionMachineProps) {
   const { state, appendTerminal, dispatch } = useApp();
   const ideaText = parseSkillIdeaText(initialInput) ?? initialInput;
+  const startsWithBlankIdea = !ideaText.trim();
   const planningStarted = useRef(false);
   const mountedRef = useRef(true);
   const activeMatterRef = useLatestValue(state.activeMatter);
   const hasMatter = hasSkillIdeaTestMatter(state.activeMatter);
 
   const [session, setSession] = useState<SkillIdeaSessionState>({
-    phase: 'planning',
+    phase: startsWithBlankIdea ? 'interviewing' : 'planning',
     ideaText,
     understoodText: ideaText,
-    questions: [],
+    questions: startsWithBlankIdea ? SKILL_IDEA_KICKOFF_QUESTIONS : [],
     answers: {},
     questionIndex: 0,
     planner: null,
@@ -125,26 +127,44 @@ export function useSkillIdeaSessionMachine({
           return;
         }
         const planned = normalizePlannedSkillIdeaInterview(result, ideaText);
-        safeSetSession((s) => ({
-          ...s,
-          phase: planned.questions.length ? 'interviewing' : 'ready',
-          understoodText: planned.understoodText,
-          questions: planned.questions,
-          plannedBrief: planned.designBrief,
-          defaultAssumptions: planned.defaultAssumptions,
-          riskFlags: planned.riskFlags,
-          planner: result.planner,
-          error: null,
-        }));
+        safeSetSession((s) => {
+          if (Object.keys(s.answers).length > 0) {
+            return {
+              ...s,
+              planner: result.planner,
+              error: null,
+            };
+          }
+          return {
+            ...s,
+            phase: planned.questions.length ? 'interviewing' : 'ready',
+            understoodText: planned.understoodText,
+            questions: planned.questions,
+            questionIndex: 0,
+            plannedBrief: planned.designBrief,
+            defaultAssumptions: planned.defaultAssumptions,
+            riskFlags: planned.riskFlags,
+            planner: result.planner,
+            error: null,
+          };
+        });
         appendTerminal([formatSkillIdeaPlannerTerminalLine(result)]);
       } catch (e) {
-        safeSetSession((s) => ({
-          ...s,
-          phase: 'interviewing',
-          questions: SIMPLE_SKILL_IDEA_QUESTIONS,
-          planner: null,
-          error: `Planner unavailable; using a basic interview. ${getErrorMessage(e)}`,
-        }));
+        safeSetSession((s) => {
+          if (Object.keys(s.answers).length > 0) {
+            return {
+              ...s,
+              planner: null,
+            };
+          }
+          return {
+            ...s,
+            phase: 'interviewing',
+            questions: s.questions.length ? s.questions : SIMPLE_SKILL_IDEA_QUESTIONS,
+            planner: null,
+            error: `Planner unavailable; using a basic interview. ${getErrorMessage(e)}`,
+          };
+        });
         appendTerminal([`[skill-idea] planner unavailable; using basic interview: ${getErrorMessage(e)}`]);
       }
     }

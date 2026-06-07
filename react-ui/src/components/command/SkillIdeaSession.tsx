@@ -44,20 +44,6 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         <p className="skill-idea-status">Planning the right questions…</p>
       )}
 
-      {session.planner && (
-        <p className="skill-idea-q-help">
-          {session.planner.used
-            ? `Interview planned by ${session.planner.provider || 'configured provider'}${session.planner.model ? ` / ${session.planner.model}` : ''}.`
-            : 'Using the safe deterministic interview path.'}
-        </p>
-      )}
-
-      {session.riskFlags.length > 0 && (
-        <ul className="skill-idea-sample-warnings">
-          {session.riskFlags.map((flag) => <li key={flag}>{flag}</li>)}
-        </ul>
-      )}
-
       {session.notice && (
         <div className="skill-idea-notice">{session.notice}</div>
       )}

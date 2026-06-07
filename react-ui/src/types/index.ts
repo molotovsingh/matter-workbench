@@ -195,6 +195,75 @@ export interface JobStatusList {
   jobs: JobStatus[];
 }
 
+export type PrivateBetaFeedbackChoice = 'did_not_work' | 'confused' | 'want_something';
+
+export interface PrivateBetaFeedbackContext {
+  screen?: string;
+  route?: string;
+  currentView?: string;
+  activeMatterName?: string;
+  activeMatterFolder?: string;
+  lastCommand?: string;
+  lastAction?: string;
+  runtimeMode?: string;
+  appVersion?: string;
+  commit?: string;
+  viewport?: string;
+  visibleError?: string;
+  recentActivity?: string[];
+  providerRoutes?: Array<{ task?: string; provider?: string; model?: string }>;
+}
+
+export interface PrivateBetaFeedbackRequest {
+  choice: 'did_not_work' | 'confused' | 'want_something';
+  tryingToDo: string;
+  happenedInstead?: string;
+  matterName?: string;
+  context?: PrivateBetaFeedbackContext;
+}
+
+export interface PrivateBetaFeedbackSync {
+  status: 'not_configured' | 'queued' | 'sent' | 'failed' | string;
+  attempts: number;
+  lastAttemptAt?: string;
+  sentAt?: string;
+  endpointHost?: string;
+  lastError?: string;
+}
+
+export interface PrivateBetaFeedback {
+  schema_version?: 'private-beta-feedback/v1';
+  id: string;
+  choice: 'did_not_work' | 'confused' | 'want_something';
+  classification: 'bug' | 'confusing_ux' | 'feature_idea' | 'legal_quality_concern' | 'blocked_workflow' | 'operator_note' | string;
+  status: 'new' | 'reviewed' | 'needs_evidence' | 'fixed' | 'parked' | 'not_reproducible' | string;
+  tryingToDo: string;
+  happenedInstead?: string;
+  createdAt: string;
+  updatedAt?: string;
+  context?: PrivateBetaFeedbackContext;
+  sync?: PrivateBetaFeedbackSync;
+}
+
+export interface PrivateBetaFeedbackList {
+  schema_version?: 'private-beta-feedback-ledger/v1';
+  feedback: PrivateBetaFeedback[];
+}
+
+export interface PrivateBetaFeedbackResponse {
+  schema_version?: 'private-beta-feedback-response/v1';
+  feedback: PrivateBetaFeedback;
+}
+
+export interface PrivateBetaFeedbackSyncResult {
+  schema_version?: 'private-beta-feedback-sync-result/v1';
+  attempted: number;
+  sent: number;
+  queued: number;
+  failed: number;
+  skipped: number;
+}
+
 export interface SkillIdea {
   id: string;
   text: string;

@@ -13,7 +13,7 @@ import {
 import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import { useLatestValue } from '../hooks/useLatestValue';
-import type { ActiveMatter, JobStatus, SkillRun } from '../types';
+import type { ActiveMatter, JobStatus, PrivateBetaFeedback, SkillRun } from '../types';
 
 interface DayGroup {
   label: string;
@@ -25,6 +25,7 @@ export default function ActivityPage() {
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [runs, setRuns] = useState<SkillRun[]>([]);
   const [jobs, setJobs] = useState<JobStatus[]>([]);
+  const [feedback, setFeedback] = useState<PrivateBetaFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -32,13 +33,15 @@ export default function ActivityPage() {
     setLoading(true);
     setLoadError('');
     try {
-      const [runResult, jobResult] = await Promise.all([
+      const [runResult, jobResult, feedbackResult] = await Promise.all([
         api.getSkillRuns(100),
         api.getJobs(100),
+        api.getPrivateBetaFeedback(100),
       ]);
       if (isCancelled()) return;
       setRuns(runResult.runs || []);
       setJobs(jobResult.jobs || []);
+      setFeedback(feedbackResult.feedback || []);
     } catch (e) {
       if (isCancelled()) return;
       setLoadError(getErrorMessage(e));
@@ -62,6 +65,9 @@ export default function ActivityPage() {
   const visibleJobs = activeMatterName
     ? jobs.filter((job) => job.matterName === activeMatterName)
     : jobs;
+  const visibleFeedback = activeMatterName
+    ? feedback.filter((item) => item.context?.activeMatterName === activeMatterName || item.context?.activeMatterFolder === activeMatterName)
+    : feedback;
   const succeeded = visibleRuns.filter((r) => receiptForRun(r).isCompletedWork);
   const needsAttention = visibleRuns.filter((r) => receiptForRun(r).needsAttention);
   const missingOutput = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'output_missing');
@@ -69,6 +75,8 @@ export default function ActivityPage() {
   const running = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'running');
   const failedJobs = visibleJobs.filter((job) => job.status === 'failed');
   const runningJobs = visibleJobs.filter((job) => job.status === 'running');
+  const newFeedback = visibleFeedback.filter((item) => item.status === 'new');
+  const queuedFeedback = visibleFeedback.filter((item) => item.sync?.status === 'queued');
   const cancelled = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'cancelled');
   const workCompleted = succeeded;
   const dayGroups = groupRunsByDay(workCompleted);
@@ -79,6 +87,25 @@ export default function ActivityPage() {
       appendTerminal([`[activity] copied run report: ${run.slash || run.title || run.id}`]);
     } catch (e) {
       appendTerminal([`[activity] copy failed: ${getErrorMessage(e)}`]);
+    }
+  }
+
+  async function handleCopyFeedbackPacket(feedbackItem: PrivateBetaFeedback) {
+    try {
+      await writeClipboardText(formatPrivateBetaFeedbackReport(feedbackItem));
+      appendTerminal([`[activity] copied feedback packet: ${feedbackItem.id}`]);
+    } catch (e) {
+      appendTerminal([`[activity] feedback copy failed: ${getErrorMessage(e)}`]);
+    }
+  }
+
+  async function handleRetryFeedbackSync() {
+    try {
+      const result = await api.syncPrivateBetaFeedback();
+      appendTerminal([`[feedback] sync retry: ${result.sent} sent, ${result.queued} queued`]);
+      await loadActivityRuns();
+    } catch (e) {
+      appendTerminal([`[feedback] sync retry failed: ${getErrorMessage(e)}`]);
     }
   }
 
@@ -119,7 +146,9 @@ export default function ActivityPage() {
           {missingOutput.length > 0 && <span className="warning">{missingOutput.length} output missing</span>}
           {(running.length + runningJobs.length) > 0 && <span className="running">{running.length + runningJobs.length} running</span>}
           {(failed.length + failedJobs.length) > 0 && <span className="failed">{failed.length + failedJobs.length} failed</span>}
-          {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && <span className="muted">No runs yet</span>}
+          {newFeedback.length > 0 && <span className="warning">{newFeedback.length} feedback</span>}
+          {queuedFeedback.length > 0 && <span className="warning">{queuedFeedback.length} sync queued</span>}
+          {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleFeedback.length === 0 && <span className="muted">No runs yet</span>}
         </div>
       </div>
 
@@ -127,6 +156,18 @@ export default function ActivityPage() {
         <p className="muted" style={{ marginBottom: 20, fontSize: 13 }}>
           Showing activity for matter folder: <strong>{state.activeMatter.name}</strong>
         </p>
+      )}
+
+      {!loading && !loadError && newFeedback.length > 0 && (
+        <div className="activity-feedback-alert">
+          <div>
+            <strong>New tester feedback</strong>
+            <p>
+              {newFeedback.length} note{newFeedback.length === 1 ? '' : 's'} waiting for review. Copy a packet below when you want to triage it.
+            </p>
+          </div>
+          <span>{newFeedback.length}</span>
+        </div>
       )}
 
       {loading && <p className="muted">Loading activity…</p>}
@@ -143,6 +184,27 @@ export default function ActivityPage() {
             {loading ? 'Trying…' : 'Try again'}
           </button>
         </div>
+      )}
+
+      {!loading && !loadError && visibleFeedback.length > 0 && (
+        <section className="activity-section">
+          <div className="activity-section-heading">
+            <h2>Beta Feedback</h2>
+            {queuedFeedback.length > 0 && (
+              <button type="button" className="run-skill-button secondary" onClick={handleRetryFeedbackSync}>
+                Retry sync
+              </button>
+            )}
+          </div>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+            Tester notes captured inside the app. These are triage packets, not legal work product.
+          </p>
+          <div className="activity-day-list attention">
+            {visibleFeedback.map((item) => (
+              <FeedbackCard key={item.id} feedback={item} onCopy={handleCopyFeedbackPacket} />
+            ))}
+          </div>
+        </section>
       )}
 
       {!loading && !loadError && needsAttention.length > 0 && (
@@ -222,13 +284,115 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && (
+      {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleFeedback.length === 0 && (
         <div style={{ marginTop: 40, color: 'var(--muted)', fontSize: 14 }}>
           <p>No skill runs yet. Run a skill from the Home tab or command box.</p>
         </div>
       )}
     </div>
   );
+}
+
+function FeedbackCard({ feedback, onCopy }: { feedback: PrivateBetaFeedback; onCopy: (feedback: PrivateBetaFeedback) => void }) {
+  const createdTime = formatTime(feedback.createdAt);
+  const syncStatus = formatFeedbackSyncStatus(feedback.sync?.status);
+  const syncClass = feedbackSyncClass(feedback.sync?.status);
+  return (
+    <article className="activity-card warning">
+      <div className="activity-card-main">
+        <div className="activity-card-copy">
+          <div className="activity-title-row">
+            <h3>{formatFeedbackChoice(feedback.choice)}</h3>
+            <span className="pipeline-state warning">{feedback.classification}</span>
+            <span className={`pipeline-state ${syncClass}`}>{syncStatus}</span>
+          </div>
+          <div className="activity-run-line">
+            {feedback.context?.activeMatterName && <span>{feedback.context.activeMatterName}</span>}
+            {feedback.context?.screen && <span>{feedback.context.screen}</span>}
+            <span>{feedback.status}</span>
+          </div>
+          <p style={{ margin: '8px 0 0', color: 'var(--text)', fontSize: 13, lineHeight: 1.45 }}>
+            {feedback.tryingToDo}
+          </p>
+          {feedback.happenedInstead && (
+            <p style={{ margin: '6px 0 0', color: 'var(--muted)', fontSize: 12, lineHeight: 1.45 }}>
+              {feedback.happenedInstead}
+            </p>
+          )}
+          <div className="feedback-card-context">
+            {feedback.context?.runtimeMode && <span>{feedback.context.runtimeMode}</span>}
+            {feedback.context?.currentView && <span>{feedback.context.currentView}</span>}
+            {feedback.context?.viewport && <span>{feedback.context.viewport}</span>}
+          </div>
+        </div>
+        <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
+          {createdTime}
+        </time>
+      </div>
+      <div className="activity-card-actions">
+        <button className="run-skill-button secondary" type="button" onClick={() => onCopy(feedback)}>
+          Copy packet
+        </button>
+        <details className="activity-run-details">
+          <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>Details</summary>
+          <dl className="skill-card-meta">
+            <div><dt>ID</dt><dd>{feedback.id}</dd></div>
+            <div><dt>classification</dt><dd>{feedback.classification}</dd></div>
+            <div><dt>Status</dt><dd>{feedback.status}</dd></div>
+            <div><dt>Sync</dt><dd>{syncStatus}</dd></div>
+            {feedback.sync?.attempts !== undefined && <div><dt>Sync attempts</dt><dd>{feedback.sync.attempts}</dd></div>}
+            {feedback.sync?.lastError && <div><dt>Sync error</dt><dd>{feedback.sync.lastError}</dd></div>}
+            {feedback.context?.route && <div><dt>Route</dt><dd>{feedback.context.route}</dd></div>}
+          </dl>
+        </details>
+      </div>
+    </article>
+  );
+}
+
+function formatPrivateBetaFeedbackReport(feedback: PrivateBetaFeedback): string {
+  const lines = [
+    'Private beta feedback',
+    '',
+    `ID: ${feedback.id}`,
+    `Created: ${feedback.createdAt}`,
+    `Choice: ${formatFeedbackChoice(feedback.choice)}`,
+    `Classification: ${feedback.classification}`,
+    `Status: ${feedback.status}`,
+    `Sync: ${formatFeedbackSyncStatus(feedback.sync?.status)}`,
+  ];
+  if (feedback.context?.activeMatterName) lines.push(`Matter: ${feedback.context.activeMatterName}`);
+  if (feedback.context?.screen) lines.push(`Screen: ${feedback.context.screen}`);
+  if (feedback.context?.route) lines.push(`Route: ${feedback.context.route}`);
+  lines.push('', 'What were you trying to do?', feedback.tryingToDo);
+  if (feedback.happenedInstead) lines.push('', 'What happened instead?', feedback.happenedInstead);
+  if (feedback.context?.recentActivity?.length) {
+    lines.push('', 'Recent activity');
+    for (const line of feedback.context.recentActivity) lines.push(`- ${line}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatFeedbackChoice(choice: string): string {
+  if (choice === 'did_not_work') return 'Something did not work';
+  if (choice === 'confused') return 'I got confused';
+  if (choice === 'want_something') return 'I want this to do something';
+  return choice || 'Feedback';
+}
+
+function formatFeedbackSyncStatus(status?: string): string {
+  if (status === 'sent') return 'Sent to mothership';
+  if (status === 'queued') return 'Queued for sync';
+  if (status === 'failed') return 'Sync failed';
+  if (status === 'not_configured') return 'Local only';
+  return 'Sync unknown';
+}
+
+function feedbackSyncClass(status?: string): string {
+  if (status === 'sent') return 'completed';
+  if (status === 'queued') return 'warning';
+  if (status === 'failed') return 'failed';
+  return 'running';
 }
 
 function JobCard({ job }: { job: JobStatus }) {

@@ -14,6 +14,8 @@ equally authoritative.
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
 | Private beta tester brief | [Private Beta Tester Brief](private-beta-tester-brief.md) |
+| Private web beta readiness | [Private Web Beta Readiness Pack](private-web-beta-readiness-pack.md) |
+| Codex private beta deployment pack | [Codex Private Beta Deployment Pack](private-beta-codex-deployment.md) |
 | Private beta bug-fix loop | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) |
 | Beta testing workflow | [Beta Testing List of Dates](beta-testing-list-of-dates.md) |
 | Database transition handoff | [Database Transition Handoff](database-transition-handoff.md) |

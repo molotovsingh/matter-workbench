@@ -13,6 +13,8 @@
     "private-vm:ops-pack": "node scripts/private-vm-ops-pack.mjs",
     "private-vm:recoverability-pack": "node scripts/private-vm-recoverability-pack.mjs",
     "private-vm:security-check": "node scripts/private-vm-security-check.mjs",
+    "private-web:readiness-check": "node scripts/private-web-beta-readiness-check.mjs",
+    "private-beta:deployment-pack": "node scripts/private-beta-deployment-pack.mjs",
     "private-beta:bug-evidence-pack": "node scripts/private-beta-bug-evidence-pack.mjs",
     "private-beta:rc-closure-pack": "node scripts/private-beta-rc-closure-pack.mjs",
     "db:migrations:list": "node scripts/db-migrate.mjs --list",

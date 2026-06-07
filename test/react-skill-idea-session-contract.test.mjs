@@ -46,8 +46,22 @@ test("React empty new-skill interviews synthesize save text and ask for the core
   assert.match(source, /export function skillIdeaTextForSave/);
   assert.match(source, /Create a reusable skill to/);
   assert.match(source, /ensureProblemQuestionForEmptyIdea/);
-  assert.match(source, /What should this skill help you do\?/);
+  assert.match(source, /What is the exact skill idea in one sentence\?/);
   assert.match(source, /inferSkillIdeaProblemFromAnswers/);
+});
+
+test("React blank new-skill sessions show a kickoff question while planner continues in background", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const sessionSource = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
+
+  assert.match(sessionSource, /export const SKILL_IDEA_KICKOFF_QUESTIONS/);
+  assert.match(sessionSource, /review limitation risk for a consumer complaint/);
+  assert.match(sessionSource, /draft a client update email from the latest matter record/);
+  assert.match(machineSource, /const startsWithBlankIdea = !ideaText\.trim\(\)/);
+  assert.match(machineSource, /phase: startsWithBlankIdea \? 'interviewing' : 'planning'/);
+  assert.match(machineSource, /questions: startsWithBlankIdea \? SKILL_IDEA_KICKOFF_QUESTIONS : \[\]/);
+  assert.match(machineSource, /if \(Object\.keys\(s\.answers\)\.length > 0\) \{/);
+  assert.match(machineSource, /return \{[\s\S]*planner: result\.planner,[\s\S]*\}/);
 });
 
 test("React skill idea session component delegates orchestration to the machine hook", async () => {
@@ -57,6 +71,17 @@ test("React skill idea session component delegates orchestration to the machine 
   assert.doesNotMatch(source, /api\.createSkillIdea/);
   assert.doesNotMatch(source, /api\.generateSampleOutput/);
   assert.doesNotMatch(source, /api\.createSkillFromIdea/);
+});
+
+test("React skill idea session keeps planner diagnostics out of the lawyer-facing card", async () => {
+  const source = await readFile(skillIdeaSessionPath, "utf8");
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+
+  assert.doesNotMatch(source, /session\.planner/);
+  assert.doesNotMatch(source, /Interview planned by/);
+  assert.doesNotMatch(source, /configured provider/);
+  assert.doesNotMatch(source, /session\.riskFlags/);
+  assert.match(machineSource, /formatSkillIdeaPlannerTerminalLine/);
 });
 
 test("React skill idea machine delegates persistence details to session actions", async () => {

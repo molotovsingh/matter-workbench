@@ -480,6 +480,56 @@ async function run() {
     fail("Job status API contract", error.message);
   }
 
+  try {
+    const feedback = await fetchJson("/api/private-beta/feedback?limit=5");
+    const feedbackList = Array.isArray(feedback.feedback) ? feedback.feedback : [];
+    assert(
+      feedback.schema_version === "private-beta-feedback-ledger/v1",
+      "Private beta feedback API exposes ledger schema",
+      feedback.schema_version || "missing",
+    );
+    assert(Array.isArray(feedback.feedback), "Private beta feedback API exposes feedback array", `${feedbackList.length} notes`);
+  } catch (error) {
+    fail("Private beta feedback API contract", error.message);
+  }
+
+  try {
+    const feedbackSync = await postJson("/api/private-beta/feedback/sync", {});
+    assert(
+      feedbackSync.schema_version === "private-beta-feedback-sync-result/v1",
+      "Private beta feedback sync API exposes result schema",
+      feedbackSync.schema_version || "missing",
+    );
+    assert(typeof feedbackSync.attempted === "number", "Private beta feedback sync API exposes attempted count", String(feedbackSync.attempted));
+  } catch (error) {
+    fail("Private beta feedback sync API contract", error.message);
+  }
+
+  try {
+    const signals = await fetchJson("/api/private-beta/signals?limit=5");
+    const signalList = Array.isArray(signals.signals) ? signals.signals : [];
+    assert(
+      signals.schema_version === "private-beta-signal-ledger/v1",
+      "Private beta signal API exposes ledger schema",
+      signals.schema_version || "missing",
+    );
+    assert(Array.isArray(signals.signals), "Private beta signal API exposes signals array", `${signalList.length} signals`);
+  } catch (error) {
+    fail("Private beta signal API contract", error.message);
+  }
+
+  try {
+    const signalSync = await postJson("/api/private-beta/signals/sync", {});
+    assert(
+      signalSync.schema_version === "private-beta-signal-sync-result/v1",
+      "Private beta signal sync API exposes result schema",
+      signalSync.schema_version || "missing",
+    );
+    assert(typeof signalSync.attempted === "number", "Private beta signal sync API exposes attempted count", String(signalSync.attempted));
+  } catch (error) {
+    fail("Private beta signal sync API contract", error.message);
+  }
+
   if (configPayload?.hasActiveMatter) {
     try {
       const workspace = await fetchJson("/api/workspace");

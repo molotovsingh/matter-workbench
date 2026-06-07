@@ -3,7 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
-import { COPILOT_MODEL_PRESETS, copilotPresetValue } from '../lib/copilotModels';
+import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
 import type { AiSettings, Skill } from '../types';
 
 function findCopilotTask(settings: AiSettings | null) {
@@ -158,7 +158,7 @@ export default function SettingsPage() {
       setSettings(updated);
       applyCopilotSettings(updated);
       setCopilotApiKey('');
-      appendTerminal([`[settings] Matter Copilot model saved: ${copilotProvider} / ${copilotModel}`]);
+      appendTerminal([`[settings] Matter Copilot saved: ${findCopilotPreset(copilotProvider, copilotModel)?.label || 'Custom'}`]);
     } catch (err) {
       setCopilotSaveError(getErrorMessage(err));
     } finally {
@@ -188,6 +188,7 @@ export default function SettingsPage() {
   const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
     ? copilotPresetValue(copilotProvider, copilotModel)
     : '';
+  const currentCopilotPreset = findCopilotPreset(copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
 
   return (
     <div className="settings-page">
@@ -277,7 +278,10 @@ export default function SettingsPage() {
                     Source-backed chat answers only. Skills and List of Dates keep their governed routes.
                   </div>
                   <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 5 }}>
-                    Current: {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
+                    Current: {currentCopilotPreset?.label || 'Custom'}
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 3 }}>
+                    Route: {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
                   </div>
                 </div>
                 <span className={`provider-status ${copilotTask?.ready ? 'ready' : 'needs-setup'}`}>
@@ -286,7 +290,7 @@ export default function SettingsPage() {
               </div>
 
               <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Copilot model</span>
+                <span className="settings-label">Copilot strength</span>
                 <select
                   value={copilotPreset}
                   onChange={(e) => handleCopilotPresetChange(e.target.value)}
@@ -332,7 +336,7 @@ export default function SettingsPage() {
 
               <div className="form-actions">
                 <button type="submit" disabled={copilotSaving}>
-                  {copilotSaving ? 'Testing model…' : 'Test and save Copilot model'}
+                  {copilotSaving ? 'Testing setting…' : 'Test and save Copilot setting'}
                 </button>
               </div>
             </form>

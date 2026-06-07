@@ -30,6 +30,10 @@ import type {
   MatterAttention,
   MatterStatus,
   PreparationPlan,
+  PrivateBetaFeedbackList,
+  PrivateBetaFeedbackRequest,
+  PrivateBetaFeedbackResponse,
+  PrivateBetaFeedbackSyncResult,
   RerunAdvice,
   SkillFactoryHealth,
   SkillIdea,
@@ -225,6 +229,10 @@ export const api = {
 
   // ─── Matter workflow ──────────────────────
   getJobs: (limit = 100) => getJson<JobStatusList>(`/api/jobs?limit=${limit}`),
+  getPrivateBetaFeedback: (limit = 100) => getJson<PrivateBetaFeedbackList>(`/api/private-beta/feedback?limit=${limit}`),
+  submitPrivateBetaFeedback: (body: PrivateBetaFeedbackRequest) =>
+    postJson<PrivateBetaFeedbackResponse>('/api/private-beta/feedback', body),
+  syncPrivateBetaFeedback: () => postJson<PrivateBetaFeedbackSyncResult>('/api/private-beta/feedback/sync', {}),
   getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
   getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
   getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),

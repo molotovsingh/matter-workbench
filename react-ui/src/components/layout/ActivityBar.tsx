@@ -27,10 +27,15 @@ export default function ActivityBar() {
 
   return (
     <aside className="activity-bar">
-      <div className="activity-logo">
+      <button
+        className="activity-logo"
+        type="button"
+        aria-label="Go to Matter Workbench home"
+        onClick={() => { void handleTabClick('home'); }}
+      >
         <strong>Matter</strong>
         <span>Workbench</span>
-      </div>
+      </button>
       {TABS.map((tab) => (
         <button
           key={tab.id}

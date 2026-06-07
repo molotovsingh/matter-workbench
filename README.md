@@ -148,6 +148,12 @@ attempts are throttled per client; tune with
 `Secure` on local HTTP by default. Set `MWB_PRIVATE_BETA_PUBLIC_URL=https://...`
 or `MWB_PRIVATE_BETA_COOKIE_SECURE=true` only when the runtime is served over
 HTTPS, otherwise browsers will ignore the cookie on private HTTP VM URLs.
+Before giving a remote/private web URL to testers, run
+`npm run private-web:readiness-check` and follow
+[docs/private-web-beta-readiness-pack.md](docs/private-web-beta-readiness-pack.md).
+To generate the ordered Codex/operator deployment runbook for a VM or private
+cloud host, run `npm run private-beta:deployment-pack` and follow
+[docs/private-beta-codex-deployment.md](docs/private-beta-codex-deployment.md).
 
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling

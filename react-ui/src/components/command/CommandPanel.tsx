@@ -22,7 +22,7 @@ import {
   findCopilotPreset,
 } from '../../lib/copilotModels';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
-import type { ConfigurableSkill } from '../../types';
+import type { ConfigurableSkill, PrivateBetaFeedbackChoice } from '../../types';
 import type { SkillRouterDecision } from '../../types';
 
 interface CommandSuggestion {
@@ -95,6 +95,12 @@ export default function CommandPanel({
   const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
   const [copilotSwitching, setCopilotSwitching] = useState(false);
   const [copilotSwitchStatus, setCopilotSwitchStatus] = useState('');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackChoice, setFeedbackChoice] = useState<PrivateBetaFeedbackChoice | ''>('');
+  const [feedbackTryingToDo, setFeedbackTryingToDo] = useState('');
+  const [feedbackHappenedInstead, setFeedbackHappenedInstead] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsLoadSeqRef = useRef(0);
@@ -269,6 +275,43 @@ export default function CommandPanel({
     }
   }
 
+  async function handleSubmitFeedback(e: React.FormEvent) {
+    e.preventDefault();
+    if (!feedbackChoice || !feedbackTryingToDo.trim() || feedbackSubmitting) return;
+    setFeedbackSubmitting(true);
+    setFeedbackMessage('');
+    try {
+      await api.submitPrivateBetaFeedback({
+        choice: feedbackChoice,
+        tryingToDo: feedbackTryingToDo,
+        happenedInstead: feedbackHappenedInstead,
+        matterName: state.activeMatter?.name,
+        context: {
+          screen: state.activeTab,
+          currentView: state.activeView,
+          route: typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '',
+          activeMatterName: state.activeMatter?.name,
+          activeMatterFolder: state.activeMatter?.folderName,
+          runtimeMode: state.config?.runtimeStorageMode || 'filesystem',
+          viewport: viewportLabel(),
+          recentActivity: activityRows.map((row) => `${row.time} ${row.message}`),
+          providerRoutes: [{ task: 'copilot_answer', provider: copilotProvider, model: copilotModel }],
+          visibleError: feedbackHappenedInstead,
+        },
+      });
+      setFeedbackMessage('Saved. You can keep working.');
+      setFeedbackChoice('');
+      setFeedbackTryingToDo('');
+      setFeedbackHappenedInstead('');
+      appendTerminal(['[feedback] saved private beta feedback']);
+    } catch (error) {
+      setFeedbackMessage(`Could not save feedback: ${getErrorMessage(error)}`);
+      appendTerminal([`[feedback] save failed: ${getErrorMessage(error)}`]);
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
+
   async function answerPendingIntentOnce() {
     if (!pendingIntentChoice || state.isCommandRunning) return;
     if (isConfigurableExistingSkillChoice(pendingIntentChoice.decision)) {
@@ -388,7 +431,7 @@ export default function CommandPanel({
           <label className="copilot-model-switch">
             <span>Copilot</span>
             <select
-              aria-label="Copilot model"
+              aria-label="Copilot strength"
               value={copilotSelectValue}
               onChange={(event) => { void handleCopilotModelChange(event.target.value); }}
               disabled={copilotSwitching}
@@ -560,6 +603,95 @@ export default function CommandPanel({
       <p className="command-panel-note" style={{ order: 9 }}>
         Source-backed answers are one question at a time and do not remember earlier chat. Skill work may use paid AI.
       </p>
+
+      <div className="beta-feedback-entry" style={{ order: 10 }}>
+        {!feedbackOpen ? (
+          <button
+            type="button"
+            className="secondary beta-feedback-open"
+            onClick={() => {
+              setFeedbackOpen(true);
+              setFeedbackMessage('');
+            }}
+          >
+            Have a problem? Tell us what happened
+          </button>
+        ) : (
+          <form className="beta-feedback-form" onSubmit={handleSubmitFeedback}>
+            <div className="beta-feedback-header">
+              <strong>Tell us what happened</strong>
+              <button
+                type="button"
+                className="skill-idea-close"
+                aria-label="Close feedback"
+                onClick={() => {
+                  setFeedbackOpen(false);
+                  setFeedbackMessage('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="beta-feedback-choice-grid" role="group" aria-label="What happened">
+              {[
+                ['did_not_work', 'Something did not work'],
+                ['confused', 'I got confused'],
+                ['want_something', 'I want this to do something'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={feedbackChoice === value ? 'active' : ''}
+                  onClick={() => setFeedbackChoice(value as PrivateBetaFeedbackChoice)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="beta-feedback-label">
+              <span>What were you trying to do?</span>
+              <textarea
+                value={feedbackTryingToDo}
+                onChange={(event) => setFeedbackTryingToDo(event.target.value)}
+                rows={3}
+                required
+              />
+            </label>
+            <label className="beta-feedback-label">
+              <span>What happened instead?</span>
+              <textarea
+                value={feedbackHappenedInstead}
+                onChange={(event) => setFeedbackHappenedInstead(event.target.value)}
+                rows={3}
+              />
+            </label>
+            <div className="beta-feedback-actions">
+              <button type="submit" disabled={!feedbackChoice || !feedbackTryingToDo.trim() || feedbackSubmitting}>
+                {feedbackSubmitting ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setFeedbackOpen(false);
+                  setFeedbackMessage('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            {feedbackMessage && <p className="beta-feedback-message">{feedbackMessage}</p>}
+          </form>
+        )}
+      </div>
     </aside>
   );
+}
+
+function viewportLabel() {
+  if (typeof window === 'undefined') return '';
+  const width = window.innerWidth || 0;
+  if (width <= 700) return 'narrow';
+  if (width <= 1100) return 'medium';
+  return 'desktop';
 }

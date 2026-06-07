@@ -33,6 +33,13 @@ test("React rail Home clears the active matter before showing landing", async ()
   assert.match(source, /dispatch\(\{ type: 'SET_TAB', payload: tabId \}\)/);
 });
 
+test("React activity logo returns to global home, not matter home", async () => {
+  const source = await readFile(activityBarPath, "utf8");
+
+  assert.match(source, /<button[\s\S]*className="activity-logo"[\s\S]*type="button"[\s\S]*onClick=\{\(\) => \{ void handleTabClick\('home'\); \}\}/);
+  assert.match(source, /aria-label="Go to Matter Workbench home"/);
+});
+
 test("React active matter sidebar hides the global matter picker", async () => {
   const source = await readFile(sidebarPath, "utf8");
 

@@ -91,7 +91,7 @@ test("React shell keeps activity in the command panel and Activity page only", a
 test("React command panel exposes a tested Copilot model switcher", async () => {
   const source = await readFile(reactCommandPanelPath, "utf8");
 
-  assert.match(source, /aria-label="Copilot model"/);
+  assert.match(source, /aria-label="Copilot strength"/);
   assert.match(source, /COPILOT_MODEL_PRESETS/);
   assert.match(source, /api\.saveAiSettings\(\{\s*copilotProvider/s);
   assert.match(source, /Testing \$\{preset\.shortLabel\}/);

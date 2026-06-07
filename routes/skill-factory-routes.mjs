@@ -1,6 +1,7 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
+import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import {
   buildSkillCreationOverlapRequest,
@@ -15,6 +16,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
     jobStatusService,
     matterStore,
     runtimeDbStorageService,
+    privateBetaSignalService,
     skillFactoryHealthService,
     skillIdeasService,
     skillInterviewPlannerService,
@@ -51,7 +53,11 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
         }));
       }),
       exactRoute("GET", "/api/skill-factory-health", async () => {
-        sendJson(response, 200, await skillFactoryHealthService.checkHealth());
+        const health = await skillFactoryHealthService.checkHealth();
+        await safeCaptureBetaSignal(() => privateBetaSignalService?.captureSkillFactoryHealth(health, {
+          runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
+        }));
+        sendJson(response, 200, health);
       }),
       exactRoute("POST", "/api/skill-ideas/plan-interview", async () => {
         const body = await readRequestJson(request);
@@ -187,10 +193,6 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       }),
     ],
   });
-}
-
-function usesRuntimeDbStorage(matterStore, runtimeDbStorageService) {
-  return Boolean(matterStore.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled);
 }
 
 function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {

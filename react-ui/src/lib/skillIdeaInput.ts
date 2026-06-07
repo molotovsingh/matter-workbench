@@ -12,7 +12,24 @@ export const SKILL_IDEA_INPUT_PATTERNS = [
   '^can we make a skil{1,2} for (.+)$',
 ] as const;
 
-const EMPTY_SKILL_IDEA_PROMPTS = new Set(['new skill', 'create skill']);
+const EMPTY_SKILL_IDEA_PROMPTS = new Set([
+  '/new_skill',
+  '/new-skill',
+  '/newskill',
+  'new skill',
+  'create skill',
+  'create a skill',
+  'create new skill',
+  'create a new skill',
+  'make skill',
+  'make a skill',
+  'make new skill',
+  'make a new skill',
+  'design skill',
+  'design a skill',
+  'i want to make a new skill',
+  'i think i want to make a new skill',
+]);
 
 export function parseSkillIdeaText(input: string): string | null {
   const raw = String(input || '').trim();
