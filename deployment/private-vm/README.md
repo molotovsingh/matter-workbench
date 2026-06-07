@@ -26,8 +26,7 @@ MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
 MWB_RUNTIME_DATABASE_URL=<redacted runtime role URL>
 MWB_DATABASE_URL=<redacted admin or backup-capable URL, if needed for operator scripts>
 MWB_PRIVATE_BETA_AUTH=required
-MWB_PRIVATE_BETA_USERNAME=<operator username>
-MWB_PRIVATE_BETA_PASSWORD=<operator password>
+MWB_PRIVATE_BETA_USERS_FILE=/home/aks/.config/matter-workbench/private-beta-users.json
 MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
 ```
 
@@ -107,7 +106,10 @@ The ops pack writes:
 Use the ops pack when you need a quick picture of service health, current
 deployment, rollback candidate, disk/memory posture, and recent service logs.
 It does not back up the database and it does not perform rollback by itself.
-Review `rollback-plan.sh` before running it.
+Review `rollback-plan.sh` before running it. When private-beta auth is enabled,
+the generated rollback script does not store credentials; export
+`MWB_PRIVATE_BETA_USERNAME` and `MWB_PRIVATE_BETA_PASSWORD` in the shell before
+running the script so its final service check can log in.
 
 When a private beta tester reports a specific bug, create a bug evidence pack
 instead of sending scattered screenshots and terminal scrollback:
@@ -147,7 +149,8 @@ npm run private-vm:security-check -- \
 
 If `MWB_PRIVATE_BETA_AUTH=required`, the service and security checks read
 `MWB_PRIVATE_BETA_USERNAME` and `MWB_PRIVATE_BETA_PASSWORD` from the shell/env
-and log in before checking product APIs.
+and log in before checking product APIs. These values may be supplied only for
+the operator command being run; they do not need to live in `runtime.env`.
 
 From the Mac, use the VM URL but skip the VM-local runtime env file check:
 

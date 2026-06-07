@@ -103,7 +103,13 @@ export async function runPrivateVmOpsPack({
   const logs = skipLogs
     ? skippedSection("service_logs", "skipped by --skip-logs")
     : await inspectLogs({ serviceName, commandRunner });
-  const rollback = buildRollbackPlan({ deploymentRoot, deployment, serviceName, baseUrl });
+  const rollback = buildRollbackPlan({
+    deploymentRoot,
+    deployment,
+    serviceName,
+    baseUrl,
+    requiresServiceCheckAuth: Boolean(authUsername || authPassword),
+  });
 
   const failedChecks = [];
   if (!deployment.ok) failedChecks.push("deployment");
@@ -276,7 +282,7 @@ async function inspectLogs({ serviceName, commandRunner }) {
   }
 }
 
-function buildRollbackPlan({ deploymentRoot, deployment, serviceName, baseUrl }) {
+function buildRollbackPlan({ deploymentRoot, deployment, serviceName, baseUrl, requiresServiceCheckAuth = false }) {
   if (!deployment?.rollbackCandidate || !deployment?.rollbackTarget) {
     return {
       available: false,
@@ -285,11 +291,19 @@ function buildRollbackPlan({ deploymentRoot, deployment, serviceName, baseUrl })
     };
   }
   const currentLink = path.join(deploymentRoot, "current");
+  const serviceCheckCommand = requiresServiceCheckAuth
+    ? [
+        `: "\${MWB_PRIVATE_BETA_USERNAME:?Set MWB_PRIVATE_BETA_USERNAME before running rollback-plan.sh}"`,
+        `: "\${MWB_PRIVATE_BETA_PASSWORD:?Set MWB_PRIVATE_BETA_PASSWORD before running rollback-plan.sh}"`,
+        `npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)} --auth-username "$MWB_PRIVATE_BETA_USERNAME" --auth-password "$MWB_PRIVATE_BETA_PASSWORD"`,
+      ]
+    : [`npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)}`];
   const commands = [
+    ...serviceCheckCommand.slice(0, -1),
     `systemctl --user stop ${shellQuote(serviceName)}`,
     `ln -sfn ${shellQuote(deployment.rollbackTarget)} ${shellQuote(currentLink)}`,
     `systemctl --user start ${shellQuote(serviceName)}`,
-    `npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)}`,
+    serviceCheckCommand.at(-1),
   ];
   return {
     available: true,

@@ -84,6 +84,11 @@ test("private VM ops pack writes service health, deployment state, logs, and rol
   assert.match(rollbackScript, /set -euo pipefail/);
   assert.match(rollbackScript, /matter-workbench-runtime\.service/);
   assert.match(rollbackScript, /938fca5/);
+  assert.match(rollbackScript, /MWB_PRIVATE_BETA_USERNAME/);
+  assert.match(rollbackScript, /MWB_PRIVATE_BETA_PASSWORD/);
+  assert.match(rollbackScript, /--auth-username "\$MWB_PRIVATE_BETA_USERNAME"/);
+  assert.match(rollbackScript, /--auth-password "\$MWB_PRIVATE_BETA_PASSWORD"/);
+  assert.doesNotMatch(rollbackScript, /service-secret/);
 
   const rendered = renderPrivateVmOpsPackResult(result).join("\n");
   assert.match(rendered, /Matter Workbench private VM ops pack/);
