@@ -2123,6 +2123,18 @@ smoke, runtime DB posture, current deployment, rollback candidate, and recent
 command-panel interactions. It also nests the ops pack so the developer can see
 service health without asking the tester to rerun five separate commands.
 
+One more runtime DB lesson landed after the React titlebar fix: acceptance
+evidence should survive the terminal. The browser acceptance pack already wrote
+Markdown and JSON, but by default it wrote them under `.local/`, which is
+correct for ordinary operator runs and wrong for a release-readiness claim we
+want future developers to inspect. The latest clean pack is now checked in
+under `docs/runtime-db-browser-acceptance-packs/`.
+
+That small move matters. It turns "I saw it pass" into "here is the exact
+artifact that records what passed." The useful engineering habit is to preserve
+evidence at the same level as the claim. A transient smoke run is enough for
+day-to-day confidence. A beta milestone deserves a durable artifact.
+
 The product lesson is that a private beta should not depend on heroic memory.
 When someone reports "the skill output disappeared" or "the page got stuck,"
 we need more than a screenshot and vibes. We need enough evidence to reproduce

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "runtime-db-browser-acceptance-pack/v1",
+  "generatedAt": "2026-06-07T07:02:32.214Z",
+  "passed": true,
+  "runtimeDb": {
+    "enabled": true,
+    "mode": "postgres/postgres",
+    "storageMode": "postgres",
+    "tenantId": "82dc5ad0-fb23-5c08-a06c-73232cd0281f"
+  },
+  "writeSmoke": {
+    "passed": true,
+    "mode": "runtime DB live write smoke",
+    "databaseUrlSource": "MWB_RUNTIME_DATABASE_URL",
+    "tenantId": "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+    "testRunId": "runtime-db-write-smoke-2026-06-07T07-02-32-216Z",
+    "matterName": "Runtime DB Write Smoke -06-07T07-02-32-216Z",
+    "roleGuardPassed": true,
+    "uploadCreated": true,
+    "workspaceReadable": true,
+    "filePreviewReadable": true,
+    "rawFileReadable": true,
+    "dbRowsVerified": true,
+    "rollbackVerified": true,
+    "cleanupDeleted": true,
+    "counts": {
+      "documents": 1,
+      "matterCount": 1,
+      "payloadRows": 2,
+      "payloadBytes": 514,
+      "importBatches": 1,
+      "storageObjects": 2,
+      "activeMatterCount": 1
+    },
+    "error": ""
+  },
+  "browser": {
+    "passed": true,
+    "driver": "playwright",
+    "checks": [
+      {
+        "key": "private_beta_login",
+        "passed": true,
+        "detail": "Private beta login was not required."
+      },
+      {
+        "key": "react_root_loaded",
+        "passed": true,
+        "detail": "React shell rendered."
+      },
+      {
+        "key": "runtime_db_matters_listed",
+        "passed": true,
+        "detail": "15 matter(s) listed from runtime DB."
+      },
+      {
+        "key": "home_and_matter_navigation",
+        "passed": true,
+        "detail": "Selected Atlas Constuction vs Diptishree."
+      },
+      {
+        "key": "workspace_preview",
+        "passed": true,
+        "detail": "Previewed 00_Inbox/Intake 01 - 2026-05-17 Initial/_extracted/FILE-0001.json."
+      },
+      {
+        "key": "advisory_visible",
+        "passed": true,
+        "detail": "matter-attention/v1"
+      },
+      {
+        "key": "activity_receipts_visible",
+        "passed": true,
+        "detail": "Activity page opened."
+      },
+      {
+        "key": "settings_visible",
+        "passed": true,
+        "detail": "Settings page opened."
+      }
+    ],
+    "consoleErrors": [],
+    "screenshot": ""
+  },
+  "error": ""
+}

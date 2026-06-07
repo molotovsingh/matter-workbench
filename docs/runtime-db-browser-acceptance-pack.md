@@ -14,6 +14,11 @@ Optional:
 npm run db:runtime:browser-accept -- --out-dir .local/runtime-db-browser-acceptance-packs
 ```
 
+Latest checked-in acceptance evidence:
+
+- [2026-06-07 runtime DB browser acceptance Markdown](runtime-db-browser-acceptance-packs/runtime-db-browser-acceptance-pack-2026-06-07T07-02-32-214Z.md)
+- [2026-06-07 runtime DB browser acceptance JSON](runtime-db-browser-acceptance-packs/runtime-db-browser-acceptance-pack-2026-06-07T07-02-32-214Z.json)
+
 The pack answers one narrow beta question:
 
 > Can the React product shell run against runtime DB custody in a real browser,
