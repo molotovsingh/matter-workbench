@@ -16,6 +16,7 @@
     "private-web:readiness-check": "node scripts/private-web-beta-readiness-check.mjs",
     "private-beta:deployment-pack": "node scripts/private-beta-deployment-pack.mjs",
     "private-beta:tester-handoff-drill": "node scripts/private-beta-tester-handoff-drill.mjs",
+    "private-beta:auth-preflight": "node scripts/private-beta-auth-preflight.mjs",
     "private-beta:bug-evidence-pack": "node scripts/private-beta-bug-evidence-pack.mjs",
     "private-beta:rc-closure-pack": "node scripts/private-beta-rc-closure-pack.mjs",
     "private-beta:users": "node scripts/private-beta-users.mjs",

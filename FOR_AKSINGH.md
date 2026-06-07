@@ -2312,3 +2312,13 @@ tester can log in, see matters, file feedback, reach the sync/signal endpoints,
 and then be removed cleanly. The lesson is simple: if a step would embarrass
 you when forgotten, do not leave it as tribal knowledge. Put it inside the
 acceptance command.
+
+The same release run exposed another wonderfully boring failure: the runtime
+env said one operator password, but the protected account file had another hash.
+Nothing was wrong with React, Postgres, or the legal workflow; the operator
+credential simply drifted. That became `private-beta:auth-preflight`, a small
+command that logs in with the configured runtime username/password before the
+deeper RC checks run. If it fails, the repair is explicit:
+`private-beta:users -- set-password`. Good beta engineering is often this
+unglamorous: make the common human mistake visible early, then give the operator
+one clean repair command.

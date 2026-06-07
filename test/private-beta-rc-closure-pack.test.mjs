@@ -35,6 +35,19 @@ async function happyTesterHandoff({ baseUrl, usersFile, feedbackPath, outDir, ti
   };
 }
 
+async function happyOperatorAuth({ baseUrl, username, usersFile }) {
+  return {
+    success: true,
+    baseUrl,
+    username,
+    usersFile,
+    configuredUser: { present: true, disabled: false, role: "operator" },
+    login: { ok: true, status: 200 },
+    authStatus: { ok: true, username, role: "operator" },
+    logout: { ok: true },
+  };
+}
+
 test("private beta RC closure pack writes release evidence across required gates", async () => {
   const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack, renderPrivateBetaRcClosurePackResult } = await import(packPath.href);
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-"));
@@ -55,6 +68,9 @@ test("private beta RC closure pack writes release evidence across required gates
     timestamp: "2026-06-06T22:00:00.000Z",
     release: "v1.0.0-beta.10",
     baseUrl: "http://172.16.37.128:4191",
+    authUsername: "aks",
+    authPassword: "private-secret",
+    authUsersFile: "/secure/users.json",
     testerUsersFile: "/secure/users.json",
     testerFeedbackPath: "/secure/private-beta-feedback.json",
     gitInfoFn: async () => ({
@@ -101,6 +117,10 @@ test("private beta RC closure pack writes release evidence across required gates
         targetMatter: "Bharat Nagpal Vs Gionee India",
         filePreviewReadable: true,
       };
+    },
+    operatorAuthPreflightFn: async (options) => {
+      calls.push(["operator-auth", options.baseUrl, options.username, options.usersFile]);
+      return happyOperatorAuth(options);
     },
     testerHandoffDrillFn: async (options) => {
       calls.push(["handoff", options.baseUrl, options.usersFile, options.feedbackPath, path.basename(options.outDir)]);
@@ -156,6 +176,8 @@ test("private beta RC closure pack writes release evidence across required gates
   assert.equal(result.git.commit, "abc1234");
   assert.equal(result.localGates.ok, true);
   assert.equal(result.runtimeDbBrowser.ok, true);
+  assert.equal(result.operatorAuth.ok, true);
+  assert.equal(result.operatorAuth.username, "aks");
   assert.equal(result.privateVmService.ok, true);
   assert.equal(result.testerHandoff.ok, true);
   assert.equal(result.testerHandoff.matterCount, 15);
@@ -170,6 +192,7 @@ test("private beta RC closure pack writes release evidence across required gates
     "local",
     "local",
     "browser",
+    "operator-auth",
     "service",
     "handoff",
     "ops",
@@ -180,7 +203,8 @@ test("private beta RC closure pack writes release evidence across required gates
   const evidenceText = await readFile(result.files.json, "utf8");
   const evidence = JSON.parse(evidenceText);
   assert.equal(evidence.success, true);
-  assert.equal(evidence.checks.length, 8);
+  assert.equal(evidence.checks.length, 9);
+  assert.equal(evidence.operatorAuth.ok, true);
   assert.equal(evidence.testerHandoff.ok, true);
   assert.doesNotMatch(evidenceText, /sk-secret/);
   assert.doesNotMatch(evidenceText, /runtime-secret/);
@@ -190,6 +214,7 @@ test("private beta RC closure pack writes release evidence across required gates
   assert.match(rendered, /Matter Workbench private beta RC closure pack/);
   assert.match(rendered, /success: yes/);
   assert.match(rendered, /runtime_db_browser: ok/);
+  assert.match(rendered, /operator_auth: ok/);
   assert.match(rendered, /tester_handoff: ok/);
 });
 
@@ -203,6 +228,7 @@ test("private beta RC closure pack fails closed when a required section fails", 
     gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: false, error: "browser driver missing", files: {} }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -215,6 +241,30 @@ test("private beta RC closure pack fails closed when a required section fails", 
   assert.equal(existsSync(result.files.markdown), true);
 });
 
+test("private beta RC closure pack fails closed when operator auth preflight fails", async () => {
+  const { runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-auth-fail-"));
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: async () => ({ success: false, error: "Invalid username or password", repairHint: "Run private-beta:users -- set-password" }),
+    serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.operatorAuth.ok, false);
+  assert.match(result.operatorAuth.repairHint, /set-password/);
+  assert.match(result.failedChecks.join(","), /operator_auth/);
+});
+
 test("private beta RC closure pack fails closed when tester handoff drill fails", async () => {
   const { runPrivateBetaRcClosurePack } = await import(packPath.href);
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-handoff-fail-"));
@@ -225,6 +275,7 @@ test("private beta RC closure pack fails closed when tester handoff drill fails"
     gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: async () => ({ success: false, error: "temporary tester could not list matters" }),
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -247,6 +298,7 @@ test("private beta RC closure pack treats skipped required gates as incomplete",
     gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
     skipLocalGates: true,
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -257,6 +309,31 @@ test("private beta RC closure pack treats skipped required gates as incomplete",
   assert.equal(result.success, false);
   assert.equal(result.localGates.skipped, true);
   assert.match(result.failedChecks.join(","), /local_verification/);
+});
+
+test("private beta RC closure pack treats skipped operator auth as incomplete", async () => {
+  const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-skip-auth-"));
+
+  assert.equal(parseRcClosurePackArgs(["--skip-operator-auth"], {}).skipOperatorAuth, true);
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    skipOperatorAuth: true,
+    serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.operatorAuth.skipped, true);
+  assert.match(result.failedChecks.join(","), /operator_auth/);
 });
 
 test("private beta RC closure pack treats skipped tester handoff as incomplete", async () => {
@@ -271,6 +348,7 @@ test("private beta RC closure pack treats skipped tester handoff as incomplete",
     gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     skipTesterHandoff: true,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -317,6 +395,7 @@ test("private beta RC closure pack can consume existing runtime browser evidence
       browserRunnerCalled = true;
       return { passed: false };
     },
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -352,6 +431,7 @@ test("private beta RC closure pack can use supplied git metadata for deployment 
     gitInfoFn: async () => ({ branch: "", commit: "", statusShort: "", branchCommandOk: false, commitCommandOk: false, statusCommandOk: false }),
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -380,6 +460,7 @@ test("private beta RC closure pack passes auth and matters home to recoverabilit
     gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
     serviceCheckFn: async () => ({ passed: true }),
     testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -421,6 +502,7 @@ test("private beta RC closure pack sanitizes runtime env for local verification 
         return { ok: true, stdout: "", stderr: "", exitCode: 0 };
       },
       runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+      operatorAuthPreflightFn: happyOperatorAuth,
       serviceCheckFn: async () => ({ passed: true }),
       testerHandoffDrillFn: happyTesterHandoff,
       opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
@@ -465,6 +547,7 @@ test("package and release docs expose the private beta RC closure pack", async (
   const docs = await readFile(docsPath, "utf8");
   assert.match(docs, /private-beta:rc-closure-pack/);
   assert.match(docs, /local verification/i);
+  assert.match(docs, /operator auth/i);
   assert.match(docs, /tester handoff/i);
   assert.match(docs, /recoverability/i);
 });

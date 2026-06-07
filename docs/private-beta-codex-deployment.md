@@ -159,6 +159,7 @@ printf '%s\n' '<temporary password>' | npm run private-beta:users -- add --file 
 npm run private-beta:users -- list --file ~/.config/matter-workbench/private-beta-users.json
 npm run private-beta:deployment-pack
 npm run private-web:readiness-check
+npm run private-beta:auth-preflight -- --base-url http://127.0.0.1:4191
 npm run private-beta:tester-handoff-drill -- \
   --base-url http://127.0.0.1:4191 \
   --users-file ~/.config/matter-workbench/private-beta-users.json \
@@ -175,10 +176,13 @@ tester, proves the access and feedback path, writes an evidence pack, then
 restores the account file and feedback ledger. It is the quick spot-check proof
 that a URL and account file are usable.
 
-The RC closure pack now runs the same tester handoff drill as a required gate.
-Use the standalone drill when you are only checking one tester setup; use
-`private-beta:rc-closure-pack` when deciding whether the checkpoint is ready to
-hand to testers.
+The auth preflight proves that the configured operator credentials in
+`runtime.env` can actually log in against the live service. If it fails after
+changing credentials, update the protected account file with
+`private-beta:users -- set-password`. The RC closure pack now runs both the
+operator auth preflight and the tester handoff drill as required gates. Use the
+standalone commands for spot checks; use `private-beta:rc-closure-pack` when
+deciding whether the checkpoint is ready to hand to testers.
 
 If any hard blocker appears, do not hand out the URL.
 

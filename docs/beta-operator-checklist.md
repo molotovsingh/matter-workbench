@@ -113,9 +113,24 @@ npm test --silent
 
 The RC closure pack is the current release-candidate bundle. It aggregates
 local verification, runtime DB browser acceptance, private VM service health,
-tester handoff, ops/security checks, and recoverability evidence. Use it when
-deciding whether the current checkpoint is acceptable for supervised private
-beta.
+operator auth, tester handoff, ops/security checks, and recoverability
+evidence. Use it when deciding whether the current checkpoint is acceptable for
+supervised private beta.
+
+When changing private beta credentials, run a quick operator-auth preflight
+before the full closure pack:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-beta:auth-preflight -- --base-url http://127.0.0.1:4191
+```
+
+If the preflight says the runtime credentials do not authenticate, repair the
+protected account file using the current runtime password:
+
+```bash
+printf '%s\n' '<runtime password>' | npm run private-beta:users -- set-password --file "$MWB_PRIVATE_BETA_USERS_FILE" --username "$MWB_PRIVATE_BETA_USERNAME" --password-stdin
+```
 
 ## Tester Handoff
 

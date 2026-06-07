@@ -14,6 +14,7 @@ Useful options:
 npm run private-beta:rc-closure-pack -- --base-url http://172.16.37.128:4191
 npm run private-beta:rc-closure-pack -- --out-dir .local/private-beta-rc-closure-packs
 npm run private-beta:rc-closure-pack -- --runtime-browser-evidence-json /path/to/runtime-db-browser-acceptance-pack.json
+npm run private-beta:rc-closure-pack -- --auth-users-file /secure/private-beta-users.json
 npm run private-beta:rc-closure-pack -- --tester-users-file /secure/private-beta-users.json --tester-feedback-ledger /secure/private-beta-feedback.json
 npm run private-beta:rc-closure-pack -- --git-branch codex/matter-workbench-checkpoint-2026-05-17 --git-commit <release-commit>
 ```
@@ -32,6 +33,8 @@ their internals:
 
 - local verification: `ui:typecheck`, `ui:build`, and `npm test`;
 - runtime DB browser acceptance;
+- operator auth preflight: configured runtime username/password can actually
+  log in against the live service;
 - private VM service smoke;
 - tester handoff drill: temporary tester login, React access, matter listing,
   feedback intake, feedback sync, and signal listing;
@@ -71,6 +74,7 @@ A useful pass means:
 - the current commit and branch were recorded;
 - local code and React build gates passed;
 - runtime DB mode rendered through a real browser path;
+- the configured private-beta operator auth worked against the live service;
 - the private VM service responded and exposed DB-backed matter data;
 - a disposable tester could log in, see matters, file feedback, reach feedback
   sync, reach beta signals, and be removed cleanly;
@@ -98,6 +102,22 @@ current local/private architecture is coherent enough for supervised beta use.
 Treat a failed closure pack as a release blocker until the failed section is
 understood. The JSON file is the best artifact to attach to a bug report. The
 Markdown file is the best artifact to read during release review.
+
+The `operator_auth` gate catches a common private-beta footgun: the runtime env
+username/password and the protected tester account file can drift apart. Run the
+standalone preflight when changing credentials:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-beta:auth-preflight -- --base-url http://127.0.0.1:4191
+```
+
+If it fails because the runtime password no longer matches the account file,
+repair the account file with:
+
+```bash
+printf '%s\n' '<runtime password>' | npm run private-beta:users -- set-password --file "$MWB_PRIVATE_BETA_USERS_FILE" --username "$MWB_PRIVATE_BETA_USERNAME" --password-stdin
+```
 
 The `tester_handoff` gate is intentionally not optional for release confidence.
 It is the quick proof that the URL, account file, feedback ledger, and private
