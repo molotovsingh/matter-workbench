@@ -2333,3 +2333,13 @@ the boring right move: redact Copilot model-check errors at the AI settings
 service boundary, then prove both the service and `/api/ai-settings` response
 hide the submitted key. Good engineers think about the whole failure path, not
 only the happy response object.
+
+The next filesystem lesson was about races that only appear when two ordinary
+people do ordinary things at the same time. Adding files to a matter used to ask
+"what is the next intake?" and "what is the next FILE number?" before writing
+the new intake. Two near-simultaneous uploads could ask those questions before
+either one finished writing, so both could believe they owned the same next
+slot. The fix was a per-matter write queue around the allocation, file write,
+and `matter-init` refresh. The important idea is that identifiers are not just
+labels; they are source identity. If two requests can mint source identity, that
+minting step needs to be serialized.

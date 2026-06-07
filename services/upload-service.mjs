@@ -23,6 +23,7 @@ export function createUploadService({
   if (!workspaceService) throw new Error("workspaceService is required");
 
   const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
+  const matterWriteQueues = new Map();
 
   async function createMatter(request) {
     const upload = await handleMultipartUpload(request);
@@ -101,48 +102,61 @@ export function createUploadService({
       }
 
       const root = await resolveMatterRootForFields(fields);
+      return await withMatterWriteQueue(root, async () => {
+        const intakeNumber = await matterStore.nextIntakeNumber(root);
+        const fileIdStart = await matterStore.nextFileIdStart(root);
+        const priorHashes = await matterStore.priorHashIndex(root);
+        const receivedDate = new Date().toISOString().slice(0, 10);
+        const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
+        const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
+        const sourceFilesDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
+        if (!isInsideRoot(root, sourceFilesDir)) throw makeHttpError("Resolved intake path escapes matter root", 400);
+        await writeUploadedFiles(files, relativePaths, sourceFilesDir, {
+          escapeMessage: "Resolved destination escapes intake root",
+        });
 
-      const intakeNumber = await matterStore.nextIntakeNumber(root);
-      const fileIdStart = await matterStore.nextFileIdStart(root);
-      const priorHashes = await matterStore.priorHashIndex(root);
-      const receivedDate = new Date().toISOString().slice(0, 10);
-      const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
-      const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
-      const sourceFilesDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
-      if (!isInsideRoot(root, sourceFilesDir)) throw makeHttpError("Resolved intake path escapes matter root", 400);
-      await writeUploadedFiles(files, relativePaths, sourceFilesDir, {
-        escapeMessage: "Resolved destination escapes intake root",
-      });
-
-      const existing = await matterStore.readExistingMatterMetadata(root);
-      const result = await runMatterInit({
-        matterRoot: root,
-        metadata: existing,
-        dryRun: false,
-        intakeId,
-        intakeDirName,
-        intakeLabel: label,
-        receivedDate,
-        fileIdStart,
-        priorHashes,
-      });
-
-      const workspace = await workspaceService.readWorkspace(root);
-      return {
-        ...workspace,
-        intakeAdded: {
+        const existing = await matterStore.readExistingMatterMetadata(root);
+        const result = await runMatterInit({
+          matterRoot: root,
+          metadata: existing,
+          dryRun: false,
           intakeId,
           intakeDirName,
+          intakeLabel: label,
           receivedDate,
-          label,
-          scanned: result.counts.scannedFiles,
-          unique: result.counts.uniqueFiles,
-          duplicatesInBatch: result.counts.duplicatesInBatch,
-          duplicatesOfPrior: result.counts.duplicatesOfPrior,
-        },
-      };
+          fileIdStart,
+          priorHashes,
+        });
+
+        const workspace = await workspaceService.readWorkspace(root);
+        return {
+          ...workspace,
+          intakeAdded: {
+            intakeId,
+            intakeDirName,
+            receivedDate,
+            label,
+            scanned: result.counts.scannedFiles,
+            unique: result.counts.uniqueFiles,
+            duplicatesInBatch: result.counts.duplicatesInBatch,
+            duplicatesOfPrior: result.counts.duplicatesOfPrior,
+          },
+        };
+      });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  async function withMatterWriteQueue(root, operation) {
+    const key = path.resolve(root);
+    const previous = matterWriteQueues.get(key) || Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    matterWriteQueues.set(key, current);
+    try {
+      return await current;
+    } finally {
+      if (matterWriteQueues.get(key) === current) matterWriteQueues.delete(key);
     }
   }
 

@@ -50,7 +50,7 @@ async function withServer(run, options = {}) {
   const address = app.server.address();
   const baseUrl = `http://${address.address}:${address.port}`;
   try {
-    await run({ baseUrl, mattersHome });
+    await run({ app, baseUrl, mattersHome });
   } finally {
     await new Promise((resolve) => app.server.close(resolve));
   }
@@ -99,6 +99,74 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
     assert.equal(updated.intakeAdded.duplicatesOfPrior, 0);
     assert.match(updated.intakeAdded.receivedDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(updated.intakeAdded.intakeDirName, /Follow Up/);
+  });
+});
+
+test("multipart add-files serializes filesystem intake allocation per matter", async () => {
+  await withServer(async ({ app, baseUrl, mattersHome }) => {
+    const createForm = new FormData();
+    createForm.set("name", "Concurrent Upload Matter");
+    createForm.set("metadata", JSON.stringify({
+      matterName: "Concurrent Upload Matter",
+      clientName: "Client A",
+      oppositeParty: "Opposite B",
+      matterType: "Consumer",
+      jurisdiction: "Delhi",
+    }));
+    createForm.set("paths", JSON.stringify(["initial.txt"]));
+    appendTextFile(createForm, "files", "initial.txt", "Initial evidence.");
+    await postMultipart(baseUrl, "/api/matters/new", createForm);
+
+    const originalNextIntakeNumber = app.services.matterStore.nextIntakeNumber;
+    let inFlightAllocations = 0;
+    let maxConcurrentAllocations = 0;
+    app.services.matterStore.nextIntakeNumber = async (...args) => {
+      inFlightAllocations += 1;
+      maxConcurrentAllocations = Math.max(maxConcurrentAllocations, inFlightAllocations);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 75));
+        return await originalNextIntakeNumber(...args);
+      } finally {
+        inFlightAllocations -= 1;
+      }
+    };
+
+    function addForm(label, filename, text) {
+      const form = new FormData();
+      form.set("label", label);
+      form.set("paths", JSON.stringify([filename]));
+      appendTextFile(form, "files", filename, text);
+      return form;
+    }
+
+    const [first, second] = await Promise.all([
+      postMultipart(baseUrl, "/api/matters/add-files", addForm("Race One", "race-one.txt", "Race one evidence.")),
+      postMultipart(baseUrl, "/api/matters/add-files", addForm("Race Two", "race-two.txt", "Race two evidence.")),
+    ]);
+
+    assert.equal(maxConcurrentAllocations, 1);
+    assert.deepEqual(
+      [first.intakeAdded.intakeId, second.intakeAdded.intakeId].sort(),
+      ["INTAKE-02", "INTAKE-03"],
+    );
+    assert.equal(new Set([
+      first.intakeAdded.intakeDirName,
+      second.intakeAdded.intakeDirName,
+    ]).size, 2);
+
+    const matterRoot = path.join(mattersHome, "Concurrent Upload Matter");
+    const firstRegister = await readFile(
+      path.join(matterRoot, "00_Inbox", first.intakeAdded.intakeDirName, "File Register.csv"),
+      "utf8",
+    );
+    const secondRegister = await readFile(
+      path.join(matterRoot, "00_Inbox", second.intakeAdded.intakeDirName, "File Register.csv"),
+      "utf8",
+    );
+    const fileIds = Array.from(new Set(
+      `${firstRegister}\n${secondRegister}`.match(/FILE-\d{4}/g) || [],
+    )).sort();
+    assert.deepEqual(fileIds, ["FILE-0002", "FILE-0003"]);
   });
 });
 
