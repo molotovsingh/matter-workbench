@@ -2407,3 +2407,10 @@ logic that should not be hidden in a giant engine function. It is policy-heavy,
 but not network-heavy. By isolating it, we can test legal-output discipline
 without making an AI call, writing a file, or running the whole chronology
 pipeline.
+
+The sixth split was run metadata: `listofdates/run-metadata.mjs` now owns
+provider usage aggregation, two-pass run metadata, and the candidate-ledger
+envelope. This matters because "what did the AI run cost and return?" is not
+the same problem as "which dates belong in the chronology?" Keeping that ledger
+construction separate makes audit metadata easier to test and safer to evolve,
+especially as the app moves toward database-backed provider-run records.

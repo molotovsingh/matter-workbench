@@ -31,6 +31,12 @@ import {
   renderListOfDatesMarkdown,
 } from "./listofdates/rendering.mjs";
 import {
+  TWO_PASS_ENGINE_VERSION,
+  createCandidateLedger,
+  mergeAiRunMetadata,
+  twoPassAiRunMetadata,
+} from "./listofdates/run-metadata.mjs";
+import {
   buildSourceBlocks,
   chunkBlocks,
   createSourceSnapshot,
@@ -45,7 +51,6 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = DEFAULT_LIST_OF_DATES_ENGINE_VERSION;
-const TWO_PASS_ENGINE_VERSION = "create-listofdates-v2-two-pass";
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 export { createOpenAiProvider, createOpenRouterProvider } from "./listofdates/providers.mjs";
 export { renderListOfDatesMarkdown } from "./listofdates/rendering.mjs";
@@ -414,71 +419,8 @@ function createConfiguredListOfDatesProvider({ task, options, env, prompt, injec
   return { provider, baseAiRun };
 }
 
-function mergeAiRunMetadata(baseAiRun, responseAiRuns) {
-  const aiRuns = Array.isArray(responseAiRuns) ? responseAiRuns : [responseAiRuns].filter(Boolean);
-  if (!aiRuns.length) return baseAiRun;
-  const merged = { ...baseAiRun };
-  const usage = {};
-  for (const aiRun of aiRuns) {
-    if (!aiRun || typeof aiRun !== "object" || Array.isArray(aiRun)) continue;
-    if (aiRun.returnedModel) merged.returnedModel = aiRun.returnedModel;
-    if (aiRun.returnedProvider) merged.returnedProvider = aiRun.returnedProvider;
-    if (aiRun.usage) {
-      addNumber(usage, "promptTokens", aiRun.usage.promptTokens);
-      addNumber(usage, "completionTokens", aiRun.usage.completionTokens);
-      addNumber(usage, "totalTokens", aiRun.usage.totalTokens);
-      addNumber(usage, "cost", aiRun.usage.cost);
-    }
-  }
-  if (Object.keys(usage).length) merged.usage = usage;
-  return merged;
-}
-
-function twoPassAiRunMetadata(pass1AiRun, pass2AiRun) {
-  return {
-    policyVersion: pass2AiRun.policyVersion || pass1AiRun.policyVersion,
-    policyPromptVersion: pass2AiRun.policyPromptVersion || pass1AiRun.policyPromptVersion,
-    task: "create_listofdates_two_pass",
-    tier: "source_backed_analysis",
-    provider: "two-pass",
-    model: `${pass1AiRun.model} -> ${pass2AiRun.model}`,
-    fallback: "fail_closed",
-    pass1: pass1AiRun,
-    pass2: pass2AiRun,
-  };
-}
-
-function createCandidateLedger({
-  matterJson,
-  candidates,
-  records,
-  chronologyBlocks,
-  filteredBlockCount,
-  pass1AiRun,
-  status,
-}) {
-  return {
-    schema_version: "list-of-dates-candidates/v1",
-    engine_version: TWO_PASS_ENGINE_VERSION,
-    status,
-    generated_at: new Date().toISOString(),
-    matter: matterSummary(matterJson),
-    source_record_count: records.length,
-    source_block_count: chronologyBlocks.length,
-    filtered_block_count: filteredBlockCount,
-    ai_run: pass1AiRun,
-    candidates,
-  };
-}
-
 async function writeJsonFile(filePath, value) {
   await writeFileAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function addNumber(target, key, value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return;
-  target[key] = (target[key] || 0) + number;
 }
 
 if (process.argv[1] === __filename) {
