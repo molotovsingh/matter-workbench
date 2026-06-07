@@ -12,6 +12,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
   const {
     configurableSkillRunsService,
     configurableSkillsService,
+    jobStatusService,
     matterStore,
     runtimeDbStorageService,
     skillFactoryHealthService,
@@ -141,22 +142,28 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       }),
       exactRoute("POST", "/api/configurable-skills/run", async () => {
         const body = await readRequestJson(request);
-        if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
-          const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
-          const result = await runtimeDbStorageService.runMaterializedMatterWrite(matter, ({ matterRoot }) => configurableSkillsService.runSkill({
-            slash: body.slash,
-            overwrite: Boolean(body.overwrite),
-            matterName: matter.name,
-            matterRootOverride: matterRoot,
-            matterRecordOverride: matter,
-          }));
-          sendJson(response, 200, result.operationResult);
-          return;
-        }
-        sendJson(response, 200, await configurableSkillsService.runSkill({
-          slash: body.slash,
-          overwrite: Boolean(body.overwrite),
-          matterName: body.matterName,
+        sendJson(response, 200, await runTrackedSkill({
+          jobStatusService,
+          label: body.slash || "Custom skill",
+          matterName: matterNameForSkillRun(matterStore, body.matterName),
+          operation: async () => {
+            if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
+              const result = await runtimeDbStorageService.runMaterializedMatterWrite(matter, ({ matterRoot }) => configurableSkillsService.runSkill({
+                slash: body.slash,
+                overwrite: Boolean(body.overwrite),
+                matterName: matter.name,
+                matterRootOverride: matterRoot,
+                matterRecordOverride: matter,
+              }));
+              return result.operationResult;
+            }
+            return configurableSkillsService.runSkill({
+              slash: body.slash,
+              overwrite: Boolean(body.overwrite),
+              matterName: body.matterName,
+            });
+          },
         }));
       }),
       exactRoute("POST", "/api/configurable-skills/runs/cancelled", async () => {
@@ -195,6 +202,28 @@ async function runtimeDbMatterForBody(matterStore, matterName = "") {
   const target = matterName || matterStore.activeMatterNameWithinHome?.();
   if (!target) throw makeHttpError("No matter is active — pick one before running a custom skill.", 409);
   return matterStore.resolveExistingMatter(target);
+}
+
+async function runTrackedSkill({
+  jobStatusService,
+  label,
+  matterName,
+  operation,
+}) {
+  if (!jobStatusService?.runTrackedJob) return operation();
+  const { result, job } = await jobStatusService.runTrackedJob({
+    kind: "custom_skill",
+    label,
+    matterName,
+    operation,
+  });
+  if (result && typeof result === "object" && !Array.isArray(result)) return { ...result, job };
+  return { result, job };
+}
+
+function matterNameForSkillRun(matterStore, matterName = "") {
+  const target = typeof matterName === "string" ? matterName.trim() : "";
+  return target || matterStore.activeMatterNameWithinHome?.() || "";
 }
 
 async function assertSkillCreationOverlapCleared({ idea, skillRouterService, overrideJustification = "" } = {}) {

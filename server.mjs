@@ -13,6 +13,7 @@ import { createMatterCopilotService } from "./services/matter-copilot-service.mj
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStoryService } from "./services/matter-story-service.mjs";
+import { createJobStatusService } from "./services/job-status-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
@@ -163,6 +164,10 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     configurableSkillsService,
   });
+  const jobStatusService = options.jobStatusService || createJobStatusService({
+    appDir,
+    jobsPath: options.jobStatusPath,
+  });
   const skillRegistryService = createSkillRegistryService({
     appDir,
     registryPath: options.skillRegistryPath,
@@ -203,6 +208,7 @@ export async function createWorkbenchServer(options = {}) {
     configService,
     configurableSkillsService,
     env,
+    jobStatusService,
     matterAttentionService,
     matterCopilotService,
     matterStore,

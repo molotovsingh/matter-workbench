@@ -13,7 +13,7 @@ import {
 import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import { useLatestValue } from '../hooks/useLatestValue';
-import type { ActiveMatter, SkillRun } from '../types';
+import type { ActiveMatter, JobStatus, SkillRun } from '../types';
 
 interface DayGroup {
   label: string;
@@ -24,6 +24,7 @@ export default function ActivityPage() {
   const { state, dispatch, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [runs, setRuns] = useState<SkillRun[]>([]);
+  const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -31,9 +32,13 @@ export default function ActivityPage() {
     setLoading(true);
     setLoadError('');
     try {
-      const result = await api.getSkillRuns(100);
+      const [runResult, jobResult] = await Promise.all([
+        api.getSkillRuns(100),
+        api.getJobs(100),
+      ]);
       if (isCancelled()) return;
-      setRuns(result.runs || []);
+      setRuns(runResult.runs || []);
+      setJobs(jobResult.jobs || []);
     } catch (e) {
       if (isCancelled()) return;
       setLoadError(getErrorMessage(e));
@@ -54,11 +59,16 @@ export default function ActivityPage() {
   const visibleRuns = activeMatterName
     ? runs.filter((run) => run.matterFolder === activeMatterName || run.matterName === activeMatterName)
     : runs;
+  const visibleJobs = activeMatterName
+    ? jobs.filter((job) => job.matterName === activeMatterName)
+    : jobs;
   const succeeded = visibleRuns.filter((r) => receiptForRun(r).isCompletedWork);
   const needsAttention = visibleRuns.filter((r) => receiptForRun(r).needsAttention);
   const missingOutput = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'output_missing');
   const failed = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'failed');
   const running = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'running');
+  const failedJobs = visibleJobs.filter((job) => job.status === 'failed');
+  const runningJobs = visibleJobs.filter((job) => job.status === 'running');
   const cancelled = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'cancelled');
   const workCompleted = succeeded;
   const dayGroups = groupRunsByDay(workCompleted);
@@ -107,9 +117,9 @@ export default function ActivityPage() {
         <div className="activity-summary">
           {succeeded.length > 0 && <span className="completed">{succeeded.length} succeeded</span>}
           {missingOutput.length > 0 && <span className="warning">{missingOutput.length} output missing</span>}
-          {running.length > 0 && <span className="running">{running.length} running</span>}
-          {failed.length > 0 && <span className="failed">{failed.length} failed</span>}
-          {!loading && visibleRuns.length === 0 && <span className="muted">No runs yet</span>}
+          {(running.length + runningJobs.length) > 0 && <span className="running">{running.length + runningJobs.length} running</span>}
+          {(failed.length + failedJobs.length) > 0 && <span className="failed">{failed.length + failedJobs.length} failed</span>}
+          {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && <span className="muted">No runs yet</span>}
         </div>
       </div>
 
@@ -141,6 +151,20 @@ export default function ActivityPage() {
           <div className="activity-day-list attention">
             {needsAttention.map((run) => (
               <RunCard key={run.id} run={run} activeMatter={state.activeMatter} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && !loadError && visibleJobs.length > 0 && (
+        <section className="activity-section">
+          <h2>Matter Jobs</h2>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+            Long-running matter work recorded by the local job ledger.
+          </p>
+          <div className="activity-day-list quiet">
+            {visibleJobs.map((job) => (
+              <JobCard key={job.id} job={job} />
             ))}
           </div>
         </section>
@@ -198,12 +222,41 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && visibleRuns.length === 0 && (
+      {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && (
         <div style={{ marginTop: 40, color: 'var(--muted)', fontSize: 14 }}>
           <p>No skill runs yet. Run a skill from the Home tab or command box.</p>
         </div>
       )}
     </div>
+  );
+}
+
+function JobCard({ job }: { job: JobStatus }) {
+  const finishedTime = job.finishedAt ? formatTime(job.finishedAt) : null;
+  const startedTime = formatTime(job.startedAt);
+  const statusClass = jobStatusClass(job.status);
+  return (
+    <article className={`activity-card compact ${statusClass}`}>
+      <div className="activity-card-main">
+        <div className="activity-card-copy">
+          <div className="activity-title-row">
+            <h3>{job.label || humanizeJobKind(job.kind)}</h3>
+            <span className={`pipeline-state ${statusClass}`}>{formatJobStatus(job.status)}</span>
+          </div>
+          <div className="activity-run-line">
+            {job.matterName && <span>{job.matterName}</span>}
+            <span>{humanizeJobKind(job.kind)}</span>
+            {job.resultState && <span>{job.resultState}</span>}
+          </div>
+          {job.errorMessage && (
+            <p style={{ color: 'var(--danger)', fontSize: 12, margin: '6px 0 0' }}>{job.errorMessage}</p>
+          )}
+        </div>
+        <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
+          {finishedTime || startedTime}
+        </time>
+      </div>
+    </article>
   );
 }
 
@@ -306,4 +359,27 @@ function dayLabel(key: string): string {
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+}
+
+function jobStatusClass(status: string): string {
+  if (status === 'succeeded') return 'completed';
+  if (status === 'failed') return 'failed';
+  if (status === 'running') return 'running';
+  if (status === 'cancelled') return 'cancelled';
+  return 'unknown';
+}
+
+function formatJobStatus(status: string): string {
+  if (status === 'succeeded') return 'Complete';
+  if (status === 'failed') return 'Failed';
+  if (status === 'running') return 'Running';
+  if (status === 'cancelled') return 'Cancelled';
+  return status || 'Unknown';
+}
+
+function humanizeJobKind(kind: string): string {
+  return (kind || 'job')
+    .split('_')
+    .map((word) => word ? `${word[0].toUpperCase()}${word.slice(1)}` : '')
+    .join(' ');
 }

@@ -7,6 +7,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     aiSettingsService,
     commandInteractionLogService,
     configService,
+    jobStatusService,
     matterStore,
     runtimeDbStorageService,
     uploadService,
@@ -33,6 +34,14 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, await commandInteractionLogService.appendInteraction({
           ...body,
           matter: await readMatterSummary(matterStore, { matterName: body.matterName }),
+        }));
+      }),
+      exactRoute("GET", "/api/jobs", async () => {
+        sendJson(response, 200, await jobStatusService.listJobs({
+          matterName: requestUrl.searchParams.get("matter") || "",
+          kind: requestUrl.searchParams.get("kind") || "",
+          status: requestUrl.searchParams.get("status") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
         }));
       }),
       exactRoute("GET", "/api/config", async () => {

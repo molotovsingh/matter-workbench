@@ -2132,3 +2132,29 @@ also need restraint: do not attach raw client files, `.env`, provider keys, or
 legal work product unless there is a clear trusted reason. Good beta operations
 collect the minimum useful evidence and avoid turning every bug report into a
 client-data dump.
+
+The durable job-status first slice adds one more practical layer to that same
+beta story. Until now, many important actions were foreground operations: click
+`Run preparation again`, call Set Up Matter, extraction, Source Labels, List of
+Dates, or a custom skill, and then hope the current page, terminal strip, and
+artifact files tell the whole story. That works while everything is fast and
+visible. It becomes weak the moment a run fails halfway, the user switches
+pages, or a custom skill says "output exists" without explaining whether the
+underlying run actually happened.
+
+The new `job-status-service` is deliberately modest. It is not the hosted worker
+queue, and it does not pretend the app can recover a half-finished job after the
+process dies. It writes a local, redacted ledger that says: this long-running
+operation started, this matter owned it, this kind of work ran, and it either
+succeeded or failed with this sanitized reason. The Activity page now shows
+those records under `Matter Jobs`, while custom-skill receipt cards continue to
+own the separate question of output files and whether they can be opened.
+
+That distinction is a good engineering lesson. "What happened operationally?"
+and "what legal work product exists?" are related, but they are not the same
+question. Mixing them creates the kind of receipt bugs we saw earlier, where the
+UI tried to reconstruct run truth from output paths and status flags. Splitting
+them lets the app become more honest. A failed job can be visible even when it
+created no artifact. A completed skill can still have a receipt and output path.
+Later, when hosted workers arrive, the product already has a user-facing place
+for job state instead of inventing it under pressure.

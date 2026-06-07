@@ -20,6 +20,7 @@ import type {
   DoctorFixResult,
   DoctorScanResult,
   ExtractRunResult,
+  JobStatusList,
   ListOfDatesRunResult,
   MatterSkillRunRequest,
   MatterContextPreview,
@@ -223,6 +224,7 @@ export const api = {
     postJson<SkillRouterDecision>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
+  getJobs: (limit = 100) => getJson<JobStatusList>(`/api/jobs?limit=${limit}`),
   getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
   getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
   getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),

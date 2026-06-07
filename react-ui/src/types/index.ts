@@ -171,6 +171,28 @@ export interface SkillRunReceipt {
   outputFileStatusLabel: string;
 }
 
+export interface JobStatus {
+  schema_version?: 'job-status/v1';
+  id: string;
+  kind: string;
+  label: string;
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled' | string;
+  matterName?: string;
+  matterId?: string;
+  startedAt: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  resultState?: string;
+  summary?: string;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface JobStatusList {
+  schema_version?: 'job-status-ledger/v1';
+  jobs: JobStatus[];
+}
+
 export interface SkillIdea {
   id: string;
   text: string;

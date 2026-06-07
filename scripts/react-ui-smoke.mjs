@@ -467,6 +467,19 @@ async function run() {
     fail("Custom skill runs API contract", error.message);
   }
 
+  try {
+    const jobs = await fetchJson("/api/jobs?limit=5");
+    const jobList = Array.isArray(jobs.jobs) ? jobs.jobs : [];
+    assert(jobs.schema_version === "job-status-ledger/v1", "Job status API exposes ledger schema", jobs.schema_version || "missing");
+    assert(Array.isArray(jobs.jobs), "Job status API exposes jobs array", `${jobList.length} jobs`);
+    assert(
+      jobList.every((job) => typeof job?.id === "string" && typeof job?.kind === "string" && typeof job?.status === "string"),
+      "Job status rows expose id, kind, and status",
+    );
+  } catch (error) {
+    fail("Job status API contract", error.message);
+  }
+
   if (configPayload?.hasActiveMatter) {
     try {
       const workspace = await fetchJson("/api/workspace");

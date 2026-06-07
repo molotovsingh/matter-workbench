@@ -1,6 +1,6 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.6` supervised local/private beta
+Status: Current checklist for `v1.0.0-beta.7` supervised local/private beta
 
 This is the practical runbook for operating Matter Workbench as a private local
 or local/private runtime-DB beta. It is written for one trusted operator, not
@@ -27,7 +27,7 @@ Confirm the repo is on the release checkpoint. Once the tag has been cut:
 
 ```bash
 git fetch origin --tags
-git checkout v1.0.0-beta.6
+git checkout v1.0.0-beta.7
 ```
 
 Before the tag exists, stay on the current release-candidate branch and confirm
@@ -138,12 +138,15 @@ For a matter test:
 1. Create or select a matter.
 2. Upload original files.
 3. Let automatic preparation run.
-4. Review the Preparation Advisory.
-5. Open Source Labels / Document Index.
-6. Open List of Dates.
-7. Ask one or two bounded Copilot questions from the matter record.
-8. Check Activity receipts for any custom-skill run outputs.
-9. Record anything that is confusing, wrong, slow, or legally weak.
+4. If preparation or a custom skill appears to hang, skip, or fail, open
+   Activity and check `Matter Jobs` before relying on the shorter command-panel
+   activity strip.
+5. Review the Preparation Advisory.
+6. Open Source Labels / Document Index.
+7. Open List of Dates.
+8. Ask one or two bounded Copilot questions from the matter record.
+9. Check Activity receipts for any custom-skill run outputs.
+10. Record anything that is confusing, wrong, slow, or legally weak.
 
 The advisory is not noise. It is the current local surface for OCR warnings,
 source-label review, skipped files, run warnings, and matter-scoped failures.
