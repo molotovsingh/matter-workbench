@@ -2249,8 +2249,18 @@ marker moved forward to `v1.0.0-beta.8`. That is the right release habit. Tags
 are promises; if a promise was made too early, make a clearer next promise
 instead of silently rewriting the old one.
 
-The RC pack default now matches `v1.0.0-beta.8`, and representative VM closure
-evidence is checked into `docs/private-beta-rc-closure-packs/`. The engineering
-lesson is that handoff tools deserve the same honesty as application code. If an
-acceptance command needs a browser driver, make that dependency visible. If a
-release note says beta.8, the release pack should not quietly print beta.5.
+The RC pack default now follows the current release marker, and representative
+VM closure evidence is checked into `docs/private-beta-rc-closure-packs/`. The
+engineering lesson is that handoff tools deserve the same honesty as application
+code. If an acceptance command needs a browser driver, make that dependency
+visible. If a release note says beta.9, the release pack should not quietly print
+beta.5.
+
+The next handoff lesson is smaller but very beta-real: once the app has a
+**Have a problem? Tell us what happened** feedback flow, the tester brief should
+not still ask people to manually reconstruct bug reports for the operator. Good
+beta systems make the desired behavior the easy behavior. The tester clicks the
+plain button and writes what happened; the operator reads Activity feedback and
+only then runs the heavier bug evidence pack if deeper developer context is
+needed. That correction became `v1.0.0-beta.9`, because release tags should also
+capture how the product is meant to be operated by humans.

@@ -16,7 +16,7 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
-Current release checkpoint: [Matter Workbench v1.0.0-beta.8](docs/releases/v1.0.0-beta.8.md).
+Current release checkpoint: [Matter Workbench v1.0.0-beta.9](docs/releases/v1.0.0-beta.9.md).
 
 For the practical supervised local/private beta runbook, see
 [docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
@@ -35,7 +35,7 @@ For runtime DB browser acceptance evidence, see
 For representative intake/file-type acceptance evidence, see
 [docs/intake-reliability-pack.md](docs/intake-reliability-pack.md).
 For the local durable job-status first slice and current private-VM release marker,
-see [docs/releases/v1.0.0-beta.8.md](docs/releases/v1.0.0-beta.8.md).
+see [docs/releases/v1.0.0-beta.9.md](docs/releases/v1.0.0-beta.9.md).
 
 For the current tester-facing workflow, command panel inputs, recommended
 local env, paid rerun behavior, and review checklist, see

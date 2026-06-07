@@ -22,7 +22,7 @@ equally authoritative.
 | Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
-| Current release notes | [v1.0.0-beta.8](releases/v1.0.0-beta.8.md) |
+| Current release notes | [v1.0.0-beta.9](releases/v1.0.0-beta.9.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -68,7 +68,8 @@ implementation plan.
 | [v1.0.0-beta.5](releases/v1.0.0-beta.5.md) | Private beta release-candidate closure pack note. |
 | [v1.0.0-beta.6](releases/v1.0.0-beta.6.md) | Private beta ops-loop and bug evidence note. |
 | [v1.0.0-beta.7](releases/v1.0.0-beta.7.md) | Local durable job-status first-slice note. |
-| [v1.0.0-beta.8](releases/v1.0.0-beta.8.md) | Current private-VM release marker and handoff correction note. |
+| [v1.0.0-beta.8](releases/v1.0.0-beta.8.md) | Private-VM release marker and handoff correction note. |
+| [v1.0.0-beta.9](releases/v1.0.0-beta.9.md) | Current feedback-first tester handoff release marker. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
 | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) | Operating rule for bug-fix-only supervised beta work. |
