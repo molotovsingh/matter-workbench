@@ -2,7 +2,8 @@
 
 Status: private beta bug handoff evidence
 
-Run this after a private beta tester reports a confusing UI state, missing
+Run this after a private beta tester submits an in-app feedback note, or after
+the operator receives a direct report about a confusing UI state, missing
 output, failed skill run, bad preparation behavior, or service/runtime concern.
 
 ```bash
@@ -34,7 +35,8 @@ The pack writes:
 
 The bug evidence pack includes:
 
-- the operator's short issue note;
+- the operator's short issue note, ideally copied from the Activity feedback
+  record;
 - the target matter name, if supplied;
 - the private VM service smoke result;
 - runtime DB enabled/disabled posture;
@@ -54,7 +56,9 @@ private beta circle. Redaction is a guardrail, not a substitute for judgment.
 
 ## When To Use It
 
-Use `private-beta:bug-evidence-pack` for one bug or quality concern.
+Use `private-beta:bug-evidence-pack` for one bug or quality concern after the
+tester feedback record exists, or when the app is unavailable and direct
+operator capture is the only option.
 
 Use `private-vm:ops-pack` for daily service health and rollback posture.
 
@@ -68,7 +72,7 @@ acceptable for beta.
 The preferred private beta bug report is now:
 
 ```text
-1. What the tester saw.
+1. Activity feedback packet, or a direct note if the app was unavailable.
 2. Matter name and rough time.
 3. Screenshot, if visual.
 4. bug-evidence-pack.md.

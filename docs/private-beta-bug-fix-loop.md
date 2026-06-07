@@ -31,10 +31,13 @@ Parked work:
 
 For each report:
 
-1. Capture the tester's short report first.
+1. Capture the tester's short report first. Prefer the in-app
+   **Have a problem? Tell us what happened** feedback record when it exists.
 2. Record matter name, time, command/button, visible model/provider, exact error
-   text, and screenshot if visual.
-3. Run the bug evidence pack when developer handoff needs more context:
+   text, and screenshot if visual. If the tester used the in-app feedback flow,
+   start from the Activity feedback packet instead of asking them to recreate
+   the whole context manually.
+3. Run the bug evidence pack only when developer handoff needs more context:
 
    ```bash
    npm run private-beta:bug-evidence-pack -- \

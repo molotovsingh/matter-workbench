@@ -41,7 +41,9 @@ For each matter, try this flow:
 7. Ask Copilot one specific question from the matter record.
 8. Run one custom skill only on a matter where replacing generated output is acceptable.
 9. Open Activity if anything seems to hang, skip, or fail.
-10. Tell the operator exactly what confused you or looked legally weak.
+10. If something is confusing, wrong, slow, or legally weak, click
+    **Have a problem? Tell us what happened** and write a short plain-language
+    note.
 
 Good tester questions:
 
@@ -84,7 +86,17 @@ Stop testing and report the issue if:
 
 ## How To Report A Bug
 
-Give the operator:
+Use the in-app **Have a problem? Tell us what happened** button first. You do
+not need to know whether the issue is a bug, feature idea, OCR problem, legal
+quality concern, or setup problem. Pick the closest simple choice and write:
+
+- what you were trying to do;
+- what happened instead;
+- the matter name if it is not obvious from the screen.
+
+The app stores that note with useful context for the operator, such as the
+current screen, selected matter, and recent activity. If the app is unavailable
+or the operator asks for more detail, give the operator:
 
 - matter name;
 - time of the issue;
@@ -94,11 +106,12 @@ Give the operator:
 - whether the issue is about upload, preparation, advisory, Source Labels,
   List of Dates, Copilot, Skills, Activity, Settings, or output quality.
 
-Do not send raw client files unless the operator specifically asks and confirms
-the sharing boundary.
+Do not manually export diagnostic files. Do not send raw client files unless
+the operator specifically asks and confirms the sharing boundary.
 
-The operator can then run the private beta bug evidence pack. That evidence is
-for developer handoff; your job is to report what happened clearly.
+The operator can then review Activity feedback and run the private beta bug
+evidence pack if developer handoff needs more evidence. Your job is to report
+what happened clearly, not to diagnose the app.
 
 ## Current Beta Boundary
 

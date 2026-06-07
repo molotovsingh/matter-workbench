@@ -135,9 +135,12 @@ Before giving a tester access:
 5. Back up any real matter folder before write testing.
 6. Keep provider keys, `.env`, database URLs, raw client files, and generated
    work product inside the trusted beta circle.
-7. For each bug, collect the tester's short report first, then run
-   `private-beta:bug-evidence-pack` if developer handoff needs more evidence.
-8. Do not widen access until the public/hosted requirements in the current
+7. Tell the tester to use **Have a problem? Tell us what happened** inside the
+   app whenever something is confusing, wrong, slow, or legally weak.
+8. Review Activity for new tester feedback and sync status. Run
+   `private-beta:bug-evidence-pack` only when developer handoff needs more
+   evidence than the feedback record already captured.
+9. Do not widen access until the public/hosted requirements in the current
    known risks are closed.
 
 After handoff, use the [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md)
@@ -204,6 +207,7 @@ and replace generated artifacts.
 
 For every bug or quality concern, capture:
 
+- the in-app feedback record if the tester submitted one;
 - matter name;
 - time of run;
 - command/button clicked;
@@ -228,7 +232,9 @@ Useful paths to inspect during local beta:
 
 Do not share `.env`, raw API keys, or private client documents in bug reports.
 
-For a normal private beta bug handoff, create a redacted bug evidence pack:
+For a normal private beta bug handoff, start with the Activity feedback record.
+If the issue needs deeper developer handoff, create a redacted bug evidence
+pack:
 
 ```bash
 npm run private-beta:bug-evidence-pack -- \
