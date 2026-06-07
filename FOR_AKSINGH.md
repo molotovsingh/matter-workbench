@@ -2397,3 +2397,13 @@ job: orchestrate the chronology run. The lesson is that "prepare the evidence
 packet" is not the same thing as "ask the model for dates." Once those are
 separate, OCR/source-label/file-register bugs can be tested without dragging
 provider calls or chronology writing into every test.
+
+The fifth split was entry normalization: `listofdates/entries.mjs` now owns
+turning model output into accepted chronology entries and first-pass candidate
+rows. That includes date validation, client-perspective filtering, source-label
+hydration, tag cleanup, confidence clamping, raw-citation stripping, and the
+careful softening of unsupported legal conclusions. This is exactly the kind of
+logic that should not be hidden in a giant engine function. It is policy-heavy,
+but not network-heavy. By isolating it, we can test legal-output discipline
+without making an AI call, writing a file, or running the whole chronology
+pipeline.
