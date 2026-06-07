@@ -133,6 +133,45 @@ test("rerun advice confirms current source descriptors and allows stale reruns",
   assert.equal(stale.newestInputPath, "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json");
 });
 
+test("rerun advice marks source descriptors stale when extraction hashes changed despite older mtimes", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-source-hash-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(path.join(root, "10_Library"), { recursive: true });
+  const recordPath = path.join(extractedDir, "FILE-0001.json");
+  const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
+  await writeFile(recordPath, `${JSON.stringify({
+    file_id: "FILE-0001",
+    sha256: "hash-two",
+  })}\n`);
+  await writeFile(sourceIndexPath, `${JSON.stringify({
+    generated_at: "2026-05-11T10:00:00.000Z",
+    sources: [{
+      file_id: "FILE-0001",
+      sha256: "hash-one",
+      content_hash: "hash-one",
+    }],
+  })}\n`);
+
+  const oldDate = new Date("2026-05-11T09:00:00.000Z");
+  const currentDate = new Date("2026-05-11T10:00:00.000Z");
+  await utimes(recordPath, oldDate, oldDate);
+  await utimes(sourceIndexPath, currentDate, currentDate);
+
+  const service = createMatterStatusService({
+    matterStore: {
+      ensureMatterRoot: () => root,
+      listIntakeFolders: async () => [{ name: "Intake 01 - Initial", intakeNumber: 1 }],
+    },
+  });
+
+  const advice = await service.readRerunAdvice("/describe_sources");
+  assert.equal(advice.state, "stale");
+  assert.equal(advice.shouldConfirm, false);
+  assert.equal(advice.newestInputPath, "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json");
+  assert.match(advice.reason, /changed source content/i);
+});
+
 test("rerun advice confirms current list of dates and skips missing artifacts", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-list-test-"));
   const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
@@ -265,6 +304,55 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
   const regeneration = await service.readRerunAdvice("/create_listofdates");
   assert.equal(regeneration.dependencyState, "chronology_regeneration_needed");
   assert.equal(regeneration.shouldConfirm, false);
+});
+
+test("list of dates rerun advice detects source hash changes without relying on mtimes", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-list-hash-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(path.join(root, "10_Library"), { recursive: true });
+  const recordPath = path.join(extractedDir, "FILE-0001.json");
+  const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
+  const listJsonPath = path.join(root, "10_Library", "List of Dates.json");
+  const listMarkdownPath = path.join(root, "10_Library", "List of Dates.md");
+
+  await writeFile(recordPath, "{}\n");
+  await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
+    displayLabel: "Confirmed notice label",
+    contentHash: "hash-two",
+    documentType: "notice",
+  }))}\n`);
+  await writeFile(listMarkdownPath, "# List of Dates\n");
+  await writeFile(listJsonPath, `${JSON.stringify({
+    generated_at: "2026-05-11T12:00:00.000Z",
+    source_snapshot: [{
+      file_id: "FILE-0001",
+      content_hash: "hash-one",
+      document_type: "notice",
+      document_date: "2026-05-01",
+      needs_review: false,
+    }],
+  })}\n`);
+
+  const oldDate = new Date("2026-05-11T10:00:00.000Z");
+  const listDate = new Date("2026-05-11T12:00:00.000Z");
+  await utimes(recordPath, oldDate, oldDate);
+  await utimes(sourceIndexPath, oldDate, oldDate);
+  await utimes(listJsonPath, listDate, listDate);
+  await utimes(listMarkdownPath, listDate, listDate);
+
+  const service = createMatterStatusService({
+    matterStore: {
+      ensureMatterRoot: () => root,
+      listIntakeFolders: async () => [{ name: "Intake 01 - Initial", intakeNumber: 1 }],
+    },
+  });
+
+  const advice = await service.readRerunAdvice("/create_listofdates");
+  assert.equal(advice.state, "stale");
+  assert.equal(advice.shouldConfirm, false);
+  assert.equal(advice.dependencyState, "chronology_regeneration_needed");
+  assert.equal(advice.newestInputPath, "10_Library/Source Index.json");
 });
 
 function sourceIndexFixture({ displayLabel, contentHash, documentType }) {

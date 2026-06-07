@@ -2343,3 +2343,15 @@ slot. The fix was a per-matter write queue around the allocation, file write,
 and `matter-init` refresh. The important idea is that identifiers are not just
 labels; they are source identity. If two requests can mint source identity, that
 minting step needs to be serialized.
+
+The next rerun-advice lesson was about stale work product hiding behind clean
+timestamps. Source Index and List of Dates used to ask a simple question: "is
+any upstream file newer than this artifact?" That is a useful fallback, but it
+is not a legal-workbench contract. A copy, restore, cache write, or operator
+repair can leave an old-looking timestamp on source text whose hash has changed.
+The safer question is now content-aware: does the current extraction hash still
+match the Source Index, and does the current Source Index/source snapshot still
+match the List of Dates? If source content changes, the downstream artifact is
+stale even when the mtime says otherwise. If only lawyer-facing labels changed,
+the app can still choose the cheap label-refresh path. The engineering lesson:
+mtime is a weather report; source hashes and snapshots are the audit trail.

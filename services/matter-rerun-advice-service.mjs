@@ -37,6 +37,7 @@ export async function describeSourcesRerunAdvice(root) {
     upstreamInputs: extractionInputs,
     staleDescription: "newer extraction records were found",
     currentDescription: "No newer extraction records were found.",
+    findContentChange: findSourceDescriptorContentChange,
   });
 }
 
@@ -63,6 +64,11 @@ export async function listOfDatesRerunAdvice(root) {
     ],
     staleDescription: "newer extraction records or Source Index changes were found",
     currentDescription: "No newer extraction records or Source Index changes were found.",
+    findContentChange: ({ target: listTarget, upstreamInputs: inputs }) => findListOfDatesContentChange({
+      target: listTarget,
+      upstreamInputs: inputs,
+      sourceIndex: sourceIndexJson,
+    }),
     classifyStaleDependency: (newestInput) => classifyListOfDatesDependencyState({
       target,
       newestInput,
@@ -79,6 +85,7 @@ function buildRerunAdvice({
   upstreamInputs,
   staleDescription,
   currentDescription,
+  findContentChange = null,
   classifyStaleDependency = null,
 }) {
   if (!target.exists) {
@@ -108,10 +115,14 @@ function buildRerunAdvice({
   const newestInput = upstreamInputs.reduce((newest, input) => (
     !newest || input.mtimeMs > newest.mtimeMs ? input : newest
   ), null);
-  const stale = newestInput && newestInput.mtimeMs > target.mtimeMs + 1;
-  if (stale) {
+  const contentChangedInput = typeof findContentChange === "function"
+    ? findContentChange({ target, upstreamInputs })
+    : null;
+  const mtimeStale = newestInput && newestInput.mtimeMs > target.mtimeMs + 1;
+  const staleInput = contentChangedInput || (mtimeStale ? newestInput : null);
+  if (staleInput) {
     const dependencyState = typeof classifyStaleDependency === "function"
-      ? classifyStaleDependency(newestInput)
+      ? (staleInput.dependencyState || classifyStaleDependency(staleInput))
       : "";
     const labelRefreshOnly = dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED;
     const advice = baseRerunAdvice({
@@ -124,10 +135,10 @@ function buildRerunAdvice({
       aiRun: normalizeAiRunMetadata(target.json?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
       reason: labelRefreshOnly
         ? "Only Source Index labels appear newer than this artifact."
-        : staleDescription,
+        : staleInput.reason || staleDescription,
       dependencyState,
-      newestInputPath: newestInput.relativePath,
-      newestInputAt: new Date(newestInput.mtimeMs).toISOString(),
+      newestInputPath: staleInput.relativePath,
+      newestInputAt: staleInput.mtimeMs ? new Date(staleInput.mtimeMs).toISOString() : "",
     });
     if (labelRefreshOnly) advice.message = formatLabelRefreshMessage(advice);
     return advice;
@@ -222,9 +233,12 @@ async function listExtractionRecordInputs(root) {
       if (!entry.isFile() || !/^FILE-\d+\.json$/i.test(entry.name)) continue;
       const filePath = path.join(extractedDir, entry.name);
       const fileStat = await stat(filePath);
+      const json = await readJsonIfPossible(filePath);
       inputs.push({
         relativePath: toMatterRelative(root, filePath),
         mtimeMs: fileStat.mtimeMs,
+        fileId: normalizeText(json?.file_id) || normalizeText(json?.fileId) || entry.name.replace(/\.json$/i, ""),
+        contentHash: sourceContentHash(json),
       });
     }
   }
@@ -307,6 +321,154 @@ async function readJsonIfPossible(filePath) {
 
 function artifactRunTime(target) {
   return normalizeText(target.json?.generated_at) || target.mtimeIso || "";
+}
+
+function findSourceDescriptorContentChange({ target, upstreamInputs }) {
+  const previousByFileId = sourceIndexSourceMap(target.json);
+  if (!previousByFileId.size) return null;
+  for (const input of upstreamInputs) {
+    if (!input.fileId || !input.contentHash) continue;
+    const previous = previousByFileId.get(input.fileId);
+    if (!previous) {
+      return {
+        ...input,
+        reason: "Changed source content was found after the Source Index was built.",
+      };
+    }
+    if (previous.contentHash && previous.contentHash !== input.contentHash) {
+      return {
+        ...input,
+        reason: "Changed source content was found after the Source Index was built.",
+      };
+    }
+  }
+  return null;
+}
+
+function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
+  const snapshotByFileId = listOfDatesSnapshotMap(target.json);
+  if (!snapshotByFileId.size) return null;
+  for (const input of upstreamInputs) {
+    if (input.inputKind !== "extraction_record" || !input.fileId || !input.contentHash) continue;
+    const previous = snapshotByFileId.get(input.fileId);
+    if (!previous) {
+      return {
+        ...input,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "Changed source content was found after the List of Dates was built.",
+      };
+    }
+    if (previous.contentHash && previous.contentHash !== input.contentHash) {
+      return {
+        ...input,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "Changed source content was found after the List of Dates was built.",
+      };
+    }
+  }
+
+  const sourceIndexInput = upstreamInputs.find((input) => input.inputKind === "source_index");
+  if (!sourceIndexInput || !sourceIndex || !Array.isArray(sourceIndex.sources)) return null;
+  const currentByFileId = sourceIndexSourceMap(sourceIndex);
+  for (const current of sourceIndex.sources) {
+    const currentFileId = sourceFileId(current);
+    if (currentFileId && !snapshotByFileId.has(currentFileId)) {
+      return {
+        ...sourceIndexInput,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "A new source appears in Source Index after the List of Dates was built.",
+      };
+    }
+  }
+  for (const [fileId, previous] of snapshotByFileId) {
+    const current = currentByFileId.get(fileId);
+    if (!current) {
+      return {
+        ...sourceIndexInput,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "A source from the List of Dates snapshot is missing from current Source Index.",
+      };
+    }
+    if (previous.contentHash && current.contentHash && previous.contentHash !== current.contentHash) {
+      return {
+        ...sourceIndexInput,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "Changed source content was found after the List of Dates was built.",
+      };
+    }
+    if (
+      previous.documentType !== current.documentType
+      || previous.documentDate !== current.documentDate
+      || previous.needsReview !== current.needsReview
+    ) {
+      return {
+        ...sourceIndexInput,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
+        reason: "Source metadata changed after the List of Dates was built.",
+      };
+    }
+    if (
+      previous.label !== current.label
+      || previous.shortLabel !== current.shortLabel
+      || previous.labelStatus !== current.labelStatus
+      || previous.labelRevision !== current.labelRevision
+    ) {
+      return {
+        ...sourceIndexInput,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
+        reason: "Source labels changed after the List of Dates was rendered.",
+      };
+    }
+  }
+  return null;
+}
+
+function sourceIndexSourceMap(json) {
+  const map = new Map();
+  const sources = Array.isArray(json?.sources) ? json.sources : [];
+  for (const source of sources) {
+    const fileId = sourceFileId(source);
+    if (!fileId) continue;
+    map.set(fileId, {
+      contentHash: sourceContentHash(source),
+      documentType: normalizeText(source?.document_type),
+      documentDate: normalizeText(source?.document_date),
+      needsReview: Boolean(source?.needs_review),
+      label: normalizeText(source?.confirmed_label) || normalizeText(source?.display_label) || normalizeText(source?.source_label),
+      shortLabel: normalizeText(source?.short_label) || normalizeText(source?.source_short_label),
+      labelStatus: normalizeText(source?.label_status),
+      labelRevision: source?.label_revision == null ? "" : String(source.label_revision),
+    });
+  }
+  return map;
+}
+
+function listOfDatesSnapshotMap(json) {
+  const map = new Map();
+  const snapshot = Array.isArray(json?.source_snapshot) ? json.source_snapshot : [];
+  for (const source of snapshot) {
+    const fileId = sourceFileId(source);
+    if (!fileId) continue;
+    map.set(fileId, {
+      contentHash: sourceContentHash(source),
+      documentType: normalizeText(source?.document_type),
+      documentDate: normalizeText(source?.document_date),
+      needsReview: Boolean(source?.needs_review),
+      label: normalizeText(source?.source_label) || normalizeText(source?.display_label),
+      shortLabel: normalizeText(source?.source_short_label) || normalizeText(source?.short_label),
+      labelStatus: normalizeText(source?.label_status),
+      labelRevision: source?.label_revision == null ? "" : String(source.label_revision),
+    });
+  }
+  return map;
+}
+
+function sourceContentHash(value = {}) {
+  return normalizeText(value.content_hash) || normalizeText(value.sha256) || "";
+}
+
+function sourceFileId(source = {}) {
+  return normalizeText(source.file_id) || normalizeText(source.fileId) || normalizeText(source.source_id);
 }
 
 function normalizeSkillName(skill) {
