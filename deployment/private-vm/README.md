@@ -62,10 +62,9 @@ systemctl --user stop matter-workbench-runtime.service
 journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager
 ```
 
-## Ops And Incident Bundle
+## Ops, Bug Evidence, And Incident Bundles
 
-For routine beta operation or after a user reports a problem, create a
-lightweight ops pack first:
+For routine beta operation, create a lightweight ops pack:
 
 ```bash
 set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
@@ -85,6 +84,23 @@ Use the ops pack when you need a quick picture of service health, current
 deployment, rollback candidate, disk/memory posture, and recent service logs.
 It does not back up the database and it does not perform rollback by itself.
 Review `rollback-plan.sh` before running it.
+
+When a private beta tester reports a specific bug, create a bug evidence pack
+instead of sending scattered screenshots and terminal scrollback:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-beta:bug-evidence-pack -- \
+  --base-url http://127.0.0.1:4191 \
+  --out-dir "$HOME/matter-workbench-backups/bug-evidence" \
+  --matter "Matter Name" \
+  --note "Short description of what the tester saw"
+```
+
+The bug evidence pack writes a redacted Markdown/JSON handoff and nests an ops
+pack inside it. It captures service smoke, runtime DB posture, current
+deployment, rollback candidate, and recent command-panel interactions. It does
+not attach raw matter documents or `.env` files.
 
 ## Access And Security Check
 

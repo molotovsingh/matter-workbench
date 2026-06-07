@@ -353,11 +353,11 @@ test("package and release docs expose the private beta RC closure pack", async (
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");
 
   const readme = await readFile(readmePath, "utf8");
-  assert.match(readme, /v1\.0\.0-beta\.5/);
+  assert.match(readme, /v1\.0\.0-beta\.6/);
   assert.match(readme, /private-beta:rc-closure-pack/);
 
   const checklist = await readFile(checklistPath, "utf8");
-  assert.match(checklist, /v1\.0\.0-beta\.5/);
+  assert.match(checklist, /v1\.0\.0-beta\.6/);
   assert.match(checklist, /private-beta:rc-closure-pack/);
 
   const release = await readFile(releasePath, "utf8");

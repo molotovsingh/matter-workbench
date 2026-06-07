@@ -2113,3 +2113,22 @@ ambitious. A team can argue forever about whether the app "feels ready." It is
 much harder to argue with a closure bundle that records the commit, branch,
 local tests, browser behavior, service health, rollback posture, and recovery
 proof. This is how good engineers turn a release from a mood into an artifact.
+
+The private beta bug evidence pack is the next, smaller loop. Release closure
+answers, "Can we ship this checkpoint?" Bug evidence answers, "What exactly
+happened when the tester hit this one problem?" That is why
+`npm run private-beta:bug-evidence-pack` is intentionally narrower than the RC
+closure pack. It captures the operator note, target matter name, live service
+smoke, runtime DB posture, current deployment, rollback candidate, and recent
+command-panel interactions. It also nests the ops pack so the developer can see
+service health without asking the tester to rerun five separate commands.
+
+The product lesson is that a private beta should not depend on heroic memory.
+When someone reports "the skill output disappeared" or "the page got stuck,"
+we need more than a screenshot and vibes. We need enough evidence to reproduce
+the route, inspect the service posture, and decide whether this is UI state,
+runtime DB custody, file preview, command routing, or provider behavior. But we
+also need restraint: do not attach raw client files, `.env`, provider keys, or
+legal work product unless there is a clear trusted reason. Good beta operations
+collect the minimum useful evidence and avoid turning every bug report into a
+client-data dump.

@@ -18,7 +18,8 @@ equally authoritative.
 | Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
-| Current release notes | [v1.0.0-beta.4](releases/v1.0.0-beta.4.md) |
+| Current release notes | [v1.0.0-beta.6](releases/v1.0.0-beta.6.md) |
+| Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
 
@@ -59,8 +60,11 @@ implementation plan.
 | [v1.0.0-beta.1](releases/v1.0.0-beta.1.md) | First beta release note. |
 | [v1.0.0-beta.2](releases/v1.0.0-beta.2.md) | React production-shell beta release note. |
 | [v1.0.0-beta.3](releases/v1.0.0-beta.3.md) | Owner-accepted React local beta release note. |
-| [v1.0.0-beta.4](releases/v1.0.0-beta.4.md) | Current runtime DB local/private cutover release note. |
+| [v1.0.0-beta.4](releases/v1.0.0-beta.4.md) | Runtime DB local/private cutover release note. |
+| [v1.0.0-beta.5](releases/v1.0.0-beta.5.md) | Private beta release-candidate closure pack note. |
+| [v1.0.0-beta.6](releases/v1.0.0-beta.6.md) | Current private beta ops-loop and bug evidence note. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
+| [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) | One-bug private beta handoff evidence. |
 | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) | Clean-slate real-matter acceptance evidence. |
 
 Historical model bakeoffs and runtime smokes are evidence notes. They are useful

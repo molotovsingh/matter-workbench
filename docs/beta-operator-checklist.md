@@ -1,6 +1,6 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.5` supervised local/private beta
+Status: Current checklist for `v1.0.0-beta.6` supervised local/private beta
 
 This is the practical runbook for operating Matter Workbench as a private local
 or local/private runtime-DB beta. It is written for one trusted operator, not
@@ -27,7 +27,7 @@ Confirm the repo is on the release checkpoint. Once the tag has been cut:
 
 ```bash
 git fetch origin --tags
-git checkout v1.0.0-beta.5
+git checkout v1.0.0-beta.6
 ```
 
 Before the tag exists, stay on the current release-candidate branch and confirm
@@ -197,6 +197,32 @@ Useful paths to inspect during local beta:
 
 Do not share `.env`, raw API keys, or private client documents in bug reports.
 
+For a normal private beta bug handoff, create a redacted bug evidence pack:
+
+```bash
+npm run private-beta:bug-evidence-pack -- \
+  --base-url http://127.0.0.1:4191 \
+  --matter "Matter Name" \
+  --note "Short description of what the tester saw"
+```
+
+On the private VM:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-beta:bug-evidence-pack -- \
+  --base-url http://127.0.0.1:4191 \
+  --out-dir "$HOME/matter-workbench-backups/bug-evidence" \
+  --matter "Matter Name" \
+  --note "Short description of what the tester saw"
+```
+
+Attach the generated `bug-evidence-pack.md` and `bug-evidence-pack.json` to the
+developer handoff after reviewing them. The pack also creates a nested ops pack
+when service health or deployment state may matter. It is designed to avoid raw
+client documents and secret values, but review before sharing outside the
+trusted beta circle.
+
 ## Stop Rules
 
 Stop and investigate before relying on output if:
@@ -306,4 +332,4 @@ unacceptable.
 
 Current accepted local/private beta:
 
-[Matter Workbench v1.0.0-beta.5](releases/v1.0.0-beta.5.md)
+[Matter Workbench v1.0.0-beta.6](releases/v1.0.0-beta.6.md)
