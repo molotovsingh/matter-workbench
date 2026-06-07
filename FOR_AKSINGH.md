@@ -2366,3 +2366,13 @@ routes do not need to learn a new public API. The lesson is how mature refactors
 start: peel off the concern that changes for a different reason, preserve the
 contract, prove the behavior with focused tests, then leave the next split for a
 separate pass.
+
+The next split was the List of Dates artifact contract: JSON schemas and CSV
+headers moved into `listofdates/contracts.mjs`. That is not just tidying. Those
+objects define what the provider must return and what downstream surfaces can
+read from `List of Dates.csv` and `List of Dates.json`. Keeping them in a small
+contract module makes future changes easier to review: a column, enum, or
+required field change is visibly a contract change, not a random edit buried
+inside orchestration. After this pass the root engine dropped below 1000 lines,
+but the more important result is conceptual: providers, contracts, and
+orchestration are now separate reasons to change.
