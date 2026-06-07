@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "private-beta-rc-closure-pack/v1",
+  "release": "v1.0.0-beta.7",
+  "generatedAt": "2026-06-07T14:23:39.802Z",
+  "packDir": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z",
+  "baseUrl": "http://127.0.0.1:4191",
+  "success": true,
+  "failedChecks": [],
+  "git": {
+    "label": "git_state",
+    "ok": true,
+    "branch": "codex/matter-workbench-checkpoint-2026-05-17",
+    "commit": "04d2659",
+    "statusShort": "",
+    "branchCommandOk": false,
+    "commitCommandOk": false,
+    "statusCommandOk": false,
+    "metadataSource": "supplied",
+    "clean": true
+  },
+  "localGates": {
+    "label": "local_verification",
+    "ok": true,
+    "checks": [
+      {
+        "label": "ui_typecheck",
+        "ok": true,
+        "command": "npm run ui:typecheck --silent",
+        "exitCode": 0,
+        "stdoutTail": "",
+        "stderrTail": ""
+      },
+      {
+        "label": "ui_build",
+        "ok": true,
+        "command": "npm run ui:build --silent",
+        "exitCode": 0,
+        "stdoutTail": "vite v6.4.2 building for production...\ntransforming...\n✓ 84 modules transformed.\nrendering chunks...\ncomputing gzip size...\n../react-dist/index.html                   0.45 kB │ gzip:   0.29 kB\n../react-dist/assets/index-DswIkxig.css   60.18 kB │ gzip:  10.60 kB\n../react-dist/assets/index-BeIvSoc-.js   357.10 kB │ gzip: 103.32 kB\n✓ built in 571ms\n",
+        "stderrTail": ""
+      },
+      {
+        "label": "full_test_suite",
+        "ok": true,
+        "command": "npm test --silent",
+        "exitCode": 0,
+        "stdoutTail": "rkspace preview renders List of Dates markdown actions\n  ---\n  duration_ms: 0.103332\n  type: 'test'\n  ...\n# Subtest: workspace preview does not render markdown actions for other files\nok 1020 - workspace preview does not render markdown actions for other files\n  ---\n  duration_ms: 0.094083\n  type: 'test'\n  ...\n# Subtest: workspace tree marks the active preview file\nok 1021 - workspace tree marks the active preview file\n  ---\n  duration_ms: 0.075582\n  type: 'test'\n  ...\n# Subtest: List of Dates markdown parser preserves source fragments and escaped pipes\nok 1022 - List of Dates markdown parser preserves source fragments and escaped pipes\n  ---\n  duration_ms: 0.791616\n  type: 'test'\n  ...\n# Subtest: List of Dates markdown preview renders a scannable chronology\nok 1023 - List of Dates markdown preview renders a scannable chronology\n  ---\n  duration_ms: 0.604702\n  type: 'test'\n  ...\n# Subtest: List of Dates markdown preview hides raw technical citations\nok 1024 - List of Dates markdown preview hides raw technical citations\n  ---\n  duration_ms: 0.995905\n  type: 'test'\n  ...\n1..1024\n# tests 1024\n# suites 0\n# pass 1016\n# fail 0\n# cancelled 0\n# skipped 8\n# todo 0\n# duration_ms 4233.261539\n",
+        "stderrTail": ""
+      }
+    ]
+  },
+  "runtimeDbBrowser": {
+    "label": "runtime_db_browser",
+    "ok": true,
+    "passed": true,
+    "runtimeDbEnabled": true,
+    "runtimeDbMode": "postgres/postgres",
+    "runtimeDbStorageMode": "postgres",
+    "writeSmokePassed": true,
+    "browserPassed": true,
+    "browserDriver": "playwright",
+    "browserChecks": [
+      {
+        "key": "private_beta_login",
+        "passed": true,
+        "detail": "Signed in through the React login screen."
+      },
+      {
+        "key": "react_root_loaded",
+        "passed": true,
+        "detail": "React shell rendered."
+      },
+      {
+        "key": "runtime_db_matters_listed",
+        "passed": true,
+        "detail": "15 matter(s) listed from runtime DB."
+      },
+      {
+        "key": "home_and_matter_navigation",
+        "passed": true,
+        "detail": "Selected Atlas Constuction vs Diptishree."
+      },
+      {
+        "key": "workspace_preview",
+        "passed": true,
+        "detail": "Previewed 00_Inbox/Intake 01 - 2026-05-17 Initial/_extracted/FILE-0001.json."
+      },
+      {
+        "key": "advisory_visible",
+        "passed": true,
+        "detail": "matter-attention/v1"
+      },
+      {
+        "key": "activity_receipts_visible",
+        "passed": true,
+        "detail": "Activity page opened."
+      },
+      {
+        "key": "settings_visible",
+        "passed": true,
+        "detail": "Settings page opened."
+      }
+    ],
+    "consoleErrors": [],
+    "files": {
+      "json": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/runtime-db-browser/runtime-db-browser-acceptance-pack-2026-06-07T14-23-39-802Z/runtime-db-browser-acceptance-pack.json",
+      "markdown": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/runtime-db-browser/runtime-db-browser-acceptance-pack-2026-06-07T14-23-39-802Z/runtime-db-browser-acceptance-pack.md"
+    },
+    "error": ""
+  },
+  "privateVmService": {
+    "label": "private_vm_service",
+    "ok": true,
+    "passed": true,
+    "runtimeDbEnabled": true,
+    "matterCount": 15,
+    "targetMatter": "Atlas Constuction vs Diptishree",
+    "filePreviewReadable": true,
+    "authenticated": true,
+    "error": ""
+  },
+  "privateVmOps": {
+    "label": "private_vm_ops",
+    "ok": true,
+    "success": true,
+    "currentCommit": "04d2659",
+    "rollbackCandidate": "227050c",
+    "serviceCheckOk": true,
+    "runtimeDbEnabled": true,
+    "matterCount": 15,
+    "logsOk": true,
+    "diskAvailableBytes": 70069342208,
+    "failedChecks": [],
+    "files": {
+      "json": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/private-vm-ops/private-vm-ops-pack-2026-06-07T14-23-39-802Z/ops-pack.json",
+      "markdown": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/private-vm-ops/private-vm-ops-pack-2026-06-07T14-23-39-802Z/ops-pack.md",
+      "rollbackScript": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/private-vm-ops/private-vm-ops-pack-2026-06-07T14-23-39-802Z/rollback-plan.sh"
+    }
+  },
+  "privateVmSecurity": {
+    "label": "private_vm_security",
+    "ok": true,
+    "passed": true,
+    "checks": [
+      {
+        "id": "access_posture",
+        "ok": true,
+        "skipped": false,
+        "message": "Host 127.0.0.1 is private or loopback."
+      },
+      {
+        "id": "runtime_env_permissions",
+        "ok": true,
+        "skipped": false,
+        "message": "/home/aks/.config/matter-workbench/runtime.env is a 0600 runtime env file."
+      },
+      {
+        "id": "systemd_service_template",
+        "ok": true,
+        "skipped": false,
+        "message": "Service template uses protected env file, restart policy, and basic process hardening."
+      },
+      {
+        "id": "runtime_db_role_proof",
+        "ok": true,
+        "skipped": false,
+        "message": "Runtime DB least-privilege proof is delegated to db:runtime:write-smoke, which fails closed for superuser or BYPASSRLS roles."
+      },
+      {
+        "id": "npm_audit",
+        "ok": true,
+        "skipped": true,
+        "message": "skipped: pass --audit-json after running npm audit --omit=dev --json"
+      },
+      {
+        "id": "live_service_smoke",
+        "ok": true,
+        "skipped": false,
+        "message": "Live service check passed; 15 matters visible."
+      }
+    ]
+  },
+  "privateVmRecoverability": {
+    "label": "private_vm_recoverability",
+    "ok": true,
+    "success": true,
+    "dbBackupOk": true,
+    "dbRestoreOk": true,
+    "storageBackupOk": true,
+    "storageRestoreCheckOk": true,
+    "serviceCheckOk": true,
+    "failedSteps": [],
+    "files": {
+      "json": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/private-vm-recoverability/private-vm-recoverability-pack-2026-06-07T14-23-39-802Z/recoverability-pack.json",
+      "markdown": "/home/aks/matter-workbench-backups/rc-closure/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z/private-vm-recoverability/private-vm-recoverability-pack-2026-06-07T14-23-39-802Z/recoverability-pack.md"
+    }
+  },
+  "checks": [
+    {
+      "id": "git_state",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "local_verification",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "runtime_db_browser",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "private_vm_service",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "private_vm_ops",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "private_vm_security",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    },
+    {
+      "id": "private_vm_recoverability",
+      "ok": true,
+      "skipped": false,
+      "summary": ""
+    }
+  ]
+}
