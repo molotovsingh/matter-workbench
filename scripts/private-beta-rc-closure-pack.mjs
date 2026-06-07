@@ -15,7 +15,7 @@ import { runPrivateVmRecoverabilityPack } from "./private-vm-recoverability-pack
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "private-beta-rc-closure-pack/v1";
-const DEFAULT_RELEASE = "v1.0.0-beta.9";
+const DEFAULT_RELEASE = "v1.0.0-beta.10";
 
 const DEFAULT_LOCAL_GATES = [
   { label: "ui_typecheck", command: "npm", args: ["run", "ui:typecheck", "--silent"] },

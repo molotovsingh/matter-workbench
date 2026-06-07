@@ -99,9 +99,8 @@ the trusted beta circle without checking it first.
 
 ## Checked-In VM Closure Evidence
 
-The checked-in 2026-06-07 VM run for commit `04d2659` passed all closure gates.
-It is representative evidence from the release-marker correction path; after
-deploying a new tag, generate a fresh VM-local closure pack for that exact tag:
+The checked-in 2026-06-07 VM run for commit `a24d4cc`, tagged as
+`v1.0.0-beta.10`, passed all closure gates:
 
 - local verification;
 - runtime DB browser acceptance;
@@ -110,7 +109,11 @@ deploying a new tag, generate a fresh VM-local closure pack for that exact tag:
 - private VM security/access check;
 - private VM recoverability pack.
 
-Representative evidence:
+Current beta.10 evidence:
 
-- [2026-06-07 RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z.md)
-- [2026-06-07 RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T14-23-39-802Z.json)
+- [2026-06-07 beta.10 RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T15-50-41-147Z.md)
+- [2026-06-07 beta.10 RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T15-50-41-147Z.json)
+
+Older representative evidence remains available in
+`docs/private-beta-rc-closure-packs/`, but the beta.10 pack is the current
+release reference.

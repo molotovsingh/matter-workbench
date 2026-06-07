@@ -2274,3 +2274,13 @@ plain button and writes what happened; the operator reads Activity feedback and
 only then runs the heavier bug evidence pack if deeper developer context is
 needed. That correction became `v1.0.0-beta.9`, because release tags should also
 capture how the product is meant to be operated by humans.
+
+The next release lesson was about access. Shared passwords are acceptable for a
+tiny private experiment, but they do not scale even to a modest trusted beta.
+`v1.0.0-beta.10` introduced an operator-managed tester account file, so each
+tester can have their own login while the app stays private, local, and
+deliberately short of public SaaS auth. The important engineering lesson is not
+"build a full identity platform early." It is the opposite: add the smallest
+access-control step that matches the current promise, then prove it with the
+same release closure pack that proves the VM, runtime DB, browser path, security
+posture, and recoverability.
