@@ -117,3 +117,21 @@ Current beta.10 evidence:
 Older representative evidence remains available in
 `docs/private-beta-rc-closure-packs/`, but the beta.10 pack is the current
 release reference.
+
+## Latest Live VM Post-Beta.10 Closure
+
+The live private VM was later advanced to commit `131bb83` for private-beta
+operator/auth hardening after the `v1.0.0-beta.10` tag. That deployment was
+closed separately as `v1.0.0-beta.10+131bb83` and passed all closure gates:
+
+- local verification;
+- runtime DB browser acceptance;
+- private VM service smoke;
+- private VM ops pack;
+- private VM security/access check;
+- private VM recoverability pack.
+
+Latest live VM evidence:
+
+- [2026-06-07 beta.10+131bb83 RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-24-29-328Z.md)
+- [2026-06-07 beta.10+131bb83 RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T16-24-29-328Z.json)
