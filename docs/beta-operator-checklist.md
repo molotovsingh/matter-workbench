@@ -132,6 +132,10 @@ Before giving a tester access:
 7. Do not widen access until the public/hosted requirements in the current
    known risks are closed.
 
+After handoff, use the [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md)
+as the default operating rule. Beta work should stay bug-fix-only unless a
+reported defect proves a wider change is necessary.
+
 ## Matter Data And Backups
 
 Matter files live under the configured matters home or pinned matter root.

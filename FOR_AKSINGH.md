@@ -2217,3 +2217,17 @@ use honestly. A private beta is allowed to be supervised and limited. The key is
 that everyone knows the same boundary: useful legal-workbench testing, yes;
 public SaaS, hosted multi-user auth, cloud object storage, and unsupervised
 legal reliance, no.
+
+The beta bug-fix loop is the next guardrail after handover. Once trusted testers
+start using the app, the danger is not only "bugs exist." The bigger danger is
+that every bug becomes an excuse to add a new feature, re-open the roadmap, or
+change architecture midstream. That is how a beta becomes noisy and hard to
+trust.
+
+The new `private-beta-bug-fix-loop.md` keeps the operating rule simple: capture
+what the tester saw, preserve enough evidence, reproduce the smallest real
+case, fix the owner path, add the focused test, and rerun the gates. New public
+deployment, broad model experiments, hosted multi-user work, and product-roadmap
+ideas stay parked unless the bug truly proves they are needed. Good engineering
+does not mean doing everything quickly. It means keeping the current promise
+honest before making a larger promise.
