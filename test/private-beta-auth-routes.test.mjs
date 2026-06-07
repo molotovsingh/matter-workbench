@@ -128,6 +128,69 @@ test("private beta auth route accepts configured tester account file", async () 
   }
 });
 
+test("private beta auth route sees tester account file changes without server restart", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-auth-route-reload-"));
+  const usersFile = path.join(tmp, "users.json");
+  await writePrivateBetaUsersFile(usersFile, [
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("old-secret", { salt: "route-old", iterations: 1_000 }),
+    },
+  ]);
+  const app = await createTestApp({
+    env: {
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+
+  try {
+    const beforeUpdate = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester-two", password: "new-secret" }),
+    });
+    assert.equal(beforeUpdate.status, 401);
+
+    await writePrivateBetaUsersFile(usersFile, [
+      {
+        username: "tester-one",
+        role: "tester",
+        disabled: true,
+        passwordHash: hashPrivateBetaPassword("old-secret", { salt: "route-old", iterations: 1_000 }),
+      },
+      {
+        username: "tester-two",
+        role: "tester",
+        passwordHash: hashPrivateBetaPassword("new-secret", { salt: "route-new", iterations: 1_000 }),
+      },
+    ]);
+
+    const oldUser = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester-one", password: "old-secret" }),
+    });
+    assert.equal(oldUser.status, 401);
+
+    const newUser = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester-two", password: "new-secret" }),
+    });
+    assert.equal(newUser.status, 200);
+    const payload = await newUser.json();
+    assert.deepEqual(payload.user, { username: "tester-two", role: "tester" });
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
 async function createTestApp({ env = {} } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-auth-"));
   const appDir = path.join(tmp, "app");
@@ -148,4 +211,12 @@ async function createTestApp({ env = {} } = {}) {
     port: 0,
   });
   return { ...app, mattersHome };
+}
+
+async function writePrivateBetaUsersFile(usersFile, users) {
+  await writeFile(
+    usersFile,
+    `${JSON.stringify({ schemaVersion: "private-beta-users/v1", users }, null, 2)}\n`,
+    "utf8",
+  );
 }

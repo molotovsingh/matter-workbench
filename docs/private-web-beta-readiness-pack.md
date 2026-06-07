@@ -54,6 +54,9 @@ npm run private-beta:users -- list --file ~/.config/matter-workbench/private-bet
 The older `MWB_PRIVATE_BETA_USERNAME` / `MWB_PRIVATE_BETA_PASSWORD` pair remains
 available for one-operator local compatibility, but a private web beta with
 multiple testers should use the account file so each tester has their own login.
+Account file changes are picked up on the next login attempt. Restart the
+service only when changing runtime environment variables such as the account
+file path itself.
 
 `MWB_PRIVATE_BETA_PUBLIC_URL=https://...` is important because the auth service
 uses it to mark the session cookie `Secure`. If the public URL is HTTPS but that

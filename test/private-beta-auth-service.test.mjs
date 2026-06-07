@@ -103,6 +103,115 @@ test("private beta auth supports operator-managed tester account files", async (
   });
 });
 
+test("private beta auth reloads operator-managed tester account files on login", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("old-secret", { salt: "salt-old", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    tokenBytes: () => Buffer.from("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+    now: () => 1_000,
+  });
+
+  assert.equal(service.login({ username: "tester-two", password: "new-secret" }).statusCode, 401);
+
+  await writeUsersFileAt(usersFile, [
+    {
+      username: "tester-one",
+      role: "tester",
+      disabled: true,
+      passwordHash: hashPrivateBetaPassword("old-secret", { salt: "salt-old", iterations: 1_000 }),
+    },
+    {
+      username: "tester-two",
+      displayName: "Tester Two",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("new-secret", { salt: "salt-new", iterations: 1_000 }),
+    },
+  ]);
+
+  const oldUser = service.login({ username: "tester-one", password: "old-secret" });
+  assert.equal(oldUser.statusCode, 401);
+
+  const newUser = service.login({ username: "tester-two", password: "new-secret" });
+  assert.equal(newUser.statusCode, 200);
+  assert.deepEqual(newUser.payload.user, {
+    username: "tester-two",
+    role: "tester",
+    displayName: "Tester Two",
+  });
+});
+
+test("private beta auth fails closed without throwing when a reloaded account file is malformed", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("secret", { salt: "salt-reload-bad", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+
+  await writeFile(usersFile, "{not-json", "utf8");
+
+  const login = service.login({ username: "tester-one", password: "secret" });
+  assert.equal(login.ok, false);
+  assert.equal(login.statusCode, 503);
+  assert.equal(login.setCookie, "");
+  assert.match(login.payload.error, /Private beta account file/i);
+  assert.doesNotMatch(JSON.stringify(login.payload), /secret|passwordHash/i);
+});
+
+test("private beta auth invalidates existing sessions when a file-backed account is disabled", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("secret", { salt: "salt-disable-session", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    tokenBytes: () => Buffer.from("cccccccccccccccccccccccccccccccc"),
+    now: () => 1_000,
+  });
+  const login = service.login({ username: "tester-one", password: "secret" });
+  assert.equal(login.statusCode, 200);
+  const request = { headers: { cookie: login.setCookie.split(";")[0] } };
+  assert.equal(service.isAuthenticated(request), true);
+
+  await writeUsersFileAt(usersFile, [
+    {
+      username: "tester-one",
+      role: "tester",
+      disabled: true,
+      passwordHash: hashPrivateBetaPassword("secret", { salt: "salt-disable-session", iterations: 1_000 }),
+    },
+  ]);
+
+  assert.equal(service.isAuthenticated(request), false);
+  assert.deepEqual(service.status(request), {
+    enabled: true,
+    authenticated: false,
+    user: null,
+  });
+});
+
 test("private beta auth rejects disabled file-backed tester accounts", async () => {
   const usersFile = await writeUsersFile([
     {
@@ -244,10 +353,14 @@ async function writeUsersFile(users) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-users-"));
   await mkdir(tmp, { recursive: true });
   const usersFile = path.join(tmp, "users.json");
+  await writeUsersFileAt(usersFile, users);
+  return usersFile;
+}
+
+async function writeUsersFileAt(usersFile, users) {
   await writeFile(
     usersFile,
     `${JSON.stringify({ schemaVersion: "private-beta-users/v1", users }, null, 2)}\n`,
     "utf8",
   );
-  return usersFile;
 }

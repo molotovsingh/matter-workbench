@@ -2284,3 +2284,12 @@ deliberately short of public SaaS auth. The important engineering lesson is not
 access-control step that matches the current promise, then prove it with the
 same release closure pack that proves the VM, runtime DB, browser path, security
 posture, and recoverability.
+
+The follow-up access lesson was about operator friction. If a trusted tester
+needs to be added or disabled, the operator should not have to remember a
+service restart ritual. The auth service now re-reads the tester account file
+when someone logs in, and it re-checks active sessions against that file. That
+means a disabled tester is actually cut off without waiting for a restart or
+for someone to remember a hidden deployment step. This is the practical version
+of good beta engineering: remove the boring mistakes before they become support
+messages.

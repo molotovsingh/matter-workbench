@@ -162,6 +162,10 @@ npm run private-web:readiness-check
 npm run private-beta:rc-closure-pack
 ```
 
+Account file changes are picked up on the next login attempt. Restart the
+service only when changing runtime environment variables such as the account
+file path itself.
+
 If any hard blocker appears, do not hand out the URL.
 
 This is stricter than local testing because a URL creates a different social

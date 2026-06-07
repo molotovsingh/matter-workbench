@@ -160,6 +160,9 @@ The account file stores password hashes, not plain-text passwords. If
 `MWB_PRIVATE_BETA_USERS_FILE` is configured, that file is the login authority;
 the older single env username/password path remains a compatibility fallback
 only when no users file is configured.
+Account file changes are picked up on the next login attempt. Restart the
+service only when changing runtime environment variables such as the account
+file path itself.
 
 The access gate is intentionally local/private-beta scoped: it uses an
 HttpOnly, `SameSite=Strict` session cookie and in-process sessions. Login

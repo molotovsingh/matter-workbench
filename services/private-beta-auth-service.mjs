@@ -45,6 +45,17 @@ export function createPrivateBetaAuthService({
       sessions.delete(token);
       return null;
     }
+    try {
+      const refreshedUser = credentialSource.refreshSessionUser(session.user);
+      if (!refreshedUser) {
+        sessions.delete(token);
+        return null;
+      }
+      session.user = refreshedUser;
+    } catch {
+      sessions.delete(token);
+      return null;
+    }
     return session;
   }
 
@@ -79,7 +90,17 @@ export function createPrivateBetaAuthService({
       };
     }
 
-    const account = credentialSource.authenticate(String(submittedUsername), String(submittedPassword));
+    let account;
+    try {
+      account = credentialSource.authenticate(String(submittedUsername), String(submittedPassword));
+    } catch {
+      return {
+        ok: false,
+        statusCode: 503,
+        payload: { error: "Private beta account file is not usable. Ask the operator to check the tester account file." },
+        setCookie: "",
+      };
+    }
     if (!account) {
       recordFailedLogin(clientKey);
       return {
@@ -217,14 +238,21 @@ export function readPrivateBetaUsersFile(usersFile) {
 function loadPrivateBetaCredentialSource(env) {
   const usersFile = String(env.MWB_PRIVATE_BETA_USERS_FILE || "").trim();
   if (usersFile) {
-    const accounts = readPrivateBetaUsersFile(usersFile);
+    readPrivateBetaUsersFile(usersFile);
     return {
       kind: "file",
       authenticate(username, password) {
-        const account = accounts.find((candidate) => secureEqual(candidate.username, username));
+        const account = readPrivateBetaUsersFile(usersFile)
+          .find((candidate) => secureEqual(candidate.username, username));
         if (!account || account.disabled) return null;
         if (!verifyPrivateBetaPassword(password, account.passwordHash)) return null;
         return account;
+      },
+      refreshSessionUser(user) {
+        const account = readPrivateBetaUsersFile(usersFile)
+          .find((candidate) => secureEqual(candidate.username, user?.username || ""));
+        if (!account || account.disabled) return null;
+        return publicUserForAccount(account);
       },
     };
   }
@@ -243,6 +271,10 @@ function loadPrivateBetaCredentialSource(env) {
         return null;
       }
       return { username, role: null };
+    },
+    refreshSessionUser(user) {
+      if (!secureEqual(String(user?.username || ""), username)) return null;
+      return { username };
     },
   };
 }
