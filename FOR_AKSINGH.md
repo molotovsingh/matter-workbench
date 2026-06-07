@@ -2355,3 +2355,14 @@ match the List of Dates? If source content changes, the downstream artifact is
 stale even when the mtime says otherwise. If only lawyer-facing labels changed,
 the app can still choose the cheap label-refresh path. The engineering lesson:
 mtime is a weather report; source hashes and snapshots are the audit trail.
+
+The List of Dates engine then got its first careful monolith split. The wrong
+way to shrink a legal engine is to cut it by line count and hope the pieces make
+sense. The safer first cut was by responsibility: provider/network code moved
+into `listofdates/providers.mjs`, while the root engine kept orchestration,
+validation, clustering, source hydration, and artifact writing. Old imports from
+`create-listofdates-engine.mjs` still work through re-exports, so tests and
+routes do not need to learn a new public API. The lesson is how mature refactors
+start: peel off the concern that changes for a different reason, preserve the
+contract, prove the behavior with focused tests, then leave the next split for a
+separate pass.
