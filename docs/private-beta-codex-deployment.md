@@ -172,9 +172,13 @@ file path itself.
 
 The tester handoff drill is intentionally temporary. It creates a disposable
 tester, proves the access and feedback path, writes an evidence pack, then
-restores the account file and feedback ledger. It is the quick proof that the
-URL can be given to a real tester without discovering basic auth or feedback
-breakage after the handoff.
+restores the account file and feedback ledger. It is the quick spot-check proof
+that a URL and account file are usable.
+
+The RC closure pack now runs the same tester handoff drill as a required gate.
+Use the standalone drill when you are only checking one tester setup; use
+`private-beta:rc-closure-pack` when deciding whether the checkpoint is ready to
+hand to testers.
 
 If any hard blocker appears, do not hand out the URL.
 

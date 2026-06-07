@@ -2303,3 +2303,12 @@ means a disabled tester is actually cut off without waiting for a restart or
 for someone to remember a hidden deployment step. This is the practical version
 of good beta engineering: remove the boring mistakes before they become support
 messages.
+
+The next tightening was to stop treating tester handoff as a remembered side
+ritual. The standalone tester handoff drill is still useful when you just want
+to check one URL or account file, but the RC closure pack now runs it as a
+required gate. That means a release cannot be called closed unless a disposable
+tester can log in, see matters, file feedback, reach the sync/signal endpoints,
+and then be removed cleanly. The lesson is simple: if a step would embarrass
+you when forgotten, do not leave it as tribal knowledge. Put it inside the
+acceptance command.

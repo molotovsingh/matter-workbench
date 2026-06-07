@@ -12,6 +12,7 @@ import { runPrivateVmServiceCheck } from "./private-vm-service-check.mjs";
 import { runPrivateVmOpsPack } from "./private-vm-ops-pack.mjs";
 import { runPrivateVmSecurityCheck } from "./private-vm-security-check.mjs";
 import { runPrivateVmRecoverabilityPack } from "./private-vm-recoverability-pack.mjs";
+import { runPrivateBetaTesterHandoffDrill } from "./private-beta-tester-handoff-drill.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "private-beta-rc-closure-pack/v1";
@@ -40,9 +41,12 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     gitStatusShort: env.MWB_PRIVATE_BETA_RC_GIT_STATUS_SHORT || "",
     authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
     authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
+    testerUsersFile: env.MWB_PRIVATE_BETA_USERS_FILE || "",
+    testerFeedbackPath: env.MWB_PRIVATE_BETA_FEEDBACK_PATH || "",
     skipLocalGates: false,
     skipRuntimeBrowser: false,
     skipServiceCheck: false,
+    skipTesterHandoff: false,
     skipOpsPack: false,
     skipSecurityCheck: false,
     skipRecoverabilityPack: false,
@@ -95,12 +99,20 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
     } else if (arg === "--auth-password") {
       parsed.authPassword = requiredValue(argv, i, arg);
       i += 1;
+    } else if (arg === "--tester-users-file") {
+      parsed.testerUsersFile = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--tester-feedback-ledger") {
+      parsed.testerFeedbackPath = requiredValue(argv, i, arg);
+      i += 1;
     } else if (arg === "--skip-local-gates") {
       parsed.skipLocalGates = true;
     } else if (arg === "--skip-runtime-browser") {
       parsed.skipRuntimeBrowser = true;
     } else if (arg === "--skip-service-check") {
       parsed.skipServiceCheck = true;
+    } else if (arg === "--skip-tester-handoff") {
+      parsed.skipTesterHandoff = true;
     } else if (arg === "--skip-ops-pack") {
       parsed.skipOpsPack = true;
     } else if (arg === "--skip-security-check") {
@@ -131,9 +143,12 @@ export async function runPrivateBetaRcClosurePack({
   gitStatusShort = "",
   authUsername = "",
   authPassword = "",
+  testerUsersFile = "",
+  testerFeedbackPath = "",
   skipLocalGates = false,
   skipRuntimeBrowser = false,
   skipServiceCheck = false,
+  skipTesterHandoff = false,
   skipOpsPack = false,
   skipSecurityCheck = false,
   skipRecoverabilityPack = false,
@@ -141,6 +156,7 @@ export async function runPrivateBetaRcClosurePack({
   localGateRunner = runCommand,
   runtimeBrowserPackFn = runRuntimeDbBrowserAcceptancePack,
   serviceCheckFn = runPrivateVmServiceCheck,
+  testerHandoffDrillFn = runPrivateBetaTesterHandoffDrill,
   opsPackFn = runPrivateVmOpsPack,
   securityCheckFn = runPrivateVmSecurityCheck,
   recoverabilityPackFn = runPrivateVmRecoverabilityPack,
@@ -184,6 +200,16 @@ export async function runPrivateBetaRcClosurePack({
       baseUrl,
       authUsername,
       authPassword,
+    })));
+
+  const testerHandoff = skipTesterHandoff
+    ? skippedSection("tester_handoff", "skipped by --skip-tester-handoff")
+    : await runStep("tester_handoff", async () => normalizeTesterHandoff(await testerHandoffDrillFn({
+      baseUrl,
+      usersFile: testerUsersFile,
+      feedbackPath: testerFeedbackPath,
+      outDir: path.join(packDir, "tester-handoff"),
+      timestamp: generatedAt,
     })));
 
   const privateVmOps = skipOpsPack
@@ -233,6 +259,7 @@ export async function runPrivateBetaRcClosurePack({
     normalizeCheck("local_verification", localGates.ok, localGates),
     normalizeCheck("runtime_db_browser", runtimeDbBrowser.ok, runtimeDbBrowser),
     normalizeCheck("private_vm_service", privateVmService.ok, privateVmService),
+    normalizeCheck("tester_handoff", testerHandoff.ok, testerHandoff),
     normalizeCheck("private_vm_ops", privateVmOps.ok, privateVmOps),
     normalizeCheck("private_vm_security", privateVmSecurity.ok, privateVmSecurity),
     normalizeCheck("private_vm_recoverability", privateVmRecoverability.ok, privateVmRecoverability),
@@ -250,6 +277,7 @@ export async function runPrivateBetaRcClosurePack({
     localGates,
     runtimeDbBrowser,
     privateVmService,
+    testerHandoff,
     privateVmOps,
     privateVmSecurity,
     privateVmRecoverability,
@@ -271,6 +299,7 @@ export function renderPrivateBetaRcClosurePackResult(result = {}) {
     `local_verification: ${result.localGates?.ok ? "ok" : "failed"}`,
     `runtime_db_browser: ${result.runtimeDbBrowser?.ok ? "ok" : "failed"}`,
     `private_vm_service: ${result.privateVmService?.ok ? "ok" : "failed"}`,
+    `tester_handoff: ${result.testerHandoff?.ok ? "ok" : "failed"}`,
     `private_vm_ops: ${result.privateVmOps?.ok ? "ok" : "failed"}`,
     `private_vm_security: ${result.privateVmSecurity?.ok ? "ok" : "failed"}`,
     `private_vm_recoverability: ${result.privateVmRecoverability?.ok ? "ok" : "failed"}`,
@@ -390,6 +419,22 @@ function normalizeServiceCheck(report = {}) {
   };
 }
 
+function normalizeTesterHandoff(report = {}) {
+  return {
+    ok: Boolean(report.success),
+    success: Boolean(report.success),
+    temporaryTester: report.temporaryTester?.username || "",
+    matterCount: report.checks?.mattersList?.count || 0,
+    feedbackCreated: report.checks?.feedbackCreated?.id || "",
+    feedbackListed: Boolean(report.checks?.feedbackListed?.ok),
+    feedbackSyncEndpoint: Boolean(report.checks?.feedbackSyncEndpoint?.ok),
+    signalEndpoint: Boolean(report.checks?.signalEndpoint?.ok),
+    tempTesterRemoved: Boolean(report.checks?.tempTesterRemoved?.ok),
+    files: report.files || {},
+    error: report.success ? "" : report.error || "tester handoff drill failed",
+  };
+}
+
 function normalizeOpsPack(report = {}) {
   return {
     ok: Boolean(report.success),
@@ -486,6 +531,7 @@ function renderEvidenceMarkdown(evidence = {}) {
   }
   lines.push("", "## Evidence Inputs", "");
   lines.push(`- Runtime DB browser pack: ${evidence.runtimeDbBrowser?.files?.markdown || "(not recorded)"}`);
+  lines.push(`- Tester handoff drill: ${evidence.testerHandoff?.files?.markdown || "(not recorded)"}`);
   lines.push(`- Private VM ops pack: ${evidence.privateVmOps?.files?.markdown || "(not recorded)"}`);
   lines.push(`- Private VM recoverability pack: ${evidence.privateVmRecoverability?.files?.markdown || "(not recorded)"}`);
   if (evidence.failedChecks?.length) {

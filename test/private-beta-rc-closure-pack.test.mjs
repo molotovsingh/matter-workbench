@@ -12,18 +12,51 @@ const checklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.
 const releasePath = new URL("../docs/releases/v1.0.0-beta.10.md", import.meta.url);
 const docsPath = new URL("../docs/private-beta-rc-closure-pack.md", import.meta.url);
 
+async function happyTesterHandoff({ baseUrl, usersFile, feedbackPath, outDir, timestamp }) {
+  return {
+    success: true,
+    generatedAt: timestamp,
+    baseUrl,
+    temporaryTester: { username: "codex-handoff-test", passwordStoredInEvidence: false },
+    checks: {
+      mattersList: { ok: true, count: 15 },
+      feedbackCreated: { ok: true, id: "feedback-1" },
+      feedbackListed: { ok: true },
+      feedbackSyncEndpoint: { ok: true, attempted: 1, sent: 0, queued: 1, skipped: 0 },
+      signalEndpoint: { ok: true, count: 2 },
+      tempTesterRemoved: { ok: true, status: 401 },
+    },
+    usersFile,
+    feedbackPath,
+    files: {
+      markdown: path.join(outDir, "private-beta-tester-handoff-drill.md"),
+      json: path.join(outDir, "private-beta-tester-handoff-drill.json"),
+    },
+  };
+}
+
 test("private beta RC closure pack writes release evidence across required gates", async () => {
   const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack, renderPrivateBetaRcClosurePackResult } = await import(packPath.href);
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-"));
   const calls = [];
 
   assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.10");
+  const parsedHandoffArgs = parseRcClosurePackArgs([
+    "--tester-users-file",
+    "/secure/users.json",
+    "--tester-feedback-ledger",
+    "/secure/private-beta-feedback.json",
+  ], {});
+  assert.equal(parsedHandoffArgs.testerUsersFile, "/secure/users.json");
+  assert.equal(parsedHandoffArgs.testerFeedbackPath, "/secure/private-beta-feedback.json");
 
   const result = await runPrivateBetaRcClosurePack({
     outDir,
     timestamp: "2026-06-06T22:00:00.000Z",
     release: "v1.0.0-beta.10",
     baseUrl: "http://172.16.37.128:4191",
+    testerUsersFile: "/secure/users.json",
+    testerFeedbackPath: "/secure/private-beta-feedback.json",
     gitInfoFn: async () => ({
       branch: "codex/matter-workbench-checkpoint-2026-05-17",
       commit: "abc1234",
@@ -68,6 +101,10 @@ test("private beta RC closure pack writes release evidence across required gates
         targetMatter: "Bharat Nagpal Vs Gionee India",
         filePreviewReadable: true,
       };
+    },
+    testerHandoffDrillFn: async (options) => {
+      calls.push(["handoff", options.baseUrl, options.usersFile, options.feedbackPath, path.basename(options.outDir)]);
+      return happyTesterHandoff(options);
     },
     opsPackFn: async ({ baseUrl }) => {
       calls.push(["ops", baseUrl]);
@@ -120,6 +157,9 @@ test("private beta RC closure pack writes release evidence across required gates
   assert.equal(result.localGates.ok, true);
   assert.equal(result.runtimeDbBrowser.ok, true);
   assert.equal(result.privateVmService.ok, true);
+  assert.equal(result.testerHandoff.ok, true);
+  assert.equal(result.testerHandoff.matterCount, 15);
+  assert.equal(result.testerHandoff.feedbackCreated, "feedback-1");
   assert.equal(result.privateVmOps.ok, true);
   assert.equal(result.privateVmSecurity.ok, true);
   assert.equal(result.privateVmRecoverability.ok, true);
@@ -131,6 +171,7 @@ test("private beta RC closure pack writes release evidence across required gates
     "local",
     "browser",
     "service",
+    "handoff",
     "ops",
     "security",
     "recoverability",
@@ -139,7 +180,8 @@ test("private beta RC closure pack writes release evidence across required gates
   const evidenceText = await readFile(result.files.json, "utf8");
   const evidence = JSON.parse(evidenceText);
   assert.equal(evidence.success, true);
-  assert.equal(evidence.checks.length, 7);
+  assert.equal(evidence.checks.length, 8);
+  assert.equal(evidence.testerHandoff.ok, true);
   assert.doesNotMatch(evidenceText, /sk-secret/);
   assert.doesNotMatch(evidenceText, /runtime-secret/);
   assert.match(evidenceText, /\[redacted-secret\]|\*\*\*/);
@@ -148,6 +190,7 @@ test("private beta RC closure pack writes release evidence across required gates
   assert.match(rendered, /Matter Workbench private beta RC closure pack/);
   assert.match(rendered, /success: yes/);
   assert.match(rendered, /runtime_db_browser: ok/);
+  assert.match(rendered, /tester_handoff: ok/);
 });
 
 test("private beta RC closure pack fails closed when a required section fails", async () => {
@@ -161,6 +204,7 @@ test("private beta RC closure pack fails closed when a required section fails", 
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: false, error: "browser driver missing", files: {} }),
     serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
     securityCheckFn: async () => ({ passed: true, checks: [] }),
     recoverabilityPackFn: async () => ({ success: true, steps: {} }),
@@ -169,6 +213,28 @@ test("private beta RC closure pack fails closed when a required section fails", 
   assert.equal(result.success, false);
   assert.match(result.failedChecks.join(","), /runtime_db_browser/);
   assert.equal(existsSync(result.files.markdown), true);
+});
+
+test("private beta RC closure pack fails closed when tester handoff drill fails", async () => {
+  const { runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-handoff-fail-"));
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: async () => ({ success: false, error: "temporary tester could not list matters" }),
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.testerHandoff.ok, false);
+  assert.match(result.failedChecks.join(","), /tester_handoff/);
 });
 
 test("private beta RC closure pack treats skipped required gates as incomplete", async () => {
@@ -182,6 +248,7 @@ test("private beta RC closure pack treats skipped required gates as incomplete",
     skipLocalGates: true,
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
     serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
     securityCheckFn: async () => ({ passed: true, checks: [] }),
     recoverabilityPackFn: async () => ({ success: true, steps: {} }),
@@ -190,6 +257,30 @@ test("private beta RC closure pack treats skipped required gates as incomplete",
   assert.equal(result.success, false);
   assert.equal(result.localGates.skipped, true);
   assert.match(result.failedChecks.join(","), /local_verification/);
+});
+
+test("private beta RC closure pack treats skipped tester handoff as incomplete", async () => {
+  const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-skip-handoff-"));
+
+  assert.equal(parseRcClosurePackArgs(["--skip-tester-handoff"], {}).skipTesterHandoff, true);
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    serviceCheckFn: async () => ({ passed: true }),
+    skipTesterHandoff: true,
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.testerHandoff.skipped, true);
+  assert.match(result.failedChecks.join(","), /tester_handoff/);
 });
 
 test("private beta RC closure pack can consume existing runtime browser evidence", async () => {
@@ -227,6 +318,7 @@ test("private beta RC closure pack can consume existing runtime browser evidence
       return { passed: false };
     },
     serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
     securityCheckFn: async () => ({ passed: true, checks: [] }),
     recoverabilityPackFn: async () => ({ success: true, steps: {} }),
@@ -261,6 +353,7 @@ test("private beta RC closure pack can use supplied git metadata for deployment 
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
     serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
     securityCheckFn: async () => ({ passed: true, checks: [] }),
     recoverabilityPackFn: async () => ({ success: true, steps: {} }),
@@ -288,6 +381,7 @@ test("private beta RC closure pack passes auth and matters home to recoverabilit
     localGateRunner: async () => ({ ok: true, stdout: "", stderr: "", exitCode: 0 }),
     runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
     serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
     opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
     securityCheckFn: async () => ({ passed: true, checks: [] }),
     recoverabilityPackFn: async (options) => {
@@ -328,6 +422,7 @@ test("private beta RC closure pack sanitizes runtime env for local verification 
       },
       runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
       serviceCheckFn: async () => ({ passed: true }),
+      testerHandoffDrillFn: happyTesterHandoff,
       opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
       securityCheckFn: async () => ({ passed: true, checks: [] }),
       recoverabilityPackFn: async () => ({ success: true, steps: {} }),
@@ -370,5 +465,6 @@ test("package and release docs expose the private beta RC closure pack", async (
   const docs = await readFile(docsPath, "utf8");
   assert.match(docs, /private-beta:rc-closure-pack/);
   assert.match(docs, /local verification/i);
+  assert.match(docs, /tester handoff/i);
   assert.match(docs, /recoverability/i);
 });

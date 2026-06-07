@@ -113,8 +113,9 @@ npm test --silent
 
 The RC closure pack is the current release-candidate bundle. It aggregates
 local verification, runtime DB browser acceptance, private VM service health,
-ops/security checks, and recoverability evidence. Use it when deciding whether
-the current checkpoint is acceptable for supervised private beta.
+tester handoff, ops/security checks, and recoverability evidence. Use it when
+deciding whether the current checkpoint is acceptable for supervised private
+beta.
 
 ## Tester Handoff
 
@@ -129,7 +130,8 @@ Before giving a tester access:
 
    Treat blocker checks as handoff blockers.
 2. Run a temporary tester handoff drill against the exact URL and account file
-   you intend to use:
+   you intend to use. The RC closure pack runs this drill as a required gate;
+   the standalone command is useful for quick account or URL spot checks:
 
    ```bash
    npm run private-beta:tester-handoff-drill -- \
@@ -150,7 +152,9 @@ Before giving a tester access:
    React root, matters list, feedback intake, feedback sync endpoint, and signal
    endpoint, then restores the tester file and feedback ledger. Treat failures
    as handoff blockers.
-3. Run the release-confidence checks for the machine they will use.
+3. Run the release-confidence checks for the machine they will use. For a
+   release candidate, this means `private-beta:rc-closure-pack`, which includes
+   the tester handoff gate.
 4. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
 5. Confirm the tester understands this is supervised beta, not final legal
    output and not public web software.

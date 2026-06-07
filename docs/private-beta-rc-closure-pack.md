@@ -14,6 +14,7 @@ Useful options:
 npm run private-beta:rc-closure-pack -- --base-url http://172.16.37.128:4191
 npm run private-beta:rc-closure-pack -- --out-dir .local/private-beta-rc-closure-packs
 npm run private-beta:rc-closure-pack -- --runtime-browser-evidence-json /path/to/runtime-db-browser-acceptance-pack.json
+npm run private-beta:rc-closure-pack -- --tester-users-file /secure/private-beta-users.json --tester-feedback-ledger /secure/private-beta-feedback.json
 npm run private-beta:rc-closure-pack -- --git-branch codex/matter-workbench-checkpoint-2026-05-17 --git-commit <release-commit>
 ```
 
@@ -21,7 +22,8 @@ The pack answers one release question:
 
 > Is the current Matter Workbench checkpoint ready to be treated as a private
 > beta release candidate, with evidence across local verification, runtime DB
-> browser behavior, private VM health, operator posture, and recovery?
+> browser behavior, private VM health, tester handoff, operator posture, and
+> recovery?
 
 ## What It Runs
 
@@ -31,6 +33,8 @@ their internals:
 - local verification: `ui:typecheck`, `ui:build`, and `npm test`;
 - runtime DB browser acceptance;
 - private VM service smoke;
+- tester handoff drill: temporary tester login, React access, matter listing,
+  feedback intake, feedback sync, and signal listing;
 - private VM ops pack;
 - private VM security/access check;
 - private VM recoverability pack.
@@ -68,6 +72,8 @@ A useful pass means:
 - local code and React build gates passed;
 - runtime DB mode rendered through a real browser path;
 - the private VM service responded and exposed DB-backed matter data;
+- a disposable tester could log in, see matters, file feedback, reach feedback
+  sync, reach beta signals, and be removed cleanly;
 - operator logs, deployment state, rollback candidate, and disk posture were
   captured;
 - private access/security posture was checked;
@@ -93,6 +99,12 @@ Treat a failed closure pack as a release blocker until the failed section is
 understood. The JSON file is the best artifact to attach to a bug report. The
 Markdown file is the best artifact to read during release review.
 
+The `tester_handoff` gate is intentionally not optional for release confidence.
+It is the quick proof that the URL, account file, feedback ledger, and private
+beta signal endpoints work as a real tester would experience them. Running the
+standalone `private-beta:tester-handoff-drill` is still useful for spot checks,
+but the closure pack now enforces that drill as part of the release gate.
+
 The pack redacts common secret shapes, including API keys and PostgreSQL
 passwords, but operators should still avoid sharing generated evidence outside
 the trusted beta circle without checking it first.
@@ -105,6 +117,7 @@ The checked-in 2026-06-07 VM run for commit `a24d4cc`, tagged as
 - local verification;
 - runtime DB browser acceptance;
 - private VM service smoke;
+- tester handoff drill;
 - private VM ops pack;
 - private VM security/access check;
 - private VM recoverability pack.
@@ -127,6 +140,7 @@ closed separately as `v1.0.0-beta.10+131bb83` and passed all closure gates:
 - local verification;
 - runtime DB browser acceptance;
 - private VM service smoke;
+- tester handoff drill;
 - private VM ops pack;
 - private VM security/access check;
 - private VM recoverability pack.
