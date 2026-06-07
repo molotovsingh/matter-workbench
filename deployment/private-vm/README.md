@@ -38,6 +38,8 @@ Do not commit `runtime.env`.
 From the deployed app directory:
 
 ```bash
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
+npm run ui:build --silent
 mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/matter-workbench"
 cp deployment/private-vm/matter-workbench-runtime.service "$HOME/.config/systemd/user/"
 ln -sfn "$PWD/.." "$HOME/matter-workbench-deployments/current"
@@ -45,6 +47,11 @@ chmod 600 "$HOME/.config/matter-workbench/runtime.env"
 systemctl --user daemon-reload
 systemctl --user enable --now matter-workbench-runtime.service
 ```
+
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` keeps deployment installs small. The RC
+closure and runtime browser acceptance packs still require a system
+Chrome/Chromium binary. On Debian, keep `chromium` installed or set
+`MWB_PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium` in `runtime.env`.
 
 To start the user service after VM reboot before an interactive login, enable
 linger once:
@@ -63,6 +70,23 @@ journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager
 ```
 
 ## Ops, Bug Evidence, And Incident Bundles
+
+For release-candidate closeout, run the aggregate RC closure pack from the VM:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+npm run private-beta:rc-closure-pack -- \
+  --base-url http://127.0.0.1:4191 \
+  --out-dir "$HOME/matter-workbench-backups/rc-closure" \
+  --deployment-root "$HOME/matter-workbench-deployments" \
+  --runtime-env "$HOME/.config/matter-workbench/runtime.env" \
+  --git-branch <release branch> \
+  --git-commit <release commit>
+```
+
+Use this before widening tester access. It joins local verification, runtime DB
+browser acceptance, service health, ops evidence, security posture, and
+recoverability into one release verdict.
 
 For routine beta operation, create a lightweight ops pack:
 

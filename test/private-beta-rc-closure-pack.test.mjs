@@ -9,18 +9,20 @@ const packPath = new URL("../scripts/private-beta-rc-closure-pack.mjs", import.m
 const packagePath = new URL("../package.json", import.meta.url);
 const readmePath = new URL("../README.md", import.meta.url);
 const checklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.url);
-const releasePath = new URL("../docs/releases/v1.0.0-beta.5.md", import.meta.url);
+const releasePath = new URL("../docs/releases/v1.0.0-beta.7.md", import.meta.url);
 const docsPath = new URL("../docs/private-beta-rc-closure-pack.md", import.meta.url);
 
 test("private beta RC closure pack writes release evidence across required gates", async () => {
-  const { runPrivateBetaRcClosurePack, renderPrivateBetaRcClosurePackResult } = await import(packPath.href);
+  const { parseRcClosurePackArgs, runPrivateBetaRcClosurePack, renderPrivateBetaRcClosurePackResult } = await import(packPath.href);
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-"));
   const calls = [];
+
+  assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.7");
 
   const result = await runPrivateBetaRcClosurePack({
     outDir,
     timestamp: "2026-06-06T22:00:00.000Z",
-    release: "v1.0.0-beta.5",
+    release: "v1.0.0-beta.7",
     baseUrl: "http://172.16.37.128:4191",
     gitInfoFn: async () => ({
       branch: "codex/matter-workbench-checkpoint-2026-05-17",
@@ -113,7 +115,7 @@ test("private beta RC closure pack writes release evidence across required gates
 
   assert.equal(result.success, true);
   assert.equal(result.schemaVersion, "private-beta-rc-closure-pack/v1");
-  assert.equal(result.release, "v1.0.0-beta.5");
+  assert.equal(result.release, "v1.0.0-beta.7");
   assert.equal(result.git.commit, "abc1234");
   assert.equal(result.localGates.ok, true);
   assert.equal(result.runtimeDbBrowser.ok, true);

@@ -2231,3 +2231,20 @@ deployment, broad model experiments, hosted multi-user work, and product-roadmap
 ideas stay parked unless the bug truly proves they are needed. Good engineering
 does not mean doing everything quickly. It means keeping the current promise
 honest before making a larger promise.
+
+The next handoff lesson came from a release tool, not from a lawyer-facing
+screen. The RC closure pack correctly joined local tests, runtime DB browser
+acceptance, VM service health, ops, security, and recoverability. But the first
+VM run exposed two ordinary deployment truths: the pack needed Playwright
+available in the deployed Node install, and its default release label had drifted
+behind the current beta note. Both are small issues, but they matter because a
+release tool is part of the product promise.
+
+The fix was to make Playwright an explicit development/tooling dependency and
+to teach the VM install path to use the system Chromium binary instead of
+silently depending on a lucky local browser setup. The RC pack default now
+matches `v1.0.0-beta.7`, and representative VM closure evidence is checked into
+`docs/private-beta-rc-closure-packs/`. The engineering lesson is that handoff
+tools deserve the same honesty as application code. If an acceptance command
+needs a browser driver, make that dependency visible. If a release note says
+beta.7, the release pack should not quietly print beta.5.

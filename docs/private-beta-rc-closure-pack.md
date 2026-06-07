@@ -14,7 +14,7 @@ Useful options:
 npm run private-beta:rc-closure-pack -- --base-url http://172.16.37.128:4191
 npm run private-beta:rc-closure-pack -- --out-dir .local/private-beta-rc-closure-packs
 npm run private-beta:rc-closure-pack -- --runtime-browser-evidence-json /path/to/runtime-db-browser-acceptance-pack.json
-npm run private-beta:rc-closure-pack -- --git-branch codex/matter-workbench-checkpoint-2026-05-17 --git-commit 146c9c0
+npm run private-beta:rc-closure-pack -- --git-branch codex/matter-workbench-checkpoint-2026-05-17 --git-commit <release-commit>
 ```
 
 The pack answers one release question:
@@ -35,11 +35,15 @@ their internals:
 - private VM security/access check;
 - private VM recoverability pack.
 
-On a private VM that does not have Playwright/Chrome installed, run
-`npm run db:runtime:browser-accept` from the Mac first, copy the resulting JSON
-to the VM, then pass it with `--runtime-browser-evidence-json`. The closure pack
-will treat that JSON as the browser-acceptance evidence instead of weakening the
-run with a skipped browser gate.
+The runtime that runs this command must have Playwright and a Chrome/Chromium
+binary available. Playwright is a project dev dependency, so a clean deployment
+installed with `npm ci` has the Node package. On the Debian VM, install or keep
+`chromium` available and set `MWB_PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium`
+if auto-detection ever fails. If browser tooling is unavailable on the VM, run
+`npm run db:runtime:browser-accept` from a machine that can reach the app, copy
+the resulting JSON to the VM, then pass it with `--runtime-browser-evidence-json`.
+The closure pack will treat that JSON as the browser-acceptance evidence instead
+of weakening the run with a skipped browser gate.
 
 It writes:
 
@@ -92,3 +96,19 @@ Markdown file is the best artifact to read during release review.
 The pack redacts common secret shapes, including API keys and PostgreSQL
 passwords, but operators should still avoid sharing generated evidence outside
 the trusted beta circle without checking it first.
+
+## Checked-In VM Closure Evidence
+
+The checked-in 2026-06-07 VM run for commit `227050c` passed all closure gates:
+
+- local verification;
+- runtime DB browser acceptance;
+- private VM service smoke;
+- private VM ops pack;
+- private VM security/access check;
+- private VM recoverability pack.
+
+Representative evidence:
+
+- [2026-06-07 RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T14-20-28-906Z.md)
+- [2026-06-07 RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T14-20-28-906Z.json)

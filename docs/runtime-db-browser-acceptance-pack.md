@@ -74,11 +74,11 @@ browser_driver: missing-playwright
 That is expected. It means the machine can run API smoke but has not yet proven
 browser acceptance.
 
-On Codex desktop, Playwright may be available through the bundled runtime rather
-than the project `node_modules`. In that case run with `NODE_PATH` pointing at
-the bundled Node packages. The driver will also use an installed Chrome/Chromium
+Playwright is a project dev dependency, so a normal `npm install` or `npm ci`
+provides the Node package. The driver will use an installed Chrome/Chromium
 binary when Playwright's downloaded browser is not present. A custom browser can
-be supplied with `MWB_PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
+be supplied with `MWB_PLAYWRIGHT_CHROMIUM_EXECUTABLE`. On the private Debian VM,
+the expected browser path is usually `/usr/bin/chromium`.
 
 ## What This Does Not Do
 
