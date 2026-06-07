@@ -140,6 +140,27 @@ MWB_PRIVATE_BETA_USERNAME=<operator username>
 MWB_PRIVATE_BETA_PASSWORD=<operator password>
 ```
 
+For more than one trusted tester, use an operator-managed tester account file
+instead of sharing one password:
+
+```text
+MWB_PRIVATE_BETA_AUTH=required
+MWB_PRIVATE_BETA_USERS_FILE=~/.config/matter-workbench/private-beta-users.json
+```
+
+Create or update tester accounts with:
+
+```bash
+printf '%s\n' '<temporary password>' | npm run private-beta:users -- add --file ~/.config/matter-workbench/private-beta-users.json --username <tester> --password-stdin
+npm run private-beta:users -- list --file ~/.config/matter-workbench/private-beta-users.json
+npm run private-beta:users -- disable --file ~/.config/matter-workbench/private-beta-users.json --username <tester>
+```
+
+The account file stores password hashes, not plain-text passwords. If
+`MWB_PRIVATE_BETA_USERS_FILE` is configured, that file is the login authority;
+the older single env username/password path remains a compatibility fallback
+only when no users file is configured.
+
 The access gate is intentionally local/private-beta scoped: it uses an
 HttpOnly, `SameSite=Strict` session cookie and in-process sessions. Login
 attempts are throttled per client; tune with

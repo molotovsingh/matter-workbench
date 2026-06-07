@@ -33,15 +33,16 @@ The app can produce useful working material. It does not replace lawyer review.
 For each matter, try this flow:
 
 1. Open the app at the URL given by the operator.
-2. Select a matter or create a small disposable matter.
-3. If you upload files, wait for automatic preparation to finish.
-4. Read the Preparation Advisory before trusting generated output.
-5. Open Source Labels / Document Index.
-6. Open List of Dates.
-7. Ask Copilot one specific question from the matter record.
-8. Run one custom skill only on a matter where replacing generated output is acceptable.
-9. Open Activity if anything seems to hang, skip, or fail.
-10. If something is confusing, wrong, slow, or legally weak, click
+2. Sign in with the username and temporary password given by the operator.
+3. Select a matter or create a small disposable matter.
+4. If you upload files, wait for automatic preparation to finish.
+5. Read the Preparation Advisory before trusting generated output.
+6. Open Source Labels / Document Index.
+7. Open List of Dates.
+8. Ask Copilot one specific question from the matter record.
+9. Run one custom skill only on a matter where replacing generated output is acceptable.
+10. Open Activity if anything seems to hang, skip, or fail.
+11. If something is confusing, wrong, slow, or legally weak, click
     **Have a problem? Tell us what happened** and write a short plain-language
     note.
 
@@ -121,7 +122,7 @@ It is not yet:
 
 - public SaaS;
 - public web deployment;
-- hosted multi-user auth;
+- self-service user signup or password reset;
 - cloud object storage;
 - durable background-worker execution;
 - unsupervised legal reliance.

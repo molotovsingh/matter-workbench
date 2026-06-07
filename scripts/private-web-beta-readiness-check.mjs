@@ -2,6 +2,7 @@
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
+import { readPrivateBetaUsersFile } from "../services/private-beta-auth-service.mjs";
 import { runtimeDatabaseUrl, runtimeDatabaseUrlSource } from "../services/runtime-db-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,11 +101,23 @@ function checkPublicUrl(publicUrl) {
 function checkPrivateAccess(env) {
   const mode = String(env.MWB_PRIVATE_BETA_AUTH || "").trim().toLowerCase();
   const authRequired = ["required", "true", "1", "yes", "on"].includes(mode);
+  const usersFile = String(env.MWB_PRIVATE_BETA_USERS_FILE || "").trim();
   const usernamePresent = Boolean(String(env.MWB_PRIVATE_BETA_USERNAME || "").trim());
   const passwordPresent = Boolean(String(env.MWB_PRIVATE_BETA_PASSWORD || ""));
   if (!authRequired) return block("private_access", "Set MWB_PRIVATE_BETA_AUTH=required before web beta access.");
+  if (usersFile) {
+    try {
+      const activeUsers = readPrivateBetaUsersFile(usersFile).filter((user) => !user.disabled);
+      if (!activeUsers.length) {
+        return block("private_access", "MWB_PRIVATE_BETA_USERS_FILE is configured but has no active tester accounts.");
+      }
+      return pass("private_access", "Private beta login gate is required and a tester account file is configured.");
+    } catch (error) {
+      return block("private_access", `MWB_PRIVATE_BETA_USERS_FILE is not usable: ${error.message}`);
+    }
+  }
   if (!usernamePresent || !passwordPresent) {
-    return block("private_access", "Set MWB_PRIVATE_BETA_USERNAME and MWB_PRIVATE_BETA_PASSWORD for the access gate.");
+    return block("private_access", "Set MWB_PRIVATE_BETA_USERS_FILE or MWB_PRIVATE_BETA_USERNAME and MWB_PRIVATE_BETA_PASSWORD for the access gate.");
   }
   return pass("private_access", "Private beta login gate is required and credentials are configured.");
 }

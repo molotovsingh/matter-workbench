@@ -28,7 +28,7 @@ interface PendingConfigurableOverwrite {
 interface AuthStatus {
   enabled: boolean;
   authenticated: boolean;
-  user: { username: string } | null;
+  user: { username: string; role?: string; displayName?: string } | null;
 }
 
 function AppShell() {

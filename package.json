@@ -17,6 +17,7 @@
     "private-beta:deployment-pack": "node scripts/private-beta-deployment-pack.mjs",
     "private-beta:bug-evidence-pack": "node scripts/private-beta-bug-evidence-pack.mjs",
     "private-beta:rc-closure-pack": "node scripts/private-beta-rc-closure-pack.mjs",
+    "private-beta:users": "node scripts/private-beta-users.mjs",
     "db:migrations:list": "node scripts/db-migrate.mjs --list",
     "db:migrations:check": "node scripts/db-migrate.mjs --dry-run",
     "db:doctor": "node scripts/db-doctor.mjs",

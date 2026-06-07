@@ -50,6 +50,7 @@ test("private beta deployment pack writes ordered deployment and observability e
   assert.deepEqual(result.commandPhases.map((phase) => phase.id), [
     "source_release",
     "runtime_env",
+    "tester_accounts",
     "deploy_artifact",
     "service_start",
     "https_access",
@@ -71,6 +72,7 @@ test("private beta deployment pack writes ordered deployment and observability e
   assert.match(rendered, /ready_for_handoff: yes/);
   assert.match(rendered, /Sites is parked for companion surfaces/);
   assert.match(rendered, /npm run private-web:readiness-check/);
+  assert.match(rendered, /npm run private-beta:users/);
 });
 
 test("private beta deployment pack fails handoff when readiness has blockers", async () => {

@@ -2032,17 +2032,27 @@ authorization, object-storage custody, and worker recovery.
 
 The access gate adds the next obvious lock. Until now, the VM was protected
 mostly by being on a private network. That is useful, but it is not the same as
-app-level access control. The private beta gate makes the app ask for operator
-credentials before product APIs load. It is intentionally small: one protected
-env username/password, an HttpOnly session cookie, logout, and tests that prove
-anonymous API calls are blocked. This is not "enterprise auth"; it is the right
-minimum lock for a private beta machine.
+app-level access control. The private beta gate makes the app ask for credentials
+before product APIs load. It started intentionally small: one protected env
+username/password, an HttpOnly session cookie, logout, and tests that prove
+anonymous API calls are blocked. That was enough for one operator, but not enough
+for a handful of firm testers.
+
+The next slice keeps the same private-beta honesty while making access practical.
+`MWB_PRIVATE_BETA_USERS_FILE` points to an operator-managed account file, and
+`npm run private-beta:users` can add, list, disable, enable, or reset tester
+passwords. The file stores password hashes instead of plain passwords. If that
+file is configured, it becomes the login authority; the old single env
+username/password remains only as a compatibility fallback when no users file is
+configured. This is still not enterprise auth. It is named access for a trusted
+private beta.
 
 The lesson is to match the security mechanism to the claim. For a private VM,
-an env-backed login gate is a reasonable next step. For public cloud, it would
-not be enough. Public cloud needs durable sessions, identity provider support,
-tenant membership checks on every request, HTTPS, rate limiting, audit logs, and
-proper secret rotation. Small does not mean sloppy. It means honest about scope.
+an operator-managed tester file is a reasonable next step. For public cloud, it
+would not be enough. Public cloud needs durable sessions, identity provider
+support, tenant membership checks on every request, HTTPS, rate limiting, audit
+logs, password-reset/account recovery flows, and proper secret rotation. Small
+does not mean sloppy. It means honest about scope.
 
 The next operator lesson is that backups and incident reports are not the same
 tool. When a beta user says "something broke," the first thing you need is not

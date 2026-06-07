@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
 
 test("private beta auth blocks product APIs and allows login/logout/status", async () => {
   const app = await createTestApp();
@@ -79,6 +80,49 @@ test("private beta auth disabled preserves existing public local dev behavior", 
       authenticated: true,
       user: null,
     });
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
+test("private beta auth route accepts configured tester account file", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-auth-route-users-"));
+  const usersFile = path.join(tmp, "users.json");
+  await writeFile(
+    usersFile,
+    `${JSON.stringify({
+      schemaVersion: "private-beta-users/v1",
+      users: [
+        {
+          username: "tester-one",
+          role: "tester",
+          passwordHash: hashPrivateBetaPassword("secret", { salt: "route-users", iterations: 1_000 }),
+        },
+      ],
+    }, null, 2)}\n`,
+    "utf8",
+  );
+  const app = await createTestApp({
+    env: {
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+
+  try {
+    const login = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester-one", password: "secret" }),
+    });
+    assert.equal(login.status, 200);
+    const payload = await login.json();
+    assert.deepEqual(payload.user, { username: "tester-one", role: "tester" });
+    assert.doesNotMatch(JSON.stringify(payload), /password|hash|secret/i);
   } finally {
     await new Promise((resolve) => app.server.close(resolve));
   }

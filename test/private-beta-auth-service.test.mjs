@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   createPrivateBetaAuthService,
+  hashPrivateBetaPassword,
   parseCookies,
 } from "../services/private-beta-auth-service.mjs";
 
@@ -58,6 +62,82 @@ test("private beta auth logs in, validates cookie session, and logs out", () => 
   const logout = service.logout(request);
   assert.match(logout.setCookie, /Max-Age=0/);
   assert.equal(service.isAuthenticated(request), false);
+});
+
+test("private beta auth supports operator-managed tester account files", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "aks",
+      displayName: "Aks",
+      role: "operator",
+      passwordHash: hashPrivateBetaPassword("aks-secret", { salt: "salt-aks", iterations: 1_000 }),
+    },
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("tester-secret", { salt: "salt-tester", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    tokenBytes: () => Buffer.from("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    now: () => 1_000,
+  });
+
+  const legacyFallback = service.login({ username: "operator", password: "secret" });
+  assert.equal(legacyFallback.statusCode, 401);
+
+  const login = service.login({ username: "tester-one", password: "tester-secret" });
+  assert.equal(login.statusCode, 200);
+  assert.deepEqual(login.payload.user, { username: "tester-one", role: "tester" });
+  assert.doesNotMatch(JSON.stringify(login.payload), /password|hash|tester-secret/i);
+
+  const request = { headers: { cookie: login.setCookie.split(";")[0] } };
+  assert.deepEqual(service.status(request), {
+    enabled: true,
+    authenticated: true,
+    user: { username: "tester-one", role: "tester" },
+  });
+});
+
+test("private beta auth rejects disabled file-backed tester accounts", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "paused-tester",
+      role: "tester",
+      disabled: true,
+      passwordHash: hashPrivateBetaPassword("tester-secret", { salt: "salt-disabled", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+
+  const login = service.login({ username: "paused-tester", password: "tester-secret" });
+  assert.equal(login.statusCode, 401);
+  assert.equal(login.setCookie, "");
+});
+
+test("private beta auth fails closed for malformed configured tester account file", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-users-bad-"));
+  const usersFile = path.join(tmp, "users.json");
+  await writeFile(usersFile, "{not-json", "utf8");
+
+  assert.throws(
+    () => createPrivateBetaAuthService({
+      env: {
+        MWB_PRIVATE_BETA_AUTH: "required",
+        MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+      },
+    }),
+    /MWB_PRIVATE_BETA_USERS_FILE/,
+  );
 });
 
 test("private beta auth marks cookies secure only when configured for https deployment", () => {
@@ -159,3 +239,15 @@ test("cookie parser handles encoded cookie values", () => {
     empty: "",
   });
 });
+
+async function writeUsersFile(users) {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-users-"));
+  await mkdir(tmp, { recursive: true });
+  const usersFile = path.join(tmp, "users.json");
+  await writeFile(
+    usersFile,
+    `${JSON.stringify({ schemaVersion: "private-beta-users/v1", users }, null, 2)}\n`,
+    "utf8",
+  );
+  return usersFile;
+}

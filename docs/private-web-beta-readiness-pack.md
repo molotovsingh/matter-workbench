@@ -41,9 +41,19 @@ Set private beta access:
 ```text
 MWB_PRIVATE_BETA_PUBLIC_URL=https://...
 MWB_PRIVATE_BETA_AUTH=required
-MWB_PRIVATE_BETA_USERNAME=...
-MWB_PRIVATE_BETA_PASSWORD=...
+MWB_PRIVATE_BETA_USERS_FILE=~/.config/matter-workbench/private-beta-users.json
 ```
+
+Create tester accounts with:
+
+```bash
+printf '%s\n' '<temporary password>' | npm run private-beta:users -- add --file ~/.config/matter-workbench/private-beta-users.json --username <tester> --password-stdin
+npm run private-beta:users -- list --file ~/.config/matter-workbench/private-beta-users.json
+```
+
+The older `MWB_PRIVATE_BETA_USERNAME` / `MWB_PRIVATE_BETA_PASSWORD` pair remains
+available for one-operator local compatibility, but a private web beta with
+multiple testers should use the account file so each tester has their own login.
 
 `MWB_PRIVATE_BETA_PUBLIC_URL=https://...` is important because the auth service
 uses it to mark the session cookie `Secure`. If the public URL is HTTPS but that
@@ -122,7 +132,7 @@ The check fails only for blockers:
 
 - missing HTTPS tester URL;
 - private beta auth not required;
-- missing access credentials;
+- missing access credentials or unusable tester account file;
 - insecure cookie posture for HTTPS beta;
 - runtime DB/Postgres custody not explicitly enabled;
 - missing runtime database URL;
@@ -163,7 +173,7 @@ Those commands prove different things:
 Give testers:
 
 - the app URL;
-- the login credentials;
+- their own username and temporary password;
 - [Private Beta Tester Brief](private-beta-tester-brief.md);
 - the rule that generated legal output always needs lawyer review;
 - the rule that they should click **Have a problem? Tell us what happened** as

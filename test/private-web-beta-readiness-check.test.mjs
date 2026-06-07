@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -7,6 +9,7 @@ import {
   parsePrivateWebBetaReadinessArgs,
   renderPrivateWebBetaReadiness,
 } from "../scripts/private-web-beta-readiness-check.mjs";
+import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
 
 const READY_ENV = {
   MWB_PRIVATE_BETA_PUBLIC_URL: "https://mwb-beta.example.test",
@@ -70,6 +73,38 @@ test("private web beta readiness accepts signal sync fallback through feedback m
   assert.equal(report.ready, true);
   assert.equal(sync.status, "pass");
   assert.match(sync.message, /signal fallback/i);
+});
+
+test("private web beta readiness accepts operator-managed tester account files", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-readiness-users-"));
+  const usersFile = path.join(tmp, "private-beta-users.json");
+  await writeFile(
+    usersFile,
+    `${JSON.stringify({
+      schemaVersion: "private-beta-users/v1",
+      users: [
+        {
+          username: "tester-one",
+          role: "tester",
+          passwordHash: hashPrivateBetaPassword("secret", { salt: "readiness", iterations: 1_000 }),
+        },
+      ],
+    }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const report = evaluatePrivateWebBetaReadiness({
+    env: {
+      ...READY_ENV,
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+
+  assert.equal(report.ready, true);
+  assert.equal(report.checks.find((check) => check.id === "private_access")?.status, "pass");
+  assert.match(report.checks.find((check) => check.id === "private_access")?.message || "", /tester account file/i);
 });
 
 test("private web beta readiness warns when runtime DB URL falls back to a generic database URL", () => {

@@ -17,7 +17,7 @@ React app + Node server
   -> private VM/cloud instance
   -> Postgres runtime DB and payload custody
   -> HTTPS reverse proxy
-  -> private beta auth
+  -> private beta auth with operator-managed tester accounts
   -> mothership feedback and diagnostic signal sync
   -> ops/recovery/rollback evidence packs
 ```
@@ -101,8 +101,9 @@ The boring shape is:
 4. Atomically move the `current` symlink.
 5. Start or restart the user-level service.
 6. Put HTTPS in front of the local service.
-7. Run the readiness and evidence packs.
-8. Give the URL to testers only after blocker checks pass.
+7. Provision named tester accounts.
+8. Run the readiness and evidence packs.
+9. Give the URL to testers only after blocker checks pass.
 
 The pack writes that order every time, so operator memory is not the deployment
 system.
@@ -154,6 +155,8 @@ The operator should be able to answer:
 Before giving a private URL to testers:
 
 ```bash
+printf '%s\n' '<temporary password>' | npm run private-beta:users -- add --file ~/.config/matter-workbench/private-beta-users.json --username <tester> --password-stdin
+npm run private-beta:users -- list --file ~/.config/matter-workbench/private-beta-users.json
 npm run private-beta:deployment-pack
 npm run private-web:readiness-check
 npm run private-beta:rc-closure-pack
