@@ -2158,3 +2158,23 @@ them lets the app become more honest. A failed job can be visible even when it
 created no artifact. A completed skill can still have a receipt and output path.
 Later, when hosted workers arrive, the product already has a user-facing place
 for job state instead of inventing it under pressure.
+
+The next private beta hardening pass fixed two small but important truth gaps.
+First, the login gate learned a modest lockout rule. If the same client keeps
+submitting bad credentials, the app now answers with a temporary "too many
+attempts" response instead of letting the login form be hammered endlessly. The
+cookie also became deployment-aware: it stays usable on private HTTP VM URLs,
+but turns `Secure` on when the runtime is explicitly configured for HTTPS. That
+is a good example of security engineering with context. A rule that is correct
+for public HTTPS can break a private local beta if applied blindly.
+
+Second, runtime DB matter status stopped pretending that Source Labels and List
+of Dates are current merely because the files exist in Postgres custody. The DB
+workspace query now carries each object's hash and modification timestamp into
+the runtime status reader. That lets the prepare plan see the same practical
+problem a lawyer would see: if extracted source text is newer than Source
+Index, or Source Index is newer than List of Dates, the downstream artifact
+needs attention instead of a green "current" badge. The lesson is not "use a
+database and all freshness problems disappear." The lesson is that a database
+must preserve the dependency evidence that the filesystem used to imply through
+file timestamps and paths.

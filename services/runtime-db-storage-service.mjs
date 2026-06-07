@@ -18,6 +18,7 @@ import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { composeIntakeDirName } from "../shared/matter-contract.mjs";
 import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import {
   WORKSPACE_PREVIEW_LIMITS,
   classifyWorkspacePreview,
@@ -44,15 +45,7 @@ export function createRuntimeDbStorageService({
   async function readWorkspace(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
-    const result = queryJson({
-      databaseUrl,
-      tenantId,
-      spawn,
-      sql: buildWorkspaceSql({ tenantId, matter: normalizedMatter }),
-    });
-    const objects = Array.isArray(result.objects) ? result.objects.map(normalizeObjectRow) : [];
-    const dbMatter = normalizeMatter({ ...normalizedMatter, ...(result.matter || {}) });
-    const tree = buildWorkspaceTree({ matter: dbMatter, objects });
+    const { dbMatter, tree } = readWorkspaceState(normalizedMatter);
     return {
       folderName: dbMatter.name,
       inputLabel: `postgres:${dbMatter.name}`,
@@ -67,6 +60,23 @@ export function createRuntimeDbStorageService({
       fileCount: tree.fileCount,
       directoryCount: tree.directoryCount,
       tree: tree.root,
+    };
+  }
+
+  function readWorkspaceState(normalizedMatter) {
+    const result = queryJson({
+      databaseUrl,
+      tenantId,
+      spawn,
+      sql: buildWorkspaceSql({ tenantId, matter: normalizedMatter }),
+    });
+    const objects = Array.isArray(result.objects) ? result.objects.map(normalizeObjectRow) : [];
+    const dbMatter = normalizeMatter({ ...normalizedMatter, ...(result.matter || {}) });
+    const tree = buildWorkspaceTree({ matter: dbMatter, objects });
+    return {
+      dbMatter,
+      objects,
+      tree,
     };
   }
 
@@ -335,8 +345,9 @@ export function createRuntimeDbStorageService({
 
   async function readMatterStatus(matter) {
     const normalizedMatter = normalizeMatter(matter);
-    const workspace = await readWorkspace(normalizedMatter);
-    const paths = workspaceFilePaths(workspace.tree);
+    const { objects, tree } = readWorkspaceState(normalizedMatter);
+    const paths = workspaceFilePaths(tree.root);
+    const runtimeInputs = runtimeStatusInputs({ matter: normalizedMatter, objects });
     const stages = [
       statusStage({
         id: "matter-init",
@@ -358,7 +369,7 @@ export function createRuntimeDbStorageService({
         label: "Source Labels / Document Index",
         present: paths.some((item) => item.path === "10_Library/Source Index.json"),
         artifacts: paths.filter((item) => item.path === "10_Library/Source Index.json").map((item) => item.path),
-        rerunAdvice: currentAdvice("Source labels are available from DB payload custody."),
+        rerunAdvice: runtimeSourceLabelsRerunAdvice(runtimeInputs),
       }),
       statusStage({
         id: "create-listofdates",
@@ -368,7 +379,7 @@ export function createRuntimeDbStorageService({
         artifacts: paths
           .filter((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json")
           .map((item) => item.path),
-        rerunAdvice: currentAdvice("List of Dates is available from DB payload custody."),
+        rerunAdvice: runtimeListOfDatesRerunAdvice(runtimeInputs),
       }),
     ];
     return {
@@ -654,6 +665,8 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "    so.object_role,",
     "    so.mime_type,",
     "    coalesce(sop.size_bytes, so.size_bytes, 0)::bigint as size_bytes,",
+    "    coalesce(sop.sha256, so.sha256, '') as sha256,",
+    "    coalesce(sop.updated_at, sop.verified_at, so.verified_at, so.uploaded_at, so.updated_at, so.created_at) as updated_at,",
     "    (sop.id is not null) as has_payload",
     "  from storage_objects so",
     "  join storage_object_payloads sop on sop.storage_object_id = so.id and sop.tenant_id = so.tenant_id",
@@ -678,6 +691,8 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "    'objectRole', object_role,",
     "    'mimeType', coalesce(mime_type, ''),",
     "    'sizeBytes', size_bytes,",
+    "    'sha256', coalesce(sha256, ''),",
+    "    'updatedAt', updated_at,",
     "    'hasPayload', has_payload",
     "  ) order by object_key) from object_rows), '[]'::jsonb)",
     ")::text;",
@@ -940,6 +955,138 @@ function extractedArtifacts(paths = []) {
   return [...byDirectory.entries()].map(([directory, count]) => `${directory} (${count} record${count === 1 ? "" : "s"})`);
 }
 
+function runtimeStatusInputs({ matter, objects = [] } = {}) {
+  const rows = objects.map((object) => ({
+    ...object,
+    relativePath: relativePathFromObjectKey(object.objectKey, matter.name),
+    updatedMs: Date.parse(object.updatedAt || "") || 0,
+  }));
+  const byPath = new Map(rows.map((row) => [row.relativePath, row]));
+  const extractionInputs = rows
+    .filter((row) => /(^|\/)_extracted\/[^/]+\.json$/i.test(row.relativePath))
+    .map((row) => runtimeInput(row, "extraction_record"));
+  return {
+    extractionInputs,
+    sourceIndex: byPath.get("10_Library/Source Index.json") || null,
+    listOfDatesMarkdown: byPath.get("10_Library/List of Dates.md") || null,
+    listOfDatesJson: byPath.get("10_Library/List of Dates.json") || null,
+  };
+}
+
+function runtimeSourceLabelsRerunAdvice(inputs = {}) {
+  return buildRuntimeRerunAdvice({
+    skill: "/describe_sources",
+    label: "source descriptors",
+    target: inputs.sourceIndex,
+    upstreamInputs: inputs.extractionInputs || [],
+    staleDescription: "newer extraction records were found in DB payload custody",
+    currentDescription: "No newer extraction records were found in DB payload custody.",
+  });
+}
+
+function runtimeListOfDatesRerunAdvice(inputs = {}) {
+  const target = inputs.listOfDatesMarkdown || inputs.listOfDatesJson;
+  const upstreamInputs = [
+    ...(inputs.extractionInputs || []),
+    ...(inputs.sourceIndex ? [runtimeInput(inputs.sourceIndex, "source_index")] : []),
+  ];
+  return buildRuntimeRerunAdvice({
+    skill: "/create_listofdates",
+    label: "list of dates",
+    target,
+    upstreamInputs,
+    staleDescription: "newer extraction records or Source Index changes were found in DB payload custody",
+    currentDescription: "No newer extraction records or Source Index changes were found in DB payload custody.",
+  });
+}
+
+function buildRuntimeRerunAdvice({
+  skill,
+  label,
+  target,
+  upstreamInputs,
+  staleDescription,
+  currentDescription,
+}) {
+  if (!target) {
+    return runtimeAdvice({ skill, label, state: RERUN_ADVICE_STATES.MISSING, shouldConfirm: false });
+  }
+  if (!upstreamInputs.length) {
+    return runtimeAdvice({
+      skill,
+      label,
+      state: RERUN_ADVICE_STATES.MISSING_UPSTREAM,
+      shouldConfirm: false,
+      artifactPath: target.relativePath,
+      lastRunAt: target.updatedAt || "",
+    });
+  }
+  const newestInput = upstreamInputs.reduce((newest, input) => (
+    !newest || input.updatedMs > newest.updatedMs ? input : newest
+  ), null);
+  if (newestInput?.updatedMs > (Date.parse(target.updatedAt || "") || 0) + 1) {
+    return runtimeAdvice({
+      skill,
+      label,
+      state: RERUN_ADVICE_STATES.STALE,
+      shouldConfirm: false,
+      artifactPath: target.relativePath,
+      lastRunAt: target.updatedAt || "",
+      reason: staleDescription,
+      newestInputPath: newestInput.relativePath,
+      newestInputAt: newestInput.updatedAt || "",
+    });
+  }
+  const advice = runtimeAdvice({
+    skill,
+    label,
+    state: RERUN_ADVICE_STATES.CURRENT,
+    shouldConfirm: true,
+    artifactPath: target.relativePath,
+    lastRunAt: target.updatedAt || "",
+    reason: currentDescription,
+    inputCount: upstreamInputs.length,
+  });
+  advice.message = `${skill} has a current ${label} artifact in DB payload custody. Run it again anyway?`;
+  return advice;
+}
+
+function runtimeInput(row, inputKind) {
+  return {
+    inputKind,
+    relativePath: row.relativePath,
+    updatedAt: row.updatedAt || "",
+    updatedMs: row.updatedMs || Date.parse(row.updatedAt || "") || 0,
+    contentHash: row.sha256 || "",
+  };
+}
+
+function runtimeAdvice({
+  skill,
+  label,
+  state,
+  shouldConfirm,
+  artifactPath = "",
+  lastRunAt = "",
+  reason = "",
+  newestInputPath = "",
+  newestInputAt = "",
+  inputCount = 0,
+}) {
+  return {
+    skill,
+    label,
+    state,
+    shouldConfirm,
+    artifactPath,
+    lastRunAt,
+    reason,
+    newestInputPath,
+    newestInputAt,
+    inputCount,
+  };
+}
+
 function statusStage({ id, slash, label, present, artifacts = [], rerunAdvice = null }) {
   return {
     id,
@@ -954,6 +1101,8 @@ function statusStage({ id, slash, label, present, artifacts = [], rerunAdvice = 
 
 function prepareStage(slash, statusStageValue, previousStage = null) {
   const definition = stageDefinition(slash);
+  const advice = statusStageValue?.rerunAdvice || null;
+  const adviceState = advice?.state || (statusStageValue?.present ? RERUN_ADVICE_STATES.CURRENT : RERUN_ADVICE_STATES.MISSING);
   const base = {
     id: definition.id,
     slash,
@@ -961,9 +1110,9 @@ function prepareStage(slash, statusStageValue, previousStage = null) {
     description: definition.description,
     paidProviderCall: definition.paidProviderCall,
     artifacts: Array.isArray(statusStageValue?.artifacts) ? statusStageValue.artifacts : [],
-    rerunAdvice: statusStageValue?.rerunAdvice || null,
+    rerunAdvice: advice,
   };
-  if (statusStageValue?.present) {
+  if (adviceState === RERUN_ADVICE_STATES.CURRENT) {
     return {
       ...base,
       state: "current",
@@ -977,6 +1126,22 @@ function prepareStage(slash, statusStageValue, previousStage = null) {
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
       reason: `Complete ${previousStage.label} before ${definition.label}.`,
+    };
+  }
+  if (adviceState === RERUN_ADVICE_STATES.MISSING_UPSTREAM) {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: `${definition.label} inputs are missing from DB payload custody.`,
+    };
+  }
+  if (adviceState === RERUN_ADVICE_STATES.STALE || adviceState === RERUN_ADVICE_STATES.FAILED) {
+    return {
+      ...base,
+      state: adviceState,
+      action: definition.paidProviderCall ? PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN : PREPARATION_STAGE_ACTIONS.RUN,
+      reason: advice?.reason || `${definition.label} needs to run again.`,
     };
   }
   return {
@@ -1015,13 +1180,6 @@ function stageDefinition(slash) {
     },
   };
   return definitions[slash];
-}
-
-function currentAdvice(reason) {
-  return {
-    state: "current",
-    reason,
-  };
 }
 
 async function listMatterFiles(root, relativePrefix = "") {
@@ -1440,6 +1598,8 @@ function normalizeObjectRow(row = {}) {
     objectRole: stringValue(row.objectRole),
     mimeType: stringValue(row.mimeType),
     sizeBytes: Number(row.sizeBytes) || 0,
+    sha256: stringValue(row.sha256),
+    updatedAt: normalizeIsoString(row.updatedAt || row.updated_at),
     hasPayload: Boolean(row.hasPayload),
   };
 }
@@ -1515,6 +1675,12 @@ function sqlBoolean(value) {
 
 function stringValue(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeIsoString(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : "";
 }
 
 function positiveInteger(value, fallback = 1) {

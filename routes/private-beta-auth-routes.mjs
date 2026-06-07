@@ -15,7 +15,7 @@ export async function handlePrivateBetaAuthApiRequest({ request, requestUrl, res
       }),
       exactRoute("POST", "/api/auth/login", async () => {
         const body = await readRequestJson(request, { maxBodyBytes: 16 * 1024 });
-        const result = privateBetaAuthService.login(body);
+        const result = privateBetaAuthService.login(body, { request });
         const headers = { "content-type": "application/json; charset=utf-8" };
         if (result.setCookie) headers["set-cookie"] = result.setCookie;
         response.writeHead(result.statusCode, headers);

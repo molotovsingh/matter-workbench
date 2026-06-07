@@ -632,10 +632,16 @@ MWB_PRIVATE_BETA_PASSWORD=<operator password>
 When enabled, anonymous product APIs return `401 Login required`. The React shell
 loads a private-beta login screen, `/api/auth/login` issues an HttpOnly
 `SameSite=Strict` session cookie, and `/api/auth/logout` clears it. This is
-appropriate for the trusted private VM. It is not a hosted SaaS auth system:
-sessions are in-memory, credentials are env-backed, and public deployment still
-needs HTTPS, durable session policy, identity-provider integration, tenant-user
-provisioning, and audited authorization middleware.
+appropriate for the trusted private VM. Login attempts are throttled per client
+with `MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS` and
+`MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS`. The cookie gets the `Secure` attribute
+only when `MWB_PRIVATE_BETA_PUBLIC_URL`/`MWB_PUBLIC_URL` is `https://...` or
+`MWB_PRIVATE_BETA_COOKIE_SECURE=true`; leave it unset for private HTTP VM
+testing, because browsers will otherwise refuse to store the cookie. This is not
+a hosted SaaS auth system: sessions are in-memory, credentials are env-backed,
+and public deployment still needs HTTPS, durable session policy,
+identity-provider integration, tenant-user provisioning, and audited
+authorization middleware.
 
 ## What A Developer Should Check Next
 

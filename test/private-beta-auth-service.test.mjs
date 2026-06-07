@@ -45,6 +45,7 @@ test("private beta auth logs in, validates cookie session, and logs out", () => 
   assert.match(login.setCookie, /mwb_private_beta_session=/);
   assert.match(login.setCookie, /HttpOnly/);
   assert.match(login.setCookie, /SameSite=Strict/);
+  assert.doesNotMatch(login.setCookie, /;\s*Secure\b/);
 
   const request = { headers: { cookie: login.setCookie.split(";")[0] } };
   assert.equal(service.isAuthenticated(request), true);
@@ -57,6 +58,78 @@ test("private beta auth logs in, validates cookie session, and logs out", () => 
   const logout = service.logout(request);
   assert.match(logout.setCookie, /Max-Age=0/);
   assert.equal(service.isAuthenticated(request), false);
+});
+
+test("private beta auth marks cookies secure only when configured for https deployment", () => {
+  const insecure = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_COOKIE_SECURE: "false",
+    },
+    tokenBytes: () => Buffer.from("11111111111111111111111111111111"),
+  });
+  assert.doesNotMatch(
+    insecure.login({ username: "operator", password: "secret" }).setCookie,
+    /;\s*Secure\b/,
+  );
+
+  const explicitSecure = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_COOKIE_SECURE: "true",
+    },
+    tokenBytes: () => Buffer.from("22222222222222222222222222222222"),
+  });
+  assert.match(
+    explicitSecure.login({ username: "operator", password: "secret" }).setCookie,
+    /;\s*Secure\b/,
+  );
+
+  const httpsPublicUrl = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_PUBLIC_URL: "https://private.example.test",
+    },
+    tokenBytes: () => Buffer.from("33333333333333333333333333333333"),
+  });
+  assert.match(
+    httpsPublicUrl.login({ username: "operator", password: "secret" }).setCookie,
+    /;\s*Secure\b/,
+  );
+});
+
+test("private beta auth throttles repeated failed login attempts per client", () => {
+  let currentNow = 1_000;
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS: "2",
+      MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS: "5",
+    },
+    tokenBytes: () => Buffer.from("44444444444444444444444444444444"),
+    now: () => currentNow,
+  });
+
+  assert.equal(service.login({ username: "operator", password: "bad" }, { clientKey: "198.51.100.7" }).statusCode, 401);
+  assert.equal(service.login({ username: "operator", password: "bad" }, { clientKey: "198.51.100.7" }).statusCode, 401);
+  const throttled = service.login({ username: "operator", password: "secret" }, { clientKey: "198.51.100.7" });
+  assert.equal(throttled.statusCode, 429);
+  assert.match(throttled.payload.error, /Too many login attempts/);
+
+  const otherClient = service.login({ username: "operator", password: "secret" }, { clientKey: "203.0.113.2" });
+  assert.equal(otherClient.statusCode, 200);
+
+  currentNow = 7_000;
+  const afterWindow = service.login({ username: "operator", password: "secret" }, { clientKey: "198.51.100.7" });
+  assert.equal(afterWindow.statusCode, 200);
 });
 
 test("private beta auth expires old sessions", () => {

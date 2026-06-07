@@ -128,6 +128,23 @@ DB mode, which is now accepted behind explicit runtime flags and a non-superuser
 runtime role. This is still distinct from hosted cloud deployment and durable
 background workers.
 
+Private beta access can be required with:
+
+```text
+MWB_PRIVATE_BETA_AUTH=required
+MWB_PRIVATE_BETA_USERNAME=<operator username>
+MWB_PRIVATE_BETA_PASSWORD=<operator password>
+```
+
+The access gate is intentionally local/private-beta scoped: it uses an
+HttpOnly, `SameSite=Strict` session cookie and in-process sessions. Login
+attempts are throttled per client; tune with
+`MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS` and
+`MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS` if needed. Cookies are not marked
+`Secure` on local HTTP by default. Set `MWB_PRIVATE_BETA_PUBLIC_URL=https://...`
+or `MWB_PRIVATE_BETA_COOKIE_SECURE=true` only when the runtime is served over
+HTTPS, otherwise browsers will ignore the cookie on private HTTP VM URLs.
+
 For guided preparation, use `prepare matter` or `/prepare_matter` in the app.
 It plans and runs existing preparation stages while keeping paid source labeling
 behind an explicit confirmation. Superseded planning contracts now live under

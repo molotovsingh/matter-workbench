@@ -169,11 +169,89 @@ test("runtime DB storage service derives matter status and preparation plan from
   assert.equal(status.stages.find((stage) => stage.slash === "/extract").present, true);
   assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").present, true);
   assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").present, true);
+  assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").rerunAdvice.state, "current");
+  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").rerunAdvice.state, "current");
 
   const plan = await service.readPrepareMatterPlan(matter);
   assert.equal(plan.schema_version, "prepare-matter-plan/v1");
   assert.equal(plan.nextStep.state, "complete");
   assert.equal(plan.stages.every((stage) => stage.state === "current"), true);
+});
+
+test("runtime DB storage service marks source labels stale when extraction payloads are newer", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      matter,
+      objects: [
+        storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true, {
+          sha256: "1".repeat(64),
+          updatedAt: "2026-06-07T09:00:00.000Z",
+        }),
+        storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true, {
+          sha256: "2".repeat(64),
+          updatedAt: "2026-06-07T11:00:00.000Z",
+        }),
+        storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
+          sha256: "3".repeat(64),
+          updatedAt: "2026-06-07T10:00:00.000Z",
+        }),
+      ],
+    }),
+  });
+
+  const status = await service.readMatterStatus(matter);
+  const sourceStage = status.stages.find((stage) => stage.slash === "/describe_sources");
+  assert.equal(sourceStage.present, true);
+  assert.equal(sourceStage.rerunAdvice.state, "stale");
+  assert.equal(sourceStage.rerunAdvice.shouldConfirm, false);
+  assert.equal(sourceStage.rerunAdvice.newestInputPath, "00_Inbox/Intake 01/_extracted/FILE-0001.json");
+
+  const plan = await service.readPrepareMatterPlan(matter);
+  const sourcePlanStage = plan.stages.find((stage) => stage.slash === "/describe_sources");
+  assert.equal(sourcePlanStage.state, "stale");
+  assert.equal(sourcePlanStage.action, "confirm_paid_run");
+});
+
+test("runtime DB storage service marks List of Dates stale when Source Index is newer", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      matter,
+      objects: [
+        storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true, {
+          sha256: "1".repeat(64),
+          updatedAt: "2026-06-07T09:00:00.000Z",
+        }),
+        storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true, {
+          sha256: "2".repeat(64),
+          updatedAt: "2026-06-07T09:30:00.000Z",
+        }),
+        storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
+          sha256: "3".repeat(64),
+          updatedAt: "2026-06-07T11:00:00.000Z",
+        }),
+        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+          sha256: "4".repeat(64),
+          updatedAt: "2026-06-07T10:00:00.000Z",
+        }),
+      ],
+    }),
+  });
+
+  const status = await service.readMatterStatus(matter);
+  const listStage = status.stages.find((stage) => stage.slash === "/create_listofdates");
+  assert.equal(listStage.present, true);
+  assert.equal(listStage.rerunAdvice.state, "stale");
+  assert.equal(listStage.rerunAdvice.shouldConfirm, false);
+  assert.equal(listStage.rerunAdvice.newestInputPath, "10_Library/Source Index.json");
+
+  const plan = await service.readPrepareMatterPlan(matter);
+  const listPlanStage = plan.stages.find((stage) => stage.slash === "/create_listofdates");
+  assert.equal(listPlanStage.state, "stale");
+  assert.equal(listPlanStage.action, "confirm_paid_run");
 });
 
 test("runtime DB storage service reads latest advisory snapshot from Postgres", async () => {
@@ -511,13 +589,14 @@ test("runtime DB storage service synthesizes matter.json when DB storage has no 
   assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
 });
 
-function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload) {
+function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload, extras = {}) {
   return {
     objectKey,
     objectRole,
     mimeType,
     sizeBytes,
     hasPayload,
+    ...extras,
   };
 }
 
