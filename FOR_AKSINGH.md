@@ -2376,3 +2376,14 @@ required field change is visibly a contract change, not a random edit buried
 inside orchestration. After this pass the root engine dropped below 1000 lines,
 but the more important result is conceptual: providers, contracts, and
 orchestration are now separate reasons to change.
+
+The third split was presentation: Markdown rendering moved into
+`listofdates/rendering.mjs`. That keeps the engine from owning both "decide the
+chronology" and "display the chronology as a lawyer-readable table." The engine
+still writes the artifacts and re-exports `renderListOfDatesMarkdown` for older
+imports, but the source-label display rules, readable path fallback, and
+Markdown-cell escaping now live in the module whose only job is presentation.
+This is a small refactor with a useful lesson: even when the output is "just a
+file," rendering is a contract. If you separate it early, later improvements to
+readability do not have to disturb provider calls, validation, clustering, or
+artifact writes.
