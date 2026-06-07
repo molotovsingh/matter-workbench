@@ -2387,3 +2387,13 @@ This is a small refactor with a useful lesson: even when the output is "just a
 file," rendering is a contract. If you separate it early, later improvements to
 readability do not have to disturb provider calls, validation, clustering, or
 artifact writes.
+
+The fourth split was source-record preparation:
+`listofdates/source-records.mjs` now owns reading matter metadata, collecting
+extraction records, turning extracted blocks into bounded AI input, applying
+Source Index labels, filtering obvious meta/index sources, and creating source
+snapshots for freshness checks. That leaves the root engine closer to its real
+job: orchestrate the chronology run. The lesson is that "prepare the evidence
+packet" is not the same thing as "ask the model for dates." Once those are
+separate, OCR/source-label/file-register bugs can be tested without dragging
+provider calls or chronology writing into every test.

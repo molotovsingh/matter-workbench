@@ -1,13 +1,12 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
-import { parseCsv, toCsv } from "./shared/csv.mjs";
+import { toCsv } from "./shared/csv.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
-import { sourceLabelMetadata } from "./shared/source-labels.mjs";
 import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
 import {
   CANDIDATE_SCHEMA,
@@ -27,6 +26,19 @@ import {
   DEFAULT_LIST_OF_DATES_ENGINE_VERSION,
   renderListOfDatesMarkdown,
 } from "./listofdates/rendering.mjs";
+import {
+  buildSourceBlocks,
+  chunkBlocks,
+  createSourceSnapshot,
+  filterChronologyCandidateBlocks,
+  getIntakes,
+  readExtractionRecords,
+  readFileRegisterIndex,
+  readMatterJson,
+  readSourceIndex,
+  sourceLabelFields,
+  withSourceLabels,
+} from "./listofdates/source-records.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = DEFAULT_LIST_OF_DATES_ENGINE_VERSION;
@@ -34,8 +46,6 @@ const TWO_PASS_ENGINE_VERSION = "create-listofdates-v2-two-pass";
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 export { createOpenAiProvider, createOpenRouterProvider } from "./listofdates/providers.mjs";
 export { renderListOfDatesMarkdown } from "./listofdates/rendering.mjs";
-const BLOCK_CHAR_LIMIT = 2800;
-const CHUNK_CHAR_LIMIT = 18000;
 const TWO_PASS_ENV_FLAG = "CREATE_LISTOFDATES_TWO_PASS_ENABLED";
 const CANDIDATE_LEDGER_FILE = "List of Dates Candidates.json";
 const EVENT_TYPE_SET = new Set(EVENT_TYPES);
@@ -46,16 +56,6 @@ const HIGH_RISK_CONCLUSION_TERMS = [
   "liability admitted",
 ];
 const RAW_CITATION_RE = /\bFILE-\d{4,}\s+p\d+\.b\d+\b/g;
-const META_DOCUMENT_TYPE_SET = new Set([
-  "readme",
-  "manifest",
-  "index",
-  "file_index",
-  "bundle_index",
-  "exhibit_index",
-  "metadata",
-]);
-const META_SOURCE_NAME_RE = /\b(readme|manifest|(?:file|document|exhibit|bundle)\s*index|(?:file|document|exhibit|bundle)\s*list|table\s*of\s*contents|metadata)\b/i;
 const NON_MERITS_EVENT_RE = /\b(?:client\s+interview\s+transcript\s+recorded|transcript\s+(?:was\s+)?recorded|email\s+correspondence\s+exported|e-?mail\s+export(?:ed)?|gmail\s+export(?:ed)?|file\s+export(?:ed)?|vakalatnama(?:\s+(?:was\s+)?executed|\s+execution)?|executed\s+vakalatnama)\b/i;
 
 export async function runCreateListOfDates(options = {}) {
@@ -487,180 +487,6 @@ function addNumber(target, key, value) {
   target[key] = (target[key] || 0) + number;
 }
 
-async function readMatterJson(matterRoot) {
-  const matterJsonPath = path.join(matterRoot, "matter.json");
-  try {
-    return JSON.parse(await readFile(matterJsonPath, "utf8"));
-  } catch (error) {
-    throw new Error(`matter.json not found or invalid at ${matterJsonPath}. Run /matter-init first. (${error.message})`);
-  }
-}
-
-function getIntakes(matterJson) {
-  const intakes = Array.isArray(matterJson.intakes) ? [...matterJson.intakes] : [];
-  if (!intakes.length && matterJson.phase_1_intake) {
-    intakes.push({
-      intake_id: matterJson.phase_1_intake.intake_id || "INTAKE-01",
-      intake_dir: matterJson.phase_1_intake.intake_dir || "00_Inbox/Intake 01 - Initial",
-    });
-  }
-  return intakes.filter((intake) => intake && intake.intake_dir);
-}
-
-async function readFileRegisterIndex(matterRoot, intakes) {
-  const index = new Map();
-  for (const intake of intakes) {
-    const registerPath = path.join(matterRoot, intake.intake_dir, "File Register.csv");
-    try {
-      const rows = parseCsv(await readFile(registerPath, "utf8"));
-      for (const row of rows) {
-        if (row.file_id) index.set(row.file_id, row);
-      }
-    } catch {
-      // Missing historical registers should not block chronology from records.
-    }
-  }
-  return index;
-}
-
-async function readExtractionRecords(matterRoot, intakes) {
-  const records = [];
-  for (const intake of intakes) {
-    const extractedDir = path.join(matterRoot, intake.intake_dir, "_extracted");
-    let entries = [];
-    try {
-      entries = await readdir(extractedDir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries.filter((item) => item.isFile() && /^FILE-\d+\.json$/.test(item.name))) {
-      const recordPath = path.join(extractedDir, entry.name);
-      try {
-        const record = JSON.parse(await readFile(recordPath, "utf8"));
-        if (record.schema_version === "extraction-record/v1" && record.file_id) records.push(record);
-      } catch {
-        // /doctor will own invalid-record reporting; this skill skips them.
-      }
-    }
-  }
-  return records.sort((a, b) => String(a.file_id).localeCompare(String(b.file_id)));
-}
-
-function buildSourceBlocks(records, fileIndex) {
-  const blocks = [];
-  for (const record of records) {
-    const fileInfo = fileIndex.get(record.file_id) || {};
-    for (const page of record.pages || []) {
-      for (const block of page.blocks || []) {
-        if (!block?.id || typeof block.text !== "string" || !block.text.trim()) continue;
-        const citation = `${record.file_id} ${block.id}`;
-        blocks.push({
-          citation,
-          file_id: record.file_id,
-          source_path: record.source_path,
-          original_name: fileInfo.original_name || path.basename(record.source_path || ""),
-          category: fileInfo.category || "",
-          page: page.page,
-          block_id: block.id,
-          block_type: block.type || "",
-          confidence: page.confidence_avg ?? 1,
-          needs_review: Boolean(page.needs_review),
-          engine: record.engine,
-          sha256: record.sha256,
-          text: block.text.length > BLOCK_CHAR_LIMIT
-            ? `${block.text.slice(0, BLOCK_CHAR_LIMIT)}\n[block truncated for AI input]`
-            : block.text,
-        });
-      }
-    }
-  }
-  return blocks;
-}
-
-function chunkBlocks(blocks) {
-  const chunks = [];
-  let current = [];
-  let currentSize = 0;
-  for (const block of blocks) {
-    const size = block.text.length + block.citation.length + 120;
-    if (current.length && currentSize + size > CHUNK_CHAR_LIMIT) {
-      chunks.push(current);
-      current = [];
-      currentSize = 0;
-    }
-    current.push(block);
-    currentSize += size;
-  }
-  if (current.length) chunks.push(current);
-  return chunks;
-}
-
-async function readSourceIndex(matterRoot, blocks) {
-  const indexPath = path.join(matterRoot, "10_Library", "Source Index.json");
-  let artifact;
-  try {
-    artifact = JSON.parse(await readFile(indexPath, "utf8"));
-  } catch {
-    return new Map();
-  }
-  if (artifact?.schema_version !== "source-index/v1" || !Array.isArray(artifact.sources)) return new Map();
-
-  const blockByFileId = new Map(blocks.map((block) => [block.file_id, block]));
-  const index = new Map();
-  for (const source of artifact.sources) {
-    const block = blockByFileId.get(source?.file_id);
-    if (!block || source.sha256 !== block.sha256) continue;
-    if (source.source_path !== block.source_path) continue;
-    const metadata = {
-      ...sourceLabelMetadata(source, { includeDisplayFields: true }),
-    };
-    index.set(source.file_id, metadata);
-  }
-  return index;
-}
-
-function createSourceSnapshot(sourceIndex = new Map()) {
-  return [...sourceIndex.entries()]
-    .map(([fileId, source]) => ({
-      file_id: fileId,
-      source_id: source.source_id || fileId,
-      content_hash: source.content_hash || "",
-      source_label: source.source_label || "",
-      source_short_label: source.source_short_label || "",
-      document_type: source.document_type || "",
-      document_date: source.document_date || "",
-      needs_review: Boolean(source.needs_review),
-      label_status: source.label_status || "",
-      label_revision: Number.isInteger(source.label_revision) ? source.label_revision : 0,
-    }))
-    .sort((a, b) => a.file_id.localeCompare(b.file_id, undefined, { numeric: true }));
-}
-
-function filterChronologyCandidateBlocks(blocks, sourceIndex = new Map()) {
-  return blocks.filter((block) => !isMetaChronologySource(block, sourceIndex.get(block.file_id)));
-}
-
-function isMetaChronologySource(block, sourceMetadata = {}) {
-  const documentType = normalizeDisplayText(sourceMetadata.document_type).toLowerCase();
-  if (META_DOCUMENT_TYPE_SET.has(documentType)) return true;
-
-  const names = [
-    sourceMetadata.display_label,
-    sourceMetadata.short_label,
-    block.original_name,
-    path.basename(block.source_path || ""),
-  ].map(normalizeEligibilityText).filter(Boolean);
-
-  return names.some((name) => META_SOURCE_NAME_RE.test(name));
-}
-
-function normalizeEligibilityText(value) {
-  return String(value || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new Map()) {
   const blockByCitation = new Map(blocks.map((block) => [block.citation, block]));
   const entries = [];
@@ -770,22 +596,6 @@ function normalizeCandidateExcerpt(value, sourceText) {
 
 function normalizeCandidateNote(value) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, 500);
-}
-
-function sourceLabelFields(sourceMetadata = {}) {
-  const fields = {};
-  if (sourceMetadata.source_id) fields.source_id = sourceMetadata.source_id;
-  if (sourceMetadata.content_hash) fields.content_hash = sourceMetadata.content_hash;
-  if (sourceMetadata.source_label) fields.source_label = sourceMetadata.source_label;
-  if (sourceMetadata.source_short_label) fields.source_short_label = sourceMetadata.source_short_label;
-  return fields;
-}
-
-function withSourceLabels(blocks, sourceIndex = new Map()) {
-  return blocks.map((block) => ({
-    ...block,
-    ...sourceLabelFields(sourceIndex.get(block.file_id)),
-  }));
 }
 
 function normalizeEventType(value) {
