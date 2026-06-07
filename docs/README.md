@@ -13,6 +13,7 @@ equally authoritative.
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
+| Private beta tester brief | [Private Beta Tester Brief](private-beta-tester-brief.md) |
 | Beta testing workflow | [Beta Testing List of Dates](beta-testing-list-of-dates.md) |
 | Database transition handoff | [Database Transition Handoff](database-transition-handoff.md) |
 | Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
@@ -65,6 +66,7 @@ implementation plan.
 | [v1.0.0-beta.6](releases/v1.0.0-beta.6.md) | Private beta ops-loop and bug evidence note. |
 | [v1.0.0-beta.7](releases/v1.0.0-beta.7.md) | Current local durable job-status first-slice note. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
+| [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
 | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) | One-bug private beta handoff evidence. |
 | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) | Clean-slate real-matter acceptance evidence. |
 

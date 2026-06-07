@@ -116,6 +116,22 @@ local verification, runtime DB browser acceptance, private VM service health,
 ops/security checks, and recoverability evidence. Use it when deciding whether
 the current checkpoint is acceptable for supervised private beta.
 
+## Tester Handoff
+
+Before giving a tester access:
+
+1. Run the release-confidence checks for the machine they will use.
+2. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
+3. Confirm the tester understands this is supervised beta, not final legal
+   output and not public web software.
+4. Back up any real matter folder before write testing.
+5. Keep provider keys, `.env`, database URLs, raw client files, and generated
+   work product inside the trusted beta circle.
+6. For each bug, collect the tester's short report first, then run
+   `private-beta:bug-evidence-pack` if developer handoff needs more evidence.
+7. Do not widen access until the public/hosted requirements in the current
+   known risks are closed.
+
 ## Matter Data And Backups
 
 Matter files live under the configured matters home or pinned matter root.
@@ -335,4 +351,4 @@ unacceptable.
 
 Current accepted local/private beta:
 
-[Matter Workbench v1.0.0-beta.6](releases/v1.0.0-beta.6.md)
+[Matter Workbench v1.0.0-beta.7](releases/v1.0.0-beta.7.md)

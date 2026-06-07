@@ -20,6 +20,8 @@ Current release checkpoint: [Matter Workbench v1.0.0-beta.7](docs/releases/v1.0.
 
 For the practical supervised local/private beta runbook, see
 [docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
+For the concise trusted-tester handout, see
+[docs/private-beta-tester-brief.md](docs/private-beta-tester-brief.md).
 For the private beta release-candidate closure command,
 `npm run private-beta:rc-closure-pack`, see
 [docs/private-beta-rc-closure-pack.md](docs/private-beta-rc-closure-pack.md).

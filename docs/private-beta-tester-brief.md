@@ -1,0 +1,117 @@
+# Matter Workbench Private Beta Tester Brief
+
+Status: tester-facing brief for supervised local/private beta
+
+This brief is for trusted testers using Matter Workbench with an operator
+nearby. It is not a public product page, and it is not a promise that the app is
+ready for public web use.
+
+## What You Are Testing
+
+Matter Workbench is a legal matter preparation workspace.
+
+It helps you:
+
+- upload or select a matter;
+- let the app read and prepare the source record;
+- review Source Labels / Document Index;
+- review a List of Dates;
+- ask one-question-at-a-time Copilot questions from the matter record;
+- create, run, and manage custom skills;
+- inspect Activity when a run appears slow, skipped, or failed.
+
+The useful mental model is:
+
+```text
+Original files -> extraction -> source labels -> chronology -> advisory -> lawyer review
+```
+
+The app can produce useful working material. It does not replace lawyer review.
+
+## What To Try
+
+For each matter, try this flow:
+
+1. Open the app at the URL given by the operator.
+2. Select a matter or create a small disposable matter.
+3. If you upload files, wait for automatic preparation to finish.
+4. Read the Preparation Advisory before trusting generated output.
+5. Open Source Labels / Document Index.
+6. Open List of Dates.
+7. Ask Copilot one specific question from the matter record.
+8. Run one custom skill only on a matter where replacing generated output is acceptable.
+9. Open Activity if anything seems to hang, skip, or fail.
+10. Tell the operator exactly what confused you or looked legally weak.
+
+Good tester questions:
+
+- Did the app make the matter state clear?
+- Did the advisory warn you about the right files?
+- Did Source Labels use lawyer-readable names?
+- Did List of Dates miss central events?
+- Did Copilot stay inside the matter record?
+- Did custom-skill output go to the expected place?
+- Did Activity explain what ran and what failed?
+
+## What Not To Do
+
+Do not treat beta output as final legal work.
+
+Do not use this beta to:
+
+- file or send a final draft without lawyer review;
+- rely on bad OCR without checking the scans;
+- ignore Source Labels marked needs review;
+- run broad preparation again on an important matter without a backup;
+- share client documents, screenshots, or generated output outside the trusted
+  beta circle;
+- assume the Copilot remembers earlier chat messages;
+- treat the app as public web software.
+
+## Stop And Tell The Operator
+
+Stop testing and report the issue if:
+
+- the app shows the wrong active matter;
+- Copilot answers from outside the selected matter;
+- List of Dates omits an obviously central event;
+- Source Labels or OCR warnings affect important documents;
+- a custom skill says output exists but gives no way to continue;
+- Activity shows missing output or a failed job;
+- the page looks stuck after a long run;
+- Settings shows provider configuration problems;
+- any output appears to cite or use the wrong matter.
+
+## How To Report A Bug
+
+Give the operator:
+
+- matter name;
+- time of the issue;
+- what you clicked or typed;
+- exact error or warning text;
+- screenshot if the issue is visual;
+- whether the issue is about upload, preparation, advisory, Source Labels,
+  List of Dates, Copilot, Skills, Activity, Settings, or output quality.
+
+Do not send raw client files unless the operator specifically asks and confirms
+the sharing boundary.
+
+The operator can then run the private beta bug evidence pack. That evidence is
+for developer handoff; your job is to report what happened clearly.
+
+## Current Beta Boundary
+
+This beta is suitable for supervised testing by trusted users.
+
+It is not yet:
+
+- public SaaS;
+- public web deployment;
+- hosted multi-user auth;
+- cloud object storage;
+- durable background-worker execution;
+- unsupervised legal reliance.
+
+That boundary is a strength, not a weakness. The beta is meant to reveal the
+right legal and workflow problems before the product is opened more broadly.

@@ -2203,3 +2203,17 @@ exposes `runtimeStorageMode` and `workspaceModeLabel` through `/api/config`, and
 the title bar renders that label. The lesson is simple: when a product mode
 matters to the user's trust, make it an explicit contract. Do not leave the UI
 to infer it from side effects.
+
+The supervised beta handover adds a different kind of clarity. Operator docs
+and tester docs should not be the same document. The operator needs commands,
+evidence packs, backup posture, database mode, and recovery instructions. The
+tester needs a much shorter brief: what to try, what not to trust, when to stop,
+and what to report. If those are mixed together, the lawyer gets overwhelmed
+and the operator loses the exact checklist that keeps the beta safe.
+
+That is why the repo now has a separate `private-beta-tester-brief.md`. It does
+not make the app more "production." It makes the current boundary easier to
+use honestly. A private beta is allowed to be supervised and limited. The key is
+that everyone knows the same boundary: useful legal-workbench testing, yes;
+public SaaS, hosted multi-user auth, cloud object storage, and unsupervised
+legal reliance, no.
