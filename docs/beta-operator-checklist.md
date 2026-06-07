@@ -128,19 +128,41 @@ Before giving a tester access:
    ```
 
    Treat blocker checks as handoff blockers.
-2. Run the release-confidence checks for the machine they will use.
-3. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
-4. Confirm the tester understands this is supervised beta, not final legal
+2. Run a temporary tester handoff drill against the exact URL and account file
+   you intend to use:
+
+   ```bash
+   npm run private-beta:tester-handoff-drill -- \
+     --base-url http://127.0.0.1:4191 \
+     --users-file "$HOME/.config/matter-workbench/private-beta-users.json" \
+     --feedback-ledger "$HOME/.local/share/matter-workbench/private-beta-feedback-ledger.json"
+   ```
+
+   On the private VM, load runtime env first so the same command can use the
+   configured paths:
+
+   ```bash
+   set -a; . "$HOME/.config/matter-workbench/runtime.env"; set +a
+   npm run private-beta:tester-handoff-drill -- --base-url http://127.0.0.1:4191
+   ```
+
+   The drill creates a disposable tester account, proves login, checks the
+   React root, matters list, feedback intake, feedback sync endpoint, and signal
+   endpoint, then restores the tester file and feedback ledger. Treat failures
+   as handoff blockers.
+3. Run the release-confidence checks for the machine they will use.
+4. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
+5. Confirm the tester understands this is supervised beta, not final legal
    output and not public web software.
-5. Back up any real matter folder before write testing.
-6. Keep provider keys, `.env`, database URLs, raw client files, and generated
+6. Back up any real matter folder before write testing.
+7. Keep provider keys, `.env`, database URLs, raw client files, and generated
    work product inside the trusted beta circle.
-7. Tell the tester to use **Have a problem? Tell us what happened** inside the
+8. Tell the tester to use **Have a problem? Tell us what happened** inside the
    app whenever something is confusing, wrong, slow, or legally weak.
-8. Review Activity for new tester feedback and sync status. Run
+9. Review Activity for new tester feedback and sync status. Run
    `private-beta:bug-evidence-pack` only when developer handoff needs more
    evidence than the feedback record already captured.
-9. Do not widen access until the public/hosted requirements in the current
+10. Do not widen access until the public/hosted requirements in the current
    known risks are closed.
 
 After handoff, use the [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md)

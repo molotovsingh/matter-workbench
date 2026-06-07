@@ -1776,6 +1776,16 @@ The React local-beta QA pass caught two useful polish lessons that normal API sm
 
 The release-closure lesson after `v1.0.0-beta.3` is that "beta passed" should become an operating contract, not just a happy chat message. The release note records the exact accepted checkpoint, while `docs/beta-operator-checklist.md` says how to run the local beta, what keys and checks matter, what write paths are safe, what to report, and when to stop relying on an output. That is how a project moves from "we have a promising app" to "we can operate this app without re-deciding the rules every morning."
 
+The private-beta tester handoff drill is the same lesson applied to access.
+Creating a username is not proof that a lawyer can actually use the app. The
+handoff drill creates a disposable tester, logs in through the real auth gate,
+loads the React root, reads the matters list, submits a disposable feedback
+note, checks the feedback/signal endpoints, then restores the account file and
+feedback ledger. In plain English: before giving a real person the URL, we make
+the app prove that the front door opens, the hallway leads somewhere, and the
+"tell us what went wrong" button reaches the operator. Then we clean up the test
+visitor.
+
 The release-closure lesson after `v1.0.0-beta.4` is narrower but just as
 important: a database migration is not real because tables exist. It becomes
 real when the app can use a safe runtime role, perform a live write through the

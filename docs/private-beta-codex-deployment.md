@@ -159,12 +159,22 @@ printf '%s\n' '<temporary password>' | npm run private-beta:users -- add --file 
 npm run private-beta:users -- list --file ~/.config/matter-workbench/private-beta-users.json
 npm run private-beta:deployment-pack
 npm run private-web:readiness-check
+npm run private-beta:tester-handoff-drill -- \
+  --base-url http://127.0.0.1:4191 \
+  --users-file ~/.config/matter-workbench/private-beta-users.json \
+  --feedback-ledger ~/.local/share/matter-workbench/private-beta-feedback-ledger.json
 npm run private-beta:rc-closure-pack
 ```
 
 Account file changes are picked up on the next login attempt. Restart the
 service only when changing runtime environment variables such as the account
 file path itself.
+
+The tester handoff drill is intentionally temporary. It creates a disposable
+tester, proves the access and feedback path, writes an evidence pack, then
+restores the account file and feedback ledger. It is the quick proof that the
+URL can be given to a real tester without discovering basic auth or feedback
+breakage after the handoff.
 
 If any hard blocker appears, do not hand out the URL.
 
