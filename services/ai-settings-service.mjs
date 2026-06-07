@@ -4,6 +4,7 @@ import {
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
 import { extractResponsesOutputText } from "../shared/responses-client.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { upsertLocalEnv } from "../shared/local-env.mjs";
 import {
   AI_PROVIDERS,
@@ -295,7 +296,7 @@ export function createAiSettingsService({
         timeout.statusCode = 504;
         throw timeout;
       }
-      throw error;
+      throw redactedAiSettingsError(error, "Matter Copilot model check failed");
     } finally {
       clearTimeout(timer);
     }
@@ -311,10 +312,19 @@ function throwCopilotPingError(provider, response, payload) {
   const choiceError = Array.isArray(payload?.choices)
     ? payload.choices.find((choice) => choice?.error)?.error
     : null;
-  const message = payload?.error?.message || choiceError?.message || `${provider} returned ${response?.status || "an error"}`;
+  const message = redactSensitiveText(
+    payload?.error?.message || choiceError?.message || `${provider} returned ${response?.status || "an error"}`,
+  );
   const error = new Error(`Matter Copilot model check failed: ${message}`);
   error.statusCode = response?.status >= 400 && response.status < 500 ? 502 : 503;
   throw error;
+}
+
+function redactedAiSettingsError(error, fallbackMessage) {
+  const message = redactSensitiveText(error?.message || fallbackMessage);
+  const safe = new Error(message || fallbackMessage);
+  safe.statusCode = error?.statusCode || 503;
+  return safe;
 }
 
 function assertCopilotPingPayload(provider, payload) {

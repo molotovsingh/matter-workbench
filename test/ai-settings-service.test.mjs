@@ -240,6 +240,36 @@ test("AI settings reject Matter Copilot switch when OpenRouter returns a choice 
   assert.doesNotMatch(text, /COPILOT_ANSWER_PROVIDER/);
 });
 
+test("AI settings redacts submitted API keys from Copilot ping transport errors", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), "OPENAI_MODEL=gpt-existing\n");
+  const submittedKey = "sk-or-v1-sensitive-secret";
+  const service = createAiSettingsService({
+    appDir,
+    env: {},
+    fetchImpl: async () => {
+      throw new Error(`transport failed with Authorization: Bearer ${submittedKey}`);
+    },
+  });
+
+  await assert.rejects(
+    () => service.saveSettings({
+      copilotProvider: "openrouter",
+      copilotModel: "google/gemini-2.5-pro",
+      copilotApiKey: submittedKey,
+    }),
+    (error) => {
+      assert.doesNotMatch(error.message, new RegExp(submittedKey));
+      assert.match(error.message, /redacted-secret/);
+      return true;
+    },
+  );
+
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.doesNotMatch(text, /OPENROUTER_API_KEY/);
+  assert.equal(service.readSettings().aiTasks.some((task) => JSON.stringify(task).includes(submittedKey)), false);
+});
+
 test("AI settings test connection sends a tiny server-side OpenAI request", async () => {
   const bodies = [];
   const server = createServer((request, response) => {

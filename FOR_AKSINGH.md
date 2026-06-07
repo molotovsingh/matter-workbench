@@ -2322,3 +2322,14 @@ deeper RC checks run. If it fails, the repair is explicit:
 `private-beta:users -- set-password`. Good beta engineering is often this
 unglamorous: make the common human mistake visible early, then give the operator
 one clean repair command.
+
+The next hardening lesson was about secrets in error messages. Matter Workbench
+already avoided deliberately returning API keys from settings responses, but a
+different path was still risky: a provider client, proxy, or transport layer can
+throw an error string that includes the Authorization header it saw. If the
+service simply rethrows that error, the central API handler will faithfully send
+the secret back to the browser. The fix was not a big security framework. It was
+the boring right move: redact Copilot model-check errors at the AI settings
+service boundary, then prove both the service and `/api/ai-settings` response
+hide the submitted key. Good engineers think about the whole failure path, not
+only the happy response object.
