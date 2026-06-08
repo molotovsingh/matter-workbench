@@ -4,16 +4,28 @@ import path from "node:path";
 import test from "node:test";
 import { parseCsv } from "../shared/csv.mjs";
 import {
+  bankDiscrepancyPaymentEntry,
+  bankPaymentEntry,
+  bookingPaymentEntry,
   fileIdForOriginalName,
   invalidCitationListOfDatesCandidate,
   invalidCitationListOfDatesEntry,
+  interviewDeadlineEntry,
   lawyerFields,
   listOfDatesCandidate,
   listOfDatesEntry,
+  maintenanceDepositEntry,
+  meritsReplyEntry,
+  nonMeritsEmailExportEntry,
+  nonMeritsTranscriptEntry,
+  nonMeritsVakalatnamaEntry,
   noticeListOfDatesCandidate,
   noticeListOfDatesEntry,
+  possessionDeadlineEntry,
   prepareExtractedMatter,
   readExtractionRecord,
+  receiptDiscrepancyPaymentEntry,
+  receiptPaymentEntry,
   sourceIndexSource,
   writeSourceIndex,
 } from "../test-support/listofdates-fixtures.mjs";
@@ -175,4 +187,119 @@ test("List of Dates fixture helper builds source rows and model payload rows", a
     needs_review: false,
     confidence: 0.9,
   });
+});
+
+test("List of Dates fixture helper builds payment and deadline scenario rows", () => {
+  assert.deepEqual(bankPaymentEntry({ citation: "FILE-0007 p1.b1" }), {
+    date_iso: "2023-04-30",
+    date_text: "30 April 2023",
+    event: "Mehta paid Rs.10,00,000 to Skyline.",
+    citation: "FILE-0007 p1.b1",
+    needs_review: false,
+    confidence: 0.94,
+    event_type: "payment",
+    legal_relevance: "Supports the client's payment chronology because the bank statement records Rs.10,00,000.",
+    issue_tags: ["payment"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(receiptPaymentEntry({ citation: "FILE-0008 p1.b1" }), {
+    date_iso: "2023-04-30",
+    date_text: "30 April 2023",
+    event: "Receipt acknowledged Rs.10,00,000 from Mehta.",
+    citation: "FILE-0008 p1.b1",
+    needs_review: false,
+    confidence: 0.91,
+    event_type: "payment",
+    legal_relevance: "Corroborates the client's payment chronology because the receipt records Rs.10,00,000.",
+    issue_tags: ["payment", "receipt"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(bankDiscrepancyPaymentEntry({ citation: "FILE-0007 p1.b2" }), {
+    date_iso: "2023-09-12",
+    date_text: "12 September 2023",
+    event: "Mehta paid Rs.15,70,000 to Skyline.",
+    citation: "FILE-0007 p1.b2",
+    needs_review: false,
+    confidence: 0.94,
+    event_type: "payment",
+    legal_relevance: "Supports the client's payment discrepancy issue because the bank statement records Rs.15,70,000.",
+    issue_tags: ["payment", "contradiction"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(receiptDiscrepancyPaymentEntry({ citation: "FILE-0008 p1.b2" }), {
+    date_iso: "2023-09-12",
+    date_text: "12 September 2023",
+    event: "Receipt acknowledged Rs.12,25,000 from Mehta.",
+    citation: "FILE-0008 p1.b2",
+    needs_review: false,
+    confidence: 0.91,
+    event_type: "payment",
+    legal_relevance: "Supports the client's payment discrepancy issue because the receipt records Rs.12,25,000, with a discrepancy of Rs.3,45,000.",
+    issue_tags: ["payment", "contradiction"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(possessionDeadlineEntry({ citation: "FILE-0009 p1.b1" }), {
+    date_iso: "2024-09-30",
+    date_text: "30 September 2024",
+    event: "Possession deadline was 30 September 2024.",
+    citation: "FILE-0009 p1.b1",
+    needs_review: false,
+    confidence: 0.9,
+    event_type: "deadline",
+    legal_relevance: "Supports the client's possession delay issue because the agreement records the possession deadline.",
+    issue_tags: ["possession", "deadline"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(interviewDeadlineEntry({ citation: "FILE-0010 p1.b1" }), {
+    date_iso: "2024-09-30",
+    date_text: "30 September 2024",
+    event: "Client interview confirms possession deadline was 30 September 2024.",
+    citation: "FILE-0010 p1.b1",
+    needs_review: false,
+    confidence: 0.86,
+    event_type: "deadline",
+    legal_relevance: "Corroborates the client's possession delay issue because the interview records the same possession deadline.",
+    issue_tags: ["possession", "deadline"],
+    perspective: "client_favourable",
+  });
+});
+
+test("List of Dates fixture helper builds separate-payment and non-merits scenario rows", () => {
+  assert.deepEqual(bookingPaymentEntry({ citation: "FILE-0011 p1.b1" }), {
+    date_iso: "2023-04-30",
+    date_text: "30 April 2023",
+    event: "Mehta paid Rs.10,00,000 as booking amount to Skyline.",
+    citation: "FILE-0011 p1.b1",
+    needs_review: false,
+    confidence: 0.94,
+    event_type: "payment",
+    legal_relevance: "Supports the client's payment chronology because the source records a Rs.10,00,000 booking amount.",
+    issue_tags: ["payment"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(maintenanceDepositEntry({ citation: "FILE-0012 p1.b1" }), {
+    date_iso: "2023-04-30",
+    date_text: "30 April 2023",
+    event: "Mehta paid Rs.2,50,000 as maintenance deposit to Skyline.",
+    citation: "FILE-0012 p1.b1",
+    needs_review: false,
+    confidence: 0.91,
+    event_type: "payment",
+    legal_relevance: "Supports the client's payment chronology because the source records a Rs.2,50,000 maintenance deposit.",
+    issue_tags: ["payment"],
+    perspective: "client_favourable",
+  });
+
+  assert.equal(nonMeritsTranscriptEntry().citation, "FILE-0001 p1.b1");
+  assert.equal(nonMeritsTranscriptEntry().event, "Client interview transcript recorded.");
+  assert.equal(nonMeritsEmailExportEntry().citation, "FILE-0001 p1.b2");
+  assert.equal(nonMeritsVakalatnamaEntry().event_type, "filing");
+  assert.equal(meritsReplyEntry().date_iso, "2024-03-14");
+  assert.match(meritsReplyEntry().legal_relevance, /willingness to resolve/);
 });

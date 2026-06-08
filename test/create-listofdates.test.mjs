@@ -15,18 +15,31 @@ import { runMatterInit } from "../matter-init-engine.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { parseCsv } from "../shared/csv.mjs";
 import {
+  bankDiscrepancyPaymentEntry,
+  bankPaymentEntry,
+  bookingPaymentEntry,
   fileIdForOriginalName,
   invalidCitationListOfDatesCandidate,
   invalidCitationListOfDatesEntry,
+  interviewDeadlineEntry,
   lawyerFields,
+  legalNoticeEntry,
   listOfDatesCandidate,
   listOfDatesEntry,
+  maintenanceDepositEntry,
+  meritsReplyEntry,
+  nonMeritsEmailExportEntry,
+  nonMeritsTranscriptEntry,
+  nonMeritsVakalatnamaEntry,
   noticeListOfDatesCandidate,
   noticeListOfDatesEntry,
+  possessionDeadlineEntry,
   makeMatterRoot,
   metadata,
   prepareExtractedMatter,
   readExtractionRecord,
+  receiptDiscrepancyPaymentEntry,
+  receiptPaymentEntry,
   sourceIndexSource,
   writeSource,
   writeSourceIndex,
@@ -462,10 +475,7 @@ test("create-listofdates classifies corroboration, payment discrepancies, and tr
   const sourceNames = ["bank.txt", "receipt.txt", "agreement.txt", "interview.txt", "notice.txt"];
   const fileIds = Object.fromEntries(await Promise.all(sourceNames.map(async (name) => [name, await fileIdForOriginalName(root, name)])));
   const records = Object.fromEntries(await Promise.all(Object.entries(fileIds).map(async ([name, fileId]) => [name, await readExtractionRecord(root, fileId)])));
-  await writeSourceIndex(root, sourceNames.map((name) => ({
-    file_id: fileIds[name],
-    sha256: records[name].sha256,
-    source_path: records[name].source_path,
+  await writeSourceIndex(root, sourceNames.map((name) => sourceIndexSource(records[name], {
     display_label: `${name} label`,
     short_label: name,
     document_type: name.includes("agreement") ? "agreement" : "unknown",
@@ -475,110 +485,31 @@ test("create-listofdates classifies corroboration, payment discrepancies, and tr
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2023-04-30",
-          date_text: "30 April 2023",
-          event: "Mehta paid Rs.10,00,000 to Skyline.",
+        bankPaymentEntry({
           citation: `${fileIds["bank.txt"]} p1.b1`,
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Supports the client's payment chronology because the bank statement records Rs.10,00,000.",
-            issue_tags: ["payment"],
-          }),
-        },
-        {
-          date_iso: "2023-04-30",
-          date_text: "30 April 2023",
-          event: "Receipt acknowledged Rs.10,00,000 from Mehta.",
+        }),
+        receiptPaymentEntry({
           citation: `${fileIds["receipt.txt"]} p1.b1`,
-          needs_review: false,
-          confidence: 0.91,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Corroborates the client's payment chronology because the receipt records Rs.10,00,000.",
-            issue_tags: ["payment", "receipt"],
-          }),
-        },
-        {
-          date_iso: "2023-09-12",
-          date_text: "12 September 2023",
-          event: "Mehta paid Rs.15,70,000 to Skyline.",
+        }),
+        bankDiscrepancyPaymentEntry({
           citation: `${fileIds["bank.txt"]} p1.b2`,
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Supports the client's payment discrepancy issue because the bank statement records Rs.15,70,000.",
-            issue_tags: ["payment", "contradiction"],
-          }),
-        },
-        {
-          date_iso: "2023-09-12",
-          date_text: "12 September 2023",
-          event: "Receipt acknowledged Rs.12,25,000 from Mehta.",
+        }),
+        receiptDiscrepancyPaymentEntry({
           citation: `${fileIds["receipt.txt"]} p1.b2`,
-          needs_review: false,
-          confidence: 0.91,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Supports the client's payment discrepancy issue because the receipt records Rs.12,25,000, with a discrepancy of Rs.3,45,000.",
-            issue_tags: ["payment", "contradiction"],
-          }),
-        },
-        {
-          date_iso: "2024-09-30",
-          date_text: "30 September 2024",
-          event: "Possession deadline was 30 September 2024.",
+        }),
+        possessionDeadlineEntry({
           citation: `${fileIds["agreement.txt"]} p1.b1`,
-          needs_review: false,
-          confidence: 0.9,
-          ...lawyerFields({
-            event_type: "deadline",
-            legal_relevance: "Supports the client's possession delay issue because the agreement records the possession deadline.",
-            issue_tags: ["possession", "deadline"],
-          }),
-        },
-        {
-          date_iso: "2024-09-30",
-          date_text: "30 September 2024",
-          event: "Client interview confirms possession deadline was 30 September 2024.",
+        }),
+        interviewDeadlineEntry({
           citation: `${fileIds["interview.txt"]} p1.b1`,
-          needs_review: false,
-          confidence: 0.86,
-          ...lawyerFields({
-            event_type: "deadline",
-            legal_relevance: "Corroborates the client's possession delay issue because the interview records the same possession deadline.",
-            issue_tags: ["possession", "deadline"],
-          }),
-        },
-        {
-          date_iso: "2026-05-01",
-          date_text: "01 May 2026",
-          event: "Legal notice was issued.",
+        }),
+        legalNoticeEntry({
           citation: `${fileIds["notice.txt"]} p1.b1`,
-          needs_review: false,
-          confidence: 0.92,
-          ...lawyerFields({
-            event_type: "notice",
-            legal_relevance: "Supports the client's notice chronology because the source records the notice date.",
-            issue_tags: ["notice"],
-          }),
-        },
-        {
-          date_iso: "2026-05-01",
-          date_text: "01 May 2026",
-          event: "Legal notice was issued.",
+        }),
+        legalNoticeEntry({
           citation: `${fileIds["notice.txt"]} p1.b1`,
-          needs_review: false,
           confidence: 0.9,
-          ...lawyerFields({
-            event_type: "notice",
-            legal_relevance: "Supports the client's notice chronology because the source records the notice date.",
-            issue_tags: ["notice"],
-          }),
-        },
+        }),
       ],
     }),
   });
@@ -634,32 +565,12 @@ test("create-listofdates keeps separate same-day payments out of discrepancy clu
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2023-04-30",
-          date_text: "30 April 2023",
-          event: "Mehta paid Rs.10,00,000 as booking amount to Skyline.",
+        bookingPaymentEntry({
           citation: `${bookingId} p1.b1`,
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Supports the client's payment chronology because the source records a Rs.10,00,000 booking amount.",
-            issue_tags: ["payment"],
-          }),
-        },
-        {
-          date_iso: "2023-04-30",
-          date_text: "30 April 2023",
-          event: "Mehta paid Rs.2,50,000 as maintenance deposit to Skyline.",
+        }),
+        maintenanceDepositEntry({
           citation: `${maintenanceId} p1.b1`,
-          needs_review: false,
-          confidence: 0.91,
-          ...lawyerFields({
-            event_type: "payment",
-            legal_relevance: "Supports the client's payment chronology because the source records a Rs.2,50,000 maintenance deposit.",
-            issue_tags: ["payment"],
-          }),
-        },
+        }),
       ],
     }),
   });
@@ -832,58 +743,10 @@ test("create-listofdates filters non-merits rows and sharpens legal relevance", 
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-05-05",
-          date_text: "05 May 2026",
-          event: "Client interview transcript recorded.",
-          citation: "FILE-0001 p1.b1",
-          needs_review: false,
-          confidence: 0.9,
-          ...lawyerFields({
-            event_type: "other",
-            legal_relevance: "This event is relevant to the client's case because the transcript was recorded.",
-            issue_tags: ["procedure"],
-          }),
-        },
-        {
-          date_iso: "2026-05-06",
-          date_text: "06 May 2026",
-          event: "Email correspondence exported from client's Gmail account.",
-          citation: "FILE-0001 p1.b2",
-          needs_review: false,
-          confidence: 0.9,
-          ...lawyerFields({
-            event_type: "other",
-            legal_relevance: "This event is relevant because email correspondence was exported.",
-            issue_tags: ["procedure"],
-          }),
-        },
-        {
-          date_iso: "2026-05-07",
-          date_text: "07 May 2026",
-          event: "Client executed Vakalatnama in favour of Adv. Meenakshi Pillai.",
-          citation: "FILE-0001 p1.b3",
-          needs_review: false,
-          confidence: 0.9,
-          ...lawyerFields({
-            event_type: "filing",
-            legal_relevance: "This event is relevant because the vakalatnama was executed.",
-            issue_tags: ["procedure"],
-          }),
-        },
-        {
-          date_iso: "2024-03-14",
-          date_text: "14 March 2024",
-          event: "Skyline replied demanding payment despite Mehta's complaint.",
-          citation: "FILE-0001 p1.b4",
-          needs_review: false,
-          confidence: 0.92,
-          ...lawyerFields({
-            event_type: "reply",
-            legal_relevance: "This event is relevant to the client's case because Skyline's response shows their willingness to resolve it and demonstrates emotional and financial impact.",
-            issue_tags: ["notice", "hardship"],
-          }),
-        },
+        nonMeritsTranscriptEntry(),
+        nonMeritsEmailExportEntry(),
+        nonMeritsVakalatnamaEntry(),
+        meritsReplyEntry(),
       ],
     }),
   });

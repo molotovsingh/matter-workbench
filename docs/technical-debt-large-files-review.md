@@ -87,7 +87,7 @@ Current tracked files over 1,000 lines:
 | `FOR_AKSINGH.md` | 2,441 | Keep large, then curate |
 | `services/runtime-db-storage-service.mjs` | 1,705 | Split carefully |
 | `test/runtime-db-api.test.mjs` | 1,640 | Split later |
-| `test/create-listofdates.test.mjs` | 1,301 | Split later |
+| `test/create-listofdates.test.mjs` | 1,164 | Split later |
 | `test/ai-command-box-skill-ideas.test.mjs` | 1,383 | Split later |
 | `react-ui/src/styles/global.css` | 1,026 | Split carefully |
 
@@ -630,14 +630,16 @@ Completed cleanup:
 - `test-support/listofdates-fixtures.mjs` now owns named notice and invalid
   citation payload builders so repeated provider responses read as scenario
   intent instead of raw JSON fixture bulk;
+- `test-support/listofdates-fixtures.mjs` now owns named payment, deadline,
+  duplicate-notice, separate-payment, and non-merits payload builders used by
+  the clustering/filtering scenarios;
 - `test/repo-hygiene-cleanup.test.mjs` now guards the root engine against
   reabsorbing extracted responsibilities.
 
-Next PR-sized cleanup: continue shrinking `test/create-listofdates.test.mjs` by
-moving the remaining scenario-specific payment, deadline, and non-merits
-provider responses into named fixture helpers. That should keep the legal-output
-regression coverage intact while reducing the next largest List of Dates debt
-surface.
+Next PR-sized cleanup: pause the List of Dates test fixture extraction unless
+new chronology work needs it. The remaining raw provider rows mostly exercise
+malformed, sanitization, provider-transport, or assertion-specific behavior and
+should stay visible until a cleaner split target appears.
 
 Expected guardrails:
 
