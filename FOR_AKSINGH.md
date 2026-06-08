@@ -2422,3 +2422,11 @@ lawyers never want to think about, but it is exactly where silent drift can
 become painful: one helper now defines where the artifacts live and how their
 metadata envelope is shaped. The engine can therefore read more like a conductor
 of the run instead of a clerk hand-writing every receipt.
+
+The eighth split was run configuration: `listofdates/run-config.mjs` now owns
+the two-pass feature flag and the model-policy/provider wiring for List of Dates
+runs. That keeps the engine from knowing how OpenAI/OpenRouter routing is
+assembled, while still leaving the legal task policy intact. The useful lesson
+is that "which model/provider should this task use?" is a policy/configuration
+question, not chronology logic. Pulling it aside makes future route changes
+easier to test without disturbing the date-extraction workflow.

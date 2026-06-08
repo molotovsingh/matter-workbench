@@ -1,8 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
-import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
+import { AI_TASKS } from "./shared/model-policy.mjs";
 import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
 import {
   CANDIDATE_SCHEMA,
@@ -20,7 +19,6 @@ import {
   validateAndHydrateEntries,
 } from "./listofdates/entries.mjs";
 import {
-  createListOfDatesProvider,
   LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT,
   LIST_OF_DATES_EDITOR_SYSTEM_PROMPT,
   listOfDatesCandidatePromptPayload,
@@ -36,6 +34,10 @@ import {
   mergeAiRunMetadata,
   twoPassAiRunMetadata,
 } from "./listofdates/run-metadata.mjs";
+import {
+  createConfiguredListOfDatesProvider,
+  isTwoPassListOfDatesEnabled,
+} from "./listofdates/run-config.mjs";
 import {
   buildSourceBlocks,
   chunkBlocks,
@@ -53,7 +55,6 @@ const ENGINE_VERSION = DEFAULT_LIST_OF_DATES_ENGINE_VERSION;
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 export { createOpenAiProvider, createOpenRouterProvider } from "./listofdates/providers.mjs";
 export { renderListOfDatesMarkdown } from "./listofdates/rendering.mjs";
-const TWO_PASS_ENV_FLAG = "CREATE_LISTOFDATES_TWO_PASS_ENABLED";
 
 export async function runCreateListOfDates(options = {}) {
   const matterRoot = options.matterRoot
@@ -108,25 +109,17 @@ export async function runCreateListOfDates(options = {}) {
     });
   }
 
-  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
-  const providerConfig = resolveProviderConfig(modelPolicy, {
-    endpoint: options.endpoint,
-    model: options.model,
-    maxOutputTokens: options.maxOutputTokens,
-    timeoutMs: options.timeoutMs,
-  });
-  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
-  const provider = options.aiProvider || createListOfDatesProvider({
-    providerConfig,
-    apiKey: options.apiKey,
+  const configured = createConfiguredListOfDatesProvider({
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    options,
     env,
-    fetchImpl: options.fetchImpl || fetch,
+    injectedProvider: options.aiProvider,
   });
 
   const rawEntries = [];
   const responseAiRuns = [];
   for (const [index, chunk] of chunks.entries()) {
-    const response = await provider({
+    const response = await configured.provider({
       matter: matterSummary(matterJson),
       chunk,
       chunkIndex: index + 1,
@@ -146,7 +139,7 @@ export async function runCreateListOfDates(options = {}) {
   const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
   const acceptedEntries = validEntries.sort(compareEntries);
   const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
-  const aiRun = mergeAiRunMetadata(baseAiRun, responseAiRuns);
+  const aiRun = mergeAiRunMetadata(configured.baseAiRun, responseAiRuns);
 
   const outputPaths = createListOfDatesOutputPaths(matterRoot);
 
@@ -367,30 +360,6 @@ async function runCreateListOfDatesTwoPass({
     }
     throw error;
   }
-}
-
-function isTwoPassListOfDatesEnabled({ env, options }) {
-  if (typeof options.twoPass === "boolean") return options.twoPass;
-  return ["1", "true", "yes", "on"].includes(String(env[TWO_PASS_ENV_FLAG] || "").trim().toLowerCase());
-}
-
-function createConfiguredListOfDatesProvider({ task, options, env, prompt, injectedProvider }) {
-  const modelPolicy = resolveModelPolicy(task, { env });
-  const providerConfig = resolveProviderConfig(modelPolicy, {
-    endpoint: options.endpoint,
-    model: options.model,
-    maxOutputTokens: options.maxOutputTokens,
-    timeoutMs: options.timeoutMs,
-  });
-  const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
-  const provider = injectedProvider || createListOfDatesProvider({
-    providerConfig,
-    apiKey: options.apiKey,
-    env,
-    fetchImpl: options.fetchImpl || fetch,
-    prompt,
-  });
-  return { provider, baseAiRun };
 }
 
 if (process.argv[1] === __filename) {
