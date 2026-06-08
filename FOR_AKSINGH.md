@@ -2430,3 +2430,12 @@ assembled, while still leaving the legal task policy intact. The useful lesson
 is that "which model/provider should this task use?" is a policy/configuration
 question, not chronology logic. Pulling it aside makes future route changes
 easier to test without disturbing the date-extraction workflow.
+
+The ninth split was the two-pass runner:
+`listofdates/two-pass-runner.mjs` now owns the candidate-ledger pass and the
+editor pass as one coherent workflow. This was the last large chunk sitting
+inside the root List of Dates engine. The important distinction is that
+two-pass generation is not merely "normal generation with another provider
+call"; it has its own ledger, failure behavior, and final editing contract. By
+giving it a home, the root engine can stay focused on preparing the source
+blocks and dispatching to the chosen mode.
