@@ -1996,6 +1996,16 @@ service check, and a user-level `systemd` template. The shape is deliberately
 plain: a protected env file, a `current` deployment symlink, one unit file, and
 one smoke command. Deployment work is often best when it becomes less clever.
 
+Once `rsync` was available on the VM, the next improvement was to stop treating
+deployment as a remembered sequence of tarball and scp commands. The
+`private-vm:rsync-deploy` command now creates a clean release folder, syncs only
+Git-tracked source files into it, builds before switching `current`, restarts the
+user-level service, and runs the service/UI checks from inside the VM. The small
+but important lesson is that "copy my folder" is not the same as "deploy this
+commit." A development folder always contains scratch files, review folders, and
+local artifacts. A beta deployment should carry a known commit and leave the
+scratch behind.
+
 This also teaches a useful distinction between "managed" and "production." A
 user-level service can restart after failure and be checked by `systemctl`, but
 that still does not make the app safe for the public internet. Production needs

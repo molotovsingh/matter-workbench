@@ -136,9 +136,6 @@ export function renderPrivateBetaDeploymentPack(result = {}) {
 }
 
 function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploymentRoot }) {
-  const remote = deploymentHost
-    ? `${deploymentUser ? `${deploymentUser}@` : ""}${deploymentHost}`
-    : "<deployment-host>";
   const root = deploymentRoot || "$HOME/matter-workbench-deployments";
   return [
     {
@@ -149,7 +146,6 @@ function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploym
         "npm run ui:typecheck --silent",
         "npm run ui:build --silent",
         "npm test --silent",
-        "git archive --format=tar.gz --output /tmp/matter-workbench-release.tgz HEAD",
       ],
     },
     {
@@ -174,12 +170,9 @@ function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploym
     },
     {
       id: "deploy_artifact",
-      title: "Copy, install, build, and atomically point current deployment at the release",
+      title: "Rsync, install, build, and atomically point current deployment at the release",
       commands: [
-        `scp /tmp/matter-workbench-release.tgz ${remote}:/tmp/matter-workbench-release.tgz`,
-        `ssh ${remote} 'mkdir -p ${root}/<commit>/app && tar -xzf /tmp/matter-workbench-release.tgz -C ${root}/<commit>/app'`,
-        `ssh ${remote} 'cd ${root}/<commit>/app && npm ci && npm run ui:build --silent'`,
-        `ssh ${remote} 'ln -sfn ${root}/<commit> ${root}/current'`,
+        `npm run private-vm:rsync-deploy -- --host ${deploymentHost || "<deployment-host>"}${deploymentUser ? ` --user ${deploymentUser}` : ""} --deployment-root ${root}`,
       ],
     },
     {

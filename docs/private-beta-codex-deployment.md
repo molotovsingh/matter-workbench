@@ -96,7 +96,8 @@ reviewable, and reversible.
 The boring shape is:
 
 1. Prepare the source release artifact from a known commit.
-2. Copy it to the target VM/cloud host.
+2. Use `private-vm:rsync-deploy` to copy the committed app to the target
+   VM/cloud host.
 3. Install dependencies and build React.
 4. Atomically move the `current` symlink.
 5. Start or restart the user-level service.
@@ -108,11 +109,42 @@ The boring shape is:
 The pack writes that order every time, so operator memory is not the deployment
 system.
 
+## Repeatable VM Deploy Command
+
+For the private Debian VM, use:
+
+```bash
+npm run private-vm:rsync-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --deployment-root /home/aks/matter-workbench-deployments
+```
+
+Preview the exact commands first:
+
+```bash
+npm run private-vm:rsync-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --deployment-root /home/aks/matter-workbench-deployments \
+  --dry-run
+```
+
+The deploy helper uses `git ls-files -z` piped into `rsync`, so it syncs
+tracked source files rather than local scratch files. It excludes local-only and
+secret-bearing paths, builds before switching the `current` symlink, restarts
+the user-level service, and runs the VM-local service check plus rendered UI
+hardening pass.
+
+It intentionally does not accept a password argument. Use SSH keys, an
+interactive password prompt, or your normal SSH agent flow.
+
 ## Repeatable Deployment Shape
 
 Repeatability comes from committed scripts:
 
 ```bash
+npm run private-vm:rsync-deploy
 npm run private-web:readiness-check
 npm run private-vm:service-check
 npm run private-vm:security-check

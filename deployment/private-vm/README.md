@@ -41,6 +41,42 @@ commit folder.
 
 ## Install Or Refresh
 
+### Repeatable rsync deploy from the Mac
+
+Now that the VM has `rsync`, prefer the committed deploy helper instead of the
+older tarball/scp workaround:
+
+```bash
+npm run private-vm:rsync-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --deployment-root /home/aks/matter-workbench-deployments
+```
+
+For a command preview without touching the VM:
+
+```bash
+npm run private-vm:rsync-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --deployment-root /home/aks/matter-workbench-deployments \
+  --dry-run
+```
+
+The helper deploys the current committed `HEAD` into
+`$deploymentRoot/<commit>/app`. It pipes `git ls-files -z` into `rsync`, so
+untracked local scratch files are not deployed. It also excludes local-only
+folders such as `node_modules/`, `.local/`, `codex_review/`, `claude_review/`,
+and `.env*`, builds React before switching the `current` symlink, restarts the
+user-level service, then runs the VM-local service check and rendered UI
+hardening pass.
+
+It does not accept password arguments. Use SSH keys, an interactive SSH
+session, or your normal SSH agent flow. Tracked uncommitted changes are rejected
+unless you explicitly pass `--allow-dirty`.
+
+### Manual refresh from inside a deployed app directory
+
 From the deployed app directory:
 
 ```bash
