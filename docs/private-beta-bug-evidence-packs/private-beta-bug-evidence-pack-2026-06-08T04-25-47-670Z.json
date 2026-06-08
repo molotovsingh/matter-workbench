@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "private-beta-bug-evidence-pack/v1",
+  "generatedAt": "2026-06-08T04:25:47.670Z",
+  "success": true,
+  "baseUrl": "http://127.0.0.1:4191",
+  "failedChecks": [],
+  "issue": {
+    "matterName": "Atlas Constuction vs Diptishree",
+    "note": "Codex operator drill after ec4ca4e: package a tester-reported confusing workflow into developer handoff evidence."
+  },
+  "serviceCheck": {
+    "label": "service_check",
+    "ok": true,
+    "authenticated": true,
+    "runtimeDbEnabled": true,
+    "matterCount": 15,
+    "availableMatterNames": [],
+    "targetMatter": "Atlas Constuction vs Diptishree",
+    "workspaceReadable": true,
+    "previewPath": "00_Inbox/Intake 01 - 2026-05-17 Initial/_extracted/FILE-0001.json",
+    "filePreviewReadable": true,
+    "error": ""
+  },
+  "opsPack": {
+    "label": "ops_pack",
+    "ok": true,
+    "failedChecks": [],
+    "deployment": {
+      "currentCommit": "ec4ca4e",
+      "rollbackCandidate": "72282d6"
+    },
+    "serviceCheck": {
+      "ok": true,
+      "runtimeDbEnabled": true,
+      "matterCount": 15
+    },
+    "logs": {
+      "ok": true,
+      "lineCount": 80
+    },
+    "disk": {
+      "availableBytes": 61587865600
+    },
+    "files": {
+      "json": "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/ops-pack.json",
+      "markdown": "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/ops-pack.md",
+      "rollbackScript": "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/rollback-plan.sh"
+    },
+    "error": ""
+  },
+  "recentInteractions": {
+    "label": "recent_interactions",
+    "ok": true,
+    "itemCount": 0,
+    "items": []
+  },
+  "operatorHandoff": {
+    "attach": [
+      "bug-evidence-pack.md",
+      "bug-evidence-pack.json",
+      "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/ops-pack.md",
+      "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/ops-pack.json",
+      "/home/aks/matter-workbench-backups/bug-evidence/private-beta-bug-evidence-pack-2026-06-08T04-25-47-670Z/private-vm-ops/private-vm-ops-pack-2026-06-08T04-25-47-670Z/rollback-plan.sh"
+    ],
+    "nextActions": [
+      "Service smoke passed; inspect product-specific evidence next.",
+      "Ops pack captured deployment and rollback posture.",
+      "No recent command interactions were found or included.",
+      "Do not attach raw matter documents or .env files unless explicitly requested inside the trusted operator circle."
+    ]
+  }
+}
