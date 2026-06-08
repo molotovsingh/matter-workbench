@@ -66,3 +66,16 @@ The pass does not:
 
 Treat it as the repeatable version of the old manual "open the app and check
 the important first screens" routine.
+
+## Checked-In Evidence
+
+The private VM deployment at commit `dfc8f3c` passed the repeatable rendered UI
+hardening pass on 2026-06-08:
+
+- [UI hardening report](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/ui-hardening-report.md)
+- [UI hardening JSON](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/ui-hardening-report.json)
+- [Home desktop screenshot](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/home-desktop.png)
+- [Skills desktop screenshot](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/skills-desktop.png)
+- [Activity desktop screenshot](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/activity-desktop.png)
+- [Settings desktop screenshot](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/settings-desktop.png)
+- [Home mobile screenshot](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/home-mobile.png)

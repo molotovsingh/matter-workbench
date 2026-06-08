@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "private-beta-ui-hardening-pass/v1",
+  "generatedAt": "2026-06-08T05:42:25.230Z",
+  "success": true,
+  "baseUrl": "http://127.0.0.1:4191",
+  "failedChecks": [],
+  "browser": {
+    "passed": true,
+    "driver": "playwright",
+    "checks": [
+      {
+        "key": "private_beta_login",
+        "passed": true,
+        "detail": "Signed in through the private beta login screen."
+      },
+      {
+        "key": "home_shell",
+        "passed": true,
+        "detail": "Home shell and command rail rendered."
+      },
+      {
+        "key": "matters_or_active_matter",
+        "passed": true,
+        "detail": "Home shows the matter picker."
+      },
+      {
+        "key": "feedback_entry_visible",
+        "passed": true,
+        "detail": "Feedback entry is visible in the command rail."
+      },
+      {
+        "key": "copilot_tiers_visible",
+        "passed": true,
+        "detail": "Copilot tiers available: Low, Medium, High."
+      },
+      {
+        "key": "feedback_endpoint_readable",
+        "passed": true,
+        "detail": "Feedback endpoint returned private-beta-feedback-ledger/v1."
+      },
+      {
+        "key": "skills_page",
+        "passed": true,
+        "detail": "Skills page loaded with simplified sections."
+      },
+      {
+        "key": "activity_page",
+        "passed": true,
+        "detail": "Activity page loaded."
+      },
+      {
+        "key": "settings_page",
+        "passed": true,
+        "detail": "Settings page loaded."
+      },
+      {
+        "key": "settings_secret_leak",
+        "passed": true,
+        "detail": "Settings page did not expose ***-looking values."
+      },
+      {
+        "key": "mobile_overflow",
+        "passed": true,
+        "detail": "Narrow viewport has no meaningful horizontal overflow."
+      }
+    ],
+    "consoleErrors": [],
+    "screenshots": [
+      {
+        "label": "home_desktop",
+        "path": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/home-desktop.png"
+      },
+      {
+        "label": "skills_desktop",
+        "path": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/skills-desktop.png"
+      },
+      {
+        "label": "activity_desktop",
+        "path": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/activity-desktop.png"
+      },
+      {
+        "label": "settings_desktop",
+        "path": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/settings-desktop.png"
+      },
+      {
+        "label": "home_mobile",
+        "path": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/home-mobile.png"
+      }
+    ],
+    "error": ""
+  }
+}

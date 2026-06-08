@@ -176,7 +176,15 @@ Latest live VM evidence:
 - [2026-06-08 beta.10+ec4ca4e RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-08T04-54-05-116Z.md)
 - [2026-06-08 beta.10+ec4ca4e RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-08T04-54-05-116Z.json)
 
-The same deployment also has a rendered UI hardening pass covering the
+That same deployment also had a rendered UI hardening pass covering the
 first-screen beta surfaces:
 
 - [2026-06-08 beta.10+ec4ca4e UI hardening report](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T04-57-34-924Z/ui-hardening-report.md)
+
+The private VM was later advanced to commit `dfc8f3c` to make that rendered UI
+hardening pass a repeatable repo-native command. The new
+`private-beta:ui-hardening-pass` script passed against the live VM with 11/11
+browser checks and zero console errors:
+
+- [2026-06-08 beta.10+dfc8f3c UI hardening report](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/ui-hardening-report.md)
+- [2026-06-08 beta.10+dfc8f3c UI hardening JSON](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T05-42-25-230Z/ui-hardening-report.json)
