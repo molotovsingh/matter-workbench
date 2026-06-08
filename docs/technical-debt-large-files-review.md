@@ -87,7 +87,7 @@ Current tracked files over 1,000 lines:
 | `FOR_AKSINGH.md` | 2,441 | Keep large, then curate |
 | `services/runtime-db-storage-service.mjs` | 1,705 | Split carefully |
 | `test/runtime-db-api.test.mjs` | 1,640 | Split later |
-| `test/create-listofdates.test.mjs` | 1,599 | Split later |
+| `test/create-listofdates.test.mjs` | 1,527 | Split later |
 | `test/ai-command-box-skill-ideas.test.mjs` | 1,383 | Split later |
 | `react-ui/src/styles/global.css` | 1,026 | Split carefully |
 
@@ -622,13 +622,15 @@ Completed cleanup:
 - List of Dates prompts/contracts, provider transport, source-record loading,
   artifact writing, run configuration, metadata merging, and two-pass
   orchestration were extracted from `create-listofdates-engine.mjs`;
+- `test-support/listofdates-fixtures.mjs` now owns the first shared List of Dates
+  matter/source setup helpers and has its own contract test;
 - `test/repo-hygiene-cleanup.test.mjs` now guards the root engine against
   reabsorbing extracted responsibilities.
 
-Next PR-sized cleanup: add `test-support/listofdates-fixtures.mjs` and migrate
-the repeated chronology matter/source setup out of
-`test/create-listofdates.test.mjs`. That keeps the legal-output regression
-coverage intact while reducing the next largest List of Dates debt surface.
+Next PR-sized cleanup: continue shrinking `test/create-listofdates.test.mjs` by
+moving repeated provider response builders and source-index row builders into
+the fixture helper. That should keep the legal-output regression coverage intact
+while reducing the next largest List of Dates debt surface.
 
 Expected guardrails:
 
@@ -670,6 +672,7 @@ Commands used for the 2026-06-08 refresh:
 - `git status --short --branch`
 - `git rev-parse --short HEAD`
 - `git ls-files -z ... | xargs -0 wc -l`
+- `node --test test/listofdates-fixtures.test.mjs test/create-listofdates.test.mjs test/repo-hygiene-cleanup.test.mjs`
 - `node --test test/repo-hygiene-cleanup.test.mjs`
 - `npm test --silent`
 - `npm run ui:typecheck --silent`
