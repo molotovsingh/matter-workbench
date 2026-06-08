@@ -128,6 +128,15 @@ test("List of Dates root engine stays orchestration-sized after decomposition", 
   assert.doesNotMatch(source, /LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT|CANDIDATE_SCHEMA|writeCandidateLedger/);
 });
 
+test("critical intake and extraction artifacts use atomic writes", () => {
+  for (const file of ["matter-init-engine.mjs", "extract-engine.mjs"]) {
+    const source = read(file);
+    assert.match(source, /writeFileAtomic/, `${file} should import and use writeFileAtomic`);
+    assert.doesNotMatch(source, /import\s*\{[^}]*\bwriteFile\b[^}]*\}\s*from\s*"node:fs\/promises"/, `${file} should not import direct writeFile`);
+    assert.doesNotMatch(source, /\bawait\s+writeFile\(/, `${file} should not directly write critical artifacts`);
+  }
+});
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

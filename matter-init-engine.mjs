@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import { toPosix } from "./shared/safe-paths.mjs";
 import { toCsv } from "./shared/csv.mjs";
 import {
@@ -398,15 +399,15 @@ export async function runMatterInit(options = {}) {
 
   if (!dryRun) {
     await mkdir(paths.intakeDir, { recursive: true });
-    await writeFile(
+    await writeFileAtomic(
       paths.intakeLogPath,
       toCsv(intakeLogRows, INTAKE_LOG_HEADERS),
     );
-    await writeFile(
+    await writeFileAtomic(
       paths.fileRegisterPath,
       toCsv(fileRegisterRows, FILE_REGISTER_HEADERS),
     );
-    await writeFile(paths.matterJsonPath, `${JSON.stringify(matterJson, null, 2)}\n`);
+    await writeFileAtomic(paths.matterJsonPath, `${JSON.stringify(matterJson, null, 2)}\n`);
   }
 
   return {

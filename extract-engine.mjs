@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractPdf, PDF_ENGINE_FINGERPRINT } from "./extract-utils/pdf-extract.mjs";
@@ -13,6 +13,7 @@ import {
   canUseCachedPdfOcrExtraction,
 } from "./extract-utils/ocr-policy.mjs";
 import { parseCsv, toCsv } from "./shared/csv.mjs";
+import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
 
@@ -211,7 +212,7 @@ export async function runExtract(options = {}) {
 
     if (!dryRun) {
       const logPath = path.join(intakeDir, "Extraction Log.csv");
-      await writeFile(
+      await writeFileAtomic(
         logPath,
         toCsv(logRows, EXTRACTION_LOG_HEADERS),
       );
@@ -367,8 +368,8 @@ async function processRegisterRow({
   const allOcrRequired = stats.pageCount > 0 && stats.ocrRequiredPageCount === stats.pageCount && !stats.ocrApplied;
 
   if (!dryRun) {
-    await writeFile(recordPath, `${JSON.stringify(extraction.record, null, 2)}\n`);
-    await writeFile(path.join(extractedDir, `${row.file_id}.txt`), extraction.flatText);
+    await writeFileAtomic(recordPath, `${JSON.stringify(extraction.record, null, 2)}\n`);
+    await writeFileAtomic(path.join(extractedDir, `${row.file_id}.txt`), extraction.flatText);
   }
 
   return {
