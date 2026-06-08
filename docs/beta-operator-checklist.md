@@ -106,6 +106,7 @@ For a release-confidence check:
 
 ```bash
 npm run private-beta:rc-closure-pack
+npm run private-beta:ui-hardening-pass
 npm run ui:typecheck --silent
 npm run ui:build --silent
 npm test --silent
@@ -116,6 +117,11 @@ local verification, runtime DB browser acceptance, private VM service health,
 operator auth, tester handoff, ops/security checks, and recoverability
 evidence. Use it when deciding whether the current checkpoint is acceptable for
 supervised private beta.
+
+The rendered UI hardening pass is the visual companion check. It opens the live
+React app in a real browser, checks the first-screen beta surfaces, captures
+screenshots, and fails on console errors, obvious page failures, secret-looking
+settings text, or narrow-screen overflow.
 
 When changing private beta credentials, run a quick operator-auth preflight
 before the full closure pack:
@@ -169,7 +175,9 @@ Before giving a tester access:
    as handoff blockers.
 3. Run the release-confidence checks for the machine they will use. For a
    release candidate, this means `private-beta:rc-closure-pack`, which includes
-   the tester handoff gate.
+   the tester handoff gate. Run `private-beta:ui-hardening-pass` after it when
+   you also want rendered UI screenshots for Home, Skills, Activity, Settings,
+   and the narrow mobile viewport.
 4. Give the tester [Private Beta Tester Brief](private-beta-tester-brief.md).
 5. Confirm the tester understands this is supervised beta, not final legal
    output and not public web software.

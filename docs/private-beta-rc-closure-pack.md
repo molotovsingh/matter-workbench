@@ -125,6 +125,11 @@ beta signal endpoints work as a real tester would experience them. Running the
 standalone `private-beta:tester-handoff-drill` is still useful for spot checks,
 but the closure pack now enforces that drill as part of the release gate.
 
+For rendered UI hardening, run the separate
+[`private-beta:ui-hardening-pass`](private-beta-ui-hardening-pass.md). The RC
+closure pack proves release gates; the rendered UI hardening pass proves the
+first-screen React surfaces still look and behave coherently in a real browser.
+
 The pack redacts common secret shapes, including API keys and PostgreSQL
 passwords, but operators should still avoid sharing generated evidence outside
 the trusted beta circle without checking it first.
