@@ -1,14 +1,22 @@
 # Technical Debt Review: Large Files And Accidental Complexity
 
 Date: 2026-05-24
+Current refresh: 2026-06-08
 
-Snapshot reviewed:
+Original snapshot reviewed:
 
 - Repo: `/Users/aksingh/matter-workbench`
 - Branch: `codex/matter-workbench-checkpoint-2026-05-17`
 - HEAD: `dc144a0`
 - Worktree state at review start: dirty, ahead of origin by 1 commit
 - Review mode: read-only except for this report
+
+Current refresh snapshot:
+
+- HEAD: `32646a5`
+- Refresh purpose: update the large-file debt surface after the React-only
+  cutover, runtime DB work, and List of Dates engine decomposition.
+- Refresh mode: docs plus repo-hygiene guard; no runtime behavior changes.
 
 Important dirty or untracked paths already present before this report:
 
@@ -45,14 +53,21 @@ The bigger debt is transitional:
 
 1. The app is now React-only, but the retired plain-JS UX still occupies a large
    amount of tracked code and test surface.
-2. `create-listofdates-engine.mjs` is legitimately domain-heavy, but it has
-   absorbed prompts, provider clients, filesystem reads, validation, hydration,
-   artifact writing, and markdown rendering into one file.
+2. The runtime DB bridge is now the largest active service. That is expected
+   during transition, but it needs careful boundaries so "temporary bridge"
+   does not become a permanent storage monolith.
 3. Several large tests are doing valuable regression work, but they are also
    acting as informal fixture libraries because shared builders are thin.
 4. Documentation is valuable but now large enough that front-door explanation,
    release evidence, future decisions, and architecture lessons need stricter
    separation.
+
+List of Dates engine decomposition is complete for the first intended slice:
+`create-listofdates-engine.mjs` is now an orchestration file of roughly 185
+lines, with provider transport, artifact writing, contracts, source-record
+loading, rendering, run configuration, metadata merging, and two-pass execution
+split under `listofdates/*`. The remaining List of Dates debt is mostly test
+fixture bulk, not root-engine size.
 
 Large files are not automatically bad here. A legal workbench has real domain
 weight. The useful distinction is:
@@ -69,26 +84,28 @@ Current tracked files over 1,000 lines:
 
 | File | Lines | Verdict |
 | --- | ---: | --- |
+| `FOR_AKSINGH.md` | 2,441 | Keep large, then curate |
+| `services/runtime-db-storage-service.mjs` | 1,705 | Split carefully |
+| `test/runtime-db-api.test.mjs` | 1,640 | Split later |
 | `test/create-listofdates.test.mjs` | 1,599 | Split later |
-| `create-listofdates-engine.mjs` | 1,497 | Split later |
-| `FOR_AKSINGH.md` | 1,395 | Keep large, then curate |
 | `test/ai-command-box-skill-ideas.test.mjs` | 1,383 | Split later |
+| `react-ui/src/styles/global.css` | 1,026 | Split carefully |
 
 Near-threshold watchlist:
 
 | File | Lines | Concern |
 | --- | ---: | --- |
 | `test/skills-page.test.mjs` | 998 | Legacy view governance tests are bundled together. |
-| `react-ui/src/styles/global.css` | 965 | Active CSS is close to becoming the next monolith. |
+| `scripts/db-hydrate-local-matters.mjs` | 962 | Hydration script is mixing discovery, mapping, and writes. |
 | `docs/future-design-decisions/hosted-beta-database-architecture.md` | 942 | Future plan is large enough to need periodic status pruning. |
+| `react-ui/src/types/index.ts` | 943 | Type registry is a single bucket for unrelated API domains. |
+| `scripts/react-ui-smoke.mjs` | 890 | Browser smoke can become an unreviewable test script. |
+| `scripts/db-hydrate-local-skills.mjs` | 881 | Hydration script needs staged helpers if it grows again. |
 | `test/api-smoke.test.mjs` | 870 | One smoke file covers too many API contracts. |
-| `react-ui/src/types/index.ts` | 847 | Type registry is a single bucket for unrelated API domains. |
 | `evals/listofdates/two-pass-model-smoke.mjs` | 842 | Eval script is mixing scenario setup, provider calls, and reporting. |
-| `scripts/react-ui-smoke.mjs` | 766 | Browser smoke can become an unreviewable test script. |
-| `test/source-descriptors-engine.test.mjs` | 754 | Provider/client behavior and source-label validation are coupled. |
 | `react-ui/src/views/MatterOverview.tsx` | 678 | View includes data loading, pipeline rendering, attention rendering, labels. |
-| `react-ui/src/views/SkillsPage.tsx` | 614 | View includes data loading, lifecycle actions, grouping, status copy. |
-| `react-ui/src/hooks/useSkillIdeaSessionMachine.ts` | 607 | State machine is near the point where phases should become reducers/actions. |
+| `react-ui/src/views/SkillsPage.tsx` | 670 | View includes data loading, lifecycle actions, grouping, status copy. |
+| `react-ui/src/hooks/useSkillIdeaSessionMachine.ts` | 627 | State machine is near the point where phases should become reducers/actions. |
 
 ## Large-File Tribunal
 
@@ -174,62 +191,94 @@ This file is protecting paid-provider safety, source-backed citation discipline,
 and failure behavior. A cosmetic split that weakens scenario readability would
 be worse than the current size.
 
-### `create-listofdates-engine.mjs` - 1,497 lines
+### `services/runtime-db-storage-service.mjs` - 1,705 lines
 
-Verdict: `Split later`
+Verdict: `Split carefully`
 
-Claimed responsibility: run `/create_listofdates`.
+Claimed responsibility: provide filesystem-shaped matter workspace behavior
+from runtime DB storage rows.
 
 Responsibilities absorbed:
 
-- prompt text and JSON schemas;
-- one-pass and two-pass orchestration;
-- OpenAI and OpenRouter provider clients;
-- provider policy resolution;
-- matter and intake reads;
-- extraction-record loading;
-- source-index loading;
-- source block chunking;
-- meta/index source filtering;
-- candidate validation;
-- final entry validation;
-- legal-language normalization;
-- high-risk conclusion softening;
-- clustering handoff;
-- artifact writing;
-- markdown rendering.
+- workspace tree assembly;
+- file preview reads;
+- matter status reconstruction;
+- artifact and storage-object mapping;
+- runtime DB query construction;
+- filesystem compatibility behavior;
+- source-index/List of Dates freshness checks;
+- local-storage object materialization helpers.
 
 Why could this not have been simpler?
 
-Some of this belongs together because chronology output is source-backed and
-lawyer-facing. But provider transport, prompt/schema definitions, filesystem
-record reads, validation/hydration, and markdown rendering do not need to live
-in the same file forever.
+This service is intentionally a bridge: it lets the React app and existing
+workflow surfaces behave as though they still have a normal matter folder while
+the storage source is Postgres plus local object storage. Bridges tend to start
+large because they translate two worlds. The risk is that translation,
+authorization assumptions, freshness checks, preview reads, and tree rendering
+all become one permanent subsystem.
 
 Smallest simpler version:
 
-- `listofdates/prompts.mjs`: system prompts and schemas;
-- `listofdates/providers.mjs`: OpenAI/OpenRouter provider clients;
-- `listofdates/source-blocks.mjs`: read extraction records, source index, chunk
-  blocks, filter meta/index sources;
-- `listofdates/validation.mjs`: candidate and entry validation/hydration plus
-  legal-language normalization;
-- `listofdates/artifacts.mjs`: JSON/CSV/Markdown output assembly and writes;
-- `create-listofdates-engine.mjs`: orchestration only.
+- keep the current public service surface stable;
+- extract query row mappers and tree assembly first;
+- extract preview payload reads second;
+- leave the high-level service as orchestration over those helpers;
+- do not split until runtime DB beta behavior is stable enough to test the
+  pieces with confidence.
 
 First safe cleanup:
 
-Extract prompts and schemas first. That is the least behavior-sensitive move
-and immediately makes the engine easier to scan. Extract provider clients
-second, because provider request-shape tests already exist.
+Add characterization tests before moving code. Then extract pure mappers that
+turn DB rows into workspace file/tree objects. That gives size relief without
+changing network routes or runtime DB behavior.
 
 Risk:
 
-Do not split the one-pass/two-pass orchestration before beta behavior is stable.
-The failure-safe candidate ledger path and final artifact overwrite behavior
-are too important to scatter prematurely.
+Do not combine this with schema changes, object-storage policy changes, or
+authorization work. A bridge split should reduce file size without changing what
+the app can read.
 
-### `FOR_AKSINGH.md` - 1,395 lines
+### `create-listofdates-engine.mjs` - 185 lines
+
+Verdict: `Resolved for root-engine size`
+
+List of Dates engine decomposition is complete for the root engine. The file is
+now an orchestration shell that delegates to focused modules:
+
+- `listofdates/artifacts.mjs`
+- `listofdates/contracts.mjs`
+- `listofdates/entries.mjs`
+- `listofdates/providers.mjs`
+- `listofdates/rendering.mjs`
+- `listofdates/run-config.mjs`
+- `listofdates/run-metadata.mjs`
+- `listofdates/source-records.mjs`
+- `listofdates/two-pass-runner.mjs`
+
+What changed:
+
+- prompt/schema and output-contract details moved out of the root engine;
+- provider routing/client behavior moved out of the root engine;
+- source-record reading and AI-safe block preparation moved out;
+- artifact writing and Markdown rendering moved out;
+- two-pass candidate/editor orchestration moved out.
+
+Remaining debt:
+
+- `test/create-listofdates.test.mjs` is still large and should get shared
+  fixture helpers;
+- live eval scripts still mix setup, provider calls, and report formatting;
+- the root engine should stay orchestration-sized and should not reabsorb
+  prompts, provider transport, or artifact writes.
+
+Guardrail:
+
+`test/repo-hygiene-cleanup.test.mjs` now asserts the root engine remains
+orchestration-sized and that this report no longer carries the old 1,497-line
+claim.
+
+### `FOR_AKSINGH.md` - 2,441 lines
 
 Verdict: `Keep large, then curate`
 
@@ -323,7 +372,7 @@ sample approval. Keep behavior tests until React has equivalent coverage.
 Verdict: watch closely.
 
 The file is organized with section comments and is far smaller than retired
-`styles.css`, but it is already 965 lines. The first simplification should not
+`styles.css`, but it is already 1,026 lines. The first simplification should not
 be a styling rewrite. Instead, prevent it from becoming another 4,000-line
 catch-all:
 
@@ -413,16 +462,17 @@ simpler shape is a reducer plus action helpers, not more hook-local branching.
 
 ## Runtime Complexity Map
 
-The backend is healthier than the large-file list suggests. `server.mjs` is only
-202 lines and mostly composes services. Routes are split into visible groups:
+The backend is healthier than the large-file list suggests. `server.mjs` is
+still small and mostly composes services. Routes are split into visible groups:
 
 - app shell routes;
 - matter workflow routes;
 - skill factory routes;
 - static routes.
 
-Service file sizes are mostly below 450 lines. The largest service,
-`services/prepare-matter-service.mjs`, is 430 lines and not a crisis.
+Most stable service files remain moderate. The exception is the runtime DB
+storage bridge, which has grown above 1,700 lines because it translates DB rows
+back into the old matter-folder workspace shape.
 
 The main runtime debt is source-of-truth spread:
 
@@ -432,14 +482,17 @@ The main runtime debt is source-of-truth spread:
 2. Custom skill lifecycle facts live in backend services, React types, React
    views, and legacy view helpers.
 3. Provider-routing policy is relatively well-contained in shared policy files,
-   but list-of-dates still embeds provider clients locally.
+   and List of Dates provider transport now lives in `listofdates/providers.mjs`
+   rather than the root engine.
 4. Matter attention is nicely split under `services/matter-attention-*`, but
    React overview still renders too much attention detail in one view.
 
 Recommended runtime simplification order:
 
-1. Finish React-only cleanup before deeper service movement.
-2. Extract list-of-dates prompts/schemas and providers.
+1. Keep the runtime DB bridge stable, then extract pure row mappers and tree
+   assembly helpers.
+2. Add `test-support/listofdates-fixtures.mjs` before splitting the large
+   chronology regression file.
 3. Split React type domains.
 4. Consolidate command metadata so UI labels, route availability, and skill
    registry cards drift less often.
@@ -467,7 +520,7 @@ legacy files. The legacy matter-screen facade and old Settings renderer have
 also been retired; React owns matter landing, navigation, and Settings as product
 surfaces.
 
-However, 65 test imports still reference `frontend/*`. That does not mean the
+However, 68 test imports still reference `frontend/*`. That does not mean the
 legacy browser shell is alive. It means useful pure helpers and legacy parity
 tests have not all moved to React/shared owners yet.
 
@@ -522,12 +575,14 @@ silently become implementation authority. Keep the current pattern:
 
 ## Top 5 Simplification Opportunities
 
-1. Delete retired root legacy shell files: `styles.css`, `index.html`, `app.js`.
-2. Extract list-of-dates prompts/schemas from `create-listofdates-engine.mjs`.
-3. Extract list-of-dates provider clients from `create-listofdates-engine.mjs`.
-4. Add `test-support/listofdates-fixtures.mjs` and shrink the large chronology
+1. Extract pure runtime DB row mappers/tree assembly from
+   `services/runtime-db-storage-service.mjs`.
+2. Add `test-support/listofdates-fixtures.mjs` and shrink the large chronology
    tests without changing assertions.
-5. Split React type definitions by API domain once active React work settles.
+3. Split React type definitions by API domain once active React work settles.
+4. Move stabilized workflow-specific CSS out of the global stylesheet.
+5. Migrate one `frontend/*` helper family at a time into `shared/*` or
+   `react-ui/src/lib/*`.
 
 ## Top 5 Refactors To Avoid For Now
 
@@ -542,10 +597,10 @@ silently become implementation authority. Keep the current pattern:
 ## Files Large But Probably Justified
 
 - `FOR_AKSINGH.md`: intentional teaching artifact.
-- `create-listofdates-engine.mjs`: domain-heavy, though it should be split
-  later.
 - `test/create-listofdates.test.mjs`: protects source-backed chronology,
   provider, failure, and legal-language safety.
+- `services/runtime-db-storage-service.mjs`: temporarily large bridge from
+  runtime DB rows to the existing matter workspace contract.
 - `docs/future-design-decisions/hosted-beta-database-architecture.md`: large
   future plan, acceptable if it stays clearly labeled as future/transition.
 
@@ -556,53 +611,71 @@ silently become implementation authority. Keep the current pattern:
 - `test/skills-page.test.mjs`: legacy view tests are bundling several product
   contracts.
 - `react-ui/src/types/index.ts`: unrelated API domains in one type bucket.
+- `react-ui/src/styles/global.css`: active CSS is now above 1,000 lines and
+  should not become the new retired `styles.css`.
 
-## Recommended First PR-Sized Cleanup
+## Recommended Next PR-Sized Cleanup
 
-First cleanup completed: the retired root legacy shell files have been deleted.
+Completed cleanup:
 
-Next PR-sized cleanup: migrate one `frontend/*` helper family at a time into
-`shared/*` or `react-ui/src/lib/*`, then delete the corresponding retired
-legacy facade once React/shared tests cover the same contract.
+- retired root legacy shell files were deleted;
+- List of Dates prompts/contracts, provider transport, source-record loading,
+  artifact writing, run configuration, metadata merging, and two-pass
+  orchestration were extracted from `create-listofdates-engine.mjs`;
+- `test/repo-hygiene-cleanup.test.mjs` now guards the root engine against
+  reabsorbing extracted responsibilities.
+
+Next PR-sized cleanup: add `test-support/listofdates-fixtures.mjs` and migrate
+the repeated chronology matter/source setup out of
+`test/create-listofdates.test.mjs`. That keeps the legal-output regression
+coverage intact while reducing the next largest List of Dates debt surface.
 
 Expected guardrails:
 
-- Keep `routes/static-routes.mjs` serving only `react-dist`.
-- Keep `test/static-routes.test.mjs` assertions that legacy files are not
-  served.
-- Keep `test/server-ui-shell.test.mjs` assertion that legacy shell opt-in no
-  longer changes the product shell.
-- Keep `frontend/*` untouched in this first cleanup.
+- Do not change `/api/create-listofdates` behavior.
+- Do not reduce scenario coverage around citations, provider policy, failure
+  safety, label refresh, or two-pass candidate ledgers.
+- Keep the root List of Dates engine under the repo-hygiene guard.
 
 Why first:
 
-- It removes the single largest file in the repo.
-- It aligns code with existing React-only routing.
-- It does not disturb backend legal engines.
-- It is easy to revert if some hidden script unexpectedly depends on the files.
+- The root engine split is done; the test fixture bulk is now the remaining
+  chronology-specific debt.
+- It is lower risk than splitting runtime DB storage while DB beta behavior is
+  still settling.
+- It makes future List of Dates changes easier to review without weakening legal
+  regression coverage.
 
-## Do Not Touch During Active Codex App Work
+## Current Caution
 
-Avoid touching these until the active app session lands or is explicitly paused:
+Do not treat this report as permission to refactor everything large. The current
+pragmatic order is:
 
-- `server.mjs`
-- `routes/static-routes.mjs`
-- `react-ui/src/views/ActivityPage.tsx`
-- `react-ui/src/views/SettingsPage.tsx`
-- `react-ui/src/views/SkillsPage.tsx`
-- `package.json`
-- `docs/future-design-decisions/react-only-cutover-database-transition.md`
-- `db/`
-- current release/docs files already modified in the dirty worktree
+1. keep beta deployment boring and observable;
+2. preserve runtime DB behavior while testers use the app;
+3. shrink high-churn files through characterization tests and pure helper
+   extraction, one family at a time.
 
 ## Verification Performed
 
-Commands used for this review:
+Commands used for the original review:
 
 - `git status --short --branch`
 - `git rev-parse --short HEAD`
 - `git ls-files ... | xargs wc -l`
 - targeted `rg`, `sed`, `find`, `wc`, and `ls`
 
-No app tests were run for this report. This was a static architecture/debt
-review, and the worktree was already dirty from a parallel Codex app session.
+Commands used for the 2026-06-08 refresh:
+
+- `git status --short --branch`
+- `git rev-parse --short HEAD`
+- `git ls-files -z ... | xargs -0 wc -l`
+- `node --test test/repo-hygiene-cleanup.test.mjs`
+- `npm test --silent`
+- `npm run ui:typecheck --silent`
+- `npm run ui:build --silent`
+- `git diff --check`
+
+The refresh is still a debt-report update, not a runtime behavior change. The
+new repo-hygiene test guards both the report freshness and the List of Dates
+root-engine boundary.

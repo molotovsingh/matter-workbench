@@ -109,6 +109,25 @@ test("retired legacy UX entrypoints are not imported by product code", () => {
   }
 });
 
+test("large-file technical debt report records the completed List of Dates engine split", () => {
+  const report = read("docs/technical-debt-large-files-review.md");
+
+  assert.doesNotMatch(report, /\| `create-listofdates-engine\.mjs` \| 1,497 \| Split later \|/);
+  assert.match(report, /List of Dates engine decomposition is complete/);
+});
+
+test("List of Dates root engine stays orchestration-sized after decomposition", () => {
+  const source = read("create-listofdates-engine.mjs");
+  const lineCount = source.trimEnd().split(/\r?\n/).length;
+
+  assert.ok(lineCount <= 250, `create-listofdates-engine.mjs grew to ${lineCount} lines`);
+  assert.match(source, /from "\.\/listofdates\/artifacts\.mjs"/);
+  assert.match(source, /from "\.\/listofdates\/run-config\.mjs"/);
+  assert.match(source, /from "\.\/listofdates\/two-pass-runner\.mjs"/);
+  assert.match(source, /from "\.\/listofdates\/source-records\.mjs"/);
+  assert.doesNotMatch(source, /LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT|CANDIDATE_SCHEMA|writeCandidateLedger/);
+});
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
