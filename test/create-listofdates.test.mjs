@@ -17,10 +17,13 @@ import { parseCsv } from "../shared/csv.mjs";
 import {
   fileIdForOriginalName,
   lawyerFields,
+  listOfDatesCandidate,
+  listOfDatesEntry,
   makeMatterRoot,
   metadata,
   prepareExtractedMatter,
   readExtractionRecord,
+  sourceIndexSource,
   writeSource,
   writeSourceIndex,
 } from "../test-support/listofdates-fixtures.mjs";
@@ -46,44 +49,28 @@ test("create-listofdates calls an AI provider and writes cited chronology output
       assert.ok(chunk.some((block) => block.citation === "FILE-0001 p1.b2"));
       return {
         entries: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
-            citation: "FILE-0001 p1.b1",
-            needs_review: false,
-            confidence: 0.94,
-            ...lawyerFields({
-              event_type: "agreement",
-              legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-              issue_tags: ["agreement"],
-            }),
-          },
-          {
+          listOfDatesEntry(),
+          listOfDatesEntry({
             date_iso: "2026-05-01",
             date_text: "01 May 2026",
             event: "Notice was issued after the inspection.",
             citation: "FILE-0001 p1.b2",
-            needs_review: false,
             confidence: 0.89,
-            ...lawyerFields({
-              event_type: "notice",
-              legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
-              issue_tags: ["notice", "inspection"],
-            }),
-          },
-          {
+            event_type: "notice",
+            legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+            issue_tags: ["notice", "inspection"],
+          }),
+          listOfDatesEntry({
             date_iso: "2026-06-01",
             date_text: "01 June 2026",
             event: "This candidate has no supplied source citation.",
             citation: "FILE-9999 p1.b1",
             needs_review: true,
             confidence: 0.2,
-            ...lawyerFields({
-              legal_relevance: "Should be rejected because the citation is not supplied.",
-              issue_tags: ["evidence_gap"],
-            }),
-          },
+            event_type: "other",
+            legal_relevance: "Should be rejected because the citation is not supplied.",
+            issue_tags: ["evidence_gap"],
+          }),
         ],
       };
     },
@@ -142,13 +129,10 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "Agreement and notice note",
       short_label: "Agreement note",
-    },
+    }),
   ]);
   const pass1Calls = [];
   const pass2Calls = [];
@@ -162,22 +146,8 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
       assert.equal(chunk[0].source_label, "Agreement and notice note");
       return {
         candidates: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event_candidate: "Agreement was signed by Mehta and Skyline.",
-            legal_materiality: "Potential foundation date for the client's contract chronology.",
-            citation: "FILE-0001 p1.b1",
-            source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
-            candidate_type: "agreement",
-            party_posture: "helps_client",
-            same_fact_hint: "",
-            date_uncertainty: "",
-            ocr_suspicion: "",
-            needs_review: false,
-            confidence: 0.94,
-          },
-          {
+          listOfDatesCandidate(),
+          listOfDatesCandidate({
             date_iso: "2026-05-01",
             date_text: "01 May 2026",
             event_candidate: "Notice was issued after the inspection.",
@@ -185,14 +155,9 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
             citation: "FILE-0001 p1.b2",
             source_excerpt: "Notice was issued on 01 May 2026 after the inspection.",
             candidate_type: "notice",
-            party_posture: "helps_client",
-            same_fact_hint: "",
-            date_uncertainty: "",
-            ocr_suspicion: "",
-            needs_review: false,
             confidence: 0.9,
-          },
-          {
+          }),
+          listOfDatesCandidate({
             date_iso: "2026-06-01",
             date_text: "01 June 2026",
             event_candidate: "Invalid candidate should be dropped.",
@@ -201,12 +166,9 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
             source_excerpt: "Invalid.",
             candidate_type: "other",
             party_posture: "unclear",
-            same_fact_hint: "",
-            date_uncertainty: "",
-            ocr_suspicion: "",
             needs_review: true,
             confidence: 0.1,
-          },
+          }),
         ],
       };
     },
@@ -339,13 +301,10 @@ test("create-listofdates enriches entries with Source Index labels without chang
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "Agreement note dated 20 April 2026",
       short_label: "Agreement note",
-    },
+    }),
   ]);
 
   const result = await runCreateListOfDates({
@@ -403,15 +362,12 @@ test("list-of-dates label refresh updates rendered labels without an AI rerun", 
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "Draft source label",
       short_label: "Draft label",
       label_status: "suggested",
       label_revision: 1,
-    },
+    }),
   ]);
   await runCreateListOfDates({
     matterRoot: root,
@@ -437,17 +393,14 @@ test("list-of-dates label refresh updates rendered labels without an AI rerun", 
   assert.equal(beforeJson.entries[0].source_label, "Draft source label");
 
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "Draft source label",
       short_label: "Draft label",
       confirmed_label: "Confirmed agreement note dated 20 April 2026",
       label_status: "confirmed",
       label_source: "lawyer_override",
       label_revision: 2,
-    },
+    }),
   ]);
 
   const result = await refreshListOfDatesSourceLabels({ matterRoot: root });

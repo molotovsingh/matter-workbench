@@ -6,8 +6,11 @@ import { parseCsv } from "../shared/csv.mjs";
 import {
   fileIdForOriginalName,
   lawyerFields,
+  listOfDatesCandidate,
+  listOfDatesEntry,
   prepareExtractedMatter,
   readExtractionRecord,
+  sourceIndexSource,
   writeSourceIndex,
 } from "../test-support/listofdates-fixtures.mjs";
 
@@ -52,5 +55,60 @@ test("List of Dates fixture helper writes source indexes and lawyer defaults", a
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["agreement"],
     perspective: "client_favourable",
+  });
+});
+
+test("List of Dates fixture helper builds source rows and model payload rows", async () => {
+  const root = await prepareExtractedMatter();
+  const record = await readExtractionRecord(root);
+
+  assert.deepEqual(sourceIndexSource(record, {
+    display_label: "Agreement note",
+    short_label: "Agreement",
+    document_type: "agreement",
+  }), {
+    file_id: "FILE-0001",
+    sha256: record.sha256,
+    source_path: record.source_path,
+    display_label: "Agreement note",
+    short_label: "Agreement",
+    document_type: "agreement",
+  });
+
+  assert.deepEqual(listOfDatesEntry({
+    citation: "FILE-0001 p1.b2",
+    event_type: "notice",
+    issue_tags: ["notice"],
+  }), {
+    date_iso: "2026-04-20",
+    date_text: "20 April 2026",
+    event: "Agreement was signed by Mehta and Skyline.",
+    citation: "FILE-0001 p1.b2",
+    needs_review: false,
+    confidence: 0.94,
+    event_type: "notice",
+    legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+    issue_tags: ["notice"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(listOfDatesCandidate({
+    citation: "FILE-0001 p1.b2",
+    candidate_type: "notice",
+    confidence: 0.9,
+  }), {
+    date_iso: "2026-04-20",
+    date_text: "20 April 2026",
+    event_candidate: "Agreement was signed by Mehta and Skyline.",
+    legal_materiality: "Potential foundation date for the client's contract chronology.",
+    citation: "FILE-0001 p1.b2",
+    source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
+    candidate_type: "notice",
+    party_posture: "helps_client",
+    same_fact_hint: "",
+    date_uncertainty: "",
+    ocr_suspicion: "",
+    needs_review: false,
+    confidence: 0.9,
   });
 });

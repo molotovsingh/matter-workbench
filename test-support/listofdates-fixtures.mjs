@@ -77,12 +77,57 @@ export async function writeSourceIndex(root, sources) {
   );
 }
 
+export function sourceIndexSource(record, overrides = {}) {
+  return {
+    file_id: record.file_id,
+    sha256: record.sha256,
+    source_path: record.source_path,
+    ...overrides,
+  };
+}
+
 export function lawyerFields(overrides = {}) {
   return {
     event_type: "other",
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["chronology"],
     perspective: "client_favourable",
+    ...overrides,
+  };
+}
+
+export function listOfDatesEntry(overrides = {}) {
+  return {
+    date_iso: "2026-04-20",
+    date_text: "20 April 2026",
+    event: "Agreement was signed by Mehta and Skyline.",
+    citation: "FILE-0001 p1.b1",
+    needs_review: false,
+    confidence: 0.94,
+    ...lawyerFields({
+      event_type: "agreement",
+      legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
+      issue_tags: ["agreement"],
+    }),
+    ...overrides,
+  };
+}
+
+export function listOfDatesCandidate(overrides = {}) {
+  return {
+    date_iso: "2026-04-20",
+    date_text: "20 April 2026",
+    event_candidate: "Agreement was signed by Mehta and Skyline.",
+    legal_materiality: "Potential foundation date for the client's contract chronology.",
+    citation: "FILE-0001 p1.b1",
+    source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
+    candidate_type: "agreement",
+    party_posture: "helps_client",
+    same_fact_hint: "",
+    date_uncertainty: "",
+    ocr_suspicion: "",
+    needs_review: false,
+    confidence: 0.94,
     ...overrides,
   };
 }
