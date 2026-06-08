@@ -86,7 +86,7 @@ Current tracked files over 1,000 lines:
 | --- | ---: | --- |
 | `FOR_AKSINGH.md` | 2,441 | Keep large, then curate |
 | `services/runtime-db-storage-service.mjs` | 1,705 | Split carefully |
-| `test/runtime-db-api.test.mjs` | 1,640 | Split later |
+| `test/runtime-db-api.test.mjs` | 1,549 | Split later |
 | `test/create-listofdates.test.mjs` | 1,164 | Split later |
 | `test/ai-command-box-skill-ideas.test.mjs` | 1,383 | Split later |
 | `react-ui/src/styles/global.css` | 1,026 | Split carefully |
@@ -146,7 +146,7 @@ Some tests still import legacy `frontend/*` helpers. Do not delete the whole
 `frontend/` folder in the same PR. Separate retired browser entrypoints from
 pure helpers that tests still use.
 
-### `test/create-listofdates.test.mjs` - 1,599 lines
+### `test/create-listofdates.test.mjs` - 1,164 lines
 
 Verdict: `Split later`
 
@@ -190,6 +190,49 @@ Risk:
 This file is protecting paid-provider safety, source-backed citation discipline,
 and failure behavior. A cosmetic split that weakens scenario readability would
 be worse than the current size.
+
+### `test/runtime-db-api.test.mjs` - 1,549 lines
+
+Verdict: `Split later`
+
+Claimed responsibility: protect the runtime DB bridge API surface while the app
+serves React beta flows from Postgres-backed matter state.
+
+Responsibilities absorbed:
+
+- runtime matter index behavior;
+- Postgres storage-mode workspace reads;
+- file preview/raw-file reads;
+- preparation, extraction, source-label, chronology, doctor, copilot, and
+  custom-skill route behavior under runtime DB custody;
+- runtime DB skill, sample, idea, health, and audit services.
+
+Why could this not have been simpler?
+
+The file is intentionally broad because the DB transition needs one regression
+net that proves old filesystem-shaped APIs still work when the matter source is
+Postgres-backed. The accidental part was repeated temp-folder, matter, server,
+and JSON request setup living inline with route-specific assertions.
+
+Smallest simpler version:
+
+- keep the route assertions in this file while the DB bridge is still settling;
+- move common server/matter/request setup into `test-support/` helpers;
+- later split by API family only after the shared helpers make each scenario
+  small enough to move without hiding coverage.
+
+First cleanup completed:
+
+`test-support/runtime-db-api-fixtures.mjs` now owns the standard runtime DB
+matter record, temp path setup, Postgres-mode test server startup, and JSON
+request helpers. `test/runtime-db-api-fixtures.test.mjs` proves that fixture
+contract independently before the large regression file reuses it.
+
+Risk:
+
+Do not split this file by route until the helper layer has absorbed enough
+repeated setup. The current broad regression is still valuable because runtime
+DB storage is a bridge, and route-level drift is the practical beta risk.
 
 ### `services/runtime-db-storage-service.mjs` - 1,705 lines
 
@@ -633,29 +676,33 @@ Completed cleanup:
 - `test-support/listofdates-fixtures.mjs` now owns named payment, deadline,
   duplicate-notice, separate-payment, and non-merits payload builders used by
   the clustering/filtering scenarios;
+- `test-support/runtime-db-api-fixtures.mjs` now owns common runtime DB API
+  matter/server/request setup and has its own fixture contract test;
 - `test/repo-hygiene-cleanup.test.mjs` now guards the root engine against
   reabsorbing extracted responsibilities.
 
-Next PR-sized cleanup: pause the List of Dates test fixture extraction unless
-new chronology work needs it. The remaining raw provider rows mostly exercise
-malformed, sanitization, provider-transport, or assertion-specific behavior and
-should stay visible until a cleaner split target appears.
+Next PR-sized cleanup: continue runtime DB fixture extraction only when touching
+that route family, then consider pure mapper/tree-assembly extraction from
+`services/runtime-db-storage-service.mjs` once characterization tests are in
+place. Pause the List of Dates fixture extraction unless new chronology work
+needs it.
 
 Expected guardrails:
 
+- Do not change runtime DB API route shapes or storage-mode behavior while
+  shrinking the test file.
 - Do not change `/api/create-listofdates` behavior.
 - Do not reduce scenario coverage around citations, provider policy, failure
   safety, label refresh, or two-pass candidate ledgers.
 - Keep the root List of Dates engine under the repo-hygiene guard.
 
-Why first:
+Why now:
 
-- The root engine split is done; the test fixture bulk is now the remaining
-  chronology-specific debt.
-- It is lower risk than splitting runtime DB storage while DB beta behavior is
-  still settling.
-- It makes future List of Dates changes easier to review without weakening legal
-  regression coverage.
+- The root List of Dates engine split is done, and the remaining chronology
+  test bulk is no longer the highest-risk active transition surface.
+- Runtime DB behavior is now the beta-critical bridge; shrinking repeated test
+  setup makes future DB fixes easier to review without changing app behavior.
+- Service extraction should follow characterization coverage, not lead it.
 
 ## Current Caution
 
@@ -688,6 +735,18 @@ Commands used for the 2026-06-08 refresh:
 - `npm run ui:build --silent`
 - `git diff --check`
 
+Commands used for the 2026-06-08 runtime DB test-helper cleanup:
+
+- `node --test test/runtime-db-api-fixtures.test.mjs`
+- `node --test test/runtime-db-api-fixtures.test.mjs test/runtime-db-api.test.mjs`
+- `node --test test/runtime-db-api-fixtures.test.mjs test/runtime-db-api.test.mjs test/repo-hygiene-cleanup.test.mjs`
+- `git diff --check`
+- `npm run ui:typecheck --silent`
+- `npm run ui:build --silent`
+- `npm test --silent`
+
 The refresh is still a debt-report update, not a runtime behavior change. The
 new repo-hygiene test guards both the report freshness and the List of Dates
-root-engine boundary.
+root-engine boundary. The runtime DB cleanup adds a tested fixture module and
+shrinks the regression file without changing product routes or storage
+behavior.

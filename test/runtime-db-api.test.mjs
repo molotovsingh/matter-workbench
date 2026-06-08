@@ -1,35 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
 import { createWorkbenchServer } from "../server.mjs";
 import { hashDesignBrief } from "../services/skill-samples-service.mjs";
-
-async function getJson(baseUrl, pathName) {
-  const response = await fetch(`${baseUrl}${pathName}`);
-  const payload = await response.json();
-  assert.equal(response.ok, true, payload.error);
-  return payload;
-}
-
-async function postJson(baseUrl, pathName, body = {}) {
-  const response = await fetch(`${baseUrl}${pathName}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  assert.equal(response.ok, true, payload.error);
-  return payload;
-}
+import {
+  getJson,
+  postJson,
+  runtimeDbMatter,
+  runtimeDbTestPaths,
+  startRuntimeDbTestServer,
+} from "../test-support/runtime-db-api-fixtures.mjs";
 
 test("runtime DB matter index drives /api/matters and switch while workspace reads local storage", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-"));
-  const mattersHome = path.join(tmp, "matters");
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api");
   const matterRoot = path.join(mattersHome, "DB Listed Matter");
   await mkdir(path.join(matterRoot, "00_Inbox"), { recursive: true });
   await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({
@@ -75,90 +62,48 @@ test("runtime DB matter index drives /api/matters and switch while workspace rea
 });
 
 test("runtime DB postgres storage mode lists matters even when local matters home is unset", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-no-home-"));
-  const runtimeMatter = {
-    id: "11111111-1111-4111-8111-111111111111",
-    name: "DB Listed Matter",
-    matterName: "Legal Caption",
-    clientName: "Runtime Client",
-  };
-  const app = await createWorkbenchServer({
-    appDir: tmp,
+  const { appDir } = await runtimeDbTestPaths("runtime-db-api-no-home");
+  const matter = runtimeDbMatter();
+  const server = await startRuntimeDbTestServer({
+    appDir,
     env: {},
-    host: "127.0.0.1",
-    port: 0,
-    runtimeMatterIndex: {
-      enabled: true,
-      storageMode: "postgres",
-      listMatterFolders: async () => [runtimeMatter],
-      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
-    },
-    runtimeDbStorageService: {
-      enabled: true,
-    },
+    matter,
   });
 
-  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   try {
-    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
-    const matters = await getJson(baseUrl, "/api/matters");
+    const matters = await getJson(server.baseUrl, "/api/matters");
 
     assert.equal(matters.enabled, true);
     assert.equal(matters.mattersHome, null);
-    assert.deepEqual(matters.matters, [runtimeMatter]);
+    assert.deepEqual(matters.matters, [matter]);
   } finally {
-    app.server.close();
+    await server.close();
   }
 });
 
 test("runtime DB postgres storage mode exposes config custody label", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-config-mode-"));
-  const runtimeMatter = {
-    id: "11111111-1111-4111-8111-111111111111",
-    name: "DB Listed Matter",
-    matterName: "Legal Caption",
-  };
-  const app = await createWorkbenchServer({
-    appDir: tmp,
+  const { appDir } = await runtimeDbTestPaths("runtime-db-config-mode");
+  const server = await startRuntimeDbTestServer({
+    appDir,
     env: {},
-    host: "127.0.0.1",
-    port: 0,
-    runtimeMatterIndex: {
-      enabled: true,
-      storageMode: "postgres",
-      listMatterFolders: async () => [runtimeMatter],
-      findMatterFolder: async (name) => (name === runtimeMatter.name ? runtimeMatter : null),
-    },
-    runtimeDbStorageService: {
-      enabled: true,
-    },
   });
 
-  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   try {
-    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
-    const config = await getJson(baseUrl, "/api/config");
+    const config = await getJson(server.baseUrl, "/api/config");
 
     assert.equal(config.runtimeStorageMode, "postgres");
     assert.equal(config.workspaceModeLabel, "DB workspace");
   } finally {
-    app.server.close();
+    await server.close();
   }
 });
 
 test("runtime DB postgres storage mode serves workspace and files without local matter folder", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-storage-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-storage");
   const rawBytes = Buffer.from("%PDF-1.7");
   const calls = [];
 
-  const runtimeMatter = {
-    id: "11111111-1111-4111-8111-111111111111",
-    name: "DB Listed Matter",
-    matterName: "Legal Caption",
-    clientName: "Runtime Client",
-  };
+  const runtimeMatter = runtimeDbMatter();
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
     host: "127.0.0.1",
@@ -308,16 +253,14 @@ test("runtime DB postgres storage mode serves workspace and files without local 
 });
 
 test("runtime DB postgres storage mode checks upload overlap from DB custody rows", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-overlap-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-overlap");
   const duplicateHash = "a".repeat(64);
-  const runtimeMatter = {
+  const runtimeMatter = runtimeDbMatter({
     id: "11111111-1111-4111-8111-111111111111",
     name: "DB Existing Matter",
     matterName: "DB Existing Matter",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -367,15 +310,13 @@ test("runtime DB postgres storage mode checks upload overlap from DB custody row
 });
 
 test("runtime DB postgres storage mode runs matter-init through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-init-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-init");
+  const runtimeMatter = runtimeDbMatter({
     id: "22222222-2222-4222-8222-222222222222",
     name: "DB Init Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -438,15 +379,13 @@ test("runtime DB postgres storage mode runs matter-init through materialized DB 
 });
 
 test("runtime DB postgres storage mode runs extract through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-extract-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-extract");
+  const runtimeMatter = runtimeDbMatter({
     id: "33333333-3333-4333-8333-333333333333",
     name: "DB Extract Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -518,15 +457,13 @@ test("runtime DB postgres storage mode runs extract through materialized DB writ
 });
 
 test("runtime DB postgres storage mode runs source labels through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-sources-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sources");
+  const runtimeMatter = runtimeDbMatter({
     id: "44444444-4444-4444-8444-444444444444",
     name: "DB Source Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -583,15 +520,13 @@ test("runtime DB postgres storage mode runs source labels through materialized D
 });
 
 test("runtime DB postgres storage mode runs create-listofdates through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-lod-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-lod");
+  const runtimeMatter = runtimeDbMatter({
     id: "55555555-5555-4555-8555-555555555555",
     name: "DB Chronology Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -661,15 +596,13 @@ test("runtime DB postgres storage mode runs create-listofdates through materiali
 });
 
 test("runtime DB postgres storage mode runs list-of-dates label refresh through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-lod-refresh-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-lod-refresh");
+  const runtimeMatter = runtimeDbMatter({
     id: "66666666-6666-4666-8666-666666666666",
     name: "DB Refresh Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -725,15 +658,13 @@ test("runtime DB postgres storage mode runs list-of-dates label refresh through 
 });
 
 test("runtime DB postgres storage mode reads matter context through materialized DB read service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-context-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-context");
+  const runtimeMatter = runtimeDbMatter({
     id: "77777777-7777-4777-8777-777777777777",
     name: "DB Context Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -783,15 +714,13 @@ test("runtime DB postgres storage mode reads matter context through materialized
 });
 
 test("runtime DB postgres storage mode answers copilot from materialized DB matter context", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-copilot-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-copilot");
+  const runtimeMatter = runtimeDbMatter({
     id: "88888888-8888-4888-8888-888888888888",
     name: "DB Copilot Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome, OPENAI_API_KEY: "sk-test" },
@@ -855,15 +784,13 @@ test("runtime DB postgres storage mode answers copilot from materialized DB matt
 });
 
 test("runtime DB postgres storage mode reads rerun advice and doctor scan through materialized DB read service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-read-tools-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-read-tools");
+  const runtimeMatter = runtimeDbMatter({
     id: "99999999-9999-4999-8999-999999999999",
     name: "DB Read Tools Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -911,15 +838,13 @@ test("runtime DB postgres storage mode reads rerun advice and doctor scan throug
 });
 
 test("runtime DB postgres storage mode runs doctor fix through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-doctor-fix-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-doctor-fix");
+  const runtimeMatter = runtimeDbMatter({
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     name: "DB Doctor Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: { MATTERS_HOME: mattersHome },
@@ -970,11 +895,7 @@ test("runtime DB postgres storage mode runs doctor fix through materialized DB w
 });
 
 test("runtime DB postgres storage mode runs configurable skills through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-custom-skill-"));
-  const mattersHome = path.join(tmp, "matters");
-  const appDir = path.join(tmp, "app");
-  await mkdir(mattersHome, { recursive: true });
-  await mkdir(appDir, { recursive: true });
+  const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-custom-skill");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
   const configurableSkillRunsPath = path.join(appDir, "configurable-skill-runs.json");
   await writeFile(configurableSkillsPath, `${JSON.stringify({
@@ -1007,12 +928,12 @@ test("runtime DB postgres storage mode runs configurable skills through material
       updatedAt: "2026-06-06T00:00:00.000Z",
     }],
   }, null, 2)}\n`);
-  const runtimeMatter = {
+  const runtimeMatter = runtimeDbMatter({
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     name: "DB Skill Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     appDir,
@@ -1066,11 +987,7 @@ test("runtime DB postgres storage mode runs configurable skills through material
 });
 
 test("runtime DB postgres storage mode runs matter story through materialized DB write service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-matter-story-"));
-  const mattersHome = path.join(tmp, "matters");
-  const appDir = path.join(tmp, "app");
-  await mkdir(mattersHome, { recursive: true });
-  await mkdir(appDir, { recursive: true });
+  const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-matter-story");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
   await writeFile(configurableSkillsPath, `${JSON.stringify({
     schema_version: "configurable-skills/v1",
@@ -1102,12 +1019,12 @@ test("runtime DB postgres storage mode runs matter story through materialized DB
       updatedAt: "2026-06-06T00:00:00.000Z",
     }],
   }, null, 2)}\n`);
-  const runtimeMatter = {
+  const runtimeMatter = runtimeDbMatter({
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     name: "DB Story Matter",
     matterName: "Legal Caption",
     clientName: "Runtime Client",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     appDir,
@@ -1171,9 +1088,7 @@ test("runtime DB postgres storage mode runs matter story through materialized DB
 });
 
 test("runtime DB postgres storage mode reads configurable skills from the runtime DB skill store", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skills-store-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skills-store");
   const calls = [];
   const app = await createWorkbenchServer({
     env: {
@@ -1236,9 +1151,7 @@ test("runtime DB postgres storage mode reads configurable skills from the runtim
 });
 
 test("runtime DB postgres storage mode reads skill ideas and samples from runtime DB services", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skill-factory-stores-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skill-factory-stores");
   const calls = [];
   const idea = {
     id: "idea_route_plan",
@@ -1313,9 +1226,7 @@ test("runtime DB postgres storage mode reads skill ideas and samples from runtim
 });
 
 test("runtime DB postgres storage mode checks skill factory health from runtime DB services", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-skill-factory-health-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skill-factory-health");
   const calls = [];
   const designBrief = {
     intendedUser: "advocate",
@@ -1437,16 +1348,14 @@ test("runtime DB postgres storage mode checks skill factory health from runtime 
 });
 
 test("runtime DB postgres storage mode writes command interactions through runtime DB audit service", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-api-command-log-"));
-  const mattersHome = path.join(tmp, "matters");
-  await mkdir(mattersHome, { recursive: true });
-  const runtimeMatter = {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-command-log");
+  const runtimeMatter = runtimeDbMatter({
     id: "77777777-7777-4777-8777-777777777777",
     name: "DB Command Matter",
     matterName: "DB Command Matter",
     clientName: "Runtime Client",
     runtimeStorageMode: "postgres",
-  };
+  });
   const calls = [];
   const app = await createWorkbenchServer({
     env: {
