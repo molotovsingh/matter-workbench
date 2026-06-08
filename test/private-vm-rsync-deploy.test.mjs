@@ -65,6 +65,7 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.match(rsync.command.join(" "), /git ls-files -z/);
   assert.match(rsync.command.join(" "), /--files-from=-/);
   assert.match(rsync.command.join(" "), /--delete/);
+  assert.match(rsync.command.join(" "), /--include='\.env\.example'/);
   assert.match(rsync.command.join(" "), /--exclude='\.env'/);
   assert.match(rsync.command.join(" "), /--exclude='codex_review\/'/);
   assert.match(rsync.command.join(" "), /--exclude='claude_review\/'/);

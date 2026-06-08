@@ -22,6 +22,10 @@ const RSYNC_EXCLUDES = [
   "private-beta-users.json",
 ];
 
+const RSYNC_INCLUDES = [
+  ".env.example",
+];
+
 export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
   const parsed = {
     host: env.MWB_PRIVATE_VM_HOST || env.MWB_PRIVATE_DEPLOYMENT_HOST || "",
@@ -117,6 +121,7 @@ export function buildPrivateVmRsyncDeployPlan({
             "git ls-files -z",
             "|",
             "rsync -az --delete --from0 --files-from=-",
+            ...RSYNC_INCLUDES.map((entry) => `--include=${shellQuote(entry)}`),
             ...RSYNC_EXCLUDES.map((entry) => `--exclude=${shellQuote(entry)}`),
             "--",
             "./",
@@ -208,6 +213,7 @@ export function buildPrivateVmRsyncDeployPlan({
     baseUrl,
     serviceName,
     excludes: [...RSYNC_EXCLUDES],
+    includes: [...RSYNC_INCLUDES],
     steps,
   };
 }
