@@ -232,7 +232,13 @@ async function listExtractionRecordInputs(root) {
     for (const entry of entries) {
       if (!entry.isFile() || !/^FILE-\d+\.json$/i.test(entry.name)) continue;
       const filePath = path.join(extractedDir, entry.name);
-      const fileStat = await stat(filePath);
+      let fileStat = null;
+      try {
+        fileStat = await stat(filePath);
+      } catch {
+        continue;
+      }
+      if (!fileStat.isFile()) continue;
       const json = await readJsonIfPossible(filePath);
       inputs.push({
         relativePath: toMatterRelative(root, filePath),
@@ -464,6 +470,7 @@ function listOfDatesSnapshotMap(json) {
 }
 
 function sourceContentHash(value = {}) {
+  if (!value || typeof value !== "object") return "";
   return normalizeText(value.content_hash) || normalizeText(value.sha256) || "";
 }
 

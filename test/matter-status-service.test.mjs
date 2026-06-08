@@ -172,6 +172,37 @@ test("rerun advice marks source descriptors stale when extraction hashes changed
   assert.match(advice.reason, /changed source content/i);
 });
 
+test("rerun advice tolerates null extraction JSON records", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-null-extraction-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(path.join(root, "10_Library"), { recursive: true });
+  const recordPath = path.join(extractedDir, "FILE-0001.json");
+  const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
+  await writeFile(recordPath, "null\n");
+  await writeFile(sourceIndexPath, `${JSON.stringify({
+    generated_at: "2026-05-11T10:00:00.000Z",
+    sources: [],
+  })}\n`);
+
+  const oldDate = new Date("2026-05-11T09:00:00.000Z");
+  const currentDate = new Date("2026-05-11T10:00:00.000Z");
+  await utimes(recordPath, oldDate, oldDate);
+  await utimes(sourceIndexPath, currentDate, currentDate);
+
+  const service = createMatterStatusService({
+    matterStore: {
+      ensureMatterRoot: () => root,
+      listIntakeFolders: async () => [{ name: "Intake 01 - Initial", intakeNumber: 1 }],
+    },
+  });
+
+  const advice = await service.readRerunAdvice("/describe_sources");
+  assert.equal(advice.state, "current");
+  assert.equal(advice.shouldConfirm, true);
+  assert.equal(advice.inputCount, 1);
+});
+
 test("rerun advice confirms current list of dates and skips missing artifacts", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-rerun-list-test-"));
   const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
