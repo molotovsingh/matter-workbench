@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "private-beta-tester-handoff-drill/v1",
+  "success": true,
+  "generatedAt": "2026-06-08T02:56:46.782Z",
+  "baseUrl": "http://127.0.0.1:4191",
+  "temporaryTester": {
+    "username": "codex-handoff-1780887406783",
+    "passwordStoredInEvidence": false
+  },
+  "checks": {
+    "login": {
+      "ok": true,
+      "status": 200
+    },
+    "authStatus": {
+      "ok": true,
+      "username": "codex-handoff-1780887406783"
+    },
+    "rootReactEntry": {
+      "ok": true,
+      "status": 200
+    },
+    "mattersList": {
+      "ok": true,
+      "count": 15
+    },
+    "feedbackCreated": {
+      "ok": true,
+      "id": "feedback_238f572b-c2ba-470c-b013-02167b3321bd"
+    },
+    "feedbackListed": {
+      "ok": true
+    },
+    "feedbackLedger": {
+      "ok": true,
+      "path": "/home/aks/.local/share/matter-workbench/private-beta-feedback-ledger.json"
+    },
+    "feedbackSyncEndpoint": {
+      "ok": true,
+      "attempted": 0,
+      "sent": 0,
+      "queued": 0,
+      "skipped": 0
+    },
+    "signalEndpoint": {
+      "ok": true,
+      "count": 5
+    },
+    "tempSessionInvalidated": {
+      "ok": true
+    },
+    "tempTesterRemoved": {
+      "ok": true,
+      "status": 401
+    }
+  },
+  "cleanup": {
+    "usersFileRestored": true,
+    "feedbackLedgerRestored": true
+  }
+}
