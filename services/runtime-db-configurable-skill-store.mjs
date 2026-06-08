@@ -17,19 +17,30 @@ export function createRuntimeDbConfigurableSkillStore({
   const storePath = "postgres:configurable_skills";
 
   async function readStore() {
-    ensureEnabled();
-    const rows = queryJson(readStoreSql({ tenantId }));
+    const store = await readStoreWithFingerprint();
     return {
-      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-      skills: (Array.isArray(rows) ? rows : []).map(normalizeDbSkill),
+      schema_version: store.schema_version,
+      skills: store.skills,
     };
   }
 
-  async function writeStore(store = {}) {
+  async function readStoreWithFingerprint() {
+    ensureEnabled();
+    const payload = queryJson(readStoreSql({ tenantId }));
+    const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.skills) ? payload.skills : [];
+    return {
+      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
+      catalogFingerprint: stringValue(payload?.catalogFingerprint) || catalogFingerprintFromRows(rows),
+      skills: rows.map(normalizeDbSkill),
+    };
+  }
+
+  async function writeStore(store = {}, { expectedCatalogFingerprint = "" } = {}) {
     ensureEnabled();
     const skills = Array.isArray(store.skills) ? store.skills.map(normalizeStoredSkill) : [];
     const sql = wrapRuntimeDbWriteTransaction([
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+      configurableSkillCatalogWriteGuardSql({ expectedCatalogFingerprint }),
       ...skills.flatMap((skill) => configurableSkillUpsertSql(skill)),
       "select '{}'::jsonb::text;",
       "",
@@ -40,9 +51,9 @@ export function createRuntimeDbConfigurableSkillStore({
   async function updateStore(mutator) {
     ensureEnabled();
     if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500);
-    const store = await readStore();
+    const store = await readStoreWithFingerprint();
     const result = await mutator(store);
-    await writeStore(store);
+    await writeStore(store, { expectedCatalogFingerprint: store.catalogFingerprint });
     return result;
   }
 
@@ -58,6 +69,9 @@ export function createRuntimeDbConfigurableSkillStore({
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
+      if (isStaleCatalogError(detail)) {
+        throw makeHttpError("Runtime DB configurable skill catalog changed during update.", 409);
+      }
       throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(detail)}`, 503);
     }
     return parsePsqlJson(result.stdout || "");
@@ -98,26 +112,75 @@ function readStoreSql({ tenantId }) {
     "    limit 1",
     "  ) latest_version on true",
     "  where cs.tenant_id = current_app_tenant_id()",
+    "), skill_rows as (",
+    "  select",
+    "    cs.id,",
+    "    cs.title,",
+    "    cs.updated_at,",
+    "    jsonb_build_object(",
+    "      'id', cs.id::text,",
+    "      'title', cs.title,",
+    "      'slash', cs.slash,",
+    "      'status', cs.status,",
+    "      'previousStatus', coalesce(cs.previous_status, ''),",
+    "      'statusChangedAt', coalesce(cs.status_changed_at::text, ''),",
+    "      'statusChangeReason', coalesce(cs.status_change_reason, ''),",
+    "      'createdAt', cs.created_at::text,",
+    "      'updatedAt', cs.updated_at::text,",
+    "      'versionNumber', sv.version_number,",
+    "      'sourceIdeaId', coalesce(sv.source_idea_id, ''),",
+    "      'policyPromptVersion', coalesce(sv.policy_prompt_version, ''),",
+    "      'definitionJson', coalesce(sv.definition_json, '{}'::jsonb)",
+    "    ) as skill_json",
+    "  from configurable_skills cs",
+    "  left join selected_versions sv on sv.skill_id = cs.id",
+    "  where cs.tenant_id = current_app_tenant_id()",
     ")",
-    "select coalesce(jsonb_agg(jsonb_build_object(",
-    "  'id', cs.id::text,",
-    "  'title', cs.title,",
-    "  'slash', cs.slash,",
-    "  'status', cs.status,",
-    "  'previousStatus', coalesce(cs.previous_status, ''),",
-    "  'statusChangedAt', coalesce(cs.status_changed_at::text, ''),",
-    "  'statusChangeReason', coalesce(cs.status_change_reason, ''),",
-    "  'createdAt', cs.created_at::text,",
-    "  'updatedAt', cs.updated_at::text,",
-    "  'versionNumber', sv.version_number,",
-    "  'sourceIdeaId', coalesce(sv.source_idea_id, ''),",
-    "  'policyPromptVersion', coalesce(sv.policy_prompt_version, ''),",
-    "  'definitionJson', coalesce(sv.definition_json, '{}'::jsonb)",
-    ") order by cs.updated_at desc, cs.title asc), '[]'::jsonb)::text",
-    "from configurable_skills cs",
-    "left join selected_versions sv on sv.skill_id = cs.id",
-    "where cs.tenant_id = current_app_tenant_id();",
+    "select jsonb_build_object(",
+    `  'catalogFingerprint', ${configurableSkillCatalogFingerprintExpression()},`,
+    "  'skills', coalesce((",
+    "    select jsonb_agg(skill_json order by updated_at desc, title asc)",
+    "    from skill_rows",
+    "  ), '[]'::jsonb)",
+    ")::text;",
     "",
+  ].join("\n");
+}
+
+function configurableSkillCatalogWriteGuardSql({ expectedCatalogFingerprint = "" } = {}) {
+  const fingerprint = stringValue(expectedCatalogFingerprint);
+  return [
+    "select pg_advisory_xact_lock(hashtext(current_app_tenant_id()::text), hashtext('configurable_skills'));",
+    fingerprint ? [
+      "do $mwb_configurable_skill_catalog_guard$",
+      "declare",
+      "  current_fingerprint text;",
+      "begin",
+      `  select ${configurableSkillCatalogFingerprintExpression()} into current_fingerprint;`,
+      `  if current_fingerprint <> ${sqlString(fingerprint)} then`,
+      "    raise exception 'runtime DB configurable skill catalog changed during update';",
+      "  end if;",
+      "end",
+      "$mwb_configurable_skill_catalog_guard$;",
+    ].join("\n") : "",
+  ].filter(Boolean).join("\n");
+}
+
+function configurableSkillCatalogFingerprintExpression() {
+  return [
+    "coalesce((",
+    "  select md5(coalesce(string_agg(concat_ws('|',",
+    "    cs.id::text,",
+    "    cs.updated_at::text,",
+    "    coalesce(cs.current_version_id::text, ''),",
+    "    coalesce(cv.version_number::text, ''),",
+    "    md5(coalesce(cv.definition_json::text, ''))",
+    "  ), E'\\n' order by cs.id::text), ''))",
+    "  from configurable_skills cs",
+    "  left join configurable_skill_versions cv",
+    "    on cv.id = cs.current_version_id and cv.tenant_id = cs.tenant_id",
+    "  where cs.tenant_id = current_app_tenant_id()",
+    "), md5(''))",
   ].join("\n");
 }
 
@@ -246,6 +309,12 @@ function parsePsqlJson(stdout = "") {
   }
 }
 
+function catalogFingerprintFromRows(rows = []) {
+  return createHash("sha256")
+    .update(JSON.stringify(Array.isArray(rows) ? rows : []))
+    .digest("hex");
+}
+
 function objectValue(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -310,4 +379,8 @@ function redactRuntimeDbError(value) {
     .replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@")
     .replace(/\bsecret\b/gi, "***")
     .replace(/\btop-secret\b/gi, "***");
+}
+
+function isStaleCatalogError(value) {
+  return /runtime DB configurable skill catalog changed during update/i.test(String(value || ""));
 }
