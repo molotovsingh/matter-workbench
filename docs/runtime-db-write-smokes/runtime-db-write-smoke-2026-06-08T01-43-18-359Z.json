@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "mode": "runtime DB live write smoke",
+  "databaseUrlSource": "MWB_RUNTIME_DATABASE_URL",
+  "tenantId": "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+  "testRunId": "runtime-db-write-smoke-2026-06-08T01-43-18-359Z",
+  "matterName": "Runtime DB Write Smoke -06-08T01-43-18-359Z",
+  "roleGuardPassed": true,
+  "uploadCreated": true,
+  "addFilesCreated": true,
+  "workspaceReadable": true,
+  "filePreviewReadable": true,
+  "followUpPreviewReadable": true,
+  "rawFileReadable": true,
+  "dbRowsVerified": true,
+  "rollbackVerified": true,
+  "cleanupDeleted": true,
+  "counts": {
+    "documents": 2,
+    "matterCount": 1,
+    "payloadRows": 3,
+    "payloadBytes": 552,
+    "importBatches": 2,
+    "storageObjects": 3,
+    "activeMatterCount": 1
+  },
+  "error": ""
+}

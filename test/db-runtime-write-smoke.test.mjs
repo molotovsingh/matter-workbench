@@ -56,12 +56,30 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
         const submittedName = String(options.body.get("name"));
         return jsonResponse(200, { folderName: submittedName, inputLabel: `postgres:${submittedName}` });
       }
+      if (pathName === "/api/matters/add-files") {
+        assert.equal(options.method, "POST");
+        assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
+        assert.equal(typeof options.body?.get, "function");
+        assert.equal(String(options.body.get("matterName")), "Runtime DB Write Smoke -06-06T10-00-00-000Z");
+        assert.equal(String(options.body.get("label")), "Follow Up");
+        return jsonResponse(200, {
+          folderName: String(options.body.get("matterName")),
+          inputLabel: `postgres:${String(options.body.get("matterName"))}`,
+          intakeAdded: {
+            unique: 1,
+            intakeDirName: "Intake 02 - 2026-06-06 Follow Up",
+          },
+        });
+      }
       if (pathName === "/api/switch-matter") {
         assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
         return jsonResponse(200, { metadata: { matterName: "Runtime DB Write Smoke -00-000Z" }, tree: [] });
       }
       if (pathName === "/api/file") {
         assert.equal(options.headers?.cookie, "mwb_private_beta_session=test-session");
+        if (String(url).includes("follow-up.txt")) {
+          return jsonResponse(200, { content: "runtime DB write smoke follow-up text\n" });
+        }
         return jsonResponse(200, { content: "runtime DB write smoke source text\n" });
       }
       if (pathName === "/api/file-raw") {
@@ -87,11 +105,11 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
         return {
           matterCount: deleted ? 0 : 1,
           activeMatterCount: deleted ? 0 : 1,
-          documents: 1,
-          storageObjects: 2,
-          payloadRows: 2,
+          documents: 2,
+          storageObjects: 3,
+          payloadRows: 3,
           payloadBytes: 512,
-          importBatches: 1,
+          importBatches: 2,
         };
       }
       return {};
@@ -102,6 +120,8 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
   assert.equal(report.databaseUrlSource, "MWB_RUNTIME_DATABASE_URL");
   assert.equal(report.roleGuardPassed, true);
   assert.equal(report.uploadCreated, true);
+  assert.equal(report.addFilesCreated, true);
+  assert.equal(report.followUpPreviewReadable, true);
   assert.equal(report.dbRowsVerified, true);
   assert.equal(report.rollbackVerified, true);
   assert.equal(report.cleanupDeleted, true);
@@ -109,6 +129,7 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
   assert.equal(sqlCalls.some((call) => /delete from matters/i.test(call.sql)), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/auth/login")), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/matters/new")), true);
+  assert.equal(fetchCalls.some((call) => call.url.includes("/api/matters/add-files")), true);
 });
 
 test("runtime DB write smoke fails closed for unsafe runtime roles", async () => {

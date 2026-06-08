@@ -240,22 +240,29 @@ export function createRuntimeDbStorageService({
       throw makeHttpError("paths array must match file count", 400);
     }
 
-    const state = queryJson({
+    const allocation = queryJson({
       databaseUrl,
       tenantId,
       spawn,
-      sql: buildMatterUploadStateSql({ tenantId, matter: normalizedMatter }),
+      sql: buildMatterAddFilesAllocationSql({
+        tenantId,
+        matter: normalizedMatter,
+        expectedFileCount: files.length,
+        label,
+        receivedDate: new Date().toISOString().slice(0, 10),
+      }),
     });
-    if (!state?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404);
-    const dbMatter = normalizeMatter({ ...normalizedMatter, ...state.matter });
-    const intakeNumber = positiveInteger(state.nextIntakeNumber, 1);
-    const fileIdStart = positiveInteger(state.matter.nextFileNumber, 1);
-    const receivedDate = new Date().toISOString().slice(0, 10);
+    if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404);
+    const dbMatter = normalizeMatter({ ...normalizedMatter, ...allocation.matter });
+    const intakeNumber = positiveInteger(allocation.nextIntakeNumber, 1);
+    const fileIdStart = positiveInteger(allocation.fileIdStart || allocation.matter.nextFileNumber, 1);
+    const intakeDbId = stringValue(allocation.intakeDbId);
+    const uploadSessionId = stringValue(allocation.uploadSessionId);
+    const receivedDate = stringValue(allocation.receivedDate) || new Date().toISOString().slice(0, 10);
+    if (!intakeDbId || !uploadSessionId) throw makeHttpError("Runtime DB upload allocation failed", 500);
     const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
     const intakeDir = `00_Inbox/${intakeDirName}`;
     const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
-    const intakeDbId = deterministicUuid(`runtime-db-intake:${dbMatter.id}:${intakeNumber}`);
-    const uploadSessionId = deterministicUuid(`runtime-db-upload-session:${dbMatter.id}:${intakeNumber}`);
     const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakeNumber}`);
 
     const storageFiles = [];
@@ -715,8 +722,16 @@ function buildMatterByNameSql({ tenantId, name }) {
   ].join("\n");
 }
 
-function buildMatterUploadStateSql({ tenantId, matter }) {
-  return [
+function buildMatterAddFilesAllocationSql({
+  tenantId,
+  matter,
+  expectedFileCount,
+  label,
+  receivedDate,
+}) {
+  const uploadKeyPattern = `^runtime-db-upload:${matter.id}:([0-9]+)$`;
+  const displayLabelSql = `coalesce(nullif(${sqlString(label)}, ''), 'Intake ' || lpad(a.next_intake_number::text, 2, '0'))`;
+  return wrapRuntimeDbWriteTransaction([
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     "with target_matter as (",
     "  select",
@@ -725,6 +740,7 @@ function buildMatterUploadStateSql({ tenantId, matter }) {
     "  where tenant_id = current_app_tenant_id()",
     `    and id = ${sqlUuid(matter.id)}`,
     "    and status = 'active'",
+    "  for update",
     "), object_state as (",
     "  select",
     "    coalesce(max(nullif(substring(so.object_key from 'Intake ([0-9]+)'), '')::int), 0) as max_intake_number",
@@ -732,27 +748,65 @@ function buildMatterUploadStateSql({ tenantId, matter }) {
     "  where so.tenant_id = current_app_tenant_id()",
     `    and so.matter_id = ${sqlUuid(matter.id)}`,
     "    and so.object_key is not null",
+    "), upload_state as (",
+    "  select",
+    `    coalesce(max(nullif(substring(us.idempotency_key from ${sqlString(uploadKeyPattern)}), '')::int), 0) as max_upload_intake_number`,
+    "  from upload_sessions us",
+    "  where us.tenant_id = current_app_tenant_id()",
+    `    and us.matter_id = ${sqlUuid(matter.id)}`,
+    "), allocation as (",
+    "  select",
+    "    tm.*,",
+    "    coalesce(tm.next_file_number, 1) as file_id_start,",
+    "    greatest(coalesce(os.max_intake_number, 0), coalesce(us.max_upload_intake_number, 0)) + 1 as next_intake_number",
+    "  from target_matter tm",
+    "  cross join object_state os",
+    "  cross join upload_state us",
+    "), reserved_matter as (",
+    "  update matters m",
+    `  set next_file_number = coalesce(m.next_file_number, 1) + ${sqlInteger(expectedFileCount)}, updated_at = now()`,
+    "  from allocation a",
+    "  where m.tenant_id = current_app_tenant_id()",
+    "    and m.id = a.id",
+    "  returning m.id",
+    "), reserved_intake as (",
+    "  insert into matter_intakes (tenant_id, matter_id, label, received_at, created_at)",
+    `  select current_app_tenant_id(), a.id, ${displayLabelSql}, ${sqlString(receivedDate)}::date, now()`,
+    "  from allocation a",
+    "  returning id",
+    "), reserved_upload as (",
+    "  insert into upload_sessions (tenant_id, matter_id, intake_id, idempotency_key, status, expected_file_count, created_at)",
+    `  select current_app_tenant_id(), a.id, ri.id, 'runtime-db-upload:' || a.id::text || ':' || a.next_intake_number::text, 'pending', ${sqlInteger(expectedFileCount)}, now()`,
+    "  from allocation a",
+    "  cross join reserved_intake ri",
+    "  returning id",
     ")",
     "select coalesce((",
     "  select jsonb_build_object(",
     "    'matter', jsonb_build_object(",
-    "      'id', tm.id::text,",
-    "      'name', tm.name,",
-    "      'matterName', tm.name,",
-    "      'clientName', coalesce(tm.client_name, ''),",
-    "      'oppositeParty', coalesce(tm.opposite_party, ''),",
-    "      'matterType', coalesce(tm.matter_type, ''),",
-    "      'jurisdiction', coalesce(tm.jurisdiction, ''),",
-    "      'briefDescription', coalesce(tm.brief_description, ''),",
-    "      'nextFileNumber', coalesce(tm.next_file_number, 1)",
+    "      'id', a.id::text,",
+    "      'name', a.name,",
+    "      'matterName', a.name,",
+    "      'clientName', coalesce(a.client_name, ''),",
+    "      'oppositeParty', coalesce(a.opposite_party, ''),",
+    "      'matterType', coalesce(a.matter_type, ''),",
+    "      'jurisdiction', coalesce(a.jurisdiction, ''),",
+    "      'briefDescription', coalesce(a.brief_description, ''),",
+    "      'nextFileNumber', a.file_id_start",
     "    ),",
-    "    'nextIntakeNumber', greatest(coalesce(os.max_intake_number, 0) + 1, 1)",
+    "    'nextIntakeNumber', a.next_intake_number,",
+    "    'fileIdStart', a.file_id_start,",
+    "    'intakeDbId', ri.id::text,",
+    "    'uploadSessionId', ru.id::text,",
+    `    'receivedDate', ${sqlString(receivedDate)}`,
     "  )",
-    "  from target_matter tm",
-    "  cross join object_state os",
+    "  from allocation a",
+    "  cross join reserved_matter rm",
+    "  cross join reserved_intake ri",
+    "  cross join reserved_upload ru",
     "), '{}'::jsonb)::text;",
     "",
-  ].join("\n");
+  ].join("\n"));
 }
 
 function buildPayloadSql({ tenantId, matter, relativePath }) {
@@ -1291,10 +1345,6 @@ function createMatterAddFilesSql({
   receivedDate,
 }) {
   const displayLabel = stringValue(label) || `Intake ${String(intakeNumber).padStart(2, "0")}`;
-  const nextFileNumber = importItems.reduce(
-    (highest, item) => Math.max(highest, Number(item.fileNumber) + 1),
-    1,
-  );
   return [
     "insert into matter_intakes (id, tenant_id, matter_id, label, received_at, created_at)",
     `values (${sqlUuid(intakeDbId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlString(displayLabel)}, ${sqlString(receivedDate)}::date, now())`,
@@ -1303,12 +1353,8 @@ function createMatterAddFilesSql({
     `values (${sqlUuid(uploadSessionId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeDbId)}, ${sqlString(`runtime-db-upload:${matter.id}:${intakeNumber}`)}, 'verified', ${sqlInteger(expectedFileCount)}, now(), now())`,
     "on conflict (tenant_id, idempotency_key) do update set status = excluded.status, expected_file_count = excluded.expected_file_count, finished_at = excluded.finished_at;",
     "insert into matter_import_batches (id, tenant_id, matter_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
-    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'multipart_upload', ${sqlString(displayLabel)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:${intakeNumber}`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
+    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'zip_upload', ${sqlString(displayLabel)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:${intakeNumber}`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
     "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",
-    "update matters",
-    `set next_file_number = greatest(coalesce(next_file_number, 1), ${sqlInteger(nextFileNumber)}), updated_at = now()`,
-    "where tenant_id = current_app_tenant_id()",
-    `  and id = ${sqlUuid(matter.id)};`,
   ];
 }
 

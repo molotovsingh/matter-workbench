@@ -38,8 +38,10 @@ export async function runRuntimeDbWriteSmoke({
     matterName,
     roleGuardPassed: false,
     uploadCreated: false,
+    addFilesCreated: false,
     workspaceReadable: false,
     filePreviewReadable: false,
+    followUpPreviewReadable: false,
     rawFileReadable: false,
     dbRowsVerified: false,
     rollbackVerified: false,
@@ -84,11 +86,24 @@ export async function runRuntimeDbWriteSmoke({
       const created = await postSmokeMatter({ fetchImpl: smokeFetch, baseUrl, matterName });
       report.uploadCreated = Boolean(created?.folderName === matterName || created?.inputLabel === `postgres:${matterName}`);
 
+      const added = await postSmokeAddFiles({ fetchImpl: smokeFetch, baseUrl, matterName });
+      report.addFilesCreated = Boolean(
+        (added?.folderName === matterName || added?.inputLabel === `postgres:${matterName}`)
+        && added?.intakeAdded?.unique >= 1
+      );
+      const followUpPath = added?.intakeAdded?.intakeDirName
+        ? `00_Inbox/${added.intakeAdded.intakeDirName}/Source Files/follow-up.txt`
+        : "";
+
       const workspace = await postJson(smokeFetch, baseUrl, "/api/switch-matter", { name: matterName });
       report.workspaceReadable = Boolean(workspace?.metadata || workspace?.tree || workspace?.files);
 
       const preview = await getJson(smokeFetch, baseUrl, `/api/file?${new URLSearchParams({ path: sourcePath })}`);
       report.filePreviewReadable = /runtime DB write smoke source text/i.test(String(preview?.content || ""));
+      if (followUpPath) {
+        const followUpPreview = await getJson(smokeFetch, baseUrl, `/api/file?${new URLSearchParams({ path: followUpPath })}`);
+        report.followUpPreviewReadable = /runtime DB write smoke follow-up text/i.test(String(followUpPreview?.content || ""));
+      }
 
       const raw = await smokeFetch(`${baseUrl}/api/file-raw?${new URLSearchParams({ path: sourcePath })}`);
       report.rawFileReadable = Boolean(raw.ok && (await raw.text()).includes("runtime DB write smoke source text"));
@@ -103,10 +118,11 @@ export async function runRuntimeDbWriteSmoke({
     report.counts = counts || {};
     report.dbRowsVerified = Boolean(
       counts?.matterCount === 1
-      && counts?.documents >= 1
-      && counts?.storageObjects >= 2
-      && counts?.payloadRows >= 2
+      && counts?.documents >= 2
+      && counts?.storageObjects >= 3
+      && counts?.payloadRows >= 3
       && counts?.payloadBytes > 0
+      && counts?.importBatches >= 2
     );
 
     await assertRollbackProbe({ databaseUrl, tenantId, testRunId, execSql });
@@ -125,8 +141,10 @@ export async function runRuntimeDbWriteSmoke({
     report.passed = Boolean(
       report.roleGuardPassed
       && report.uploadCreated
+      && report.addFilesCreated
       && report.workspaceReadable
       && report.filePreviewReadable
+      && report.followUpPreviewReadable
       && report.rawFileReadable
       && report.dbRowsVerified
       && report.rollbackVerified
@@ -151,8 +169,10 @@ export function renderRuntimeDbWriteSmokeReport(report = {}) {
     `matter_name: ${report.matterName || ""}`,
     `role_guard_passed: ${report.roleGuardPassed ? "yes" : "no"}`,
     `upload_created: ${report.uploadCreated ? "yes" : "no"}`,
+    `add_files_created: ${report.addFilesCreated ? "yes" : "no"}`,
     `workspace_readable: ${report.workspaceReadable ? "yes" : "no"}`,
     `file_preview_readable: ${report.filePreviewReadable ? "yes" : "no"}`,
+    `follow_up_preview_readable: ${report.followUpPreviewReadable ? "yes" : "no"}`,
     `raw_file_readable: ${report.rawFileReadable ? "yes" : "no"}`,
     `db_rows_verified: ${report.dbRowsVerified ? "yes" : "no"}`,
     `rollback_verified: ${report.rollbackVerified ? "yes" : "no"}`,
@@ -181,6 +201,19 @@ async function postSmokeMatter({ fetchImpl, baseUrl, matterName }) {
     "smoke.txt",
   );
   return await postMultipart(fetchImpl, baseUrl, "/api/matters/new", form);
+}
+
+async function postSmokeAddFiles({ fetchImpl, baseUrl, matterName }) {
+  const form = new FormData();
+  form.set("matterName", matterName);
+  form.set("label", "Follow Up");
+  form.set("paths", JSON.stringify(["follow-up.txt"]));
+  form.append(
+    "files",
+    new Blob(["runtime DB write smoke follow-up text\n"], { type: "text/plain" }),
+    "follow-up.txt",
+  );
+  return await postMultipart(fetchImpl, baseUrl, "/api/matters/add-files", form);
 }
 
 async function createRuntimeSmokeFetch({ fetchImpl, baseUrl, env = {} }) {

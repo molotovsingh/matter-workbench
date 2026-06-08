@@ -450,7 +450,14 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [
-      { matter: { ...matter, nextFileNumber: 3 }, nextIntakeNumber: 2 },
+      {
+        matter: { ...matter, nextFileNumber: 3 },
+        nextIntakeNumber: 2,
+        fileIdStart: 3,
+        intakeDbId: "22222222-2222-4222-8222-222222222222",
+        uploadSessionId: "33333333-3333-4333-8333-333333333333",
+        receivedDate: "2026-06-08",
+      },
       {},
     ]),
   });
@@ -472,6 +479,8 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   assert.match(sql, /insert into matter_intakes/i);
   assert.match(sql, /insert into upload_sessions/i);
   assert.match(sql, /insert into matter_import_batches/i);
+  assert.match(calls[1].input, /'zip_upload'/i);
+  assert.doesNotMatch(calls[1].input, /'multipart_upload'/i);
   assert.match(sql, /insert into matter_import_items/i);
   assert.match(sql, /insert into documents/i);
   assert.match(sql, /insert into document_blobs/i);
@@ -479,8 +488,47 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   assert.match(sql, /insert into storage_object_payloads/i);
   assert.match(sql, /document_id/i);
   assert.match(sql, /DB Matter\/00_Inbox\/Intake 02 - \d{4}-\d{2}-\d{2} Follow Up\/Source Files\/supplement\/affidavit\.pdf/);
-  assert.match(sql, /next_file_number\s*=\s*greatest[\s\S]*,\s*4\)/i);
+  assert.match(calls[0].input, /next_file_number\s*=\s*coalesce\(m\.next_file_number,\s*1\)\s*\+\s*1/i);
+  assert.doesNotMatch(calls[1].input, /next_file_number\s*=\s*greatest/i);
   assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB storage service reserves add-files allocation under a matter row lock", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-locked-add-upload-"));
+  const uploadedFile = path.join(tmp, "affidavit.pdf");
+  await writeFile(uploadedFile, "%PDF-1.7 supplemental affidavit");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter: { ...matter, nextFileNumber: 3 },
+        nextIntakeNumber: 2,
+        fileIdStart: 3,
+        intakeDbId: "22222222-2222-4222-8222-222222222222",
+        uploadSessionId: "33333333-3333-4333-8333-333333333333",
+        receivedDate: "2026-06-08",
+      },
+      {},
+    ]),
+  });
+
+  await service.addUploadedFilesToMatter({
+    matter,
+    label: "Follow Up",
+    files: [{ index: 0, tempPath: uploadedFile, filename: "affidavit.pdf", bytes: 29 }],
+    relativePaths: ["supplement/affidavit.pdf"],
+  });
+
+  assert.equal(calls.length, 2);
+  assertTransactionWrapped(calls[0].input);
+  assert.match(calls[0].input, /from matters[\s\S]*for update/i);
+  assert.match(calls[0].input, /update matters[\s\S]*next_file_number\s*=\s*coalesce\(m\.next_file_number,\s*1\)\s*\+\s*1/i);
+  assert.match(calls[0].input, /insert into matter_intakes/i);
+  assert.doesNotMatch(calls[1].input, /next_file_number\s*=\s*greatest/i);
+  assert.match(calls[1].input, /'zip_upload'/i);
+  assert.doesNotMatch(calls[1].input, /'multipart_upload'/i);
 });
 
 test("runtime DB storage service checks upload overlap from document hashes", async () => {
