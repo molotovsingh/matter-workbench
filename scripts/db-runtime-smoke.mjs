@@ -37,7 +37,8 @@ export async function runRuntimeDbSmoke({
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
-    const matters = await getJson(fetchImpl, baseUrl, "/api/matters");
+    const smokeFetch = await createRuntimeSmokeFetch({ fetchImpl, baseUrl, env });
+    const matters = await getJson(smokeFetch, baseUrl, "/api/matters");
     const matterRows = Array.isArray(matters.matters) ? matters.matters : [];
     if (!matterRows.length) {
       return failedReport({ runtimeDbEnabled: true, error: "Runtime DB returned no active matters." });
@@ -55,8 +56,8 @@ export async function runRuntimeDbSmoke({
       });
     }
 
-    const workspace = await postJson(fetchImpl, baseUrl, "/api/switch-matter", { name: target.name });
-    const config = await getJson(fetchImpl, baseUrl, "/api/config");
+    const workspace = await postJson(smokeFetch, baseUrl, "/api/switch-matter", { name: target.name });
+    const config = await getJson(smokeFetch, baseUrl, "/api/config");
     const fileCount = Number(workspace.fileCount ?? countWorkspaceNodes(workspace.tree || workspace.files || []));
     const runtimeDbStorageMode = app.runtimeMatterIndex.storageMode || "local-filesystem";
     let filePreviewPath = "";
@@ -66,9 +67,9 @@ export async function runRuntimeDbSmoke({
       filePreviewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
       if (filePreviewPath) {
         const query = new URLSearchParams({ path: filePreviewPath }).toString();
-        const preview = await getJson(fetchImpl, baseUrl, `/api/file?${query}`);
+        const preview = await getJson(smokeFetch, baseUrl, `/api/file?${query}`);
         storageFilePreviewReadable = typeof preview.content === "string";
-        const rawResponse = await fetchImpl(`${baseUrl}/api/file-raw?${query}`);
+        const rawResponse = await smokeFetch(`${baseUrl}/api/file-raw?${query}`);
         storageRawReadable = rawResponse.ok && (await rawResponse.arrayBuffer()).byteLength >= 0;
       }
     }
@@ -96,6 +97,45 @@ export async function runRuntimeDbSmoke({
   } finally {
     app.server.close();
   }
+}
+
+async function createRuntimeSmokeFetch({ fetchImpl, baseUrl, env = {} }) {
+  if (!privateBetaAuthRequired(env)) return fetchImpl;
+  const username = String(env.MWB_PRIVATE_BETA_USERNAME || "").trim();
+  const password = String(env.MWB_PRIVATE_BETA_PASSWORD || "");
+  if (!username || !password) throw new Error("Runtime DB smoke private-beta auth requires both username and password.");
+
+  const response = await fetchImpl(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) throw new Error(`/api/auth/login: ${payload?.error || response.status}`);
+  const cookie = firstCookie(response.headers?.get?.("set-cookie") || "");
+  if (!cookie) throw new Error("/api/auth/login returned no session cookie");
+
+  return (url, options = {}) => fetchImpl(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      cookie,
+    },
+  });
+}
+
+function firstCookie(value = "") {
+  return String(value).split(";")[0].trim();
+}
+
+function privateBetaAuthRequired(env = {}) {
+  const mode = String(env.MWB_PRIVATE_BETA_AUTH || "").trim().toLowerCase();
+  return ["required", "true", "1", "yes", "on"].includes(mode);
 }
 
 export function renderRuntimeDbSmokeReport(report = {}) {

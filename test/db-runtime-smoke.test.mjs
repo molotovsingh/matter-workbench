@@ -125,6 +125,73 @@ test("runtime DB smoke verifies postgres storage mode can preview and stream a D
   assert.match(rendered, /storage_raw_readable: yes/);
 });
 
+test("runtime DB smoke authenticates when private beta auth is required", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-smoke-auth-"));
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Auth Smoke Matter");
+  await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+  await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({
+    matter_name: "Auth Smoke Matter",
+    client_name: "Runtime Client",
+  }, null, 2));
+
+  const report = await runRuntimeDbSmoke({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_RUNTIME_DB: "postgres",
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+    },
+    serverOptions: {
+      runtimeMatterIndex: {
+        enabled: true,
+        tenantId: "tenant-id",
+        databaseUrlRedacted: "postgres://runtime:***@db.example/mwb",
+        listMatterFolders: async () => [{ name: "Auth Smoke Matter", matterName: "Legal Caption" }],
+        findMatterFolder: async () => ({ name: "Auth Smoke Matter", matterName: "Legal Caption" }),
+      },
+    },
+  });
+
+  assert.equal(report.passed, true);
+  assert.equal(report.runtimeDbEnabled, true);
+  assert.equal(report.targetMatter, "Auth Smoke Matter");
+});
+
+test("runtime DB smoke ignores private beta credentials when auth is disabled", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-smoke-auth-off-"));
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Auth Off Smoke Matter");
+  await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+  await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({
+    matter_name: "Auth Off Smoke Matter",
+    client_name: "Runtime Client",
+  }, null, 2));
+
+  const report = await runRuntimeDbSmoke({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_RUNTIME_DB: "postgres",
+      MWB_PRIVATE_BETA_AUTH: "off",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+    },
+    serverOptions: {
+      runtimeMatterIndex: {
+        enabled: true,
+        tenantId: "tenant-id",
+        databaseUrlRedacted: "postgres://runtime:***@db.example/mwb",
+        listMatterFolders: async () => [{ name: "Auth Off Smoke Matter", matterName: "Legal Caption" }],
+        findMatterFolder: async () => ({ name: "Auth Off Smoke Matter", matterName: "Legal Caption" }),
+      },
+    },
+  });
+
+  assert.equal(report.passed, true);
+  assert.equal(report.targetMatter, "Auth Off Smoke Matter");
+});
+
 test("runtime DB smoke fails when the app is not in runtime DB mode", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-smoke-disabled-"));
   const mattersHome = path.join(tmp, "matters");
