@@ -113,6 +113,35 @@ export function listOfDatesEntry(overrides = {}) {
   };
 }
 
+export function noticeListOfDatesEntry(overrides = {}) {
+  return listOfDatesEntry({
+    date_iso: "2026-05-01",
+    date_text: "01 May 2026",
+    event: "Notice was issued after the inspection.",
+    citation: "FILE-0001 p1.b2",
+    confidence: 0.89,
+    event_type: "notice",
+    legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+    issue_tags: ["notice", "inspection"],
+    ...overrides,
+  });
+}
+
+export function invalidCitationListOfDatesEntry(overrides = {}) {
+  return listOfDatesEntry({
+    date_iso: "2026-06-01",
+    date_text: "01 June 2026",
+    event: "This candidate has no supplied source citation.",
+    citation: "FILE-9999 p1.b1",
+    needs_review: true,
+    confidence: 0.2,
+    event_type: "other",
+    legal_relevance: "Should be rejected because the citation is not supplied.",
+    issue_tags: ["evidence_gap"],
+    ...overrides,
+  });
+}
+
 export function listOfDatesCandidate(overrides = {}) {
   return {
     date_iso: "2026-04-20",
@@ -130,4 +159,34 @@ export function listOfDatesCandidate(overrides = {}) {
     confidence: 0.94,
     ...overrides,
   };
+}
+
+export function noticeListOfDatesCandidate(overrides = {}) {
+  return listOfDatesCandidate({
+    date_iso: "2026-05-01",
+    date_text: "01 May 2026",
+    event_candidate: "Notice was issued after the inspection.",
+    legal_materiality: "Potential notice date for the client's chronology.",
+    citation: "FILE-0001 p1.b2",
+    source_excerpt: "Notice was issued on 01 May 2026 after the inspection.",
+    candidate_type: "notice",
+    confidence: 0.9,
+    ...overrides,
+  });
+}
+
+export function invalidCitationListOfDatesCandidate(overrides = {}) {
+  return listOfDatesCandidate({
+    date_iso: "2026-06-01",
+    date_text: "01 June 2026",
+    event_candidate: "Invalid candidate should be dropped.",
+    legal_materiality: "Invalid citation.",
+    citation: "FILE-9999 p1.b1",
+    source_excerpt: "Invalid.",
+    candidate_type: "other",
+    party_posture: "unclear",
+    needs_review: true,
+    confidence: 0.1,
+    ...overrides,
+  });
 }

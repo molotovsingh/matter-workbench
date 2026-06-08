@@ -5,9 +5,13 @@ import test from "node:test";
 import { parseCsv } from "../shared/csv.mjs";
 import {
   fileIdForOriginalName,
+  invalidCitationListOfDatesCandidate,
+  invalidCitationListOfDatesEntry,
   lawyerFields,
   listOfDatesCandidate,
   listOfDatesEntry,
+  noticeListOfDatesCandidate,
+  noticeListOfDatesEntry,
   prepareExtractedMatter,
   readExtractionRecord,
   sourceIndexSource,
@@ -55,6 +59,66 @@ test("List of Dates fixture helper writes source indexes and lawyer defaults", a
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["agreement"],
     perspective: "client_favourable",
+  });
+});
+
+test("List of Dates fixture helper builds named notice and invalid citation payloads", () => {
+  assert.deepEqual(noticeListOfDatesEntry(), {
+    date_iso: "2026-05-01",
+    date_text: "01 May 2026",
+    event: "Notice was issued after the inspection.",
+    citation: "FILE-0001 p1.b2",
+    needs_review: false,
+    confidence: 0.89,
+    event_type: "notice",
+    legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
+    issue_tags: ["notice", "inspection"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(invalidCitationListOfDatesEntry(), {
+    date_iso: "2026-06-01",
+    date_text: "01 June 2026",
+    event: "This candidate has no supplied source citation.",
+    citation: "FILE-9999 p1.b1",
+    needs_review: true,
+    confidence: 0.2,
+    event_type: "other",
+    legal_relevance: "Should be rejected because the citation is not supplied.",
+    issue_tags: ["evidence_gap"],
+    perspective: "client_favourable",
+  });
+
+  assert.deepEqual(noticeListOfDatesCandidate({ confidence: 0.9 }), {
+    date_iso: "2026-05-01",
+    date_text: "01 May 2026",
+    event_candidate: "Notice was issued after the inspection.",
+    legal_materiality: "Potential notice date for the client's chronology.",
+    citation: "FILE-0001 p1.b2",
+    source_excerpt: "Notice was issued on 01 May 2026 after the inspection.",
+    candidate_type: "notice",
+    party_posture: "helps_client",
+    same_fact_hint: "",
+    date_uncertainty: "",
+    ocr_suspicion: "",
+    needs_review: false,
+    confidence: 0.9,
+  });
+
+  assert.deepEqual(invalidCitationListOfDatesCandidate(), {
+    date_iso: "2026-06-01",
+    date_text: "01 June 2026",
+    event_candidate: "Invalid candidate should be dropped.",
+    legal_materiality: "Invalid citation.",
+    citation: "FILE-9999 p1.b1",
+    source_excerpt: "Invalid.",
+    candidate_type: "other",
+    party_posture: "unclear",
+    same_fact_hint: "",
+    date_uncertainty: "",
+    ocr_suspicion: "",
+    needs_review: true,
+    confidence: 0.1,
   });
 });
 

@@ -16,9 +16,13 @@ import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-re
 import { parseCsv } from "../shared/csv.mjs";
 import {
   fileIdForOriginalName,
+  invalidCitationListOfDatesCandidate,
+  invalidCitationListOfDatesEntry,
   lawyerFields,
   listOfDatesCandidate,
   listOfDatesEntry,
+  noticeListOfDatesCandidate,
+  noticeListOfDatesEntry,
   makeMatterRoot,
   metadata,
   prepareExtractedMatter,
@@ -50,27 +54,8 @@ test("create-listofdates calls an AI provider and writes cited chronology output
       return {
         entries: [
           listOfDatesEntry(),
-          listOfDatesEntry({
-            date_iso: "2026-05-01",
-            date_text: "01 May 2026",
-            event: "Notice was issued after the inspection.",
-            citation: "FILE-0001 p1.b2",
-            confidence: 0.89,
-            event_type: "notice",
-            legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
-            issue_tags: ["notice", "inspection"],
-          }),
-          listOfDatesEntry({
-            date_iso: "2026-06-01",
-            date_text: "01 June 2026",
-            event: "This candidate has no supplied source citation.",
-            citation: "FILE-9999 p1.b1",
-            needs_review: true,
-            confidence: 0.2,
-            event_type: "other",
-            legal_relevance: "Should be rejected because the citation is not supplied.",
-            issue_tags: ["evidence_gap"],
-          }),
+          noticeListOfDatesEntry(),
+          invalidCitationListOfDatesEntry(),
         ],
       };
     },
@@ -147,28 +132,8 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
       return {
         candidates: [
           listOfDatesCandidate(),
-          listOfDatesCandidate({
-            date_iso: "2026-05-01",
-            date_text: "01 May 2026",
-            event_candidate: "Notice was issued after the inspection.",
-            legal_materiality: "Potential notice date for the client's chronology.",
-            citation: "FILE-0001 p1.b2",
-            source_excerpt: "Notice was issued on 01 May 2026 after the inspection.",
-            candidate_type: "notice",
-            confidence: 0.9,
-          }),
-          listOfDatesCandidate({
-            date_iso: "2026-06-01",
-            date_text: "01 June 2026",
-            event_candidate: "Invalid candidate should be dropped.",
-            legal_materiality: "Invalid citation.",
-            citation: "FILE-9999 p1.b1",
-            source_excerpt: "Invalid.",
-            candidate_type: "other",
-            party_posture: "unclear",
-            needs_review: true,
-            confidence: 0.1,
-          }),
+          noticeListOfDatesCandidate(),
+          invalidCitationListOfDatesCandidate(),
         ],
       };
     },
@@ -180,32 +145,8 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
       assert.equal(schema.properties.entries.type, "array");
       return {
         entries: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
-            citation: "FILE-0001 p1.b1",
-            needs_review: false,
-            confidence: 0.94,
-            ...lawyerFields({
-              event_type: "agreement",
-              legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-              issue_tags: ["agreement"],
-            }),
-          },
-          {
-            date_iso: "2026-05-01",
-            date_text: "01 May 2026",
-            event: "Notice was issued after the inspection.",
-            citation: "FILE-0001 p1.b2",
-            needs_review: false,
-            confidence: 0.89,
-            ...lawyerFields({
-              event_type: "notice",
-              legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
-              issue_tags: ["notice", "inspection"],
-            }),
-          },
+          listOfDatesEntry(),
+          noticeListOfDatesEntry(),
         ],
       };
     },
@@ -262,21 +203,7 @@ test("create-listofdates two-pass failure leaves existing final artifacts unchan
       env: { CREATE_LISTOFDATES_TWO_PASS_ENABLED: "1" },
       pass1Provider: async () => ({
         candidates: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event_candidate: "Agreement was signed by Mehta and Skyline.",
-            legal_materiality: "Potential foundation date for the client's contract chronology.",
-            citation: "FILE-0001 p1.b1",
-            source_excerpt: "Agreement was signed on 20 April 2026 by Mehta and Skyline.",
-            candidate_type: "agreement",
-            party_posture: "helps_client",
-            same_fact_hint: "",
-            date_uncertainty: "",
-            ocr_suspicion: "",
-            needs_review: false,
-            confidence: 0.94,
-          },
+          listOfDatesCandidate(),
         ],
       }),
       pass2Provider: async () => {
@@ -311,19 +238,7 @@ test("create-listofdates enriches entries with Source Index labels without chang
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-04-20",
-          date_text: "20 April 2026",
-          event: "Agreement was signed by Mehta and Skyline.",
-          citation: "FILE-0001 p1.b1",
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "agreement",
-            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-            issue_tags: ["agreement"],
-          }),
-        },
+        listOfDatesEntry(),
       ],
     }),
   });
@@ -373,19 +288,7 @@ test("list-of-dates label refresh updates rendered labels without an AI rerun", 
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-04-20",
-          date_text: "20 April 2026",
-          event: "Agreement was signed by Mehta and Skyline.",
-          citation: "FILE-0001 p1.b1",
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "agreement",
-            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-            issue_tags: ["agreement"],
-          }),
-        },
+        listOfDatesEntry(),
       ],
     }),
   });
@@ -429,43 +332,26 @@ test("list-of-dates label refresh refuses changed source content", async () => {
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "Original source label",
       short_label: "Original source",
-    },
+    }),
   ]);
   await runCreateListOfDates({
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-04-20",
-          date_text: "20 April 2026",
-          event: "Agreement was signed by Mehta and Skyline.",
-          citation: "FILE-0001 p1.b1",
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "agreement",
-            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-            issue_tags: ["agreement"],
-          }),
-        },
+        listOfDatesEntry(),
       ],
     }),
   });
   const beforeMarkdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
+    sourceIndexSource(record, {
       sha256: "changed-source-hash",
-      source_path: record.source_path,
       display_label: "Changed document label",
       short_label: "Changed document",
-    },
+    }),
   ]);
 
   await assert.rejects(
@@ -494,30 +380,21 @@ test("create-listofdates filters manifest records before AI while preserving sub
   const agreementRecord = await readExtractionRecord(root, agreementId);
   const emailRecord = await readExtractionRecord(root, emailId);
   await writeSourceIndex(root, [
-    {
-      file_id: manifestId,
-      sha256: manifestRecord.sha256,
-      source_path: manifestRecord.source_path,
+    sourceIndexSource(manifestRecord, {
       display_label: "Readme Manifest - Case Bundle",
       short_label: "Readme Manifest",
       document_type: "unknown",
-    },
-    {
-      file_id: agreementId,
-      sha256: agreementRecord.sha256,
-      source_path: agreementRecord.source_path,
+    }),
+    sourceIndexSource(agreementRecord, {
       display_label: "Agreement note dated 20 April 2026",
       short_label: "Agreement note",
       document_type: "agreement",
-    },
-    {
-      file_id: emailId,
-      sha256: emailRecord.sha256,
-      source_path: emailRecord.source_path,
+    }),
+    sourceIndexSource(emailRecord, {
       display_label: "Email note dated 20 April 2026",
       short_label: "Email note",
       document_type: "email",
-    },
+    }),
   ]);
 
   const calls = [];
@@ -530,32 +407,17 @@ test("create-listofdates filters manifest records before AI while preserving sub
       assert.ok(chunk.some((block) => block.file_id === emailId));
       return {
         entries: [
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
+          listOfDatesEntry({
             citation: `${agreementId} p1.b1`,
-            needs_review: false,
-            confidence: 0.94,
-            ...lawyerFields({
-              event_type: "agreement",
-              legal_relevance: "Supports the client's contract chronology because the agreement note records the signing date.",
-              issue_tags: ["agreement"],
-            }),
-          },
-          {
-            date_iso: "2026-04-20",
-            date_text: "20 April 2026",
-            event: "Agreement was signed by Mehta and Skyline.",
+            legal_relevance: "Supports the client's contract chronology because the agreement note records the signing date.",
+          }),
+          listOfDatesEntry({
             citation: `${emailId} p1.b1`,
-            needs_review: false,
             confidence: 0.9,
-            ...lawyerFields({
-              event_type: "other",
-              legal_relevance: "Supports the client's contract chronology because the email note separately records circulation of the signed agreement.",
-              issue_tags: ["agreement", "email"],
-            }),
-          },
+            event_type: "other",
+            legal_relevance: "Supports the client's contract chronology because the email note separately records circulation of the signed agreement.",
+            issue_tags: ["agreement", "email"],
+          }),
         ],
       };
     },
@@ -821,32 +683,18 @@ test("create-listofdates ignores stale Source Index labels and keeps current cit
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
+    sourceIndexSource(record, {
       sha256: "stale-sha",
-      source_path: record.source_path,
       display_label: "Stale label that should not appear",
       short_label: "Stale label",
-    },
+    }),
   ]);
 
   const result = await runCreateListOfDates({
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-05-01",
-          date_text: "01 May 2026",
-          event: "Notice was issued after the inspection.",
-          citation: "FILE-0001 p1.b2",
-          needs_review: false,
-          confidence: 0.89,
-          ...lawyerFields({
-            event_type: "notice",
-            legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
-            issue_tags: ["notice", "inspection"],
-          }),
-        },
+        noticeListOfDatesEntry(),
       ],
     }),
   });
@@ -873,32 +721,17 @@ test("create-listofdates ignores Source Index labels that contain file identifie
   const root = await prepareExtractedMatter();
   const record = await readExtractionRecord(root);
   await writeSourceIndex(root, [
-    {
-      file_id: record.file_id,
-      sha256: record.sha256,
-      source_path: record.source_path,
+    sourceIndexSource(record, {
       display_label: "FILE-0001: Agreement note dated 20 April 2026",
       short_label: "FILE-0001 agreement note",
-    },
+    }),
   ]);
 
   const result = await runCreateListOfDates({
     matterRoot: root,
     aiProvider: async () => ({
       entries: [
-        {
-          date_iso: "2026-04-20",
-          date_text: "20 April 2026",
-          event: "Agreement was signed by Mehta and Skyline.",
-          citation: "FILE-0001 p1.b1",
-          needs_review: false,
-          confidence: 0.94,
-          ...lawyerFields({
-            event_type: "agreement",
-            legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-            issue_tags: ["agreement"],
-          }),
-        },
+        listOfDatesEntry(),
       ],
     }),
   });
@@ -1373,19 +1206,7 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
           choices: [{
             message: {
               content: JSON.stringify({
-                entries: [{
-                  date_iso: "2026-04-20",
-                  date_text: "20 April 2026",
-                  event: "Agreement was signed by Mehta and Skyline.",
-                  citation: "FILE-0001 p1.b1",
-                  needs_review: false,
-                  confidence: 0.94,
-                  ...lawyerFields({
-                    event_type: "agreement",
-                    legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
-                    issue_tags: ["agreement"],
-                  }),
-                }],
+                entries: [listOfDatesEntry()],
               }),
             },
           }],
