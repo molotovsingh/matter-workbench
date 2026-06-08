@@ -174,7 +174,8 @@ export async function runRenderedUiChecks({
 
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
-    await loginIfRequired(page, { authUsername, authPassword, checks });
+    const loginReady = await loginIfRequired(page, { authUsername, authPassword, checks });
+    if (!loginReady) return renderChecksResult({ checks, consoleErrors, screenshots });
     await waitForHomeSurface(page);
 
     await page.waitForSelector("body", { timeout: 60000 });
@@ -200,7 +201,8 @@ export async function runRenderedUiChecks({
 
     await page.setViewportSize({ width: 390, height: 860 });
     await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 60000 });
-    await loginIfRequired(page, { authUsername, authPassword, checks });
+    const mobileLoginReady = await loginIfRequired(page, { authUsername, authPassword, checks });
+    if (!mobileLoginReady) return renderChecksResult({ checks, consoleErrors, screenshots });
     await waitForHomeSurface(page);
     checks.push(await mobileOverflowCheck(page));
     screenshots.push(await takeScreenshot(page, screenshotDir, "home_mobile", "home-mobile.png"));
@@ -208,26 +210,24 @@ export async function runRenderedUiChecks({
     await browser.close();
   }
 
-  return {
-    passed: checks.length > 0 && checks.every((check) => check.passed) && consoleErrors.length === 0,
-    driver: "playwright",
-    checks,
-    consoleErrors: consoleErrors.map(redactLine),
-    screenshots,
-  };
+  return renderChecksResult({ checks, consoleErrors, screenshots });
 }
 
 export async function waitForHomeSurface(page) {
-  await page.waitForSelector("text=What do you want to do today?", { timeout: 60000 });
   await page.waitForSelector("body", { timeout: 60000 });
+  await page.waitForFunction(() => {
+    const body = document.body?.innerText?.toLowerCase?.() || "";
+    return body.includes("what do you want to do today?")
+      || body.includes("files loaded from the matter folder");
+  }, null, { timeout: 60000 });
 }
 
 async function loginIfRequired(page, { authUsername = "", authPassword = "", checks = [] } = {}) {
   const loginVisible = await page.locator("text=Sign in to Matter Workbench").first().isVisible().catch(() => false);
-  if (!loginVisible) return;
+  if (!loginVisible) return true;
   if (!authUsername || !authPassword) {
     checks.push({ key: "private_beta_login", passed: false, detail: "Login screen appeared but credentials were not provided." });
-    return;
+    return false;
   }
   await page.locator('input[autocomplete="username"]').fill(authUsername);
   await page.locator('input[autocomplete="current-password"]').fill(authPassword);
@@ -235,6 +235,17 @@ async function loginIfRequired(page, { authUsername = "", authPassword = "", che
   await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
   await page.waitForSelector("text=Matter Workbench", { timeout: 60000 });
   checks.push({ key: "private_beta_login", passed: true, detail: "Signed in through the private beta login screen." });
+  return true;
+}
+
+function renderChecksResult({ checks = [], consoleErrors = [], screenshots = [] } = {}) {
+  return {
+    passed: checks.length > 0 && checks.every((check) => check.passed) && consoleErrors.length === 0,
+    driver: "playwright",
+    checks,
+    consoleErrors: consoleErrors.map(redactLine),
+    screenshots,
+  };
 }
 
 async function bodyIncludesCheck(page, key, requiredTexts, detail) {

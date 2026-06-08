@@ -131,18 +131,25 @@ test("private beta UI hardening pass fails closed on broken visible UX or consol
 test("private beta UI hardening pass waits for home surfaces after login", async () => {
   const { waitForHomeSurface } = await import(packPath.href);
   const selectors = [];
+  const functions = [];
   const page = {
     waitForSelector: async (selector, options) => {
       selectors.push([selector, options?.timeout]);
+    },
+    waitForFunction: async (fn, arg, options) => {
+      functions.push([String(fn), arg, options?.timeout]);
     },
   };
 
   await waitForHomeSurface(page);
 
   assert.deepEqual(selectors, [
-    ["text=What do you want to do today?", 60000],
     ["body", 60000],
   ]);
+  assert.equal(functions.length, 1);
+  assert.match(functions[0][0], /what do you want to do today/);
+  assert.match(functions[0][0], /files loaded from the matter folder/);
+  assert.equal(functions[0][2], 60000);
 });
 
 test("private beta UI hardening pass accepts either Start screen or active matter overview", async () => {
@@ -155,6 +162,14 @@ test("private beta UI hardening pass accepts either Start screen or active matte
   assert.equal((await homeStartStateCheck(startPage)).passed, true);
   assert.equal((await homeStartStateCheck(activeMatterPage)).passed, true);
   assert.equal((await homeStartStateCheck(blankPage)).passed, false);
+});
+
+test("private beta UI hardening pass stops before Home checks when login cannot proceed", async () => {
+  const source = await readFile(packPath, "utf8");
+
+  assert.match(source, /const loginReady = await loginIfRequired\(page/);
+  assert.match(source, /if \(!loginReady\) return renderChecksResult/);
+  assert.match(source, /Login screen appeared but credentials were not provided[\s\S]*return false;/);
 });
 
 test("package and operator docs expose the private beta UI hardening pass", async () => {
