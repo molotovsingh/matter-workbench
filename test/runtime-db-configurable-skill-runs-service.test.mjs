@@ -85,7 +85,32 @@ test("runtime DB configurable skill run ledger rechecks DB object availability o
   assertSafeRuntimeRoleGuard(calls.find((sql) => /from storage_objects so/i.test(sql)));
 });
 
-function fakeSpawn(calls, { listedMarkdownAvailability = "present" } = {}) {
+test("runtime DB configurable skill run update recovers persisted runs after process restart", async () => {
+  const calls = [];
+  const service = createRuntimeDbConfigurableSkillRunsService({
+    databaseUrl: "postgres://mwb:secret@127.0.0.1:5432/matter_workbench_shadow",
+    tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    spawn: fakeSpawn(calls, { listedStatus: "running", listedFinishedAt: "" }),
+    now: () => new Date("2026-06-06T10:05:00.000Z"),
+  });
+
+  const updated = await service.updateRun("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", {
+    status: "failed",
+    errorMessage: "Provider timed out.",
+  });
+
+  assert.equal(updated.status, "failed");
+  assert.equal(updated.finishedAt, "2026-06-06T10:05:00.000Z");
+  assert.equal(updated.receipt.receiptState, "failed");
+  assert.ok(calls.some((sql) => /from configurable_skill_runs csr/i.test(sql) && /csr\.id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid/i.test(sql)));
+  assert.ok(calls.some((sql) => /update configurable_skill_runs/i.test(sql) && /Provider timed out/i.test(sql)));
+});
+
+function fakeSpawn(calls, {
+  listedMarkdownAvailability = "present",
+  listedStatus = "succeeded",
+  listedFinishedAt = "2026-06-06T10:00:00.000Z",
+} = {}) {
   return (_command, _args, options = {}) => {
     const sql = String(options.input || "");
     calls.push(sql);
@@ -105,9 +130,9 @@ function fakeSpawn(calls, { listedMarkdownAvailability = "present" } = {}) {
           matterName: "Runtime DB Matter",
           matterFolder: "Runtime DB Matter",
           matterRoot: "postgres:Runtime DB Matter",
-          status: "succeeded",
+          status: listedStatus,
           startedAt: "2026-06-06T10:00:00.000Z",
-          finishedAt: "2026-06-06T10:00:00.000Z",
+          finishedAt: listedFinishedAt,
           outputPaths: {
             markdown: "20_Workshop/The Story.md",
             json: "20_Workshop/The Story.json",

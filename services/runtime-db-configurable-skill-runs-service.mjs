@@ -47,7 +47,7 @@ export function createRuntimeDbConfigurableSkillRunsService({
     ensureEnabled();
     const runId = uuidValue(id);
     if (!runId) throw makeHttpError("Run id is required", 400);
-    const current = transientRuns.get(runId);
+    const current = transientRuns.get(runId) || readRunFromDb(runId);
     if (!current) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404);
     const next = normalizeRuntimeRun({
       ...current,
@@ -99,6 +99,16 @@ export function createRuntimeDbConfigurableSkillRunsService({
       schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
       runs,
     };
+  }
+
+  function readRunFromDb(runId) {
+    const rows = queryJson(listRunsSql({
+      tenantId,
+      runId,
+      limit: 1,
+    }));
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row ? normalizeRuntimeRun(row) : null;
   }
 
   async function annotateRun(run = {}) {
@@ -241,10 +251,11 @@ function updateRunSql({ tenantId, run }) {
   ].join("\n");
 }
 
-function listRunsSql({ tenantId, slash = "", skillId = "", matterFolder = "", limit = DEFAULT_LIMIT }) {
+function listRunsSql({ tenantId, slash = "", skillId = "", matterFolder = "", runId = "", limit = DEFAULT_LIMIT }) {
   const normalizedSlash = normalizeText(slash);
   const normalizedSkillId = normalizeText(skillId);
   const normalizedMatterFolder = normalizeText(matterFolder);
+  const normalizedRunId = uuidValue(runId);
   const skillIdFilter = normalizedSkillId
     ? `and (cs.id = ${sqlUuid(uuidValue(normalizedSkillId) || deterministicUuid(`configurable-skill:${normalizedSkillId}`))} or csv.definition_json->>'local_id' = ${sqlString(normalizedSkillId)})`
     : "";
@@ -282,6 +293,7 @@ function listRunsSql({ tenantId, slash = "", skillId = "", matterFolder = "", li
     "left join matters m on m.id = csr.matter_id and m.tenant_id = csr.tenant_id",
     "left join latest_import on latest_import.matter_id = csr.matter_id",
     "where csr.tenant_id = current_app_tenant_id()",
+    normalizedRunId ? `and csr.id = ${sqlUuid(normalizedRunId)}` : "",
     normalizedSlash ? `and cs.slash = ${sqlString(normalizedSlash)}` : "",
     skillIdFilter,
     normalizedMatterFolder ? `and coalesce(nullif(latest_import.source_root_hint, ''), m.name, '') = ${sqlString(normalizedMatterFolder)}` : "",
