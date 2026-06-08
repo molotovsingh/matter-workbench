@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -313,6 +313,44 @@ test("runtime DB storage service materializes DB payloads and persists workflow 
   assert.match(persistSql, /DB Matter\/10_Library\/New Artifact\.md/);
   assert.match(persistSql, /matter_artifact/);
   assert.doesNotMatch(persistSql, /secret/);
+});
+
+test("runtime DB storage service tombstones materialized artifacts deleted by a workflow", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-delete-"));
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+          storageRow("DB Matter/10_Library/Old Artifact.md", "matter_artifact", "text/markdown", 16, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
+      payloadRow("DB Matter/10_Library/Old Artifact.md", "# Old Artifact\n"),
+      {},
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    await unlink(path.join(matterRoot, "10_Library", "Old Artifact.md"));
+    return { removed: true };
+  });
+
+  assert.deepEqual(result.operationResult, { removed: true });
+  assert.deepEqual(result.deleted.map((item) => item.relativePath), ["10_Library/Old Artifact.md"]);
+  const tombstoneSql = calls.at(-1).input;
+  assertTransactionWrapped(tombstoneSql);
+  assert.match(tombstoneSql, /update storage_objects/i);
+  assert.match(tombstoneSql, /state\s*=\s*'deleted_pending'/i);
+  assert.match(tombstoneSql, /deleted_at\s*=\s*now\(\)/i);
+  assert.match(tombstoneSql, /DB Matter\/10_Library\/Old Artifact\.md/);
+  assert.doesNotMatch(tombstoneSql, /insert into storage_object_payloads/i);
+  assert.doesNotMatch(tombstoneSql, /secret/);
 });
 
 test("runtime DB storage service records materialized extraction payloads", async () => {

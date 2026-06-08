@@ -474,6 +474,7 @@ export function createRuntimeDbStorageService({
       }
       const operationResult = await operation({ matterRoot, matter: normalizedMatter });
       const files = await listMatterFiles(matterRoot);
+      const currentPaths = new Set(files.map((file) => file.relativePath));
       const changedFiles = [];
       for (const file of files) {
         const bytes = await readFile(path.join(matterRoot, ...file.relativePath.split("/")));
@@ -491,9 +492,19 @@ export function createRuntimeDbStorageService({
       const persisted = changedFiles.length
         ? persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: changedFiles })
         : [];
+      const deletedFiles = [...initialHashes.keys()]
+        .filter((relativePath) => !currentPaths.has(relativePath))
+        .map((relativePath) => ({
+          relativePath,
+          objectKey: `${normalizedMatter.name}/${relativePath}`,
+        }));
+      const deleted = deletedFiles.length
+        ? persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: deletedFiles })
+        : [];
       return {
         operationResult,
         persisted,
+        deleted,
       };
     } finally {
       await rm(workDir, { recursive: true, force: true });
@@ -1279,6 +1290,29 @@ function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files 
   }));
 }
 
+function persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter, files }) {
+  const rows = files
+    .map((file) => ({
+      relativePath: normalizeObjectKey(file.relativePath),
+      objectKey: normalizeObjectKey(file.objectKey || `${matter.name}/${file.relativePath}`),
+    }))
+    .filter((row) => row.relativePath && row.objectKey);
+  if (!rows.length) return [];
+  const sql = wrapRuntimeDbWriteTransaction([
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    ...rows.flatMap((row) => materializedFileTombstoneSql({ matter, row })),
+    "select '{}'::jsonb::text;",
+    "",
+  ].join("\n"));
+  queryJson({
+    databaseUrl,
+    tenantId,
+    spawn,
+    sql,
+  });
+  return rows.map(({ relativePath, objectKey }) => ({ relativePath, objectKey }));
+}
+
 function materializedRowsForFiles({ matter, files }) {
   const rows = [];
   for (const file of files) {
@@ -1442,6 +1476,22 @@ function materializedFileUpsertSql({ matter, row }) {
     "  sha256 = excluded.sha256,",
     "  size_bytes = excluded.size_bytes,",
     "  verified_at = excluded.verified_at;",
+  ];
+}
+
+function materializedFileTombstoneSql({ matter, row }) {
+  return [
+    "update storage_objects",
+    "set state = 'deleted_pending', deleted_at = now(), updated_at = now()",
+    "where tenant_id = current_app_tenant_id()",
+    `  and matter_id = ${sqlUuid(matter.id)}`,
+    `  and object_key = ${sqlString(row.objectKey)}`,
+    "  and state in ('pending', 'uploading', 'uploaded', 'verified', 'failed', 'orphaned');",
+    "update matter_artifacts",
+    "set is_current = false",
+    "where tenant_id = current_app_tenant_id()",
+    `  and matter_id = ${sqlUuid(matter.id)}`,
+    `  and object_key = ${sqlString(row.objectKey)};`,
   ];
 }
 
