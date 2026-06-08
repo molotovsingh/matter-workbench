@@ -153,9 +153,9 @@ release reference.
 
 ## Latest Live VM Post-Beta.10 Closure
 
-The live private VM was later advanced to commit `813fa7b` for private-beta
-operator-auth preflight closure after the `v1.0.0-beta.10` tag. That deployment
-was closed separately as `v1.0.0-beta.10+813fa7b` and passed all closure gates:
+The live private VM was later advanced to commit `ec4ca4e` for bug-evidence
+matter-name diagnostics after the `v1.0.0-beta.10` tag. That deployment was
+closed separately as `v1.0.0-beta.10+ec4ca4e` and passed all closure gates:
 
 - local verification;
 - runtime DB browser acceptance;
@@ -168,5 +168,10 @@ was closed separately as `v1.0.0-beta.10+813fa7b` and passed all closure gates:
 
 Latest live VM evidence:
 
-- [2026-06-07 beta.10+813fa7b RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T17-07-30-459Z.md)
-- [2026-06-07 beta.10+813fa7b RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-07T17-07-30-459Z.json)
+- [2026-06-08 beta.10+ec4ca4e RC closure Markdown](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-08T04-54-05-116Z.md)
+- [2026-06-08 beta.10+ec4ca4e RC closure JSON](private-beta-rc-closure-packs/private-beta-rc-closure-pack-2026-06-08T04-54-05-116Z.json)
+
+The same deployment also has a rendered UI hardening pass covering the
+first-screen beta surfaces:
+
+- [2026-06-08 beta.10+ec4ca4e UI hardening report](private-beta-ui-hardening-passes/private-beta-ui-hardening-2026-06-08T04-57-34-924Z/ui-hardening-report.md)

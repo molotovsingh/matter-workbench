@@ -1,0 +1,69 @@
+{
+  "passed": true,
+  "generatedAt": "2026-06-08T04:57:39.767Z",
+  "baseUrl": "http://127.0.0.1:4191/",
+  "artifactDir": "/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-08T04-57-34-924Z",
+  "checks": [
+    {
+      "key": "root_loaded",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "home_matter_list_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "command_rail_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "copilot_tier_controls_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "feedback_entry_visible",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "feedback_api_browser_readable",
+      "passed": true,
+      "detail": "{\"ok\":true,\"schema\":\"private-beta-feedback-ledger/v1\",\"count\":0}"
+    },
+    {
+      "key": "skills_page_loaded",
+      "passed": true,
+      "detail": "Sign out\nMatter\nWORKBENCH\n⌂\nHome\n✦\nSkills\n◔\nActivity\n⚙\nSettings\nMatter Workbench\nNo matter selected\nDB workspace\nDark\nHome\nSkills\n\nReusable matter work routines"
+    },
+    {
+      "key": "skills_not_error_state",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "activity_page_loaded",
+      "passed": true,
+      "detail": "Sign out\nMatter\nWORKBENCH\n⌂\nHome\n✦\nSkills\n◔\nActivity\n⚙\nSettings\nMatter Workbench\nNo matter selected\nDB workspace\nDark\nHome\nActivity\n\nWhat ran, what it produced,"
+    },
+    {
+      "key": "settings_page_loaded",
+      "passed": true,
+      "detail": "Sign out\nMatter\nWORKBENCH\n⌂\nHome\n✦\nSkills\n◔\nActivity\n⚙\nSettings\nMatter Workbench\nNo matter selected\nDB workspace\nDark\nHome\nSettings\n\nMatter folder, AI connectio"
+    },
+    {
+      "key": "settings_no_secret_values",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "key": "mobile_no_large_horizontal_overflow",
+      "passed": true,
+      "detail": "scrollWidth=390"
+    }
+  ],
+  "consoleErrors": []
+}
