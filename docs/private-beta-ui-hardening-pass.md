@@ -31,7 +31,7 @@ The pass opens the live React app in Playwright and checks:
 
 - private beta login, when the login screen is present;
 - Home shell and command rail render;
-- matter selection or an active matter overview is visible;
+- the Start screen is visible, or an active matter overview is visible;
 - Copilot strength choices are available as Low, Medium, and High;
 - the tester feedback entry is visible;
 - `/api/private-beta/feedback` is readable from the authenticated browser

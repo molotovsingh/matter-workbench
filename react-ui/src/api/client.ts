@@ -5,6 +5,7 @@ import type {
   AiSettingsTestResponse,
   AddFilesResponse,
   AppConfig,
+  AuthUser,
   CheckOverlapRequest,
   CheckOverlapResponse,
   ConfigurableSkill,
@@ -195,9 +196,9 @@ export function adaptTree(raw: WorkspaceApiNode): { name: string; path: string; 
 
 export const api = {
   // ─── Private beta auth ───────────────────
-  getAuthStatus: () => getJson<{ enabled: boolean; authenticated: boolean; user: { username: string; role?: string; displayName?: string } | null }>('/api/auth/status'),
+  getAuthStatus: () => getJson<{ enabled: boolean; authenticated: boolean; user: AuthUser | null }>('/api/auth/status'),
   login: (body: { username: string; password: string }) =>
-    postJson<{ enabled: boolean; authenticated: boolean; user: { username: string; role?: string; displayName?: string } | null }>('/api/auth/login', body),
+    postJson<{ enabled: boolean; authenticated: boolean; user: AuthUser | null }>('/api/auth/login', body),
   logout: () => postJson<{ enabled: boolean; authenticated: boolean; user: null }>('/api/auth/logout'),
 
   // ─── Config ──────────────────────────────

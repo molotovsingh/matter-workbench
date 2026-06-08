@@ -16,7 +16,7 @@ import { localAssistantReply } from './lib/assistantSmallTalk';
 import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
 import { useLatestValue } from './hooks/useLatestValue';
 import { humanizeArtifactPath } from './lib/presentationLabels';
-import type { ActiveView } from './types';
+import type { ActiveView, AuthUser } from './types';
 
 interface PendingConfigurableOverwrite {
   slash: string;
@@ -28,7 +28,7 @@ interface PendingConfigurableOverwrite {
 interface AuthStatus {
   enabled: boolean;
   authenticated: boolean;
-  user: { username: string; role?: string; displayName?: string } | null;
+  user: AuthUser | null;
 }
 
 function AppShell() {
@@ -199,11 +199,15 @@ function AppShell() {
     async function loadAuthStatus() {
       try {
         const status = await api.getAuthStatus();
-        if (!cancelled) setAuthStatus(status);
+        if (!cancelled) {
+          setAuthStatus(status);
+          dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
+        }
       } catch (e) {
         if (!cancelled) {
           setAuthError(getErrorMessage(e));
           setAuthStatus({ enabled: true, authenticated: false, user: null });
+          dispatch({ type: 'SET_CONFIG', payload: { authUser: null } });
         }
       }
     }
@@ -211,7 +215,7 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     setPendingConfigurableOverwrite(null);
@@ -251,21 +255,23 @@ function AppShell() {
     try {
       const status = await api.login({ username, password });
       setAuthStatus(status);
+      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
       appendTerminal(['[auth] signed in']);
     } catch (e) {
       setAuthError(getErrorMessage(e));
     }
-  }, [appendTerminal]);
+  }, [appendTerminal, dispatch]);
 
   const handleLogout = useCallback(async () => {
     try {
       const status = await api.logout();
       setAuthStatus(status);
+      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
       appendTerminal(['[auth] signed out']);
     } catch (e) {
       setAuthError(getErrorMessage(e));
     }
-  }, [appendTerminal]);
+  }, [appendTerminal, dispatch]);
 
   const runConfigurableSkillFromCommand = useCallback(async ({
     slash,

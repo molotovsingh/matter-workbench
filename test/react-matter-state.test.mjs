@@ -40,9 +40,10 @@ test("React activity logo returns to global home, not matter home", async () => 
   assert.match(source, /aria-label="Go to Matter Workbench home"/);
 });
 
-test("React active matter sidebar hides the global matter picker", async () => {
+test("React sidebar keeps no-matter selection on the Start screen", async () => {
   const source = await readFile(sidebarPath, "utf8");
 
-  assert.match(source, /\{!activeMatter && <MatterPicker onNewMatter=\{onNewMatter\} \/>\}/);
+  assert.doesNotMatch(source, /<MatterPicker/);
+  assert.match(source, /Start from the Home screen/);
   assert.match(source, /\{activeMatter && \(/);
 });

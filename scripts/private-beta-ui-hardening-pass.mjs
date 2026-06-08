@@ -179,7 +179,7 @@ export async function runRenderedUiChecks({
 
     await page.waitForSelector("body", { timeout: 60000 });
     checks.push(await bodyIncludesCheck(page, "home_shell", ["Matter Workbench", "What do you need?"], "Home shell and command rail rendered."));
-    checks.push(await homeMatterStateCheck(page));
+    checks.push(await homeStartStateCheck(page));
     checks.push(await bodyIncludesCheck(page, "feedback_entry_visible", ["Have a problem? Tell us what happened"], "Feedback entry is visible in the command rail."));
     checks.push(await copilotTierCheck(page));
     checks.push(await feedbackEndpointCheck(page));
@@ -218,7 +218,7 @@ export async function runRenderedUiChecks({
 }
 
 export async function waitForHomeSurface(page) {
-  await page.waitForSelector("text=What do you need?", { timeout: 60000 });
+  await page.waitForSelector("text=What do you want to do today?", { timeout: 60000 });
   await page.waitForSelector("body", { timeout: 60000 });
 }
 
@@ -247,19 +247,22 @@ async function bodyIncludesCheck(page, key, requiredTexts, detail) {
   };
 }
 
-export async function homeMatterStateCheck(page) {
+export async function homeStartStateCheck(page) {
   const body = await page.locator("body").innerText({ timeout: 60000 }).catch(() => "");
   const lower = body.toLowerCase();
-  const hasMatterPicker = lower.includes("available matters");
+  const hasStartScreen = lower.includes("what do you want to do today?")
+    && lower.includes("add a new matter")
+    && lower.includes("find an existing matter")
+    && lower.includes("learn how this works");
   const hasActiveMatter = lower.includes("files loaded from the matter folder");
   return {
-    key: "matters_or_active_matter",
-    passed: hasMatterPicker || hasActiveMatter,
-    detail: hasMatterPicker
-      ? "Home shows the matter picker."
+    key: "start_screen_or_active_matter",
+    passed: hasStartScreen || hasActiveMatter,
+    detail: hasStartScreen
+      ? "Home shows the Start screen."
       : hasActiveMatter
         ? "Home shows an active matter overview."
-        : "Home shows neither the matter picker nor an active matter overview.",
+        : "Home shows neither the Start screen nor an active matter overview.",
   };
 }
 

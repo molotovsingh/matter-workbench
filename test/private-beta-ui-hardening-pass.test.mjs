@@ -140,21 +140,21 @@ test("private beta UI hardening pass waits for home surfaces after login", async
   await waitForHomeSurface(page);
 
   assert.deepEqual(selectors, [
-    ["text=What do you need?", 60000],
+    ["text=What do you want to do today?", 60000],
     ["body", 60000],
   ]);
 });
 
-test("private beta UI hardening pass accepts either matter picker or active matter overview", async () => {
-  const { homeMatterStateCheck } = await import(packPath.href);
+test("private beta UI hardening pass accepts either Start screen or active matter overview", async () => {
+  const { homeStartStateCheck } = await import(packPath.href);
 
-  const pickerPage = fakeBodyPage("HOME\nAVAILABLE MATTERS 15 total");
+  const startPage = fakeBodyPage("HOME\nWhat do you want to do today?\nAdd a new matter\nFind an existing matter\nLearn how this works");
   const activeMatterPage = fakeBodyPage("Atlas Construction vs Diptishree\n57 files loaded from the matter folder.");
   const blankPage = fakeBodyPage("HOME\nGood morning.");
 
-  assert.equal((await homeMatterStateCheck(pickerPage)).passed, true);
-  assert.equal((await homeMatterStateCheck(activeMatterPage)).passed, true);
-  assert.equal((await homeMatterStateCheck(blankPage)).passed, false);
+  assert.equal((await homeStartStateCheck(startPage)).passed, true);
+  assert.equal((await homeStartStateCheck(activeMatterPage)).passed, true);
+  assert.equal((await homeStartStateCheck(blankPage)).passed, false);
 });
 
 test("package and operator docs expose the private beta UI hardening pass", async () => {

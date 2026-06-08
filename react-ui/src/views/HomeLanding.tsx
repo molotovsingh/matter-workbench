@@ -1,14 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { getErrorMessage } from '../lib/errors';
-import type { Matter } from '../types';
+import type { AuthUser, Matter } from '../types';
 import MatterOverview from './MatterOverview';
 
-function timeAwareGreeting() {
+function titleCaseName(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function getDisplayName(user: AuthUser | null) {
+  const raw = user?.displayName?.trim() || user?.username?.trim() || '';
+  if (!raw) return '';
+  const localName = raw.includes('@') ? raw.split('@')[0] : raw;
+  const normalized = localName.replace(/[_-]+/g, ' ').trim();
+  if (!normalized) return '';
+  return titleCaseName(normalized).split(/\s+/)[0] || '';
+}
+
+function timeAwareGreeting(displayName = '') {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning.';
-  if (h < 17) return 'Good afternoon.';
-  return 'Good evening.';
+  const prefix = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return displayName ? `${prefix}, ${displayName}.` : `${prefix}.`;
 }
 
 interface Props {
@@ -29,16 +45,14 @@ export default function HomeLanding({
   showMatterBrowser = false,
 }: Props) {
   const { state, dispatch, switchActiveMatter } = useApp();
-  const { matters, resumeMatterName, activeMatter } = state;
+  const { matters, activeMatter } = state;
   const [loading, setLoading] = useState(false);
   const [matterBrowserOpen, setMatterBrowserOpen] = useState(showMatterBrowser);
+  const [learnOpen, setLearnOpen] = useState(true);
   const [matterQuery, setMatterQuery] = useState('');
   const searchRef = useRef<HTMLInputElement | null>(null);
 
-  const canResume = Boolean(
-    resumeMatterName && matters.some((m: Matter) => m.name === resumeMatterName),
-  );
-  const preview = matters.slice(0, 3);
+  const displayName = getDisplayName(state.authUser);
   const browserMatters = useMemo(() => {
     const q = matterQuery.trim().toLowerCase();
     if (!q) return matters;
@@ -87,68 +101,47 @@ export default function HomeLanding({
   return (
     <section className="landing-home">
       <div className="landing-kicker">Home</div>
-      <h1>{timeAwareGreeting()}</h1>
+      <h1>{timeAwareGreeting(displayName)}</h1>
+      <p className="landing-question">What do you want to do today?</p>
       <p className="landing-lede">
-        {matters.length > 0
-          ? 'Choose a matter to begin, or use the assistant to prepare documents, search cases, or run an action.'
-          : 'Create your first matter to begin.'}
+        Start with a matter, or take a minute to understand what the workbench does.
       </p>
 
-      {canResume && (
-        <button
-          className="home-continue-card"
-          type="button"
-          onClick={() => handleOpenMatter(resumeMatterName!)}
-          disabled={loading}
-        >
-          <span className="home-card-kicker">Continue where you left off</span>
-          <strong>{resumeMatterName}</strong>
-          <span>Open this matter</span>
-          <span className="home-continue-arrow" aria-hidden="true">→</span>
+      <div className="home-start-actions" aria-label="Start options">
+        <button className="home-start-action" type="button" onClick={onNewMatter}>
+          <strong>Add a new matter</strong>
+          <span>Upload a fresh case record and let preparation begin.</span>
         </button>
-      )}
-
-      <div className="home-dashboard-grid">
-        <section className="home-card">
-          <div className="home-card-header">
-            <h2>Available matters</h2>
-            <span>{matters.length} total</span>
-          </div>
-          {preview.length > 0 ? (
-            <ul className="home-matter-list">
-              {preview.map((m) => (
-                <li key={m.name}>
-                  <button type="button" onClick={() => handleOpenMatter(m.name)} disabled={loading}>
-                    <span className="home-matter-dot" aria-hidden="true" />
-                    <strong>{m.name}</strong>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted" style={{ padding: '14px 18px' }}>No matters yet.</p>
-          )}
-          <button className="home-card-link" type="button" onClick={handleShowMatterBrowser}>
-            View all matters →
-          </button>
-        </section>
-
-        <section className="home-card">
-          <div className="home-card-header">
-            <h2>Quick actions</h2>
-          </div>
-          <div className="home-quick-actions">
-            <button type="button" onClick={handleShowMatterBrowser}>
-              <strong>Find a matter</strong>
-              <span>Browse and open an existing matter</span>
-            </button>
-            <button type="button" onClick={onNewMatter}>
-              <strong>New matter</strong>
-              <span>Create a new matter folder</span>
-            </button>
-          </div>
-        </section>
+        <button className="home-start-action" type="button" onClick={handleShowMatterBrowser}>
+          <strong>Find an existing matter</strong>
+          <span>{matters.length > 0 ? `${matters.length} matter(s) are already in the record.` : 'Open a matter once one has been created.'}</span>
+        </button>
+        <button
+          className="home-start-action"
+          type="button"
+          aria-expanded={learnOpen}
+          onClick={() => setLearnOpen((current) => !current)}
+        >
+          <strong>Learn how this works</strong>
+          <span>See the simple version before using the app.</span>
+        </button>
       </div>
+
+      {learnOpen && (
+        <section className="home-learn-panel" aria-label="Learn how this works">
+          <h2>Learn how this works</h2>
+          <p>
+            Matter Workbench helps you turn uploaded records into a prepared matter. It reads files,
+            builds a source record, creates a List of Dates, and gives you a cautious matter assistant
+            that answers from the record.
+          </p>
+          <ul>
+            <li>Add or find a matter first.</li>
+            <li>Let preparation finish before relying on drafts or analysis.</li>
+            <li>Use skills for repeatable legal work; use the assistant for one-off questions.</li>
+          </ul>
+        </section>
+      )}
 
       {matterBrowserOpen && (
         <section className="home-card home-matter-browser" aria-label="Find a matter">

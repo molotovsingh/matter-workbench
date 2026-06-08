@@ -54,6 +54,7 @@ function readStoredTheme(): 'light' | 'dark' {
 
 const initialState: AppState = {
   config: null,
+  authUser: null,
   activeMatter: null,
   matters: [],
   resumeMatterName: null,

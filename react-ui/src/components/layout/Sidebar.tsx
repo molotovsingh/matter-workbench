@@ -1,5 +1,4 @@
 import { useApp } from '../../store/AppContext';
-import MatterPicker from '../matters/MatterPicker';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
@@ -44,7 +43,12 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
         <span className="sidebar-title">{title}</span>
       </div>
 
-      {!activeMatter && <MatterPicker onNewMatter={onNewMatter} />}
+      {!activeMatter && (
+        <div className="sidebar-start-note">
+          <span>Start from the Home screen.</span>
+          <button type="button" onClick={onNewMatter}>Add a new matter</button>
+        </div>
+      )}
 
       {activeMatter && (
         <>

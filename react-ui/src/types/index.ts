@@ -9,6 +9,12 @@ export interface Matter {
   status?: string;
 }
 
+export interface AuthUser {
+  username: string;
+  role?: string;
+  displayName?: string;
+}
+
 export interface WorkspaceFile {
   name: string;
   path: string;
@@ -922,6 +928,7 @@ export interface FilePreview {
 
 export interface AppState {
   config: AppConfig | null;
+  authUser: AuthUser | null;
   activeMatter: ActiveMatter | null;
   matters: Matter[];
   resumeMatterName: string | null;
