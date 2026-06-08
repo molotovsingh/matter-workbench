@@ -158,6 +158,7 @@ async function inspectService({ baseUrl, matterName, authUsername, authPassword,
       authenticated: Boolean(report.authenticated),
       runtimeDbEnabled: Boolean(report.runtimeDbEnabled),
       matterCount: report.matterCount || 0,
+      availableMatterNames: Array.isArray(report.availableMatterNames) ? report.availableMatterNames : [],
       targetMatter: report.targetMatter || "",
       workspaceReadable: Boolean(report.workspaceReadable),
       previewPath: report.previewPath || "",
@@ -335,6 +336,9 @@ function renderBugEvidenceMarkdown(evidence = {}) {
     `- Runtime DB enabled: ${evidence.serviceCheck?.runtimeDbEnabled ? "yes" : "no"}`,
     `- Matters visible: ${evidence.serviceCheck?.matterCount || 0}`,
     `- Target matter: ${evidence.serviceCheck?.targetMatter || "(none)"}`,
+    ...(evidence.serviceCheck?.availableMatterNames?.length
+      ? [`- Available matters: ${evidence.serviceCheck.availableMatterNames.join("; ")}`]
+      : []),
     `- Preview path: ${evidence.serviceCheck?.previewPath || "(none)"}`,
     `- Ops pack: ${evidence.opsPack?.ok ? "ok" : "failed"}`,
     `- Current deployment: ${evidence.opsPack?.deployment?.currentCommit || "(unknown)"}`,

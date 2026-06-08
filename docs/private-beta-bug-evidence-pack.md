@@ -42,6 +42,8 @@ The bug evidence pack includes:
 - runtime DB enabled/disabled posture;
 - current deployment and rollback candidate from the ops pack;
 - recent command-panel interactions from `.local/command-interactions.jsonl`;
+- visible matter names when the supplied matter name does not match the runtime
+  list, so typos or stale names are easy to correct;
 - a short list of attachments and next actions for developer handoff.
 
 ## What It Avoids
@@ -59,6 +61,11 @@ private beta circle. Redaction is a guardrail, not a substitute for judgment.
 Use `private-beta:bug-evidence-pack` for one bug or quality concern after the
 tester feedback record exists, or when the app is unavailable and direct
 operator capture is the only option.
+
+If the pack fails with `Matter not found`, check the `Available matters` line in
+the generated evidence and rerun with the exact runtime matter name. The pack is
+strict about matter names so it does not silently collect evidence from the
+wrong matter.
 
 Use `private-vm:ops-pack` for daily service health and rollback posture.
 

@@ -107,6 +107,38 @@ test("private beta bug evidence pack fails closed when service or ops evidence f
   assert.equal(existsSync(result.files.markdown), true);
 });
 
+test("private beta bug evidence pack preserves available matter names for operator diagnosis", async () => {
+  const { runPrivateBetaBugEvidencePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-bug-pack-matter-miss-"));
+
+  const result = await runPrivateBetaBugEvidencePack({
+    outDir,
+    timestamp: "2026-06-07T10:30:00.000Z",
+    matterName: "Atlas Construction vs Diptishree",
+    serviceCheckFn: async () => ({
+      passed: false,
+      matterCount: 2,
+      availableMatterNames: [
+        "Atlas Constuction vs Diptishree",
+        "Bharat Nagpal Vs Gionee India",
+      ],
+      error: "Matter not found: Atlas Construction vs Diptishree",
+    }),
+    opsPackFn: async () => ({ success: true, files: {} }),
+    recentInteractionsFn: async () => [],
+  });
+
+  assert.equal(result.success, false);
+  assert.deepEqual(result.serviceCheck.availableMatterNames, [
+    "Atlas Constuction vs Diptishree",
+    "Bharat Nagpal Vs Gionee India",
+  ]);
+
+  const markdown = await readFile(result.files.markdown, "utf8");
+  assert.match(markdown, /Available matters/);
+  assert.match(markdown, /Atlas Constuction vs Diptishree/);
+});
+
 test("private beta bug evidence pack parses operator issue options", async () => {
   const { parseBugEvidencePackArgs } = await import(packPath.href);
 

@@ -126,6 +126,38 @@ test("private VM service check reports missing previewable file", async () => {
   assert.match(renderPrivateVmServiceCheck(report).join("\n"), /passed: no/);
 });
 
+test("private VM service check includes available matter names when target matter is missing", async () => {
+  const fetchImpl = async (url) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/matters") {
+      return jsonResponse({
+        enabled: true,
+        mattersHome: null,
+        matters: [
+          { name: "Atlas Constuction vs Diptishree" },
+          { name: "Bharat Nagpal Vs Gionee India" },
+        ],
+      });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({
+    baseUrl: "http://vm:4191",
+    matterName: "Atlas Construction vs Diptishree",
+    fetchImpl,
+  });
+
+  assert.equal(report.passed, false);
+  assert.match(report.error, /Matter not found/);
+  assert.deepEqual(report.availableMatterNames, [
+    "Atlas Constuction vs Diptishree",
+    "Bharat Nagpal Vs Gionee India",
+  ]);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /available_matter_names: Atlas Constuction vs Diptishree; Bharat Nagpal Vs Gionee India/);
+});
+
 test("private VM service check reports network failures as structured evidence", async () => {
   const report = await runPrivateVmServiceCheck({
     baseUrl: "http://172.16.37.128:4191",

@@ -74,11 +74,15 @@ export async function runPrivateVmServiceCheck({
     ? matters.find((matter) => matter.name === matterName || matter.matterName === matterName)
     : matters[0];
   if (!target) {
+    const availableMatterNames = matters
+      .map((matter) => matter.name || matter.matterName || "")
+      .filter(Boolean);
     return failedReport({
       baseUrl,
       rootOk: true,
       rootBytes: rootText.length,
       matterCount: matters.length,
+      availableMatterNames,
       error: `Matter not found: ${matterName}`,
     });
   }
@@ -163,6 +167,7 @@ export function renderPrivateVmServiceCheck(report = {}) {
     `file_preview_readable: ${report.filePreviewReadable ? "yes" : "no"}`,
     `preview_bytes: ${report.previewBytes || 0}`,
   ];
+  if (report.availableMatterNames?.length) lines.push(`available_matter_names: ${report.availableMatterNames.join("; ")}`);
   if (report.error) lines.push(`error: ${report.error}`);
   return lines.map(redactServiceCheckLine);
 }
@@ -254,6 +259,7 @@ function failedReport(fields = {}) {
     runtimeDbEnabled: Boolean(fields.runtimeDbEnabled),
     mattersHome: fields.mattersHome ?? "",
     matterCount: fields.matterCount || 0,
+    availableMatterNames: Array.isArray(fields.availableMatterNames) ? fields.availableMatterNames : [],
     targetMatter: fields.targetMatter || "",
     workspaceReadable: Boolean(fields.workspaceReadable),
     previewPath: fields.previewPath || "",
