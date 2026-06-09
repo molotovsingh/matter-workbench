@@ -67,8 +67,13 @@ The helper deploys the current committed `HEAD` into
 `$deploymentRoot/<commit>/app`. It pipes `git ls-files -z` into `rsync`, so
 untracked local scratch files are not deployed. It also excludes local-only
 folders such as `node_modules/`, `.local/`, `codex_review/`, `claude_review/`,
-and `.env*`, builds React before switching the `current` symlink, restarts the
-user-level service, then runs the VM-local service check and rendered UI
+and `.env*`.
+
+Before mutating the release directory, it checks the VM has `rsync`, `node`,
+`npm`, user-level `systemd`, a readable
+`$HOME/.config/matter-workbench/runtime.env`, and a writable deployment root.
+Only then does it build React, switch the `current` symlink, restart the
+user-level service, and run the VM-local service check plus rendered UI
 hardening pass.
 
 It does not accept password arguments. Use SSH keys, an interactive SSH

@@ -58,6 +58,15 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.equal(plan.remote, "aks@172.16.37.128");
   assert.equal(plan.releaseDir, "/home/aks/matter-workbench-deployments/abc1234");
   assert.equal(plan.appDir, "/home/aks/matter-workbench-deployments/abc1234/app");
+  assert.equal(plan.steps[0].id, "preflight");
+
+  const preflight = plan.steps[0];
+  assert.match(preflight.command.join(" "), /command -v rsync/);
+  assert.match(preflight.command.join(" "), /command -v node/);
+  assert.match(preflight.command.join(" "), /command -v npm/);
+  assert.match(preflight.command.join(" "), /systemctl --user show-environment/);
+  assert.match(preflight.command.join(" "), /runtime\.env/);
+  assert.match(preflight.command.join(" "), /test -d '\/home\/aks\/matter-workbench-deployments'/);
 
   const rsync = plan.steps.find((step) => step.id === "rsync_source");
   assert.ok(rsync);
@@ -79,6 +88,29 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
 
   assert.equal(plan.steps.some((step) => step.id === "service_check"), true);
   assert.equal(plan.steps.some((step) => step.id === "ui_hardening"), true);
+});
+
+test("private VM rsync deploy aborts before mutation when preflight fails", async () => {
+  const { runPrivateVmRsyncDeploy } = await import(deployPath.href);
+  const executed = [];
+
+  const result = await runPrivateVmRsyncDeploy({
+    host: "vm.example.test",
+    user: "aks",
+    deploymentRoot: "/home/aks/matter-workbench-deployments",
+    commit: "abc1234",
+    sourceDir: "/repo",
+    baseUrl: "http://127.0.0.1:4191",
+    commandRunner: async (step) => {
+      executed.push(step.id);
+      return { ok: false, code: 1, error: "rsync missing" };
+    },
+    gitDirtyChecker: async () => false,
+  });
+
+  assert.equal(result.success, false);
+  assert.deepEqual(executed, ["preflight"]);
+  assert.deepEqual(result.stepResults.map((step) => step.id), ["preflight"]);
 });
 
 test("private VM rsync deploy dry-run returns the plan without executing commands", async () => {

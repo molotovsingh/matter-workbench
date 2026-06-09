@@ -132,9 +132,11 @@ npm run private-vm:rsync-deploy -- \
 
 The deploy helper uses `git ls-files -z` piped into `rsync`, so it syncs
 tracked source files rather than local scratch files. It excludes local-only and
-secret-bearing paths, builds before switching the `current` symlink, restarts
-the user-level service, and runs the VM-local service check plus rendered UI
-hardening pass.
+secret-bearing paths. Before touching the release directory, it checks SSH can
+reach the VM and that the VM has `rsync`, `node`, `npm`, user-level `systemd`,
+a readable runtime env file, and a writable deployment root. Then it builds
+before switching the `current` symlink, restarts the user-level service, and
+runs the VM-local service check plus rendered UI hardening pass.
 
 It intentionally does not accept a password argument. Use SSH keys, an
 interactive password prompt, or your normal SSH agent flow.

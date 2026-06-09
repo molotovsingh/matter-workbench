@@ -105,6 +105,25 @@ export function buildPrivateVmRsyncDeployPlan({
   const remoteAppTarget = `${remote}:${appDir}/`;
   const steps = [
     {
+      id: "preflight",
+      title: "Verify VM deploy prerequisites before mutating the release directory",
+      command: [
+        "ssh",
+        remote,
+        [
+          "set -e",
+          "command -v rsync >/dev/null",
+          "command -v node >/dev/null",
+          "command -v npm >/dev/null",
+          "command -v systemctl >/dev/null",
+          "systemctl --user show-environment >/dev/null",
+          "test -r \"$HOME/.config/matter-workbench/runtime.env\"",
+          `test -d ${shellQuote(deploymentRoot.replace(/\/+$/, ""))}`,
+          `test -w ${shellQuote(deploymentRoot.replace(/\/+$/, ""))}`,
+        ].join(" && "),
+      ],
+    },
+    {
       id: "prepare_release_dir",
       title: "Create a clean release app directory on the VM",
       command: ["ssh", remote, `rm -rf ${shellQuote(appDir)} && mkdir -p ${shellQuote(appDir)}`],
