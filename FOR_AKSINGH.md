@@ -2009,6 +2009,15 @@ this commit." A development folder always contains scratch files, review
 folders, and local artifacts. A beta deployment should carry a known commit and
 leave the scratch behind.
 
+The matching rollback lesson is the same lesson in reverse. If deployment is a
+button, rollback cannot be a half-remembered SSH command typed under pressure.
+`private-vm:rollback` now requires an explicit `--to <previous-commit>`, checks
+that release exists, switches `current`, restarts the user service, and reruns
+the same VM-local service/UI checks from the restored app. It deliberately does
+not guess which release you meant. A rollback should feel boring, but it should
+also feel solemn: you are changing the running system, so the target must be
+named.
+
 This also teaches a useful distinction between "managed" and "production." A
 user-level service can restart after failure and be checked by `systemctl`, but
 that still does not make the app safe for the public internet. Production needs

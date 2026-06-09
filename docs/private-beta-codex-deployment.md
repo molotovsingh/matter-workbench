@@ -147,6 +147,7 @@ Repeatability comes from committed scripts:
 
 ```bash
 npm run private-vm:rsync-deploy
+npm run private-vm:rollback
 npm run private-web:readiness-check
 npm run private-vm:service-check
 npm run private-vm:security-check
@@ -158,6 +159,21 @@ npm run private-beta:bug-evidence-pack
 
 The deployment pack ties these together in the order Codex should use when
 acting as release engineer.
+
+Rollback is deliberately explicit. Use the ops pack to identify the previous
+release candidate, then run:
+
+```bash
+npm run private-vm:rollback -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --deployment-root /home/aks/matter-workbench-deployments \
+  --to <previous-commit>
+```
+
+The rollback helper checks the target release before switching `current`,
+restarts the service, and runs the same VM-local service/UI checks from the
+restored release. Use `--dry-run` first when rehearsing.
 
 ## Observable Deployment Shape
 
