@@ -2461,3 +2461,76 @@ two-pass generation is not merely "normal generation with another provider
 call"; it has its own ledger, failure behavior, and final editing contract. By
 giving it a home, the root engine can stay focused on preparing the source
 blocks and dispatching to the chosen mode.
+
+## The Beta Mothership: Turning Ten Testers Into One Development Queue
+
+The private beta now has a small central telemetry service, called the
+**mothership**. The name sounds grander than the code. Think of it as the firm's
+shared in-tray for two kinds of evidence:
+
+- what a tester deliberately reports through **Have a problem?**;
+- what a Workbench installation observes through its existing diagnostic
+  signals, such as failed jobs or matter warnings.
+
+Each installation still keeps its local JSON delivery ledger. That ledger is
+not the source of truth for product development; it is the outbox. If the
+receiver is unavailable, the item waits there. Workbench retries immediately
+on startup and every five minutes while it is running. A receiver outage must
+therefore delay evidence, not lose it or block legal work.
+
+The mothership itself is deliberately separate from legal matter storage:
+
+```text
+Matter Workbench :4191
+  -> local feedback/signal outbox
+  -> authenticated loopback POST
+  -> mothership :4192
+  -> matter_workbench_mothership PostgreSQL database
+  -> operator report for triage
+```
+
+This separation is a useful safety boundary. A bug-reporting service should not
+need access to source PDFs, chronologies, custom-skill artifacts, or the main
+matter database. Its PostgreSQL role is restricted to its own database. Its
+HTTP service listens only on `127.0.0.1` on the current VM. When the product
+moves to a cloud host, the same receiver contract can sit behind HTTPS without
+changing what the Workbench sender means.
+
+Every installation has one active ingestion token. The raw token is shown once
+when the operator registers the installation; PostgreSQL stores only its
+SHA-256 digest. Registering the installation again rotates the token by revoking
+the prior active token in the same transaction. Tokens and database URLs live
+only in mode-`0600` VM environment files, never in the repository or deploy
+command.
+
+The operator surface is intentionally a CLI, not another dashboard:
+
+```sh
+set -a; . "$HOME/.config/matter-workbench/mothership.env"; set +a
+npm run mothership:operator -- health
+npm run mothership:report -- --since-days 30
+npm run mothership:operator -- prune --retention-days 180
+```
+
+The report sorts evidence in development order: blocker/error signals first,
+then repeated warnings, tester bugs, confusing UX, and feature ideas. That does
+not mean Codex should blindly edit the first item. The report is an intake map,
+not a verdict. The correct loop is still: verify the evidence against the live
+runtime and current repository, reproduce the smallest real case, fix the owner
+path, and add the focused regression test.
+
+The live acceptance run found two bugs that unit tests alone had not exposed.
+First, repeated signals were deduplicated locally but never sent again, so the
+central report could not know that a warning had happened three times. The
+sender now resends the updated occurrence count, and the receiver upserts the
+new count without creating duplicate rows. Second, `systemctl enable --now`
+did not restart an already-running mothership after a deployment, so it could
+remain on old code. The deploy step now enables the service and explicitly
+restarts it before checking `/health`.
+
+That is a good engineering story in miniature. Unit tests proved the pieces.
+The live drill proved the hand-offs. The controlled outage proved failure
+semantics: feedback was created while the receiver was down, stayed queued,
+and was sent automatically when Workbench restarted after the receiver
+returned. Synthetic acceptance rows were then removed, leaving the central
+report clean for real beta evidence.

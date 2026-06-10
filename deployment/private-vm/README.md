@@ -41,6 +41,24 @@ receiver. It contains `MOTHERSHIP_DATABASE_URL` plus the loopback host/port.
 Start from `deployment/private-vm/mothership.env.example`, but never copy a real
 database URL into the repository.
 
+Provision the mothership once with a separate PostgreSQL database and a
+non-superuser login role that owns only that database. Then load
+`mothership.env` from the deployed app and apply its independent migrations:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/mothership.env"; set +a
+npm run mothership:migrate
+npm run mothership:operator -- installations create \
+  --id <stable-installation-id> \
+  --label "<operator-readable label>"
+```
+
+The installation command prints the ingestion token once. Put it in
+`runtime.env` as both the feedback and signal sync token, with loopback URLs
+ending in `/v1/feedback` and `/v1/signals`. Do not pass the token through a
+command argument or commit it. Restart both user services after changing the
+environment files.
+
 Keep feedback and signal ledgers outside the deployment directory. If those
 paths are left at their app-default `.local/` locations, a new deployment can
 make tester feedback look empty because the service starts reading from the new
