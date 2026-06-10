@@ -163,6 +163,11 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.match(mothershipActivation.command.at(-1), /; fi$/);
   assert.match(mothershipActivation.command.join(" "), /test -r \"\$HOME\/\.config\/matter-workbench\/mothership\.env\"/);
   assert.match(mothershipActivation.command.join(" "), /systemctl --user enable --now 'matter-workbench-mothership\.service'/);
+  assert.match(mothershipActivation.command.join(" "), /systemctl --user restart 'matter-workbench-mothership\.service'/);
+  assert.ok(
+    mothershipActivation.command.at(-1).indexOf("enable --now")
+      < mothershipActivation.command.at(-1).indexOf("restart 'matter-workbench-mothership.service'"),
+  );
   assert.match(mothershipActivation.command.join(" "), /systemctl --user is-active 'matter-workbench-mothership\.service'/);
   assert.match(mothershipActivation.command.join(" "), /http:\/\/127\.0\.0\.1:4192\/health/);
   assert.match(mothershipActivation.command.join(" "), /mothership env absent; skipping mothership activation/i);

@@ -196,6 +196,7 @@ export function buildPrivateVmRsyncDeployPlan({
         "set -e; "
           + "if test -r \"$HOME/.config/matter-workbench/mothership.env\"; then "
           + "systemctl --user enable --now 'matter-workbench-mothership.service'; "
+          + "systemctl --user restart 'matter-workbench-mothership.service'; "
           + "systemctl --user is-active 'matter-workbench-mothership.service'; "
           + "mothership_ready=0; "
           + "for attempt in 1 2 3 4 5 6 7 8 9 10; do "
