@@ -118,7 +118,10 @@ function buildRerunAdvice({
   const contentChangedInput = typeof findContentChange === "function"
     ? findContentChange({ target, upstreamInputs })
     : null;
-  const mtimeStale = newestInput && newestInput.mtimeMs > target.mtimeMs + 1;
+  const mtimeStale = newestInput && isNewerByTrustedMtime({
+    inputMtimeMs: newestInput.mtimeMs,
+    targetMtimeMs: target.mtimeMs,
+  });
   const staleInput = contentChangedInput || (mtimeStale ? newestInput : null);
   if (staleInput) {
     const dependencyState = typeof classifyStaleDependency === "function"
@@ -327,6 +330,12 @@ async function readJsonIfPossible(filePath) {
 
 function artifactRunTime(target) {
   return normalizeText(target.json?.generated_at) || target.mtimeIso || "";
+}
+
+export function isNewerByTrustedMtime({ inputMtimeMs, targetMtimeMs }) {
+  return Number(inputMtimeMs) > 0
+    && Number(targetMtimeMs) > 0
+    && Number(inputMtimeMs) > Number(targetMtimeMs) + 1;
 }
 
 function findSourceDescriptorContentChange({ target, upstreamInputs }) {

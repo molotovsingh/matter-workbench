@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { isStoreReplacement } from "../shared/store-mutation.mjs";
 import { normalizeStoredSkill } from "./configurable-skill-definition.mjs";
 import { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
 import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
@@ -313,10 +314,6 @@ function catalogFingerprintFromRows(rows = []) {
   return createHash("sha256")
     .update(JSON.stringify(Array.isArray(rows) ? rows : []))
     .digest("hex");
-}
-
-function isStoreReplacement(value) {
-  return Boolean(value && typeof value === "object" && Array.isArray(value.skills));
 }
 
 function objectValue(value) {

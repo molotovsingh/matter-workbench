@@ -58,6 +58,52 @@ test("private VM rsync deploy parser defaults deployment root to remote user hom
   assert.equal(parsed.deploymentRoot, "/home/aks/matter-workbench-deployments");
 });
 
+test("private VM rsync deploy plan and runner use remote-user deployment root defaults", async () => {
+  const { buildPrivateVmRsyncDeployPlan, runPrivateVmRsyncDeploy } = await import(deployPath.href);
+
+  const plan = buildPrivateVmRsyncDeployPlan({
+    host: "172.16.37.128",
+    user: "aks",
+    commit: "abc1234",
+    sourceDir: "/Users/aksingh/matter-workbench",
+  });
+
+  assert.equal(plan.deploymentRoot, "/home/aks/matter-workbench-deployments");
+  assert.equal(plan.releaseDir, "/home/aks/matter-workbench-deployments/abc1234");
+  assert.doesNotMatch(plan.steps[0].command.join(" "), /\$HOME\/matter-workbench-deployments/);
+
+  const result = await runPrivateVmRsyncDeploy({
+    host: "172.16.37.128",
+    user: "aks",
+    commit: "abc1234",
+    sourceDir: "/repo",
+    dryRun: true,
+    gitDirtyChecker: async () => false,
+  });
+
+  assert.equal(result.plan.deploymentRoot, "/home/aks/matter-workbench-deployments");
+  assert.equal(result.plan.releaseDir, "/home/aks/matter-workbench-deployments/abc1234");
+});
+
+test("private VM rsync deploy direct APIs reject missing deployment root when user is unknown", async () => {
+  const { buildPrivateVmRsyncDeployPlan, runPrivateVmRsyncDeploy } = await import(deployPath.href);
+
+  assert.throws(
+    () => buildPrivateVmRsyncDeployPlan({ host: "vm.example.test", commit: "abc1234" }),
+    /deployment root/i,
+  );
+
+  await assert.rejects(
+    () => runPrivateVmRsyncDeploy({
+      host: "vm.example.test",
+      commit: "abc1234",
+      dryRun: true,
+      gitDirtyChecker: async () => false,
+    }),
+    /deployment root/i,
+  );
+});
+
 test("private VM rsync deploy plan builds a fresh release and excludes local-only data", async () => {
   const { buildPrivateVmRsyncDeployPlan } = await import(deployPath.href);
 

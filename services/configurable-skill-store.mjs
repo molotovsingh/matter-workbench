@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeStoredSkill } from "./configurable-skill-definition.mjs";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
+import { isStoreReplacement } from "../shared/store-mutation.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const CONFIGURABLE_SKILLS_SCHEMA_VERSION = "configurable-skills/v1";
@@ -40,7 +41,7 @@ export function createConfigurableSkillStore({ appDir, skillsPath } = {}) {
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const result = await mutator(store);
-      await writeStore(store);
+      await writeStore(isStoreReplacement(result) ? result : store);
       return result;
     });
   }

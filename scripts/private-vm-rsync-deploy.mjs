@@ -92,7 +92,7 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
 export function buildPrivateVmRsyncDeployPlan({
   host,
   user = "",
-  deploymentRoot = "$HOME/matter-workbench-deployments",
+  deploymentRoot = "",
   commit,
   sourceDir = process.cwd(),
   baseUrl = "http://127.0.0.1:4191",
@@ -102,6 +102,7 @@ export function buildPrivateVmRsyncDeployPlan({
 } = {}) {
   if (!host) throw new Error("--host is required");
   if (!commit) throw new Error("--commit is required");
+  if (!deploymentRoot) deploymentRoot = defaultRemoteDeploymentRoot(user);
 
   const remote = user ? `${user}@${host}` : host;
   const releaseDir = `${deploymentRoot.replace(/\/+$/, "")}/${commit}`;
@@ -244,7 +245,7 @@ export function buildPrivateVmRsyncDeployPlan({
 export async function runPrivateVmRsyncDeploy({
   host,
   user = "",
-  deploymentRoot = "$HOME/matter-workbench-deployments",
+  deploymentRoot = "",
   commit = "",
   sourceDir = process.cwd(),
   baseUrl = "http://127.0.0.1:4191",
@@ -363,7 +364,7 @@ function defaultRemoteDeploymentRoot(user) {
   const remoteUser = String(user || "").trim();
   if (remoteUser === "root") return "/root/matter-workbench-deployments";
   if (remoteUser) return `/home/${remoteUser}/matter-workbench-deployments`;
-  return "$HOME/matter-workbench-deployments";
+  throw new Error("deployment root is required when the remote user is not specified.");
 }
 
 function shellQuote(value) {
