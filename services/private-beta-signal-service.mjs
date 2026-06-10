@@ -133,8 +133,14 @@ export function createPrivateBetaSignalService({
             lastSeenAt: seenAt,
             occurrenceCount: (existing.occurrenceCount || 1) + 1,
           }, { telemetryMode: existing.telemetryMode || normalizedTelemetryMode });
+          updated.sync = await attemptSync(updated, { ...updated.sync, status: "queued" });
+          updated.updatedAt = updated.sync.lastAttemptAt || updated.updatedAt;
           store.signals[index] = updated;
           capturedSignals.push(updated);
+          if (updated.sync.status === "sent") result.sent += 1;
+          else if (updated.sync.status === "queued") result.queued += 1;
+          else if (updated.sync.status === "not_configured") result.skipped += 1;
+          else result.failed += 1;
           continue;
         }
 

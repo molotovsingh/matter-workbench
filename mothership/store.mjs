@@ -110,8 +110,20 @@ export function createMothershipStore({
          (installation_id, signal_id, source, severity, fingerprint, matter_name,
           occurrence_count, first_seen_at, last_seen_at, payload)
        values ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10::jsonb)
-       on conflict (installation_id, signal_id) do nothing
-       returning id`,
+       on conflict (installation_id, signal_id) do update
+       set source = excluded.source,
+           severity = excluded.severity,
+           fingerprint = excluded.fingerprint,
+           matter_name = excluded.matter_name,
+           occurrence_count = greatest(mothership_signal_events.occurrence_count, excluded.occurrence_count),
+           first_seen_at = least(mothership_signal_events.first_seen_at, excluded.first_seen_at),
+           last_seen_at = greatest(mothership_signal_events.last_seen_at, excluded.last_seen_at),
+           received_at = now(),
+           payload = case
+             when excluded.last_seen_at >= mothership_signal_events.last_seen_at then excluded.payload
+             else mothership_signal_events.payload
+           end
+       returning id, (xmax = 0) as inserted`,
       [
         normalizedId,
         requireIdentifier(item.id, "signal.id"),
@@ -125,7 +137,7 @@ export function createMothershipStore({
         JSON.stringify(item),
       ],
     );
-    return { inserted: (result.rowCount || 0) > 0 };
+    return { inserted: result.rows?.[0]?.inserted === true };
   }
 
   async function pruneExpired({ retentionDays = 180 } = {}) {

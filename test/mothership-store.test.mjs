@@ -77,13 +77,18 @@ test("store authenticates active tokens and rejects installation mismatch or rev
 
 test("store inserts feedback and signals idempotently with parameterized payloads", async () => {
   const calls = [];
-  let insertCount = 0;
+  let feedbackInsertCount = 0;
+  let signalUpsertCount = 0;
   const database = fakeDatabase({
     onQuery(text, values) {
       calls.push({ text, values });
-      if (/insert into mothership_(feedback|signal)_events/i.test(text)) {
-        insertCount += 1;
-        return { rowCount: insertCount % 2, rows: insertCount % 2 ? [{ id: insertCount }] : [] };
+      if (/insert into mothership_feedback_events/i.test(text)) {
+        feedbackInsertCount += 1;
+        return { rowCount: feedbackInsertCount % 2, rows: feedbackInsertCount % 2 ? [{ id: feedbackInsertCount }] : [] };
+      }
+      if (/insert into mothership_signal_events/i.test(text)) {
+        signalUpsertCount += 1;
+        return { rowCount: 1, rows: [{ id: signalUpsertCount, inserted: signalUpsertCount === 1 }] };
       }
       return { rowCount: 1, rows: [] };
     },
@@ -115,9 +120,11 @@ test("store inserts feedback and signals idempotently with parameterized payload
   const inserts = calls.filter((call) => /insert into mothership_(feedback|signal)_events/i.test(call.text));
   assert.equal(inserts.length, 4);
   for (const call of inserts) {
-    assert.match(call.text, /on conflict \(installation_id, (feedback_id|signal_id)\) do nothing/i);
     assert.match(call.text, /\$1/);
   }
+  assert.match(inserts[0].text, /on conflict \(installation_id, feedback_id\) do nothing/i);
+  assert.match(inserts[2].text, /on conflict \(installation_id, signal_id\) do update/i);
+  assert.match(inserts[2].text, /greatest\(mothership_signal_events\.occurrence_count, excluded\.occurrence_count\)/i);
 });
 
 test("store revokes installations and prunes expired payloads", async () => {

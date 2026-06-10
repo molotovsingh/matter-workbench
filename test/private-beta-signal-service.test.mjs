@@ -72,9 +72,9 @@ test("private beta signal service captures redacted matter attention packets and
   assert.equal(store.signals.length, 1);
 });
 
-test("private beta signal service dedupes repeated monitor signals without resending", async () => {
+test("private beta signal service dedupes and resends repeated monitor signals with the new count", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-dedupe-"));
-  let requestCount = 0;
+  const requestBodies = [];
   const service = createPrivateBetaSignalService({
     signalsPath: path.join(tmp, "signals-ledger.json"),
     now: (() => {
@@ -87,8 +87,8 @@ test("private beta signal service dedupes repeated monitor signals without resen
     })(),
     idFactory: () => "signal_repeated",
     syncUrl: "https://mothership.example.test/api/beta-signals",
-    fetchImpl: async () => {
-      requestCount += 1;
+    fetchImpl: async (_url, options = {}) => {
+      requestBodies.push(JSON.parse(options.body));
       return { ok: true, status: 200, text: async () => "" };
     },
   });
@@ -100,10 +100,12 @@ test("private beta signal service dedupes repeated monitor signals without resen
   };
 
   await service.captureMatterAttention(attention);
-  await service.captureMatterAttention(attention);
+  const repeated = await service.captureMatterAttention(attention);
 
   const listed = await service.listSignals();
-  assert.equal(requestCount, 1);
+  assert.equal(requestBodies.length, 2);
+  assert.equal(requestBodies[1].signal.occurrenceCount, 2);
+  assert.equal(repeated.sent, 1);
   assert.equal(listed.signals.length, 1);
   assert.equal(listed.signals[0].occurrenceCount, 2);
   assert.equal(listed.signals[0].firstSeenAt, "2026-06-07T13:00:00.000Z");
