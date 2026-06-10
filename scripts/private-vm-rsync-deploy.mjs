@@ -200,7 +200,7 @@ export function buildPrivateVmRsyncDeployPlan({
           + "systemctl --user is-active 'matter-workbench-mothership.service'; "
           + "mothership_ready=0; "
           + "for attempt in 1 2 3 4 5 6 7 8 9 10; do "
-          + "if curl -fsS http://127.0.0.1:4192/health >/dev/null; then mothership_ready=1; break; fi; "
+          + "if curl -fsS http://127.0.0.1:4192/health >/dev/null 2>&1; then mothership_ready=1; break; fi; "
           + "sleep 1; done; "
           + "test \"$mothership_ready\" = 1; "
           + "else printf '%s\\n' 'mothership env absent; skipping mothership activation'; fi",
