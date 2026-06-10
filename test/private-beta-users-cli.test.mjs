@@ -17,7 +17,8 @@ test("private beta users CLI adds, lists, changes password, and disables tester 
   const stdout = [];
 
   await runPrivateBetaUsersCli({
-    argv: ["add", "--file", usersFile, "--username", "tester-one", "--role", "tester", "--password", "first-secret"],
+    argv: ["add", "--file", usersFile, "--username", "tester-one", "--role", "tester", "--password-stdin"],
+    stdin: stdinFrom("first-secret\n"),
     stdout: (line) => stdout.push(line),
   });
   let store = JSON.parse(await readFile(usersFile, "utf8"));
@@ -30,7 +31,8 @@ test("private beta users CLI adds, lists, changes password, and disables tester 
   assert.doesNotMatch(JSON.stringify(store), /first-secret/);
 
   await runPrivateBetaUsersCli({
-    argv: ["set-password", "--file", usersFile, "--username", "tester-one", "--password", "second-secret"],
+    argv: ["set-password", "--file", usersFile, "--username", "tester-one", "--password-stdin"],
+    stdin: stdinFrom("second-secret\n"),
     stdout: (line) => stdout.push(line),
   });
   store = JSON.parse(await readFile(usersFile, "utf8"));
@@ -59,7 +61,8 @@ test("private beta users CLI refuses to overwrite malformed existing account fil
   const stderr = [];
 
   const exitCode = await runPrivateBetaUsersCli({
-    argv: ["add", "--file", usersFile, "--username", "tester-one", "--password", "secret"],
+    argv: ["add", "--file", usersFile, "--username", "tester-one", "--password-stdin"],
+    stdin: stdinFrom("secret\n"),
     stdout: () => {},
     stderr: (line) => stderr.push(line),
   });
@@ -68,3 +71,25 @@ test("private beta users CLI refuses to overwrite malformed existing account fil
   assert.match(stderr.join("\n"), /valid JSON/);
   assert.equal(await readFile(usersFile, "utf8"), "{not-json");
 });
+
+test("private beta users CLI rejects passwords supplied through argv", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-users-cli-argv-"));
+  const usersFile = path.join(tmp, "users.json");
+  const stderr = [];
+
+  const exitCode = await runPrivateBetaUsersCli({
+    argv: ["add", "--file", usersFile, "--username", "tester-one", "--password", "secret"],
+    stdout: () => {},
+    stderr: (line) => stderr.push(line),
+  });
+
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join("\n"), /password-stdin/);
+  assert.doesNotMatch(stderr.join("\n"), /secret/);
+});
+
+function stdinFrom(text) {
+  return (async function* chunks() {
+    yield Buffer.from(text);
+  })();
+}

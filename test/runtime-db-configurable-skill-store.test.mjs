@@ -107,6 +107,44 @@ test("runtime DB configurable skill store writes mutated skills to skill and ver
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB configurable skill store writes replacement store returned by mutator", async () => {
+  const calls = [];
+  const store = createRuntimeDbConfigurableSkillStore({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      [],
+      {},
+    ]),
+  });
+
+  await store.updateStore(() => ({
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_replacement",
+      title: "Replacement Skill",
+      slash: "/replacement_skill",
+      description: "Persisted from returned store.",
+      status: "active",
+      version: 1,
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Replacement Skill.md",
+      matterRequired: true,
+      paidProviderCall: false,
+      sourceBacked: "required",
+      promptConfig: { prompt: "Return replacement.", citationPolicy: "Use sources." },
+      modelPolicy: { task: "configurable_skill_run", policyPromptVersion: "legal-workbench-policy/v1" },
+      validation: { status: "passed", messages: [] },
+      createdAt: "2026-06-06T02:00:00.000Z",
+      updatedAt: "2026-06-06T02:00:00.000Z",
+    }],
+  }));
+
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /"local_id":"skill_replacement"/);
+  assert.match(sql, /'Replacement Skill'/);
+});
+
 test("runtime DB configurable skill updates guard against stale catalog overwrites", async () => {
   const calls = [];
   const store = createRuntimeDbConfigurableSkillStore({

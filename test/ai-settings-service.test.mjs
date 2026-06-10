@@ -308,3 +308,36 @@ test("AI settings test connection sends a tiny server-side OpenAI request", asyn
   assert.equal(bodies[0].max_output_tokens, 16);
   assert.equal(bodies[0].input, "Reply with exactly: ok");
 });
+
+test("AI settings test connection redacts upstream OpenAI error messages", async () => {
+  const leakedKey = "sk-leaked-test-connection";
+  const server = createServer((request, response) => {
+    request.resume();
+    response.writeHead(401, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { message: `Invalid key ${leakedKey}` } }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createAiSettingsService({
+      appDir: await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-")),
+      env: {
+        OPENAI_API_KEY: "sk-test",
+        OPENAI_MODEL: "gpt-5-mini",
+      },
+      endpoint: `http://${address.address}:${address.port}/v1/responses`,
+    });
+
+    await assert.rejects(
+      () => service.testConnection(),
+      (error) => {
+        assert.doesNotMatch(error.message, new RegExp(leakedKey));
+        assert.match(error.message, /redacted-secret/);
+        return true;
+      },
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

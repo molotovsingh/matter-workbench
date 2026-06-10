@@ -124,7 +124,7 @@ export function createAiSettingsService({
     if (!response.ok) {
       const error = new Error(payload?.error?.message || `OpenAI returned ${response.status}`);
       error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
-      throw error;
+      throw redactedAiSettingsError(error, "OpenAI test connection failed");
     }
 
     return {

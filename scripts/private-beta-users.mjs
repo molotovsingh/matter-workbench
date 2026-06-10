@@ -17,8 +17,8 @@ export async function runPrivateBetaUsersCli({
   stdout = (line) => console.log(line),
   stderr = (line) => console.error(line),
 } = {}) {
-  const { command, options } = parseArgs(argv);
   try {
+    const { command, options } = parseArgs(argv);
     if (!command || command === "help" || options.help) {
       stdout(usage());
       return 0;
@@ -168,6 +168,9 @@ function parseArgs(argv) {
       options[key] = true;
       continue;
     }
+    if (key === "password") {
+      throw new Error("Use --password-stdin. Password values must not be supplied through command arguments.");
+    }
     const value = rest[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`Missing value for --${key}`);
     options[key] = value;
@@ -177,10 +180,6 @@ function parseArgs(argv) {
 }
 
 async function readPassword(options, stdin) {
-  if (options.password && options["password-stdin"]) {
-    throw new Error("Use either --password or --password-stdin, not both.");
-  }
-  if (options.password) return String(options.password);
   if (options["password-stdin"]) {
     const chunks = [];
     for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
@@ -188,7 +187,7 @@ async function readPassword(options, stdin) {
     if (!password) throw new Error("Password from stdin is empty.");
     return password;
   }
-  throw new Error("Password is required. Use --password or --password-stdin.");
+  throw new Error("Password is required. Use --password-stdin.");
 }
 
 function findUser(store, username) {

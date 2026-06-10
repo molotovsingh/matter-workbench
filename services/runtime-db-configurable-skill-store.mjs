@@ -53,7 +53,7 @@ export function createRuntimeDbConfigurableSkillStore({
     if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500);
     const store = await readStoreWithFingerprint();
     const result = await mutator(store);
-    await writeStore(store, { expectedCatalogFingerprint: store.catalogFingerprint });
+    await writeStore(isStoreReplacement(result) ? result : store, { expectedCatalogFingerprint: store.catalogFingerprint });
     return result;
   }
 
@@ -313,6 +313,10 @@ function catalogFingerprintFromRows(rows = []) {
   return createHash("sha256")
     .update(JSON.stringify(Array.isArray(rows) ? rows : []))
     .digest("hex");
+}
+
+function isStoreReplacement(value) {
+  return Boolean(value && typeof value === "object" && Array.isArray(value.skills));
 }
 
 function objectValue(value) {

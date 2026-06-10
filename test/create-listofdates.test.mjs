@@ -746,7 +746,9 @@ test("create-listofdates filters non-merits rows and sharpens legal relevance", 
         nonMeritsTranscriptEntry(),
         nonMeritsEmailExportEntry(),
         nonMeritsVakalatnamaEntry(),
-        meritsReplyEntry(),
+        meritsReplyEntry({
+          legal_relevance: "This event is relevant because the source shows Skyline's willingness to resolve it.",
+        }),
       ],
     }),
   });
@@ -758,9 +760,9 @@ test("create-listofdates filters non-merits rows and sharpens legal relevance", 
   assert.equal(result.entries[0].citation, "FILE-0001 p1.b4");
   assert.doesNotMatch(result.entries[0].event, /transcript|exported|vakalatnama/i);
   assert.doesNotMatch(result.entries[0].legal_relevance, /This event is relevant|willingness|demonstrates/i);
-  assert.match(result.entries[0].legal_relevance, /Supports the client's case/i);
-  assert.match(result.entries[0].legal_relevance, /records the opposing party's stated response/i);
-  assert.match(result.entries[0].legal_relevance, /may support hardship and consequential prejudice, subject to proof/i);
+  assert.match(result.entries[0].legal_relevance, /Supports the client's chronology/i);
+  assert.match(result.entries[0].legal_relevance, /Skyline's stated response/i);
+  assert.doesNotMatch(result.entries[0].legal_relevance, /opposing party's stated response/i);
 });
 
 test("create-listofdates reports missing extraction records before calling AI", async () => {

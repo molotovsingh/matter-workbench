@@ -169,7 +169,7 @@ function sharpenLegalRelevanceLanguage(value) {
     .replace(/\bcrucial\b/gi, "relevant")
     .replace(/\bfoundational\b/gi, "relevant")
     .replace(/\bdemonstrates\b/gi, "may support")
-    .replace(/\bshows\s+(?:their|its|Skyline'?s|the opposing party'?s)\s+willingness\s+to\s+(?:accommodate|resolve)(?:\s+(?:it|the dispute|the issue|the grievance))?/gi, "records the opposing party's stated response to the complaint")
+    .replace(/\bshows\s+(?:their|its|the opposing party'?s)\s+willingness\s+to\s+(?:accommodate|resolve)(?:\s+(?:it|the dispute|the issue|the grievance))?/gi, "records the opposing party's stated response to the complaint")
     .replace(/\bwillingness\s+to\s+(?:accommodate|resolve)(?:\s+(?:it|the dispute|the issue|the grievance))?/gi, "stated response to the complaint")
     .replace(/\bmay support\s+(?:the\s+)?emotional and financial impact\b/gi, "may support hardship and consequential prejudice, subject to proof")
     .replace(/\bemotional and financial impact\b/gi, "hardship and consequential prejudice, subject to proof")
