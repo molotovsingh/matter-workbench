@@ -147,6 +147,26 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.match(activate.command.join(" "), /ln -sfn/);
   assert.match(activate.command.join(" "), /systemctl --user restart 'matter-workbench-runtime\.service'/);
 
+  const installAndBuild = plan.steps.find((step) => step.id === "install_and_build");
+  assert.ok(installAndBuild);
+  assert.match(
+    installAndBuild.command.join(" "),
+    /cp deployment\/private-vm\/matter-workbench-mothership\.service \"\$HOME\/\.config\/systemd\/user\/\"/,
+  );
+  assert.doesNotMatch(installAndBuild.command.join(" "), /mothership\.env/);
+
+  const mothershipActivation = plan.steps.find((step) => step.id === "activate_mothership_if_configured");
+  assert.ok(mothershipActivation);
+  assert.match(mothershipActivation.command.at(-1), /^set -e; if /);
+  assert.match(mothershipActivation.command.at(-1), /; then /);
+  assert.match(mothershipActivation.command.at(-1), /; else /);
+  assert.match(mothershipActivation.command.at(-1), /; fi$/);
+  assert.match(mothershipActivation.command.join(" "), /test -r \"\$HOME\/\.config\/matter-workbench\/mothership\.env\"/);
+  assert.match(mothershipActivation.command.join(" "), /systemctl --user enable --now 'matter-workbench-mothership\.service'/);
+  assert.match(mothershipActivation.command.join(" "), /systemctl --user is-active 'matter-workbench-mothership\.service'/);
+  assert.match(mothershipActivation.command.join(" "), /http:\/\/127\.0\.0\.1:4192\/health/);
+  assert.match(mothershipActivation.command.join(" "), /mothership env absent; skipping mothership activation/i);
+
   assert.equal(plan.steps.some((step) => step.id === "service_check"), true);
   assert.equal(plan.steps.some((step) => step.id === "ui_hardening"), true);
 });
@@ -242,6 +262,24 @@ test("package and docs expose the private VM rsync deploy command", async () => 
   const readme = await readFile(new URL("../deployment/private-vm/README.md", import.meta.url), "utf8");
   assert.match(readme, /private-vm:rsync-deploy/);
   assert.match(readme, /rsync/i);
+  assert.match(readme, /matter-workbench-mothership\.service/);
+  assert.match(readme, /mothership\.env/);
+
+  const mothershipUnit = await readFile(
+    new URL("../deployment/private-vm/matter-workbench-mothership.service", import.meta.url),
+    "utf8",
+  );
+  assert.match(mothershipUnit, /EnvironmentFile=%h\/\.config\/matter-workbench\/mothership\.env/);
+  assert.match(mothershipUnit, /ExecStart=.*scripts\/start-mothership-server\.mjs/);
+  assert.match(mothershipUnit, /NoNewPrivileges=true/);
+
+  const mothershipEnvExample = await readFile(
+    new URL("../deployment/private-vm/mothership.env.example", import.meta.url),
+    "utf8",
+  );
+  assert.match(mothershipEnvExample, /MOTHERSHIP_DATABASE_URL=/);
+  assert.match(mothershipEnvExample, /MOTHERSHIP_HOST=127\.0\.0\.1/);
+  assert.doesNotMatch(mothershipEnvExample, /postgres:\/\/[^:\s]+:[^<\s][^@\s]*@/);
 
   const deploymentDoc = await readFile(new URL("../docs/private-beta-codex-deployment.md", import.meta.url), "utf8");
   assert.match(deploymentDoc, /private-vm:rsync-deploy/);

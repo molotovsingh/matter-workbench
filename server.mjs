@@ -20,6 +20,7 @@ import { createPrepareMatterService } from "./services/prepare-matter-service.mj
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
+import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-telemetry-retry-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
@@ -71,6 +72,10 @@ export async function createWorkbenchServer(options = {}) {
     installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_SIGNAL_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
     telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
     fetchImpl: options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
+  });
+  const telemetryRetryService = options.telemetryRetryService || createPrivateBetaTelemetryRetryService({
+    feedbackService: privateBetaFeedbackService,
+    signalService: privateBetaSignalService,
   });
   const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
 
@@ -239,6 +244,7 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaAuthService,
     privateBetaFeedbackService,
     privateBetaSignalService,
+    telemetryRetryService,
     runtimeDbStorageService,
     skillIdeasService,
     skillFactoryHealthService,
@@ -274,6 +280,11 @@ export async function createWorkbenchServer(options = {}) {
     }
   });
 
+  if (hasTelemetrySyncConfig(env)) {
+    server.once("listening", () => telemetryRetryService.start({ immediate: true }));
+    server.once("close", () => telemetryRetryService.stop());
+  }
+
   return {
     appDir,
     host,
@@ -283,6 +294,18 @@ export async function createWorkbenchServer(options = {}) {
     services,
     runtimeMatterIndex,
   };
+}
+
+function hasTelemetrySyncConfig(env = {}) {
+  const feedbackReady = Boolean(
+    String(env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL || "").trim()
+    && String(env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN || "").trim(),
+  );
+  const signalReady = Boolean(
+    String(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || "").trim()
+    && String(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || "").trim(),
+  );
+  return feedbackReady || signalReady;
 }
 
 if (process.argv[1] === __filename) {

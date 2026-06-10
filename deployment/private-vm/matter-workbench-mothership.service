@@ -1,0 +1,19 @@
+[Unit]
+Description=Matter Workbench private beta telemetry mothership
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/matter-workbench-deployments/current/app
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=%h/.config/matter-workbench/mothership.env
+ExecStart=/usr/bin/env node scripts/start-mothership-server.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

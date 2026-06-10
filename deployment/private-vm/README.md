@@ -13,7 +13,9 @@ Expected VM layout:
 /home/aks/matter-workbench-deployments/<commit>/app
 /home/aks/matter-workbench-deployments/current -> /home/aks/matter-workbench-deployments/<commit>
 /home/aks/.config/matter-workbench/runtime.env
+/home/aks/.config/matter-workbench/mothership.env
 /home/aks/.config/systemd/user/matter-workbench-runtime.service
+/home/aks/.config/systemd/user/matter-workbench-mothership.service
 ```
 
 `runtime.env` must be mode `0600`. It should contain only deployment/runtime
@@ -33,6 +35,11 @@ MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
 ```
 
 Do not commit `runtime.env`.
+
+`mothership.env` is a separate mode-`0600` file for the operator-only feedback
+receiver. It contains `MOTHERSHIP_DATABASE_URL` plus the loopback host/port.
+Start from `deployment/private-vm/mothership.env.example`, but never copy a real
+database URL into the repository.
 
 Keep feedback and signal ledgers outside the deployment directory. If those
 paths are left at their app-default `.local/` locations, a new deployment can
@@ -75,6 +82,13 @@ Before mutating the release directory, it checks the VM has `rsync`, `node`,
 Only then does it build React, switch the `current` symlink, restart the
 user-level service, and run the VM-local service check plus rendered UI
 hardening pass.
+
+The deploy also installs `matter-workbench-mothership.service`. If
+`$HOME/.config/matter-workbench/mothership.env` exists, it restarts the
+mothership and verifies `http://127.0.0.1:4192/health`. If that environment file
+does not exist, the mothership step is explicitly skipped and the ordinary
+Workbench deployment continues unchanged. Secrets are never synced from the
+Mac.
 
 It does not accept password arguments. Use SSH keys, an interactive SSH
 session, or your normal SSH agent flow. Tracked uncommitted changes are rejected
@@ -119,10 +133,13 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 npm run ui:build --silent
 mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/matter-workbench"
 cp deployment/private-vm/matter-workbench-runtime.service "$HOME/.config/systemd/user/"
+cp deployment/private-vm/matter-workbench-mothership.service "$HOME/.config/systemd/user/"
 ln -sfn "$PWD/.." "$HOME/matter-workbench-deployments/current"
 chmod 600 "$HOME/.config/matter-workbench/runtime.env"
 systemctl --user daemon-reload
 systemctl --user enable --now matter-workbench-runtime.service
+# After provisioning mothership.env and its database:
+systemctl --user enable --now matter-workbench-mothership.service
 ```
 
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` keeps deployment installs small. The RC
@@ -144,7 +161,16 @@ systemctl --user status matter-workbench-runtime.service --no-pager
 systemctl --user restart matter-workbench-runtime.service
 systemctl --user stop matter-workbench-runtime.service
 journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager
+systemctl --user status matter-workbench-mothership.service --no-pager
+systemctl --user restart matter-workbench-mothership.service
+journalctl --user -u matter-workbench-mothership.service -n 80 --no-pager
 ```
+
+The mothership is an operator surface, not a tester UI. Use
+`npm run mothership:operator -- health` and `npm run mothership:report` from the
+deployed app directory after loading `mothership.env`. The report is the intake
+surface Codex can use to triage repeated errors, tester bugs, confusing UX, and
+feature ideas against the current repository and runtime evidence.
 
 ## Ops, Bug Evidence, And Incident Bundles
 

@@ -167,6 +167,7 @@ export function buildPrivateVmRsyncDeployPlan({
           "npm run ui:build --silent",
           "mkdir -p \"$HOME/.config/systemd/user\"",
           "cp deployment/private-vm/matter-workbench-runtime.service \"$HOME/.config/systemd/user/\"",
+          "cp deployment/private-vm/matter-workbench-mothership.service \"$HOME/.config/systemd/user/\"",
           "systemctl --user daemon-reload",
         ].join(" && "),
       ],
@@ -184,6 +185,24 @@ export function buildPrivateVmRsyncDeployPlan({
           `systemctl --user is-active ${shellQuote(serviceName)}`,
           `readlink -f ${shellQuote(`${deploymentRoot.replace(/\/+$/, "")}/current`)}`,
         ].join(" && "),
+      ],
+    },
+    {
+      id: "activate_mothership_if_configured",
+      title: "Restart and verify the mothership when its VM environment exists",
+      command: [
+        "ssh",
+        remote,
+        "set -e; "
+          + "if test -r \"$HOME/.config/matter-workbench/mothership.env\"; then "
+          + "systemctl --user enable --now 'matter-workbench-mothership.service'; "
+          + "systemctl --user is-active 'matter-workbench-mothership.service'; "
+          + "mothership_ready=0; "
+          + "for attempt in 1 2 3 4 5 6 7 8 9 10; do "
+          + "if curl -fsS http://127.0.0.1:4192/health >/dev/null; then mothership_ready=1; break; fi; "
+          + "sleep 1; done; "
+          + "test \"$mothership_ready\" = 1; "
+          + "else printf '%s\\n' 'mothership env absent; skipping mothership activation'; fi",
       ],
     },
   ];
