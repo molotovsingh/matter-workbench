@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migrationPath = new URL("../db/migrations/005_storage_object_lifecycle.sql", import.meta.url);
+const sourceDescriptorStorageMigrationPath = new URL("../db/migrations/016_source_descriptors_storage_object_link.sql", import.meta.url);
 
 function readMigration() {
   return readFileSync(migrationPath, "utf8");
@@ -66,4 +67,14 @@ test("fifth database migration links existing object-key owners to the storage l
       `${tableName} storage_object_id must stay tenant-local`,
     );
   }
+});
+
+test("sixteenth database migration links source descriptors to storage custody", () => {
+  const sql = readFileSync(sourceDescriptorStorageMigrationPath, "utf8");
+
+  assert.match(sql, /alter table source_descriptors\s+add column if not exists storage_object_id uuid/i);
+  assert.match(
+    sql,
+    /constraint source_descriptors_storage_object_tenant_fk[\s\S]*foreign key \(storage_object_id, tenant_id\)[\s\S]*references storage_objects \(id, tenant_id\)/i,
+  );
 });

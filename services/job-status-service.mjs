@@ -6,12 +6,14 @@ import { createJsonStorePersistence, formatJsonStore } from "./json-store-persis
 const LEDGER_SCHEMA_VERSION = "job-status-ledger/v1";
 const JOB_SCHEMA_VERSION = "job-status/v1";
 const DEFAULT_LIMIT = 100;
+const DEFAULT_STALE_RUNNING_JOB_MS = 30 * 60 * 1000;
 
 export function createJobStatusService({
   appDir = process.cwd(),
   jobsPath,
   now = () => new Date(),
   idFactory = () => `job_${randomUUID()}`,
+  staleRunningJobMs = DEFAULT_STALE_RUNNING_JOB_MS,
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = jobsPath || path.join(root, ".local", "job-status-ledger.json");
@@ -107,6 +109,7 @@ export function createJobStatusService({
   }
 
   async function listJobs(filters = {}) {
+    await finalizeStaleRunningJobs();
     const store = await loadStore();
     const limit = parseLimit(filters.limit);
     const matterName = normalizeFilter(filters.matterName || filters.matter);
@@ -122,6 +125,25 @@ export function createJobStatusService({
       schema_version: LEDGER_SCHEMA_VERSION,
       jobs,
     };
+  }
+
+  async function finalizeStaleRunningJobs() {
+    const staleAfterMs = parsePositiveInteger(staleRunningJobMs);
+    if (!staleAfterMs) return;
+    await writeMutatedStore(async (store) => {
+      const currentTime = now();
+      const currentIso = currentTime.toISOString();
+      for (const job of store.jobs) {
+        if (job.status !== "running") continue;
+        const lastSeenAt = Date.parse(job.updatedAt || job.startedAt || "");
+        if (!Number.isFinite(lastSeenAt)) continue;
+        if (currentTime.getTime() - lastSeenAt <= staleAfterMs) continue;
+        job.status = "failed";
+        job.finishedAt = currentIso;
+        job.updatedAt = currentIso;
+        job.errorMessage = sanitizeText(`Stale running job marked failed after ${Math.round(staleAfterMs / 1000)} seconds without progress.`);
+      }
+    });
   }
 
   return {
@@ -233,6 +255,11 @@ function parseLimit(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_LIMIT;
   return Math.min(Math.trunc(parsed), 500);
+}
+
+function parsePositiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function normalizeFilter(value) {

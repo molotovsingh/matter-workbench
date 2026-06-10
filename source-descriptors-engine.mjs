@@ -52,18 +52,35 @@ export async function runSourceDescriptors(options = {}) {
   const matter = matterSummary(matterJson);
   const sourceBatches = chunk(sourcePackets, resolveSourceBatchSize(options));
   const maxAttempts = resolveSourceMaxAttempts(options);
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
   const providerResponses = [];
   const descriptors = [];
   const reviewMessages = [];
   for (const [index, batch] of sourceBatches.entries()) {
+    const batchIndex = index + 1;
+    await reportSourceDescriptorProgress(onProgress, {
+      stage: "source-labels-batch-start",
+      batchIndex,
+      batchCount: sourceBatches.length,
+      sourceCount: batch.length,
+      fileIds: batch.map((packet) => packet.file_id),
+    });
     const batchResult = await describeSourceBatchResilient({
       provider,
       matter,
       schema: SOURCE_INDEX_OUTPUT_SCHEMA,
       batch,
-      batchIndex: index + 1,
+      batchIndex,
       batchCount: sourceBatches.length,
       maxAttempts,
+    });
+    await reportSourceDescriptorProgress(onProgress, {
+      stage: "source-labels-batch-complete",
+      batchIndex,
+      batchCount: sourceBatches.length,
+      sourceCount: batch.length,
+      descriptors: batchResult.descriptors.length,
+      needsReview: batchResult.reviewMessages.length > 0,
     });
     providerResponses.push(batchResult.providerResponse);
     descriptors.push(...batchResult.descriptors);
@@ -116,6 +133,11 @@ export async function runSourceDescriptors(options = {}) {
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
     ].filter(Boolean),
   };
+}
+
+async function reportSourceDescriptorProgress(onProgress, event) {
+  if (!onProgress) return;
+  await onProgress(event);
 }
 
 async function describeSourceBatchResilient({

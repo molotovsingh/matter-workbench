@@ -109,7 +109,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           kind: "source_labels",
           label: "Label Sources",
           matterName: matterNameForBody(matterStore, body),
-          operation: async () => {
+          operation: async ({ job } = {}) => {
+            const onProgress = sourceLabelJobProgressReporter(jobStatusService, job);
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -120,6 +121,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
                   dryRun: Boolean(body.dryRun),
                   env: services.env || {},
                   sourceDescriptorProvider: services.sourceDescriptorProvider,
+                  onProgress,
                 }),
               });
             }
@@ -130,6 +132,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               dryRun: Boolean(body.dryRun),
               env: services.env || {},
               sourceDescriptorProvider: services.sourceDescriptorProvider,
+              onProgress,
             });
           },
         }));
@@ -430,6 +433,24 @@ function attachJobStatus(result, job) {
     return { ...result, job };
   }
   return { result, job };
+}
+
+function sourceLabelJobProgressReporter(jobStatusService, job) {
+  if (!jobStatusService?.updateJob || !job?.id) return null;
+  return async (event = {}) => {
+    const summary = sourceLabelProgressSummary(event);
+    const metadata = { sourceLabelProgress: event };
+    await jobStatusService.updateJob(job.id, { summary, metadata });
+  };
+}
+
+function sourceLabelProgressSummary(event = {}) {
+  const batch = `${event.batchIndex || "?"}/${event.batchCount || "?"}`;
+  const sourceCount = Number.isInteger(event.sourceCount) ? event.sourceCount : 0;
+  if (event.stage === "source-labels-batch-complete") {
+    return `Source Labels batch ${batch} complete (${sourceCount} source${sourceCount === 1 ? "" : "s"})`;
+  }
+  return `Source Labels batch ${batch} running (${sourceCount} source${sourceCount === 1 ? "" : "s"})`;
 }
 
 function matterNameForBody(matterStore, body = {}) {

@@ -97,6 +97,58 @@ test("failed matter workflow calls leave durable failed job evidence", async () 
   }
 });
 
+test("source labels route exposes running batch progress through job status", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-source-progress-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Skill Job Matter");
+  await mkdir(appDir, { recursive: true });
+  await writeExtractedTextMatter(matterRoot);
+
+  let releaseProvider;
+  const providerStarted = new Promise((resolve) => {
+    releaseProvider = resolve;
+  });
+  let continueProvider;
+  const providerCanContinue = new Promise((resolve) => {
+    continueProvider = resolve;
+  });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    jobStatusPath: path.join(tmp, "job-status-ledger.json"),
+    sourceDescriptorProvider: async ({ sources }) => {
+      releaseProvider();
+      await providerCanContinue;
+      return { sources: sources.map(sourceDescriptorForPacket) };
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
+
+    const sourceLabels = postJson(baseUrl, "/api/describe-sources", { matterName: "Skill Job Matter" });
+    await providerStarted;
+
+    const jobs = await getJson(baseUrl, "/api/jobs?matter=Skill%20Job%20Matter&kind=source_labels");
+    assert.equal(jobs.jobs.length, 1);
+    assert.equal(jobs.jobs[0].status, "running");
+    assert.match(jobs.jobs[0].summary, /Source Labels batch 1\/1 running/);
+    assert.equal(jobs.jobs[0].metadata.sourceLabelProgress.stage, "source-labels-batch-start");
+
+    continueProvider();
+    const result = await sourceLabels;
+    assert.equal(result.job.status, "succeeded");
+  } finally {
+    app.server.close();
+  }
+});
+
 test("custom skill run route records durable job evidence", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-skill-"));
   const appDir = path.join(tmp, "app");
@@ -206,4 +258,33 @@ async function writeExtractedTextMatter(matterRoot) {
       }],
     }],
   }, null, 2)}\n`);
+}
+
+function sourceDescriptorForPacket(packet) {
+  return {
+    file_id: packet.file_id,
+    sha256: packet.sha256,
+    source_path: packet.source_path,
+    display_label: "Facts note dated 20 April 2026",
+    short_label: "Facts note dated 20 Apr 2026",
+    document_type: "note",
+    document_date: "2026-04-20",
+    date_basis: "document_text",
+    parties: {
+      from: "",
+      to: [],
+      cc: [],
+      author: "",
+      court: "",
+      judge: "",
+      issuing_party: "",
+      recipient_party: "",
+      deponent: "",
+      signatory: "",
+    },
+    confidence: 0.92,
+    needs_review: false,
+    evidence: [{ citation: `${packet.file_id} p1.b1`, reason: "Text identifies the source as a facts note." }],
+    warnings: [],
+  };
 }

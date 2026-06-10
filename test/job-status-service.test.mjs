@@ -111,6 +111,35 @@ test("job status service lists newest jobs with matter, kind, and status filters
   assert.equal(limited.jobs[0].label, "The Story");
 });
 
+test("job status service marks abandoned running jobs failed when listed", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-stale-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    staleRunningJobMs: 60_000,
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:02:00.000Z",
+      "2026-06-07T12:02:01.000Z",
+    ]),
+    idFactory: () => "job_stale",
+  });
+
+  await service.createJob({
+    kind: "source_labels",
+    label: "Label Sources",
+    matterName: "State v Rajesh Mehra",
+  });
+
+  const listed = await service.listJobs({ matterName: "State v Rajesh Mehra" });
+  assert.equal(listed.jobs.length, 1);
+  assert.equal(listed.jobs[0].status, "failed");
+  assert.match(listed.jobs[0].errorMessage, /stale running job/i);
+  assert.equal(listed.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");
+
+  const listedAgain = await service.listJobs({ matterName: "State v Rajesh Mehra" });
+  assert.equal(listedAgain.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");
+});
+
 function fixedClock(values) {
   let index = 0;
   return () => new Date(values[Math.min(index++, values.length - 1)]);

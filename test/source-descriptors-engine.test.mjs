@@ -181,6 +181,32 @@ test("source descriptors can describe sources in bounded batches", async () => {
   assert.equal(result.aiRun.batches.length, 2);
 });
 
+test("source descriptors report batch progress for long source-label jobs", async () => {
+  const root = await makeMatterRoot();
+  const progress = [];
+
+  await runSourceDescriptors({
+    matterRoot: root,
+    sourceBatchSize: 2,
+    onProgress: async (event) => {
+      progress.push(event);
+    },
+    provider: async ({ sources }) => ({ sources: validDescriptors(sources) }),
+  });
+
+  assert.deepEqual(
+    progress.map((event) => `${event.stage}:${event.batchIndex}/${event.batchCount}`),
+    [
+      "source-labels-batch-start:1/2",
+      "source-labels-batch-complete:1/2",
+      "source-labels-batch-start:2/2",
+      "source-labels-batch-complete:2/2",
+    ],
+  );
+  assert.equal(progress[0].sourceCount, 2);
+  assert.equal(progress[2].sourceCount, 1);
+});
+
 test("source descriptors retry transient provider failures per batch", async () => {
   const root = await makeMatterRoot();
   const attemptsByBatch = new Map();
