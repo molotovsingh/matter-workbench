@@ -30,7 +30,7 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
   const parsed = {
     host: env.MWB_PRIVATE_VM_HOST || env.MWB_PRIVATE_DEPLOYMENT_HOST || "",
     user: env.MWB_PRIVATE_VM_USER || env.MWB_PRIVATE_DEPLOYMENT_USER || env.USER || "",
-    deploymentRoot: env.MWB_PRIVATE_VM_DEPLOYMENT_ROOT || "$HOME/matter-workbench-deployments",
+    deploymentRoot: env.MWB_PRIVATE_VM_DEPLOYMENT_ROOT || "",
     commit: env.MWB_PRIVATE_VM_DEPLOY_COMMIT || "",
     sourceDir: process.cwd(),
     baseUrl: normalizeUrl(env.MWB_PRIVATE_VM_BASE_URL || "http://127.0.0.1:4191"),
@@ -80,6 +80,10 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
     } else {
       throw new Error(`Unknown option: ${arg}`);
     }
+  }
+
+  if (!parsed.deploymentRoot) {
+    parsed.deploymentRoot = defaultRemoteDeploymentRoot(parsed.user);
   }
 
   return parsed;
@@ -353,6 +357,13 @@ function requiredValue(argv, index, arg) {
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function defaultRemoteDeploymentRoot(user) {
+  const remoteUser = String(user || "").trim();
+  if (remoteUser === "root") return "/root/matter-workbench-deployments";
+  if (remoteUser) return `/home/${remoteUser}/matter-workbench-deployments`;
+  return "$HOME/matter-workbench-deployments";
 }
 
 function shellQuote(value) {

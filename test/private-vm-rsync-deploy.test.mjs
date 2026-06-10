@@ -43,6 +43,21 @@ test("private VM rsync deploy parser reads target options without accepting pass
   );
 });
 
+test("private VM rsync deploy parser defaults deployment root to remote user home", async () => {
+  const { parsePrivateVmRsyncDeployArgs } = await import(deployPath.href);
+
+  const parsed = parsePrivateVmRsyncDeployArgs([
+    "--host",
+    "172.16.37.128",
+    "--user",
+    "aks",
+    "--commit",
+    "abc1234",
+  ], {});
+
+  assert.equal(parsed.deploymentRoot, "/home/aks/matter-workbench-deployments");
+});
+
 test("private VM rsync deploy plan builds a fresh release and excludes local-only data", async () => {
   const { buildPrivateVmRsyncDeployPlan } = await import(deployPath.href);
 
