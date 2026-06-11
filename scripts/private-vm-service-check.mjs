@@ -10,6 +10,7 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
     matterName: env.MWB_PRIVATE_VM_SMOKE_MATTER || "",
     authUsername: env.MWB_PRIVATE_BETA_USERNAME || "",
     authPassword: env.MWB_PRIVATE_BETA_PASSWORD || "",
+    authPasswordStdin: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -34,6 +35,8 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
       if (!value) throw new Error("--auth-password requires a value");
       parsed.authPassword = value;
       i += 1;
+    } else if (arg === "--auth-password-stdin") {
+      parsed.authPasswordStdin = true;
     } else {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -41,6 +44,16 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
 
   parsed.baseUrl = parsed.baseUrl.replace(/\/+$/, "");
   return parsed;
+}
+
+export async function resolveServiceCheckArgs(parsed = {}, stdin = process.stdin) {
+  if (!parsed.authPasswordStdin) return parsed;
+  const authPassword = (await readStdin(stdin)).replace(/\r?\n$/, "");
+  return {
+    ...parsed,
+    authPassword,
+    authPasswordStdin: false,
+  };
 }
 
 export async function runPrivateVmServiceCheck({
@@ -276,10 +289,17 @@ function redactServiceCheckLine(value) {
 }
 
 async function main() {
-  const args = parseServiceCheckArgs(process.argv.slice(2));
+  const args = await resolveServiceCheckArgs(parseServiceCheckArgs(process.argv.slice(2)));
   const report = await runPrivateVmServiceCheck(args);
   for (const line of renderPrivateVmServiceCheck(report)) console.log(line);
   if (!report.passed) process.exitCode = 1;
+}
+
+async function readStdin(stdin) {
+  let input = "";
+  stdin.setEncoding?.("utf8");
+  for await (const chunk of stdin) input += chunk;
+  return input;
 }
 
 if (process.argv[1] === __filename) {

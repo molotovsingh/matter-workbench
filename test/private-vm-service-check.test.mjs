@@ -5,8 +5,10 @@ import {
   firstPreviewableFilePath,
   parseServiceCheckArgs,
   renderPrivateVmServiceCheck,
+  resolveServiceCheckArgs,
   runPrivateVmServiceCheck,
 } from "../scripts/private-vm-service-check.mjs";
+import { Readable } from "node:stream";
 
 test("private VM service check parses base URL and matter", () => {
   assert.deepEqual(parseServiceCheckArgs(["--base-url", "http://vm:4191/", "--matter", "Atlas"], {}), {
@@ -14,7 +16,22 @@ test("private VM service check parses base URL and matter", () => {
     matterName: "Atlas",
     authUsername: "",
     authPassword: "",
+    authPasswordStdin: false,
   });
+});
+
+test("private VM service check can read auth password from stdin", async () => {
+  const parsed = parseServiceCheckArgs(["--auth-username", "operator", "--auth-password-stdin"], {});
+
+  assert.equal(parsed.authUsername, "operator");
+  assert.equal(parsed.authPassword, "");
+  assert.equal(parsed.authPasswordStdin, true);
+
+  const resolved = await resolveServiceCheckArgs(parsed, Readable.from(["secret\n"]));
+
+  assert.equal(resolved.authUsername, "operator");
+  assert.equal(resolved.authPassword, "secret");
+  assert.equal(resolved.authPasswordStdin, false);
 });
 
 test("private VM service check walks nested workspace tree for first text preview", () => {
