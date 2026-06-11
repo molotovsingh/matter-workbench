@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { createWorkbenchServer } from "../server.mjs";
 import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
+import { currentRequestContext } from "../services/request-context.mjs";
 
 test("private beta auth blocks product APIs and allows login/logout/status", async () => {
   const app = await createTestApp();
@@ -284,7 +285,185 @@ test("private beta user management APIs are restricted to superuser sessions", a
   }
 });
 
-async function createTestApp({ env = {} } = {}) {
+test("private beta runtime DB matters and active matter state are scoped per login", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-runtime-isolation-"));
+  const usersFile = path.join(tmp, "users.json");
+  await writePrivateBetaUsersFile(usersFile, [
+    {
+      username: "aks",
+      role: "superuser",
+      passwordHash: hashPrivateBetaPassword("aks-secret", { salt: "route-aks", iterations: 1_000 }),
+    },
+    {
+      username: "shivangi@lawzeus.com",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("shivangi-secret", { salt: "route-shivangi", iterations: 1_000 }),
+    },
+  ]);
+  const mattersByUser = new Map([
+    ["aks", [{ id: "11111111-1111-4111-8111-111111111111", name: "AKS Matter", matterName: "AKS Matter" }]],
+    ["shivangi@lawzeus.com", [{ id: "22222222-2222-4222-8222-222222222222", name: "Shivangi Matter", matterName: "Shivangi Matter" }]],
+  ]);
+  const runtimeMatterIndex = {
+    enabled: true,
+    storageMode: "postgres",
+    async listMatterFolders() {
+      return mattersByUser.get(currentRequestContext().user?.username || "") || [];
+    },
+    async findMatterFolder(name) {
+      return (mattersByUser.get(currentRequestContext().user?.username || "") || [])
+        .find((matter) => matter.name === name || matter.matterName === name) || null;
+    },
+  };
+  const capturedJobLedgers = [];
+  let feedbackSyncCalled = false;
+  let signalSyncCalled = false;
+  const app = await createTestApp({
+    env: {
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    runtimeMatterIndex,
+    configurableSkillRunsService: {
+      async listRuns() {
+        return {
+          schema_version: "configurable-skill-runs/v1",
+          runs: [
+            { id: "run_aks", matterName: "AKS Matter", matterFolder: "AKS Matter", status: "succeeded" },
+            { id: "run_shivangi", matterName: "Shivangi Matter", matterFolder: "Shivangi Matter", status: "succeeded" },
+          ],
+        };
+      },
+    },
+    jobStatusService: {
+      async listJobs() {
+        return {
+          schema_version: "job-status-ledger/v1",
+          jobs: [
+            { id: "job_aks", matterName: "AKS Matter", status: "failed", kind: "extract" },
+            { id: "job_shivangi", matterName: "Shivangi Matter", status: "failed", kind: "extract" },
+          ],
+        };
+      },
+    },
+    privateBetaFeedbackService: {
+      async listFeedback() {
+        return {
+          schema_version: "private-beta-feedback-ledger/v1",
+          feedback: [
+            { id: "feedback_aks", context: { activeMatterName: "AKS Matter" } },
+            { id: "feedback_shivangi", context: { activeMatterName: "Shivangi Matter" } },
+          ],
+        };
+      },
+      async createFeedback(input) {
+        return { id: "feedback_new", ...input };
+      },
+      async syncQueuedFeedback() {
+        feedbackSyncCalled = true;
+        return { schema_version: "private-beta-feedback-sync-result/v1", attempted: 1, sent: 1, queued: 0, failed: 0, skipped: 0 };
+      },
+    },
+    privateBetaSignalService: {
+      async captureJobSignals(ledger) {
+        capturedJobLedgers.push(ledger);
+        return { schema_version: "private-beta-signal-capture-result/v1", captured: 0, sent: 0, queued: 0, skipped: 0, signals: [] };
+      },
+      async listSignals() {
+        return {
+          schema_version: "private-beta-signal-ledger/v1",
+          signals: [
+            { id: "signal_aks", matterName: "AKS Matter" },
+            { id: "signal_shivangi", matterName: "Shivangi Matter" },
+          ],
+        };
+      },
+      async syncQueuedSignals() {
+        signalSyncCalled = true;
+        return { schema_version: "private-beta-signal-sync-result/v1", attempted: 1, sent: 1, queued: 0, failed: 0, skipped: 0 };
+      },
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readWorkspace(matter) {
+        return { folderName: matter.name, tree: { name: matter.name, path: "", children: [] }, files: [] };
+      },
+      async checkUploadedFileOverlap() {
+        return {
+          warnings: [
+            { matterName: "AKS Matter", overlapCount: 1, totalIncoming: 1, matterTotalFiles: 2, overlapPercent: 100 },
+            { matterName: "Shivangi Matter", overlapCount: 1, totalIncoming: 1, matterTotalFiles: 2, overlapPercent: 100 },
+          ],
+        };
+      },
+    },
+  });
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+
+  try {
+    const aksCookie = await loginCookie(baseUrl, "aks", "aks-secret");
+    const shivangiCookie = await loginCookie(baseUrl, "shivangi@lawzeus.com", "shivangi-secret");
+
+    const aksMatters = await getJson(baseUrl, "/api/matters", aksCookie);
+    assert.deepEqual(aksMatters.matters.map((matter) => matter.name), ["AKS Matter"]);
+
+    const shivangiMatters = await getJson(baseUrl, "/api/matters", shivangiCookie);
+    assert.deepEqual(shivangiMatters.matters.map((matter) => matter.name), ["Shivangi Matter"]);
+
+    const forbiddenSwitch = await fetch(`${baseUrl}/api/switch-matter`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: shivangiCookie },
+      body: JSON.stringify({ name: "AKS Matter" }),
+    });
+    assert.equal(forbiddenSwitch.status, 404);
+
+    await postJson(baseUrl, "/api/switch-matter", { name: "AKS Matter" }, aksCookie);
+    await postJson(baseUrl, "/api/switch-matter", { name: "Shivangi Matter" }, shivangiCookie);
+
+    const aksConfig = await getJson(baseUrl, "/api/config", aksCookie);
+    const shivangiConfig = await getJson(baseUrl, "/api/config", shivangiCookie);
+    assert.equal(aksConfig.activeMatterName, "AKS Matter");
+    assert.equal(shivangiConfig.activeMatterName, "Shivangi Matter");
+
+    const shivangiJobs = await getJson(baseUrl, "/api/jobs?limit=10", shivangiCookie);
+    assert.deepEqual(shivangiJobs.jobs.map((job) => job.id), ["job_shivangi"]);
+    assert.equal(capturedJobLedgers.at(-1).jobs.length, 1);
+    assert.equal(capturedJobLedgers.at(-1).jobs[0].matterName, "Shivangi Matter");
+
+    const shivangiRuns = await getJson(baseUrl, "/api/configurable-skills/runs?limit=10", shivangiCookie);
+    assert.deepEqual(shivangiRuns.runs.map((run) => run.id), ["run_shivangi"]);
+
+    const shivangiFeedback = await getJson(baseUrl, "/api/private-beta/feedback?limit=10", shivangiCookie);
+    assert.deepEqual(shivangiFeedback.feedback.map((item) => item.id), ["feedback_shivangi"]);
+
+    const shivangiOverlap = await postJson(baseUrl, "/api/matters/check-overlap", {
+      hashes: ["a".repeat(64)],
+    }, shivangiCookie);
+    assert.deepEqual(shivangiOverlap.warnings.map((warning) => warning.matterName), ["Shivangi Matter"]);
+
+    const shivangiSignals = await getJson(baseUrl, "/api/private-beta/signals?limit=10", shivangiCookie);
+    assert.deepEqual(shivangiSignals.signals, []);
+    await postJson(baseUrl, "/api/private-beta/signals/sync", {}, shivangiCookie);
+    await postJson(baseUrl, "/api/private-beta/feedback/sync", {}, shivangiCookie);
+    assert.equal(signalSyncCalled, false);
+    assert.equal(feedbackSyncCalled, false);
+
+    const aksSignals = await getJson(baseUrl, "/api/private-beta/signals?limit=10", aksCookie);
+    assert.deepEqual(aksSignals.signals.map((signal) => signal.id), ["signal_aks", "signal_shivangi"]);
+    await postJson(baseUrl, "/api/private-beta/signals/sync", {}, aksCookie);
+    await postJson(baseUrl, "/api/private-beta/feedback/sync", {}, aksCookie);
+    assert.equal(signalSyncCalled, true);
+    assert.equal(feedbackSyncCalled, true);
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
+
+async function createTestApp({ env = {}, ...options } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-auth-"));
   const appDir = path.join(tmp, "app");
   const mattersHome = path.join(tmp, "matters");
@@ -302,6 +481,7 @@ async function createTestApp({ env = {} } = {}) {
     },
     host: "127.0.0.1",
     port: 0,
+    ...options,
   });
   return { ...app, mattersHome };
 }
@@ -314,6 +494,22 @@ async function loginCookie(baseUrl, username, password) {
   });
   assert.equal(login.status, 200);
   return login.headers.get("set-cookie").split(";")[0];
+}
+
+async function getJson(baseUrl, pathname, cookie) {
+  const response = await fetch(`${baseUrl}${pathname}`, { headers: { cookie } });
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
+async function postJson(baseUrl, pathname, body, cookie) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify(body),
+  });
+  assert.equal(response.status, 200);
+  return response.json();
 }
 
 async function writePrivateBetaUsersFile(usersFile, users) {

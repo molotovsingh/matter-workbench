@@ -6,10 +6,12 @@ import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { runtimeDatabaseUrl } from "./runtime-db-config.mjs";
 import { ensureRuntimeDbSafeRoleSql } from "./runtime-db-sql-safety.mjs";
+import { currentRequestContext, runtimeDbUserFromRequestContext } from "./request-context.mjs";
 
 export function createRuntimeDbMatterIndex({
   env = process.env,
   spawn = spawnSync,
+  requestContextProvider = currentRequestContext,
 } = {}) {
   if (!isRuntimeDbModeEnabled(env)) {
     return disabledRuntimeMatterIndex();
@@ -26,12 +28,16 @@ export function createRuntimeDbMatterIndex({
   const tenantId = String(env.MWB_RUNTIME_DB_TENANT_ID || defaultRuntimeDbTenantId()).trim();
   const storageMode = isRuntimeDbStorageModeEnabled(env) ? "postgres" : "local-filesystem";
 
+  function currentViewer() {
+    return runtimeDbUserFromRequestContext(requestContextProvider?.() || {});
+  }
+
   async function listMatterFolders() {
-    return queryMatterRows({ databaseUrl, tenantId, spawn }).map(normalizeMatterRow);
+    return queryMatterRows({ databaseUrl, tenantId, spawn, viewer: currentViewer() }).map(normalizeMatterRow);
   }
 
   async function findMatterFolder(name) {
-    const rows = queryMatterRows({ databaseUrl, tenantId, spawn, name }).map(normalizeMatterRow);
+    const rows = queryMatterRows({ databaseUrl, tenantId, spawn, name, viewer: currentViewer() }).map(normalizeMatterRow);
     return rows[0] || null;
   }
 
@@ -70,10 +76,10 @@ function disabledRuntimeMatterIndex() {
   };
 }
 
-function queryMatterRows({ databaseUrl, tenantId, spawn, name = "" } = {}) {
+function queryMatterRows({ databaseUrl, tenantId, spawn, name = "", viewer = null } = {}) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: ensureRuntimeDbSafeRoleSql(buildMatterRowsSql({ tenantId, name })),
+    input: ensureRuntimeDbSafeRoleSql(buildMatterRowsSql({ tenantId, name, viewer })),
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -87,11 +93,12 @@ function queryMatterRows({ databaseUrl, tenantId, spawn, name = "" } = {}) {
   return parsePsqlJsonArray(result.stdout || "");
 }
 
-function buildMatterRowsSql({ tenantId, name = "" } = {}) {
+function buildMatterRowsSql({ tenantId, name = "", viewer = null } = {}) {
   const filter = String(name || "").trim();
   const filterClause = filter
     ? `and (m.name = ${sqlString(filter)} or latest_import.source_root_hint = ${sqlString(filter)})`
     : "";
+  const visibilityClause = matterVisibilitySql(viewer);
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     "with latest_import as (",
@@ -114,6 +121,7 @@ function buildMatterRowsSql({ tenantId, name = "" } = {}) {
     "  left join latest_import on latest_import.matter_id = m.id",
     "  where m.tenant_id = current_app_tenant_id()",
     "    and m.status = 'active'",
+    visibilityClause,
     `    ${filterClause}`,
     ")",
     "select coalesce(jsonb_agg(jsonb_build_object(",
@@ -126,6 +134,27 @@ function buildMatterRowsSql({ tenantId, name = "" } = {}) {
     "  'jurisdiction', jurisdiction",
     ") order by lower(folder_name)), '[]'::jsonb)::text from matter_rows;",
     "",
+  ].join("\n");
+}
+
+function matterVisibilitySql(viewer = null) {
+  if (!viewer?.id) return "";
+  const viewerId = sqlUuid(viewer.id);
+  const legacyOwnerClause = viewer.role === "superuser"
+    ? "\n      or m.created_by_user_id is null"
+    : "";
+  return [
+    "    and (",
+    `      m.created_by_user_id = ${viewerId}`,
+    "      or exists (",
+    "        select 1",
+    "        from matter_memberships mm",
+    "        where mm.tenant_id = m.tenant_id",
+    "          and mm.matter_id = m.id",
+    `          and mm.user_id = ${viewerId}`,
+    "          and mm.status = 'active'",
+    "      )" + legacyOwnerClause,
+    "    )",
   ].join("\n");
 }
 
@@ -166,6 +195,10 @@ function isRuntimeCutoverApproved(env = process.env) {
 
 function sqlString(value) {
   return `'${String(value ?? "").replaceAll("'", "''")}'`;
+}
+
+function sqlUuid(value) {
+  return `${sqlString(value)}::uuid`;
 }
 
 function stringValue(value) {

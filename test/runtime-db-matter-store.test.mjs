@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { createMatterStore } from "../services/matter-store.mjs";
+import { createRuntimeDbMatterIndex } from "../services/runtime-db-matter-index.mjs";
+import { runWithRequestContext, runtimeDbUserFromRequestContext } from "../services/request-context.mjs";
 
 function configService(mattersHome) {
   return {
@@ -132,4 +134,60 @@ test("runtime DB postgres storage mode resolves missing local folder as virtual 
     runtimeStorageMode: "postgres",
     matterPath: "postgres:Missing Local Folder",
   });
+});
+
+test("runtime DB matter index filters rows by current private beta user", async () => {
+  const calls = [];
+  const runtimeMatterIndex = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_RUNTIME_DB_STORAGE: "postgres",
+      MWB_RUNTIME_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+      MWB_RUNTIME_DB_TENANT_ID: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+    },
+    spawn: (command, args, options = {}) => {
+      calls.push({ command, args, input: options.input });
+      return { status: 0, stdout: "[]\n", stderr: "" };
+    },
+  });
+
+  let viewer;
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "shivangi@lawzeus.com", role: "tester" },
+  }, () => {
+    viewer = runtimeDbUserFromRequestContext();
+    return runtimeMatterIndex.listMatterFolders();
+  });
+
+  assert.match(calls[0].input, /matter_memberships/i);
+  assert.match(calls[0].input, /m\.created_by_user_id\s*=/i);
+  assert.match(calls[0].input, new RegExp(viewer.id, "i"));
+  assert.doesNotMatch(calls[0].input, /m\.created_by_user_id is null/i);
+  assert.doesNotMatch(calls[0].input, /secret/);
+});
+
+test("runtime DB matter index exposes legacy unowned matters only to superuser", async () => {
+  const calls = [];
+  const runtimeMatterIndex = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_RUNTIME_DB_STORAGE: "postgres",
+      MWB_RUNTIME_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+      MWB_RUNTIME_DB_TENANT_ID: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+    },
+    spawn: (command, args, options = {}) => {
+      calls.push({ command, args, input: options.input });
+      return { status: 0, stdout: "[]\n", stderr: "" };
+    },
+  });
+
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "aks", role: "superuser" },
+  }, () => runtimeMatterIndex.listMatterFolders());
+
+  assert.match(calls[0].input, /m\.created_by_user_id is null/i);
 });

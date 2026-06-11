@@ -1,7 +1,14 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
-import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
+import {
+  filterByVisibleMatterNames,
+  isPrivateBetaScopedUser,
+  isPrivateBetaSuperuserOrLocal,
+  safeCaptureBetaSignal,
+  usesRuntimeDbStorage,
+  visibleMatterNameSet,
+} from "./route-utils.mjs";
 
 export async function handleAppShellApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -40,11 +47,16 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
       }),
       exactRoute("GET", "/api/jobs", async () => {
-        const jobs = await jobStatusService.listJobs({
-          matterName: requestUrl.searchParams.get("matter") || "",
-          kind: requestUrl.searchParams.get("kind") || "",
-          status: requestUrl.searchParams.get("status") || "",
-          limit: requestUrl.searchParams.get("limit") || undefined,
+        const jobs = await scopedMatterLedger({
+          matterStore,
+          list: () => jobStatusService.listJobs({
+            matterName: requestUrl.searchParams.get("matter") || "",
+            kind: requestUrl.searchParams.get("kind") || "",
+            status: requestUrl.searchParams.get("status") || "",
+            limit: requestUrl.searchParams.get("limit") || undefined,
+          }),
+          key: "jobs",
+          fields: ["matterName"],
         });
         await safeCaptureBetaSignal(() => privateBetaSignalService?.captureJobSignals(jobs, {
           runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
@@ -52,11 +64,12 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, jobs);
       }),
       exactRoute("GET", "/api/private-beta/feedback", async () => {
-        sendJson(response, 200, await privateBetaFeedbackService.listFeedback({
+        const feedback = await privateBetaFeedbackService.listFeedback({
           status: requestUrl.searchParams.get("status") || "",
           classification: requestUrl.searchParams.get("classification") || "",
           limit: requestUrl.searchParams.get("limit") || undefined,
-        }));
+        });
+        sendJson(response, 200, await scopedPrivateBetaFeedback({ matterStore, feedback }));
       }),
       exactRoute("POST", "/api/private-beta/feedback", async () => {
         const body = await readRequestJson(request);
@@ -75,12 +88,20 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, { schema_version: "private-beta-feedback-response/v1", feedback });
       }),
       exactRoute("POST", "/api/private-beta/feedback/sync", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 200, emptyFeedbackSyncResult());
+          return;
+        }
         const body = await readRequestJson(request).catch(() => ({}));
         sendJson(response, 200, await privateBetaFeedbackService.syncQueuedFeedback({
           limit: body.limit,
         }));
       }),
       exactRoute("GET", "/api/private-beta/signals", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 200, { schema_version: "private-beta-signal-ledger/v1", signals: [] });
+          return;
+        }
         sendJson(response, 200, await privateBetaSignalService.listSignals({
           source: requestUrl.searchParams.get("source") || "",
           severity: requestUrl.searchParams.get("severity") || "",
@@ -89,6 +110,10 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
       }),
       exactRoute("POST", "/api/private-beta/signals/sync", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 200, emptySignalSyncResult());
+          return;
+        }
         const body = await readRequestJson(request).catch(() => ({}));
         sendJson(response, 200, await privateBetaSignalService.syncQueuedSignals({
           limit: body.limit,
@@ -157,7 +182,10 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           return;
         }
         if (isRuntimeDbStorage && typeof runtimeDbStorageService.checkUploadedFileOverlap === "function") {
-          sendJson(response, 200, await runtimeDbStorageService.checkUploadedFileOverlap(incoming));
+          sendJson(response, 200, await scopedOverlapWarnings({
+            matterStore,
+            result: await runtimeDbStorageService.checkUploadedFileOverlap(incoming),
+          }));
           return;
         }
         const warnings = [];
@@ -221,6 +249,58 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+async function scopedMatterLedger({ matterStore, list, key, fields }) {
+  const ledger = await list();
+  if (!isPrivateBetaScopedUser()) return ledger;
+  const visibleNames = await visibleMatterNameSet(matterStore);
+  return {
+    ...ledger,
+    [key]: filterByVisibleMatterNames(ledger?.[key], visibleNames, { fields }),
+  };
+}
+
+async function scopedPrivateBetaFeedback({ matterStore, feedback }) {
+  if (!isPrivateBetaScopedUser()) return feedback;
+  const visibleNames = await visibleMatterNameSet(matterStore);
+  return {
+    ...feedback,
+    feedback: filterByVisibleMatterNames(feedback?.feedback, visibleNames, {
+      fields: ["context.activeMatterName", "context.activeMatterFolder"],
+    }),
+  };
+}
+
+async function scopedOverlapWarnings({ matterStore, result }) {
+  if (!isPrivateBetaScopedUser()) return result;
+  const visibleNames = await visibleMatterNameSet(matterStore);
+  return {
+    ...result,
+    warnings: filterByVisibleMatterNames(result?.warnings, visibleNames, { fields: ["matterName"] }),
+  };
+}
+
+function emptyFeedbackSyncResult() {
+  return {
+    schema_version: "private-beta-feedback-sync-result/v1",
+    attempted: 0,
+    sent: 0,
+    queued: 0,
+    failed: 0,
+    skipped: 0,
+  };
+}
+
+function emptySignalSyncResult() {
+  return {
+    schema_version: "private-beta-signal-sync-result/v1",
+    attempted: 0,
+    sent: 0,
+    queued: 0,
+    failed: 0,
+    skipped: 0,
+  };
 }
 
 async function runtimeDbMatterForQuery(matterStore, requestUrl) {

@@ -9,11 +9,20 @@ import {
   priorHashIndex as readPriorHashIndex,
   registerHashSet,
 } from "./matter-store-intakes.mjs";
+import { currentRequestContext } from "./request-context.mjs";
 
-export function createMatterStore({ configService, initialMatterRoot = null, runtimeMatterIndex = null } = {}) {
+export function createMatterStore({
+  configService,
+  initialMatterRoot = null,
+  runtimeMatterIndex = null,
+  requestContextProvider = currentRequestContext,
+} = {}) {
   if (!configService) throw new Error("configService is required");
-  let matterRoot = initialMatterRoot ? path.resolve(initialMatterRoot) : null;
-  let activeMatterRecord = null;
+  const defaultState = {
+    matterRoot: initialMatterRoot ? path.resolve(initialMatterRoot) : null,
+    activeMatterRecord: null,
+  };
+  const scopedStates = new Map();
 
   function hasRuntimeMatterIndex() {
     return Boolean(runtimeMatterIndex?.enabled);
@@ -27,6 +36,17 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
     return configService.getMattersHome();
   }
 
+  function activeState() {
+    if (!hasRuntimeMatterIndex()) return defaultState;
+    const context = requestContextProvider?.() || {};
+    const username = String(context.user?.username || "").trim().toLowerCase();
+    const key = username ? `user:${username}` : "anonymous";
+    if (!scopedStates.has(key)) {
+      scopedStates.set(key, { matterRoot: null, activeMatterRecord: null });
+    }
+    return scopedStates.get(key);
+  }
+
   function ensureMattersHome() {
     const mattersHome = getMattersHome();
     if (!mattersHome) throw makeHttpError("Matters home is not configured", 409);
@@ -34,7 +54,8 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   function ensureMatterRoot() {
-    if (!matterRoot) {
+    const state = activeState();
+    if (!state.matterRoot) {
       throw makeHttpError(
         getMattersHome()
           ? "No matter is active — pick one from the sidebar or create a new one."
@@ -42,17 +63,19 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
         409,
       );
     }
-    return matterRoot;
+    return state.matterRoot;
   }
 
   function setMatterRoot(nextRoot) {
-    matterRoot = nextRoot ? path.resolve(nextRoot) : null;
-    activeMatterRecord = null;
+    const state = activeState();
+    state.matterRoot = nextRoot ? path.resolve(nextRoot) : null;
+    state.activeMatterRecord = null;
   }
 
   function clearMatterRoot() {
-    matterRoot = null;
-    activeMatterRecord = null;
+    const state = activeState();
+    state.matterRoot = null;
+    state.activeMatterRecord = null;
   }
 
   function isInsideMattersHome(filePath) {
@@ -60,12 +83,13 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   function activeMatterNameWithinHome() {
-    if (hasRuntimeDbStorageMode() && activeMatterRecord?.name) return activeMatterRecord.name;
+    const state = activeState();
+    if (hasRuntimeDbStorageMode() && state.activeMatterRecord?.name) return state.activeMatterRecord.name;
     const mattersHome = getMattersHome();
-    if (!matterRoot || !mattersHome) return null;
-    if (!isInsideRoot(mattersHome, matterRoot)) return null;
-    if (path.dirname(matterRoot) !== mattersHome) return null;
-    return path.basename(matterRoot);
+    if (!state.matterRoot || !mattersHome) return null;
+    if (!isInsideRoot(mattersHome, state.matterRoot)) return null;
+    if (path.dirname(state.matterRoot) !== mattersHome) return null;
+    return path.basename(state.matterRoot);
   }
 
   async function listMattersHomeChildren() {
@@ -150,14 +174,16 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   async function switchMatter(rawName) {
     const resolved = await resolveExistingMatter(rawName);
     const { matterPath } = resolved;
-    matterRoot = matterPath;
-    activeMatterRecord = resolved.runtimeStorageMode === "postgres" ? resolved : null;
-    return matterRoot;
+    const state = activeState();
+    state.matterRoot = matterPath;
+    state.activeMatterRecord = resolved.runtimeStorageMode === "postgres" ? resolved : null;
+    return state.matterRoot;
   }
 
   async function readMatterJson(root = ensureMatterRoot()) {
-    if (isRuntimeDbVirtualRoot(root) && activeMatterRecord) {
-      return matterJsonFromRuntimeMatter(activeMatterRecord);
+    const state = activeState();
+    if (isRuntimeDbVirtualRoot(root) && state.activeMatterRecord) {
+      return matterJsonFromRuntimeMatter(state.activeMatterRecord);
     }
     return JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
   }
@@ -172,14 +198,15 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
   }
 
   async function readExistingMatterMetadata(root = ensureMatterRoot()) {
-    if (isRuntimeDbVirtualRoot(root) && activeMatterRecord) {
+    const state = activeState();
+    if (isRuntimeDbVirtualRoot(root) && state.activeMatterRecord) {
       return {
-        matterName: activeMatterRecord.matterName || activeMatterRecord.name || "",
-        matterType: activeMatterRecord.matterType || "",
-        clientName: activeMatterRecord.clientName || "",
-        oppositeParty: activeMatterRecord.oppositeParty || "",
-        jurisdiction: activeMatterRecord.jurisdiction || "",
-        briefDescription: activeMatterRecord.briefDescription || "",
+        matterName: state.activeMatterRecord.matterName || state.activeMatterRecord.name || "",
+        matterType: state.activeMatterRecord.matterType || "",
+        clientName: state.activeMatterRecord.clientName || "",
+        oppositeParty: state.activeMatterRecord.oppositeParty || "",
+        jurisdiction: state.activeMatterRecord.jurisdiction || "",
+        briefDescription: state.activeMatterRecord.briefDescription || "",
       };
     }
     try {
@@ -255,8 +282,8 @@ export function createMatterStore({ configService, initialMatterRoot = null, run
     ensureMatterRoot,
     ensureMattersHome,
     extractRegisterHashes,
-    getMatterRoot: () => matterRoot,
-    getActiveMatterRecord: () => activeMatterRecord,
+    getMatterRoot: () => activeState().matterRoot,
+    getActiveMatterRecord: () => activeState().activeMatterRecord,
     getMattersHome,
     hasRuntimeDbStorageMode,
     isInsideMattersHome,

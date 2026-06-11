@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
+import { runWithRequestContext, runtimeDbUserFromRequestContext } from "../services/request-context.mjs";
 
 const tenantId = "82dc5ad0-fb23-5c08-a06c-73232cd0281f";
 const matter = {
@@ -479,6 +480,41 @@ test("runtime DB storage service creates matter upload custody rows with payload
   assert.match(sql, /DB Upload Matter\/00_Inbox\/Intake 01 - Initial\/Intake Log\.csv/);
   assert.match(sql, /DB Upload Matter\/00_Inbox\/Intake 01 - Initial\/Originals\/evidence\/notice\.txt/);
   assert.match(sql, /DB Upload Matter\/00_Inbox\/Intake 01 - Initial\/By Type\/Text Notes\/FILE-0001__notice\.txt/);
+  assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB storage service stamps uploaded matters with the current private beta user", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-owned-upload-"));
+  const uploadedFile = path.join(tmp, "notice.txt");
+  await writeFile(uploadedFile, "Notice served on 1 January 2026.");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [{}, {}]),
+  });
+
+  let actor;
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "shivangi@lawzeus.com", displayName: "Shivangi", role: "tester" },
+  }, async () => {
+    actor = runtimeDbUserFromRequestContext();
+    await service.createMatterFromUploadedFiles({
+      name: "Shivangi Matter",
+      metadata: { matterName: "Shivangi Matter" },
+      files: [{ index: 0, tempPath: uploadedFile, filename: "notice.txt", bytes: 31 }],
+      relativePaths: ["evidence/notice.txt"],
+    });
+  });
+
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /insert into users/i);
+  assert.match(sql, /insert into tenant_memberships/i);
+  assert.match(sql, /insert into matter_memberships/i);
+  assert.match(sql, /created_by_user_id/i);
+  assert.match(sql, new RegExp(actor.id, "i"));
+  assert.match(sql, /shivangi@lawzeus\.com/i);
   assert.doesNotMatch(sql, /secret/);
 });
 

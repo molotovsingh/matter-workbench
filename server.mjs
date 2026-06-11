@@ -26,6 +26,7 @@ import { createPrivateBetaUsersService } from "./services/private-beta-users-ser
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
+import { requestContextFromAuthStatus, runWithRequestContext } from "./services/request-context.mjs";
 import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-ideas-service.mjs";
 import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-samples-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
@@ -285,17 +286,20 @@ export async function createWorkbenchServer(options = {}) {
     try {
       const requestUrl = new URL(request.url || "/", `http://${request.headers.host || `${host}:${port}`}`);
       pathname = requestUrl.pathname;
-      if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
-      if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
-      if (await handleApiRequest({ request, requestUrl, response, services })) return;
+      const requestContext = requestContextFromAuthStatus(privateBetaAuthService.status(request));
+      await runWithRequestContext(requestContext, async () => {
+        if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
+        if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
+        if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
-      if (request.method === "GET") {
-        await serveStatic({ appDir, request, response });
-        return;
-      }
+        if (request.method === "GET") {
+          await serveStatic({ appDir, request, response });
+          return;
+        }
 
-      response.writeHead(405);
-      response.end("Method not allowed");
+        response.writeHead(405);
+        response.end("Method not allowed");
+      });
     } catch (error) {
       sendJson(response, error.statusCode || 500, {
         error: error.message,

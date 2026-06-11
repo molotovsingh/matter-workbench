@@ -1,7 +1,13 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
-import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
+import {
+  filterByVisibleMatterNames,
+  isPrivateBetaScopedUser,
+  safeCaptureBetaSignal,
+  usesRuntimeDbStorage,
+  visibleMatterNameSet,
+} from "./route-utils.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import {
   buildSkillCreationOverlapRequest,
@@ -139,11 +145,14 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
         }));
       }),
       exactRoute("GET", "/api/configurable-skills/runs", async () => {
-        sendJson(response, 200, await configurableSkillRunsService.listRuns({
-          slash: requestUrl.searchParams.get("slash") || "",
-          skillId: requestUrl.searchParams.get("skillId") || "",
-          matterFolder: requestUrl.searchParams.get("matterFolder") || "",
-          limit: requestUrl.searchParams.get("limit") || undefined,
+        sendJson(response, 200, await scopedSkillRuns({
+          matterStore,
+          runs: await configurableSkillRunsService.listRuns({
+            slash: requestUrl.searchParams.get("slash") || "",
+            skillId: requestUrl.searchParams.get("skillId") || "",
+            matterFolder: requestUrl.searchParams.get("matterFolder") || "",
+            limit: requestUrl.searchParams.get("limit") || undefined,
+          }),
         }));
       }),
       exactRoute("POST", "/api/configurable-skills/run", async () => {
@@ -193,6 +202,17 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       }),
     ],
   });
+}
+
+async function scopedSkillRuns({ matterStore, runs }) {
+  if (!isPrivateBetaScopedUser()) return runs;
+  const visibleNames = await visibleMatterNameSet(matterStore);
+  return {
+    ...runs,
+    runs: filterByVisibleMatterNames(runs?.runs, visibleNames, {
+      fields: ["matterName", "matterFolder"],
+    }),
+  };
 }
 
 function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {
