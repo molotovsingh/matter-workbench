@@ -11,7 +11,7 @@ export interface Matter {
 
 export interface AuthUser {
   username: string;
-  role?: string;
+  role?: 'superuser' | 'operator' | 'tester' | string;
   displayName?: string;
 }
 
@@ -268,6 +268,31 @@ export interface PrivateBetaFeedbackSyncResult {
   queued: number;
   failed: number;
   skipped: number;
+}
+
+export interface PrivateBetaUser {
+  username: string;
+  displayName?: string;
+  role: 'superuser' | 'operator' | 'tester' | string;
+  disabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PrivateBetaUserList {
+  schema_version?: 'private-beta-users-list/v1';
+  users: PrivateBetaUser[];
+}
+
+export interface PrivateBetaUserCreateRequest {
+  username: string;
+  displayName?: string;
+}
+
+export interface PrivateBetaUserResponse {
+  schema_version?: 'private-beta-user-response/v1';
+  user: PrivateBetaUser;
+  temporaryPassword?: string;
 }
 
 export interface SkillIdea {

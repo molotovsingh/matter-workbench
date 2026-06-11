@@ -19,7 +19,7 @@ Expected VM layout:
 ```
 
 Before creating a new cloud target, start from the repository template
-`.env.public-deployment.example`. Keep the filled copy outside git, for example
+`public-deployment.env.example`. Keep the filled copy outside git, for example
 `~/.config/matter-workbench/digitalocean-deployment.env`. The template splits
 deployment values into values we decide/control and values supplied by the cloud,
 DNS, database, model, and OCR vendors.

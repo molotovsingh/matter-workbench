@@ -4,14 +4,14 @@ import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
 import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
-import type { AiSettings, Skill } from '../types';
+import type { AiSettings, PrivateBetaUser, Skill } from '../types';
 
 function findCopilotTask(settings: AiSettings | null) {
   return settings?.aiTasks?.find((task) => task.task === 'copilot_answer') || null;
 }
 
 export default function SettingsPage() {
-  const { dispatch, appendTerminal } = useApp();
+  const { state, dispatch, appendTerminal } = useApp();
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [editing, setEditing] = useState(false);
   const [formProvider, setFormProvider] = useState<string>('openrouter');
@@ -37,12 +37,22 @@ export default function SettingsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsError, setSkillsError] = useState('');
   const [loadingSettings, setLoadingSettings] = useState(true);
+  const [betaUsers, setBetaUsers] = useState<PrivateBetaUser[]>([]);
+  const [betaUsersError, setBetaUsersError] = useState('');
+  const [betaUsersLoading, setBetaUsersLoading] = useState(false);
+  const [betaActionBusy, setBetaActionBusy] = useState('');
+  const [newTesterEmail, setNewTesterEmail] = useState('');
+  const [newTesterName, setNewTesterName] = useState('');
+  const [temporaryPasswordNotice, setTemporaryPasswordNotice] = useState('');
+
+  const isSuperuser = state.authUser?.role === 'superuser';
 
   const loadSettingsData = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoadingSettings(true);
     setMattersHomeError('');
     setAiLoadError('');
     setSkillsError('');
+    setBetaUsersError('');
 
     const [configResult, aiResult, skillsResult] = await Promise.allSettled([
       api.getConfig(),
@@ -79,8 +89,24 @@ export default function SettingsPage() {
       setSkillsError(getErrorMessage(skillsResult.reason));
     }
 
+    if (isSuperuser) {
+      setBetaUsersLoading(true);
+      const usersResult = await api.getPrivateBetaUsers()
+        .then((result) => ({ status: 'fulfilled' as const, value: result }))
+        .catch((reason) => ({ status: 'rejected' as const, reason }));
+      if (isCancelled()) return;
+      if (usersResult.status === 'fulfilled') {
+        setBetaUsers(usersResult.value.users ?? []);
+      } else {
+        setBetaUsersError(getErrorMessage(usersResult.reason));
+      }
+      setBetaUsersLoading(false);
+    } else {
+      setBetaUsers([]);
+    }
+
     setLoadingSettings(false);
-  }, []);
+  }, [isSuperuser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +209,77 @@ export default function SettingsPage() {
     }
   }
 
+  async function refreshBetaUsers() {
+    if (!isSuperuser) return;
+    setBetaUsersLoading(true);
+    setBetaUsersError('');
+    try {
+      const result = await api.getPrivateBetaUsers();
+      setBetaUsers(result.users ?? []);
+    } catch (err) {
+      setBetaUsersError(getErrorMessage(err));
+    } finally {
+      setBetaUsersLoading(false);
+    }
+  }
+
+  async function handleCreateTester(e: React.FormEvent) {
+    e.preventDefault();
+    const username = newTesterEmail.trim();
+    if (!username) return;
+    setBetaActionBusy(`create:${username}`);
+    setBetaUsersError('');
+    setTemporaryPasswordNotice('');
+    try {
+      const result = await api.createPrivateBetaTester({
+        username,
+        displayName: newTesterName.trim() || undefined,
+      });
+      setNewTesterEmail('');
+      setNewTesterName('');
+      setTemporaryPasswordNotice(`Temporary password for ${result.user.username}: ${result.temporaryPassword || '(not returned)'}`);
+      appendTerminal([`[settings] beta tester added: ${result.user.username}`]);
+      await refreshBetaUsers();
+    } catch (err) {
+      setBetaUsersError(getErrorMessage(err));
+    } finally {
+      setBetaActionBusy('');
+    }
+  }
+
+  async function handleResetTesterPassword(username: string) {
+    setBetaActionBusy(`reset:${username}`);
+    setBetaUsersError('');
+    setTemporaryPasswordNotice('');
+    try {
+      const result = await api.resetPrivateBetaTesterPassword(username);
+      setTemporaryPasswordNotice(`Temporary password for ${result.user.username}: ${result.temporaryPassword || '(not returned)'}`);
+      appendTerminal([`[settings] beta tester password reset: ${result.user.username}`]);
+      await refreshBetaUsers();
+    } catch (err) {
+      setBetaUsersError(getErrorMessage(err));
+    } finally {
+      setBetaActionBusy('');
+    }
+  }
+
+  async function handleSetTesterDisabled(username: string, disabled: boolean) {
+    setBetaActionBusy(`${disabled ? 'disable' : 'enable'}:${username}`);
+    setBetaUsersError('');
+    setTemporaryPasswordNotice('');
+    try {
+      const result = disabled
+        ? await api.disablePrivateBetaTester(username)
+        : await api.enablePrivateBetaTester(username);
+      appendTerminal([`[settings] beta tester ${disabled ? 'removed' : 'reactivated'}: ${result.user.username}`]);
+      await refreshBetaUsers();
+    } catch (err) {
+      setBetaUsersError(getErrorMessage(err));
+    } finally {
+      setBetaActionBusy('');
+    }
+  }
+
   const overallReady = (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false);
   const copilotTask = findCopilotTask(settings);
   const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
@@ -259,6 +356,124 @@ export default function SettingsPage() {
           </form>
         </div>
       </div>
+
+      {isSuperuser && (
+        <div className="settings-section">
+          <h2>Beta access</h2>
+          <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
+            Add or remove access for private beta testers. Temporary passwords are shown once after add or reset.
+          </p>
+          <div className="settings-card" style={{ display: 'grid', gap: 16 }}>
+            <form onSubmit={handleCreateTester} style={{ display: 'grid', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 10, alignItems: 'end' }}>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Tester email</span>
+                  <input
+                    type="email"
+                    value={newTesterEmail}
+                    onChange={(e) => setNewTesterEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="settings-input"
+                    required
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 4 }}>
+                  <span className="settings-label">Display name</span>
+                  <input
+                    type="text"
+                    value={newTesterName}
+                    onChange={(e) => setNewTesterName(e.target.value)}
+                    placeholder="Optional"
+                    className="settings-input"
+                  />
+                </label>
+                <button type="submit" disabled={Boolean(betaActionBusy)}>
+                  {betaActionBusy.startsWith('create:') ? 'Adding…' : 'Add tester'}
+                </button>
+              </div>
+            </form>
+
+            {temporaryPasswordNotice && (
+              <div className="form-info" style={{ userSelect: 'text' }}>
+                {temporaryPasswordNotice}
+              </div>
+            )}
+            {betaUsersError && <div className="form-warning">{betaUsersError}</div>}
+
+            <div className="table-scroll">
+              <table className="extract-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {betaUsers.map((user) => {
+                    const isBusy = betaActionBusy.endsWith(`:${user.username}`);
+                    const isProtectedSuperuser = user.role === 'superuser' && !user.disabled;
+                    return (
+                      <tr key={user.username}>
+                        <td>
+                          <strong>{user.displayName || user.username}</strong>
+                          {user.displayName && <div className="muted" style={{ fontSize: 12 }}>{user.username}</div>}
+                        </td>
+                        <td>{user.role}</td>
+                        <td>
+                          <span className={`provider-status ${user.disabled ? 'needs-setup' : 'ready'}`}>
+                            {user.disabled ? 'Access removed' : 'Active'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="form-actions" style={{ marginTop: 0 }}>
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => { void handleResetTesterPassword(user.username); }}
+                              disabled={Boolean(betaActionBusy) || user.disabled}
+                            >
+                              {isBusy && betaActionBusy.startsWith('reset:') ? 'Resetting…' : 'Reset password'}
+                            </button>
+                            {user.disabled ? (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => { void handleSetTesterDisabled(user.username, false); }}
+                                disabled={Boolean(betaActionBusy)}
+                              >
+                                {isBusy && betaActionBusy.startsWith('enable:') ? 'Restoring…' : 'Restore access'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => { void handleSetTesterDisabled(user.username, true); }}
+                                disabled={Boolean(betaActionBusy) || isProtectedSuperuser}
+                                title={isProtectedSuperuser ? 'The active superuser account cannot be removed here.' : undefined}
+                              >
+                                {isBusy && betaActionBusy.startsWith('disable:') ? 'Removing…' : 'Remove access'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!betaUsers.length && (
+                    <tr>
+                      <td colSpan={4} className="muted">
+                        {betaUsersLoading ? 'Loading beta testers…' : 'No beta testers configured.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── AI Configuration ──────────────────────── */}
       <div className="settings-section">

@@ -212,8 +212,8 @@ function normalizeUsername(username) {
 
 function normalizeRole(role) {
   const normalized = String(role || "tester").trim().toLowerCase();
-  if (["operator", "tester"].includes(normalized)) return normalized;
-  throw new Error("Role must be operator or tester.");
+  if (["superuser", "operator", "tester"].includes(normalized)) return normalized;
+  throw new Error("Role must be superuser, operator, or tester.");
 }
 
 function expandHomePath(filePath) {
@@ -227,7 +227,7 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/private-beta-users.mjs list --file <users.json>",
-    "  node scripts/private-beta-users.mjs add --file <users.json> --username <name> --password-stdin [--role tester|operator]",
+    "  node scripts/private-beta-users.mjs add --file <users.json> --username <name> --password-stdin [--role tester|operator|superuser]",
     "  node scripts/private-beta-users.mjs set-password --file <users.json> --username <name> --password-stdin",
     "  node scripts/private-beta-users.mjs disable --file <users.json> --username <name>",
     "  node scripts/private-beta-users.mjs enable --file <users.json> --username <name>",

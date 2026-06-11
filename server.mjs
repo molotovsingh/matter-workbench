@@ -22,6 +22,7 @@ import { createPrivateBetaFeedbackService } from "./services/private-beta-feedba
 import { createPrivateBetaMetricsService } from "./services/private-beta-metrics-service.mjs";
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
 import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-telemetry-retry-service.mjs";
+import { createPrivateBetaUsersService } from "./services/private-beta-users-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
@@ -56,6 +57,9 @@ export async function createWorkbenchServer(options = {}) {
   const configService = createConfigService({ appDir, env });
   await configService.load();
   const privateBetaAuthService = options.privateBetaAuthService || createPrivateBetaAuthService({ env });
+  const privateBetaUsersService = options.privateBetaUsersService || createPrivateBetaUsersService({
+    usersFile: env.MWB_PRIVATE_BETA_USERS_FILE,
+  });
   const privateBetaFeedbackService = options.privateBetaFeedbackService || createPrivateBetaFeedbackService({
     appDir,
     feedbackPath: options.privateBetaFeedbackPath || env.MWB_PRIVATE_BETA_FEEDBACK_PATH,
@@ -260,6 +264,7 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaFeedbackService,
     privateBetaMetricsService,
     privateBetaSignalService,
+    privateBetaUsersService,
     telemetryRetryService,
     runtimeDbStorageService,
     skillIdeasService,

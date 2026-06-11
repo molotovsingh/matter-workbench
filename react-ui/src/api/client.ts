@@ -35,6 +35,9 @@ import type {
   PrivateBetaFeedbackRequest,
   PrivateBetaFeedbackResponse,
   PrivateBetaFeedbackSyncResult,
+  PrivateBetaUserCreateRequest,
+  PrivateBetaUserList,
+  PrivateBetaUserResponse,
   RerunAdvice,
   SkillFactoryHealth,
   SkillIdea,
@@ -200,6 +203,15 @@ export const api = {
   login: (body: { username: string; password: string }) =>
     postJson<{ enabled: boolean; authenticated: boolean; user: AuthUser | null }>('/api/auth/login', body),
   logout: () => postJson<{ enabled: boolean; authenticated: boolean; user: null }>('/api/auth/logout'),
+  getPrivateBetaUsers: () => getJson<PrivateBetaUserList>('/api/private-beta/users'),
+  createPrivateBetaTester: (body: PrivateBetaUserCreateRequest) =>
+    postJson<PrivateBetaUserResponse>('/api/private-beta/users', body),
+  resetPrivateBetaTesterPassword: (username: string) =>
+    postJson<PrivateBetaUserResponse>(`/api/private-beta/users/${encodeURIComponent(username)}/reset-password`, {}),
+  disablePrivateBetaTester: (username: string) =>
+    postJson<PrivateBetaUserResponse>(`/api/private-beta/users/${encodeURIComponent(username)}/disable`, {}),
+  enablePrivateBetaTester: (username: string) =>
+    postJson<PrivateBetaUserResponse>(`/api/private-beta/users/${encodeURIComponent(username)}/enable`, {}),
 
   // ─── Config ──────────────────────────────
   getConfig: () => getJson<AppConfig>('/api/config'),

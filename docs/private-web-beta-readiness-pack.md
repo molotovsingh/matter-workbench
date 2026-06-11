@@ -39,7 +39,7 @@ Do not use this path when:
 Start from the checked-in public deployment intake template:
 
 ```bash
-cp .env.public-deployment.example ~/.config/matter-workbench/<provider>-deployment.env
+cp public-deployment.env.example ~/.config/matter-workbench/<provider>-deployment.env
 chmod 600 ~/.config/matter-workbench/<provider>-deployment.env
 ```
 

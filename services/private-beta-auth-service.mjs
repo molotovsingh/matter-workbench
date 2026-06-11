@@ -301,7 +301,7 @@ function normalizePrivateBetaUser(rawUser, index) {
 
 function normalizeRole(role) {
   const normalized = String(role || "tester").trim().toLowerCase();
-  if (["operator", "tester"].includes(normalized)) return normalized;
+  if (["superuser", "operator", "tester"].includes(normalized)) return normalized;
   return "tester";
 }
 
