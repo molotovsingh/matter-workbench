@@ -31,6 +31,7 @@ interface Props {
   onAddFilesDone: (opts?: { autoPrepare?: boolean }) => void;
   onCommand: (command: string) => void;
   onRunPreparationAgain: (matterName: string) => void;
+  onLogout?: () => void;
   commandPanel: React.ReactNode;
 }
 
@@ -140,6 +141,7 @@ export default function MainContent({
   onAddFilesDone,
   onCommand,
   onRunPreparationAgain,
+  onLogout,
   commandPanel,
 }: Props) {
   const { state } = useApp();
@@ -185,7 +187,7 @@ export default function MainContent({
 
   return (
     <main className="main-panel">
-      <TitleBar />
+      <TitleBar onLogout={onLogout} />
 
       <section className="editor-layout">
         <div className="editor-pane">

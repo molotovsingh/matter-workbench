@@ -1,6 +1,10 @@
 import { useApp } from '../../store/AppContext';
 
-export default function TitleBar() {
+interface Props {
+  onLogout?: () => void;
+}
+
+export default function TitleBar({ onLogout }: Props) {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
   const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
@@ -29,6 +33,11 @@ export default function TitleBar() {
         >
           {state.theme === 'dark' ? 'Light' : 'Dark'}
         </button>
+        {state.authUser && onLogout && (
+          <button className="private-beta-logout" type="button" onClick={onLogout}>
+            Sign out
+          </button>
+        )}
       </div>
     </header>
   );

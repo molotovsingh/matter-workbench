@@ -497,11 +497,6 @@ function AppShell() {
 
   return (
     <div className={`app-shell ${isHomeModeClass}`}>
-      {authStatus.enabled && authStatus.user && (
-        <button className="private-beta-logout" type="button" onClick={() => { void handleLogout(); }}>
-          Sign out
-        </button>
-      )}
       <ActivityBar />
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}
@@ -516,6 +511,7 @@ function AppShell() {
         onAddFilesDone={handleAddFilesDone}
         onCommand={handleCommand}
         onRunPreparationAgain={handleRunPreparationAgain}
+        onLogout={authStatus.enabled && authStatus.user ? () => { void handleLogout(); } : undefined}
         commandPanel={
           <CommandPanel
             onCommand={handleCommand}
