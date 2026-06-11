@@ -232,6 +232,23 @@ test("matter-init ignores OS junk and Office lockfiles before file registration"
   );
 });
 
+test("extract fails when a recorded intake is missing File Register.csv", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "orphan.pdf", "%PDF-1.4\n");
+  await writeFile(path.join(root, "matter.json"), JSON.stringify({
+    matter_name: "Broken Intake Matter",
+    intakes: [{
+      intake_id: "INTAKE-01",
+      intake_dir: "00_Inbox/Intake 01 - Initial",
+    }],
+  }, null, 2));
+
+  await assert.rejects(
+    () => runExtract({ matterRoot: root, dryRun: false }),
+    /File Register\.csv missing for INTAKE-01\. Run \/matter-init before \/extract\./,
+  );
+});
+
 test("extract creates records for PDF, DOCX, RTF, spreadsheet, EML, and text while logging unsupported files", async () => {
   const root = await makeMatterRoot();
   await writeSource(root, "01-note.txt", "Plain text paragraph.\n\nSecond paragraph.");

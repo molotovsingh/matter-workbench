@@ -16,6 +16,10 @@ test("React Settings ignores late page-load responses after unmount", async () =
   assert.match(source, /if \(isCancelled\(\)\) return;/);
   assert.match(source, /void loadSettingsData\(\(\) => cancelled\);/);
   assert.match(source, /setMattersHome/);
+  assert.match(source, /setRuntimeStorageMode/);
+  assert.match(source, /isRuntimeDbWorkspace/);
+  assert.match(source, /DB workspace/);
+  assert.match(source, /There is no local matters folder to configure/);
   assert.match(source, /setSettings/);
   assert.match(source, /setSkills/);
   assert.match(source, /return \(\) => \{\s*cancelled = true;\s*\};/);

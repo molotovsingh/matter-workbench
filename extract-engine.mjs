@@ -153,8 +153,7 @@ export async function runExtract(options = {}) {
     const intakeDir = path.join(matterRoot, intake.intake_dir);
     const fileRegisterPath = path.join(intakeDir, "File Register.csv");
     if (!(await pathExists(fileRegisterPath))) {
-      outputLines.push(`[extract] ${intake.intake_id}: File Register.csv missing — skipping`);
-      continue;
+      throw new Error(`File Register.csv missing for ${intake.intake_id || intake.intake_dir}. Run /matter-init before /extract.`);
     }
 
     const registerRows = parseCsv(await readFile(fileRegisterPath, "utf8"));

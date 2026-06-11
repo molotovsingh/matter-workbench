@@ -31,6 +31,7 @@ export default function SettingsPage() {
 
   const [mattersHome, setMattersHome] = useState('');
   const [mattersHomeEdit, setMattersHomeEdit] = useState('');
+  const [runtimeStorageMode, setRuntimeStorageMode] = useState<'filesystem' | 'postgres'>('filesystem');
   const [mattersHomeSaving, setMattersHomeSaving] = useState(false);
   const [mattersHomeError, setMattersHomeError] = useState('');
 
@@ -63,6 +64,7 @@ export default function SettingsPage() {
     if (isCancelled()) return;
 
     if (configResult.status === 'fulfilled') {
+      setRuntimeStorageMode(configResult.value.runtimeStorageMode || 'filesystem');
       if (configResult.value.mattersHome) {
         setMattersHome(configResult.value.mattersHome);
         setMattersHomeEdit(configResult.value.mattersHome);
@@ -286,6 +288,7 @@ export default function SettingsPage() {
     ? copilotPresetValue(copilotProvider, copilotModel)
     : '';
   const currentCopilotPreset = findCopilotPreset(copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
+  const isRuntimeDbWorkspace = runtimeStorageMode === 'postgres';
 
   return (
     <div className="settings-page">
@@ -316,44 +319,51 @@ export default function SettingsPage() {
 
       {/* ─── Matters Home ──────────────────────────── */}
       <div className="settings-section">
-        <h2>Matters Home</h2>
-        <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-          The folder where your matters live. Each subfolder under this path is one matter.
-        </p>
+        <h2>{isRuntimeDbWorkspace ? 'Matter storage' : 'Matters Home'}</h2>
         <div className="settings-card">
-          <form onSubmit={handleSaveMattersHome} style={{ display: 'grid', gap: 12 }}>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span className="settings-label">Matters folder path</span>
-              <input
-                type="text"
-                value={mattersHomeEdit}
-                onChange={(e) => setMattersHomeEdit(e.target.value)}
-                placeholder="/path/to/matters"
-                required
-                className="settings-input"
-              />
-            </label>
-            {mattersHomeError && <div className="form-warning">{mattersHomeError}</div>}
-            <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-              Changing this reloads the matters list. Existing matters at the old location are untouched on disk.
-            </p>
-            <div className="form-actions">
-              <button type="submit" disabled={mattersHomeSaving}>
-                {mattersHomeSaving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setMattersHomeEdit(mattersHome);
-                  setMattersHomeError('');
-                }}
-                disabled={mattersHomeSaving}
-              >
-                Cancel
-              </button>
+          {isRuntimeDbWorkspace ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <span className="settings-label">Workspace mode</span>
+              <strong>DB workspace</strong>
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                Matters, uploaded files, and generated work products are stored through the runtime database. There is no local matters folder to configure for this beta instance.
+              </p>
             </div>
-          </form>
+          ) : (
+            <form onSubmit={handleSaveMattersHome} style={{ display: 'grid', gap: 12 }}>
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span className="settings-label">Matters folder path</span>
+                <input
+                  type="text"
+                  value={mattersHomeEdit}
+                  onChange={(e) => setMattersHomeEdit(e.target.value)}
+                  placeholder="/path/to/matters"
+                  required
+                  className="settings-input"
+                />
+              </label>
+              {mattersHomeError && <div className="form-warning">{mattersHomeError}</div>}
+              <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                Changing this reloads the matters list. Existing matters at the old location are untouched on disk.
+              </p>
+              <div className="form-actions">
+                <button type="submit" disabled={mattersHomeSaving}>
+                  {mattersHomeSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setMattersHomeEdit(mattersHome);
+                    setMattersHomeError('');
+                  }}
+                  disabled={mattersHomeSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 

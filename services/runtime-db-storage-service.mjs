@@ -15,7 +15,13 @@ import path from "node:path";
 import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
-import { composeIntakeDirName } from "../shared/matter-contract.mjs";
+import { runMatterInit } from "../matter-init-engine.mjs";
+import {
+  composeIntakeDirName,
+  FILE_REGISTER_HEADERS,
+  INTAKE_LOG_HEADERS,
+} from "../shared/matter-contract.mjs";
+import { toCsv } from "../shared/csv.mjs";
 import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
@@ -143,55 +149,23 @@ export function createRuntimeDbStorageService({
       briefDescription: stringValue(metadata.briefDescription),
       runtimeStorageMode: "postgres",
     };
-    const intakeId = deterministicUuid(`runtime-db-intake:${matter.id}:1`);
+    const intakeDbId = deterministicUuid(`runtime-db-intake:${matter.id}:1`);
     const uploadSessionId = deterministicUuid(`runtime-db-upload-session:${matter.id}:1`);
     const importBatchId = deterministicUuid(`runtime-db-import-batch:${matter.id}:1`);
     const receivedDate = new Date().toISOString().slice(0, 10);
     const intakeDirName = "Intake 01 - Initial";
-    const intakeDir = `00_Inbox/${intakeDirName}`;
-    const matterJson = {
-      matter_name: matter.matterName,
-      client_name: matter.clientName,
-      opposite_party: matter.oppositeParty,
-      matter_type: matter.matterType,
-      jurisdiction: matter.jurisdiction,
-      brief_description: matter.briefDescription,
-      intakes: [{
-        intake_id: "INTAKE-01",
-        intake_dir: intakeDir,
-        label: "Initial",
-        received_date: receivedDate,
-      }],
-    };
-
-    const storageFiles = [{
-      relativePath: "matter.json",
-      bytes: Buffer.from(`${JSON.stringify(matterJson, null, 2)}\n`),
-      objectRole: "matter_artifact",
-      mimeType: "application/json",
-    }];
-    const importItems = [];
-    const sortedFiles = [...files].sort((left, right) => left.index - right.index);
-    for (const file of sortedFiles) {
-      const safeRel = validateRelativePath(relativePaths[file.index]);
-      const bytes = await readFile(file.tempPath);
-      const fileNumber = importItems.length + 1;
-      const fileId = `FILE-${String(fileNumber).padStart(4, "0")}`;
-      const relativePath = `${intakeDir}/Source Files/${safeRel}`;
-      storageFiles.push({
-        relativePath,
-        bytes,
-        objectRole: "source_working_copy",
-        mimeType: mimeTypeForPath(relativePath),
-      });
-      importItems.push({
-        relativePath,
-        originalRelativePath: safeRel,
-        fileNumber,
-        fileId,
-        sha256: sha256Bytes(bytes),
-      });
-    }
+    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
+      matter,
+      metadata,
+      files,
+      relativePaths,
+      tempRoot,
+      intakeId: "INTAKE-01",
+      intakeDirName,
+      intakeLabel: "Initial",
+      receivedDate,
+      fileIdStart: 1,
+    });
 
     const filesToPersist = storageFiles.map((file) => ({
       ...file,
@@ -203,7 +177,7 @@ export function createRuntimeDbStorageService({
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
       ...createMatterUploadSql({
         matter,
-        intakeId,
+        intakeId: intakeDbId,
         uploadSessionId,
         importBatchId,
         importItems,
@@ -213,7 +187,7 @@ export function createRuntimeDbStorageService({
       ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
       ...documentIdentityUpsertSqls({
         matter,
-        intakeId,
+        intakeId: intakeDbId,
         uploadSessionId,
         importItems,
         persistedRows,
@@ -264,30 +238,24 @@ export function createRuntimeDbStorageService({
     const intakeDir = `00_Inbox/${intakeDirName}`;
     const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
     const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakeNumber}`);
-
-    const storageFiles = [];
-    const importItems = [];
-    const sortedFiles = [...files].sort((left, right) => left.index - right.index);
-    for (const file of sortedFiles) {
-      const safeRel = validateRelativePath(relativePaths[file.index]);
-      const bytes = await readFile(file.tempPath);
-      const fileNumber = fileIdStart + importItems.length;
-      const fileId = `FILE-${String(fileNumber).padStart(4, "0")}`;
-      const relativePath = `${intakeDir}/Source Files/${safeRel}`;
-      storageFiles.push({
-        relativePath,
-        bytes,
-        objectRole: "source_working_copy",
-        mimeType: mimeTypeForPath(relativePath),
-      });
-      importItems.push({
-        relativePath,
-        originalRelativePath: safeRel,
-        fileNumber,
-        fileId,
-        sha256: sha256Bytes(bytes),
-      });
-    }
+    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
+      matter: dbMatter,
+      metadata: dbMatter,
+      files,
+      relativePaths,
+      tempRoot,
+      intakeId,
+      intakeDirName,
+      intakeLabel: label,
+      receivedDate,
+      fileIdStart,
+      materializeExisting: true,
+      existingFiles: await readWorkspacePayloadFiles(dbMatter),
+      persistPaths: [
+        "matter.json",
+        `${intakeDir}/`,
+      ],
+    });
 
     const filesToPersist = storageFiles.map((file) => ({
       ...file,
@@ -509,6 +477,20 @@ export function createRuntimeDbStorageService({
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
+  }
+
+  async function readWorkspacePayloadFiles(matter) {
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = await readWorkspace(normalizedMatter);
+    const rows = [];
+    for (const item of workspaceFilePaths(workspace.tree)) {
+      const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
+      rows.push({
+        relativePath: item.path,
+        bytes: payload.bytes,
+      });
+    }
+    return rows;
   }
 
   async function runMaterializedMatterRead(matter, operation) {
@@ -1250,7 +1232,13 @@ function stageDefinition(slash) {
 async function listMatterFiles(root, relativePrefix = "") {
   const rows = [];
   const directory = relativePrefix ? path.join(root, ...relativePrefix.split("/")) : root;
-  const entries = await readdir(directory, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT" && relativePrefix) return rows;
+    throw error;
+  }
   for (const entry of entries) {
     const relativePath = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
@@ -1259,7 +1247,7 @@ async function listMatterFiles(root, relativePrefix = "") {
     }
     if (entry.isFile()) rows.push({ relativePath: normalizeObjectKey(relativePath) });
   }
-  return rows;
+  return rows.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {
@@ -1334,6 +1322,234 @@ function materializedRowsForFiles({ matter, files }) {
   return rows;
 }
 
+async function buildRuntimeUploadIntake({
+  matter,
+  metadata = {},
+  files = [],
+  relativePaths = [],
+  tempRoot = os.tmpdir(),
+  intakeId,
+  intakeDirName,
+  intakeLabel,
+  receivedDate,
+  fileIdStart,
+  materializeExisting = false,
+  existingFiles = [],
+  persistPaths = null,
+}) {
+  const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-upload-"));
+  const matterRoot = path.join(workDir, matter.name);
+  try {
+    await mkdir(matterRoot, { recursive: true });
+    if (materializeExisting) {
+      if (!Array.isArray(existingFiles)) {
+        throw new Error("materializeExisting requires runtime DB workspace context");
+      }
+      await writeExistingPayloadFilesToMatterRoot({ matterRoot, files: existingFiles });
+    }
+    const uploadedSourceBytes = await writeUploadedFilesToMatterRoot({
+      matterRoot,
+      intakeDirName,
+      files,
+      relativePaths,
+    });
+    const result = await runMatterInit({
+      matterRoot,
+      metadata,
+      dryRun: false,
+      intakeId,
+      intakeDirName,
+      intakeLabel,
+      receivedDate,
+      fileIdStart,
+    });
+    return uploadIntakeResultFromMatterRoot({
+      matterRoot,
+      result,
+      persistPaths,
+      uploadedSourceBytes,
+    });
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+async function writeExistingPayloadFilesToMatterRoot({ matterRoot, files = [] }) {
+  for (const file of files) {
+    const relativePath = normalizeObjectKey(file.relativePath);
+    if (!relativePath) continue;
+    const absolutePath = path.join(matterRoot, ...relativePath.split("/"));
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, file.bytes || Buffer.alloc(0));
+  }
+}
+
+async function writeUploadedFilesToMatterRoot({
+  matterRoot,
+  intakeDirName,
+  files = [],
+  relativePaths = [],
+}) {
+  const sourceRoot = path.join(matterRoot, "00_Inbox", intakeDirName, "Source Files");
+  const uploadedSourceBytes = new Map();
+  const sortedFiles = [...files].sort((left, right) => left.index - right.index);
+  for (const file of sortedFiles) {
+    const safeRel = validateRelativePath(relativePaths[file.index]);
+    const bytes = await readFile(file.tempPath);
+    const destination = path.join(sourceRoot, ...safeRel.split("/"));
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, bytes);
+    uploadedSourceBytes.set(normalizeObjectKey(`00_Inbox/${intakeDirName}/Source Files/${safeRel}`), bytes);
+  }
+  return uploadedSourceBytes;
+}
+
+async function uploadIntakeResultFromMatterRoot({
+  matterRoot,
+  result,
+  persistPaths = null,
+  uploadedSourceBytes = new Map(),
+}) {
+  const matterFiles = await listMatterFiles(matterRoot);
+  const shouldPersist = createPersistPathMatcher(persistPaths);
+  const storageFiles = [];
+  for (const file of matterFiles) {
+    if (!shouldPersist(file.relativePath)) continue;
+    const absolutePath = path.join(matterRoot, ...file.relativePath.split("/"));
+    let bytes;
+    try {
+      bytes = await readFile(absolutePath);
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
+    storageFiles.push({
+      relativePath: file.relativePath,
+      bytes,
+      objectRole: roleForMaterializedPath(file.relativePath),
+      mimeType: mimeTypeForPath(file.relativePath),
+    });
+  }
+  const fileRegisterRows = Array.isArray(result?.logs?.fileRegisterRows)
+    ? result.logs.fileRegisterRows
+    : [];
+  await upsertRegisteredSourceFiles(storageFiles, { matterRoot, fileRegisterRows, uploadedSourceBytes });
+  upsertGeneratedIntakeArtifacts(storageFiles, result);
+  const importItems = fileRegisterRows
+    .filter((row) => stringValue(row.file_id) && stringValue(row.source_path))
+    .map((row) => ({
+      relativePath: normalizeObjectKey(row.source_path),
+      originalPath: normalizeObjectKey(row.original_path),
+      workingCopyPath: normalizeObjectKey(row.working_copy_path),
+      originalRelativePath: sourceRelativePathForImport(row.source_path) || stringValue(row.original_name) || normalizeObjectKey(row.source_path),
+      fileNumber: fileNumberForFileId(row.file_id),
+      fileId: stringValue(row.file_id).toUpperCase(),
+      sha256: stringValue(row.sha256),
+    }))
+    .filter((row) => row.fileNumber > 0 && /^FILE-\d{4}$/.test(row.fileId));
+  return {
+    storageFiles,
+    importItems,
+    result,
+  };
+}
+
+async function upsertRegisteredSourceFiles(storageFiles, {
+  matterRoot,
+  fileRegisterRows = [],
+  uploadedSourceBytes = new Map(),
+}) {
+  for (const row of fileRegisterRows) {
+    const sourcePath = normalizeObjectKey(row.source_path);
+    const sourceBytes = sourcePath ? uploadedSourceBytes.get(sourcePath) : null;
+    const registeredPaths = [sourcePath, row.original_path, row.working_copy_path]
+      .map((value) => normalizeObjectKey(value))
+      .filter(Boolean);
+    for (const relativePath of registeredPaths) {
+      const bytes = sourceBytes || await readRegisteredFileBytes({ matterRoot, relativePath });
+      upsertStorageFile(storageFiles, {
+        relativePath,
+        bytes,
+        objectRole: roleForMaterializedPath(relativePath),
+        mimeType: mimeTypeForPath(relativePath),
+      });
+    }
+  }
+}
+
+async function readRegisteredFileBytes({ matterRoot, relativePath }) {
+  const absolutePath = path.join(matterRoot, ...relativePath.split("/"));
+  return readFile(absolutePath);
+}
+
+function createPersistPathMatcher(persistPaths) {
+  if (!Array.isArray(persistPaths) || persistPaths.length === 0) {
+    return () => true;
+  }
+  const normalizedPaths = persistPaths
+    .map((item) => normalizeObjectKey(item))
+    .filter(Boolean);
+  return (relativePath) => {
+    const normalized = normalizeObjectKey(relativePath);
+    return normalizedPaths.some((persistPath) => {
+      if (persistPath.endsWith("/")) return normalized.startsWith(persistPath);
+      return normalized === persistPath;
+    });
+  };
+}
+
+function upsertGeneratedIntakeArtifacts(storageFiles, result = {}) {
+  const paths = result.paths || {};
+  const fileRegisterRows = Array.isArray(result?.logs?.fileRegisterRows) ? result.logs.fileRegisterRows : [];
+  const intakeLogRows = Array.isArray(result?.logs?.intakeLogRows) ? result.logs.intakeLogRows : [];
+  if (paths.fileRegisterPath && fileRegisterRows.length) {
+    upsertStorageFile(storageFiles, {
+      relativePath: paths.fileRegisterPath,
+      bytes: Buffer.from(toCsv(fileRegisterRows, FILE_REGISTER_HEADERS)),
+      objectRole: "matter_artifact",
+      mimeType: "text/csv",
+    });
+  }
+  if (paths.intakeLogPath && intakeLogRows.length) {
+    upsertStorageFile(storageFiles, {
+      relativePath: paths.intakeLogPath,
+      bytes: Buffer.from(toCsv(intakeLogRows, INTAKE_LOG_HEADERS)),
+      objectRole: "matter_artifact",
+      mimeType: "text/csv",
+    });
+  }
+  if (result.matterJson) {
+    upsertStorageFile(storageFiles, {
+      relativePath: "matter.json",
+      bytes: Buffer.from(`${JSON.stringify(result.matterJson, null, 2)}\n`),
+      objectRole: "matter_artifact",
+      mimeType: "application/json",
+    });
+  }
+}
+
+function upsertStorageFile(storageFiles, file) {
+  const relativePath = normalizeObjectKey(file.relativePath);
+  const index = storageFiles.findIndex((existing) => normalizeObjectKey(existing.relativePath) === relativePath);
+  const normalized = { ...file, relativePath };
+  if (index >= 0) storageFiles[index] = normalized;
+  else storageFiles.push(normalized);
+}
+
+function sourceRelativePathForImport(value) {
+  const normalized = normalizeObjectKey(value);
+  const marker = "/Source Files/";
+  const index = normalized.indexOf(marker);
+  return index >= 0 ? normalized.slice(index + marker.length) : "";
+}
+
+function fileNumberForFileId(value) {
+  const match = stringValue(value).match(/^FILE-(\d{4})$/i);
+  if (!match) return 0;
+  const number = Number.parseInt(match[1], 10);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function createMatterUploadSql({
   matter,
   intakeId,
@@ -1395,7 +1611,8 @@ function createMatterAddFilesSql({
 function matterImportItemUpsertSqls({ matter, importBatchId, importItems, persistedRows }) {
   const storageByRelativePath = new Map(persistedRows.map((row) => [row.relativePath, row]));
   return importItems.map((item) => {
-    const row = storageByRelativePath.get(item.relativePath);
+    const row = storageRowForImportItem(storageByRelativePath, item);
+    if (!row) throw new Error(`Runtime DB upload did not persist a source payload for ${item.fileId}`);
     const documentId = documentIdForImportItem(matter, item);
     return [
       "insert into matter_import_items (id, tenant_id, import_batch_id, matter_id, document_id, storage_object_id, original_file_id, original_relative_path, source_sha256, target_file_number, target_file_id, status)",
@@ -1408,7 +1625,8 @@ function matterImportItemUpsertSqls({ matter, importBatchId, importItems, persis
 function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importItems, persistedRows }) {
   const storageByRelativePath = new Map(persistedRows.map((row) => [row.relativePath, row]));
   return importItems.flatMap((item) => {
-    const row = storageByRelativePath.get(item.relativePath);
+    const row = storageRowForImportItem(storageByRelativePath, item);
+    if (!row) throw new Error(`Runtime DB upload did not persist a source payload for ${item.fileId}`);
     const documentId = documentIdForImportItem(matter, item);
     const blobId = documentBlobIdForImportItem(matter, item);
     const originalName = path.posix.basename(normalizeObjectKey(item.originalRelativePath || item.relativePath));
@@ -1442,6 +1660,16 @@ function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importI
       ].join("\n"),
     ];
   });
+}
+
+function storageRowForImportItem(storageByRelativePath, item) {
+  for (const candidate of [item.workingCopyPath, item.originalPath, item.relativePath]) {
+    const normalized = normalizeObjectKey(candidate);
+    if (!normalized) continue;
+    const row = storageByRelativePath.get(normalized);
+    if (row) return row;
+  }
+  return null;
 }
 
 function documentIdForImportItem(matter, item) {
@@ -1648,6 +1876,7 @@ function artifactFormatForPath(relativePath) {
 
 function roleForMaterializedPath(relativePath) {
   const normalized = normalizeObjectKey(relativePath);
+  if (normalized === "matter.json" || /(^|\/)(File Register|Intake Log)\.csv$/i.test(normalized)) return "matter_artifact";
   if (/(^|\/)_extracted\/[^/]+\.json$/i.test(normalized)) return "extraction_payload";
   if (/^10_Library\//i.test(normalized) || /^20_Workshop\//i.test(normalized) || /^30_Drafts\//i.test(normalized) || /^40_Dispatch\//i.test(normalized)) {
     return "matter_artifact";
