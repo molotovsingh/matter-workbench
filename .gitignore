@@ -5,6 +5,7 @@ react-ui/node_modules/
 .env
 .env.*
 !.env.example
+!.env.public-deployment.example
 .envrc
 .direnv/
 .pgpass

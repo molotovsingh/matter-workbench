@@ -36,6 +36,16 @@ Do not use this path when:
 
 ## Required Runtime Posture
 
+Start from the checked-in public deployment intake template:
+
+```bash
+cp .env.public-deployment.example ~/.config/matter-workbench/<provider>-deployment.env
+chmod 600 ~/.config/matter-workbench/<provider>-deployment.env
+```
+
+That file separates values Matter Workbench controls from values supplied by the
+cloud/DNS/database/model vendors. A filled copy must stay outside git.
+
 Set private beta access:
 
 ```text
