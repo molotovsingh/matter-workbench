@@ -4,6 +4,7 @@ import { httpError, readBearerToken, readJsonBody, redactErrorText, sendJson } f
 
 const FEEDBACK_SYNC_SCHEMA = "private-beta-feedback-sync/v1";
 const SIGNAL_SYNC_SCHEMA = "private-beta-signal-sync/v1";
+const METRICS_SYNC_SCHEMA = "private-beta-metrics-sync/v1";
 
 export function createMothershipServer({
   store,
@@ -26,19 +27,21 @@ export function createMothershipServer({
         return;
       }
 
-      if (url.pathname !== "/v1/feedback" && url.pathname !== "/v1/signals") {
+      if (url.pathname !== "/v1/feedback" && url.pathname !== "/v1/signals" && url.pathname !== "/v1/metrics") {
         throw httpError("Not found", 404);
       }
       if (request.method !== "POST") throw httpError("Method not allowed", 405);
 
       const rawToken = readBearerToken(request);
       const payload = await readJsonBody(request, { maxBodyBytes });
-      const kind = url.pathname === "/v1/feedback" ? "feedback" : "signal";
+      const kind = url.pathname === "/v1/feedback"
+        ? "feedback"
+        : url.pathname === "/v1/signals"
+          ? "signal"
+          : "metric";
       validateSyncPayload(payload, kind);
       await store.authorizeIngestion({ rawToken, installationId: payload.installId });
-      const result = kind === "feedback"
-        ? await store.ingestFeedback({ installationId: payload.installId, feedback: payload.feedback })
-        : await store.ingestSignal({ installationId: payload.installId, signal: payload.signal });
+      const result = await ingestPayload({ store, kind, payload });
       sendJson(response, 202, {
         accepted: true,
         duplicate: !result.inserted,
@@ -60,14 +63,32 @@ export function createMothershipServer({
 
 function validateSyncPayload(payload, kind) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw httpError("Payload must be an object", 400);
-  const expectedSchema = kind === "feedback" ? FEEDBACK_SYNC_SCHEMA : SIGNAL_SYNC_SCHEMA;
+  const expectedSchema = kind === "feedback"
+    ? FEEDBACK_SYNC_SCHEMA
+    : kind === "signal"
+      ? SIGNAL_SYNC_SCHEMA
+      : METRICS_SYNC_SCHEMA;
   if (payload.schema_version !== expectedSchema) throw httpError(`Expected ${expectedSchema}`, 400);
   if (!/^[A-Za-z0-9_-]{3,160}$/.test(String(payload.installId || ""))) throw httpError("installId is invalid", 400);
   const item = payload[kind];
   if (!item || typeof item !== "object" || Array.isArray(item)) throw httpError(`${kind} is required`, 400);
-  const itemSchema = kind === "feedback" ? "private-beta-feedback/v1" : "private-beta-signal/v1";
+  const itemSchema = kind === "feedback"
+    ? "private-beta-feedback/v1"
+    : kind === "signal"
+      ? "private-beta-signal/v1"
+      : "private-beta-metrics/v1";
   if (item.schema_version !== itemSchema) throw httpError(`Expected ${itemSchema}`, 400);
   if (!/^[A-Za-z0-9_-]{3,160}$/.test(String(item.id || ""))) throw httpError(`${kind}.id is invalid`, 400);
+}
+
+function ingestPayload({ store, kind, payload }) {
+  if (kind === "feedback") {
+    return store.ingestFeedback({ installationId: payload.installId, feedback: payload.feedback });
+  }
+  if (kind === "signal") {
+    return store.ingestSignal({ installationId: payload.installId, signal: payload.signal });
+  }
+  return store.ingestMetricSnapshot({ installationId: payload.installId, metric: payload.metric });
 }
 
 function normalizeStatusCode(value) {

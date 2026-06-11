@@ -19,6 +19,7 @@ import { createMatterStatusService } from "./services/matter-status-service.mjs"
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
+import { createPrivateBetaMetricsService } from "./services/private-beta-metrics-service.mjs";
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
 import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-telemetry-retry-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
@@ -73,10 +74,6 @@ export async function createWorkbenchServer(options = {}) {
     telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
     fetchImpl: options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
   });
-  const telemetryRetryService = options.telemetryRetryService || createPrivateBetaTelemetryRetryService({
-    feedbackService: privateBetaFeedbackService,
-    signalService: privateBetaSignalService,
-  });
   const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
 
   const matterStore = createMatterStore({
@@ -103,6 +100,24 @@ export async function createWorkbenchServer(options = {}) {
     runtimeDbStorageService,
     workspaceService,
     maxUploadBytes: options.maxUploadBytes,
+  });
+  const privateBetaMetricsService = options.privateBetaMetricsService || createPrivateBetaMetricsService({
+    appDir,
+    metricsPath: options.privateBetaMetricsPath || env.MWB_PRIVATE_BETA_METRICS_PATH,
+    syncUrl: env.MWB_PRIVATE_BETA_METRICS_SYNC_URL
+      || siblingMothershipSyncUrl(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL, "/v1/metrics"),
+    syncToken: env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
+    installId: env.MWB_PRIVATE_BETA_INSTALL_ID || env.MWB_PRIVATE_BETA_METRICS_INSTALL_ID || env.MWB_PRIVATE_BETA_SIGNAL_INSTALL_ID || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
+    telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
+    fetchImpl: options.privateBetaMetricsFetch || options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
+  });
+  const telemetryRetryService = options.telemetryRetryService || createPrivateBetaTelemetryRetryService({
+    feedbackService: privateBetaFeedbackService,
+    metricsService: privateBetaMetricsService,
+    metricsContextProvider: () => ({
+      deployment: buildDeploymentMetricsContext({ env, host, port, matterStore }),
+    }),
+    signalService: privateBetaSignalService,
   });
   const aiSettingsService = createAiSettingsService({ appDir, env });
   const runtimeDbCommandInteractionLogService = options.runtimeDbCommandInteractionLogService || createRuntimeDbCommandInteractionLogService({
@@ -243,6 +258,7 @@ export async function createWorkbenchServer(options = {}) {
     prepareMatterService,
     privateBetaAuthService,
     privateBetaFeedbackService,
+    privateBetaMetricsService,
     privateBetaSignalService,
     telemetryRetryService,
     runtimeDbStorageService,
@@ -259,8 +275,11 @@ export async function createWorkbenchServer(options = {}) {
   };
 
   const server = createServer(async (request, response) => {
+    const startedAt = Date.now();
+    let pathname = "/";
     try {
       const requestUrl = new URL(request.url || "/", `http://${request.headers.host || `${host}:${port}`}`);
+      pathname = requestUrl.pathname;
       if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
       if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
       if (await handleApiRequest({ request, requestUrl, response, services })) return;
@@ -276,6 +295,14 @@ export async function createWorkbenchServer(options = {}) {
       sendJson(response, error.statusCode || 500, {
         error: error.message,
         stack: env.NODE_ENV === "development" ? error.stack : undefined,
+      });
+    } finally {
+      privateBetaMetricsService.observeRequest?.({
+        method: request.method,
+        pathname,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+        visibleProgress: !isLikelySilentWaitPath(pathname),
       });
     }
   });
@@ -305,7 +332,44 @@ function hasTelemetrySyncConfig(env = {}) {
     String(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || "").trim()
     && String(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || "").trim(),
   );
-  return feedbackReady || signalReady;
+  const metricsReady = Boolean(
+    String(env.MWB_PRIVATE_BETA_METRICS_SYNC_URL
+      || siblingMothershipSyncUrl(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL, "/v1/metrics")).trim()
+    && String(env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN || "").trim(),
+  );
+  return feedbackReady || signalReady || metricsReady;
+}
+
+function siblingMothershipSyncUrl(value = "", pathname = "/v1/metrics") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    const url = new URL(text);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    url.pathname = pathname;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function buildDeploymentMetricsContext({ env = {}, host = "", port = "", matterStore } = {}) {
+  const publicUrl = env.MWB_PRIVATE_BETA_PUBLIC_URL || env.MWB_PRIVATE_VM_BASE_URL || env.MWB_PUBLIC_URL || `http://${host}:${port}`;
+  const runtimeDb = Boolean(matterStore?.hasRuntimeDbStorageMode?.());
+  return {
+    commit: env.MWB_PRIVATE_VM_DEPLOY_COMMIT || env.MWB_DEPLOY_COMMIT || env.GIT_COMMIT || "",
+    baseUrl: publicUrl,
+    storageMode: runtimeDb ? "postgres" : "filesystem",
+    runtimeMode: runtimeDb ? "runtime-db" : "filesystem",
+    restoreDrill: env.MWB_RESTORE_DRILL_STATUS || "unknown",
+    storageBackup: env.MWB_STORAGE_BACKUP_STATUS || "unknown",
+  };
+}
+
+function isLikelySilentWaitPath(pathname = "") {
+  return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|create-listofdates)/.test(pathname);
 }
 
 if (process.argv[1] === __filename) {

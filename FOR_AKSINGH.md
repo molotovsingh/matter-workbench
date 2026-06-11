@@ -1780,7 +1780,7 @@ The private-beta tester handoff drill is the same lesson applied to access.
 Creating a username is not proof that a lawyer can actually use the app. The
 handoff drill creates a disposable tester, logs in through the real auth gate,
 loads the React root, reads the matters list, submits a disposable feedback
-note, checks the feedback/signal endpoints, then restores the account file and
+note, checks the feedback/signal/metrics path, then restores the account file and
 feedback ledger. In plain English: before giving a real person the URL, we make
 the app prove that the front door opens, the hallway leads somewhere, and the
 "tell us what went wrong" button reaches the operator. Then we clean up the test
@@ -2470,7 +2470,9 @@ shared in-tray for two kinds of evidence:
 
 - what a tester deliberately reports through **Have a problem?**;
 - what a Workbench installation observes through its existing diagnostic
-  signals, such as failed jobs or matter warnings.
+  signals, such as failed jobs or matter warnings;
+- what the deployment reports about backend suitability, portability, restore
+  confidence, capacity headroom, and user patience risk.
 
 Each installation still keeps its local JSON delivery ledger. That ledger is
 not the source of truth for product development; it is the outbox. If the
@@ -2482,7 +2484,7 @@ The mothership itself is deliberately separate from legal matter storage:
 
 ```text
 Matter Workbench :4191
-  -> local feedback/signal outbox
+  -> local feedback/signal/metrics outbox
   -> authenticated loopback POST
   -> mothership :4192
   -> matter_workbench_mothership PostgreSQL database
@@ -2534,3 +2536,28 @@ semantics: feedback was created while the receiver was down, stayed queued,
 and was sent automatically when Workbench restarted after the receiver
 returned. Synthetic acceptance rows were then removed, leaving the central
 report clean for real beta evidence.
+
+The mothership now also keeps a third stream: **operator metrics**. This is not
+analytics in the product-growth sense. It is an honesty gauge for deployment.
+Every Workbench instance can send small snapshots that answer questions like:
+
+- is this backend still suitable for the current beta load?
+- are users waiting silently long enough to lose interest?
+- do we have enough disk and runtime headroom for larger matters?
+- could this installation move to a bigger VM or another provider without
+  losing Postgres rows, files, secrets, or rollback history?
+
+The useful mental model is a cockpit, not a courtroom exhibit. Lawyers do not
+need to see these numbers, and the numbers do not decide legal quality. They
+tell the operator when the machine is starting to sweat. A slow List of Dates
+run is acceptable if the app shows progress and the backend has headroom. A
+silent 30-second wait, low disk space, no restore drill, and no storage backup
+is a very different story. That is why the report separates **Backend
+Suitability**, **Deployment Portability**, **Restore Confidence**, **Capacity
+Headroom**, and **User Patience Risk**.
+
+This is also why "runs on DigitalOcean" is not enough as a release claim. A
+serious beta claim is closer to: this commit is deployed, the runtime database
+is reachable, files are backed up, the restore drill has passed, request
+latency is within tolerance, the mothership is receiving signals, and rollback
+is known. Those are engineering facts we can verify, not vibes.

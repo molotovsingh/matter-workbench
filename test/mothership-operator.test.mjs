@@ -31,7 +31,7 @@ test("mothership operator creates and revokes installations and prunes payloads"
     },
     pruneExpired: async (input) => {
       calls.push(["prune", input]);
-      return { feedbackDeleted: 2, signalsDeleted: 3, retentionDays: input.retentionDays };
+      return { feedbackDeleted: 2, signalsDeleted: 3, metricsDeleted: 4, retentionDays: input.retentionDays };
     },
     health: async () => ({ database: "ready" }),
   };
@@ -51,6 +51,7 @@ test("mothership operator creates and revokes installations and prunes payloads"
   output.length = 0;
   assert.equal(await runMothershipOperator({ argv: ["prune", "--retention-days", "180"], store, stdout: (line) => output.push(line) }), 0);
   assert.match(output.join("\n"), /feedback_deleted: 2/);
+  assert.match(output.join("\n"), /metrics_deleted: 4/);
   assert.deepEqual(calls, [
     ["create", { installationId: "firm-01", label: "Firm one" }],
     ["revoke", { installationId: "firm-01" }],
@@ -61,6 +62,40 @@ test("mothership operator creates and revokes installations and prunes payloads"
 test("mothership report prioritizes actionable evidence and redacts secrets", () => {
   const report = buildMothershipReport({
     sinceDays: 30,
+    metrics: [
+      metricRow({
+        snapshot_id: "metrics_old",
+        received_at: "2026-06-10T09:00:00.000Z",
+        payload: {
+          id: "metrics_old",
+          scores: { backendSuitability: 91, portability: 90, userPatienceRisk: "low" },
+        },
+      }),
+      metricRow({
+        snapshot_id: "metrics_latest",
+        received_at: "2026-06-10T11:00:00.000Z",
+        payload: {
+          id: "metrics_latest",
+          scores: {
+            backendSuitability: 74,
+            portability: 82,
+            restoreConfidence: 60,
+            capacityHeadroom: 70,
+            userPatienceRisk: "medium",
+          },
+          latency: {
+            requestCount: 120,
+            p95Ms: 8400,
+            slowRequestCount: 9,
+            silentWaitMaxMs: 18000,
+          },
+          runtime: {
+            diskFreePercent: 61,
+            rssMb: 812,
+          },
+        },
+      }),
+    ],
     signals: [
       signalRow({ signal_id: "warning", severity: "warning", occurrence_count: 7, title: "OCR warning" }),
       signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret" }),
@@ -73,10 +108,24 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
   }, { generatedAt: "2026-06-10T12:00:00.000Z" });
 
   assert.deepEqual(report.items.map((item) => item.id), ["error", "warning", "bug", "confused", "feature"]);
-  assert.deepEqual(report.summary, { criticalSignals: 1, repeatedWarnings: 1, bugs: 1, confusingUx: 1, featureIdeas: 1, total: 5 });
+  assert.deepEqual(report.summary, {
+    criticalSignals: 1,
+    repeatedWarnings: 1,
+    bugs: 1,
+    confusingUx: 1,
+    featureIdeas: 1,
+    total: 5,
+    latestBackendSuitability: 74,
+    latestPortability: 82,
+    latestUserPatienceRisk: "medium",
+  });
+  assert.equal(report.metrics.latest.scores.backendSuitability, 74);
 
   const markdown = renderMothershipReportMarkdown(report);
   assert.match(markdown, /# Matter Workbench Beta Development Report/);
+  assert.match(markdown, /Backend Suitability: 74\/100/);
+  assert.match(markdown, /Deployment Portability: 82\/100/);
+  assert.match(markdown, /User Patience Risk: medium/);
   assert.match(markdown, /Job failed token=\[redacted-secret\]/);
   assert.doesNotMatch(markdown, /super-secret/);
 });
@@ -113,5 +162,23 @@ function feedbackRow(overrides = {}) {
     received_at: "2026-06-10T10:00:00.000Z",
     payload: { tryingToDo, happenedInstead: "It failed" },
     ...rowOverrides,
+  };
+}
+
+function metricRow(overrides = {}) {
+  return {
+    installation_id: "firm-01",
+    snapshot_id: "metrics",
+    captured_at: "2026-06-10T10:00:00.000Z",
+    received_at: "2026-06-10T10:00:00.000Z",
+    payload: {
+      id: "metrics",
+      scores: {
+        backendSuitability: 80,
+        portability: 80,
+        userPatienceRisk: "low",
+      },
+    },
+    ...overrides,
   };
 }

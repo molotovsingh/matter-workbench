@@ -48,7 +48,25 @@ test("mothership receiver ingests authenticated feedback and signals", async () 
     assert.equal(signal.response.status, 202);
     assert.equal(signal.body.accepted, true);
 
-    assert.deepEqual(calls.map((call) => call.type), ["health", "authorize", "feedback", "authorize", "signal"]);
+    const metricsPayload = {
+      schema_version: "private-beta-metrics-sync/v1",
+      installId: "firm-beta-01",
+      metric: {
+        schema_version: "private-beta-metrics/v1",
+        id: "metrics_001",
+        createdAt: "2026-06-10T10:00:00.000Z",
+        scores: {
+          backendSuitability: 74,
+          portability: 82,
+          userPatienceRisk: "medium",
+        },
+      },
+    };
+    const metrics = await postJson(app.baseUrl, "/v1/metrics", metricsPayload, "mwb_ing_test-token");
+    assert.equal(metrics.response.status, 202);
+    assert.equal(metrics.body.accepted, true);
+
+    assert.deepEqual(calls.map((call) => call.type), ["health", "authorize", "feedback", "authorize", "signal", "authorize", "metric"]);
     assert.equal(calls[1].rawToken, "mwb_ing_test-token");
   } finally {
     await app.close();
@@ -145,6 +163,10 @@ function createFakeStore({ calls = [], duplicate = false, authorizationStatus = 
     },
     ingestSignal: async ({ installationId, signal }) => {
       calls.push({ type: "signal", installationId, signal });
+      return { inserted: !duplicate };
+    },
+    ingestMetricSnapshot: async ({ installationId, metric }) => {
+      calls.push({ type: "metric", installationId, metric });
       return { inserted: !duplicate };
     },
   };

@@ -31,7 +31,10 @@ MWB_PRIVATE_BETA_AUTH=required
 MWB_PRIVATE_BETA_USERS_FILE=/home/aks/.config/matter-workbench/private-beta-users.json
 MWB_PRIVATE_BETA_FEEDBACK_PATH=/home/aks/.local/share/matter-workbench/private-beta-feedback-ledger.json
 MWB_PRIVATE_BETA_SIGNAL_PATH=/home/aks/.local/share/matter-workbench/private-beta-signal-ledger.json
+MWB_PRIVATE_BETA_METRICS_PATH=/home/aks/.local/share/matter-workbench/private-beta-metrics-ledger.json
 MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
+MWB_RESTORE_DRILL_STATUS=unknown
+MWB_STORAGE_BACKUP_STATUS=unknown
 ```
 
 Do not commit `runtime.env`.
@@ -54,15 +57,15 @@ npm run mothership:operator -- installations create \
 ```
 
 The installation command prints the ingestion token once. Put it in
-`runtime.env` as both the feedback and signal sync token, with loopback URLs
-ending in `/v1/feedback` and `/v1/signals`. Do not pass the token through a
-command argument or commit it. Restart both user services after changing the
-environment files.
+`runtime.env` as the feedback, signal, and metrics sync token, with loopback
+URLs ending in `/v1/feedback`, `/v1/signals`, and `/v1/metrics`. Do not pass
+the token through a command argument or commit it. Restart both user services
+after changing the environment files.
 
-Keep feedback and signal ledgers outside the deployment directory. If those
-paths are left at their app-default `.local/` locations, a new deployment can
-make tester feedback look empty because the service starts reading from the new
-commit folder.
+Keep feedback, signal, and metrics ledgers outside the deployment directory. If
+those paths are left at their app-default `.local/` locations, a new deployment
+can make tester feedback or operator metrics look empty because the service
+starts reading from the new commit folder.
 
 ## Install Or Refresh
 
@@ -189,6 +192,18 @@ The mothership is an operator surface, not a tester UI. Use
 deployed app directory after loading `mothership.env`. The report is the intake
 surface Codex can use to triage repeated errors, tester bugs, confusing UX, and
 feature ideas against the current repository and runtime evidence.
+
+The same report also carries deployment/backend metrics:
+
+- **Backend Suitability** asks whether the current VM is still good enough for
+  beta traffic.
+- **Deployment Portability** asks whether the app can be moved to another VM or
+  provider without heroic manual recovery.
+- **Restore Confidence** is deliberately strict; it should stay low until a
+  real Postgres + file-storage restore drill passes.
+- **User Patience Risk** watches latency and silent waits. Slow legal work is
+  tolerable when the app visibly progresses; silent waiting is what makes beta
+  testers think the app is stuck.
 
 ## Ops, Bug Evidence, And Incident Bundles
 

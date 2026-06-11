@@ -24,6 +24,8 @@ const READY_ENV = {
   MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN: "feedback-token",
   MWB_PRIVATE_BETA_SIGNAL_SYNC_URL: "https://mothership.example.test/api/beta-signals",
   MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN: "signal-token",
+  MWB_PRIVATE_BETA_METRICS_SYNC_URL: "https://mothership.example.test/v1/metrics",
+  MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN: "metrics-token",
   MWB_PRIVATE_BETA_INSTALL_ID: "firm-beta-01",
   MWB_PRIVATE_BETA_TELEMETRY_MODE: "firm_internal",
   OPENAI_API_KEY: "sk-test",
@@ -41,6 +43,7 @@ test("private web beta readiness passes for HTTPS, auth, runtime DB, and mothers
   assert.equal(report.checks.every((check) => check.status !== "block"), true);
   assert.equal(report.checks.find((check) => check.id === "runtime_db")?.status, "pass");
   assert.equal(report.checks.find((check) => check.id === "mothership_sync")?.status, "pass");
+  assert.match(report.checks.find((check) => check.id === "mothership_sync")?.message || "", /backend metrics/i);
 });
 
 test("private web beta readiness blocks public web exposure without HTTPS, auth, runtime DB, or sync", () => {
@@ -66,13 +69,15 @@ test("private web beta readiness accepts signal sync fallback through feedback m
     ...READY_ENV,
     MWB_PRIVATE_BETA_SIGNAL_SYNC_URL: "",
     MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN: "",
+    MWB_PRIVATE_BETA_METRICS_SYNC_URL: "",
+    MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN: "",
   };
   const report = evaluatePrivateWebBetaReadiness({ env });
   const sync = report.checks.find((check) => check.id === "mothership_sync");
 
   assert.equal(report.ready, true);
   assert.equal(sync.status, "pass");
-  assert.match(sync.message, /signal fallback/i);
+  assert.match(sync.message, /signal and metrics fallback/i);
 });
 
 test("private web beta readiness accepts operator-managed tester account files", async () => {

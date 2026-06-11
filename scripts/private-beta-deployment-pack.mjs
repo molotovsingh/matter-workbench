@@ -242,7 +242,7 @@ function buildStopRules(readiness) {
   }
   rules.push("Do not widen access if runtime DB write smoke fails.");
   rules.push("Do not widen access if recoverability evidence cannot prove database/file custody recovery.");
-  rules.push("Do not widen access if mothership feedback or diagnostic signal sync is unavailable.");
+  rules.push("Do not widen access if mothership feedback, diagnostic signal, or backend metrics sync is unavailable.");
   rules.push("Do not treat OpenAI Sites as the main app deployment path until the app is redesigned for that hosting shape.");
   return rules;
 }

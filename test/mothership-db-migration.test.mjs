@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const migrationPath = new URL("../mothership/db/migrations/001_mothership.sql", import.meta.url);
+const metricsMigrationPath = new URL("../mothership/db/migrations/002_mothership_metrics.sql", import.meta.url);
 const runnerPath = new URL("../mothership/db-migrate.mjs", import.meta.url);
 
 test("mothership migration isolates installations, tokens, feedback, and signals", async () => {
@@ -33,6 +34,18 @@ test("mothership migration isolates installations, tokens, feedback, and signals
   assert.doesNotMatch(sql, /references\s+(tenants|matters|documents|processing_jobs)/i);
 });
 
+test("mothership metrics migration stores operator-only deployment snapshots", async () => {
+  const sql = await readFile(metricsMigrationPath, "utf8");
+
+  assert.match(sql, /create table if not exists mothership_metric_snapshots/i);
+  assert.match(sql, /installation_id text not null references mothership_installations/i);
+  assert.match(sql, /snapshot_id text not null/i);
+  assert.match(sql, /captured_at timestamptz not null/i);
+  assert.match(sql, /payload jsonb not null/i);
+  assert.match(sql, /unique \(installation_id, snapshot_id\)/i);
+  assert.match(sql, /create index[^;]+mothership_metric_snapshots[^;]+received_at/i);
+});
+
 test("mothership migration runner uses its own database URL and migration directory", async () => {
   const {
     defaultMothershipMigrationsDir,
@@ -48,5 +61,5 @@ test("mothership migration runner uses its own database URL and migration direct
   assert.match(defaultMothershipMigrationsDir, /mothership\/db\/migrations$/);
 
   const migrations = await listMothershipMigrations();
-  assert.deepEqual(migrations.map((migration) => migration.fileName), ["001_mothership.sql"]);
+  assert.deepEqual(migrations.map((migration) => migration.fileName), ["001_mothership.sql", "002_mothership_metrics.sql"]);
 });

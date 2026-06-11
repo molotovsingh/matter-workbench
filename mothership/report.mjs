@@ -3,6 +3,7 @@ import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
   const signalItems = (dataset.signals || []).map(signalReportItem);
   const feedbackItems = (dataset.feedback || []).map(feedbackReportItem);
+  const metricSummary = summarizeMetrics(dataset.metrics || []);
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
       || right.occurrenceCount - left.occurrenceCount
@@ -19,7 +20,11 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
       confusingUx: feedbackItems.filter((item) => item.category === "confusing_ux").length,
       featureIdeas: feedbackItems.filter((item) => item.category === "feature_idea").length,
       total: items.length,
+      latestBackendSuitability: metricSummary.latest?.scores?.backendSuitability,
+      latestPortability: metricSummary.latest?.scores?.portability,
+      latestUserPatienceRisk: metricSummary.latest?.scores?.userPatienceRisk,
     },
+    metrics: metricSummary,
     items,
   };
 }
@@ -39,9 +44,25 @@ export function renderMothershipReportMarkdown(report = {}) {
     `- Confusing UX: ${report.summary?.confusingUx || 0}`,
     `- Feature ideas: ${report.summary?.featureIdeas || 0}`,
     "",
-    "## Prioritized Evidence",
-    "",
   ];
+  if (report.metrics?.latest) {
+    const latest = report.metrics.latest;
+    lines.push(
+      "## Deployment And Backend Metrics",
+      "",
+      `- Backend Suitability: ${latest.scores?.backendSuitability ?? "unknown"}/100`,
+      `- Deployment Portability: ${latest.scores?.portability ?? "unknown"}/100`,
+      `- Restore Confidence: ${latest.scores?.restoreConfidence ?? "unknown"}/100`,
+      `- Capacity Headroom: ${latest.scores?.capacityHeadroom ?? "unknown"}/100`,
+      `- User Patience Risk: ${latest.scores?.userPatienceRisk || "unknown"}`,
+      `- P95 request latency: ${latest.latency?.p95Ms ?? 0}ms`,
+      `- Max silent wait: ${latest.latency?.silentWaitMaxMs ?? 0}ms`,
+      `- Disk free: ${latest.runtime?.diskFreePercent ?? "unknown"}%`,
+      `- Received: ${latest.receivedAt || ""}`,
+      "",
+    );
+  }
+  lines.push("## Prioritized Evidence", "");
   if (!report.items?.length) {
     lines.push("No feedback or diagnostic signals were received in this window.");
   } else {
@@ -102,6 +123,31 @@ function feedbackReportItem(row = {}) {
   };
 }
 
+function summarizeMetrics(rows = []) {
+  const snapshots = rows
+    .map(metricSnapshot)
+    .filter((snapshot) => snapshot.id)
+    .sort((left, right) => Date.parse(right.receivedAt || 0) - Date.parse(left.receivedAt || 0));
+  return {
+    latest: snapshots[0] || null,
+    snapshots: snapshots.slice(0, 10),
+  };
+}
+
+function metricSnapshot(row = {}) {
+  const payload = parsePayload(row.payload);
+  return {
+    id: String(row.snapshot_id || payload.id || ""),
+    installationId: String(row.installation_id || ""),
+    capturedAt: toIso(row.captured_at || payload.createdAt),
+    receivedAt: toIso(row.received_at || payload.updatedAt || payload.createdAt),
+    deployment: safeObject(payload.deployment),
+    runtime: safeObject(payload.runtime),
+    latency: safeObject(payload.latency),
+    scores: safeObject(payload.scores),
+  };
+}
+
 function parsePayload(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
   try {
@@ -110,6 +156,10 @@ function parsePayload(value) {
   } catch {
     return {};
   }
+}
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
 function positiveInteger(value, fallback) {

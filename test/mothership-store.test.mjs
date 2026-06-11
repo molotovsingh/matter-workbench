@@ -127,6 +127,64 @@ test("store inserts feedback and signals idempotently with parameterized payload
   assert.match(inserts[2].text, /greatest\(mothership_signal_events\.occurrence_count, excluded\.occurrence_count\)/i);
 });
 
+test("store inserts metric snapshots and includes them in reports", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/insert into mothership_metric_snapshots/i.test(text)) {
+        return { rowCount: 1, rows: [{ id: 10, inserted: true }] };
+      }
+      if (/from mothership_metric_snapshots/i.test(text)) {
+        return {
+          rowCount: 1,
+          rows: [{
+            installation_id: "firm-beta-01",
+            snapshot_id: "metrics_001",
+            captured_at: "2026-06-10T10:00:00.000Z",
+            received_at: "2026-06-10T10:00:01.000Z",
+            payload: {
+              id: "metrics_001",
+              scores: {
+                portability: 82,
+                backendSuitability: 74,
+                restoreConfidence: 60,
+                capacityHeadroom: 70,
+                userPatienceRisk: "medium",
+              },
+            },
+          }],
+        };
+      }
+      if (/from mothership_(feedback|signal)_events/i.test(text)) return { rowCount: 0, rows: [] };
+      return { rowCount: 1, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+  const metric = {
+    id: "metrics_001",
+    schema_version: "private-beta-metrics/v1",
+    createdAt: "2026-06-10T10:00:00.000Z",
+    scores: {
+      portability: 82,
+      backendSuitability: 74,
+      restoreConfidence: 60,
+      capacityHeadroom: 70,
+      userPatienceRisk: "medium",
+    },
+  };
+
+  assert.equal((await store.ingestMetricSnapshot({ installationId: "firm-beta-01", metric })).inserted, true);
+  const report = await store.queryReport({ sinceDays: 7 });
+
+  const insert = calls.find((call) => /insert into mothership_metric_snapshots/i.test(call.text));
+  assert.ok(insert);
+  assert.match(insert.text, /\$1/);
+  assert.match(insert.text, /on conflict \(installation_id, snapshot_id\) do update/i);
+  assert.equal(report.metrics.length, 1);
+  assert.equal(report.metrics[0].snapshot_id, "metrics_001");
+});
+
 test("store revokes installations and prunes expired payloads", async () => {
   const calls = [];
   const database = fakeDatabase({
@@ -134,6 +192,7 @@ test("store revokes installations and prunes expired payloads", async () => {
       calls.push({ text, values });
       if (/delete from mothership_feedback_events/i.test(text)) return { rowCount: 3, rows: [] };
       if (/delete from mothership_signal_events/i.test(text)) return { rowCount: 4, rows: [] };
+      if (/delete from mothership_metric_snapshots/i.test(text)) return { rowCount: 5, rows: [] };
       return { rowCount: 1, rows: [] };
     },
   });
@@ -144,8 +203,8 @@ test("store revokes installations and prunes expired payloads", async () => {
   assert.equal(calls.filter((call) => /update mothership_(installations|ingestion_tokens)/i.test(call.text)).length, 2);
 
   const pruned = await store.pruneExpired({ retentionDays: 180 });
-  assert.deepEqual(pruned, { feedbackDeleted: 3, signalsDeleted: 4, retentionDays: 180 });
-  assert.equal(calls.filter((call) => /delete from mothership_(feedback|signal)_events/i.test(call.text)).length, 2);
+  assert.deepEqual(pruned, { feedbackDeleted: 3, signalsDeleted: 4, metricsDeleted: 5, retentionDays: 180 });
+  assert.equal(calls.filter((call) => /delete from mothership_(feedback|signal)_events|delete from mothership_metric_snapshots/i.test(call.text)).length, 3);
 });
 
 function fakeDatabase({ onQuery }) {

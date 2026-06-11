@@ -60,6 +60,7 @@ export async function runMothershipOperator({
       stdout(`retention_days: ${result.retentionDays}`);
       stdout(`feedback_deleted: ${result.feedbackDeleted}`);
       stdout(`signals_deleted: ${result.signalsDeleted}`);
+      stdout(`metrics_deleted: ${result.metricsDeleted || 0}`);
     } else if (parsed.command === "report") {
       const sinceDays = positiveInteger(parsed.options["since-days"], 30);
       const dataset = await store.queryReport({ sinceDays });

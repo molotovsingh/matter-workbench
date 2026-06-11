@@ -21,7 +21,7 @@ Use this path when:
 - access is private-beta login gated;
 - the app runs in explicit runtime DB mode;
 - file/artifact payload custody is database-backed for the runtime;
-- feedback and diagnostic signals sync automatically to a trusted mothership;
+- feedback, diagnostic signals, and backend metrics sync automatically to a trusted mothership;
 - the operator can roll back, inspect logs, and collect bug evidence.
 
 Do not use this path when:
@@ -86,14 +86,18 @@ MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL=https://...
 MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=...
 MWB_PRIVATE_BETA_SIGNAL_SYNC_URL=https://...
 MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN=...
+MWB_PRIVATE_BETA_METRICS_SYNC_URL=https://...
+MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN=...
 MWB_PRIVATE_BETA_INSTALL_ID=...
 MWB_PRIVATE_BETA_TELEMETRY_MODE=firm_internal
 ```
 
 If signal-specific URL/token values are not provided, diagnostic signals fall
-back to the feedback mothership. For firm-internal beta, `firm_internal` mode is
-preferred because trusted lawyers in the same custody boundary need useful
-debugging context. Secrets are still redacted.
+back to the feedback mothership. Metrics-specific URL/token values may do the
+same, with the sender deriving the `/v1/metrics` route from the same trusted
+mothership host. For firm-internal beta, `firm_internal` mode is preferred
+because trusted lawyers in the same custody boundary need useful debugging
+context. Secrets are still redacted.
 
 Provider keys are still needed for the workflows testers will exercise:
 
@@ -183,8 +187,8 @@ Give testers:
   soon as something is confusing, wrong, slow, or legally weak.
 
 Do not ask testers to manually export feedback or diagnostic files. The app
-should store feedback locally and sync feedback plus monitor signals to the
-mothership automatically.
+should store feedback locally and sync feedback, monitor signals, and backend
+metrics to the mothership automatically.
 
 ## Stop Rules
 

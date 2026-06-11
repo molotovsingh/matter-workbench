@@ -2,10 +2,11 @@
 
 ## Purpose
 
-Matter Workbench already captures two development inputs on each installation:
+Matter Workbench captures three operator inputs on each installation:
 
 - explicit tester feedback from "Have a problem? Tell us what happened";
-- automatic diagnostic signals derived from matter attention, failed jobs, and Skill Factory health.
+- automatic diagnostic signals derived from matter attention, failed jobs, and Skill Factory health;
+- backend/deployment metrics for portability, restore confidence, runtime headroom, latency, and silent-wait risk.
 
 Today those records remain in per-installation ledgers unless an external sync endpoint exists. The mothership closes that gap. It gives the product owner and Codex one central, durable baseline from which feedback and failures can be inspected, grouped, prioritized, and converted into development work.
 
@@ -16,7 +17,7 @@ The mothership is an operator tool, not a lawyer-facing product surface.
 The first mothership runs on the existing Debian private VM as a second user-level systemd service:
 
 ```text
-Matter Workbench :4191 -> feedback/signals -> Mothership :4192 -> separate PostgreSQL database
+Matter Workbench :4191 -> feedback/signals/metrics -> Mothership :4192 -> separate PostgreSQL database
 ```
 
 The receiver binds to `127.0.0.1:4192`. The current Workbench installation reaches it over loopback. A later cloud deployment can expose the same endpoints through HTTPS without changing the ingestion contract.
@@ -45,7 +46,8 @@ The receiver exposes:
 
 - `GET /health` - no secret details, only receiver/database readiness;
 - `POST /v1/feedback` - accepts `private-beta-feedback-sync/v1`;
-- `POST /v1/signals` - accepts `private-beta-signal-sync/v1`.
+- `POST /v1/signals` - accepts `private-beta-signal-sync/v1`;
+- `POST /v1/metrics` - accepts `private-beta-metrics-sync/v1`.
 
 Requests are limited to 256 KiB. Unknown routes return 404, unsupported methods return 405, invalid JSON or schemas return 400, missing/invalid credentials return 401, revoked installations return 403, and valid committed ingestion returns 202.
 
@@ -53,20 +55,21 @@ Retrying the same installation/event ID is idempotent and returns success withou
 
 ## Stored Data
 
-The mothership database owns four tables:
+The mothership database owns five tables:
 
 - `mothership_installations` - installation identity and lifecycle;
 - `mothership_ingestion_tokens` - token digest, prefix, and revocation metadata;
 - `mothership_feedback_events` - indexed feedback fields plus the received JSON payload;
-- `mothership_signal_events` - indexed signal fields plus the received JSON payload.
+- `mothership_signal_events` - indexed signal fields plus the received JSON payload;
+- `mothership_metric_snapshots` - periodic backend/deployment health snapshots.
 
 The receiver stores the already-sanitized payload sent by Matter Workbench. With `MWB_PRIVATE_BETA_TELEMETRY_MODE=firm_internal`, useful firm-internal context is retained. Secret-like values remain redacted by the sender. Raw uploaded documents and document bytes are never part of this contract.
 
-Payloads expire after 180 days by default. A daily prune operation deletes expired feedback and signals. The retention period is configurable.
+Payloads expire after 180 days by default. A daily prune operation deletes expired feedback, signals, and metric snapshots. The retention period is configurable.
 
 ## Reliable Delivery
 
-The Workbench sender keeps its current local ledgers and immediate send attempt. A small background retry coordinator calls both queue-drain methods every five minutes. It must:
+The Workbench sender keeps its current local ledgers and immediate send attempt. A small background retry coordinator captures backend metrics and calls queue-drain methods every five minutes. It must:
 
 - never block startup or lawyer workflows;
 - prevent overlapping retries;
@@ -85,7 +88,7 @@ There is no dashboard in this slice. Operator commands provide:
 - prioritized report generation for a chosen time window;
 - retention pruning.
 
-The report groups open development evidence in this order:
+The report first shows the latest backend/deployment metrics, then groups open development evidence in this order:
 
 1. blocker/error diagnostic signals;
 2. repeated warning signals, ranked by occurrence count;
@@ -105,7 +108,7 @@ The deploy includes:
 - VM-local health and end-to-end ingestion checks;
 - updates to the existing deployment documentation.
 
-The Workbench runtime environment receives loopback feedback/signal URLs, its per-installation token, stable installation ID, and `firm_internal` telemetry mode.
+The Workbench runtime environment receives loopback feedback/signal/metrics URLs, its per-installation token, stable installation ID, and `firm_internal` telemetry mode.
 
 ## Failure And Security Posture
 
@@ -118,7 +121,7 @@ The Workbench runtime environment receives loopback feedback/signal URLs, its pe
 
 ## Acceptance Criteria
 
-- A registered installation can submit feedback and a signal.
+- A registered installation can submit feedback, a signal, and a metrics snapshot.
 - Invalid, mismatched, and revoked tokens are rejected.
 - Duplicate delivery does not duplicate rows.
 - Workbench retries queued events automatically after receiver recovery.
@@ -126,4 +129,3 @@ The Workbench runtime environment receives loopback feedback/signal URLs, its pe
 - Receiver and Workbench run as separate active services on the Debian VM.
 - The mothership database role cannot access Matter Workbench legal data.
 - Full tests, build, VM service checks, and end-to-end ingestion pass.
-

@@ -18,7 +18,7 @@ React app + Node server
   -> Postgres runtime DB and payload custody
   -> HTTPS reverse proxy
   -> private beta auth with operator-managed tester accounts
-  -> mothership feedback and diagnostic signal sync
+  -> mothership feedback, diagnostic signal, and backend metrics sync
   -> ops/recovery/rollback evidence packs
 ```
 
@@ -184,6 +184,7 @@ Current surfaces:
 
 - private beta feedback ledger and mothership sync;
 - diagnostic signal ledger and mothership sync;
+- backend/deployment metrics ledger and mothership sync;
 - job-status ledger;
 - Activity receipts;
 - `private-vm:ops-pack`;
@@ -195,7 +196,7 @@ The operator should be able to answer:
 
 - what version is running;
 - whether the app is in runtime DB mode;
-- whether feedback and signals are syncing;
+- whether feedback, signals, and backend metrics are syncing;
 - whether jobs failed;
 - whether rollback is available;
 - whether backup/restore has been proved.

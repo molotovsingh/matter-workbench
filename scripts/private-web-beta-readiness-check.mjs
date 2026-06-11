@@ -163,6 +163,8 @@ function checkMothershipSync(env) {
   const feedbackToken = String(env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN || "").trim();
   const signalUrl = normalizeUrl(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || "");
   const signalToken = String(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || "").trim();
+  const metricsUrl = normalizeUrl(env.MWB_PRIVATE_BETA_METRICS_SYNC_URL || "");
+  const metricsToken = String(env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN || "").trim();
   const installId = String(env.MWB_PRIVATE_BETA_INSTALL_ID || "").trim();
 
   if (!feedbackUrl || !feedbackToken) {
@@ -172,10 +174,16 @@ function checkMothershipSync(env) {
   if ((signalUrl && !signalToken) || (!signalUrl && signalToken)) {
     return block("mothership_sync", "Configure both MWB_PRIVATE_BETA_SIGNAL_SYNC_URL and MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN, or neither to use feedback fallback.");
   }
+  if ((metricsUrl && !metricsToken) || (!metricsUrl && metricsToken)) {
+    return block("mothership_sync", "Configure both MWB_PRIVATE_BETA_METRICS_SYNC_URL and MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN, or neither to use feedback fallback.");
+  }
   if (signalUrl && !isHttps(signalUrl)) return block("mothership_sync", "Signal mothership URL must use HTTPS.");
+  if (metricsUrl && !isHttps(metricsUrl)) return block("mothership_sync", "Metrics mothership URL must use HTTPS.");
   if (!installId) return warn("mothership_sync", "Mothership sync is configured, but MWB_PRIVATE_BETA_INSTALL_ID is missing.");
-  if (!signalUrl) return pass("mothership_sync", "Feedback sync is configured; signal fallback will use the feedback mothership.");
-  return pass("mothership_sync", "Feedback and diagnostic signal mothership sync are configured.");
+  if (!signalUrl && !metricsUrl) return pass("mothership_sync", "Feedback sync is configured; signal and metrics fallback will use the feedback mothership.");
+  if (!signalUrl) return pass("mothership_sync", "Feedback and metrics sync are configured; signal fallback will use the feedback mothership.");
+  if (!metricsUrl) return pass("mothership_sync", "Feedback and diagnostic signal sync are configured; metrics fallback will use the feedback mothership.");
+  return pass("mothership_sync", "Feedback, diagnostic signal, and backend metrics mothership sync are configured.");
 }
 
 function checkTelemetryMode(env) {

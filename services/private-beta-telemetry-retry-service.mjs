@@ -2,6 +2,8 @@ const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 
 export function createPrivateBetaTelemetryRetryService({
   feedbackService,
+  metricsService,
+  metricsContextProvider,
   signalService,
   intervalMs = DEFAULT_INTERVAL_MS,
   setIntervalImpl = setInterval,
@@ -14,9 +16,10 @@ export function createPrivateBetaTelemetryRetryService({
   async function runOnce() {
     if (running) return { skipped: true, reason: "already_running" };
     running = true;
-    const result = { completed: true, feedback: null, signals: null };
+    const result = { completed: true, feedback: null, metrics: null, signals: null };
     try {
       result.feedback = await runQueue("feedback", feedbackService?.syncQueuedFeedback);
+      result.metrics = await runMetrics();
       result.signals = await runQueue("signals", signalService?.syncQueuedSignals);
       return result;
     } finally {
@@ -44,6 +47,27 @@ export function createPrivateBetaTelemetryRetryService({
       return await operation.call(label === "feedback" ? feedbackService : signalService);
     } catch (error) {
       log.error?.(`private beta ${label} retry failed: ${redactRetryError(error?.message)}`);
+      return { failed: true };
+    }
+  }
+
+  async function runMetrics() {
+    if (typeof metricsService?.captureRuntimeSnapshot !== "function") {
+      return { skipped: true, reason: "unavailable" };
+    }
+    try {
+      const queued = typeof metricsService.syncQueuedMetrics === "function"
+        ? await metricsService.syncQueuedMetrics()
+        : { skipped: true, reason: "unavailable" };
+      const context = typeof metricsContextProvider === "function" ? metricsContextProvider() : {};
+      const snapshot = await metricsService.captureRuntimeSnapshot(context);
+      return {
+        captured: true,
+        syncStatus: snapshot?.sync?.status || "unknown",
+        queued,
+      };
+    } catch (error) {
+      log.error?.(`private beta metrics retry failed: ${redactRetryError(error?.message)}`);
       return { failed: true };
     }
   }

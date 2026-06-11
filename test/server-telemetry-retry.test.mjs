@@ -53,3 +53,31 @@ test("Workbench does not schedule telemetry retries without a complete sync cred
   await new Promise((resolve) => app.server.close(resolve));
   assert.deepEqual(events, []);
 });
+
+test("Workbench records request latency through the private beta metrics service", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "mwb-telemetry-metrics-server-"));
+  const observations = [];
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {
+      MATTERS_HOME: path.join(appDir, "matters"),
+    },
+    host: "127.0.0.1",
+    port: 0,
+    privateBetaMetricsService: {
+      observeRequest: (input) => observations.push(input),
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+  const response = await fetch(`${baseUrl}/api/settings`);
+  await response.text();
+  await new Promise((resolve) => app.server.close(resolve));
+
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].method, "GET");
+  assert.equal(observations[0].pathname, "/api/settings");
+  assert.equal(observations[0].statusCode, response.status);
+  assert.equal(typeof observations[0].durationMs, "number");
+});

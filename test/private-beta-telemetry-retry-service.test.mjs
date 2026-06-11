@@ -46,6 +46,30 @@ test("telemetry retry service supports immediate retry without blocking start", 
   assert.deepEqual(events, ["feedback", "signals"]);
 });
 
+test("telemetry retry service drains queued metric snapshots before capturing a new one", async () => {
+  const events = [];
+  const service = createPrivateBetaTelemetryRetryService({
+    feedbackService: { syncQueuedFeedback: async () => events.push("feedback") },
+    metricsService: {
+      captureRuntimeSnapshot: async (context) => {
+        events.push(`metrics:${context.deployment.commit}`);
+        return { sync: { status: "sent" } };
+      },
+      syncQueuedMetrics: async () => {
+        events.push("metrics-queued");
+        return { attempted: 0, sent: 0 };
+      },
+    },
+    metricsContextProvider: () => ({ deployment: { commit: "abc1234" } }),
+    signalService: { syncQueuedSignals: async () => events.push("signals") },
+  });
+
+  const result = await service.runOnce();
+
+  assert.equal(result.metrics.captured, true);
+  assert.deepEqual(events, ["feedback", "metrics-queued", "metrics:abc1234", "signals"]);
+});
+
 test("telemetry retry service prevents overlaps and isolates queue failures", async () => {
   let release;
   let feedbackCalls = 0;
