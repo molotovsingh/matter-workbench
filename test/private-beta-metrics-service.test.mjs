@@ -66,6 +66,7 @@ test("metrics service records latency, scores backend suitability, and syncs sna
   assert.equal(requests[0].body.installId, "firm-beta-01");
   assert.equal(requests[0].body.metric.id, "metrics_001");
   assert.doesNotMatch(JSON.stringify(requests[0].body), /secret-token/);
+  assert.equal(requests[0].headers.Authorization, "Bearer mwb_ing_secret-token");
 
   const ledger = JSON.parse(await readFile(path.join(tmp, "metrics-ledger.json"), "utf8"));
   assert.equal(ledger.metrics[0].sync.status, "sent");

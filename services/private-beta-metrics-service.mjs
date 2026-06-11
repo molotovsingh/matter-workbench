@@ -388,7 +388,7 @@ function normalizeSyncConfig({ syncUrl, syncToken, installId, fetchImpl }) {
   const url = parseSyncUrl(syncUrl);
   return {
     url,
-    token: sanitizeText(syncToken, 500).trim(),
+    token: String(syncToken || "").trim().slice(0, 500),
     installId: sanitizeText(installId || "local-beta-install", 120).trim() || "local-beta-install",
     fetchImpl: typeof fetchImpl === "function" ? fetchImpl : null,
   };
