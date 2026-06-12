@@ -312,10 +312,11 @@ export default function CommandPanel({
           visibleError: feedbackHappenedInstead,
         },
       });
-      setFeedbackMessage('Saved. You can keep working.');
       setFeedbackChoice('');
       setFeedbackTryingToDo('');
       setFeedbackHappenedInstead('');
+      setFeedbackMessage('');
+      setFeedbackOpen(false);
       appendTerminal(['[feedback] saved private beta feedback']);
     } catch (error) {
       setFeedbackMessage(`Could not save feedback: ${getErrorMessage(error)}`);

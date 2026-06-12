@@ -2714,3 +2714,38 @@ to improve quickly with real lawyers, the feedback loop must be boring,
 trustworthy, and easy to read. A private beta does not need Jira on day one. It
 does need a reliable cockpit where the operator can see what happened, who it
 happened to, and whether the report reached the development mothership.
+
+### Three small beta bugs, one larger lesson
+
+Shivangi's early feedback produced three different-looking issues that all had
+the same product shape: the app was technically doing something defensible, but
+the lawyer experience felt broken.
+
+First, Copilot could reject its own answer with an "unsupported citation" error
+even when the cited handle came from List of Dates. The cause was a bounded
+context design choice. We only sent a slice of chronology entries to the model,
+and the server only validated citations against that same slice. If the answer
+referred to a valid chronology citation just outside the slice, the server
+treated it like an invented source. The fix was to keep the readable chronology
+slice bounded, but add a full lightweight citation index from the List of Dates
+artifact. That keeps the closed-world guardrail without pretending that omitted
+chronology rows do not exist.
+
+Second, feedback saved successfully but left a "Saved. You can keep working."
+message sitting inside the assistant panel. That is fine for a developer form;
+it is annoying inside a workbench where the assistant panel is the next action
+surface. The form now closes after a successful save and leaves the activity log
+as the confirmation.
+
+Third, stale sessions could show up as repeated "Login required" messages
+inside ordinary workflows. The API client already knew about `authRequired`, but
+the React shell was not using it as a global state transition. The fix was to
+make only explicit `authRequired: true` responses move the app back to sign-in.
+Plain bad-password 401s stay as login errors; expired-session 401s become one
+clear sign-in screen.
+
+The lesson is that private beta hardening is mostly about removing confusing
+states. A lawyer should not need to distinguish "valid source omitted from the
+packet", "feedback queued but panel did not close", or "session expired while a
+workflow tried to read a file". The system can keep strict internal rules, but
+the surface must collapse them into clear next steps.

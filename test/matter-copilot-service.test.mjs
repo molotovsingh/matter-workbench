@@ -90,7 +90,33 @@ test("matter copilot resolves an unambiguous source label back to a raw citation
   assert.equal(answer.sources[0].source_label, "Consumer complaint filing record");
 });
 
-async function makeMatterRoot() {
+test("matter copilot validates citations from omitted List of Dates entries", async () => {
+  const root = await makeMatterRoot({ extraChronologyEntries: 120 });
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async ({ matterContext }) => {
+      assert.equal(matterContext.chronology_entries.length, 120);
+      return {
+        answer_status: "partial",
+        answer_markdown: "The later chronology entry is relevant but outside the visible JSON slice.",
+        confidence: 0.66,
+        sources: [{
+          raw_citation: "FILE-0001 p1.b121",
+          source_label: "Consumer complaint filing record",
+          snippet: "Chronology entry 121 remained supported by the List of Dates artifact.",
+        }],
+        warnings: [],
+      };
+    },
+  });
+
+  const answer = await service.answerQuestion({ question: "what later event matters?" });
+
+  assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b121"]);
+});
+
+async function makeMatterRoot({ extraChronologyEntries = 0 } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-copilot-test-"));
   const root = path.join(tmp, "Mehta vs Skyline");
   await mkdir(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted"), { recursive: true });
@@ -171,22 +197,37 @@ async function makeMatterRoot() {
       }],
     }, null, 2)}\n`,
   );
+  const chronologyEntries = [{
+    date_iso: "2013-01-21",
+    date_text: "21 January 2013",
+    event: "Consumer complaint was filed.",
+    legal_relevance: "Starts the lis before the consumer forum.",
+    citation: "FILE-0001 p1.b2",
+    source_label: "Consumer complaint filing record",
+    source_short_label: "Complaint filing record",
+    source_excerpt: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
+    needs_review: false,
+  }];
+  for (let i = 1; i <= extraChronologyEntries; i += 1) {
+    chronologyEntries.push({
+      date_iso: `2013-02-${String(Math.min(i, 28)).padStart(2, "0")}`,
+      date_text: `February ${i}, 2013`,
+      event: `Chronology entry ${i} remained supported by the List of Dates artifact.`,
+      legal_relevance: `Later chronology relevance ${i}.`,
+      citation: `FILE-0001 p1.b${i + 1}`,
+      source_label: "Consumer complaint filing record",
+      source_short_label: "Complaint filing record",
+      source_excerpt: `Chronology entry ${i} remained supported by the List of Dates artifact.`,
+      needs_review: false,
+    });
+  }
+
   await writeFile(
     path.join(root, "10_Library", "List of Dates.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-05-20T09:30:00.000Z",
-      entries: [{
-        date_iso: "2013-01-21",
-        date_text: "21 January 2013",
-        event: "Consumer complaint was filed.",
-        legal_relevance: "Starts the lis before the consumer forum.",
-        citation: "FILE-0001 p1.b2",
-        source_label: "Consumer complaint filing record",
-        source_short_label: "Complaint filing record",
-        source_excerpt: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
-        needs_review: false,
-      }],
+      entries: chronologyEntries,
     }, null, 2)}\n`,
   );
   await writeFile(

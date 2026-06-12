@@ -64,8 +64,16 @@ class ApiError extends Error {
   constructor(message: string, statusCode: number) {
     super(message);
     this.statusCode = statusCode;
-    this.authRequired = statusCode === 401;
+    this.authRequired = false;
   }
+}
+
+type AuthRequiredHandler = () => void;
+
+let authRequiredHandler: AuthRequiredHandler | null = null;
+
+export function setAuthRequiredHandler(handler: AuthRequiredHandler | null) {
+  authRequiredHandler = handler;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -100,6 +108,7 @@ async function createApiError(res: Response, url: string): Promise<ApiError> {
   const error = new ApiError(formatApiErrorMessage(payload, res, url), res.status);
   if (payload && typeof payload === 'object' && (payload as Record<string, unknown>).authRequired === true) {
     error.authRequired = true;
+    authRequiredHandler?.();
   }
   return error;
 }

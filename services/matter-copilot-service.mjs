@@ -112,6 +112,9 @@ function summarizeMatterContextForCopilot(packet) {
   const chronologyEntries = libraryArtifacts
     .filter((artifact) => artifact?.kind === "list_of_dates" && Array.isArray(artifact.entries))
     .flatMap((artifact) => artifact.entries);
+  const chronologyCitationIndex = libraryArtifacts
+    .filter((artifact) => artifact?.kind === "list_of_dates" && Array.isArray(artifact.citation_index))
+    .flatMap((artifact) => artifact.citation_index);
   const chronologyMarkdown = libraryArtifacts.find((artifact) => artifact?.kind === "list_of_dates_markdown");
   return {
     schema_version: packet?.schema_version || "",
@@ -140,6 +143,13 @@ function summarizeMatterContextForCopilot(packet) {
       source_excerpt: boundedText(entry.source_excerpt, COPILOT_CONTEXT_LIMITS.maxCharsPerBlock),
       needs_review: Boolean(entry.needs_review),
       supporting_sources: Array.isArray(entry.supporting_sources) ? entry.supporting_sources : [],
+    })),
+    chronology_citation_index: chronologyCitationIndex.map((entry) => ({
+      citation: entry.citation || "",
+      source_label: entry.source_label || "",
+      source_short_label: entry.source_short_label || "",
+      source_excerpt: boundedText(entry.source_excerpt, 300),
+      event: boundedText(entry.event, 300),
     })),
     counts: {
       sources: sources.length,
@@ -236,6 +246,11 @@ function buildSourceResolver(packet) {
         indexSourceLabel(byLabel, source.source_label || entry.source_label, sourceBlock);
         indexSourceLabel(byLabel, source.source_short_label || entry.source_short_label, sourceBlock);
       }
+    }
+    for (const entry of Array.isArray(artifact.citation_index) ? artifact.citation_index : []) {
+      const entryBlock = addChronologyCitation(byCitation, entry, entry);
+      indexSourceLabel(byLabel, entry.source_label, entryBlock);
+      indexSourceLabel(byLabel, entry.source_short_label, entryBlock);
     }
   }
   return { byCitation, byLabel };

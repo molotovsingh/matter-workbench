@@ -5,6 +5,7 @@ import test from "node:test";
 test("React shell checks auth before loading product data", async () => {
   const source = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
   assert.match(source, /api\.getAuthStatus\(\)/);
+  assert.match(source, /setAuthRequiredHandler/);
   assert.match(source, /if \(!authStatus\?\.authenticated\) return undefined;/);
   assert.match(source, /<PrivateBetaLogin/);
   assert.match(source, /api\.login\(\{ username, password \}\)/);
@@ -34,4 +35,6 @@ test("React API client exposes private beta auth helpers", async () => {
   assert.match(source, /login: \(body: \{ username: string; password: string \}\)/);
   assert.match(source, /logout: \(\) => postJson/);
   assert.match(source, /isAuthRequiredError/);
+  assert.match(source, /setAuthRequiredHandler/);
+  assert.doesNotMatch(source, /this\.authRequired = statusCode === 401/);
 });

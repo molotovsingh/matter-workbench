@@ -89,6 +89,7 @@ function summarizeJsonArtifact(relativePath, json, info, limits = {}) {
       entries_included: includedEntries.length,
       entries_omitted: Math.max(0, entries.length - includedEntries.length),
       entries: includedEntries.map(summarizeChronologyEntry),
+      citation_index: entries.map(summarizeChronologyCitation).filter((entry) => entry.citation),
       generated_at: json.generated_at || "",
       ai_run: sanitizeAiRun(json.ai_run),
       mtime: info.mtime.toISOString(),
@@ -125,6 +126,16 @@ function summarizeChronologyEntry(entry = {}) {
           event: boundedText(source.event, 400),
         }))
       : [],
+  };
+}
+
+function summarizeChronologyCitation(entry = {}) {
+  return {
+    citation: normalizeText(entry.citation),
+    source_label: normalizeText(entry.source_label),
+    source_short_label: normalizeText(entry.source_short_label),
+    source_excerpt: boundedText(entry.source_excerpt, 300),
+    event: boundedText(entry.event, 300),
   };
 }
 

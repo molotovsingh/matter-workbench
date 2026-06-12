@@ -5,7 +5,7 @@ import ActivityBar from './components/layout/ActivityBar';
 import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
 import CommandPanel from './components/command/CommandPanel';
-import { api } from './api/client';
+import { api, setAuthRequiredHandler } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
 import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotAnswer';
@@ -42,6 +42,18 @@ function AppShell() {
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
+  const handleAuthRequired = useCallback(() => {
+    setAuthError('Please sign in again.');
+    setAuthStatus({ enabled: true, authenticated: false, user: null });
+    dispatch({ type: 'SET_CONFIG', payload: { authUser: null, authEnabled: true } });
+  }, [dispatch]);
+
+  useEffect(() => {
+    setAuthRequiredHandler(handleAuthRequired);
+    return () => {
+      setAuthRequiredHandler(null);
+    };
+  }, [handleAuthRequired]);
 
   const runPreparationForMatter = useCallback(async (
     matterName: string,
