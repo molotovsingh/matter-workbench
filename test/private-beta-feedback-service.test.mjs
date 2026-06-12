@@ -107,7 +107,10 @@ test("private beta feedback firm-internal mode keeps richer context but still re
   assert.deepEqual(record.context.providerRoutes, [
     { task: "copilot_answer", provider: "openrouter", model: "openai/gpt-4.1" },
   ]);
-  assert.equal(record.sync.status, "sent");
+  assert.equal(record.sync.status, "queued");
+  assert.equal(requests.length, 0);
+  const synced = await service.syncQueuedFeedback();
+  assert.equal(synced.sent, 1);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].body.feedback.telemetryMode, "firm_internal");
   assert.equal(requests[0].body.feedback.context.sourceText, "Client says the demand notice was sent on 12 March 2023.");
@@ -159,7 +162,7 @@ test("private beta feedback service captures sparse tester problem reports", asy
   assert.equal(listed.feedback[0].id, "feedback_sparse_001");
 });
 
-test("private beta feedback service syncs safe packets to a configured mothership", async () => {
+test("private beta feedback service sends queued safe packets to a configured mothership", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-sync-"));
   const requests = [];
   const service = createPrivateBetaFeedbackService({
@@ -187,10 +190,11 @@ test("private beta feedback service syncs safe packets to a configured mothershi
     },
   });
 
-  assert.equal(record.sync.status, "sent");
-  assert.equal(record.sync.attempts, 1);
-  assert.equal(record.sync.sentAt, "2026-06-07T12:00:00.000Z");
-  assert.equal(record.sync.endpointHost, "mothership.example.test");
+  assert.equal(record.sync.status, "queued");
+  assert.equal(record.sync.attempts, 0);
+  assert.equal(requests.length, 0);
+  const synced = await service.syncQueuedFeedback();
+  assert.equal(synced.sent, 1);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://mothership.example.test/api/beta-feedback");
   assert.equal(requests[0].options.headers.Authorization, "Bearer sync-token-secret");
@@ -202,6 +206,44 @@ test("private beta feedback service syncs safe packets to a configured mothershi
 
   const listed = await service.listFeedback();
   assert.equal(listed.feedback[0].sync.status, "sent");
+  assert.equal(listed.feedback[0].sync.attempts, 1);
+  assert.equal(listed.feedback[0].sync.sentAt, "2026-06-07T12:00:00.000Z");
+  assert.equal(listed.feedback[0].sync.endpointHost, "mothership.example.test");
+});
+
+test("private beta feedback service queues new feedback locally without inline mothership sync", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-local-first-"));
+  const requests = [];
+  const service = createPrivateBetaFeedbackService({
+    feedbackPath: path.join(tmp, "feedback-ledger.json"),
+    now: () => new Date("2026-06-12T12:00:00.000Z"),
+    idFactory: () => "feedback_local_first",
+    syncUrl: "https://mothership.example.test/api/beta-feedback",
+    syncToken: "sync-token-secret",
+    installId: "tester-install-01",
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, status: 202, text: async () => "" };
+    },
+  });
+
+  const record = await service.createFeedback({
+    choice: "did_not_work",
+    tryingToDo: "Save feedback",
+    happenedInstead: "The button showed a blocked cursor.",
+  });
+
+  assert.equal(record.sync.status, "queued");
+  assert.equal(record.sync.attempts, 0);
+  assert.equal(requests.length, 0);
+
+  const stored = JSON.parse(await readFile(path.join(tmp, "feedback-ledger.json"), "utf8"));
+  assert.equal(stored.feedback[0].id, "feedback_local_first");
+  assert.equal(stored.feedback[0].sync.status, "queued");
+
+  const synced = await service.syncQueuedFeedback();
+  assert.equal(synced.sent, 1);
+  assert.equal(requests.length, 1);
 });
 
 test("private beta feedback service queues failed sync and retries later", async () => {
@@ -234,9 +276,18 @@ test("private beta feedback service queues failed sync and retries later", async
   });
 
   assert.equal(queued.sync.status, "queued");
-  assert.equal(queued.sync.attempts, 1);
-  assert.match(queued.sync.lastError, /\[redacted-secret\]/);
+  assert.equal(queued.sync.attempts, 0);
+  assert.equal(queued.sync.lastError, undefined);
+  assert.equal(attempts.length, 0);
+
+  const failed = await service.syncQueuedFeedback();
+  assert.equal(failed.attempted, 1);
+  assert.equal(failed.sent, 0);
+  assert.equal(failed.queued, 1);
   assert.equal(attempts.length, 1);
+  let listed = await service.listFeedback();
+  assert.equal(listed.feedback[0].sync.status, "queued");
+  assert.match(listed.feedback[0].sync.lastError, /\[redacted-secret\]/);
 
   fail = false;
   const result = await service.syncQueuedFeedback();
@@ -245,14 +296,13 @@ test("private beta feedback service queues failed sync and retries later", async
   assert.equal(result.queued, 0);
   assert.equal(attempts.length, 2);
 
-  const listed = await service.listFeedback();
+  listed = await service.listFeedback();
   assert.equal(listed.feedback[0].sync.status, "sent");
   assert.equal(listed.feedback[0].sync.attempts, 2);
 });
 
-test("private beta feedback service silently retries older queued notes after a successful new sync", async () => {
+test("private beta feedback service drains multiple queued notes from the explicit sync path", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-sync-silent-retry-"));
-  let fail = true;
   let nextId = 1;
   const service = createPrivateBetaFeedbackService({
     feedbackPath: path.join(tmp, "feedback-ledger.json"),
@@ -268,7 +318,6 @@ test("private beta feedback service silently retries older queued notes after a 
     idFactory: () => `feedback_silent_${nextId++}`,
     syncUrl: "https://mothership.example.test/api/beta-feedback",
     fetchImpl: async () => {
-      if (fail) throw new Error("offline");
       return { ok: true, status: 200, text: async () => "" };
     },
   });
@@ -279,18 +328,20 @@ test("private beta feedback service silently retries older queued notes after a 
   });
   assert.equal(first.sync.status, "queued");
 
-  fail = false;
   const second = await service.createFeedback({
     choice: "want_something",
     tryingToDo: "Ask for an easier feedback button",
   });
-  assert.equal(second.sync.status, "sent");
+  assert.equal(second.sync.status, "queued");
+
+  const synced = await service.syncQueuedFeedback();
+  assert.equal(synced.sent, 2);
 
   const listed = await service.listFeedback();
   const older = listed.feedback.find((item) => item.id === "feedback_silent_1");
   const newer = listed.feedback.find((item) => item.id === "feedback_silent_2");
   assert.equal(older.sync.status, "sent");
-  assert.equal(older.sync.attempts, 2);
+  assert.equal(older.sync.attempts, 1);
   assert.equal(newer.sync.status, "sent");
   assert.equal(newer.sync.attempts, 1);
 });

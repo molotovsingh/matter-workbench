@@ -5,7 +5,11 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
-import { attemptTelemetrySync, normalizeTelemetrySyncConfig } from "./telemetry-sync-client.mjs";
+import {
+  attemptTelemetrySync,
+  markTelemetrySyncQueued,
+  normalizeTelemetrySyncConfig,
+} from "./telemetry-sync-client.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-metrics-ledger/v1";
 const METRICS_SCHEMA_VERSION = "private-beta-metrics/v1";
@@ -68,8 +72,11 @@ export function createPrivateBetaMetricsService({
         latency,
         scores,
       });
-      metric.sync = await attemptSync(metric, metric.sync);
-      metric.updatedAt = metric.sync.lastAttemptAt || metric.updatedAt;
+      metric.sync = markTelemetrySyncQueued({
+        syncConfig,
+        previousSync: metric.sync,
+        normalizeSync,
+      });
       store.metrics.push(metric);
       if (store.metrics.length > 300) store.metrics.splice(0, store.metrics.length - 300);
       return metric;

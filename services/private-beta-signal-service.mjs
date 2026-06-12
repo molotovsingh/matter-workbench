@@ -152,8 +152,11 @@ export function createPrivateBetaSignalService({
         }
 
         const signal = normalizeSignal(candidate, { telemetryMode: normalizedTelemetryMode });
-        signal.sync = await attemptSync(signal, signal.sync);
-        signal.updatedAt = signal.sync.lastAttemptAt || signal.updatedAt;
+        signal.sync = markTelemetrySyncQueued({
+          syncConfig,
+          previousSync: signal.sync,
+          normalizeSync,
+        });
         store.signals.push(signal);
         capturedSignals.push(signal);
         if (signal.sync.status === "sent") result.sent += 1;

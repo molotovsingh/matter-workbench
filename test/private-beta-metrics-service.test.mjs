@@ -60,6 +60,11 @@ test("metrics service records latency, scores backend suitability, and syncs sna
   assert.equal(snapshot.scores.userPatienceRisk, "medium");
   assert.equal(snapshot.scores.restoreConfidence, 40);
   assert.ok(snapshot.scores.backendSuitability < 100);
+  assert.equal(requests.length, 0);
+  assert.equal(snapshot.sync.status, "queued");
+
+  const synced = await service.syncQueuedMetrics();
+  assert.equal(synced.sent, 1);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://mothership.example.test/v1/metrics");
   assert.equal(requests[0].body.schema_version, "private-beta-metrics-sync/v1");
@@ -70,6 +75,41 @@ test("metrics service records latency, scores backend suitability, and syncs sna
 
   const ledger = JSON.parse(await readFile(path.join(tmp, "metrics-ledger.json"), "utf8"));
   assert.equal(ledger.metrics[0].sync.status, "sent");
+});
+
+test("metrics service queues runtime snapshots locally without inline mothership sync", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-metrics-local-first-"));
+  const requests = [];
+  const service = createPrivateBetaMetricsService({
+    appDir: tmp,
+    metricsPath: path.join(tmp, "metrics-ledger.json"),
+    syncUrl: "https://mothership.example.test/v1/metrics",
+    syncToken: "mwb_ing_secret-token",
+    installId: "firm-beta-01",
+    idFactory: () => "metrics_local_first",
+    now: () => new Date("2026-06-12T13:00:00.000Z"),
+    sampleRuntime: async () => ({ diskFreePercent: 90, cpuCount: 4 }),
+    fetchImpl: async (url, init = {}) => {
+      requests.push({ url, body: JSON.parse(init.body) });
+      return { ok: true, status: 202 };
+    },
+  });
+
+  const snapshot = await service.captureRuntimeSnapshot({
+    deployment: { commit: "abc1234", storageMode: "postgres" },
+  });
+
+  assert.equal(snapshot.id, "metrics_local_first");
+  assert.equal(snapshot.sync.status, "queued");
+  assert.equal(snapshot.sync.attempts, 0);
+  assert.equal(requests.length, 0);
+
+  const ledger = JSON.parse(await readFile(path.join(tmp, "metrics-ledger.json"), "utf8"));
+  assert.equal(ledger.metrics[0].sync.status, "queued");
+
+  const synced = await service.syncQueuedMetrics();
+  assert.equal(synced.sent, 1);
+  assert.equal(requests.length, 1);
 });
 
 test("metrics service queues failed sync and retries later", async () => {
@@ -93,6 +133,11 @@ test("metrics service queues failed sync and retries later", async () => {
 
   const snapshot = await service.captureRuntimeSnapshot();
   assert.equal(snapshot.sync.status, "queued");
+
+  const failed = await service.syncQueuedMetrics();
+  assert.equal(failed.attempted, 1);
+  assert.equal(failed.sent, 0);
+  assert.equal(failed.queued, 1);
 
   fail = false;
   const result = await service.syncQueuedMetrics();

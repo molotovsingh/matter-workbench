@@ -2749,3 +2749,32 @@ states. A lawyer should not need to distinguish "valid source omitted from the
 packet", "feedback queued but panel did not close", or "session expired while a
 workflow tried to read a file". The system can keep strict internal rules, but
 the surface must collapse them into clear next steps.
+
+### Telemetry must be local-first
+
+Once the beta app started sending feedback, diagnostic signals, and deployment
+health snapshots to the mothership, a new rule became important: the lawyer's
+click must never wait on the mothership. If the receiver is slow, down, or
+temporarily unreachable, the app should still save the user's feedback locally
+and let them keep working.
+
+The telemetry services now follow that rule. Creating feedback, capturing a
+matter-warning signal, and taking a runtime metrics snapshot all write a local
+ledger row first and mark it `queued`. The retry worker and operator sync
+endpoints are responsible for sending queued rows to the mothership. In other
+words, the workbench behaves like an outbox: put the letter safely in the tray
+now, let the courier deal with traffic later.
+
+This avoids a subtle but serious beta failure mode. A feedback form that waits
+on a remote HTTP request can look broken even when the local save succeeded.
+Worse, if the sync happens while holding the JSON ledger write lock, one slow
+network call can block later feedback or signal writes. Moving remote sync out
+of the capture path keeps the product responsive and makes failures easier to
+reason about: unsent items show as "Queued for sync" in the operator view, and
+the retry service can resend them without asking the lawyer to do anything.
+
+The engineering lesson is that observability should protect the user
+experience, not compete with it. For beta, the local ledger is the source of
+truth that the signal was captured. The mothership is the collector. If the
+collector is unavailable, that is an operations problem, not a reason to make a
+lawyer's workflow fail.

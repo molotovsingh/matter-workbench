@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
-import { attemptTelemetrySync, normalizeTelemetrySyncConfig } from "./telemetry-sync-client.mjs";
+import {
+  attemptTelemetrySync,
+  markTelemetrySyncQueued,
+  normalizeTelemetrySyncConfig,
+} from "./telemetry-sync-client.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-feedback-ledger/v1";
@@ -64,12 +68,12 @@ export function createPrivateBetaFeedbackService({
         updatedAt: createdAt,
         status: "new",
       }, { telemetryMode: normalizedTelemetryMode });
-      feedback.sync = await attemptSync(feedback, feedback.sync);
-      feedback.updatedAt = feedback.sync.lastAttemptAt || feedback.updatedAt;
+      feedback.sync = markTelemetrySyncQueued({
+        syncConfig,
+        previousSync: feedback.sync,
+        normalizeSync,
+      });
       store.feedback.push(feedback);
-      if (feedback.sync.status === "sent") {
-        await syncQueuedItems(store, { excludeId: feedback.id, limit: 10 });
-      }
       return feedback;
     });
   }

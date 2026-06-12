@@ -209,12 +209,19 @@ test("private beta telemetry mode env enables firm-internal feedback and signal 
       },
     });
     await getJson(baseUrl, "/api/jobs?limit=5");
+    assert.equal(feedbackRequests.length, 0);
+    assert.equal(signalRequests.length, 0);
 
+    const feedbackSync = await postJson(baseUrl, "/api/private-beta/feedback/sync", {});
+    const signalSync = await postJson(baseUrl, "/api/private-beta/signals/sync", {});
+
+    assert.equal(feedbackSync.sent, 1);
     assert.equal(feedbackRequests.length, 1);
     assert.equal(feedbackRequests[0].body.feedback.telemetryMode, "firm_internal");
     assert.equal(feedbackRequests[0].body.feedback.context.sourceText, "Client says the notice was sent in March.");
     assert.equal(feedbackRequests[0].body.feedback.context.generatedOutput, "Draft missed the notice.");
 
+    assert.equal(signalSync.sent, 1);
     assert.equal(signalRequests.length, 1);
     assert.equal(signalRequests[0].body.signal.telemetryMode, "firm_internal");
     assert.equal(signalRequests[0].body.signal.details.metadata.sourceText, "Client gave detailed firm-internal facts.");

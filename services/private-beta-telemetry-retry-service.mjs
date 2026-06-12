@@ -56,11 +56,11 @@ export function createPrivateBetaTelemetryRetryService({
       return { skipped: true, reason: "unavailable" };
     }
     try {
+      const context = typeof metricsContextProvider === "function" ? metricsContextProvider() : {};
+      const snapshot = await metricsService.captureRuntimeSnapshot(context);
       const queued = typeof metricsService.syncQueuedMetrics === "function"
         ? await metricsService.syncQueuedMetrics()
         : { skipped: true, reason: "unavailable" };
-      const context = typeof metricsContextProvider === "function" ? metricsContextProvider() : {};
-      const snapshot = await metricsService.captureRuntimeSnapshot(context);
       return {
         captured: true,
         syncStatus: snapshot?.sync?.status || "unknown",

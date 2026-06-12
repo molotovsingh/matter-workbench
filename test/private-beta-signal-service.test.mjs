@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { createPrivateBetaSignalService } from "../services/private-beta-signal-service.mjs";
 
-test("private beta signal service captures redacted matter attention packets and syncs them", async () => {
+test("private beta signal service captures redacted matter attention packets and syncs queued signals", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-"));
   const signalsPath = path.join(tmp, "signals-ledger.json");
   const requests = [];
@@ -47,7 +47,8 @@ test("private beta signal service captures redacted matter attention packets and
   }, { runtimeMode: "postgres" });
 
   assert.equal(result.captured, 1);
-  assert.equal(result.sent, 1);
+  assert.equal(result.sent, 0);
+  assert.equal(result.queued, 1);
   assert.equal(result.signals[0].schema_version, "private-beta-signal/v1");
   assert.equal(result.signals[0].source, "matter_attention");
   assert.equal(result.signals[0].matterName, "Atlas Construction vs Diptishree");
@@ -57,9 +58,12 @@ test("private beta signal service captures redacted matter attention packets and
   assert.deepEqual(result.signals[0].details.evidence, [
     "00_Inbox/Intake 01/Extraction Log.csv - FILE-0001 - extracted",
   ]);
-  assert.equal(result.signals[0].sync.status, "sent");
+  assert.equal(result.signals[0].sync.status, "queued");
   assert.equal(existsSync(signalsPath), true);
 
+  assert.equal(requests.length, 0);
+  const synced = await service.syncQueuedSignals();
+  assert.equal(synced.sent, 1);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://mothership.example.test/api/beta-signals");
   assert.equal(requests[0].options.headers.Authorization, "Bearer secret-sync-token");
@@ -71,6 +75,54 @@ test("private beta signal service captures redacted matter attention packets and
   const store = JSON.parse(await readFile(signalsPath, "utf8"));
   assert.equal(store.schema_version, "private-beta-signal-ledger/v1");
   assert.equal(store.signals.length, 1);
+  assert.equal(store.signals[0].sync.status, "sent");
+});
+
+test("private beta signal service queues new signals locally without inline mothership sync", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-local-first-"));
+  const signalsPath = path.join(tmp, "signals-ledger.json");
+  const requests = [];
+  const service = createPrivateBetaSignalService({
+    signalsPath,
+    now: () => new Date("2026-06-12T12:30:00.000Z"),
+    idFactory: () => "signal_local_first",
+    syncUrl: "https://mothership.example.test/api/beta-signals",
+    syncToken: "secret-sync-token",
+    installId: "tester-install-01",
+    fetchImpl: async (url, options = {}) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, status: 202, text: async () => "" };
+    },
+  });
+
+  const result = await service.captureMatterAttention({
+    matterName: "Taori vs Roma Builder",
+    summary: { state: "attention_needed", blocker: 0, warning: 1, info: 0, total: 1 },
+    items: [{
+      id: "source-labels-warning",
+      severity: "warning",
+      category: "source_labels",
+      code: "needs_review",
+      title: "Some source labels need review",
+      action: "Confirm labels.",
+      evidence: ["10_Library/Source Index.json - FILE-0001 - needs_review"],
+    }],
+  }, { runtimeMode: "postgres" });
+
+  assert.equal(result.captured, 1);
+  assert.equal(result.queued, 1);
+  assert.equal(result.sent, 0);
+  assert.equal(result.signals[0].sync.status, "queued");
+  assert.equal(result.signals[0].sync.attempts, 0);
+  assert.equal(requests.length, 0);
+
+  const stored = JSON.parse(await readFile(signalsPath, "utf8"));
+  assert.equal(stored.signals[0].id, "signal_local_first");
+  assert.equal(stored.signals[0].sync.status, "queued");
+
+  const synced = await service.syncQueuedSignals();
+  assert.equal(synced.sent, 1);
+  assert.equal(requests.length, 1);
 });
 
 test("private beta signal service dedupes repeated monitor signals without inline resend", async () => {
@@ -104,7 +156,7 @@ test("private beta signal service dedupes repeated monitor signals without inlin
   const repeated = await service.captureMatterAttention(attention);
 
   const listed = await service.listSignals();
-  assert.equal(requestBodies.length, 1);
+  assert.equal(requestBodies.length, 0);
   assert.equal(repeated.queued, 1);
   assert.equal(listed.signals.length, 1);
   assert.equal(listed.signals[0].occurrenceCount, 2);
@@ -114,8 +166,8 @@ test("private beta signal service dedupes repeated monitor signals without inlin
 
   const retried = await service.syncQueuedSignals();
   assert.equal(retried.sent, 1);
-  assert.equal(requestBodies.length, 2);
-  assert.equal(requestBodies[1].signal.occurrenceCount, 2);
+  assert.equal(requestBodies.length, 1);
+  assert.equal(requestBodies[0].signal.occurrenceCount, 2);
 });
 
 test("private beta signal service captures failed jobs and skill factory health issues", async () => {
@@ -203,7 +255,15 @@ test("private beta signal service queues failed sync and retries later", async (
   });
 
   assert.equal(captured.signals[0].sync.status, "queued");
-  assert.match(captured.signals[0].sync.lastError, /\[redacted-secret\]/);
+  assert.equal(captured.signals[0].sync.lastError, undefined);
+
+  const failed = await service.syncQueuedSignals();
+  assert.equal(failed.attempted, 1);
+  assert.equal(failed.sent, 0);
+  assert.equal(failed.queued, 1);
+  let listed = await service.listSignals();
+  assert.equal(listed.signals[0].sync.status, "queued");
+  assert.match(listed.signals[0].sync.lastError, /\[redacted-secret\]/);
 
   fail = false;
   const retried = await service.syncQueuedSignals();
@@ -212,7 +272,7 @@ test("private beta signal service queues failed sync and retries later", async (
   assert.equal(retried.sent, 1);
   assert.equal(retried.queued, 0);
 
-  const listed = await service.listSignals();
+  listed = await service.listSignals();
   assert.equal(listed.signals[0].sync.status, "sent");
   assert.equal(listed.signals[0].sync.attempts, 2);
 });
@@ -288,6 +348,9 @@ test("private beta signal firm-internal mode keeps richer monitor context but st
   assert.equal(health.signals[0].details.storePaths.skills, "/Users/aksingh/matter-workbench/configurable-skills.json");
   assert.match(health.signals[0].details.message, /password=\[redacted-secret\]/);
 
+  assert.equal(requests.length, 0);
+  const synced = await service.syncQueuedSignals();
+  assert.equal(synced.sent, 3);
   assert.equal(requests.length, 3);
   assert.equal(requests[0].body.signal.telemetryMode, "firm_internal");
   assert.match(requests[0].body.signal.details.detail, /The 2023 notice appears/);
