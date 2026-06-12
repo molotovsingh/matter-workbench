@@ -21,7 +21,7 @@ import { makeHttpError, toPosix } from "./shared/safe-paths.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
-const DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE = 8;
+const DEFAULT_SOURCE_DESCRIPTOR_BATCH_SIZE = 4;
 const DEFAULT_SOURCE_DESCRIPTOR_MAX_ATTEMPTS = 2;
 const SOURCE_DESCRIPTOR_RETRY_STATUS_CODES = new Set([429, 500, 503, 504]);
 
@@ -86,6 +86,7 @@ export async function runSourceDescriptors(options = {}) {
     descriptors.push(...batchResult.descriptors);
     reviewMessages.push(...batchResult.reviewMessages);
   }
+  assertAtLeastOneSourceDescriptorBatchSucceeded(providerResponses);
   const aiRun = options.aiRun || mergeSourceDescriptorAiRunMetadata(providerSetup.aiRun, providerResponses);
   const generatedAt = options.generatedAt || new Date().toISOString();
   const artifact = {
@@ -133,6 +134,17 @@ export async function runSourceDescriptors(options = {}) {
         : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
     ].filter(Boolean),
   };
+}
+
+function assertAtLeastOneSourceDescriptorBatchSucceeded(providerResponses) {
+  if (!providerResponses.length) return;
+  if (!providerResponses.every((response) => response?.status === "failed")) return;
+  const firstError = providerResponses.find((response) => response?.error)?.error;
+  const message = [
+    "All source descriptor batches failed; Source Index was not written.",
+    firstError?.message ? `First failure: ${firstError.message}` : "",
+  ].filter(Boolean).join(" ");
+  throw makeHttpError(message, firstError?.statusCode || 502);
 }
 
 async function reportSourceDescriptorProgress(onProgress, event) {

@@ -27,8 +27,11 @@ Use `.env.example` as the base. For beta testing, use:
 ```text
 MISTRAL_API_KEY=...
 GEMINI_API_KEY=... # optional OCR repair pass
-OPENROUTER_SOURCE_DESCRIPTION_MODEL=meta-llama/llama-3.3-70b-instruct
+OPENROUTER_SOURCE_DESCRIPTION_MODEL=openai/gpt-4.1
+OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL=google/gemini-2.5-pro
 OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=6000
+OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS=240000
+OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT=latency
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=openai/gpt-4.1
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
@@ -42,7 +45,7 @@ MISTRAL_API_KEY=...
 OPENROUTER_API_KEY=...
 ```
 
-The `latency` route is the recommended `/create_listofdates` OpenRouter route for now because the final smoke run succeeded through that path. Do not enable automatic model fallback for beta testing. Provider failures should fail closed instead of writing partial bad artifacts.
+The `latency` route is the recommended OpenRouter route for now because the final smoke runs succeeded through that path. Do not enable arbitrary OpenRouter fallback for beta testing. Source Labels may use the explicit approved fallback model above, but if every source-label batch fails the workflow must fail closed instead of writing placeholder labels.
 
 ## Current Tester Workflow
 

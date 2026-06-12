@@ -334,12 +334,16 @@ The one-pass runtime remains default while this gate is off.
 This is intentionally separate from source-description settings:
 
 ```text
-OPENROUTER_SOURCE_DESCRIPTION_MODEL=...
-OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=3000
-OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS=90000
+OPENROUTER_SOURCE_DESCRIPTION_MODEL=openai/gpt-4.1
+OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL=google/gemini-2.5-pro
+OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS=6000
+OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS=240000
+OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT=latency
 ```
 
 The separation prevents a route-level bug where OpenAI model or token overrides accidentally shadow OpenRouter settings. If `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`, `/api/create-listofdates` must use `OPENROUTER_SOURCE_BACKED_ANALYSIS_*` for model and token budget, not `OPENAI_MODEL` or `OPENAI_MAX_OUTPUT_TOKENS`.
+
+Source Labels are quality-first because downstream artifacts depend on them. The app may use the explicit `OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL` after a primary provider failure, but it still sends `provider.allow_fallbacks=false` to OpenRouter. Fallback is app-owned and task-specific, not arbitrary provider substitution. If every source-label batch fails, Source Index is not written.
 
 OpenRouter chronology requests are still fail-closed:
 

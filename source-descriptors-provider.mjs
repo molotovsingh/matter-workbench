@@ -104,6 +104,7 @@ export function resolveSourceDescriptorProvider(options) {
   if (!model) {
     throw new Error("sourceDescriptorProvider is required unless OPENROUTER_SOURCE_DESCRIPTION_MODEL is configured.");
   }
+  const fallbackModel = normalizeFallbackModel(options.fallbackModel || env.OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL, model);
   const providerConfig = resolveProviderConfig(policy, {
     endpoint: options.endpoint,
     maxPrice: options.maxPrice,
@@ -113,22 +114,81 @@ export function resolveSourceDescriptorProvider(options) {
     providerSort: options.providerSort,
     timeoutMs: options.timeoutMs,
   });
-  return {
-    provider: createOpenRouterSourceDescriptorProvider({
+  const primaryProvider = createOpenRouterSourceDescriptorProvider({
+    apiKey: options.apiKey || env.OPENROUTER_API_KEY,
+    endpoint: providerConfig.endpoint,
+    fetchImpl: options.fetchImpl || fetch,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    model: providerConfig.model,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
+    requireParameters: providerConfig.requireParameters,
+    allowFallbacks: providerConfig.allowFallbacks,
+    timeoutMs: providerConfig.timeoutMs,
+  });
+  const fallbackProvider = fallbackModel
+    ? createOpenRouterSourceDescriptorProvider({
       apiKey: options.apiKey || env.OPENROUTER_API_KEY,
       endpoint: providerConfig.endpoint,
       fetchImpl: options.fetchImpl || fetch,
       maxOutputTokens: providerConfig.maxOutputTokens,
-      model: providerConfig.model,
+      model: fallbackModel,
       providerOrder: providerConfig.providerOrder,
       providerSort: providerConfig.providerSort,
       maxPrice: providerConfig.maxPrice,
       requireParameters: providerConfig.requireParameters,
       allowFallbacks: providerConfig.allowFallbacks,
       timeoutMs: providerConfig.timeoutMs,
-    }),
-    aiRun: options.aiRun || modelPolicyMetadata(policy, providerConfig),
+    })
+    : null;
+  const aiRun = options.aiRun || {
+    ...modelPolicyMetadata(policy, providerConfig),
+    ...(fallbackModel ? {
+      fallbackModel,
+      fallbackStrategy: "approved_model_after_primary_failure",
+    } : {}),
   };
+  return {
+    provider: fallbackProvider
+      ? createApprovedFallbackSourceDescriptorProvider({ primaryProvider, fallbackProvider, fallbackModel })
+      : primaryProvider,
+    aiRun,
+  };
+}
+
+function createApprovedFallbackSourceDescriptorProvider({ primaryProvider, fallbackProvider, fallbackModel }) {
+  return async function approvedFallbackSourceDescriptorProvider(args) {
+    try {
+      return await primaryProvider(args);
+    } catch (primaryError) {
+      const fallbackResult = await fallbackProvider(args);
+      return {
+        ...fallbackResult,
+        ai_run: {
+          ...(fallbackResult.ai_run || {}),
+          fallbackUsed: true,
+          fallbackModel,
+          primaryError: summarizeProviderError(primaryError),
+        },
+      };
+    }
+  };
+}
+
+function summarizeProviderError(error) {
+  return {
+    statusCode: error?.statusCode || 502,
+    message: error?.message || String(error || "Source descriptor primary provider failed"),
+    ...(error?.providerName ? { providerName: error.providerName } : {}),
+    ...(error?.openRouterCode ? { openRouterCode: error.openRouterCode } : {}),
+  };
+}
+
+function normalizeFallbackModel(value, primaryModel) {
+  const fallbackModel = String(value || "").trim();
+  if (!fallbackModel || fallbackModel === String(primaryModel || "").trim()) return "";
+  return fallbackModel;
 }
 
 export function mergeAiRunMetadata(baseAiRun, responseAiRun) {

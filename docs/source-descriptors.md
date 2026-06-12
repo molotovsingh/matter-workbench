@@ -541,11 +541,11 @@ document_classification
 
 `source_description` is the better product name because the output is not just a category. It includes the readable label that downstream legal work needs.
 
-Llama via OpenRouter is wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; `source-descriptors-provider.mjs` decides which configured model satisfies that task and owns the OpenRouter request shape.
+Source Labels are wired through provider policy, not hidden inside downstream chronology logic. The source descriptor engine asks for the `source_description` task and passes a structured source packet; `source-descriptors-provider.mjs` decides which configured model satisfies that task and owns the OpenRouter request shape.
 
-For bakeoffs, use a source-description output budget around `3000` tokens. Smaller budgets can work for one tiny document, but source index responses contain a full descriptor object per source, including parties, evidence, warnings, and labels. The current default for `OPENROUTER_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS` is `3000`.
+For beta, Source Labels are quality-first. The default model is `openai/gpt-4.1`, with `google/gemini-2.5-pro` available as an explicit approved fallback when configured. The fallback is app-owned; OpenRouter arbitrary fallback remains disabled.
 
-OpenRouter calls should also be bounded by `OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS`. The default timeout is 90 seconds. This matters because some model/provider routes can hang long enough to obscure whether the model is bad, the provider is slow, or routing failed.
+Use a source-description output budget around `6000` tokens. Smaller budgets can work for one tiny document, but source index responses contain a full descriptor object per source, including parties, evidence, warnings, and labels. OpenRouter calls are bounded by `OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS`; the current default is 240 seconds. If every source-label batch fails, the engine fails closed and does not write a placeholder Source Index.
 
 ## Remaining Non-Goals
 

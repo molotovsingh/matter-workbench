@@ -313,6 +313,32 @@ test("source descriptors preserve successful batches and mark a hard-failed batc
   assert.equal(artifact.sources.find((source) => source.file_id === "FILE-0003").label_status, "needs_review");
 });
 
+test("source descriptors fail closed when every batch fails", async () => {
+  const root = await makeMatterRoot();
+  let attempts = 0;
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      sourceBatchSize: 1,
+      sourceMaxAttempts: 1,
+      provider: async () => {
+        attempts += 1;
+        const error = new Error("upstream timeout");
+        error.statusCode = 504;
+        throw error;
+      },
+    }),
+    /All source descriptor batches failed/,
+  );
+
+  assert.equal(attempts, 3);
+  await assert.rejects(
+    () => stat(path.join(root, "10_Library", "Source Index.json")),
+    /ENOENT/,
+  );
+});
+
 test("source descriptors salvage invalid descriptors as needs-review rows without discarding valid ones", async () => {
   const root = await makeMatterRoot();
 
@@ -428,12 +454,12 @@ test("source descriptors reject literal None party fields", () => {
   );
 });
 
-test("source descriptors engine requires injected provider and does not create network provider", async () => {
+test("source descriptors engine requires an OpenRouter API key for the default policy provider", async () => {
   const root = await makeMatterRoot();
 
   await assert.rejects(
     () => runSourceDescriptors({ matterRoot: root, env: {} }),
-    /sourceDescriptorProvider is required/,
+    /OPENROUTER_API_KEY is required for source description/,
   );
 });
 
@@ -519,130 +545,176 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(result.sources.length, 3);
 });
 
-test("source descriptors default OpenRouter provider records hung request timeout as needs-review output", async () => {
+test("source descriptors use an approved fallback model after primary provider failure", async () => {
   const root = await makeMatterRoot();
-  let called = false;
+  const requestedModels = [];
 
   const result = await runSourceDescriptors({
     matterRoot: root,
     apiKey: "sk-openrouter-test",
     env: {
-      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "openai/gpt-4.1",
+      OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL: "google/gemini-2.5-pro",
+      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "45000",
     },
     fetchImpl: async (_endpoint, init) => {
-      called = true;
-      return new Promise((_resolve, reject) => {
-        init.signal.addEventListener("abort", () => {
-          const error = new Error("aborted");
-          error.name = "AbortError";
-          reject(error);
-        });
-      });
-    },
-  });
-
-  assert.equal(called, true);
-  assert.equal(result.sources.length, 3);
-  assert.equal(result.sources[0].label_status, "needs_review");
-  assert.match(result.sources[0].warnings.join(" "), /timed out after 5ms/);
-  assert.equal(result.aiRun.status, "failed");
-  assert.equal(result.aiRun.error.statusCode, 504);
-});
-
-test("source descriptors default OpenRouter provider records stalled response timeout as needs-review output", async () => {
-  const root = await makeMatterRoot();
-  let called = false;
-
-  const result = await runSourceDescriptors({
-    matterRoot: root,
-    apiKey: "sk-openrouter-test",
-    env: {
-      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-      OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
-    },
-    fetchImpl: async (_endpoint, init) => {
-      called = true;
+      const body = JSON.parse(init.body);
+      requestedModels.push(body.model);
+      assert.equal(body.provider.allow_fallbacks, false);
+      if (body.model === "openai/gpt-4.1") {
+        return {
+          ok: false,
+          status: 504,
+          async json() {
+            return {
+              error: {
+                message: "Primary model timed out",
+                metadata: { provider_name: "primary-test" },
+              },
+            };
+          },
+        };
+      }
+      const userPayload = JSON.parse(body.messages[1].content);
       return {
         ok: true,
-        json: async () => new Promise((_resolve, reject) => {
-          init.signal.addEventListener("abort", () => {
-            const error = new Error("aborted body");
-            error.name = "AbortError";
-            reject(error);
-          });
-        }),
+        async json() {
+          return {
+            model: "google/gemini-2.5-pro",
+            provider: "google",
+            choices: [{ message: { content: JSON.stringify({ sources: validDescriptors(userPayload.sources) }) } }],
+          };
+        },
       };
     },
   });
 
+  assert.deepEqual(requestedModels, ["openai/gpt-4.1", "google/gemini-2.5-pro"]);
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.sources[0].label_status, "suggested");
+  assert.equal(result.aiRun.model, "openai/gpt-4.1");
+  assert.equal(result.aiRun.fallbackModel, "google/gemini-2.5-pro");
+  assert.equal(result.aiRun.returnedModel, "google/gemini-2.5-pro");
+});
+
+test("source descriptors default OpenRouter provider fails closed on total hung request timeout", async () => {
+  const root = await makeMatterRoot();
+  let called = false;
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+      },
+      fetchImpl: async (_endpoint, init) => {
+        called = true;
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        });
+      },
+    }),
+    /All source descriptor batches failed.*timed out after 5ms/,
+  );
+
   assert.equal(called, true);
-  assert.equal(result.sources.length, 3);
-  assert.equal(result.sources[0].label_status, "needs_review");
-  assert.match(result.sources[0].warnings.join(" "), /timed out after 5ms/);
-  assert.equal(result.aiRun.status, "failed");
-  assert.equal(result.aiRun.error.statusCode, 504);
+  await assert.rejects(() => stat(path.join(root, "10_Library", "Source Index.json")), /ENOENT/);
 });
 
-test("source descriptors default OpenRouter provider records malformed JSON as needs-review output", async () => {
+test("source descriptors default OpenRouter provider fails closed on total stalled response timeout", async () => {
   const root = await makeMatterRoot();
+  let called = false;
 
-  const result = await runSourceDescriptors({
-    matterRoot: root,
-    apiKey: "sk-openrouter-test",
-    env: {
-      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-    },
-    fetchImpl: async () => ({
-      ok: true,
-      async json() {
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+        OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS: "5",
+      },
+      fetchImpl: async (_endpoint, init) => {
+        called = true;
         return {
-          choices: [{ message: { content: "{not json" } }],
+          ok: true,
+          json: async () => new Promise((_resolve, reject) => {
+            init.signal.addEventListener("abort", () => {
+              const error = new Error("aborted body");
+              error.name = "AbortError";
+              reject(error);
+            });
+          }),
         };
       },
     }),
-  });
+    /All source descriptor batches failed.*timed out after 5ms/,
+  );
 
-  assert.equal(result.sources.length, 3);
-  assert.equal(result.sources[0].label_status, "needs_review");
-  assert.match(result.sources[0].warnings.join(" "), /OpenRouter response did not include valid JSON message content/);
-  assert.equal(result.aiRun.status, "failed");
-  assert.equal(result.aiRun.error.statusCode, 502);
+  assert.equal(called, true);
+  await assert.rejects(() => stat(path.join(root, "10_Library", "Source Index.json")), /ENOENT/);
 });
 
-test("source descriptors default OpenRouter provider records upstream error details in needs-review output", async () => {
+test("source descriptors default OpenRouter provider fails closed on total malformed JSON", async () => {
   const root = await makeMatterRoot();
 
-  const result = await runSourceDescriptors({
-    matterRoot: root,
-    apiKey: "sk-openrouter-test",
-    env: {
-      OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
-    },
-    fetchImpl: async () => ({
-      ok: false,
-      status: 503,
-      async json() {
-        return {
-          error: {
-            message: "Provider returned error",
-            metadata: {
-              provider_name: "test-provider",
-              raw: JSON.stringify({ error: { message: "upstream overloaded" } }),
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      },
+      fetchImpl: async () => ({
+        ok: true,
+        async json() {
+          return {
+            choices: [{ message: { content: "{not json" } }],
+          };
+        },
+      }),
+    }),
+    /All source descriptor batches failed.*valid JSON message content/,
+  );
+
+  await assert.rejects(() => stat(path.join(root, "10_Library", "Source Index.json")), /ENOENT/);
+});
+
+test("source descriptors default OpenRouter provider fails closed on total upstream error", async () => {
+  const root = await makeMatterRoot();
+
+  await assert.rejects(
+    () => runSourceDescriptors({
+      matterRoot: root,
+      apiKey: "sk-openrouter-test",
+      env: {
+        OPENROUTER_SOURCE_DESCRIPTION_MODEL: "meta-llama/source-description-model",
+      },
+      fetchImpl: async () => ({
+        ok: false,
+        status: 503,
+        async json() {
+          return {
+            error: {
+              message: "Provider returned error",
+              metadata: {
+                provider_name: "test-provider",
+                raw: JSON.stringify({ error: { message: "upstream overloaded" } }),
+              },
             },
-          },
-        };
-      },
+          };
+        },
+      }),
     }),
-  });
+    /All source descriptor batches failed.*upstream overloaded/,
+  );
 
-  assert.equal(result.sources.length, 3);
-  assert.equal(result.sources[0].label_status, "needs_review");
-  assert.match(result.sources[0].warnings.join(" "), /Provider returned error/);
-  assert.match(result.sources[0].warnings.join(" "), /provider: test-provider/);
-  assert.match(result.sources[0].warnings.join(" "), /upstream: upstream overloaded/);
-  assert.equal(result.aiRun.status, "failed");
-  assert.equal(result.aiRun.error.statusCode, 503);
+  await assert.rejects(() => stat(path.join(root, "10_Library", "Source Index.json")), /ENOENT/);
 });
 
 test("source descriptors reject FILE identifiers in human labels", () => {

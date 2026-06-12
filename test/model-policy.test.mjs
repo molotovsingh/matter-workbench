@@ -29,6 +29,7 @@ import {
   DEFAULT_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS,
   DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+  DEFAULT_SOURCE_DESCRIPTION_MODEL,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
   MODEL_POLICY_VERSION,
   listModelPolicyTasks,
@@ -408,14 +409,14 @@ test("source description policy rejects invalid provider sort", () => {
   );
 });
 
-test("source description policy is unconfigured without an OpenRouter model", () => {
+test("source description policy defaults to quality-first OpenRouter source labels", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SOURCE_DESCRIPTION,
     tier: "source_description",
     provider: AI_PROVIDERS.OPENROUTER,
     endpoint: DEFAULT_OPENROUTER_ENDPOINT,
-    model: "",
+    model: DEFAULT_SOURCE_DESCRIPTION_MODEL,
     maxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
     fallback: "fail_closed",
