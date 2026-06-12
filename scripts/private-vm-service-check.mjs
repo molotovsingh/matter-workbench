@@ -31,10 +31,7 @@ export function parseServiceCheckArgs(argv = [], env = process.env) {
       parsed.authUsername = value;
       i += 1;
     } else if (arg === "--auth-password") {
-      const value = argv[i + 1];
-      if (!value) throw new Error("--auth-password requires a value");
-      parsed.authPassword = value;
-      i += 1;
+      throw new Error("private-vm:service-check does not accept password arguments. Use MWB_PRIVATE_BETA_PASSWORD in the protected runtime env or --auth-password-stdin.");
     } else if (arg === "--auth-password-stdin") {
       parsed.authPasswordStdin = true;
     } else {
@@ -65,9 +62,9 @@ export async function runPrivateVmServiceCheck({
 } = {}) {
   const authSession = await createAuthenticatedFetch({ baseUrl, authUsername, authPassword, fetchImpl });
   const root = await fetchSafely(authSession.fetch, baseUrl);
-  if (root.error) return failedReport({ baseUrl, error: `Root fetch failed: ${root.error}` });
+  if (root.error) return failedReport({ baseUrl, authenticated: authSession.authenticated, error: `Root fetch failed: ${root.error}` });
   const rootText = root.ok ? await root.text() : "";
-  if (!root.ok) return failedReport({ baseUrl, error: `Root returned HTTP ${root.status}` });
+  if (!root.ok) return failedReport({ baseUrl, authenticated: authSession.authenticated, error: `Root returned HTTP ${root.status}` });
 
   let mattersPayload;
   try {
@@ -75,13 +72,14 @@ export async function runPrivateVmServiceCheck({
   } catch (error) {
     return failedReport({
       baseUrl,
+      authenticated: authSession.authenticated,
       rootOk: true,
       rootBytes: rootText.length,
       error: error.message,
     });
   }
   const matters = Array.isArray(mattersPayload.matters) ? mattersPayload.matters : [];
-  if (!matters.length) return failedReport({ baseUrl, rootOk: true, rootBytes: rootText.length, error: "No matters returned by /api/matters." });
+  if (!matters.length) return failedReport({ baseUrl, authenticated: authSession.authenticated, rootOk: true, rootBytes: rootText.length, runtimeDbEnabled: Boolean(mattersPayload.enabled), mattersHome: mattersPayload.mattersHome ?? null, error: "No matters returned by /api/matters." });
 
   const target = matterName
     ? matters.find((matter) => matter.name === matterName || matter.matterName === matterName)
@@ -92,8 +90,11 @@ export async function runPrivateVmServiceCheck({
       .filter(Boolean);
     return failedReport({
       baseUrl,
+      authenticated: authSession.authenticated,
       rootOk: true,
       rootBytes: rootText.length,
+      runtimeDbEnabled: Boolean(mattersPayload.enabled),
+      mattersHome: mattersPayload.mattersHome ?? null,
       matterCount: matters.length,
       availableMatterNames,
       error: `Matter not found: ${matterName}`,
@@ -107,8 +108,11 @@ export async function runPrivateVmServiceCheck({
   } catch (error) {
     return failedReport({
       baseUrl,
+      authenticated: authSession.authenticated,
       rootOk: true,
       rootBytes: rootText.length,
+      runtimeDbEnabled: Boolean(mattersPayload.enabled),
+      mattersHome: mattersPayload.mattersHome ?? null,
       matterCount: matters.length,
       targetMatter: targetName,
       error: error.message,
@@ -116,15 +120,23 @@ export async function runPrivateVmServiceCheck({
   }
   const previewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
   if (!previewPath) {
-    return failedReport({
+    return {
+      passed: true,
       baseUrl,
+      authenticated: authSession.authenticated,
       rootOk: true,
       rootBytes: rootText.length,
+      runtimeDbEnabled: Boolean(mattersPayload.enabled),
+      mattersHome: mattersPayload.mattersHome ?? null,
       matterCount: matters.length,
       targetMatter: targetName,
       workspaceReadable: true,
-      error: "No previewable file found in workspace tree.",
-    });
+      previewPath: "",
+      filePreviewReadable: false,
+      previewBytes: 0,
+      warning: "No previewable file found in workspace tree.",
+      error: "",
+    };
   }
 
   let preview;
@@ -133,8 +145,11 @@ export async function runPrivateVmServiceCheck({
   } catch (error) {
     return failedReport({
       baseUrl,
+      authenticated: authSession.authenticated,
       rootOk: true,
       rootBytes: rootText.length,
+      runtimeDbEnabled: Boolean(mattersPayload.enabled),
+      mattersHome: mattersPayload.mattersHome ?? null,
       matterCount: matters.length,
       targetMatter: targetName,
       workspaceReadable: true,
@@ -181,6 +196,7 @@ export function renderPrivateVmServiceCheck(report = {}) {
     `preview_bytes: ${report.previewBytes || 0}`,
   ];
   if (report.availableMatterNames?.length) lines.push(`available_matter_names: ${report.availableMatterNames.join("; ")}`);
+  if (report.warning) lines.push(`warning: ${report.warning}`);
   if (report.error) lines.push(`error: ${report.error}`);
   return lines.map(redactServiceCheckLine);
 }
@@ -267,6 +283,7 @@ function failedReport(fields = {}) {
   return {
     passed: false,
     baseUrl: fields.baseUrl || "",
+    authenticated: Boolean(fields.authenticated),
     rootOk: Boolean(fields.rootOk),
     rootBytes: fields.rootBytes || 0,
     runtimeDbEnabled: Boolean(fields.runtimeDbEnabled),
@@ -278,6 +295,7 @@ function failedReport(fields = {}) {
     previewPath: fields.previewPath || "",
     filePreviewReadable: false,
     previewBytes: 0,
+    warning: fields.warning || "",
     error: fields.error || "Private VM service check failed.",
   };
 }

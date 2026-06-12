@@ -20,6 +20,27 @@ test("private VM service check parses base URL and matter", () => {
   });
 });
 
+test("private VM service check rejects password command arguments", () => {
+  assert.throws(
+    () => parseServiceCheckArgs(["--auth-username", "operator", "--auth-password", "secret"], {}),
+    /does not accept password arguments/i,
+  );
+});
+
+test("private VM service check accepts protected env credentials", () => {
+  assert.deepEqual(parseServiceCheckArgs([], {
+    MWB_PRIVATE_VM_BASE_URL: "http://vm:4191/",
+    MWB_PRIVATE_BETA_USERNAME: "operator",
+    MWB_PRIVATE_BETA_PASSWORD: "secret",
+  }), {
+    baseUrl: "http://vm:4191",
+    matterName: "",
+    authUsername: "operator",
+    authPassword: "secret",
+    authPasswordStdin: false,
+  });
+});
+
 test("private VM service check can read auth password from stdin", async () => {
   const parsed = parseServiceCheckArgs(["--auth-username", "operator", "--auth-password-stdin"], {});
 
@@ -125,7 +146,33 @@ test("private VM service check logs in when private beta credentials are supplie
   assert.equal(calls.some((call) => call.url.includes("/api/auth/login")), true);
 });
 
-test("private VM service check reports missing previewable file", async () => {
+test("private VM service check preserves authenticated state when no matters are visible", async () => {
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/auth/login") {
+      assert.equal(init.method, "POST");
+      return jsonResponse({ authenticated: true }, 200, { "set-cookie": "mwb_private_beta_session=abc; Path=/; HttpOnly" });
+    }
+    assert.equal(init.headers?.cookie, "mwb_private_beta_session=abc");
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [] });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({
+    baseUrl: "http://vm:4191",
+    authUsername: "operator",
+    authPassword: "secret",
+    fetchImpl,
+  });
+
+  assert.equal(report.passed, false);
+  assert.equal(report.authenticated, true);
+  assert.match(report.error, /No matters returned/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /authenticated: yes/);
+});
+
+test("private VM service check passes without preview when no lawyer-visible text file exists", async () => {
   const fetchImpl = async (url, init = {}) => {
     const parsed = new URL(String(url));
     if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
@@ -138,9 +185,11 @@ test("private VM service check reports missing previewable file", async () => {
   };
 
   const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
-  assert.equal(report.passed, false);
-  assert.match(report.error, /No previewable file/);
-  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /passed: no/);
+  assert.equal(report.passed, true);
+  assert.equal(report.filePreviewReadable, false);
+  assert.match(report.warning, /No previewable file/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /passed: yes/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /warning: No previewable file/);
 });
 
 test("private VM service check includes available matter names when target matter is missing", async () => {

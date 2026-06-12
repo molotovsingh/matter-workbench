@@ -39,11 +39,17 @@ MWB_PRIVATE_BETA_FEEDBACK_PATH=/home/aks/.local/share/matter-workbench/private-b
 MWB_PRIVATE_BETA_SIGNAL_PATH=/home/aks/.local/share/matter-workbench/private-beta-signal-ledger.json
 MWB_PRIVATE_BETA_METRICS_PATH=/home/aks/.local/share/matter-workbench/private-beta-metrics-ledger.json
 MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
+MWB_PRIVATE_BETA_USERNAME=<dedicated smoke-test username>
+MWB_PRIVATE_BETA_PASSWORD=<dedicated smoke-test password>
 MWB_RESTORE_DRILL_STATUS=unknown
 MWB_STORAGE_BACKUP_STATUS=unknown
 ```
 
 Do not commit `runtime.env`.
+
+The smoke-test username/password are for VM-local deploy verification only.
+Store them only in the mode-`0600` VM `runtime.env`, or pass the password through
+stdin for one-off checks. Do not pass passwords as command-line arguments.
 
 `mothership.env` is a separate mode-`0600` file for the operator-only feedback
 receiver. It contains `MOTHERSHIP_DATABASE_URL` plus the loopback host/port.
@@ -293,7 +299,8 @@ npm run private-vm:security-check -- \
 If `MWB_PRIVATE_BETA_AUTH=required`, the service and security checks read
 `MWB_PRIVATE_BETA_USERNAME` and `MWB_PRIVATE_BETA_PASSWORD` from the shell/env
 and log in before checking product APIs. These values may be supplied only for
-the operator command being run; they do not need to live in `runtime.env`.
+the operator command being run; the deploy smoke path usually keeps a dedicated
+smoke account in the protected VM `runtime.env`.
 
 From the Mac, use the VM URL but skip the VM-local runtime env file check:
 
@@ -340,8 +347,13 @@ From the Mac:
 
 ```bash
 curl -sS -o /tmp/mwb-vm-root.html -w '%{http_code} %{size_download}\n' http://172.16.37.128:4191/
-MWB_PRIVATE_BETA_USERNAME=<operator username> MWB_PRIVATE_BETA_PASSWORD=<operator password> \
-  npm run private-vm:service-check -- --base-url http://172.16.37.128:4191
+export MWB_PRIVATE_BETA_USERNAME=<operator username>
+read -rsp "Private beta password: " MWB_PRIVATE_BETA_PASSWORD; echo
+npm run private-vm:service-check -- \
+  --base-url http://172.16.37.128:4191 \
+  --auth-username "$MWB_PRIVATE_BETA_USERNAME" \
+  --auth-password-stdin <<< "$MWB_PRIVATE_BETA_PASSWORD"
+unset MWB_PRIVATE_BETA_PASSWORD
 ```
 
 ## Backup Boundary

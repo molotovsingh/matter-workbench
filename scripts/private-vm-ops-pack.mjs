@@ -295,7 +295,7 @@ function buildRollbackPlan({ deploymentRoot, deployment, serviceName, baseUrl, r
     ? [
         `: "\${MWB_PRIVATE_BETA_USERNAME:?Set MWB_PRIVATE_BETA_USERNAME before running rollback-plan.sh}"`,
         `: "\${MWB_PRIVATE_BETA_PASSWORD:?Set MWB_PRIVATE_BETA_PASSWORD before running rollback-plan.sh}"`,
-        `npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)} --auth-username "$MWB_PRIVATE_BETA_USERNAME" --auth-password "$MWB_PRIVATE_BETA_PASSWORD"`,
+        `npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)} --auth-username "$MWB_PRIVATE_BETA_USERNAME" --auth-password-stdin <<< "$MWB_PRIVATE_BETA_PASSWORD"`,
       ]
     : [`npm run private-vm:service-check -- --base-url ${shellQuote(baseUrl)}`];
   const commands = [
