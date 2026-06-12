@@ -9,7 +9,7 @@ export default function TitleBar({ onLogout }: Props) {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
   const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   return (
     <header className="titlebar">

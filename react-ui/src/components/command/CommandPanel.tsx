@@ -107,7 +107,7 @@ export default function CommandPanel({
   const suggestionsLoadSeqRef = useRef(0);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
   const activityRows = latestCompactActivityRows(state.activityLines);
-  const canManageCopilotSettings = !state.authEnabled || canSeeOperatorSurface(state.authUser);
+  const canManageCopilotSettings = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const copilotPreset = findCopilotPreset(copilotProvider, copilotModel);
   const copilotSelectValue = copilotPreset
     ? copilotPresetValue(copilotProvider, copilotModel)

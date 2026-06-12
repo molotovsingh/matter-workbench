@@ -81,6 +81,9 @@ export async function createWorkbenchServer(options = {}) {
     fetchImpl: options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
   });
   const runtimeMatterIndex = options.runtimeMatterIndex || createRuntimeDbMatterIndex({ env });
+  if (privateBetaAuthService.requireAuth?.() && !runtimeMatterIndex.enabled) {
+    throw new Error("MWB_PRIVATE_BETA_AUTH=required requires runtime DB matter index; filesystem matter storage is not isolated by beta user.");
+  }
 
   const matterStore = createMatterStore({
     configService,

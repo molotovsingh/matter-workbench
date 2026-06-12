@@ -45,6 +45,20 @@ test("runtime DB mode fails closed without explicit cutover approval", async () 
   );
 });
 
+test("private beta auth-required mode fails closed without runtime matter index", async () => {
+  await assert.rejects(
+    () => createWorkbenchServer({
+      env: {
+        MWB_PRIVATE_BETA_AUTH: "required",
+        MWB_PRIVATE_BETA_USERNAME: "tester@example.test",
+        MWB_PRIVATE_BETA_PASSWORD: "correct horse battery staple",
+      },
+      port: 0,
+    }),
+    /requires runtime DB matter index/,
+  );
+});
+
 test("server can wire an approved runtime matter index into matter listing", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-server-"));
   const mattersHome = path.join(tmp, "matters");

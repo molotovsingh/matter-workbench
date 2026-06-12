@@ -33,7 +33,6 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
 
 test("tester-facing Copilot strength is read-only", async () => {
   const source = await readFile(commandPanelPath, "utf8");
-  assert.match(source, /!state\.authEnabled/);
-  assert.match(source, /canSeeOperatorSurface\(state\.authUser\)/);
+  assert.match(source, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
   assert.match(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
 });

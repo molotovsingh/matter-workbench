@@ -103,6 +103,11 @@ test("private beta file preview blocks operator-only files for tester accounts",
       status: () => ({ enabled: true, authenticated: true, user: { username: "tester@example.test", role: "tester" } }),
       isAuthenticated: () => true,
     },
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [{ name: "Guard Matter" }],
+      findMatterFolder: async (name) => (name === "Guard Matter" ? { name: "Guard Matter" } : null),
+    },
   });
 
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));

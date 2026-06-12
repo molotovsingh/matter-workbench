@@ -37,9 +37,9 @@ export function createMatterStore({
   }
 
   function activeState() {
-    if (!hasRuntimeMatterIndex()) return defaultState;
     const context = requestContextProvider?.() || {};
     const username = String(context.user?.username || "").trim().toLowerCase();
+    if (!hasRuntimeMatterIndex() && !username) return defaultState;
     const key = username ? `user:${username}` : "anonymous";
     if (!scopedStates.has(key)) {
       scopedStates.set(key, { matterRoot: null, activeMatterRecord: null });

@@ -191,3 +191,38 @@ test("runtime DB matter index exposes legacy unowned matters only to superuser",
 
   assert.match(calls[0].input, /m\.created_by_user_id is null/i);
 });
+
+test("filesystem matter store keeps active matter state separate by authenticated user", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-filesystem-scoped-active-"));
+  const mattersHome = path.join(tmp, "matters");
+  await createMatterFolder(mattersHome, "A Matter");
+  await createMatterFolder(mattersHome, "B Matter");
+
+  const store = createMatterStore({
+    configService: configService(mattersHome),
+  });
+
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "shivangi@lawzeus.com", role: "tester" },
+  }, async () => {
+    await store.switchMatter("A Matter");
+    assert.equal(store.activeMatterNameWithinHome(), "A Matter");
+  });
+
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "aks@lawzeus.com", role: "superuser" },
+  }, async () => {
+    assert.equal(store.activeMatterNameWithinHome(), null);
+    await store.switchMatter("B Matter");
+    assert.equal(store.activeMatterNameWithinHome(), "B Matter");
+  });
+
+  await runWithRequestContext({
+    authenticated: true,
+    user: { username: "shivangi@lawzeus.com", role: "tester" },
+  }, () => {
+    assert.equal(store.activeMatterNameWithinHome(), "A Matter");
+  });
+});

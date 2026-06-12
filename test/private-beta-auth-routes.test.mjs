@@ -481,6 +481,11 @@ async function createTestApp({ env = {}, ...options } = {}) {
     },
     host: "127.0.0.1",
     port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
     ...options,
   });
   return { ...app, mattersHome };

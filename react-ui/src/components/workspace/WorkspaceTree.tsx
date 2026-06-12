@@ -24,7 +24,7 @@ function getFileIconClass(ext?: string) {
 function TreeNode({ file }: TreeNodeProps) {
   const { state, dispatch, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   async function handleFileClick(path: string) {
     const matterName = state.activeMatter?.name ?? null;
@@ -116,7 +116,7 @@ interface Props {
 export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
   const { state, dispatch } = useApp();
   const workspace = state.activeMatter?.workspace;
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   if (!workspace) return null;
 
@@ -124,7 +124,7 @@ export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
     ? workspace.children
     : showOperatorChrome
       ? workspace.children.filter((f) => !f.isTechnical)
-      : filterWorkspaceFilesForOperatorVisibility(workspace.children, state.authUser);
+      : filterWorkspaceFilesForOperatorVisibility(workspace.children, state.authEnabled, state.authUser);
 
   return (
     <div id="matterFilesSection" className="tree-section">

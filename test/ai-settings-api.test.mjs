@@ -112,6 +112,11 @@ test("tester accounts can read Copilot status but cannot mutate shared AI settin
     },
     host: "127.0.0.1",
     port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
   });
 
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));

@@ -1974,6 +1974,26 @@ a PDF, and passed the runtime write smoke from inside the VM. That is a real
 deployment rehearsal, not just a local script succeeding on the development
 machine.
 
+The private beta auth layer then taught a sharper lesson: login is not tenancy
+by itself. A username and password only prove who is at the door. They do not
+prove that each lawyer sees only their own matters unless the matter index and
+active-matter state are scoped by that identity. We now fail server startup when
+`MWB_PRIVATE_BETA_AUTH=required` is used without the runtime matter index,
+because that combination would look private while still behaving like a shared
+filesystem workspace. The filesystem fallback also keeps active matter state
+separate by authenticated username as a defense-in-depth, but the product rule
+is stricter: private beta auth and scoped runtime storage must travel together.
+
+The same review caught the mirror-image frontend bug. The server treated
+auth-disabled local mode as full operator mode, but one React helper only
+allowed `role === "superuser"`. That made local development hide operator
+surfaces such as Settings even though there is no login in local mode. The fix
+was not to scatter `!authEnabled` checks through components. The fix was to put
+the rule in one helper: operator surfaces are visible when auth is off, and when
+auth is on they are visible only to a superuser. A small predicate bug can feel
+like "the app is broken" because it removes the controls needed to repair
+configuration.
+
 It also exposed a healthy discomfort: the old shadow verifier failed because it
 expected `/home/aks/matters-matter-workbench` to exist on the VM. That does not
 mean the runtime DB app failed. It means the verifier was still comparing the

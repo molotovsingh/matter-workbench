@@ -20,13 +20,14 @@ async function importLawyerModeModule() {
   return import(`${pathToFileURL(path.join(tempDir, "lawyerMode.mjs")).href}?t=${Date.now()}`);
 }
 
-test("React lawyer mode helper allows operator surfaces only for superuser", async () => {
+test("React lawyer mode helper allows operator surfaces in local mode and for superusers", async () => {
   const { canSeeOperatorSurface } = await importLawyerModeModule();
 
-  assert.equal(canSeeOperatorSurface({ username: "aks", role: "superuser" }), true);
-  assert.equal(canSeeOperatorSurface({ username: "lawyer@example.test", role: "tester" }), false);
-  assert.equal(canSeeOperatorSurface({ username: "operator@example.test", role: "operator" }), false);
-  assert.equal(canSeeOperatorSurface(null), false);
+  assert.equal(canSeeOperatorSurface(false, null), true);
+  assert.equal(canSeeOperatorSurface(true, { username: "aks", role: "superuser" }), true);
+  assert.equal(canSeeOperatorSurface(true, { username: "lawyer@example.test", role: "tester" }), false);
+  assert.equal(canSeeOperatorSurface(true, { username: "operator@example.test", role: "operator" }), false);
+  assert.equal(canSeeOperatorSurface(true, null), false);
 });
 
 test("React lawyer mode helper filters generated internals but keeps client evidence", async () => {
@@ -53,14 +54,15 @@ test("React lawyer mode helper filters generated internals but keeps client evid
     },
   ];
 
-  assert.deepEqual(flattenFilePaths(filterWorkspaceFilesForOperatorVisibility(files, { username: "lawyer@example.test", role: "tester" })), [
+  assert.deepEqual(flattenFilePaths(filterWorkspaceFilesForOperatorVisibility(files, true, { username: "lawyer@example.test", role: "tester" })), [
     "10_Library",
     "10_Library/List of Dates.md",
     "00_Inbox",
     "00_Inbox/Intake 01 - Initial/Originals/client-ledger.csv",
   ]);
 
-  assert.equal(filterWorkspaceFilesForOperatorVisibility(files, { username: "aks", role: "superuser" }), files);
+  assert.equal(filterWorkspaceFilesForOperatorVisibility(files, false, null), files);
+  assert.equal(filterWorkspaceFilesForOperatorVisibility(files, true, { username: "aks", role: "superuser" }), files);
 });
 
 test("React chrome gates technical controls with lawyer mode helpers", async () => {
@@ -68,14 +70,14 @@ test("React chrome gates technical controls with lawyer mode helpers", async () 
   const titleBar = await readFile(titleBarPath, "utf8");
   const workspaceTree = await readFile(workspaceTreePath, "utf8");
 
-  assert.match(activityBar, /canSeeOperatorSurface\(state\.authUser\)/);
+  assert.match(activityBar, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
   assert.match(activityBar, /Recent work/);
   assert.match(activityBar, /tab\.operatorOnly/);
 
-  assert.match(titleBar, /const showOperatorChrome = canSeeOperatorSurface\(state\.authUser\)/);
+  assert.match(titleBar, /const showOperatorChrome = canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
   assert.match(titleBar, /showOperatorChrome && \(\s*<span className="workspace-mode">/);
 
-  assert.match(workspaceTree, /filterWorkspaceFilesForOperatorVisibility\(workspace\.children, state\.authUser\)/);
+  assert.match(workspaceTree, /filterWorkspaceFilesForOperatorVisibility\(workspace\.children, state\.authEnabled, state\.authUser\)/);
   assert.match(workspaceTree, /showOperatorChrome && \(/);
   assert.match(workspaceTree, /Could not open that file/);
 });

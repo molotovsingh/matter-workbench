@@ -41,7 +41,7 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
   const filename = preview.path.split('/').pop() ?? preview.path;
   const isListOfDatesMarkdown = preview.type === 'text' && isListOfDatesMarkdownPath(preview.path);
   const listOfDates = isListOfDatesMarkdown ? parseListOfDatesMarkdown(preview.content || '') : null;
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   async function copyMarkdown() {
     await writeClipboardText(preview.content || '');
@@ -153,7 +153,7 @@ export default function MainContent({
 }: Props) {
   const { state } = useApp();
   const { activeView } = state;
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   const filePreview = state.filePreview;
 

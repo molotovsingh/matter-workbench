@@ -13,7 +13,7 @@ const TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?: st
 
 export default function ActivityBar() {
   const { state, dispatch, clearActiveMatter, appendTerminal } = useApp();
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const visibleTabs = TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
 
   async function handleTabClick(tabId: ActiveTab) {

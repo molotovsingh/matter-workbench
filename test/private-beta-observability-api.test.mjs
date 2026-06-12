@@ -90,6 +90,11 @@ test("private beta observability hides operator evidence from scoped beta users"
       status: () => ({ enabled: true, authenticated: true, user: { username: "tester@example.test", role: "tester" } }),
       isAuthenticated: () => true,
     },
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
   });
 
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));

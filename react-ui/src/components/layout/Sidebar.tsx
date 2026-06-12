@@ -14,7 +14,7 @@ interface Props {
 export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props) {
   const { state, clearActiveMatter, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const { activeTab, activeMatter } = state;
-  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   let title = 'Home';
   if (activeTab === 'skills') title = 'Skills';

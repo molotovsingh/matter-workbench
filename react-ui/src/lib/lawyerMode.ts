@@ -22,7 +22,11 @@ const GENERATED_ARTIFACT_LANES = new Set([
   '40_Dispatch',
 ]);
 
-export function canSeeOperatorSurface(user: AuthUser | null | undefined): boolean {
+export function canSeeOperatorSurface(
+  authEnabled: boolean,
+  user: AuthUser | null | undefined,
+): boolean {
+  if (!authEnabled) return true;
   return user?.role === 'superuser';
 }
 
@@ -44,9 +48,10 @@ export function isOperatorOnlyWorkspacePath(path = ''): boolean {
 
 export function filterWorkspaceFilesForOperatorVisibility(
   files: WorkspaceFile[],
+  authEnabled: boolean,
   user: AuthUser | null | undefined,
 ): WorkspaceFile[] {
-  if (canSeeOperatorSurface(user)) return files;
+  if (canSeeOperatorSurface(authEnabled, user)) return files;
   return files
     .map(filterWorkspaceFile)
     .filter((file): file is WorkspaceFile => Boolean(file));
