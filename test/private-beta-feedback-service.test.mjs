@@ -222,6 +222,7 @@ test("private beta feedback service queues failed sync and retries later", async
     syncUrl: "https://mothership.example.test/api/beta-feedback",
     fetchImpl: async (url, options = {}) => {
       attempts.push({ url, body: JSON.parse(options.body) });
+      assert.ok(options.signal instanceof AbortSignal);
       if (fail) throw new Error("network token=sk-should-redact");
       return { ok: true, status: 200, text: async () => "" };
     },

@@ -5,6 +5,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
+import { attemptTelemetrySync, normalizeTelemetrySyncConfig } from "./telemetry-sync-client.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-metrics-ledger/v1";
 const METRICS_SCHEMA_VERSION = "private-beta-metrics/v1";
@@ -26,7 +27,7 @@ export function createPrivateBetaMetricsService({
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
   const storePath = metricsPath || path.join(root, ".local", "private-beta-metrics-ledger.json");
-  const syncConfig = normalizeSyncConfig({ syncUrl, syncToken, installId, fetchImpl });
+  const syncConfig = normalizeTelemetrySyncConfig({ syncUrl, syncToken, installId, fetchImpl });
   const normalizedTelemetryMode = normalizeTelemetryMode(telemetryMode);
   const latencyObservations = [];
   const runtimeSampler = typeof sampleRuntime === "function"
@@ -133,38 +134,14 @@ export function createPrivateBetaMetricsService({
   }
 
   async function attemptSync(metric, previousSync = {}) {
-    const previous = normalizeSync(previousSync);
-    if (!syncConfig.url || !syncConfig.fetchImpl) {
-      return { ...previous, status: "not_configured", attempts: previous.attempts || 0 };
-    }
-
-    const attemptedAt = isoNow(now);
-    const attempts = (previous.attempts || 0) + 1;
-    const endpointHost = syncConfig.url.hostname;
-    try {
-      const response = await syncConfig.fetchImpl(syncConfig.url.toString(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(syncConfig.token ? { Authorization: `Bearer ${syncConfig.token}` } : {}),
-        },
-        body: JSON.stringify(buildSyncPayload(metric, syncConfig.installId)),
-      });
-      if (!response?.ok) {
-        const body = typeof response?.text === "function" ? await response.text().catch(() => "") : "";
-        throw new Error(`mothership returned ${response?.status || "unknown"}${body ? `: ${body}` : ""}`);
-      }
-      return { status: "sent", attempts, lastAttemptAt: attemptedAt, sentAt: attemptedAt, endpointHost };
-    } catch (error) {
-      return {
-        status: "queued",
-        attempts,
-        lastAttemptAt: attemptedAt,
-        endpointHost,
-        lastError: sanitizeText(error?.message || "sync failed", 300).trim(),
-      };
-    }
+    return attemptTelemetrySync({
+      syncConfig,
+      previousSync,
+      normalizeSync,
+      now,
+      buildPayload: (install) => buildSyncPayload(metric, install),
+      sanitizeError: (message) => sanitizeText(message, 300).trim(),
+    });
   }
 
   return {
@@ -382,28 +359,6 @@ function normalizeRoute(input = {}) {
   const method = sanitizeText(input.method || "", 12).trim().toUpperCase() || "GET";
   const pathname = sanitizeText(input.pathname || input.path || "", 120).trim() || "/";
   return `${method} ${pathname}`;
-}
-
-function normalizeSyncConfig({ syncUrl, syncToken, installId, fetchImpl }) {
-  const url = parseSyncUrl(syncUrl);
-  return {
-    url,
-    token: String(syncToken || "").trim().slice(0, 500),
-    installId: sanitizeText(installId || "local-beta-install", 120).trim() || "local-beta-install",
-    fetchImpl: typeof fetchImpl === "function" ? fetchImpl : null,
-  };
-}
-
-function parseSyncUrl(value) {
-  const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return null;
-  try {
-    const url = new URL(text);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    return url;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeSync(sync = {}) {

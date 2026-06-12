@@ -2597,6 +2597,22 @@ summary. The backend accepts the same sparse shape too, so future UI mistakes
 do not silently discard beta evidence. A bug collector should be stricter about
 secrets than about form etiquette.
 
+The next review pass was a useful example of how to use second-model reports
+without becoming obedient to them. Two high-severity auth findings were already
+fixed by the time we read the report, so we did not re-fix stale claims. The
+remaining live problem was telemetry egress: feedback, signals, and metrics all
+had their own little HTTP sync code, and repeated signals could wait for the
+mothership inside a user-facing request path.
+
+The fix was to create `services/telemetry-sync-client.mjs`, a shared sender
+that always attaches an abort signal and preserves the same sent/queued/not
+configured receipt shape. Repeated signals now update the local occurrence
+count and mark the row queued; the background retry loop sends it later. That
+means a slow or hung mothership can delay telemetry, but it should not make a
+lawyer's polling request wait on network I/O. The broader lesson is familiar:
+when three services copy the same boundary code, the bug is not in any one
+copy. The boundary wants a name, a module, and one regression test per caller.
+
 ### Shared settings, stored paths, and truthful release labels
 
 Three small-looking review findings exposed the same engineering rule: values

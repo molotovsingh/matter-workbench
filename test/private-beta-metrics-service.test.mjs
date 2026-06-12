@@ -84,7 +84,8 @@ test("metrics service queues failed sync and retries later", async () => {
     idFactory: () => "metrics_retry_001",
     now: () => new Date("2026-06-10T10:00:00.000Z"),
     sampleRuntime: async () => ({ diskFreePercent: 90, cpuCount: 4 }),
-    fetchImpl: async () => {
+    fetchImpl: async (_url, options = {}) => {
+      assert.ok(options.signal instanceof AbortSignal);
       if (fail) return { ok: false, status: 503, text: async () => "down" };
       return { ok: true, status: 202 };
     },
