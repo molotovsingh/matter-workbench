@@ -12,15 +12,21 @@ export function createPrivateBetaObservabilityService({
   async function readObservability(filters = {}) {
     const limit = parseLimit(filters.limit);
     const [feedbackLedger, jobLedger, signalLedger, metricsLedger] = await Promise.all([
-      readLedger(() => feedbackService?.listFeedback?.({ limit })),
-      readLedger(() => jobStatusService?.listJobs?.({ limit })),
-      readLedger(() => signalService?.listSignals?.({ limit })),
-      readLedger(() => metricsService?.listMetrics?.({ limit: 5 })),
+      readLedger("feedback", () => feedbackService?.listFeedback?.({ limit })),
+      readLedger("jobs", () => jobStatusService?.listJobs?.({ limit })),
+      readLedger("signals", () => signalService?.listSignals?.({ limit })),
+      readLedger("metrics", () => metricsService?.listMetrics?.({ limit: 5 })),
     ]);
     const feedback = Array.isArray(feedbackLedger.feedback) ? feedbackLedger.feedback : [];
     const jobs = Array.isArray(jobLedger.jobs) ? jobLedger.jobs : [];
     const signals = Array.isArray(signalLedger.signals) ? signalLedger.signals : [];
     const metrics = Array.isArray(metricsLedger.metrics) ? metricsLedger.metrics : [];
+    const ledgerErrors = [feedbackLedger, jobLedger, signalLedger, metricsLedger]
+      .filter((ledger) => ledger?.error)
+      .map((ledger) => ({
+        source: ledger.source,
+        message: ledger.error,
+      }));
     const failedJobs = jobs.filter((job) => job.status === "failed");
     const latestMetrics = metrics[0] || null;
 
@@ -33,7 +39,9 @@ export function createPrivateBetaObservabilityService({
         openSignals: signals.length,
         latestUserPatienceRisk: latestMetrics?.scores?.userPatienceRisk || "unknown",
         latestBackendSuitability: numberOrNull(latestMetrics?.scores?.backendSuitability),
+        ledgerErrors: ledgerErrors.length,
       },
+      ledgerErrors,
       topProblems: buildTopProblems({ failedJobs, signals, feedback }),
       feedbackEvidence: feedback.map((item) => {
         const relatedJobs = relatedJobsForFeedback(item, jobs);
@@ -52,13 +60,14 @@ export function createPrivateBetaObservabilityService({
   return { readObservability };
 }
 
-async function readLedger(reader) {
+async function readLedger(source, reader) {
   if (typeof reader !== "function") return {};
   try {
     const result = await reader();
     return result && typeof result === "object" ? result : {};
   } catch (error) {
     return {
+      source,
       error: sanitizeText(error?.message || "ledger unavailable", 300),
     };
   }
