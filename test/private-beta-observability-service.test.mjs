@@ -97,3 +97,94 @@ test("observability links feedback by nearby matter time without pulling stale j
 
   assert.deepEqual(result.feedbackEvidence[0].relatedJobs.map((job) => job.id), ["job_near"]);
 });
+
+test("observability survives total ledger outage and reports each failed source", async () => {
+  const service = createPrivateBetaObservabilityService({
+    feedbackService: { listFeedback: async () => { throw new Error("feedback failed password=hunter2"); } },
+    jobStatusService: { listJobs: async () => { throw new Error("jobs failed OPENAI_API_KEY=sk-jobs"); } },
+    signalService: { listSignals: async () => { throw new Error("signals failed token=sk-signals"); } },
+    metricsService: { listMetrics: async () => { throw new Error("metrics failed secret=sk-metrics"); } },
+    now: () => new Date("2026-06-12T10:00:00.000Z"),
+  });
+
+  const result = await service.readObservability({ limit: 10 });
+
+  assert.equal(result.schema_version, "private-beta-observability/v1");
+  assert.equal(result.summary.feedback, 0);
+  assert.equal(result.summary.failedJobs, 0);
+  assert.equal(result.summary.openSignals, 0);
+  assert.equal(result.summary.ledgerErrors, 4);
+  assert.deepEqual(result.ledgerErrors.map((error) => error.source), ["feedback", "jobs", "signals", "metrics"]);
+  assert.doesNotMatch(JSON.stringify(result), /hunter2|sk-jobs|sk-signals|sk-metrics/);
+});
+
+test("observability treats malformed non-object ledgers as empty ledgers", async () => {
+  const service = createPrivateBetaObservabilityService({
+    feedbackService: { listFeedback: async () => null },
+    jobStatusService: { listJobs: async () => "not-json" },
+    signalService: { listSignals: async () => 42 },
+    metricsService: { listMetrics: async () => [] },
+  });
+
+  const result = await service.readObservability({ limit: 10 });
+
+  assert.equal(result.summary.feedback, 0);
+  assert.equal(result.summary.failedJobs, 0);
+  assert.equal(result.summary.openSignals, 0);
+  assert.equal(result.summary.ledgerErrors, 0);
+  assert.deepEqual(result.feedbackEvidence, []);
+  assert.deepEqual(result.failedJobs, []);
+  assert.deepEqual(result.signals, []);
+});
+
+test("observability links signals through related failed job ids", async () => {
+  const service = createPrivateBetaObservabilityService({
+    feedbackService: {
+      listFeedback: async () => ({
+        schema_version: "private-beta-feedback-ledger/v1",
+        feedback: [{
+          id: "feedback_002",
+          classification: "bug",
+          choice: "did_not_work",
+          tryingToDo: "Run source labels",
+          createdAt: "2026-06-12T11:00:00.000Z",
+          context: { activeMatterName: "Matter With Job" },
+        }],
+      }),
+    },
+    jobStatusService: {
+      listJobs: async () => ({
+        schema_version: "job-status-ledger/v1",
+        jobs: [{
+          id: "job_signal_link",
+          kind: "source_labels",
+          label: "Label Sources",
+          status: "failed",
+          failureClass: "provider",
+          matterName: "Matter With Job",
+          startedAt: "2026-06-12T10:55:00.000Z",
+          finishedAt: "2026-06-12T10:56:00.000Z",
+        }],
+      }),
+    },
+    signalService: {
+      listSignals: async () => ({
+        schema_version: "private-beta-signal-ledger/v1",
+        signals: [{
+          id: "signal_001",
+          source: "job_status",
+          severity: "error",
+          title: "Provider failure",
+          matterName: "Different Matter Name",
+          lastSeenAt: "2026-06-12T10:56:00.000Z",
+          details: { jobId: "job_signal_link" },
+        }],
+      }),
+    },
+  });
+
+  const result = await service.readObservability({ limit: 10 });
+
+  assert.deepEqual(result.feedbackEvidence[0].relatedJobs.map((job) => job.id), ["job_signal_link"]);
+  assert.deepEqual(result.feedbackEvidence[0].relatedSignals.map((signal) => signal.id), ["signal_001"]);
+});
