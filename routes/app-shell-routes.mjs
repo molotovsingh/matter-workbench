@@ -10,6 +10,10 @@ import {
   usesRuntimeDbStorage,
   visibleMatterNameSet,
 } from "./route-utils.mjs";
+import {
+  filterWorkspaceTreeForOperatorVisibility,
+  isOperatorOnlyWorkspacePath,
+} from "../services/workspace-path-policy.mjs";
 
 export async function handleAppShellApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -170,16 +174,16 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         const body = await readRequestJson(request);
         await matterStore.switchMatter(body.name);
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-          sendJson(response, 200, await runtimeDbStorageService.readWorkspace(matterStore.getActiveMatterRecord()));
+          sendJson(response, 200, presentWorkspaceForCurrentUser(await runtimeDbStorageService.readWorkspace(matterStore.getActiveMatterRecord())));
           return;
         }
-        sendJson(response, 200, await workspaceService.readWorkspace());
+        sendJson(response, 200, presentWorkspaceForCurrentUser(await workspaceService.readWorkspace()));
       }),
       exactRoute("POST", "/api/matters/new", async () => {
-        sendJson(response, 200, await uploadService.createMatter(request));
+        sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.createMatter(request)));
       }),
       exactRoute("POST", "/api/matters/add-files", async () => {
-        sendJson(response, 200, await uploadService.addFilesToMatter(request));
+        sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.addFilesToMatter(request)));
       }),
       exactRoute("POST", "/api/matters/check-overlap", async () => {
         const isRuntimeDbStorage = usesRuntimeDbStorage(matterStore, runtimeDbStorageService);
@@ -223,25 +227,35 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       exactRoute("GET", "/api/workspace", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
-          sendJson(response, 200, await runtimeDbStorageService.readWorkspace(matter));
+          sendJson(response, 200, presentWorkspaceForCurrentUser(await runtimeDbStorageService.readWorkspace(matter)));
           return;
         }
         const root = await matterRootForQuery(matterStore, requestUrl);
-        sendJson(response, 200, await workspaceService.readWorkspace(root));
+        sendJson(response, 200, presentWorkspaceForCurrentUser(await workspaceService.readWorkspace(root)));
       }),
       exactRoute("GET", "/api/file", async () => {
+        const relativePath = requestUrl.searchParams.get("path") || "";
+        if (isWorkspacePreviewDeniedForCurrentUser(relativePath)) {
+          sendJson(response, 403, { error: "This technical file is not available to this account." });
+          return;
+        }
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
-          sendJson(response, 200, await runtimeDbStorageService.readFilePreview(requestUrl.searchParams.get("path") || "", matter));
+          sendJson(response, 200, await runtimeDbStorageService.readFilePreview(relativePath, matter));
           return;
         }
         const root = await matterRootForQuery(matterStore, requestUrl);
-        sendJson(response, 200, await workspaceService.readFilePreview(requestUrl.searchParams.get("path") || "", root));
+        sendJson(response, 200, await workspaceService.readFilePreview(relativePath, root));
       }),
       exactRoute("GET", "/api/file-raw", async () => {
+        const relativePath = requestUrl.searchParams.get("path") || "";
+        if (isWorkspacePreviewDeniedForCurrentUser(relativePath)) {
+          sendJson(response, 403, { error: "This technical file is not available to this account." });
+          return;
+        }
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
-          const raw = await runtimeDbStorageService.getRawFile(requestUrl.searchParams.get("path") || "", matter);
+          const raw = await runtimeDbStorageService.getRawFile(relativePath, matter);
           response.writeHead(200, {
             "content-type": raw.contentType,
             "content-length": raw.fileSize,
@@ -252,7 +266,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           return;
         }
         const root = await matterRootForQuery(matterStore, requestUrl);
-        const raw = await workspaceService.getRawFile(requestUrl.searchParams.get("path") || "", root);
+        const raw = await workspaceService.getRawFile(relativePath, root);
         response.writeHead(200, {
           "content-type": raw.contentType,
           "content-length": raw.fileSize,
@@ -263,6 +277,33 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+function isWorkspacePreviewDeniedForCurrentUser(relativePath) {
+  return !isPrivateBetaSuperuserOrLocal() && isOperatorOnlyWorkspacePath(relativePath);
+}
+
+function presentWorkspaceForCurrentUser(workspace) {
+  if (isPrivateBetaSuperuserOrLocal() || !workspace?.tree) return workspace;
+  const tree = filterWorkspaceTreeForOperatorVisibility(workspace.tree, { canSeeOperatorFiles: false });
+  const counts = countWorkspaceTree(tree);
+  return {
+    ...workspace,
+    fileCount: counts.fileCount,
+    directoryCount: counts.directoryCount,
+    tree,
+  };
+}
+
+function countWorkspaceTree(node, isRoot = true) {
+  let fileCount = node?.kind === "file" ? 1 : 0;
+  let directoryCount = !isRoot && node?.kind === "directory" ? 1 : 0;
+  for (const child of Array.isArray(node?.children) ? node.children : []) {
+    const counts = countWorkspaceTree(child, false);
+    fileCount += counts.fileCount;
+    directoryCount += counts.directoryCount;
+  }
+  return { fileCount, directoryCount };
 }
 
 async function scopedMatterLedger({ matterStore, list, key, fields }) {

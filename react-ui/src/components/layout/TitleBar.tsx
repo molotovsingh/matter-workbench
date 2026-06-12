@@ -1,4 +1,5 @@
 import { useApp } from '../../store/AppContext';
+import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 
 interface Props {
   onLogout?: () => void;
@@ -8,6 +9,7 @@ export default function TitleBar({ onLogout }: Props) {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
   const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   return (
     <header className="titlebar">
@@ -24,7 +26,9 @@ export default function TitleBar({ onLogout }: Props) {
         )}
       </div>
       <div className="title-right">
-        <span className="workspace-mode">{workspaceModeLabel}</span>
+        {showOperatorChrome && (
+          <span className="workspace-mode">{workspaceModeLabel}</span>
+        )}
         <button
           className="theme-toggle"
           type="button"

@@ -2,6 +2,7 @@ import { useApp } from '../../store/AppContext';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import { SIDEBAR_NATIVE_COMMANDS } from '../../lib/nativeCommands';
 
 interface Props {
@@ -13,10 +14,11 @@ interface Props {
 export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props) {
   const { state, clearActiveMatter, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const { activeTab, activeMatter } = state;
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   let title = 'Home';
   if (activeTab === 'skills') title = 'Skills';
-  else if (activeTab === 'activity') title = 'Activity';
+  else if (activeTab === 'activity') title = showOperatorChrome ? 'Activity' : 'Recent work';
   else if (activeTab === 'settings') title = 'Settings';
 
   async function handleRefresh() {

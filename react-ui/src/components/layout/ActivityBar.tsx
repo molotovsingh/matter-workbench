@@ -1,17 +1,20 @@
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
+import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import type { ActiveTab } from '../../types';
 
-const TABS: Array<{ id: ActiveTab; icon: string; label: string }> = [
+const TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?: string; operatorOnly?: boolean }> = [
   { id: 'home', icon: '⌂', label: 'Home' },
   { id: 'skills', icon: '✦', label: 'Skills' },
-  { id: 'activity', icon: '◔', label: 'Activity' },
-  { id: 'settings', icon: '⚙', label: 'Settings' },
+  { id: 'activity', icon: '◔', label: 'Activity', lawyerLabel: 'Recent work' },
+  { id: 'settings', icon: '⚙', label: 'Settings', operatorOnly: true },
 ];
 
 export default function ActivityBar() {
   const { state, dispatch, clearActiveMatter, appendTerminal } = useApp();
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
+  const visibleTabs = TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
 
   async function handleTabClick(tabId: ActiveTab) {
     if (tabId === 'home' && state.activeMatter) {
@@ -36,18 +39,21 @@ export default function ActivityBar() {
         <strong>Matter</strong>
         <span>Workbench</span>
       </button>
-      {TABS.map((tab) => (
+      {visibleTabs.map((tab) => {
+        const label = showOperatorChrome ? tab.label : (tab.lawyerLabel || tab.label);
+        return (
         <button
           key={tab.id}
           className={`activity-item${state.activeTab === tab.id ? ' active' : ''}`}
           type="button"
-          title={tab.label}
+          title={label}
           onClick={() => { void handleTabClick(tab.id); }}
         >
           <span className="activity-icon" aria-hidden="true">{tab.icon}</span>
-          <span className="activity-label">{tab.label}</span>
+          <span className="activity-label">{label}</span>
         </button>
-      ))}
+        );
+      })}
       <div className="activity-spacer" />
     </aside>
   );

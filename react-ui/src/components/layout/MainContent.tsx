@@ -22,6 +22,7 @@ import {
   sourceFragmentsForListOfDates,
 } from '../../lib/filePreview';
 import { writeClipboardText } from '../../lib/clipboard';
+import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 
 interface Props {
   onNewMatter: () => void;
@@ -36,9 +37,11 @@ interface Props {
 }
 
 function FilePreview({ preview }: { preview: { path: string; type: string; url?: string; content?: string; ext?: string } }) {
+  const { state } = useApp();
   const filename = preview.path.split('/').pop() ?? preview.path;
   const isListOfDatesMarkdown = preview.type === 'text' && isListOfDatesMarkdownPath(preview.path);
   const listOfDates = isListOfDatesMarkdown ? parseListOfDatesMarkdown(preview.content || '') : null;
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   async function copyMarkdown() {
     await writeClipboardText(preview.content || '');
@@ -51,7 +54,11 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
           <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>
             {listOfDates?.title || filename}
           </h1>
-          <p className="document-path">{preview.path}</p>
+          {showOperatorChrome ? (
+            <p className="document-path">{preview.path}</p>
+          ) : (
+            <p className="document-path">Matter document</p>
+          )}
           {listOfDates && (
             <p className="document-note">
               {[listOfDates.matter ? `Matter: ${listOfDates.matter}` : '', listOfDates.generated].filter(Boolean).join(' · ')}
@@ -146,6 +153,7 @@ export default function MainContent({
 }: Props) {
   const { state } = useApp();
   const { activeView } = state;
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   const filePreview = state.filePreview;
 
@@ -170,7 +178,16 @@ export default function MainContent({
     switch (state.activeTab) {
       case 'skills': return <SkillsPage />;
       case 'activity': return <ActivityPage />;
-      case 'settings': return <SettingsPage />;
+      case 'settings': return showOperatorChrome ? <SettingsPage /> : (
+        <HomeLanding
+          onNewMatter={onNewMatter}
+          onOpenMatter={onOpenMatter}
+          onViewAllMatters={onViewAllMatters}
+          onCommand={onCommand}
+          onRunPreparationAgain={onRunPreparationAgain}
+          showMatterBrowser={activeView === 'find-matter'}
+        />
+      );
       default:
         return (
           <HomeLanding

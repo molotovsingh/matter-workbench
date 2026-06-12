@@ -2,6 +2,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../../lib/filePreview';
+import { canSeeOperatorSurface, filterWorkspaceFilesForOperatorVisibility } from '../../lib/lawyerMode';
 import { useLatestValue } from '../../hooks/useLatestValue';
 import type { WorkspaceFile } from '../../types';
 
@@ -23,6 +24,7 @@ function getFileIconClass(ext?: string) {
 function TreeNode({ file }: TreeNodeProps) {
   const { state, dispatch, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   async function handleFileClick(path: string) {
     const matterName = state.activeMatter?.name ?? null;
@@ -42,11 +44,19 @@ function TreeNode({ file }: TreeNodeProps) {
         dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
       } catch (e) {
         if (activeMatterNameRef.current !== matterName) return;
-        appendTerminal([`[file] error reading ${path}: ${getErrorMessage(e)}`]);
+        appendTerminal([
+          showOperatorChrome
+            ? `[file] error reading ${path}: ${getErrorMessage(e)}`
+            : '[file] Could not open that file. Please try again or tell us what happened.',
+        ]);
       }
     } else {
       const reason = file.previewable === false ? 'not previewable in the app' : 'not available for preview';
-      appendTerminal([`[file] ${path} is ${reason}`]);
+      appendTerminal([
+        showOperatorChrome
+          ? `[file] ${path} is ${reason}`
+          : '[file] Could not open that file. Please try again or tell us what happened.',
+      ]);
     }
   }
 
@@ -106,12 +116,15 @@ interface Props {
 export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
   const { state, dispatch } = useApp();
   const workspace = state.activeMatter?.workspace;
+  const showOperatorChrome = canSeeOperatorSurface(state.authUser);
 
   if (!workspace) return null;
 
-  const children = state.showTechnicalFiles
+  const children = showOperatorChrome && state.showTechnicalFiles
     ? workspace.children
-    : workspace.children.filter((f) => !f.isTechnical);
+    : showOperatorChrome
+      ? workspace.children.filter((f) => !f.isTechnical)
+      : filterWorkspaceFilesForOperatorVisibility(workspace.children, state.authUser);
 
   return (
     <div id="matterFilesSection" className="tree-section">
@@ -121,14 +134,16 @@ export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
           <button className="tree-refresh" type="button" onClick={onAddFiles}>
             + Add Files
           </button>
-          <button
-            className={`tree-refresh${state.showTechnicalFiles ? ' active' : ''}`}
-            type="button"
-            aria-pressed={state.showTechnicalFiles}
-            onClick={() => dispatch({ type: 'SET_SHOW_TECHNICAL', payload: !state.showTechnicalFiles })}
-          >
-            {state.showTechnicalFiles ? 'Hide technical' : 'Show technical'}
-          </button>
+          {showOperatorChrome && (
+            <button
+              className={`tree-refresh${state.showTechnicalFiles ? ' active' : ''}`}
+              type="button"
+              aria-pressed={state.showTechnicalFiles}
+              onClick={() => dispatch({ type: 'SET_SHOW_TECHNICAL', payload: !state.showTechnicalFiles })}
+            >
+              {state.showTechnicalFiles ? 'Hide technical' : 'Show technical'}
+            </button>
+          )}
           <button className="tree-refresh" type="button" onClick={onRefresh}>
             Refresh
           </button>
