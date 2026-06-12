@@ -218,6 +218,9 @@ export interface PrivateBetaFeedbackContext {
   visibleError?: string;
   recentActivity?: string[];
   providerRoutes?: Array<{ task?: string; provider?: string; model?: string }>;
+  username?: string;
+  displayName?: string;
+  userRole?: string;
 }
 
 export interface PrivateBetaFeedbackRequest {

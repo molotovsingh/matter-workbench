@@ -279,6 +279,9 @@ function sanitizeContext(context = {}, { telemetryMode = "safe" } = {}) {
     "visibleError",
     "traceId",
     "requestId",
+    "username",
+    "displayName",
+    "userRole",
   ];
   for (const field of simpleFields) {
     if (typeof context[field] === "string" && context[field].trim()) {

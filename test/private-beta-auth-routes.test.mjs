@@ -192,6 +192,55 @@ test("private beta auth route sees tester account file changes without server re
   }
 });
 
+test("private beta feedback records the authenticated sender in context", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-feedback-auth-context-"));
+  const usersFile = path.join(tmp, "users.json");
+  await writePrivateBetaUsersFile(usersFile, [
+    {
+      username: "aksingh",
+      displayName: "AK Singh",
+      role: "superuser",
+      passwordHash: hashPrivateBetaPassword("super-secret", { salt: "route-feedback-superuser", iterations: 1_000 }),
+    },
+    {
+      username: "shivangi@lawzeus.com",
+      displayName: "Shivangi",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("tester-secret", { salt: "route-feedback-sender", iterations: 1_000 }),
+    },
+  ]);
+  const app = await createTestApp({
+    env: {
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+  await new Promise((resolve) => app.server.listen(0, app.host, resolve));
+  const address = app.server.address();
+  const baseUrl = `http://${address.address}:${address.port}`;
+
+  try {
+    const cookie = await loginCookie(baseUrl, "shivangi@lawzeus.com", "tester-secret");
+    const created = await postJson(baseUrl, "/api/private-beta/feedback", {
+      choice: "confused",
+      tryingToDo: "Understand whether List of Dates runs automatically",
+      happenedInstead: "I could not tell whether I needed to run a skill.",
+      context: { screen: "home", route: "/" },
+    }, cookie);
+
+    assert.equal(created.feedback.context.username, "shivangi@lawzeus.com");
+    assert.equal(created.feedback.context.userRole, "tester");
+    assert.equal(created.feedback.context.displayName, "Shivangi");
+
+    const superCookie = await loginCookie(baseUrl, "aksingh", "super-secret");
+    const listed = await getJson(baseUrl, "/api/private-beta/feedback?limit=10", superCookie);
+    assert.equal(listed.feedback[0].context.username, "shivangi@lawzeus.com");
+  } finally {
+    await new Promise((resolve) => app.server.close(resolve));
+  }
+});
+
 test("private beta user management APIs are restricted to superuser sessions", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-user-management-routes-"));
   const usersFile = path.join(tmp, "users.json");

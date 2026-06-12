@@ -2687,3 +2687,30 @@ possible, and brutally explicit where they cannot be executable. Codex cannot
 invent DNS for you, but it can make the remaining steps repeatable enough that
 "put it on the web" stops being a vague ritual and becomes a checklist with
 clear stop rules.
+
+### Feedback is a product surface, not just a form
+
+The first useful beta feedback was not a crash report. It was a lawyer asking,
+in effect: "When I add a matter, should the List of Dates appear
+automatically, or do I need to run a skill?" That is exactly the kind of signal
+an early beta should collect. It shows a mismatch between the product's mental
+model and the user's mental model.
+
+The important implementation detail is that feedback needs context to become
+actionable. A note that says "I got confused" is helpful, but a note that also
+says who sent it, which matter was active, which screen they were on, which
+recent actions happened, and whether it reached the mothership is much more
+useful. It lets us reproduce the problem without calling the lawyer back for
+basic facts.
+
+The app now treats the feedback inbox as an operator surface. Lawyers can send
+simple feedback from the assistant panel, but only a superuser sees the review
+inbox in Activity. The backend attaches the authenticated sender to the feedback
+packet instead of trusting the browser to provide it. That distinction matters:
+the browser may help describe the page, but the server owns identity.
+
+The broader lesson is that beta operations are part of the product. If we want
+to improve quickly with real lawyers, the feedback loop must be boring,
+trustworthy, and easy to read. A private beta does not need Jira on day one. It
+does need a reliable cockpit where the operator can see what happened, who it
+happened to, and whether the report reached the development mothership.

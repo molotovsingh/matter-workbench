@@ -53,10 +53,12 @@ test("Activity page renders operator-facing feedback review and export controls"
   const source = await readFile(activityPagePath, "utf8");
 
   assert.match(source, /getPrivateBetaFeedback/);
+  assert.match(source, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
   assert.match(source, /Beta Feedback/);
   assert.match(source, /New tester feedback/);
   assert.match(source, /activity-feedback-alert/);
   assert.match(source, /FeedbackCard/);
+  assert.match(source, /formatFeedbackSender/);
   assert.match(source, /formatFeedbackSyncStatus/);
   assert.match(source, /Retry sync/);
   assert.match(source, /Copy packet/);

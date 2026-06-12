@@ -12,6 +12,7 @@ import {
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
+import { canSeeOperatorSurface } from '../lib/lawyerMode';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { ActiveMatter, JobStatus, PrivateBetaFeedback, SkillRun } from '../types';
 
@@ -28,6 +29,7 @@ export default function ActivityPage() {
   const [feedback, setFeedback] = useState<PrivateBetaFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const canReviewFeedback = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   const loadActivityRuns = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoading(true);
@@ -36,7 +38,7 @@ export default function ActivityPage() {
       const [runResult, jobResult, feedbackResult] = await Promise.all([
         api.getSkillRuns(100),
         api.getJobs(100),
-        api.getPrivateBetaFeedback(100),
+        canReviewFeedback ? api.getPrivateBetaFeedback(100) : Promise.resolve({ feedback: [] }),
       ]);
       if (isCancelled()) return;
       setRuns(runResult.runs || []);
@@ -48,7 +50,7 @@ export default function ActivityPage() {
     } finally {
       if (!isCancelled()) setLoading(false);
     }
-  }, []);
+  }, [canReviewFeedback]);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,7 +188,7 @@ export default function ActivityPage() {
         </div>
       )}
 
-      {!loading && !loadError && visibleFeedback.length > 0 && (
+      {!loading && !loadError && canReviewFeedback && visibleFeedback.length > 0 && (
         <section className="activity-section">
           <div className="activity-section-heading">
             <h2>Beta Feedback</h2>
@@ -297,6 +299,7 @@ function FeedbackCard({ feedback, onCopy }: { feedback: PrivateBetaFeedback; onC
   const createdTime = formatTime(feedback.createdAt);
   const syncStatus = formatFeedbackSyncStatus(feedback.sync?.status);
   const syncClass = feedbackSyncClass(feedback.sync?.status);
+  const sender = formatFeedbackSender(feedback);
   return (
     <article className="activity-card warning">
       <div className="activity-card-main">
@@ -307,6 +310,7 @@ function FeedbackCard({ feedback, onCopy }: { feedback: PrivateBetaFeedback; onC
             <span className={`pipeline-state ${syncClass}`}>{syncStatus}</span>
           </div>
           <div className="activity-run-line">
+            <span>{sender}</span>
             {feedback.context?.activeMatterName && <span>{feedback.context.activeMatterName}</span>}
             {feedback.context?.screen && <span>{feedback.context.screen}</span>}
             <span>{feedback.status}</span>
@@ -339,6 +343,7 @@ function FeedbackCard({ feedback, onCopy }: { feedback: PrivateBetaFeedback; onC
             <div><dt>ID</dt><dd>{feedback.id}</dd></div>
             <div><dt>classification</dt><dd>{feedback.classification}</dd></div>
             <div><dt>Status</dt><dd>{feedback.status}</dd></div>
+            <div><dt>Sender</dt><dd>{sender}</dd></div>
             <div><dt>Sync</dt><dd>{syncStatus}</dd></div>
             {feedback.sync?.attempts !== undefined && <div><dt>Sync attempts</dt><dd>{feedback.sync.attempts}</dd></div>}
             {feedback.sync?.lastError && <div><dt>Sync error</dt><dd>{feedback.sync.lastError}</dd></div>}
@@ -359,6 +364,7 @@ function formatPrivateBetaFeedbackReport(feedback: PrivateBetaFeedback): string 
     `Choice: ${formatFeedbackChoice(feedback.choice)}`,
     `Classification: ${feedback.classification}`,
     `Status: ${feedback.status}`,
+    `Sender: ${formatFeedbackSender(feedback)}`,
     `Sync: ${formatFeedbackSyncStatus(feedback.sync?.status)}`,
   ];
   if (feedback.context?.activeMatterName) lines.push(`Matter: ${feedback.context.activeMatterName}`);
@@ -371,6 +377,15 @@ function formatPrivateBetaFeedbackReport(feedback: PrivateBetaFeedback): string 
     for (const line of feedback.context.recentActivity) lines.push(`- ${line}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+function formatFeedbackSender(feedback: PrivateBetaFeedback): string {
+  const displayName = feedback.context?.displayName?.trim();
+  const username = feedback.context?.username?.trim();
+  const userRole = feedback.context?.userRole?.trim();
+  if (displayName && username && displayName !== username) return `${displayName} (${username})`;
+  if (username) return userRole ? `${username} (${userRole})` : username;
+  return 'Unknown sender';
 }
 
 function formatFeedbackChoice(choice: string): string {
