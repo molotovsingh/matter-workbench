@@ -2677,6 +2677,11 @@ That last environment variable is not just documentation; it lets the auth
 service mark cookies as `Secure`. Without that, a login gate exists, but the
 browser security posture is weaker than the product claim.
 
+This is different from the mothership receiver running on the same VM. The app
+can send feedback and diagnostic summaries to `http://127.0.0.1:4192` because
+that traffic never leaves the machine. Public browser traffic needs HTTPS;
+loopback service traffic needs to stay loopback-only.
+
 The engineering lesson is to make deployment instructions executable wherever
 possible, and brutally explicit where they cannot be executable. Codex cannot
 invent DNS for you, but it can make the remaining steps repeatable enough that

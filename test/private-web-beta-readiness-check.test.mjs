@@ -80,6 +80,21 @@ test("private web beta readiness accepts signal sync fallback through feedback m
   assert.match(sync.message, /signal and metrics fallback/i);
 });
 
+test("private web beta readiness accepts loopback HTTP mothership sync for same-VM deployments", () => {
+  const env = {
+    ...READY_ENV,
+    MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL: "http://127.0.0.1:4192/api/beta-feedback",
+    MWB_PRIVATE_BETA_SIGNAL_SYNC_URL: "http://127.0.0.1:4192/api/beta-signals",
+    MWB_PRIVATE_BETA_METRICS_SYNC_URL: "http://127.0.0.1:4192/v1/metrics",
+  };
+  const report = evaluatePrivateWebBetaReadiness({ env });
+  const sync = report.checks.find((check) => check.id === "mothership_sync");
+
+  assert.equal(report.ready, true);
+  assert.equal(sync.status, "pass");
+  assert.match(sync.message, /loopback/i);
+});
+
 test("private web beta readiness accepts operator-managed tester account files", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-readiness-users-"));
   const usersFile = path.join(tmp, "private-beta-users.json");

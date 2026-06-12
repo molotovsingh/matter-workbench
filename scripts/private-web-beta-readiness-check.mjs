@@ -170,19 +170,30 @@ function checkMothershipSync(env) {
   if (!feedbackUrl || !feedbackToken) {
     return block("mothership_sync", "Configure MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL and MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN.");
   }
-  if (!isHttps(feedbackUrl)) return block("mothership_sync", "Feedback mothership URL must use HTTPS.");
+  if (!isHttpsOrLoopbackHttp(feedbackUrl)) return block("mothership_sync", "Feedback mothership URL must use HTTPS, unless it is loopback-only on the same VM.");
   if ((signalUrl && !signalToken) || (!signalUrl && signalToken)) {
     return block("mothership_sync", "Configure both MWB_PRIVATE_BETA_SIGNAL_SYNC_URL and MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN, or neither to use feedback fallback.");
   }
   if ((metricsUrl && !metricsToken) || (!metricsUrl && metricsToken)) {
     return block("mothership_sync", "Configure both MWB_PRIVATE_BETA_METRICS_SYNC_URL and MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN, or neither to use feedback fallback.");
   }
-  if (signalUrl && !isHttps(signalUrl)) return block("mothership_sync", "Signal mothership URL must use HTTPS.");
-  if (metricsUrl && !isHttps(metricsUrl)) return block("mothership_sync", "Metrics mothership URL must use HTTPS.");
+  if (signalUrl && !isHttpsOrLoopbackHttp(signalUrl)) return block("mothership_sync", "Signal mothership URL must use HTTPS, unless it is loopback-only on the same VM.");
+  if (metricsUrl && !isHttpsOrLoopbackHttp(metricsUrl)) return block("mothership_sync", "Metrics mothership URL must use HTTPS, unless it is loopback-only on the same VM.");
   if (!installId) return warn("mothership_sync", "Mothership sync is configured, but MWB_PRIVATE_BETA_INSTALL_ID is missing.");
-  if (!signalUrl && !metricsUrl) return pass("mothership_sync", "Feedback sync is configured; signal and metrics fallback will use the feedback mothership.");
-  if (!signalUrl) return pass("mothership_sync", "Feedback and metrics sync are configured; signal fallback will use the feedback mothership.");
-  if (!metricsUrl) return pass("mothership_sync", "Feedback and diagnostic signal sync are configured; metrics fallback will use the feedback mothership.");
+  const configuredUrls = [feedbackUrl, signalUrl, metricsUrl].filter(Boolean);
+  const allConfiguredUrlsAreLoopback = configuredUrls.length > 0 && configuredUrls.every(isLoopbackHttp);
+  if (allConfiguredUrlsAreLoopback && signalUrl && metricsUrl) {
+    return pass("mothership_sync", "Feedback, diagnostic signal, and backend metrics mothership sync are configured through loopback-only same-VM HTTP.");
+  }
+  if (!signalUrl && !metricsUrl) return pass("mothership_sync", allConfiguredUrlsAreLoopback
+    ? "Feedback sync is configured through loopback-only same-VM HTTP; signal and metrics fallback will use the feedback mothership."
+    : "Feedback sync is configured; signal and metrics fallback will use the feedback mothership.");
+  if (!signalUrl) return pass("mothership_sync", allConfiguredUrlsAreLoopback
+    ? "Feedback and metrics sync are configured through loopback-only same-VM HTTP; signal fallback will use the feedback mothership."
+    : "Feedback and metrics sync are configured; signal fallback will use the feedback mothership.");
+  if (!metricsUrl) return pass("mothership_sync", allConfiguredUrlsAreLoopback
+    ? "Feedback and diagnostic signal sync are configured through loopback-only same-VM HTTP; metrics fallback will use the feedback mothership."
+    : "Feedback and diagnostic signal sync are configured; metrics fallback will use the feedback mothership.");
   return pass("mothership_sync", "Feedback, diagnostic signal, and backend metrics mothership sync are configured.");
 }
 
@@ -213,9 +224,25 @@ function truthy(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 }
 
-function isHttps(value) {
+function isHttpsOrLoopbackHttp(value) {
   try {
-    return new URL(value).protocol === "https:";
+    const url = new URL(value);
+    return url.protocol === "https:" || isLoopbackHttp(value);
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackHttp(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === "http:" && (
+      host === "localhost"
+      || host === "127.0.0.1"
+      || host === "::1"
+      || host === "[::1]"
+    );
   } catch {
     return false;
   }

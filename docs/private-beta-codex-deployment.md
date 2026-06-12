@@ -184,6 +184,9 @@ Do not hand out a public IP `http://...` URL to beta testers. It is acceptable
 for operator-only smoke tests, but tester access needs HTTPS so session cookies
 are marked `Secure`.
 
+The mothership receiver may still use `http://127.0.0.1:4192` when it runs on
+the same VM. That is loopback-only service traffic, not the tester-facing URL.
+
 ## Repeatable Deployment Shape
 
 Repeatability comes from committed scripts:
