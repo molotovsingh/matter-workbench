@@ -2660,3 +2660,25 @@ If a function creates a temporary workspace and accepts an async operation, the
 cleanup owner must `await` that operation before deleting the workspace. This
 is exactly the kind of bug that feels like "the model ignored context" but is
 actually "the app removed the context while the model packet was being built."
+
+### HTTPS is not a checkbox
+
+The DigitalOcean deployment made another operational point concrete. Running on
+a public VM and running as a private beta are not the same thing. A public IP
+with `http://...` is useful for operator smoke testing, but it is not the URL to
+hand to lawyers. Once beta testers are involved, the app needs a real hostname,
+DNS pointing at the VM, and an HTTPS reverse proxy in front of the Node service.
+
+The deployment pack now says this plainly. The missing manual fact is the
+hostname. After that, the boring path is Caddy: install it, write a tiny
+`Caddyfile` that proxies the beta hostname to `127.0.0.1:4191`, enable Caddy,
+set `MWB_PRIVATE_BETA_PUBLIC_URL=https://...`, and rerun the readiness check.
+That last environment variable is not just documentation; it lets the auth
+service mark cookies as `Secure`. Without that, a login gate exists, but the
+browser security posture is weaker than the product claim.
+
+The engineering lesson is to make deployment instructions executable wherever
+possible, and brutally explicit where they cannot be executable. Codex cannot
+invent DNS for you, but it can make the remaining steps repeatable enough that
+"put it on the web" stops being a vague ritual and becomes a checklist with
+clear stop rules.

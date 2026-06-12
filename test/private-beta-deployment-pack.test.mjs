@@ -73,6 +73,10 @@ test("private beta deployment pack writes ordered deployment and observability e
   assert.match(rendered, /Sites is parked for companion surfaces/);
   assert.match(rendered, /npm run private-web:readiness-check/);
   assert.match(rendered, /npm run private-beta:users/);
+  assert.match(rendered, /DNS A record/);
+  assert.match(rendered, /sudo apt-get install -y caddy/);
+  assert.match(rendered, /reverse_proxy 127\.0\.0\.1:4191/);
+  assert.match(rendered, /MWB_PRIVATE_BETA_PUBLIC_URL=https:\/\/mwb-beta\.example\.test/);
 });
 
 test("private beta deployment pack fails handoff when readiness has blockers", async () => {

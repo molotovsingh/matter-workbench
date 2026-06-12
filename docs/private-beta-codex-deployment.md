@@ -141,6 +141,49 @@ runs the VM-local service check plus rendered UI hardening pass.
 It intentionally does not accept a password argument. Use SSH keys, an
 interactive password prompt, or your normal SSH agent flow.
 
+## HTTPS Handoff
+
+The only unavoidable manual input is the public hostname and DNS. Before giving
+the URL to a tester:
+
+1. Create a DNS `A` record from the beta hostname to the VM public IP.
+2. Install Caddy on the VM:
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y caddy
+   ```
+
+3. Put Caddy in front of the Node service:
+
+   ```bash
+   printf '%s\n' \
+     'mwb-beta.example.com {' \
+     '  encode gzip' \
+     '  reverse_proxy 127.0.0.1:4191' \
+     '}' | sudo tee /etc/caddy/Caddyfile >/dev/null
+   sudo systemctl enable --now caddy
+   sudo systemctl reload caddy
+   ```
+
+4. Set these in the target runtime env:
+
+   ```bash
+   MWB_PRIVATE_BETA_PUBLIC_URL=https://mwb-beta.example.com
+   MWB_PRIVATE_BETA_COOKIE_SECURE=true
+   ```
+
+5. Restart the runtime service and run the web readiness check:
+
+   ```bash
+   systemctl --user restart matter-workbench-runtime.service
+   MWB_PRIVATE_BETA_PUBLIC_URL=https://mwb-beta.example.com npm run private-web:readiness-check
+   curl -sS -o /tmp/mwb-root.html -w '%{http_code} %{size_download}\n' https://mwb-beta.example.com/
+   ```
+
+Do not hand out a public IP `http://...` URL to beta testers. It is acceptable
+for operator-only smoke tests, but tester access needs HTTPS so session cookies
+are marked `Secure`.
+
 ## Repeatable Deployment Shape
 
 Repeatability comes from committed scripts:

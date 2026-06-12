@@ -137,6 +137,8 @@ export function renderPrivateBetaDeploymentPack(result = {}) {
 
 function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploymentRoot }) {
   const root = deploymentRoot || "$HOME/matter-workbench-deployments";
+  const betaHost = hostnameFromUrl(targetUrl) || "<private-beta-hostname>";
+  const dnsTarget = deploymentHost || "<public-vm-ip>";
   return [
     {
       id: "source_release",
@@ -189,8 +191,15 @@ function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploym
       id: "https_access",
       title: "Put HTTPS in front of the private service before tester access",
       commands: [
-        "configure Caddy/Nginx/reverse proxy for HTTPS",
-        "reverse proxy 127.0.0.1:4191 to the private beta hostname",
+        `DNS A record: point ${betaHost} to ${dnsTarget}`,
+        "sudo apt-get update && sudo apt-get install -y caddy",
+        `printf '%s\\n' '${betaHost} {' '  encode gzip' '  reverse_proxy 127.0.0.1:4191' '}' | sudo tee /etc/caddy/Caddyfile >/dev/null`,
+        "sudo systemctl enable --now caddy",
+        "sudo systemctl reload caddy",
+        `set MWB_PRIVATE_BETA_PUBLIC_URL=https://${betaHost} in the target runtime env`,
+        `set MWB_PRIVATE_BETA_COOKIE_SECURE=true in the target runtime env unless MWB_PRIVATE_BETA_PUBLIC_URL already starts with https://`,
+        "systemctl --user restart matter-workbench-runtime.service",
+        `MWB_PRIVATE_BETA_PUBLIC_URL=https://${betaHost} npm run private-web:readiness-check`,
         `curl -sS -o /tmp/mwb-root.html -w '%{http_code} %{size_download}\\n' ${targetUrl || "https://<private-beta-url>"}/`,
       ],
     },
@@ -303,6 +312,16 @@ function timestampSlug(value) {
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function hostnameFromUrl(value) {
+  const raw = normalizeUrl(value);
+  if (!raw) return "";
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "";
+  }
 }
 
 if (process.argv[1] === __filename) {
