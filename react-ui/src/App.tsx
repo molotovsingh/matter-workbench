@@ -569,17 +569,19 @@ function PrivateBetaLogin({
         <div className="section-kicker">Private Beta</div>
         <h1>Sign in to Matter Workbench</h1>
         <p>This private VM is access-controlled. Use the operator credentials from the protected runtime env.</p>
-        <label>
+        <label htmlFor="private-beta-username">
           <span>Username</span>
           <input
+            id="private-beta-username"
             autoComplete="username"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
           />
         </label>
-        <label>
+        <label htmlFor="private-beta-password">
           <span>Password</span>
           <input
+            id="private-beta-password"
             autoComplete="current-password"
             type="password"
             value={password}

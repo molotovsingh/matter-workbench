@@ -20,6 +20,14 @@ test("React auth gate renders after AppShell hooks are declared", async () => {
   assert.ok(commandRunnerHook < authLoadingGate, "auth gate must not return before later AppShell hooks");
 });
 
+test("React private beta login fields have explicit accessible labels", async () => {
+  const source = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
+  assert.match(source, /<label htmlFor="private-beta-username">/);
+  assert.match(source, /id="private-beta-username"/);
+  assert.match(source, /<label htmlFor="private-beta-password">/);
+  assert.match(source, /id="private-beta-password"/);
+});
+
 test("React API client exposes private beta auth helpers", async () => {
   const source = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
   assert.match(source, /getAuthStatus: \(\) => getJson/);
