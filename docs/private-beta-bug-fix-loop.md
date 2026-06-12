@@ -33,11 +33,23 @@ For each report:
 
 1. Capture the tester's short report first. Prefer the in-app
    **Have a problem? Tell us what happened** feedback record when it exists.
-2. Record matter name, time, command/button, visible model/provider, exact error
+2. Open the operator observability bundle and find the report by feedback id,
+   matter, trace id, or recent time:
+
+   ```bash
+   curl -sS "http://127.0.0.1:4191/api/private-beta/observability?limit=50" \
+     | jq '.summary, .topProblems[0:10], .feedbackEvidence[0:5]'
+   ```
+
+   This endpoint joins feedback, nearby failed jobs, diagnostic signals, and
+   the latest backend metrics. It is superuser/operator-only and should be the
+   first debugging surface before manually searching ledgers.
+3. Record matter name, time, command/button, visible model/provider, trace id,
+   exact error
    text, and screenshot if visual. If the tester used the in-app feedback flow,
    start from the Activity feedback packet instead of asking them to recreate
    the whole context manually.
-3. Run the bug evidence pack only when developer handoff needs more context:
+4. Run the bug evidence pack only when developer handoff needs more context:
 
    ```bash
    npm run private-beta:bug-evidence-pack -- \
@@ -46,12 +58,12 @@ For each report:
      --note "Short description of what the tester saw"
    ```
 
-4. Reproduce the issue on the smallest safe matter or read-only surface.
-5. Fix the narrowest code path that owns the bug.
-6. Add or update the focused test that would have caught it.
-7. Run focused verification, then the release gates relevant to the touched
+5. Reproduce the issue on the smallest safe matter or read-only surface.
+6. Fix the narrowest code path that owns the bug.
+7. Add or update the focused test that would have caught it.
+8. Run focused verification, then the release gates relevant to the touched
    surface.
-8. Commit the fix with the bug evidence path or reproduction summary in the
+9. Commit the fix with the bug evidence path or reproduction summary in the
    commit context.
 
 ## Severity
@@ -78,7 +90,8 @@ Every committed beta bug fix should have:
 - `npm test --silent` before tagging or handing off a new checkpoint.
 
 Run `npm run ui:smoke --silent` when UI routing, command panel behavior, matter
-selection, skills, Activity, Settings, or runtime mode labels are touched.
+selection, skills, Activity, Settings, runtime mode labels, or operator
+observability routes are touched.
 
 Run `npm run db:runtime:smoke` when runtime DB storage, status readers, job
 state, receipts, or database-backed matter data are touched.

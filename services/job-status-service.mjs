@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
+import { currentRequestContext } from "./request-context.mjs";
 
 const LEDGER_SCHEMA_VERSION = "job-status-ledger/v1";
 const JOB_SCHEMA_VERSION = "job-status/v1";
@@ -44,6 +45,7 @@ export function createJobStatusService({
   async function createJob(input = {}) {
     return writeMutatedStore(async (store) => {
       const startedAt = isoNow(now);
+      const requestContext = currentRequestContext();
       const job = normalizeJobStatus({
         schema_version: JOB_SCHEMA_VERSION,
         id: typeof input.id === "string" && input.id.trim() ? input.id.trim() : idFactory(),
@@ -52,6 +54,9 @@ export function createJobStatusService({
         matterName: input.matterName,
         matterId: input.matterId,
         status: "running",
+        traceId: input.traceId || requestContext.traceId,
+        requestId: input.requestId || requestContext.requestId,
+        user: input.user || requestContext.user,
         startedAt,
         updatedAt: startedAt,
         metadata: sanitizeMetadata(input.metadata),
@@ -87,11 +92,13 @@ export function createJobStatusService({
   }
 
   async function failJob(jobId, error, patch = {}) {
+    const message = errorToMessage(error);
     return updateJob(jobId, {
       ...patch,
       status: "failed",
       finishedAt: isoNow(now),
-      errorMessage: errorToMessage(error),
+      errorMessage: message,
+      failureClass: patch.failureClass || classifyFailure(message),
     });
   }
 
@@ -167,13 +174,19 @@ export function normalizeJobStatus(job = {}) {
     status,
     matterName: stringOr(job.matterName, ""),
     matterId: stringOr(job.matterId, ""),
+    traceId: stringOr(job.traceId, ""),
+    requestId: stringOr(job.requestId, ""),
     startedAt,
     updatedAt: normalizeIso(job.updatedAt) || startedAt,
   };
+  if (job.user && typeof job.user === "object" && !Array.isArray(job.user)) {
+    normalized.user = sanitizeUser(job.user);
+  }
   if (job.finishedAt) normalized.finishedAt = normalizeIso(job.finishedAt) || String(job.finishedAt);
   if (job.resultState) normalized.resultState = sanitizeText(job.resultState, 120);
   if (job.summary) normalized.summary = sanitizeText(job.summary, 500);
   if (job.errorMessage) normalized.errorMessage = sanitizeText(job.errorMessage, 500);
+  if (job.failureClass) normalized.failureClass = normalizeFailureClass(job.failureClass);
   if (job.metadata && typeof job.metadata === "object") normalized.metadata = sanitizeMetadata(job.metadata);
   return normalized;
 }
@@ -230,6 +243,14 @@ function sanitizeMetadataValue(value) {
   return sanitizeText(String(value), 500);
 }
 
+function sanitizeUser(user = {}) {
+  return {
+    username: sanitizeText(user.username || "", 180).trim(),
+    role: sanitizeText(user.role || "tester", 40).trim() || "tester",
+    displayName: sanitizeText(user.displayName || "", 180).trim(),
+  };
+}
+
 function errorToMessage(error) {
   if (error instanceof Error && error.message) return sanitizeText(error.message, 500);
   return sanitizeText(String(error || "Unknown job failure"), 500);
@@ -270,6 +291,21 @@ function normalizeStatus(status) {
   const text = typeof status === "string" ? status.trim() : "";
   if (["running", "succeeded", "failed", "cancelled"].includes(text)) return text;
   return "running";
+}
+
+export function classifyFailure(message = "") {
+  const text = String(message || "").toLowerCase();
+  if (/login required|unauth|forbidden|permission denied/.test(text)) return "auth";
+  if (/api key|provider|openrouter|openai|gemini|mistral|rate limit|quota|timeout|timed out/.test(text)) return "provider";
+  if (/database|postgres|psql|storage|write|read|enoent|no such file|not found/.test(text)) return "storage";
+  if (/source folder is missing|source files|pick one|no matter|missing|required|invalid/.test(text)) return "user_action_needed";
+  return "unknown";
+}
+
+function normalizeFailureClass(value) {
+  const text = sanitizeText(value, 80).trim();
+  if (["auth", "provider", "storage", "user_action_needed", "unknown"].includes(text)) return text;
+  return "unknown";
 }
 
 function normalizeKind(kind) {

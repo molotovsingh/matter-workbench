@@ -20,13 +20,14 @@ import { createPrepareMatterService } from "./services/prepare-matter-service.mj
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
 import { createPrivateBetaMetricsService } from "./services/private-beta-metrics-service.mjs";
+import { createPrivateBetaObservabilityService } from "./services/private-beta-observability-service.mjs";
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
 import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-telemetry-retry-service.mjs";
 import { createPrivateBetaUsersService } from "./services/private-beta-users-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
-import { requestContextFromAuthStatus, runWithRequestContext } from "./services/request-context.mjs";
+import { newTraceId, requestContextFromAuthStatus, runWithRequestContext } from "./services/request-context.mjs";
 import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-ideas-service.mjs";
 import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-samples-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
@@ -213,6 +214,12 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const privateBetaObservabilityService = options.privateBetaObservabilityService || createPrivateBetaObservabilityService({
+    feedbackService: privateBetaFeedbackService,
+    jobStatusService,
+    metricsService: privateBetaMetricsService,
+    signalService: privateBetaSignalService,
+  });
   const skillRegistryService = createSkillRegistryService({
     appDir,
     registryPath: options.skillRegistryPath,
@@ -264,6 +271,7 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaAuthService,
     privateBetaFeedbackService,
     privateBetaMetricsService,
+    privateBetaObservabilityService,
     privateBetaSignalService,
     privateBetaUsersService,
     telemetryRetryService,
@@ -283,10 +291,18 @@ export async function createWorkbenchServer(options = {}) {
   const server = createServer(async (request, response) => {
     const startedAt = Date.now();
     let pathname = "/";
+    const traceId = newTraceId();
     try {
       const requestUrl = new URL(request.url || "/", `http://${request.headers.host || `${host}:${port}`}`);
       pathname = requestUrl.pathname;
-      const requestContext = requestContextFromAuthStatus(privateBetaAuthService.status(request));
+      response.setHeader("x-mwb-trace-id", traceId);
+      const requestContext = {
+        ...requestContextFromAuthStatus(privateBetaAuthService.status(request)),
+        requestId: traceId,
+        traceId,
+        method: request.method,
+        pathname,
+      };
       await runWithRequestContext(requestContext, async () => {
         if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
         if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
@@ -309,6 +325,7 @@ export async function createWorkbenchServer(options = {}) {
       privateBetaMetricsService.observeRequest?.({
         method: request.method,
         pathname,
+        traceId,
         statusCode: response.statusCode,
         durationMs: Date.now() - startedAt,
         visibleProgress: !isLikelySilentWaitPath(pathname),

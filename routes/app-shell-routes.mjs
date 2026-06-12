@@ -1,6 +1,7 @@
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
+import { currentRequestContext } from "../services/request-context.mjs";
 import {
   filterByVisibleMatterNames,
   isPrivateBetaScopedUser,
@@ -18,6 +19,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     jobStatusService,
     matterStore,
     privateBetaFeedbackService,
+    privateBetaObservabilityService,
     privateBetaSignalService,
     runtimeDbStorageService,
     uploadService,
@@ -73,6 +75,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
       exactRoute("POST", "/api/private-beta/feedback", async () => {
         const body = await readRequestJson(request);
+        const requestContext = currentRequestContext();
         const matter = await readMatterSummary(matterStore, { matterName: body.matterName || body.context?.activeMatterName });
         const runtimeStorageMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
           ? "postgres"
@@ -83,9 +86,20 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
             ...(body.context || {}),
             activeMatterName: matter?.folderName || body.context?.activeMatterName || "",
             runtimeMode: body.context?.runtimeMode || runtimeStorageMode,
+            traceId: body.context?.traceId || requestContext.traceId || "",
+            requestId: body.context?.requestId || requestContext.requestId || "",
           },
         });
         sendJson(response, 200, { schema_version: "private-beta-feedback-response/v1", feedback });
+      }),
+      exactRoute("GET", "/api/private-beta/observability", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 403, { error: "Private beta observability requires a superuser account." });
+          return;
+        }
+        sendJson(response, 200, await privateBetaObservabilityService.readObservability({
+          limit: requestUrl.searchParams.get("limit") || undefined,
+        }));
       }),
       exactRoute("POST", "/api/private-beta/feedback/sync", async () => {
         if (!isPrivateBetaSuperuserOrLocal()) {

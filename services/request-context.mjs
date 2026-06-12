@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const requestContextStorage = new AsyncLocalStorage();
 
@@ -18,6 +18,10 @@ export function requestContextFromAuthStatus(status = {}) {
     authenticated: Boolean(status.authenticated),
     user: status.user || null,
   });
+}
+
+export function newTraceId() {
+  return `trace_${randomUUID()}`;
 }
 
 export function runtimeDbUserFromRequestContext(context = currentRequestContext()) {
@@ -45,8 +49,17 @@ function normalizeRequestContext(context = {}) {
   return {
     authEnabled: Boolean(context.authEnabled),
     authenticated: Boolean(context.authenticated),
+    requestId: cleanIdentifier(context.requestId),
+    traceId: cleanIdentifier(context.traceId),
+    method: String(context.method || "").trim().toUpperCase(),
+    pathname: String(context.pathname || "").trim(),
     user: user?.username ? user : null,
   };
+}
+
+function cleanIdentifier(value) {
+  const text = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]{3,160}$/.test(text) ? text : "";
 }
 
 function normalizeRole(role) {

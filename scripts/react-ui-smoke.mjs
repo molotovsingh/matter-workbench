@@ -519,6 +519,20 @@ async function run() {
   }
 
   try {
+    const observability = await fetchJson("/api/private-beta/observability?limit=5");
+    assert(
+      observability.schema_version === "private-beta-observability/v1",
+      "Private beta observability API exposes evidence schema",
+      observability.schema_version || "missing",
+    );
+    assert(observability.summary && typeof observability.summary === "object", "Private beta observability exposes summary");
+    assert(Array.isArray(observability.topProblems), "Private beta observability exposes ranked problems", `${observability.topProblems.length} problems`);
+    assert(Array.isArray(observability.feedbackEvidence), "Private beta observability links feedback evidence", `${observability.feedbackEvidence.length} feedback notes`);
+  } catch (error) {
+    fail("Private beta observability API contract", error.message);
+  }
+
+  try {
     const signalSync = await postJson("/api/private-beta/signals/sync", {});
     assert(
       signalSync.schema_version === "private-beta-signal-sync-result/v1",

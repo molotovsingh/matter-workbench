@@ -211,6 +211,7 @@ function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploym
       commands: [
         "npm run private-vm:ops-pack",
         "journalctl --user -u matter-workbench-runtime.service -n 80 --no-pager",
+        "curl -sS 'http://127.0.0.1:4191/api/private-beta/observability?limit=25'",
         "curl -sS -X POST http://127.0.0.1:4191/api/private-beta/feedback/sync",
         "curl -sS -X POST http://127.0.0.1:4191/api/private-beta/signals/sync",
       ],

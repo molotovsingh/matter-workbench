@@ -298,6 +298,32 @@ diagnostic context; secret redaction still applies.
 The full private beta bug evidence pack remains operator-triggered. It is too
 large and too close to support evidence to send silently.
 
+## Operator Observability Bundle
+
+The private beta runtime now exposes an operator-only correlation surface:
+
+```text
+GET /api/private-beta/observability?limit=50
+```
+
+This is not a lawyer-facing API. It is available only to local/superuser
+operators. It joins the current feedback ledger, failed job ledger, diagnostic
+signal ledger, and latest backend metrics into one debugging bundle:
+
+- summary counts for feedback, failed jobs, open signals, backend suitability,
+  and user-patience risk;
+- ranked top problems grouped by job failure, diagnostic signal, or feedback
+  class;
+- each feedback record with related failed jobs and related signals, matched by
+  trace id, matter name, and nearby time;
+- recent failed jobs and latest metrics for release/debug context.
+
+Every request receives an `x-mwb-trace-id` response header. Tracked jobs and
+feedback records carry that trace id where available, so a tester report can be
+linked back to the failed action that produced it. This keeps the beta debugging
+loop enterprise-grade without asking lawyers to export logs or explain internal
+state.
+
 ## First Slice
 
 Build the smallest useful version:
@@ -310,7 +336,9 @@ Build the smallest useful version:
 6. Add a copy/export action that creates a developer handoff packet.
 7. Add optional automatic mothership sync with queued retry.
 8. Add passive diagnostic signal sync for compact monitor summaries.
-9. Keep screenshots/manual attachments out of the first slice unless a tester
+9. Add the operator-only observability bundle that links feedback, failed jobs,
+   diagnostic signals, and latest backend metrics.
+10. Keep screenshots/manual attachments out of the first slice unless a tester
    explicitly requests it.
 
 ## Non-Goals
