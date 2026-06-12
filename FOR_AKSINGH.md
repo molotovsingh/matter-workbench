@@ -2587,3 +2587,25 @@ whose name lies about its contents. Rollback roots are absolute paths derived
 from the remote user, not a literal `$HOME` string whose expansion depends on
 which shell layer happens to interpret it. Reliable operations are mostly the
 practice of removing this kind of ambiguity before an emergency.
+
+### The Copilot chronology race
+
+Shivangi's Copilot report exposed a subtle runtime-DB bug. The List of Dates
+was in Postgres, and the temporary matter folder could materialize it, but
+Copilot sometimes answered as if the chronology did not exist. The cause was a
+JavaScript async cleanup trap: `runMaterializedMatterRead` returned the
+operation's promise without awaiting it inside the `try` block. That allowed
+the `finally` block to remove the temporary matter folder while the context
+builder was still reading files from it.
+
+The fix was tiny, but important: `return await operation(...)`. The `await`
+keeps cleanup waiting until the read operation is truly finished. The
+regression test deliberately waits before reading `10_Library/List of
+Dates.md`; before the fix the file disappeared, after the fix it remains
+available until the read completes.
+
+The lesson is that temporary files and async callbacks are a dangerous pair.
+If a function creates a temporary workspace and accepts an async operation, the
+cleanup owner must `await` that operation before deleting the workspace. This
+is exactly the kind of bug that feels like "the model ignored context" but is
+actually "the app removed the context while the model packet was being built."

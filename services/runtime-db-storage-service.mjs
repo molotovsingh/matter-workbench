@@ -517,7 +517,7 @@ export function createRuntimeDbStorageService({
         workspace,
         readPayloadRow,
       });
-      return operation({ matterRoot, matter: normalizedMatter });
+      return await operation({ matterRoot, matter: normalizedMatter });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }

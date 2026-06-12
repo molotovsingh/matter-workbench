@@ -703,6 +703,31 @@ test("runtime DB storage service materializes DB payloads for read-only operatio
   assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
 });
 
+test("runtime DB storage service keeps materialized read files alive until async operation finishes", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-read-async-"));
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence([], [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 8, true),
+        ],
+      },
+      payloadRow("DB Matter/10_Library/List of Dates.md", "# Dates\n"),
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return readFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "utf8");
+  });
+
+  assert.equal(result, "# Dates\n");
+});
+
 test("runtime DB storage service rejects DB object keys that escape the matter root", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-path-escape-"));
   const service = createRuntimeDbStorageService({
