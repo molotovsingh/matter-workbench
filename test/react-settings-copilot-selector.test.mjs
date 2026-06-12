@@ -4,6 +4,7 @@ import test from "node:test";
 
 const settingsPagePath = new URL("../react-ui/src/views/SettingsPage.tsx", import.meta.url);
 const copilotModelsPath = new URL("../react-ui/src/lib/copilotModels.ts", import.meta.url);
+const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 
 test("React Settings exposes Matter Copilot as a task-scoped model selector", async () => {
   const source = await readFile(settingsPagePath, "utf8");
@@ -28,4 +29,11 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.match(source, /copilotProvider/);
   assert.match(source, /copilotModel/);
   assert.match(source, /Skills and List of Dates keep their governed routes/);
+});
+
+test("tester-facing Copilot strength is read-only", async () => {
+  const source = await readFile(commandPanelPath, "utf8");
+  assert.match(source, /!state\.authEnabled/);
+  assert.match(source, /canSeeOperatorSurface\(state\.authUser\)/);
+  assert.match(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
 });

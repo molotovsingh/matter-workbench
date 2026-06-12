@@ -22,6 +22,7 @@ import {
   findCopilotPreset,
 } from '../../lib/copilotModels';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
+import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import type { ConfigurableSkill, PrivateBetaFeedbackChoice } from '../../types';
 import type { SkillRouterDecision } from '../../types';
 
@@ -106,6 +107,7 @@ export default function CommandPanel({
   const suggestionsLoadSeqRef = useRef(0);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
   const activityRows = latestCompactActivityRows(state.activityLines);
+  const canManageCopilotSettings = !state.authEnabled || canSeeOperatorSurface(state.authUser);
   const copilotPreset = findCopilotPreset(copilotProvider, copilotModel);
   const copilotSelectValue = copilotPreset
     ? copilotPresetValue(copilotProvider, copilotModel)
@@ -243,6 +245,7 @@ export default function CommandPanel({
   }
 
   async function handleCopilotModelChange(value: string) {
+    if (!canManageCopilotSettings) return;
     const preset = COPILOT_MODEL_PRESETS.find((candidate) => copilotPresetValue(candidate.provider, candidate.model) === value);
     if (!preset || copilotSwitching) return;
     if (preset.provider === copilotProvider && preset.model === copilotModel) return;
@@ -434,7 +437,7 @@ export default function CommandPanel({
               aria-label="Copilot strength"
               value={copilotSelectValue}
               onChange={(event) => { void handleCopilotModelChange(event.target.value); }}
-              disabled={copilotSwitching}
+              disabled={!canManageCopilotSettings || copilotSwitching}
             >
               {!copilotPreset && (
                 <option value="">{copilotShortLabel(copilotProvider, copilotModel)}</option>

@@ -531,11 +531,12 @@ export function createRuntimeDbStorageService({
   }) {
     const materializedPaths = [];
     for (const item of workspaceFilePaths(workspace.tree)) {
-      const payload = readPayloadRow({ matter, relativePath: item.path });
-      const absolutePath = path.join(matterRoot, ...item.path.split("/"));
+      const relativePath = validateRelativePath(item.path);
+      const payload = readPayloadRow({ matter, relativePath });
+      const absolutePath = path.join(matterRoot, ...relativePath.split("/"));
       await mkdir(path.dirname(absolutePath), { recursive: true });
       await writeFile(absolutePath, payload.bytes);
-      materializedPaths.push(item.path);
+      materializedPaths.push(relativePath);
     }
     if (!materializedPaths.includes("matter.json")) {
       const bytes = Buffer.from(`${JSON.stringify(runtimeMatterJson(matter), null, 2)}\n`);
@@ -604,7 +605,7 @@ function buildWorkspaceTree({ matter, objects }) {
   const directoryPaths = new Set();
 
   for (const object of objects) {
-    const relativePath = relativePathFromObjectKey(object.objectKey, matter.name);
+    const relativePath = validatedRelativePathFromObjectKey(object.objectKey, matter.name);
     if (!relativePath) continue;
     const pathParts = relativePath.split("/").filter(Boolean);
     if (!pathParts.length) continue;
@@ -967,6 +968,16 @@ function relativePathFromObjectKey(objectKey, matterName) {
   return key.startsWith(prefix) ? key.slice(prefix.length) : key;
 }
 
+function validatedRelativePathFromObjectKey(objectKey, matterName) {
+  const relativePath = relativePathFromObjectKey(objectKey, matterName);
+  if (!relativePath) return "";
+  try {
+    return validateRelativePath(relativePath);
+  } catch {
+    throw makeHttpError("Stored object path is outside the matter root", 409);
+  }
+}
+
 function objectKeyCandidates({ matter, relativePath }) {
   const names = [
     matter.name,
@@ -1016,7 +1027,7 @@ function extractedArtifacts(paths = []) {
 function runtimeStatusInputs({ matter, objects = [] } = {}) {
   const rows = objects.map((object) => ({
     ...object,
-    relativePath: relativePathFromObjectKey(object.objectKey, matter.name),
+    relativePath: validatedRelativePathFromObjectKey(object.objectKey, matter.name),
     updatedMs: Date.parse(object.updatedAt || "") || 0,
   }));
   const byPath = new Map(rows.map((row) => [row.relativePath, row]));
@@ -1387,7 +1398,7 @@ async function buildRuntimeUploadIntake({
 
 async function writeExistingPayloadFilesToMatterRoot({ matterRoot, files = [] }) {
   for (const file of files) {
-    const relativePath = normalizeObjectKey(file.relativePath);
+    const relativePath = validateRelativePath(normalizeObjectKey(file.relativePath));
     if (!relativePath) continue;
     const absolutePath = path.join(matterRoot, ...relativePath.split("/"));
     await mkdir(path.dirname(absolutePath), { recursive: true });

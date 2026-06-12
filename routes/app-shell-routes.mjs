@@ -36,13 +36,27 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     response,
     routes: [
       exactRoute("GET", "/api/ai-settings", async () => {
-        sendJson(response, 200, aiSettingsService.readSettings());
+        const settings = aiSettingsService.readSettings();
+        if (isPrivateBetaScopedUser()) {
+          const { envPath: _envPath, ...testerSettings } = settings;
+          sendJson(response, 200, testerSettings);
+          return;
+        }
+        sendJson(response, 200, settings);
       }),
       exactRoute("POST", "/api/ai-settings", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 403, { error: "AI settings require a superuser account." });
+          return;
+        }
         const body = await readRequestJson(request);
         sendJson(response, 200, await aiSettingsService.saveSettings(body));
       }),
       exactRoute("POST", "/api/ai-settings/test", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 403, { error: "AI settings require a superuser account." });
+          return;
+        }
         sendJson(response, 200, await aiSettingsService.testConnection());
       }),
       exactRoute("POST", "/api/command-interactions", async () => {

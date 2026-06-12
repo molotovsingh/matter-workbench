@@ -703,6 +703,29 @@ test("runtime DB storage service materializes DB payloads for read-only operatio
   assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
 });
 
+test("runtime DB storage service rejects DB object keys that escape the matter root", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-path-escape-"));
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence([], [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/../escaped.txt", "matter_artifact", "text/plain", 7, true),
+        ],
+      },
+      payloadRow("DB Matter/../escaped.txt", "escaped", "text/plain"),
+    ]),
+  });
+
+  await assert.rejects(
+    () => service.runMaterializedMatterRead(matter, async () => ({ ok: true })),
+    /invalid path|outside the matter root/i,
+  );
+});
+
 test("runtime DB storage service synthesizes matter.json when DB storage has no matter artifact", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-synthetic-matter-"));
   const calls = [];

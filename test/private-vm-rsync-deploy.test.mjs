@@ -77,6 +77,7 @@ test("private VM rsync deploy plan and runner use remote-user deployment root de
     user: "aks",
     commit: "abc1234",
     sourceDir: "/repo",
+    commitResolver: async () => "abc1234",
     dryRun: true,
     gitDirtyChecker: async () => false,
   });
@@ -101,6 +102,23 @@ test("private VM rsync deploy direct APIs reject missing deployment root when us
       gitDirtyChecker: async () => false,
     }),
     /deployment root/i,
+  );
+});
+
+test("private VM rsync deploy rejects a release label that is not the checked-out commit", async () => {
+  const { runPrivateVmRsyncDeploy } = await import(deployPath.href);
+
+  await assert.rejects(
+    () => runPrivateVmRsyncDeploy({
+      host: "vm.example.test",
+      user: "aks",
+      commit: "wrong123",
+      sourceDir: "/repo",
+      dryRun: true,
+      gitDirtyChecker: async () => false,
+      commitResolver: async () => "abc1234",
+    }),
+    /does not match checked-out HEAD abc1234/i,
   );
 });
 
@@ -187,6 +205,7 @@ test("private VM rsync deploy aborts before mutation when preflight fails", asyn
     deploymentRoot: "/home/aks/matter-workbench-deployments",
     commit: "abc1234",
     sourceDir: "/repo",
+    commitResolver: async () => "abc1234",
     baseUrl: "http://127.0.0.1:4191",
     commandRunner: async (step) => {
       executed.push(step.id);
@@ -210,6 +229,7 @@ test("private VM rsync deploy dry-run returns the plan without executing command
     deploymentRoot: "/home/aks/matter-workbench-deployments",
     commit: "abc1234",
     sourceDir: "/repo",
+    commitResolver: async () => "abc1234",
     baseUrl: "http://127.0.0.1:4191",
     dryRun: true,
     commandRunner: async (step) => {
@@ -235,6 +255,7 @@ test("private VM rsync deploy dry-run can preview commands with tracked edits", 
     deploymentRoot: "/home/aks/matter-workbench-deployments",
     commit: "abc1234",
     sourceDir: "/repo",
+    commitResolver: async () => "abc1234",
     baseUrl: "http://127.0.0.1:4191",
     dryRun: true,
     gitDirtyChecker: async () => true,
@@ -254,6 +275,7 @@ test("private VM rsync deploy refuses tracked dirty worktree unless explicitly a
       deploymentRoot: "/home/aks/matter-workbench-deployments",
       commit: "abc1234",
       sourceDir: "/repo",
+      commitResolver: async () => "abc1234",
       dryRun: false,
       gitDirtyChecker: async () => true,
     }),

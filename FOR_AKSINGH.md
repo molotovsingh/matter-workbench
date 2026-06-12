@@ -2561,3 +2561,29 @@ serious beta claim is closer to: this commit is deployed, the runtime database
 is reachable, files are backed up, the restore drill has passed, request
 latency is within tolerance, the mothership is receiving signals, and rollback
 is known. Those are engineering facts we can verify, not vibes.
+
+### Shared settings, stored paths, and truthful release labels
+
+Three small-looking review findings exposed the same engineering rule: values
+crossing a trust boundary must be checked where they become authoritative.
+
+The Copilot strength selector changes one shared server configuration. It is
+therefore an operator control, even though it appears inside every user's chat
+panel. Tester accounts may see the current strength, but only a superuser may
+change or test the shared provider route. The backend enforces this rule; the
+disabled tester control is only the user-facing explanation. This distinction
+matters because hiding a button is not authorization.
+
+PostgreSQL object keys are also data, not filesystem permission. Before a
+stored object key becomes a path in a temporary matter directory, every path
+segment is validated and traversal such as `../` fails closed. The same check
+is repeated at materialization boundaries. Defense in depth is appropriate
+here because a malformed database row must never become permission to write
+outside the temporary matter root.
+
+Finally, deployment names now come from the checked-out Git `HEAD`. Supplying a
+different `--commit` label is rejected rather than creating a release directory
+whose name lies about its contents. Rollback roots are absolute paths derived
+from the remote user, not a literal `$HOME` string whose expansion depends on
+which shell layer happens to interpret it. Reliable operations are mostly the
+practice of removing this kind of ambiguity before an emergency.

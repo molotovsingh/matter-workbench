@@ -10,7 +10,7 @@ export function parsePrivateVmRollbackArgs(argv = [], env = process.env) {
   const parsed = {
     host: env.MWB_PRIVATE_VM_HOST || env.MWB_PRIVATE_DEPLOYMENT_HOST || "",
     user: env.MWB_PRIVATE_VM_USER || env.MWB_PRIVATE_DEPLOYMENT_USER || env.USER || "",
-    deploymentRoot: env.MWB_PRIVATE_VM_DEPLOYMENT_ROOT || "$HOME/matter-workbench-deployments",
+    deploymentRoot: env.MWB_PRIVATE_VM_DEPLOYMENT_ROOT || "",
     targetRelease: env.MWB_PRIVATE_VM_ROLLBACK_TO || "",
     baseUrl: normalizeUrl(env.MWB_PRIVATE_VM_BASE_URL || "http://127.0.0.1:4191"),
     serviceName: env.MWB_PRIVATE_VM_SERVICE_NAME || "matter-workbench-runtime.service",
@@ -55,13 +55,16 @@ export function parsePrivateVmRollbackArgs(argv = [], env = process.env) {
     }
   }
 
+  if (!parsed.deploymentRoot) {
+    parsed.deploymentRoot = defaultRemoteDeploymentRoot(parsed.user);
+  }
   return parsed;
 }
 
 export function buildPrivateVmRollbackPlan({
   host,
   user = "",
-  deploymentRoot = "$HOME/matter-workbench-deployments",
+  deploymentRoot = "",
   targetRelease,
   baseUrl = "http://127.0.0.1:4191",
   serviceName = "matter-workbench-runtime.service",
@@ -70,6 +73,7 @@ export function buildPrivateVmRollbackPlan({
 } = {}) {
   if (!host) throw new Error("--host is required");
   if (!targetRelease) throw new Error("--to is required");
+  if (!deploymentRoot) deploymentRoot = defaultRemoteDeploymentRoot(user);
 
   const remote = user ? `${user}@${host}` : host;
   const root = deploymentRoot.replace(/\/+$/, "");
@@ -165,7 +169,7 @@ export function buildPrivateVmRollbackPlan({
 export async function runPrivateVmRollback({
   host,
   user = "",
-  deploymentRoot = "$HOME/matter-workbench-deployments",
+  deploymentRoot = "",
   targetRelease = "",
   baseUrl = "http://127.0.0.1:4191",
   serviceName = "matter-workbench-runtime.service",
@@ -243,6 +247,13 @@ function requiredValue(argv, index, arg) {
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function defaultRemoteDeploymentRoot(user) {
+  const remoteUser = String(user || "").trim();
+  if (remoteUser === "root") return "/root/matter-workbench-deployments";
+  if (remoteUser) return `/home/${remoteUser}/matter-workbench-deployments`;
+  throw new Error("deployment root is required when the remote user is not specified.");
 }
 
 function shellQuote(value) {

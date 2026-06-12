@@ -201,13 +201,13 @@ function AppShell() {
         const status = await api.getAuthStatus();
         if (!cancelled) {
           setAuthStatus(status);
-          dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
+          dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
         }
       } catch (e) {
         if (!cancelled) {
           setAuthError(getErrorMessage(e));
           setAuthStatus({ enabled: true, authenticated: false, user: null });
-          dispatch({ type: 'SET_CONFIG', payload: { authUser: null } });
+          dispatch({ type: 'SET_CONFIG', payload: { authUser: null, authEnabled: true } });
         }
       }
     }
@@ -255,7 +255,7 @@ function AppShell() {
     try {
       const status = await api.login({ username, password });
       setAuthStatus(status);
-      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
+      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed in']);
     } catch (e) {
       setAuthError(getErrorMessage(e));
@@ -266,7 +266,7 @@ function AppShell() {
     try {
       const status = await api.logout();
       setAuthStatus(status);
-      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user } });
+      dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed out']);
     } catch (e) {
       setAuthError(getErrorMessage(e));

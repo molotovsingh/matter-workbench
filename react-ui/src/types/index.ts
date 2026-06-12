@@ -953,6 +953,7 @@ export interface FilePreview {
 
 export interface AppState {
   config: AppConfig | null;
+  authEnabled: boolean;
   authUser: AuthUser | null;
   activeMatter: ActiveMatter | null;
   matters: Matter[];

@@ -278,7 +278,12 @@ export async function runPrivateVmRsyncDeploy({
   gitDirtyChecker = hasTrackedGitChanges,
   commitResolver = resolveGitCommit,
 } = {}) {
-  const resolvedCommit = commit || await commitResolver({ cwd: sourceDir });
+  const resolvedDeploymentRoot = deploymentRoot || defaultRemoteDeploymentRoot(user);
+  const headCommit = await commitResolver({ cwd: sourceDir });
+  if (commit && !commitMatchesHead(commit, headCommit)) {
+    throw new Error(`Requested deploy commit ${commit} does not match checked-out HEAD ${headCommit}.`);
+  }
+  const resolvedCommit = headCommit;
   if (!dryRun && !allowDirty && await gitDirtyChecker({ cwd: sourceDir })) {
     throw new Error("Tracked worktree has uncommitted changes. Commit first or rerun with --allow-dirty.");
   }
@@ -286,7 +291,7 @@ export async function runPrivateVmRsyncDeploy({
   const plan = buildPrivateVmRsyncDeployPlan({
     host,
     user,
-    deploymentRoot,
+    deploymentRoot: resolvedDeploymentRoot,
     commit: resolvedCommit,
     sourceDir,
     baseUrl,
@@ -378,6 +383,15 @@ function requiredValue(argv, index, arg) {
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function commitMatchesHead(requested, head) {
+  const requestedCommit = String(requested || "").trim().toLowerCase();
+  const headCommit = String(head || "").trim().toLowerCase();
+  return Boolean(requestedCommit && headCommit)
+    && (requestedCommit === headCommit
+      || requestedCommit.startsWith(headCommit)
+      || headCommit.startsWith(requestedCommit));
 }
 
 function defaultRemoteDeploymentRoot(user) {

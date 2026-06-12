@@ -41,6 +41,22 @@ test("private VM rollback parser requires an explicit target release and rejects
   );
 });
 
+test("private VM rollback defaults to the remote user's absolute deployment root", async () => {
+  const { parsePrivateVmRollbackArgs, buildPrivateVmRollbackPlan } = await import(rollbackPath.href);
+  const parsed = parsePrivateVmRollbackArgs([
+    "--host",
+    "172.16.37.128",
+    "--user",
+    "aks",
+    "--to",
+    "498f83e",
+  ], {});
+
+  assert.equal(parsed.deploymentRoot, "/home/aks/matter-workbench-deployments");
+  const plan = buildPrivateVmRollbackPlan(parsed);
+  assert.doesNotMatch(JSON.stringify(plan), /\$HOME\/matter-workbench-deployments/);
+});
+
 test("private VM rollback plan switches current, restarts service, and verifies target app", async () => {
   const { buildPrivateVmRollbackPlan } = await import(rollbackPath.href);
 
