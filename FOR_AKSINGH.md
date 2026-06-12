@@ -2582,6 +2582,21 @@ is reachable, files are backed up, the restore drill has passed, request
 latency is within tolerance, the mothership is receiving signals, and rollback
 is known. Those are engineering facts we can verify, not vibes.
 
+The feedback form taught the same lesson from a human angle. The first version
+looked simple to us, but it still required a tester to pick a category and fill
+the "trying to do" field before Save became clickable. A lawyer who typed the
+actual problem into the other box saw only a blocked cursor. Worse, because the
+button was disabled in the browser, no feedback row, signal, or request metric
+was created. The operator learned about the bug by phone, not through the
+mothership.
+
+The fix was to make feedback intake forgiving. One plain sentence is enough.
+If the tester does not pick a category, the app assumes "Something did not
+work." If they only describe what happened, that text becomes the required
+summary. The backend accepts the same sparse shape too, so future UI mistakes
+do not silently discard beta evidence. A bug collector should be stricter about
+secrets than about form etiquette.
+
 ### Shared settings, stored paths, and truthful release labels
 
 Three small-looking review findings exposed the same engineering rule: values

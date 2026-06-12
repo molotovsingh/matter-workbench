@@ -23,6 +23,7 @@ import {
 } from '../../lib/copilotModels';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
+import { buildPrivateBetaFeedbackDraft } from '../../lib/privateBetaFeedback';
 import type { ConfigurableSkill, PrivateBetaFeedbackChoice } from '../../types';
 import type { SkillRouterDecision } from '../../types';
 
@@ -116,6 +117,12 @@ export default function CommandPanel({
   const primaryChoiceNeedsCopilot = pendingIntentChoice
     ? !isExistingSkillChoice(pendingIntentChoice.decision)
     : false;
+  const feedbackDraft = buildPrivateBetaFeedbackDraft({
+    choice: feedbackChoice,
+    tryingToDo: feedbackTryingToDo,
+    happenedInstead: feedbackHappenedInstead,
+  });
+  const canSubmitFeedback = Boolean(feedbackDraft) && !feedbackSubmitting;
 
   useEffect(() => {
     let cancelled = false;
@@ -280,14 +287,17 @@ export default function CommandPanel({
 
   async function handleSubmitFeedback(e: React.FormEvent) {
     e.preventDefault();
-    if (!feedbackChoice || !feedbackTryingToDo.trim() || feedbackSubmitting) return;
+    const draft = buildPrivateBetaFeedbackDraft({
+      choice: feedbackChoice,
+      tryingToDo: feedbackTryingToDo,
+      happenedInstead: feedbackHappenedInstead,
+    });
+    if (!draft || feedbackSubmitting) return;
     setFeedbackSubmitting(true);
     setFeedbackMessage('');
     try {
       await api.submitPrivateBetaFeedback({
-        choice: feedbackChoice,
-        tryingToDo: feedbackTryingToDo,
-        happenedInstead: feedbackHappenedInstead,
+        ...draft,
         matterName: state.activeMatter?.name,
         context: {
           screen: state.activeTab,
@@ -636,6 +646,7 @@ export default function CommandPanel({
               </button>
             </div>
             <div className="beta-feedback-choice-grid" role="group" aria-label="What happened">
+              <span>Optional: pick the closest type.</span>
               {[
                 ['did_not_work', 'Something did not work'],
                 ['confused', 'I got confused'],
@@ -652,24 +663,24 @@ export default function CommandPanel({
               ))}
             </div>
             <label className="beta-feedback-label">
-              <span>What were you trying to do?</span>
+              <span>Tell us what happened</span>
               <textarea
-                value={feedbackTryingToDo}
-                onChange={(event) => setFeedbackTryingToDo(event.target.value)}
+                value={feedbackHappenedInstead}
+                onChange={(event) => setFeedbackHappenedInstead(event.target.value)}
                 rows={3}
                 required
               />
             </label>
             <label className="beta-feedback-label">
-              <span>What happened instead?</span>
+              <span>What were you trying to do? Optional.</span>
               <textarea
-                value={feedbackHappenedInstead}
-                onChange={(event) => setFeedbackHappenedInstead(event.target.value)}
+                value={feedbackTryingToDo}
+                onChange={(event) => setFeedbackTryingToDo(event.target.value)}
                 rows={3}
               />
             </label>
             <div className="beta-feedback-actions">
-              <button type="submit" disabled={!feedbackChoice || !feedbackTryingToDo.trim() || feedbackSubmitting}>
+              <button type="submit" disabled={!canSubmitFeedback}>
                 {feedbackSubmitting ? 'Saving…' : 'Save'}
               </button>
               <button

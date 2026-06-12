@@ -118,7 +118,7 @@ test("private beta feedback firm-internal mode keeps richer context but still re
   assert.equal(listed.feedback[0].context.sourceText, "Client says the demand notice was sent on 12 March 2023.");
 });
 
-test("private beta feedback service requires a simple choice and tester intent", async () => {
+test("private beta feedback service rejects invalid choices and blank reports", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-invalid-"));
   const service = createPrivateBetaFeedbackService({
     feedbackPath: path.join(tmp, "feedback-ledger.json"),
@@ -132,6 +132,31 @@ test("private beta feedback service requires a simple choice and tester intent",
     () => service.createFeedback({ choice: "did_not_work", tryingToDo: "" }),
     /What were you trying to do/,
   );
+});
+
+test("private beta feedback service captures sparse tester problem reports", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-sparse-"));
+  const service = createPrivateBetaFeedbackService({
+    feedbackPath: path.join(tmp, "feedback-ledger.json"),
+    now: () => new Date("2026-06-12T10:00:00.000Z"),
+    idFactory: () => "feedback_sparse_001",
+  });
+
+  const record = await service.createFeedback({
+    happenedInstead: "The Save button showed a blocked cursor and would not submit.",
+    context: { screen: "home" },
+  });
+
+  assert.equal(record.id, "feedback_sparse_001");
+  assert.equal(record.choice, "did_not_work");
+  assert.equal(record.classification, "bug");
+  assert.equal(record.tryingToDo, "The Save button showed a blocked cursor and would not submit.");
+  assert.equal(record.happenedInstead, "The Save button showed a blocked cursor and would not submit.");
+  assert.equal(record.context.screen, "home");
+
+  const listed = await service.listFeedback();
+  assert.equal(listed.feedback.length, 1);
+  assert.equal(listed.feedback[0].id, "feedback_sparse_001");
 });
 
 test("private beta feedback service syncs safe packets to a configured mothership", async () => {

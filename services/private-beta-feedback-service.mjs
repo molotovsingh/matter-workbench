@@ -178,7 +178,12 @@ export function createPrivateBetaFeedbackService({
 export function normalizeFeedback(input = {}, { telemetryMode = "safe" } = {}) {
   const normalizedTelemetryMode = normalizeTelemetryMode(input.telemetryMode || telemetryMode);
   const choice = normalizeChoice(input.choice);
-  const tryingToDo = sanitizeText(input.tryingToDo, 1000).trim();
+  const happenedInstead = sanitizeText(input.happenedInstead, 1000).trim();
+  const tryingToDo = (
+    sanitizeText(input.tryingToDo, 1000).trim()
+    || happenedInstead
+    || sanitizeText(input.context?.visibleError, 1000).trim()
+  );
   if (!tryingToDo) {
     throw makeHttpError("What were you trying to do? is required", 400);
   }
@@ -198,7 +203,6 @@ export function normalizeFeedback(input = {}, { telemetryMode = "safe" } = {}) {
     sync: normalizeSync(input.sync),
   };
 
-  const happenedInstead = sanitizeText(input.happenedInstead, 1000).trim();
   if (happenedInstead) feedback.happenedInstead = happenedInstead;
   if (input.operatorNotes) feedback.operatorNotes = sanitizeText(input.operatorNotes, 1000).trim();
   return feedback;
@@ -380,6 +384,7 @@ function normalizeTelemetryMode(value) {
 
 function normalizeChoice(choice) {
   const value = stringOr(choice, "");
+  if (!value) return "did_not_work";
   if (!ALLOWED_CHOICES.has(value)) {
     throw makeHttpError("choice must be one of: did_not_work, confused, want_something", 400);
   }
