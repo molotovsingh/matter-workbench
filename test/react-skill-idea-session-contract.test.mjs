@@ -35,7 +35,7 @@ test("React skill idea session keeps samples tied to the saved design brief and 
   assert.match(source, /sampleMatterChanged\(sample\)/);
   assert.match(source, /planSkillIdeaInterview\(\{[\s\S]*matterName: startingMatterName \|\| undefined/);
   assert.match(actionsSource, /createSkillIdea\(\{[\s\S]*matterName: matterName \|\| undefined/);
-  assert.match(actionsSource, /skillIdeaTextForSave\(session\.ideaText, brief\)/);
+  assert.match(actionsSource, /skillIdeaTextForSaveWithName\(session\.ideaText, brief, session\.answers\.skillName \|\| ''\)/);
   assert.match(actionsSource, /text: ideaTextForSave/);
   assert.match(actionsSource, /api\.checkIntent\(\{[\s\S]*matterName: matterName \|\| undefined/);
 });
@@ -44,6 +44,10 @@ test("React empty new-skill interviews synthesize save text and ask for the core
   const source = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
 
   assert.match(source, /export function skillIdeaTextForSave/);
+  assert.match(source, /export function skillIdeaTextForSaveWithName/);
+  assert.match(source, /export const SKILL_IDEA_NAME_QUESTION/);
+  assert.match(source, /What would you like to name this skill\?/);
+  assert.match(source, /skillNameSuggestions/);
   assert.match(source, /Create a reusable skill to/);
   assert.match(source, /ensureProblemQuestionForEmptyIdea/);
   assert.match(source, /What is the exact skill idea in one sentence\?/);
@@ -60,11 +64,13 @@ test("React blank new-skill sessions show a kickoff question while planner conti
   const sessionSource = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
 
   assert.match(sessionSource, /export const SKILL_IDEA_KICKOFF_QUESTIONS/);
+  assert.match(sessionSource, /export const SKILL_IDEA_NAME_QUESTION/);
   assert.match(sessionSource, /review limitation risk for a consumer complaint/);
   assert.match(sessionSource, /draft a client update email from the latest matter record/);
   assert.match(machineSource, /const startsWithBlankIdea = !ideaText\.trim\(\)/);
   assert.match(machineSource, /phase: startsWithBlankIdea \? 'interviewing' : 'planning'/);
-  assert.match(machineSource, /questions: startsWithBlankIdea \? SKILL_IDEA_KICKOFF_QUESTIONS : \[\]/);
+  assert.match(machineSource, /questions: startsWithBlankIdea \? \[\.\.\.SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION\] : \[\]/);
+  assert.match(sessionSource, /appendSkillNameQuestion\(questions, fallbackIdeaText, designBrief\)/);
   assert.match(machineSource, /if \(Object\.keys\(s\.answers\)\.length > 0\) \{/);
   assert.match(machineSource, /return \{[\s\S]*planner: result\.planner,[\s\S]*\}/);
 });
@@ -95,7 +101,7 @@ test("React skill idea machine delegates persistence details to session actions"
 
   assert.match(actionsSource, /export async function persistSkillIdeaSession/);
   assert.match(actionsSource, /buildSkillIdeaDesignBrief/);
-  assert.match(actionsSource, /skillIdeaTextForSave/);
+  assert.match(actionsSource, /skillIdeaTextForSaveWithName/);
   assert.match(actionsSource, /api\.createSkillIdea/);
   assert.match(actionsSource, /api\.updateSkillIdeaBrief/);
   assert.match(machineSource, /persistSkillIdeaSession/);

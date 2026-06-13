@@ -8,7 +8,7 @@ import {
   findSkillIdeaSampleByVersion,
   formatSkillIdeaReviewPacket,
   formatSkillIdeaSampleCopy,
-  skillIdeaTextForSave,
+  skillIdeaTextForSaveWithName,
   type InterviewQuestion,
   type SkillIdeaSampleCopy,
 } from './skillIdeaSession';
@@ -80,7 +80,7 @@ export async function persistSkillIdeaSession({
     session.plannedBrief,
     session.questions,
   );
-  const ideaTextForSave = skillIdeaTextForSave(session.ideaText, brief);
+  const ideaTextForSave = skillIdeaTextForSaveWithName(session.ideaText, brief, session.answers.skillName || '');
   const result = updatingExistingIdea && session.savedIdeaId
     ? await api.updateSkillIdeaBrief(session.savedIdeaId, { designBrief: brief })
     : await api.createSkillIdea({

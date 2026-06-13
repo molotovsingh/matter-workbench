@@ -11,6 +11,7 @@ import {
   hasSkillIdeaTestMatter,
   normalizePlannedSkillIdeaInterview,
   SKILL_IDEA_KICKOFF_QUESTIONS,
+  SKILL_IDEA_NAME_QUESTION,
   SIMPLE_SKILL_IDEA_QUESTIONS,
   type InterviewQuestion,
 } from '../lib/skillIdeaSession';
@@ -76,7 +77,7 @@ export function useSkillIdeaSessionMachine({
     phase: startsWithBlankIdea ? 'interviewing' : 'planning',
     ideaText,
     understoodText: ideaText,
-    questions: startsWithBlankIdea ? SKILL_IDEA_KICKOFF_QUESTIONS : [],
+    questions: startsWithBlankIdea ? [...SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION] : [],
     answers: {},
     questionIndex: 0,
     planner: null,

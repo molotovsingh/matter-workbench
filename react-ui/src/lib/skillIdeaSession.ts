@@ -72,6 +72,13 @@ export const SKILL_IDEA_KICKOFF_QUESTIONS: InterviewQuestion[] = [
   },
 ];
 
+export const SKILL_IDEA_NAME_QUESTION: InterviewQuestion = {
+  id: 'skillName',
+  label: 'What would you like to name this skill?',
+  help: 'Pick a short name the lawyer can recognize later on the Skills page.',
+  examples: ['Limitation Risk Review', 'Client Update Email', 'Filing Route Plan'],
+};
+
 export function hasSkillIdeaTestMatter(activeMatter: ActiveMatter | null | undefined): boolean {
   return Boolean(activeMatter?.folderName);
 }
@@ -107,6 +114,16 @@ export function buildSkillIdeaDesignBrief(
 }
 
 export function skillIdeaTextForSave(ideaText: string, brief: SkillIdeaDesignBrief): string {
+  return skillIdeaTextForSaveWithName(ideaText, brief, '');
+}
+
+export function skillIdeaTextForSaveWithName(
+  ideaText: string,
+  brief: SkillIdeaDesignBrief,
+  skillName: string,
+): string {
+  const name = normalizeBriefText(skillName);
+  if (name) return name;
   const text = normalizeBriefText(ideaText);
   if (text) return text;
   const problem = usableSkillIdeaProblem(brief.problem);
@@ -115,7 +132,7 @@ export function skillIdeaTextForSave(ideaText: string, brief: SkillIdeaDesignBri
   const inputs = normalizeBriefText(brief.expectedInputs);
   if (output && inputs) return `Create a reusable skill that produces ${output} from ${inputs}`;
   if (output) return `Create a reusable skill that produces ${output}`;
-  return 'Create a reusable matter skill from the completed interview answers';
+  return 'New Matter Skill';
 }
 
 export function formatSkillIdeaDesignBrief(brief: SkillIdeaDesignBrief): string {
@@ -157,10 +174,11 @@ export function normalizePlannedSkillIdeaInterview(
     : [],
     fallbackIdeaText,
   );
+  const designBrief = plan.inferred_design_brief || null;
   return {
     understoodText: plan.understood_summary || fallbackIdeaText,
-    questions,
-    designBrief: plan.inferred_design_brief || null,
+    questions: appendSkillNameQuestion(questions, fallbackIdeaText, designBrief),
+    designBrief,
     defaultAssumptions: Array.isArray(plan.default_assumptions) ? plan.default_assumptions : [],
     riskFlags: Array.isArray(plan.risk_flags) ? plan.risk_flags : [],
   };
@@ -192,6 +210,52 @@ function ensureProblemQuestionForEmptyIdea(questions: InterviewQuestion[], fallb
     SKILL_IDEA_KICKOFF_QUESTIONS[0],
     ...questions,
   ];
+}
+
+function appendSkillNameQuestion(
+  questions: InterviewQuestion[],
+  fallbackIdeaText: string,
+  plannedBrief: SkillIdeaDesignBrief | null,
+): InterviewQuestion[] {
+  const withoutExistingName = questions.filter((question) => question.id !== SKILL_IDEA_NAME_QUESTION.id);
+  return [
+    ...withoutExistingName,
+    {
+      ...SKILL_IDEA_NAME_QUESTION,
+      examples: skillNameSuggestions(fallbackIdeaText, plannedBrief),
+    },
+  ];
+}
+
+export function skillNameSuggestions(
+  ideaText: string,
+  plannedBrief: SkillIdeaDesignBrief | null,
+): string[] {
+  const candidates = [
+    titleFromText(plannedBrief?.expectedOutputArtifact || ''),
+    titleFromText(plannedBrief?.problem || ''),
+    titleFromText(ideaText),
+    ...(SKILL_IDEA_NAME_QUESTION.examples || []),
+  ].filter(Boolean);
+  return Array.from(new Set(candidates)).slice(0, 3);
+}
+
+function titleFromText(value: string): string {
+  const text = normalizeBriefText(value)
+    .replace(/^\d+_[^/]+\//, '')
+    .replace(/\.(md|json|txt)$/i, '')
+    .replace(/^create (a )?(reusable )?skill (to|that)\s+/i, '')
+    .replace(/^draft a?\s+/i, 'draft ')
+    .replace(/\bfrom the latest matter record\b/i, '')
+    .replace(/\bfrom selected matter documents\b/i, '')
+    .trim();
+  if (!text || /^unknown\b/i.test(text)) return '';
+  return text
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .join(' ');
 }
 
 function usableSkillIdeaProblem(value: unknown): string {
