@@ -316,6 +316,58 @@ test("runtime DB storage service materializes DB payloads and persists workflow 
   assert.doesNotMatch(persistSql, /secret/);
 });
 
+test("runtime DB storage service synthesizes a missing file register from DB custody before write operations", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-register-"));
+  const calls = [];
+  const intakeDir = "00_Inbox/Intake 01 - Initial";
+  const sourcePath = `${intakeDir}/Source Files/KKT 10.pdf`;
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+          storageRow(`DB Matter/${sourcePath}`, "source_working_copy", "application/pdf", 5201011, true, {
+            fileId: "FILE-0001",
+            originalName: "KKT 10.pdf",
+            sha256: "3d3b57112347ad8388808a7129673a321c3deeef5ac9968c3ae230735dcaeb5e",
+          }),
+        ],
+      },
+      payloadRow(`DB Matter/${sourcePath}`, "%PDF-1.7", "application/pdf"),
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        intakes: [{
+          intake_id: "INTAKE-01",
+          intake_dir: intakeDir,
+          label: "Initial",
+          received_date: "2026-06-11",
+        }],
+      }), "application/json"),
+      {},
+    ]),
+  });
+
+  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    const register = await readFile(path.join(matterRoot, intakeDir, "File Register.csv"), "utf8");
+    assert.match(register, /FILE-0001/);
+    assert.match(register, /PDFs/);
+    assert.match(register, /KKT 10\.pdf/);
+    assert.match(register, new RegExp(sourcePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    return { sawRegister: true };
+  });
+
+  assert.deepEqual(result.operationResult, { sawRegister: true });
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [`${intakeDir}/File Register.csv`]);
+  const persistSql = calls.at(-1).input;
+  assert.match(persistSql, /DB Matter\/00_Inbox\/Intake 01 - Initial\/File Register\.csv/);
+  assert.match(persistSql, /matter_artifact/);
+  assert.doesNotMatch(persistSql, /secret/);
+});
+
 test("runtime DB storage service tombstones materialized artifacts deleted by a workflow", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-delete-"));
   const calls = [];

@@ -17,6 +17,7 @@ import process from "node:process";
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import {
+  classifyFile,
   composeIntakeDirName,
   FILE_REGISTER_HEADERS,
   INTAKE_LOG_HEADERS,
@@ -50,6 +51,14 @@ export function createRuntimeDbStorageService({
   const enabled = Boolean(databaseUrl && tenantId);
 
   async function readWorkspace(matter) {
+    const workspace = readWorkspaceForMaterialization(matter);
+    return {
+      ...workspace,
+      tree: publicWorkspaceTree(workspace.tree),
+    };
+  }
+
+  function readWorkspaceForMaterialization(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
     const { dbMatter, tree } = readWorkspaceState(normalizedMatter);
@@ -433,7 +442,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     if (typeof operation !== "function") throw makeHttpError("Runtime DB write operation is required", 500);
     const normalizedMatter = normalizeMatter(matter);
-    const workspace = await readWorkspace(normalizedMatter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
     const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
     const matterRoot = path.join(workDir, normalizedMatter.name);
     const initialHashes = new Map();
@@ -449,6 +458,7 @@ export function createRuntimeDbStorageService({
         const bytes = await readFile(path.join(matterRoot, ...relativePath.split("/")));
         initialHashes.set(relativePath, sha256Bytes(bytes));
       }
+      await synthesizeMissingFileRegisters({ matterRoot, workspace });
       const operationResult = await operation({ matterRoot, matter: normalizedMatter });
       const files = await listMatterFiles(matterRoot);
       const currentPaths = new Set(files.map((file) => file.relativePath));
@@ -490,7 +500,7 @@ export function createRuntimeDbStorageService({
 
   async function readWorkspacePayloadFiles(matter) {
     const normalizedMatter = normalizeMatter(matter);
-    const workspace = await readWorkspace(normalizedMatter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
     const rows = [];
     for (const item of workspaceFilePaths(workspace.tree)) {
       const payload = readPayloadRow({ matter: normalizedMatter, relativePath: item.path });
@@ -506,7 +516,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     if (typeof operation !== "function") throw makeHttpError("Runtime DB read operation is required", 500);
     const normalizedMatter = normalizeMatter(matter);
-    const workspace = await readWorkspace(normalizedMatter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
     const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
     const matterRoot = path.join(workDir, normalizedMatter.name);
     try {
@@ -517,6 +527,7 @@ export function createRuntimeDbStorageService({
         workspace,
         readPayloadRow,
       });
+      await synthesizeMissingFileRegisters({ matterRoot, workspace });
       return await operation({ matterRoot, matter: normalizedMatter });
     } finally {
       await rm(workDir, { recursive: true, force: true });
@@ -544,6 +555,56 @@ export function createRuntimeDbStorageService({
       materializedPaths.push("matter.json");
     }
     return materializedPaths;
+  }
+
+  async function synthesizeMissingFileRegisters({ matterRoot, workspace }) {
+    let matterJson;
+    try {
+      matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+    } catch {
+      return [];
+    }
+    const intakes = normalizeMatterJsonIntakes(matterJson);
+    if (!intakes.length) return [];
+    const fileNodes = workspaceFilePaths(workspace.tree);
+    const created = [];
+
+    for (const intake of intakes) {
+      const intakeDir = normalizeMatterRelativePath(intake.intakeDir);
+      const registerPath = `${intakeDir}/File Register.csv`;
+      try {
+        await readFile(path.join(matterRoot, ...registerPath.split("/")));
+        continue;
+      } catch {
+        // Missing legacy register: synthesize from runtime DB custody rows below.
+      }
+      const sourcePrefix = `${intakeDir}/Source Files/`;
+      const rows = fileNodes
+        .filter((item) => item.path.startsWith(sourcePrefix) && item.fileId)
+        .sort((a, b) => a.fileId.localeCompare(b.fileId, undefined, { numeric: true }))
+        .map((item) => ({
+          file_id: item.fileId,
+          intake_id: intake.intakeId,
+          source_path: item.path,
+          original_path: item.path,
+          working_copy_path: item.path,
+          category: classifyFile(item.path),
+          original_name: item.originalName || path.posix.basename(item.path),
+          sha256: item.documentSha || item.sha256,
+          size_bytes: String(item.documentSizeBytes || item.size || ""),
+          duplicate_of: "",
+          status: "unique",
+          engine_version: "runtime-db-storage-synthetic-register-v1",
+          notes: "Synthesized from runtime DB document custody.",
+        }));
+      if (!rows.length) continue;
+      const absoluteRegisterPath = path.join(matterRoot, ...registerPath.split("/"));
+      await mkdir(path.dirname(absoluteRegisterPath), { recursive: true });
+      await writeFile(absoluteRegisterPath, Buffer.from(toCsv(rows, FILE_REGISTER_HEADERS)));
+      created.push(registerPath);
+    }
+
+    return created;
   }
 
   function readPayloadRow({ matter, relativePath }) {
@@ -638,6 +699,13 @@ function buildWorkspaceTree({ matter, objects }) {
         size,
         previewable: preview.previewable,
         previewKind: preview.previewKind,
+        objectRole: object.objectRole,
+        sha256: object.sha256,
+        updatedAt: object.updatedAt,
+        fileId: object.fileId,
+        originalName: object.originalName,
+        documentSha: object.documentSha,
+        documentSizeBytes: object.documentSizeBytes,
       });
       fileCount += 1;
     }
@@ -660,6 +728,26 @@ function sortTree(node) {
   for (const child of node.children) sortTree(child);
 }
 
+function publicWorkspaceTree(node) {
+  if (!node || typeof node !== "object") return node;
+  if (node.kind === "file") {
+    return {
+      name: node.name,
+      kind: "file",
+      path: node.path,
+      size: node.size || 0,
+      previewable: Boolean(node.previewable),
+      previewKind: node.previewKind || "none",
+    };
+  }
+  return {
+    name: node.name,
+    kind: "directory",
+    path: node.path,
+    children: (node.children || []).map(publicWorkspaceTree),
+  };
+}
+
 function buildWorkspaceSql({ tenantId, matter }) {
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
@@ -670,20 +758,27 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "  where tenant_id = current_app_tenant_id()",
     `    and id = ${sqlUuid(matter.id)}`,
     "), object_rows as (",
-    "  select",
+    "  select distinct on (so.id)",
     "    so.object_key,",
     "    so.object_role,",
     "    so.mime_type,",
     "    coalesce(sop.size_bytes, so.size_bytes, 0)::bigint as size_bytes,",
     "    coalesce(sop.sha256, so.sha256, '') as sha256,",
     "    coalesce(sop.updated_at, sop.verified_at, so.verified_at, so.uploaded_at, so.updated_at, so.created_at) as updated_at,",
+    "    coalesce(d.file_id, '') as file_id,",
+    "    coalesce(d.original_name, '') as original_name,",
+    "    coalesce(d.sha256, '') as document_sha,",
+    "    coalesce(d.size_bytes, 0)::bigint as document_size_bytes,",
     "    (sop.id is not null) as has_payload",
     "  from storage_objects so",
     "  join storage_object_payloads sop on sop.storage_object_id = so.id and sop.tenant_id = so.tenant_id",
+    "  left join document_blobs db on db.storage_object_id = so.id and db.tenant_id = so.tenant_id and db.matter_id = so.matter_id and db.blob_kind = 'original'",
+    "  left join documents d on d.id = db.document_id and d.tenant_id = db.tenant_id and d.matter_id = db.matter_id",
     "  where so.tenant_id = current_app_tenant_id()",
     `    and so.matter_id = ${sqlUuid(matter.id)}`,
     "    and so.state in ('uploaded', 'verified')",
     "    and so.object_key is not null",
+    "  order by so.id, d.file_id nulls last",
     ")",
     "select jsonb_build_object(",
     "  'matter', coalesce((select jsonb_build_object(",
@@ -703,6 +798,10 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "    'sizeBytes', size_bytes,",
     "    'sha256', coalesce(sha256, ''),",
     "    'updatedAt', updated_at,",
+    "    'fileId', file_id,",
+    "    'originalName', original_name,",
+    "    'documentSha', document_sha,",
+    "    'documentSizeBytes', document_size_bytes,",
     "    'hasPayload', has_payload",
     "  ) order by object_key) from object_rows), '[]'::jsonb)",
     ")::text;",
@@ -1006,7 +1105,19 @@ function workspaceFilePaths(root) {
   const rows = [];
   function visit(node) {
     if (!node) return;
-    if (node.kind === "file" && node.path) rows.push({ path: node.path, size: node.size || 0 });
+    if (node.kind === "file" && node.path) {
+      rows.push({
+        path: node.path,
+        size: node.size || 0,
+        objectRole: node.objectRole || "",
+        sha256: node.sha256 || "",
+        updatedAt: node.updatedAt || "",
+        fileId: node.fileId || "",
+        originalName: node.originalName || "",
+        documentSha: node.documentSha || "",
+        documentSizeBytes: node.documentSizeBytes || 0,
+      });
+    }
     for (const child of node.children || []) visit(child);
   }
   visit(root);
@@ -1985,6 +2096,10 @@ function normalizeObjectRow(row = {}) {
     sha256: stringValue(row.sha256),
     updatedAt: normalizeIsoString(row.updatedAt || row.updated_at),
     hasPayload: Boolean(row.hasPayload),
+    fileId: stringValue(row.fileId || row.file_id),
+    originalName: stringValue(row.originalName || row.original_name),
+    documentSha: stringValue(row.documentSha || row.document_sha),
+    documentSizeBytes: Number(row.documentSizeBytes || row.document_size_bytes) || 0,
   };
 }
 
@@ -2012,6 +2127,16 @@ function runtimeMatterJson(matter = {}) {
     brief_description: stringValue(matter.briefDescription),
     intakes: [],
   };
+}
+
+function normalizeMatterJsonIntakes(matterJson = {}) {
+  const intakes = Array.isArray(matterJson.intakes) ? matterJson.intakes : [];
+  return intakes
+    .map((intake, index) => ({
+      intakeId: stringValue(intake.intake_id || intake.intakeId) || `INTAKE-${String(index + 1).padStart(2, "0")}`,
+      intakeDir: stringValue(intake.intake_dir || intake.intakeDir),
+    }))
+    .filter((intake) => intake.intakeDir);
 }
 
 function normalizeOverlapWarnings(value) {
