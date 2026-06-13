@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 
+import { parseEnvText } from "../shared/local-env.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { runPrivateVmServiceCheck } from "./private-vm-service-check.mjs";
 
@@ -85,8 +86,9 @@ export async function runPrivateVmSecurityCheck({
   serviceCheckFn = runPrivateVmServiceCheck,
 } = {}) {
   const checks = [];
+  const runtimeEnvValues = skipRuntimeEnv ? {} : await readRuntimeEnvValues(runtimeEnvPath);
 
-  checks.push(analyzeAccessPosture(baseUrl));
+  checks.push(analyzeAccessPosture(baseUrl, { env: runtimeEnvValues, runtimeEnvSkipped: skipRuntimeEnv }));
   checks.push(skipRuntimeEnv ? skippedCheck("runtime_env_permissions", "skipped by --skip-runtime-env") : await analyzeRuntimeEnvFile(runtimeEnvPath));
   checks.push(await analyzeServiceUnit(serviceUnitPath));
   checks.push(analyzeRuntimeDbRoleProof());
@@ -106,7 +108,7 @@ export async function runPrivateVmSecurityCheck({
   };
 }
 
-export function analyzeAccessPosture(baseUrl) {
+export function analyzeAccessPosture(baseUrl, { env = {}, runtimeEnvSkipped = false } = {}) {
   let url;
   try {
     url = new URL(baseUrl);
@@ -120,14 +122,26 @@ export function analyzeAccessPosture(baseUrl) {
 
   const host = stripIpv6Brackets(url.hostname.toLowerCase());
   const privateHost = isLoopbackHost(host) || isPrivateIpv4(host) || isPrivateIpv6(host);
-  if (!privateHost) {
+  if (privateHost) {
+    return passedCheck("access_posture", `Host ${host} is private or loopback.`);
+  }
+
+  if (url.protocol !== "https:") {
     return failedCheck(
       "access_posture",
-      `Host ${host} is not a private or loopback address. Do not expose this service publicly without auth, TLS, and a hosted security design.`,
+      `Host ${host} is public. Public private-beta access must use HTTPS with required auth and Secure cookies.`,
     );
   }
 
-  return passedCheck("access_posture", `Host ${host} is private or loopback.`);
+  if (runtimeEnvSkipped) {
+    return failedCheck("access_posture", `Host ${host} is public HTTPS, but runtime env was skipped so auth and cookie posture could not be verified.`);
+  }
+
+  const missing = publicHttpsPostureGaps(env);
+  if (missing.length) {
+    return failedCheck("access_posture", `Host ${host} is public HTTPS, but hosted private-beta posture is incomplete: missing ${missing.join(", ")}.`);
+  }
+  return passedCheck("access_posture", `Host ${host} is public HTTPS with required private beta auth and Secure cookies configured.`);
 }
 
 export async function analyzeRuntimeEnvFile(runtimeEnvPath) {
@@ -217,6 +231,36 @@ export function analyzeAuditJson(payload = {}, { dispositionText = "" } = {}) {
 function hasPackageDisposition(dispositionText, packageName = "") {
   if (!packageName) return false;
   return new RegExp(`(^|[^a-zA-Z0-9_.-])${escapeRegExp(packageName)}([^a-zA-Z0-9_.-]|$)`).test(dispositionText);
+}
+
+async function readRuntimeEnvValues(runtimeEnvPath) {
+  try {
+    return parseEnvText(await readFile(runtimeEnvPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function publicHttpsPostureGaps(env = {}) {
+  const gaps = [];
+  if (!truthyRequired(env.MWB_PRIVATE_BETA_AUTH)) gaps.push("MWB_PRIVATE_BETA_AUTH=required");
+  if (!String(env.MWB_PRIVATE_BETA_USERS_FILE || "").trim() && !(String(env.MWB_PRIVATE_BETA_USERNAME || "").trim() && String(env.MWB_PRIVATE_BETA_PASSWORD || ""))) {
+    gaps.push("tester users file or private beta credentials");
+  }
+  if (!truthy(env.MWB_PRIVATE_BETA_COOKIE_SECURE) && !/^https:\/\//i.test(String(env.MWB_PRIVATE_BETA_PUBLIC_URL || env.MWB_PUBLIC_URL || ""))) {
+    gaps.push("MWB_PRIVATE_BETA_COOKIE_SECURE=true or HTTPS public URL in runtime env");
+  }
+  return gaps;
+}
+
+function truthyRequired(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["required", "true", "1", "yes", "on"].includes(normalized);
+}
+
+function truthy(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["true", "1", "yes", "on"].includes(normalized);
 }
 
 function escapeRegExp(value) {

@@ -279,11 +279,11 @@ not attach raw matter documents or `.env` files.
 
 ## Access And Security Check
 
-Do not expose this service to the public internet. This private VM pack assumes
-a trusted private network or local tunnel. Public access still requires a
-separate hosted security design: authentication, HTTPS, session controls,
-provider-token handling, rate limiting, logging policy, and object-storage
-custody.
+Do not expose the Node runtime directly to the public internet. The private VM
+pack supports either a trusted private-network URL or a public HTTPS beta URL
+fronted by nginx, but the public path must require private-beta login and Secure
+cookies. The runtime service itself should bind to `127.0.0.1:4191` behind the
+HTTPS proxy.
 
 From the VM, run:
 
@@ -314,7 +314,8 @@ npm run private-vm:security-check -- \
 
 The security check verifies:
 
-- the service URL is loopback or RFC1918 private-network only;
+- the service URL is either loopback/RFC1918 private-network, or public HTTPS
+  with required private-beta auth and Secure cookies configured;
 - `runtime.env` is a regular file with mode `0600` when checked on the VM;
 - the systemd template uses `EnvironmentFile`, restart policy, and basic
   process hardening;

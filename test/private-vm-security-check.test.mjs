@@ -51,7 +51,36 @@ test("access posture accepts loopback and RFC1918 URLs but rejects public hosts"
   assert.equal(analyzeAccessPosture("http://10.20.30.40:4191").ok, true);
   const publicResult = analyzeAccessPosture("http://203.0.113.20:4191");
   assert.equal(publicResult.ok, false);
-  assert.match(publicResult.message, /not a private or loopback address/);
+  assert.match(publicResult.message, /Public private-beta access must use HTTPS/);
+});
+
+test("security check accepts public HTTPS only with private beta auth and secure cookies", async () => {
+  const dir = await tempDir();
+  const envPath = path.join(dir, "runtime.env");
+  await writeFile(envPath, [
+    "MWB_PRIVATE_BETA_AUTH=required",
+    "MWB_PRIVATE_BETA_USERS_FILE=/tmp/mwb-users.json",
+    "MWB_PRIVATE_BETA_COOKIE_SECURE=true",
+    "",
+  ].join("\n"), "utf8");
+  await chmod(envPath, 0o600);
+
+  const report = await runPrivateVmSecurityCheck({
+    baseUrl: "https://mwb-beta.139.59.74.9.sslip.io",
+    runtimeEnvPath: envPath,
+    skipServiceCheck: true,
+  });
+
+  const access = report.checks.find((check) => check.id === "access_posture");
+  assert.equal(access.ok, true);
+  assert.match(access.message, /public HTTPS/);
+
+  const unsafe = await runPrivateVmSecurityCheck({
+    baseUrl: "http://mwb-beta.139.59.74.9.sslip.io",
+    runtimeEnvPath: envPath,
+    skipServiceCheck: true,
+  });
+  assert.equal(unsafe.checks.find((check) => check.id === "access_posture").ok, false);
 });
 
 test("runtime env file must exist with 0600 permissions and redacted findings", async () => {
@@ -166,7 +195,8 @@ test("package and docs expose private VM security check", async () => {
 
   const readme = await readFile(new URL("../deployment/private-vm/README.md", import.meta.url), "utf8");
   assert.match(readme, /private-vm:security-check/);
-  assert.match(readme, /Do not expose this service to the public internet/);
+  assert.match(readme, /Do not expose the Node runtime directly to the public internet/);
+  assert.match(readme, /public HTTPS beta URL/);
 });
 
 async function tempDir() {
