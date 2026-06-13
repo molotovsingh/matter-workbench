@@ -46,7 +46,7 @@ test("matter copilot answers from bounded context and validates citations", asyn
   assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b2"]);
 });
 
-test("matter copilot fails closed when provider cites outside the packet", async () => {
+test("matter copilot blocks unsupported-only citations without throwing a server error", async () => {
   const root = await makeMatterRoot();
   const service = createMatterCopilotService({
     matterStore: { getMatterRoot: () => root },
@@ -60,10 +60,13 @@ test("matter copilot fails closed when provider cites outside the packet", async
     }),
   });
 
-  await assert.rejects(
-    () => service.answerQuestion({ question: "what happened?" }),
-    /unsupported citation/i,
-  );
+  const answer = await service.answerQuestion({ question: "what happened?" });
+
+  assert.equal(answer.answer_status, "blocked");
+  assert.deepEqual(answer.sources, []);
+  assert.match(answer.answer_markdown, /could not verify the source references/i);
+  assert.match(answer.warnings.join(" "), /source references could not be verified/i);
+  assert.doesNotMatch(JSON.stringify(answer), /FILE-9999|p1\.b1|Unsupported answer|unsupported citation/i);
 });
 
 test("matter copilot discards unsupported provider citations when validated sources remain", async () => {

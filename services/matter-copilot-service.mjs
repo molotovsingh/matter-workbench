@@ -200,8 +200,17 @@ function normalizeMatterCopilotAnswer({
   const sourceResolver = buildSourceResolver(packet);
   const { sources, unsupportedCount } = normalizeSources(record.sources, sourceResolver);
   const effectiveAnswerStatus = answerStatus === "answered" && unsupportedCount > 0 ? "partial" : answerStatus;
+  const unsupportedOnly = SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && unsupportedCount > 0 && !sources.length;
   if (SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && !sources.length) {
-    if (unsupportedCount > 0) throw makeHttpError("Matter copilot returned unsupported citation.", 502);
+    if (unsupportedOnly) {
+      return blockedUnsupportedCitationAnswer({
+        question,
+        packet,
+        policy,
+        providerConfig,
+        answeredAt,
+      });
+    }
     throw makeHttpError("Matter copilot answer did not include validated source citations.", 502);
   }
   const sourceWarnings = unsupportedCount > 0 && sources.length > 0
@@ -219,6 +228,35 @@ function normalizeMatterCopilotAnswer({
     warnings: [
       ...(Array.isArray(record.warnings) ? record.warnings.map(normalizeText).filter(Boolean).slice(0, 8) : []),
       ...sourceWarnings,
+      ...(Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : []),
+    ],
+    matter: packet?.matter || {},
+    context: {
+      packet_schema_version: packet?.schema_version || "",
+      evidence_blocks_included: Number(packet?.limits?.included_blocks || 0),
+      evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
+    },
+    ai_run: modelPolicyMetadata(policy, providerConfig),
+  };
+}
+
+function blockedUnsupportedCitationAnswer({
+  question,
+  packet,
+  policy,
+  providerConfig,
+  answeredAt,
+}) {
+  return {
+    schema_version: MATTER_COPILOT_ANSWER_SCHEMA_VERSION,
+    answered_at: answeredAt,
+    question,
+    answer_status: "blocked",
+    answer_markdown: "I could not verify the source references for that answer from the current matter record, so I am not showing it as a supported answer.",
+    confidence: 0,
+    sources: [],
+    warnings: [
+      "The source references could not be verified against the current matter record.",
       ...(Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : []),
     ],
     matter: packet?.matter || {},
