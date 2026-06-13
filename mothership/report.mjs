@@ -1,10 +1,15 @@
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
-  const signalItems = (dataset.signals || []).map(signalReportItem).map(annotateTriage);
-  const feedbackItems = (dataset.feedback || []).map(feedbackReportItem).map(annotateTriage);
   const metricSummary = summarizeMetrics(dataset.metrics || []);
   const heartbeatSummary = summarizeHeartbeats(dataset.heartbeats || [], generatedAt);
+  const latestRuntimeEvidenceAt = latestEvidenceTime(metricSummary, heartbeatSummary);
+  const signalItems = (dataset.signals || [])
+    .map(signalReportItem)
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt }));
+  const feedbackItems = (dataset.feedback || [])
+    .map(feedbackReportItem)
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt }));
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
       || laneSort(left.action_lane) - laneSort(right.action_lane)
@@ -94,6 +99,7 @@ export function renderMothershipReportMarkdown(report = {}) {
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
       if (item.action_lane) lines.push(`- Action lane: ${item.action_lane}`);
+      if (item.currentness) lines.push(`- Currentness: ${item.currentness}`);
       if (item.recommended_action) lines.push(`- Recommended action: ${redactReportText(item.recommended_action)}`);
       lines.push(`- Received: ${item.receivedAt || ""}`);
       if (item.detail) lines.push(`- Detail: ${redactReportText(item.detail)}`);
@@ -241,9 +247,10 @@ function normalizePatienceRisk(value = "") {
   return ["low", "medium", "high"].includes(value) ? value : "low";
 }
 
-function annotateTriage(item = {}) {
-  const triage = routeTriage(item);
-  return { ...item, ...triage };
+function annotateTriage(item = {}, context = {}) {
+  const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt);
+  const triage = routeTriage({ ...item, currentness });
+  return { ...item, currentness, ...triage };
 }
 
 function routeTriage(item = {}) {
@@ -276,6 +283,12 @@ function routeTriage(item = {}) {
 
   if (item.category === "bug") {
     if (/unsupported citation|matter copilot returned unsupported citation/.test(text)) {
+      if (item.currentness === "needs_live_recheck") {
+        return {
+          action_lane: "investigate",
+          recommended_action: "Recheck this against the current deployment. Treat it as fix_now only if Copilot citation failure reproduces after the latest heartbeat or metrics snapshot.",
+        };
+      }
       return {
         action_lane: "fix_now",
         recommended_action: "Keep Copilot fail-closed validation, but show a lawyer-safe source verification message and preserve the raw citation only in diagnostics.",
@@ -311,6 +324,25 @@ function routeTriage(item = {}) {
     action_lane: "watch",
     recommended_action: "No immediate action unless this appears again.",
   };
+}
+
+function latestEvidenceTime(metricSummary = {}, heartbeatSummary = {}) {
+  const times = [
+    metricSummary.latest?.receivedAt,
+    metricSummary.latest?.capturedAt,
+    heartbeatSummary.latest?.receivedAt,
+    heartbeatSummary.latest?.capturedAt,
+  ]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : null;
+}
+
+function classifyCurrentness(item = {}, latestRuntimeEvidenceAt = null) {
+  const itemTime = Date.parse(item.receivedAt || "");
+  if (!Number.isFinite(itemTime) || !Number.isFinite(latestRuntimeEvidenceAt)) return "unknown";
+  if (latestRuntimeEvidenceAt - itemTime >= 10 * 60 * 1000) return "needs_live_recheck";
+  return "current";
 }
 
 function actionLaneCounts(items = []) {

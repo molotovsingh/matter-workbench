@@ -96,8 +96,8 @@ test("mothership report routes live beta signals into action lanes", () => {
   }, { generatedAt: "2026-06-13T00:00:00.000Z" });
 
   assert.deepEqual(report.summary.actionLanes, {
-    fix_now: 2,
-    investigate: 1,
+    fix_now: 1,
+    investigate: 2,
     product_decision: 2,
     watch: 1,
   });
@@ -115,8 +115,9 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.match(missingExtraction.recommended_action, /preparation/i);
 
   const copilotCitation = report.items.find((item) => item.id === "feedback_copilot_citation");
-  assert.equal(copilotCitation.action_lane, "fix_now");
-  assert.match(copilotCitation.recommended_action, /Copilot/i);
+  assert.equal(copilotCitation.action_lane, "investigate");
+  assert.equal(copilotCitation.currentness, "needs_live_recheck");
+  assert.match(copilotCitation.recommended_action, /current deployment/i);
   assert.doesNotMatch(copilotCitation.recommended_action, /FILE-0008/);
 
   const copilotCopy = report.items.find((item) => item.id === "feedback_copilot_copy");
