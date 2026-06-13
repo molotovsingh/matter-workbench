@@ -3,10 +3,10 @@ import process from "node:process";
 
 import { createMothershipServer } from "../mothership/server.mjs";
 import { createMothershipStore, createPostgresMothershipDatabase } from "../mothership/store.mjs";
-import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { loadMothershipScriptEnv } from "./mothership-env.mjs";
 
 export async function startMothershipServer({ env = process.env, log = console } = {}) {
-  await loadDatabaseScriptEnv({ targetEnv: env, override: false });
+  await loadMothershipScriptEnv({ targetEnv: env, override: false });
   const host = String(env.MOTHERSHIP_HOST || "127.0.0.1");
   const port = parsePort(env.MOTHERSHIP_PORT || 4192);
   const database = await createPostgresMothershipDatabase({ connectionString: env.MOTHERSHIP_DATABASE_URL });

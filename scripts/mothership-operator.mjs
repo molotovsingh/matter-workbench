@@ -3,7 +3,7 @@ import process from "node:process";
 
 import { buildMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
 import { createMothershipStore, createPostgresMothershipDatabase } from "../mothership/store.mjs";
-import { loadDatabaseScriptEnv } from "./db-env.mjs";
+import { loadMothershipScriptEnv } from "./mothership-env.mjs";
 
 export function parseMothershipOperatorArgs(argv = []) {
   const parts = [...argv];
@@ -34,7 +34,7 @@ export async function runMothershipOperator({
   try {
     const parsed = parseMothershipOperatorArgs(argv);
     if (!store) {
-      await loadDatabaseScriptEnv({ targetEnv: env, override: false });
+      await loadMothershipScriptEnv({ targetEnv: env, override: false });
       database = await createPostgresMothershipDatabase({ connectionString: env.MOTHERSHIP_DATABASE_URL });
       store = createMothershipStore({ database });
     }

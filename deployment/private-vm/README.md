@@ -57,11 +57,11 @@ Start from `deployment/private-vm/mothership.env.example`, but never copy a real
 database URL into the repository.
 
 Provision the mothership once with a separate PostgreSQL database and a
-non-superuser login role that owns only that database. Then load
-`mothership.env` from the deployed app and apply its independent migrations:
+non-superuser login role that owns only that database. Then write
+`$HOME/.config/matter-workbench/mothership.env` and apply its independent
+migrations:
 
 ```bash
-set -a; . "$HOME/.config/matter-workbench/mothership.env"; set +a
 npm run mothership:migrate
 npm run mothership:operator -- installations create \
   --id <stable-installation-id> \
@@ -201,9 +201,10 @@ journalctl --user -u matter-workbench-mothership.service -n 80 --no-pager
 
 The mothership is an operator surface, not a tester UI. Use
 `npm run mothership:operator -- health` and `npm run mothership:report` from the
-deployed app directory after loading `mothership.env`. The report is the intake
-surface Codex can use to triage repeated errors, tester bugs, confusing UX, and
-feature ideas against the current repository and runtime evidence.
+deployed app directory. These commands automatically load the standard VM
+`mothership.env` file when explicit shell env vars are absent. The report is the
+intake surface Codex can use to triage repeated errors, tester bugs, confusing
+UX, and feature ideas against the current repository and runtime evidence.
 
 The same report also carries deployment/backend metrics:
 

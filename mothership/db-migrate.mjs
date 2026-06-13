@@ -8,7 +8,7 @@ import {
   listMigrationFiles,
   planMigrations,
 } from "../scripts/db-migrate.mjs";
-import { loadDatabaseScriptEnv } from "../scripts/db-env.mjs";
+import { loadMothershipScriptEnv } from "../scripts/mothership-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +41,7 @@ function parseArgs(argv = []) {
 
 if (process.argv[1] === __filename) {
   try {
-    await loadDatabaseScriptEnv();
+    await loadMothershipScriptEnv();
     const mode = parseArgs(process.argv.slice(2));
     const result = await runMothershipMigrations({ mode });
     if (mode === "list") {
