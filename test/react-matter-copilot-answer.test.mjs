@@ -46,3 +46,21 @@ test("React matter copilot answer renders legal record language instead of packe
   assert.match(renderedWithoutQualityWarning, /Only part of the matter record was included in this quick answer/);
   assert.doesNotMatch(renderedWithoutQualityWarning, /evidence block/i);
 });
+
+test("React matter copilot answer hides unsupported citation internals from lawyers", async () => {
+  const source = await readFile(matterCopilotAnswerPath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
+  const { formatMatterCopilotError } = await import(moduleUrl);
+
+  const rendered = formatMatterCopilotError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
+
+  assert.match(rendered, /could not verify the sources/i);
+  assert.match(rendered, /Run preparation again/i);
+  assert.doesNotMatch(rendered, /unsupported citation|FILE-0008|p1\.b2/i);
+});

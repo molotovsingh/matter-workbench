@@ -651,7 +651,7 @@ export default function CommandPanel({
               {[
                 ['did_not_work', 'Something did not work'],
                 ['confused', 'I got confused'],
-                ['want_something', 'I want this to do something'],
+                ['want_something', 'I want a new feature'],
               ].map(([value, label]) => (
                 <button
                   key={value}

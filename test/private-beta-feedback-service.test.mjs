@@ -69,6 +69,28 @@ test("private beta feedback service stores simple tester feedback with safe cont
   assert.equal(store.feedback[0].id, "feedback_001");
 });
 
+test("private beta feedback service classifies want-something as a net-new feature request", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-feature-request-"));
+  const service = createPrivateBetaFeedbackService({
+    feedbackPath: path.join(tmp, "feedback-ledger.json"),
+    now: () => new Date("2026-06-13T10:00:00.000Z"),
+    idFactory: () => "feedback_feature_request_001",
+  });
+
+  const record = await service.createFeedback({
+    choice: "want_something",
+    tryingToDo: "Ask for a calendar view",
+    happenedInstead: "I want a new page that shows filing deadlines by week.",
+  });
+
+  assert.equal(record.choice, "want_something");
+  assert.equal(record.classification, "feature_request");
+
+  const report = formatPrivateBetaFeedbackReport(record);
+  assert.match(report, /Classification: feature_request/);
+  assert.doesNotMatch(report, /Classification: bug/);
+});
+
 test("private beta feedback firm-internal mode keeps richer context but still redacts secrets", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-firm-internal-"));
   const requests = [];

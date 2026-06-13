@@ -391,7 +391,7 @@ function formatFeedbackSender(feedback: PrivateBetaFeedback): string {
 function formatFeedbackChoice(choice: string): string {
   if (choice === 'did_not_work') return 'Something did not work';
   if (choice === 'confused') return 'I got confused';
-  if (choice === 'want_something') return 'I want this to do something';
+  if (choice === 'want_something') return 'I want a new feature';
   return choice || 'Feedback';
 }
 

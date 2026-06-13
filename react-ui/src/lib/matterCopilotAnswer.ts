@@ -43,6 +43,17 @@ export function formatMatterCopilotAnswer(answer: MatterCopilotAnswer): string {
   return parts.join('\n\n');
 }
 
+export function formatMatterCopilotError(message: string): string {
+  const normalized = normalizeText(message);
+  if (/unsupported citation/i.test(normalized)) {
+    return [
+      'I could not verify the sources for that answer.',
+      'Run preparation again, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
+    ].join('\n\n');
+  }
+  return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
+}
+
 function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {
   const labels = [];
   const seen = new Set<string>();

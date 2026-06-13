@@ -8,7 +8,7 @@ import CommandPanel from './components/command/CommandPanel';
 import { api, setAuthRequiredHandler } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
-import { formatMatterCopilotAnswer, parseAskCommand } from './lib/matterCopilotAnswer';
+import { formatMatterCopilotAnswer, formatMatterCopilotError, parseAskCommand } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
 import { formatIntentDiscoveryGuidance } from './lib/skillIntentRouting';
@@ -182,7 +182,7 @@ function AppShell() {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       appendTerminal([`[copilot] failed: ${message}`]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: `I could not answer from the current matter record: ${message}` });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotError(message) });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }

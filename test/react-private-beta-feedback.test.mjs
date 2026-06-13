@@ -13,7 +13,7 @@ test("React command panel exposes child-simple private beta feedback intake", as
   assert.match(source, /Have a problem\? Tell us what happened/);
   assert.match(source, /Something did not work/);
   assert.match(source, /I got confused/);
-  assert.match(source, /I want this to do something/);
+  assert.match(source, /I want a new feature/);
   assert.match(source, /Optional: pick the closest type/);
   assert.match(source, /Tell us what happened/);
   assert.match(source, /What were you trying to do\? Optional/);
@@ -48,6 +48,7 @@ test("React feedback API client and types expose the beta feedback contract", as
   assert.match(typesSource, /export interface PrivateBetaFeedbackSync/);
   assert.match(typesSource, /export interface PrivateBetaFeedbackSyncResult/);
   assert.match(typesSource, /choice: 'did_not_work' \\| 'confused' \\| 'want_something'/);
+  assert.match(typesSource, /'feature_request'/);
 });
 
 test("Activity page renders operator-facing feedback review and export controls", async () => {

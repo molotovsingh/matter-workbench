@@ -1,11 +1,12 @@
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
-  const signalItems = (dataset.signals || []).map(signalReportItem);
-  const feedbackItems = (dataset.feedback || []).map(feedbackReportItem);
+  const signalItems = (dataset.signals || []).map(signalReportItem).map(annotateTriage);
+  const feedbackItems = (dataset.feedback || []).map(feedbackReportItem).map(annotateTriage);
   const metricSummary = summarizeMetrics(dataset.metrics || []);
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
+      || laneSort(left.action_lane) - laneSort(right.action_lane)
       || right.occurrenceCount - left.occurrenceCount
       || Date.parse(right.receivedAt || 0) - Date.parse(left.receivedAt || 0));
 
@@ -18,8 +19,10 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
       repeatedWarnings: signalItems.filter((item) => item.category === "warning_signal" && item.occurrenceCount > 1).length,
       bugs: feedbackItems.filter((item) => item.category === "bug").length,
       confusingUx: feedbackItems.filter((item) => item.category === "confusing_ux").length,
+      featureRequests: feedbackItems.filter((item) => item.category === "feature_request").length,
       featureIdeas: feedbackItems.filter((item) => item.category === "feature_idea").length,
       total: items.length,
+      actionLanes: actionLaneCounts(items),
       latestBackendSuitability: metricSummary.latest?.scores?.backendSuitability,
       latestPortability: metricSummary.latest?.scores?.portability,
       latestUserPatienceRisk: metricSummary.latest?.scores?.userPatienceRisk,
@@ -42,7 +45,8 @@ export function renderMothershipReportMarkdown(report = {}) {
     `- Repeated warnings: ${report.summary?.repeatedWarnings || 0}`,
     `- Tester bugs: ${report.summary?.bugs || 0}`,
     `- Confusing UX: ${report.summary?.confusingUx || 0}`,
-    `- Feature ideas: ${report.summary?.featureIdeas || 0}`,
+    `- Feature requests: ${report.summary?.featureRequests || 0}`,
+    `- Legacy feature ideas: ${report.summary?.featureIdeas || 0}`,
     "",
   ];
   if (report.metrics?.latest) {
@@ -73,6 +77,8 @@ export function renderMothershipReportMarkdown(report = {}) {
       lines.push(`- Installation: ${item.installationId}`);
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
+      if (item.action_lane) lines.push(`- Action lane: ${item.action_lane}`);
+      if (item.recommended_action) lines.push(`- Recommended action: ${redactReportText(item.recommended_action)}`);
       lines.push(`- Received: ${item.receivedAt || ""}`);
       if (item.detail) lines.push(`- Detail: ${redactReportText(item.detail)}`);
       lines.push("");
@@ -148,6 +154,94 @@ function metricSnapshot(row = {}) {
   };
 }
 
+function annotateTriage(item = {}) {
+  const triage = routeTriage(item);
+  return { ...item, ...triage };
+}
+
+function routeTriage(item = {}) {
+  const text = normalizeReportText(`${item.title || ""} ${item.detail || ""}`);
+  if (item.category === "critical_signal") {
+    if (/no extraction records|run extract|source index|create_listofdates|list of dates|label sources/.test(text)) {
+      return {
+        action_lane: "fix_now",
+        recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/List of Dates path if records exist but downstream stages cannot see them.",
+      };
+    }
+    return {
+      action_lane: "fix_now",
+      recommended_action: "Inspect the failed runtime path before the next beta session.",
+    };
+  }
+
+  if (item.category === "warning_signal") {
+    if (item.occurrenceCount > 1) {
+      return {
+        action_lane: "investigate",
+        recommended_action: "Check whether this warning is repeated for the same matter, user, or workflow.",
+      };
+    }
+    return {
+      action_lane: "watch",
+      recommended_action: "Keep this as a watch item unless it repeats or is paired with tester feedback.",
+    };
+  }
+
+  if (item.category === "bug") {
+    if (/unsupported citation|matter copilot returned unsupported citation/.test(text)) {
+      return {
+        action_lane: "fix_now",
+        recommended_action: "Keep Copilot fail-closed validation, but show a lawyer-safe source verification message and preserve the raw citation only in diagnostics.",
+      };
+    }
+    if (/login|logged out|asking login|authentication/.test(text)) {
+      return {
+        action_lane: "investigate",
+        recommended_action: "Verify session persistence across reload, tab reopen, and deploy restart before changing auth behavior.",
+      };
+    }
+    return {
+      action_lane: "investigate",
+      recommended_action: "Reproduce the reported bug in the current deployment and attach runtime evidence before fixing.",
+    };
+  }
+
+  if (item.category === "feature_request") {
+    return {
+      action_lane: "product_decision",
+      recommended_action: "Decide whether this is a net-new product feature for beta, then either scope it or park it in the product backlog.",
+    };
+  }
+
+  if (item.category === "confusing_ux" || item.category === "feature_idea") {
+    return {
+      action_lane: "product_decision",
+      recommended_action: "Decide whether this changes beta onboarding/copy or belongs in the parked product backlog.",
+    };
+  }
+
+  return {
+    action_lane: "watch",
+    recommended_action: "No immediate action unless this appears again.",
+  };
+}
+
+function actionLaneCounts(items = []) {
+  const counts = { fix_now: 0, investigate: 0, product_decision: 0, watch: 0 };
+  for (const item of items) {
+    if (Object.prototype.hasOwnProperty.call(counts, item.action_lane)) counts[item.action_lane] += 1;
+  }
+  return counts;
+}
+
+function laneSort(lane = "") {
+  if (lane === "fix_now") return 0;
+  if (lane === "investigate") return 1;
+  if (lane === "product_decision") return 2;
+  if (lane === "watch") return 3;
+  return 4;
+}
+
 function parsePayload(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
   try {
@@ -175,4 +269,8 @@ function toIso(value) {
 function redactReportText(value) {
   return redactSensitiveText(value)
     .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]");
+}
+
+function normalizeReportText(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
 }

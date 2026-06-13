@@ -16,7 +16,7 @@ const ALLOWED_CHOICES = new Set(["did_not_work", "confused", "want_something"]);
 const CLASSIFICATION_BY_CHOICE = {
   did_not_work: "bug",
   confused: "confusing_ux",
-  want_something: "feature_idea",
+  want_something: "feature_request",
 };
 
 export function createPrivateBetaFeedbackService({
@@ -352,7 +352,7 @@ function normalizeStatus(status) {
 function formatChoice(choice) {
   if (choice === "did_not_work") return "Something did not work";
   if (choice === "confused") return "I got confused";
-  if (choice === "want_something") return "I want this to do something";
+  if (choice === "want_something") return "I want a new feature";
   return choice || "Unknown";
 }
 

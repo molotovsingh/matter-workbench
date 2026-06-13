@@ -45,7 +45,7 @@ The form should then ask the tester to choose one simple path:
 ```text
 Something did not work
 I got confused
-I want this to do something
+I want a new feature
 ```
 
 The only required text field:
@@ -127,7 +127,8 @@ The operator can see the structured classification that testers never see:
 
 - `bug`;
 - `confusing_ux`;
-- `feature_idea`;
+- `feature_request`;
+- `feature_idea` (legacy historical rows only);
 - `legal_quality_concern`;
 - `blocked_workflow`;
 - `operator_note`.
@@ -138,7 +139,7 @@ The app can infer an initial classification from the tester's simple choice:
 | --- | --- |
 | Something did not work | `bug` |
 | I got confused | `confusing_ux` |
-| I want this to do something | `feature_idea` |
+| I want a new feature | `feature_request` |
 
 The operator can later adjust classification, severity, status, and notes.
 
@@ -158,7 +159,7 @@ This feature feeds the existing [Private Beta Bug-Fix Loop](../private-beta-bug-
 The feedback item is the intake. The bug loop is the developer process:
 
 1. Review the captured item.
-2. Decide whether it is a bug, confusion, feature idea, legal-quality concern,
+2. Decide whether it is a bug, confusion, feature request, legal-quality concern,
    or parked note.
 3. Run the evidence pack if developer handoff needs more context.
 4. Reproduce the issue on the smallest safe matter or read-only surface.
@@ -351,7 +352,7 @@ Do not build in the first slice:
 - user accounts;
 - email notifications;
 - screenshot auto-capture;
-- model-generated triage;
+- unsupervised model-generated triage in the tester-facing flow;
 - automatic legal-output inspection;
 - support ticket assignment.
 
@@ -371,6 +372,215 @@ The first slice is successful when:
 - sync failure does not block tester flow and leaves a queued local record;
 - the private beta bug-fix loop can start from a captured item without asking
   the tester to recreate the whole context from memory.
+
+## Net-New Feature Request Category
+
+Status: Implemented small slice
+Date: 2026-06-13
+
+### Problem
+
+The mothership triage router must not treat every tester note as bug-shaped work. A report that says
+"please add a dashboard" is not a broken button, and it should not compete with failed extraction,
+login issues, or Copilot source-verification bugs in the same mental bucket.
+
+Before this slice, the tester choice `want_something` became `feature_idea`. That was distinct from
+`bug`, but the name was soft and easy to confuse with general product feedback. The report also did
+not show a direct "feature request" count.
+
+### Decision
+
+Use `feature_request` as the canonical classification for net-new tester asks:
+
+| Classification | Current action lane |
+| --- | --- |
+| `bug` | `fix_now` / `investigate` |
+| `confusing_ux` | `product_decision` |
+| `feature_request` | `product_decision` |
+| `feature_idea` | `product_decision` (legacy historical rows only) |
+
+This deliberately creates a category distinction, not a new ticketing system. `feature_request` still
+lands in `product_decision` for now because the operator should decide whether to scope it for beta or
+park it.
+
+Implemented behavior:
+
+- tester label changed from "I want this to do something" to "I want a new feature";
+- `services/private-beta-feedback-service.mjs` maps `want_something` to `feature_request`;
+- `mothership/report.mjs` counts `summary.featureRequests`;
+- `routeTriage` gives `feature_request` its own product-decision recommended action;
+- legacy `feature_idea` rows remain readable and stay in `product_decision`.
+
+### Future Product-Backlog Lane
+
+Still parked: if feature-request volume grows, split `feature_request` into a separate
+`product_backlog` action lane. That would be the clean seam for a later ticket integration
+(Jira/GitHub/Linear), but it should remain a separate explicit product decision.
+
+### Current Test Coverage
+
+- `test/private-beta-feedback-service.test.mjs` verifies `want_something -> feature_request`;
+- `test/mothership-report.test.mjs` verifies `feature_request` is separate from bugs and routes to
+  `product_decision`;
+- `test/mothership-operator.test.mjs` keeps legacy `feature_idea` rows readable;
+- `test/react-private-beta-feedback.test.mjs` locks the simpler tester-facing label.
+
+## Intelligent Feedback Triage Router
+
+Status: Next implementation slice
+Date: 2026-06-13
+
+### Problem
+
+The current mothership report router is useful, but still too checklist-shaped.
+It mostly trusts:
+
+- the tester's simple choice;
+- a few deterministic text matches;
+- hard-coded category branches.
+
+That is enough for obvious failures, but not enough for real beta feedback.
+Lawyers will write messy natural-language reports:
+
+- "I was trying to understand the case but the answer felt incomplete";
+- "Can it also show me limitation dates?";
+- "It says source labels are missing but I already ran preparation";
+- "This is not a bug, but I expected a way to share this with my junior."
+
+Those examples are not reliably separable by keyword rules. The router should
+understand the whole feedback packet and nearby app evidence, not just scan
+user text for trigger words.
+
+### Design Direction
+
+Use a hybrid router:
+
+1. **Deterministic safety overrides first.**
+   Known hard failures stay rule-owned. Examples: login required, unsupported
+   citations, no extraction records, source labels failed, List of Dates failed,
+   telemetry sync failed, or a repeated job failure. These should never depend
+   on model judgment.
+
+2. **Intelligent classifier second.**
+   For everything else, classify the packet using the full structured context:
+   tester choice, free text, active screen, route, visible error, recent
+   activity, related job status, diagnostic signals, matter name, runtime mode,
+   and sync state. The classifier should output structured JSON only.
+
+3. **Conservative fallback.**
+   If classification fails, confidence is low, or the model response is
+   malformed, route to `investigate`. Do not let an uncertain classifier create
+   a `fix_now` claim or a product-roadmap claim.
+
+### Router Inputs
+
+The intelligent pass should receive a compact packet:
+
+```json
+{
+  "feedback": {
+    "choice": "want_something",
+    "classification": "feature_request",
+    "tryingToDo": "Add deadline calendar",
+    "happenedInstead": "I want a week view for filing dates."
+  },
+  "context": {
+    "screen": "activity",
+    "route": "/activity",
+    "activeMatterName": "Example Matter",
+    "visibleError": "",
+    "recentActivity": []
+  },
+  "relatedSignals": [],
+  "relatedJobs": [],
+  "runtime": {
+    "mode": "postgres",
+    "installId": "matter-workbench-do-beta-1"
+  }
+}
+```
+
+It should not receive provider secrets, API keys, database URLs, full source
+text, full generated legal output, or screenshots by default.
+
+### Router Output
+
+The classifier should return:
+
+```json
+{
+  "classification": "feature_request",
+  "action_lane": "product_decision",
+  "confidence": "high",
+  "reason": "The tester is asking for a capability that does not currently exist.",
+  "recommended_action": "Decide whether deadline calendar belongs in beta scope or product backlog.",
+  "missing_evidence": []
+}
+```
+
+Allowed `classification` values:
+
+- `bug`;
+- `confusing_ux`;
+- `feature_request`;
+- `blocked_workflow`;
+- `legal_quality_concern`;
+- `operator_note`.
+
+Allowed `action_lane` values for this slice:
+
+- `fix_now`;
+- `investigate`;
+- `product_decision`;
+- `watch`.
+
+Do not add `product_backlog` yet. That lane remains parked until there is a
+real backlog/ticket destination.
+
+### Safety Rules
+
+- Deterministic hard-failure overrides win over the classifier.
+- A classifier may downgrade or clarify a soft item, but it must not suppress a
+  hard runtime signal.
+- `fix_now` requires either a deterministic hard signal or high-confidence bug
+  classification with concrete related evidence.
+- `feature_request` should be distinct from `confusing_ux`. A request for a new
+  capability is not the same thing as confusion about an existing capability.
+- The tester-facing form remains simple. Do not expose confidence, action lane,
+  model reason, or internal categories to the lawyer.
+- Store classifier metadata for operators only.
+
+### Implementation Shape
+
+Add a small server-side triage module, not React logic:
+
+```text
+services/private-beta-feedback-triage-service.mjs
+```
+
+Suggested responsibilities:
+
+- normalize a feedback packet into a bounded classifier input;
+- apply deterministic hard-failure overrides;
+- call the configured model only when a model pass is useful;
+- validate the classifier JSON against allowed values;
+- return deterministic fallback on provider failure;
+- expose one pure function for report-time triage.
+
+`mothership/report.mjs` should call that service or shared pure helper rather
+than growing more regex branches inline.
+
+### Tests To Add
+
+- deterministic unsupported-citation signal stays `fix_now` even if model would
+  call it confusion;
+- "I want a new deadline calendar" becomes `feature_request`, not `bug`;
+- "I cannot find where List of Dates went" becomes `confusing_ux` unless a
+  related missing-output signal exists;
+- failed source-label job plus vague tester feedback becomes `fix_now`;
+- malformed model output falls back to `investigate`;
+- low-confidence classifier output falls back to `investigate`;
+- feature request does not create a product-backlog lane yet.
 
 ## Open Product Questions
 

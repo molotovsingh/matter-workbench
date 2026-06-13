@@ -244,7 +244,7 @@ export interface PrivateBetaFeedback {
   schema_version?: 'private-beta-feedback/v1';
   id: string;
   choice: 'did_not_work' | 'confused' | 'want_something';
-  classification: 'bug' | 'confusing_ux' | 'feature_idea' | 'legal_quality_concern' | 'blocked_workflow' | 'operator_note' | string;
+  classification: 'bug' | 'confusing_ux' | 'feature_request' | 'feature_idea' | 'legal_quality_concern' | 'blocked_workflow' | 'operator_note' | string;
   status: 'new' | 'reviewed' | 'needs_evidence' | 'fixed' | 'parked' | 'not_reproducible' | string;
   tryingToDo: string;
   happenedInstead?: string;

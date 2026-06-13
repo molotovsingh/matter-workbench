@@ -101,20 +101,28 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
       signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret" }),
     ],
     feedback: [
-      feedbackRow({ feedback_id: "feature", classification: "feature_idea", tryingToDo: "Add a dashboard" }),
+      feedbackRow({ feedback_id: "feature", classification: "feature_request", tryingToDo: "Add a dashboard" }),
+      feedbackRow({ feedback_id: "legacy_feature", classification: "feature_idea", tryingToDo: "Add old dashboard" }),
       feedbackRow({ feedback_id: "confused", classification: "confusing_ux", tryingToDo: "Find a matter" }),
       feedbackRow({ feedback_id: "bug", classification: "bug", tryingToDo: "Run a skill" }),
     ],
   }, { generatedAt: "2026-06-10T12:00:00.000Z" });
 
-  assert.deepEqual(report.items.map((item) => item.id), ["error", "warning", "bug", "confused", "feature"]);
+  assert.deepEqual(report.items.map((item) => item.id), ["error", "warning", "bug", "confused", "feature", "legacy_feature"]);
   assert.deepEqual(report.summary, {
     criticalSignals: 1,
     repeatedWarnings: 1,
     bugs: 1,
     confusingUx: 1,
+    featureRequests: 1,
     featureIdeas: 1,
-    total: 5,
+    total: 6,
+    actionLanes: {
+      fix_now: 1,
+      investigate: 2,
+      product_decision: 3,
+      watch: 0,
+    },
     latestBackendSuitability: 74,
     latestPortability: 82,
     latestUserPatienceRisk: "medium",
@@ -126,6 +134,8 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
   assert.match(markdown, /Backend Suitability: 74\/100/);
   assert.match(markdown, /Deployment Portability: 82\/100/);
   assert.match(markdown, /User Patience Risk: medium/);
+  assert.match(markdown, /Action lane: fix_now/);
+  assert.match(markdown, /Recommended action:/);
   assert.match(markdown, /Job failed token=\[redacted-secret\]/);
   assert.doesNotMatch(markdown, /super-secret/);
 });
