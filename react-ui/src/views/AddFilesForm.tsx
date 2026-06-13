@@ -51,8 +51,14 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    addFiles(collectFilesFromFileList(e.target.files));
-    e.target.value = '';
+    const input = e.currentTarget;
+    const selectedFiles = collectFilesFromFileList(Array.from(input.files ?? []));
+    if (selectedFiles.length > 0) {
+      addFiles(selectedFiles);
+    }
+    window.setTimeout(() => {
+      input.value = '';
+    }, 0);
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -43,8 +43,14 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    setFiles((prev) => [...prev, ...collectFilesFromFileList(e.target.files)]);
-    e.target.value = '';
+    const input = e.currentTarget;
+    const selectedFiles = collectFilesFromFileList(Array.from(input.files ?? []));
+    if (selectedFiles.length > 0) {
+      setFiles((prev) => [...prev, ...selectedFiles]);
+    }
+    window.setTimeout(() => {
+      input.value = '';
+    }, 0);
   }
 
   async function handleSubmit(e: React.FormEvent) {

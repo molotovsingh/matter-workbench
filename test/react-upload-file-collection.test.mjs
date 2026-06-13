@@ -48,6 +48,20 @@ test("React new-matter and add-files forms share folder-aware upload collection 
   assert.doesNotMatch(addFiles, /function walkEntries/);
 });
 
+test("React upload inputs copy selected files before clearing the browser input", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+  const addFiles = await readFile(addFilesPath, "utf8");
+
+  for (const source of [newMatter, addFiles]) {
+    assert.match(source, /const input = e\.currentTarget;/);
+    assert.match(source, /const selectedFiles = collectFilesFromFileList\(Array\.from\(input\.files \?\? \[\]\)\);/);
+    assert.match(source, /if \(selectedFiles\.length > 0\)/);
+    assert.match(source, /window\.setTimeout\(\(\) => \{\s*input\.value = '';\s*\}, 0\);/s);
+    assert.doesNotMatch(source, /collectFilesFromFileList\(e\.target\.files\)/);
+    assert.doesNotMatch(source, /e\.target\.value = ''/);
+  }
+});
+
 async function importHelper() {
   const source = await readFile(helperPath, "utf8");
   const transpiled = ts.transpileModule(source, {
