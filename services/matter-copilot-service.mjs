@@ -198,21 +198,27 @@ function normalizeMatterCopilotAnswer({
   const record = rawAnswer && typeof rawAnswer === "object" && !Array.isArray(rawAnswer) ? rawAnswer : {};
   const answerStatus = normalizeAnswerStatus(record.answer_status);
   const sourceResolver = buildSourceResolver(packet);
-  const sources = normalizeSources(record.sources, sourceResolver);
-  if (SOURCE_REQUIRED_STATUSES.has(answerStatus) && !sources.length) {
+  const { sources, unsupportedCount } = normalizeSources(record.sources, sourceResolver);
+  const effectiveAnswerStatus = answerStatus === "answered" && unsupportedCount > 0 ? "partial" : answerStatus;
+  if (SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && !sources.length) {
+    if (unsupportedCount > 0) throw makeHttpError("Matter copilot returned unsupported citation.", 502);
     throw makeHttpError("Matter copilot answer did not include validated source citations.", 502);
   }
+  const sourceWarnings = unsupportedCount > 0 && sources.length > 0
+    ? ["Some source references could not be verified and were ignored."]
+    : [];
 
   return {
     schema_version: MATTER_COPILOT_ANSWER_SCHEMA_VERSION,
     answered_at: answeredAt,
     question,
-    answer_status: answerStatus,
+    answer_status: effectiveAnswerStatus,
     answer_markdown: boundedText(record.answer_markdown, MAX_ANSWER_LENGTH) || fallbackAnswer(answerStatus),
     confidence: normalizeConfidence(record.confidence),
     sources,
     warnings: [
       ...(Array.isArray(record.warnings) ? record.warnings.map(normalizeText).filter(Boolean).slice(0, 8) : []),
+      ...sourceWarnings,
       ...(Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : []),
     ],
     matter: packet?.matter || {},
@@ -281,12 +287,16 @@ function indexSourceLabel(byLabel, label, block) {
 function normalizeSources(rawSources, sourceResolver) {
   const sources = [];
   const seen = new Set();
+  let unsupportedCount = 0;
   for (const source of Array.isArray(rawSources) ? rawSources : []) {
     const sourceReference = normalizeText(source?.raw_citation);
     if (!sourceReference) continue;
     const block = resolveSourceReference(sourceReference, source, sourceResolver);
     const rawCitation = block?.citation || sourceReference;
-    if (!block) throw makeHttpError(`Matter copilot returned unsupported citation: ${sourceReference}`, 502);
+    if (!block) {
+      unsupportedCount += 1;
+      continue;
+    }
     if (seen.has(rawCitation)) continue;
     seen.add(rawCitation);
     sources.push({
@@ -295,7 +305,7 @@ function normalizeSources(rawSources, sourceResolver) {
       snippet: boundedText(source?.snippet || block.text, MAX_SNIPPET_LENGTH),
     });
   }
-  return sources;
+  return { sources, unsupportedCount };
 }
 
 function resolveSourceReference(sourceReference, source = {}, sourceResolver = {}) {

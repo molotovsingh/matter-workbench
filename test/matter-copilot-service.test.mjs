@@ -66,6 +66,39 @@ test("matter copilot fails closed when provider cites outside the packet", async
   );
 });
 
+test("matter copilot discards unsupported provider citations when validated sources remain", async () => {
+  const root = await makeMatterRoot();
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async () => ({
+      answer_status: "answered",
+      answer_markdown: "The record indicates the consumer complaint was filed on 21 January 2013.",
+      confidence: 0.72,
+      sources: [
+        {
+          raw_citation: "FILE-9999 p1.b1",
+          source_label: "Unknown source",
+          snippet: "Unsupported source.",
+        },
+        {
+          raw_citation: "FILE-0001 p1.b1",
+          source_label: "Consumer complaint filing record",
+          snippet: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
+        },
+      ],
+      warnings: [],
+    }),
+  });
+
+  const answer = await service.answerQuestion({ question: "when was the complaint filed?" });
+
+  assert.equal(answer.answer_status, "partial");
+  assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b1"]);
+  assert.match(answer.warnings.join(" "), /source references could not be verified and were ignored/i);
+  assert.doesNotMatch(answer.warnings.join(" "), /FILE-9999|p1\.b1|unsupported citation/i);
+});
+
 test("matter copilot resolves an unambiguous source label back to a raw citation", async () => {
   const root = await makeMatterRoot();
   const service = createMatterCopilotService({
