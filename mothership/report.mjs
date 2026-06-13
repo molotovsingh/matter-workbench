@@ -4,6 +4,7 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
   const signalItems = (dataset.signals || []).map(signalReportItem).map(annotateTriage);
   const feedbackItems = (dataset.feedback || []).map(feedbackReportItem).map(annotateTriage);
   const metricSummary = summarizeMetrics(dataset.metrics || []);
+  const heartbeatSummary = summarizeHeartbeats(dataset.heartbeats || [], generatedAt);
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
       || laneSort(left.action_lane) - laneSort(right.action_lane)
@@ -26,8 +27,11 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
       latestBackendSuitability: metricSummary.latest?.scores?.backendSuitability,
       latestPortability: metricSummary.latest?.scores?.portability,
       latestUserPatienceRisk: metricSummary.latest?.scores?.userPatienceRisk,
+      latestHeartbeatAgeMinutes: heartbeatSummary.latestAgeMinutes,
+      silentInstallations: heartbeatSummary.silentInstallations,
     },
     metrics: metricSummary,
+    heartbeats: heartbeatSummary,
     items,
   };
 }
@@ -70,6 +74,13 @@ export function renderMothershipReportMarkdown(report = {}) {
       `- Received: ${latest.receivedAt || ""}`,
       "",
     );
+  }
+  if (report.heartbeats?.latestByInstallation?.length) {
+    lines.push("## Heartbeats", "");
+    for (const item of report.heartbeats.latestByInstallation.slice(0, 10)) {
+      lines.push(`- ${redactReportText(item.installationId)}: last seen ${item.lastSeenAt || ""}; sessions ${item.activeSessions}; patience ${item.highestPatienceRisk}`);
+    }
+    lines.push("");
   }
   lines.push("## Prioritized Evidence", "");
   if (!report.items?.length) {
@@ -145,6 +156,36 @@ function summarizeMetrics(rows = []) {
   };
 }
 
+function summarizeHeartbeats(rows = [], generatedAt = new Date().toISOString()) {
+  const generatedTime = Date.parse(generatedAt || "");
+  const snapshots = rows
+    .map(heartbeatSnapshot)
+    .filter((snapshot) => snapshot.id)
+    .sort((left, right) => Date.parse(right.receivedAt || 0) - Date.parse(left.receivedAt || 0));
+  const latestByInstallation = [];
+  const seen = new Set();
+  for (const snapshot of snapshots) {
+    if (seen.has(snapshot.installationId)) continue;
+    seen.add(snapshot.installationId);
+    latestByInstallation.push(snapshot);
+  }
+  const latest = latestByInstallation[0] || null;
+  const latestAgeMinutes = latest && Number.isFinite(generatedTime)
+    ? Math.max(0, Math.round((generatedTime - Date.parse(latest.receivedAt || latest.capturedAt || 0)) / 60000))
+    : null;
+  return {
+    latest,
+    latestAgeMinutes,
+    silentInstallations: latestByInstallation.filter((item) => {
+      if (!Number.isFinite(generatedTime)) return false;
+      const ageMinutes = Math.max(0, Math.round((generatedTime - Date.parse(item.receivedAt || item.capturedAt || 0)) / 60000));
+      return ageMinutes >= 15;
+    }).length,
+    latestByInstallation,
+    snapshots: snapshots.slice(0, 20),
+  };
+}
+
 function metricSnapshot(row = {}) {
   const payload = parsePayload(row.payload);
   return {
@@ -157,6 +198,47 @@ function metricSnapshot(row = {}) {
     latency: safeObject(payload.latency),
     scores: safeObject(payload.scores),
   };
+}
+
+function heartbeatSnapshot(row = {}) {
+  const payload = parsePayload(row.payload);
+  const journeys = Array.isArray(payload.journeys) ? payload.journeys.slice(0, 20).map((journey) => ({
+    user: String(journey.user || ""),
+    matter: String(journey.matter || ""),
+    screen: String(journey.screen || ""),
+    route: String(journey.route || ""),
+    lastAction: String(journey.lastAction || ""),
+    currentStage: String(journey.currentStage || ""),
+    currentStageStatus: String(journey.currentStageStatus || ""),
+    traceId: String(journey.traceId || ""),
+    jobId: String(journey.jobId || ""),
+    lastError: redactReportText(journey.lastError || ""),
+    patienceRisk: normalizePatienceRisk(journey.patienceRisk),
+  })) : [];
+  return {
+    id: String(row.heartbeat_id || payload.id || ""),
+    installationId: String(row.installation_id || payload.installId || ""),
+    capturedAt: toIso(row.captured_at || payload.createdAt),
+    receivedAt: toIso(row.received_at || payload.updatedAt || payload.createdAt),
+    activeSessions: positiveInteger(payload.activeSessions, 0),
+    highestPatienceRisk: highestPatienceRisk(journeys),
+    journeys,
+    counters: safeObject(payload.counters),
+  };
+}
+
+function highestPatienceRisk(journeys = []) {
+  const ranks = { low: 0, medium: 1, high: 2 };
+  let highest = "low";
+  for (const journey of journeys) {
+    const value = normalizePatienceRisk(journey.patienceRisk);
+    if (ranks[value] > ranks[highest]) highest = value;
+  }
+  return highest;
+}
+
+function normalizePatienceRisk(value = "") {
+  return ["low", "medium", "high"].includes(value) ? value : "low";
 }
 
 function annotateTriage(item = {}) {

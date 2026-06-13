@@ -4,6 +4,7 @@ const NEARBY_WINDOW_MS = 30 * 60 * 1000;
 
 export function createPrivateBetaObservabilityService({
   feedbackService,
+  heartbeatService,
   jobStatusService,
   metricsService,
   signalService,
@@ -11,17 +12,19 @@ export function createPrivateBetaObservabilityService({
 } = {}) {
   async function readObservability(filters = {}) {
     const limit = parseLimit(filters.limit);
-    const [feedbackLedger, jobLedger, signalLedger, metricsLedger] = await Promise.all([
+    const [feedbackLedger, jobLedger, signalLedger, metricsLedger, heartbeatLedger] = await Promise.all([
       readLedger("feedback", () => feedbackService?.listFeedback?.({ limit })),
       readLedger("jobs", () => jobStatusService?.listJobs?.({ limit })),
       readLedger("signals", () => signalService?.listSignals?.({ limit })),
       readLedger("metrics", () => metricsService?.listMetrics?.({ limit: 5 })),
+      readLedger("heartbeats", () => heartbeatService?.listHeartbeats?.({ limit: 5 })),
     ]);
     const feedback = Array.isArray(feedbackLedger.feedback) ? feedbackLedger.feedback : [];
     const jobs = Array.isArray(jobLedger.jobs) ? jobLedger.jobs : [];
     const signals = Array.isArray(signalLedger.signals) ? signalLedger.signals : [];
     const metrics = Array.isArray(metricsLedger.metrics) ? metricsLedger.metrics : [];
-    const ledgerErrors = [feedbackLedger, jobLedger, signalLedger, metricsLedger]
+    const heartbeats = Array.isArray(heartbeatLedger.heartbeats) ? heartbeatLedger.heartbeats : [];
+    const ledgerErrors = [feedbackLedger, jobLedger, signalLedger, metricsLedger, heartbeatLedger]
       .filter((ledger) => ledger?.error)
       .map((ledger) => ({
         source: ledger.source,
@@ -29,6 +32,7 @@ export function createPrivateBetaObservabilityService({
       }));
     const failedJobs = jobs.filter((job) => job.status === "failed");
     const latestMetrics = metrics[0] || null;
+    const latestHeartbeat = heartbeats[0] || null;
 
     return {
       schema_version: OBSERVABILITY_SCHEMA_VERSION,
@@ -38,6 +42,7 @@ export function createPrivateBetaObservabilityService({
         failedJobs: failedJobs.length,
         openSignals: signals.length,
         latestUserPatienceRisk: latestMetrics?.scores?.userPatienceRisk || "unknown",
+        latestHeartbeatPatienceRisk: highestHeartbeatPatienceRisk(latestHeartbeat),
         latestBackendSuitability: numberOrNull(latestMetrics?.scores?.backendSuitability),
         ledgerErrors: ledgerErrors.length,
       },
@@ -54,6 +59,7 @@ export function createPrivateBetaObservabilityService({
       failedJobs,
       signals,
       latestMetrics,
+      latestHeartbeat,
     };
   }
 
@@ -200,6 +206,17 @@ function parseLimit(value) {
 function numberOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function highestHeartbeatPatienceRisk(heartbeat = null) {
+  const journeys = Array.isArray(heartbeat?.journeys) ? heartbeat.journeys : [];
+  const ranks = { low: 0, medium: 1, high: 2 };
+  let highest = "low";
+  for (const journey of journeys) {
+    const value = ["low", "medium", "high"].includes(journey.patienceRisk) ? journey.patienceRisk : "low";
+    if (ranks[value] > ranks[highest]) highest = value;
+  }
+  return highest;
 }
 
 function sanitizeText(value, maxLength = 500) {

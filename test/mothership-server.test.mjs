@@ -66,7 +66,37 @@ test("mothership receiver ingests authenticated feedback and signals", async () 
     assert.equal(metrics.response.status, 202);
     assert.equal(metrics.body.accepted, true);
 
-    assert.deepEqual(calls.map((call) => call.type), ["health", "authorize", "feedback", "authorize", "signal", "authorize", "metric"]);
+    const heartbeatPayload = {
+      schema_version: "private-beta-heartbeat-sync/v1",
+      installId: "firm-beta-01",
+      heartbeat: {
+        schema_version: "private-beta-heartbeat/v1",
+        id: "heartbeat_001",
+        createdAt: "2026-06-13T10:00:00.000Z",
+        telemetryMode: "firm_internal",
+        activeSessions: 1,
+        journeys: [{
+          user: "shivangi@lawzeus.com",
+          currentStage: "extract_documents",
+          patienceRisk: "high",
+        }],
+      },
+    };
+    const heartbeat = await postJson(app.baseUrl, "/v1/heartbeats", heartbeatPayload, "mwb_ing_test-token");
+    assert.equal(heartbeat.response.status, 202);
+    assert.equal(heartbeat.body.accepted, true);
+
+    assert.deepEqual(calls.map((call) => call.type), [
+      "health",
+      "authorize",
+      "feedback",
+      "authorize",
+      "signal",
+      "authorize",
+      "metric",
+      "authorize",
+      "heartbeat",
+    ]);
     assert.equal(calls[1].rawToken, "mwb_ing_test-token");
   } finally {
     await app.close();
@@ -167,6 +197,10 @@ function createFakeStore({ calls = [], duplicate = false, authorizationStatus = 
     },
     ingestMetricSnapshot: async ({ installationId, metric }) => {
       calls.push({ type: "metric", installationId, metric });
+      return { inserted: !duplicate };
+    },
+    ingestHeartbeat: async ({ installationId, heartbeat }) => {
+      calls.push({ type: "heartbeat", installationId, heartbeat });
       return { inserted: !duplicate };
     },
   };

@@ -75,6 +75,24 @@ test("mothership report routes live beta signals into action lanes", () => {
       },
     ],
     metrics: [],
+    heartbeats: [{
+      installation_id: "matter-workbench-do-beta-1",
+      heartbeat_id: "heartbeat_001",
+      captured_at: "2026-06-13T00:00:00.000Z",
+      received_at: "2026-06-13T00:00:00.000Z",
+      payload: {
+        id: "heartbeat_001",
+        activeSessions: 1,
+        journeys: [{
+          user: "shivangi@lawzeus.com",
+          matter: "Gionee",
+          currentStage: "extract_documents",
+          currentStageStatus: "failed",
+          patienceRisk: "high",
+        }],
+        counters: { failedJobs: 1 },
+      },
+    }],
   }, { generatedAt: "2026-06-13T00:00:00.000Z" });
 
   assert.deepEqual(report.summary.actionLanes, {
@@ -86,6 +104,11 @@ test("mothership report routes live beta signals into action lanes", () => {
 
   assert.equal(report.summary.featureRequests, 1);
   assert.equal(report.summary.featureIdeas, 0);
+  assert.equal(report.summary.latestHeartbeatAgeMinutes, 0);
+  assert.equal(report.summary.silentInstallations, 0);
+  assert.equal(report.heartbeats.latestByInstallation[0].installationId, "matter-workbench-do-beta-1");
+  assert.equal(report.heartbeats.latestByInstallation[0].journeys[0].currentStage, "extract_documents");
+  assert.equal(report.heartbeats.latestByInstallation[0].highestPatienceRisk, "high");
 
   const missingExtraction = report.items.find((item) => item.id === "signal_extract_missing");
   assert.equal(missingExtraction.action_lane, "fix_now");

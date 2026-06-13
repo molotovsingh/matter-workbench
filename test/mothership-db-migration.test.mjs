@@ -4,6 +4,7 @@ import test from "node:test";
 
 const migrationPath = new URL("../mothership/db/migrations/001_mothership.sql", import.meta.url);
 const metricsMigrationPath = new URL("../mothership/db/migrations/002_mothership_metrics.sql", import.meta.url);
+const heartbeatMigrationPath = new URL("../mothership/db/migrations/003_mothership_heartbeats.sql", import.meta.url);
 const runnerPath = new URL("../mothership/db-migrate.mjs", import.meta.url);
 
 test("mothership migration isolates installations, tokens, feedback, and signals", async () => {
@@ -46,6 +47,18 @@ test("mothership metrics migration stores operator-only deployment snapshots", a
   assert.match(sql, /create index[^;]+mothership_metric_snapshots[^;]+received_at/i);
 });
 
+test("mothership heartbeat migration stores operator-only journey snapshots", async () => {
+  const sql = await readFile(heartbeatMigrationPath, "utf8");
+
+  assert.match(sql, /create table if not exists mothership_heartbeat_events/i);
+  assert.match(sql, /installation_id text not null references mothership_installations/i);
+  assert.match(sql, /heartbeat_id text not null/i);
+  assert.match(sql, /captured_at timestamptz not null/i);
+  assert.match(sql, /payload jsonb not null/i);
+  assert.match(sql, /unique \(installation_id, heartbeat_id\)/i);
+  assert.match(sql, /create index[^;]+mothership_heartbeat_events[^;]+received_at/i);
+});
+
 test("mothership migration runner uses its own database URL and migration directory", async () => {
   const {
     defaultMothershipMigrationsDir,
@@ -61,5 +74,9 @@ test("mothership migration runner uses its own database URL and migration direct
   assert.match(defaultMothershipMigrationsDir, /mothership\/db\/migrations$/);
 
   const migrations = await listMothershipMigrations();
-  assert.deepEqual(migrations.map((migration) => migration.fileName), ["001_mothership.sql", "002_mothership_metrics.sql"]);
+  assert.deepEqual(migrations.map((migration) => migration.fileName), [
+    "001_mothership.sql",
+    "002_mothership_metrics.sql",
+    "003_mothership_heartbeats.sql",
+  ]);
 });

@@ -325,6 +325,201 @@ linked back to the failed action that produced it. This keeps the beta debugging
 loop enterprise-grade without asking lawyers to export logs or explain internal
 state.
 
+## Heartbeat And Journey Telemetry
+
+Status: Push foundation implemented; external pull checks planned
+Date: 2026-06-13
+
+Feedback, diagnostic signals, failed jobs, and backend metrics are necessary,
+but they are still event-shaped. They tell the operator what happened after a
+tester reports or triggers something. They do not, by themselves, give the
+mothership a steady sense of whether the beta app is alive, responsive, and
+following the expected lawyer journey.
+
+The telemetry foundation now includes a regular pushed heartbeat that summarizes
+the product journey without asking testers to export logs or explain app state.
+The separate mothership pull monitor remains planned.
+
+The heartbeat should answer:
+
+- is this install alive;
+- which version and runtime mode is it running;
+- who is using it, at the level allowed by telemetry mode;
+- which matter journey is active;
+- where the current journey is in the app;
+- whether preparation, extraction, source labels, List of Dates, story writing,
+  Copilot, custom skills, Activity, or feedback are healthy;
+- where a tester stalled, retried, switched matter, or hit a failure;
+- whether user patience is at risk because a stage is slow, stuck, or repeatedly
+  failing.
+
+### Beta Deployment Topology
+
+For beta-real testing, do not put the mothership on the same VM as the app.
+
+The preferred topology is:
+
+```text
+DigitalOcean App VM
+  -> HTTPS push to separate DigitalOcean Mother VM/service
+
+Separate Mother VM/service
+  -> shallow HTTPS pull checks against the App VM
+```
+
+Same-VM loopback is still useful for local rehearsal, private development, and
+contract smoke tests:
+
+```text
+Local/private rehearsal:
+App process -> 127.0.0.1 mothership receiver
+```
+
+But it should not be the confidence-building topology for beta release. Earlier
+private-VM-to-public-VM testing showed that tenancy, runtime DB, auth, and
+deployment bugs can hide until the real network and custody boundary exists.
+The mothership boundary should therefore be exercised early, not deferred until
+after testers are already relying on the app.
+
+The separate Mother VM/service can remain small and cheap. It does not run legal
+engines or OCR. Its job is durable intake, reports, uptime visibility, and
+operator debugging. It should have its own database role and should not have
+Matter Workbench legal-data storage permissions.
+
+### Push vs Pull
+
+Use a hybrid model.
+
+The app should **push** rich journey telemetry to the mothership. The app is the
+only process that reliably sees the real in-product path:
+
+- login/session context;
+- route and screen changes;
+- selected matter changes;
+- upload/add-files events;
+- preparation stage transitions;
+- run ids, trace ids, job ids, and failed stage names;
+- Copilot model tier and source-bounded answer attempts;
+- custom skill run lifecycle;
+- feedback submissions near failed actions.
+
+Push also works better for local/private deployments behind NAT, firewalls, or
+private networks because the app only needs outbound access to the mothership.
+Remote sync must remain non-blocking: write the local ledger first, enqueue the
+packet, retry later, and never fail the lawyer's action merely because telemetry
+egress failed.
+
+In a later deployment-monitor slice, the mothership should **pull** only shallow
+external health checks:
+
+- public URL reachable;
+- HTTPS certificate valid;
+- login page reachable;
+- app version/health endpoint reachable;
+- last heartbeat age;
+- basic latency from the mothership's point of view.
+
+Pull is valuable because it detects app-down, nginx, DNS, certificate, and
+network failures that the app cannot report once it is unreachable. Pull should
+not be the primary source of rich journey telemetry.
+
+### Heartbeat Packet Shape
+
+The heartbeat should be a compact summary, not a full evidence pack. A future
+packet can look like:
+
+```json
+{
+  "kind": "heartbeat",
+  "installId": "matter-workbench-do-beta-1",
+  "appVersion": "git-or-release-tag",
+  "runtimeMode": "postgres",
+  "telemetryMode": "firm_internal",
+  "sentAt": "2026-06-13T00:00:00.000Z",
+  "activeSessions": 2,
+  "journeys": [
+    {
+      "user": "shivangi@lawzeus.com",
+      "matter": "Gionee India Pvt Ltd v Bharat Nagpal",
+      "screen": "matter_overview",
+      "lastAction": "run_preparation_again",
+      "currentStage": "extract_documents",
+      "currentStageStatus": "failed",
+      "traceId": "trace_...",
+      "jobId": "job_...",
+      "lastError": "504 Gateway Time-out",
+      "patienceRisk": "high"
+    }
+  ],
+  "counters": {
+    "queuedFeedback": 1,
+    "openSignals": 4,
+    "failedJobs": 2,
+    "slowStages": 1
+  }
+}
+```
+
+In `safe` mode, heartbeat packets must not include raw source text, OCR text,
+generated legal output, provider prompts/responses, database URLs, API keys, or
+raw documents. In `firm_internal` mode, richer diagnostic metadata is acceptable
+for trusted firm beta, but secrets remain redacted.
+
+### Product-Journey State Machine
+
+The heartbeat should eventually summarize a simple journey state machine:
+
+```text
+login
+  -> home
+  -> add_new_matter | find_existing_matter
+  -> upload_files
+  -> prepare_matter
+  -> extract_documents
+  -> label_sources
+  -> build_list_of_dates
+  -> write_dispute_story
+  -> advisory_ready
+  -> copilot_answer | run_skill | submit_feedback
+```
+
+The state machine is diagnostic, not a lawyer-facing workflow rule. It helps the
+operator and developer answer: "Where did this tester get stuck?"
+
+### Suggested Configuration
+
+Do not introduce tester choices for heartbeat. It should be operator configured:
+
+```text
+MWB_PRIVATE_BETA_HEARTBEAT_INTERVAL_SECONDS=300
+MWB_PRIVATE_BETA_HEARTBEAT_SYNC_URL=https://...
+MWB_PRIVATE_BETA_HEARTBEAT_SYNC_TOKEN=...
+MWB_PRIVATE_BETA_INSTALL_ID=...
+MWB_PRIVATE_BETA_TELEMETRY_MODE=firm_internal
+```
+
+If heartbeat-specific URL/token values are absent, the implementation can fall
+back to sibling mothership endpoints derived from the configured metrics,
+signal, or feedback endpoint. The product rule is that heartbeat is automatic,
+non-blocking, and visible to the operator.
+
+### Success Criteria For This Slice
+
+This slice is successful when the mothership can show:
+
+- last heartbeat per install;
+- last user journey per tester;
+- current or last active matter per journey;
+- failed or slow stage, if any;
+- whether the failure appears to be app, provider, storage, auth, network, or
+  user-action related;
+- whether the app has gone silent;
+- whether beta-user patience is at risk.
+
+The tester should not see or manage this telemetry. It exists so the operator
+and developer can fix beta issues before they become long phone calls,
+screenshots, or forgotten context.
+
 ## First Slice
 
 Build the smallest useful version:

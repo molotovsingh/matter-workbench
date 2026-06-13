@@ -188,3 +188,37 @@ test("observability links signals through related failed job ids", async () => {
   assert.deepEqual(result.feedbackEvidence[0].relatedJobs.map((job) => job.id), ["job_signal_link"]);
   assert.deepEqual(result.feedbackEvidence[0].relatedSignals.map((signal) => signal.id), ["signal_001"]);
 });
+
+test("observability includes latest local heartbeat", async () => {
+  const service = createPrivateBetaObservabilityService({
+    feedbackService: {
+      listFeedback: async () => ({ schema_version: "private-beta-feedback-ledger/v1", feedback: [] }),
+    },
+    jobStatusService: {
+      listJobs: async () => ({ schema_version: "job-status-ledger/v1", jobs: [] }),
+    },
+    signalService: {
+      listSignals: async () => ({ schema_version: "private-beta-signal-ledger/v1", signals: [] }),
+    },
+    metricsService: {
+      listMetrics: async () => ({ schema_version: "private-beta-metrics-ledger/v1", metrics: [] }),
+    },
+    heartbeatService: {
+      listHeartbeats: async () => ({
+        schema_version: "private-beta-heartbeat-ledger/v1",
+        heartbeats: [{
+          id: "heartbeat_001",
+          createdAt: "2026-06-13T10:00:00.000Z",
+          activeSessions: 1,
+          journeys: [{ currentStage: "extract_documents", patienceRisk: "high" }],
+        }],
+      }),
+    },
+  });
+
+  const result = await service.readObservability({ limit: 10 });
+
+  assert.equal(result.latestHeartbeat.id, "heartbeat_001");
+  assert.equal(result.latestHeartbeat.journeys[0].currentStage, "extract_documents");
+  assert.equal(result.summary.latestHeartbeatPatienceRisk, "high");
+});

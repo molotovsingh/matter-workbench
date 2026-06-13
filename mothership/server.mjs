@@ -5,6 +5,7 @@ import { httpError, readBearerToken, readJsonBody, redactErrorText, sendJson } f
 const FEEDBACK_SYNC_SCHEMA = "private-beta-feedback-sync/v1";
 const SIGNAL_SYNC_SCHEMA = "private-beta-signal-sync/v1";
 const METRICS_SYNC_SCHEMA = "private-beta-metrics-sync/v1";
+const HEARTBEAT_SYNC_SCHEMA = "private-beta-heartbeat-sync/v1";
 
 export function createMothershipServer({
   store,
@@ -27,7 +28,12 @@ export function createMothershipServer({
         return;
       }
 
-      if (url.pathname !== "/v1/feedback" && url.pathname !== "/v1/signals" && url.pathname !== "/v1/metrics") {
+      if (
+        url.pathname !== "/v1/feedback"
+        && url.pathname !== "/v1/signals"
+        && url.pathname !== "/v1/metrics"
+        && url.pathname !== "/v1/heartbeats"
+      ) {
         throw httpError("Not found", 404);
       }
       if (request.method !== "POST") throw httpError("Method not allowed", 405);
@@ -38,7 +44,9 @@ export function createMothershipServer({
         ? "feedback"
         : url.pathname === "/v1/signals"
           ? "signal"
-          : "metric";
+          : url.pathname === "/v1/metrics"
+            ? "metric"
+            : "heartbeat";
       validateSyncPayload(payload, kind);
       await store.authorizeIngestion({ rawToken, installationId: payload.installId });
       const result = await ingestPayload({ store, kind, payload });
@@ -67,7 +75,9 @@ function validateSyncPayload(payload, kind) {
     ? FEEDBACK_SYNC_SCHEMA
     : kind === "signal"
       ? SIGNAL_SYNC_SCHEMA
-      : METRICS_SYNC_SCHEMA;
+      : kind === "metric"
+        ? METRICS_SYNC_SCHEMA
+        : HEARTBEAT_SYNC_SCHEMA;
   if (payload.schema_version !== expectedSchema) throw httpError(`Expected ${expectedSchema}`, 400);
   if (!/^[A-Za-z0-9_-]{3,160}$/.test(String(payload.installId || ""))) throw httpError("installId is invalid", 400);
   const item = payload[kind];
@@ -76,7 +86,9 @@ function validateSyncPayload(payload, kind) {
     ? "private-beta-feedback/v1"
     : kind === "signal"
       ? "private-beta-signal/v1"
-      : "private-beta-metrics/v1";
+      : kind === "metric"
+        ? "private-beta-metrics/v1"
+        : "private-beta-heartbeat/v1";
   if (item.schema_version !== itemSchema) throw httpError(`Expected ${itemSchema}`, 400);
   if (!/^[A-Za-z0-9_-]{3,160}$/.test(String(item.id || ""))) throw httpError(`${kind}.id is invalid`, 400);
 }
@@ -88,7 +100,10 @@ function ingestPayload({ store, kind, payload }) {
   if (kind === "signal") {
     return store.ingestSignal({ installationId: payload.installId, signal: payload.signal });
   }
-  return store.ingestMetricSnapshot({ installationId: payload.installId, metric: payload.metric });
+  if (kind === "metric") {
+    return store.ingestMetricSnapshot({ installationId: payload.installId, metric: payload.metric });
+  }
+  return store.ingestHeartbeat({ installationId: payload.installId, heartbeat: payload.heartbeat });
 }
 
 function normalizeStatusCode(value) {

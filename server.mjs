@@ -19,6 +19,7 @@ import { createMatterStatusService } from "./services/matter-status-service.mjs"
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
+import { createPrivateBetaHeartbeatService } from "./services/private-beta-heartbeat-service.mjs";
 import { createPrivateBetaMetricsService } from "./services/private-beta-metrics-service.mjs";
 import { createPrivateBetaObservabilityService } from "./services/private-beta-observability-service.mjs";
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
@@ -120,6 +121,32 @@ export async function createWorkbenchServer(options = {}) {
     telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
     fetchImpl: options.privateBetaMetricsFetch || options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
   });
+  const privateBetaHeartbeatService = options.privateBetaHeartbeatService || createPrivateBetaHeartbeatService({
+    appDir,
+    heartbeatPath: options.privateBetaHeartbeatPath || env.MWB_PRIVATE_BETA_HEARTBEAT_PATH,
+    syncUrl: env.MWB_PRIVATE_BETA_HEARTBEAT_SYNC_URL
+      || siblingMothershipSyncUrl(
+        env.MWB_PRIVATE_BETA_METRICS_SYNC_URL || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL,
+        "/v1/heartbeats",
+      ),
+    syncToken: env.MWB_PRIVATE_BETA_HEARTBEAT_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN,
+    installId: env.MWB_PRIVATE_BETA_INSTALL_ID
+      || env.MWB_PRIVATE_BETA_HEARTBEAT_INSTALL_ID
+      || env.MWB_PRIVATE_BETA_METRICS_INSTALL_ID
+      || env.MWB_PRIVATE_BETA_SIGNAL_INSTALL_ID
+      || env.MWB_PRIVATE_BETA_FEEDBACK_INSTALL_ID,
+    telemetryMode: env.MWB_PRIVATE_BETA_TELEMETRY_MODE,
+    fetchImpl: options.privateBetaHeartbeatFetch || options.privateBetaMetricsFetch || options.privateBetaSignalFetch || options.privateBetaFeedbackFetch,
+    deploymentProvider: () => buildDeploymentMetricsContext({ env, host, port, matterStore }),
+    journeyProvider: () => buildHeartbeatJourneyContext({
+      privateBetaFeedbackService,
+      privateBetaSignalService,
+      jobStatusService,
+    }),
+  });
   const telemetryRetryService = options.telemetryRetryService || createPrivateBetaTelemetryRetryService({
     feedbackService: privateBetaFeedbackService,
     metricsService: privateBetaMetricsService,
@@ -127,6 +154,7 @@ export async function createWorkbenchServer(options = {}) {
       deployment: buildDeploymentMetricsContext({ env, host, port, matterStore }),
     }),
     signalService: privateBetaSignalService,
+    heartbeatService: privateBetaHeartbeatService,
   });
   const aiSettingsService = createAiSettingsService({ appDir, env });
   const runtimeDbCommandInteractionLogService = options.runtimeDbCommandInteractionLogService || createRuntimeDbCommandInteractionLogService({
@@ -219,6 +247,7 @@ export async function createWorkbenchServer(options = {}) {
   });
   const privateBetaObservabilityService = options.privateBetaObservabilityService || createPrivateBetaObservabilityService({
     feedbackService: privateBetaFeedbackService,
+    heartbeatService: privateBetaHeartbeatService,
     jobStatusService,
     metricsService: privateBetaMetricsService,
     signalService: privateBetaSignalService,
@@ -273,6 +302,7 @@ export async function createWorkbenchServer(options = {}) {
     prepareMatterService,
     privateBetaAuthService,
     privateBetaFeedbackService,
+    privateBetaHeartbeatService,
     privateBetaMetricsService,
     privateBetaObservabilityService,
     privateBetaSignalService,
@@ -366,7 +396,16 @@ function hasTelemetrySyncConfig(env = {}) {
       || siblingMothershipSyncUrl(env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL, "/v1/metrics")).trim()
     && String(env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN || "").trim(),
   );
-  return feedbackReady || signalReady || metricsReady;
+  const heartbeatReady = Boolean(
+    String(env.MWB_PRIVATE_BETA_HEARTBEAT_SYNC_URL
+      || siblingMothershipSyncUrl(env.MWB_PRIVATE_BETA_METRICS_SYNC_URL || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_URL || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_URL, "/v1/heartbeats")).trim()
+    && String(env.MWB_PRIVATE_BETA_HEARTBEAT_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_METRICS_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_SIGNAL_SYNC_TOKEN
+      || env.MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN
+      || "").trim(),
+  );
+  return feedbackReady || signalReady || metricsReady || heartbeatReady;
 }
 
 function siblingMothershipSyncUrl(value = "", pathname = "/v1/metrics") {
@@ -395,6 +434,54 @@ function buildDeploymentMetricsContext({ env = {}, host = "", port = "", matterS
     restoreDrill: env.MWB_RESTORE_DRILL_STATUS || "unknown",
     storageBackup: env.MWB_STORAGE_BACKUP_STATUS || "unknown",
   };
+}
+
+async function buildHeartbeatJourneyContext({
+  privateBetaFeedbackService,
+  privateBetaSignalService,
+  jobStatusService,
+} = {}) {
+  const [feedbackLedger, signalLedger, jobLedger] = await Promise.all([
+    safeReadTelemetryLedger(() => privateBetaFeedbackService?.listFeedback?.({ limit: 50 })),
+    safeReadTelemetryLedger(() => privateBetaSignalService?.listSignals?.({ limit: 50 })),
+    safeReadTelemetryLedger(() => jobStatusService?.listJobs?.({ limit: 50 })),
+  ]);
+  const feedback = Array.isArray(feedbackLedger.feedback) ? feedbackLedger.feedback : [];
+  const signals = Array.isArray(signalLedger.signals) ? signalLedger.signals : [];
+  const jobs = Array.isArray(jobLedger.jobs) ? jobLedger.jobs : [];
+  const runningJobs = jobs.filter((job) => job.status === "running");
+  const failedJobs = jobs.filter((job) => job.status === "failed");
+  return {
+    activeSessions: 0,
+    journeys: runningJobs.slice(0, 10).map((job) => ({
+      user: job.user || job.username || "",
+      matter: job.matterName || "",
+      screen: "background_job",
+      lastAction: job.kind || "job",
+      currentStage: job.metadata?.latestStage?.label || job.label || job.kind || "job",
+      currentStageStatus: job.status || "running",
+      traceId: job.traceId || "",
+      jobId: job.id || "",
+      lastError: job.errorMessage || "",
+      patienceRisk: job.metadata?.latestStage?.status === "failed" ? "high" : "low",
+    })),
+    counters: {
+      queuedFeedback: feedback.filter((item) => item.sync?.status === "queued").length,
+      openSignals: signals.length,
+      failedJobs: failedJobs.length,
+      slowStages: runningJobs.length,
+    },
+  };
+}
+
+async function safeReadTelemetryLedger(reader) {
+  if (typeof reader !== "function") return {};
+  try {
+    const result = await reader();
+    return result && typeof result === "object" ? result : {};
+  } catch {
+    return {};
+  }
 }
 
 function isLikelySilentWaitPath(pathname = "") {

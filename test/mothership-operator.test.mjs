@@ -126,6 +126,8 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
     latestBackendSuitability: 74,
     latestPortability: 82,
     latestUserPatienceRisk: "medium",
+    latestHeartbeatAgeMinutes: null,
+    silentInstallations: 0,
   });
   assert.equal(report.metrics.latest.scores.backendSuitability, 74);
 

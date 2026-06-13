@@ -5,6 +5,7 @@ export function createPrivateBetaTelemetryRetryService({
   metricsService,
   metricsContextProvider,
   signalService,
+  heartbeatService,
   intervalMs = DEFAULT_INTERVAL_MS,
   setIntervalImpl = setInterval,
   clearIntervalImpl = clearInterval,
@@ -16,10 +17,11 @@ export function createPrivateBetaTelemetryRetryService({
   async function runOnce() {
     if (running) return { skipped: true, reason: "already_running" };
     running = true;
-    const result = { completed: true, feedback: null, metrics: null, signals: null };
+    const result = { completed: true, feedback: null, metrics: null, signals: null, heartbeats: null };
     try {
       result.feedback = await runQueue("feedback", feedbackService?.syncQueuedFeedback);
       result.metrics = await runMetrics();
+      result.heartbeats = await runHeartbeats();
       result.signals = await runQueue("signals", signalService?.syncQueuedSignals);
       return result;
     } finally {
@@ -68,6 +70,26 @@ export function createPrivateBetaTelemetryRetryService({
       };
     } catch (error) {
       log.error?.(`private beta metrics retry failed: ${redactRetryError(error?.message)}`);
+      return { failed: true };
+    }
+  }
+
+  async function runHeartbeats() {
+    if (typeof heartbeatService?.captureHeartbeat !== "function") {
+      return { skipped: true, reason: "unavailable" };
+    }
+    try {
+      const heartbeat = await heartbeatService.captureHeartbeat();
+      const queued = typeof heartbeatService.syncQueuedHeartbeats === "function"
+        ? await heartbeatService.syncQueuedHeartbeats()
+        : { skipped: true, reason: "unavailable" };
+      return {
+        captured: true,
+        syncStatus: heartbeat?.sync?.status || "unknown",
+        queued,
+      };
+    } catch (error) {
+      log.error?.(`private beta heartbeat retry failed: ${redactRetryError(error?.message)}`);
       return { failed: true };
     }
   }

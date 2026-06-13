@@ -71,6 +71,35 @@ test("telemetry retry service captures a new metric snapshot before draining the
   assert.deepEqual(events, ["feedback", "metrics:abc1234", "metrics-queued", "signals"]);
 });
 
+test("telemetry retry service captures and syncs heartbeat snapshots", async () => {
+  const calls = [];
+  const service = createPrivateBetaTelemetryRetryService({
+    feedbackService: { syncQueuedFeedback: async () => ({ sent: 0 }) },
+    metricsService: {
+      captureRuntimeSnapshot: async () => ({ sync: { status: "queued" } }),
+      syncQueuedMetrics: async () => ({ sent: 0 }),
+    },
+    signalService: { syncQueuedSignals: async () => ({ sent: 0 }) },
+    heartbeatService: {
+      captureHeartbeat: async () => {
+        calls.push("captureHeartbeat");
+        return { sync: { status: "queued" } };
+      },
+      syncQueuedHeartbeats: async () => {
+        calls.push("syncQueuedHeartbeats");
+        return { sent: 1 };
+      },
+    },
+  });
+
+  const result = await service.runOnce();
+
+  assert.deepEqual(calls, ["captureHeartbeat", "syncQueuedHeartbeats"]);
+  assert.equal(result.heartbeats.captured, true);
+  assert.equal(result.heartbeats.syncStatus, "queued");
+  assert.equal(result.heartbeats.queued.sent, 1);
+});
+
 test("telemetry retry service prevents overlaps and isolates queue failures", async () => {
   let release;
   let feedbackCalls = 0;

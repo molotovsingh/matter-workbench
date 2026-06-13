@@ -162,6 +162,28 @@ export function createMothershipStore({
     return { inserted: result.rows?.[0]?.inserted === true };
   }
 
+  async function ingestHeartbeat({ installationId, heartbeat }) {
+    const normalizedId = requireIdentifier(installationId, "installationId");
+    const item = requireObject(heartbeat, "heartbeat");
+    const result = await database.query(
+      `insert into mothership_heartbeat_events
+         (installation_id, heartbeat_id, captured_at, payload)
+       values ($1, $2, $3::timestamptz, $4::jsonb)
+       on conflict (installation_id, heartbeat_id) do update
+       set captured_at = excluded.captured_at,
+           received_at = now(),
+           payload = excluded.payload
+       returning id, (xmax = 0) as inserted`,
+      [
+        normalizedId,
+        requireIdentifier(item.id, "heartbeat.id"),
+        requireIso(item.createdAt || item.sentAt, "heartbeat.createdAt"),
+        JSON.stringify(item),
+      ],
+    );
+    return { inserted: result.rows?.[0]?.inserted === true };
+  }
+
   async function pruneExpired({ retentionDays = 180 } = {}) {
     const days = positiveInteger(retentionDays, 180);
     const feedback = await database.query(
@@ -179,10 +201,16 @@ export function createMothershipStore({
        where received_at < now() - ($1::integer * interval '1 day')`,
       [days],
     );
+    const heartbeats = await database.query(
+      `delete from mothership_heartbeat_events
+       where received_at < now() - ($1::integer * interval '1 day')`,
+      [days],
+    );
     return {
       feedbackDeleted: feedback.rowCount || 0,
       signalsDeleted: signals.rowCount || 0,
       metricsDeleted: metrics.rowCount || 0,
+      heartbeatsDeleted: heartbeats.rowCount || 0,
       retentionDays: days,
     };
   }
@@ -194,7 +222,7 @@ export function createMothershipStore({
 
   async function queryReport({ sinceDays = 30 } = {}) {
     const days = positiveInteger(sinceDays, 30);
-    const [feedback, signals, metrics] = await Promise.all([
+    const [feedback, signals, metrics, heartbeats] = await Promise.all([
       database.query(
         `select installation_id, feedback_id, classification, status, matter_name,
                 occurred_at, received_at, payload
@@ -218,8 +246,21 @@ export function createMothershipStore({
          order by received_at desc`,
         [days],
       ),
+      database.query(
+        `select installation_id, heartbeat_id, captured_at, received_at, payload
+         from mothership_heartbeat_events
+         where received_at >= now() - ($1::integer * interval '1 day')
+         order by received_at desc`,
+        [days],
+      ),
     ]);
-    return { sinceDays: days, feedback: feedback.rows || [], signals: signals.rows || [], metrics: metrics.rows || [] };
+    return {
+      sinceDays: days,
+      feedback: feedback.rows || [],
+      signals: signals.rows || [],
+      metrics: metrics.rows || [],
+      heartbeats: heartbeats.rows || [],
+    };
   }
 
   return {
@@ -229,6 +270,7 @@ export function createMothershipStore({
     ingestFeedback,
     ingestSignal,
     ingestMetricSnapshot,
+    ingestHeartbeat,
     pruneExpired,
     health,
     queryReport,
