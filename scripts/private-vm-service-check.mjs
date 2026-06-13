@@ -80,6 +80,7 @@ export async function runPrivateVmServiceCheck({
   }
   const matters = Array.isArray(mattersPayload.matters) ? mattersPayload.matters : [];
   if (!matters.length) return failedReport({ baseUrl, authenticated: authSession.authenticated, rootOk: true, rootBytes: rootText.length, runtimeDbEnabled: Boolean(mattersPayload.enabled), mattersHome: mattersPayload.mattersHome ?? null, error: "No matters returned by /api/matters." });
+  const previousActiveMatter = typeof mattersPayload.active === "string" ? mattersPayload.active : "";
 
   const target = matterName
     ? matters.find((matter) => matter.name === matterName || matter.matterName === matterName)
@@ -106,6 +107,7 @@ export async function runPrivateVmServiceCheck({
   try {
     workspace = await postJson(authSession.fetch, `${baseUrl}/api/switch-matter`, { name: targetName });
   } catch (error) {
+    const restoreWarning = await restoreActiveMatterBestEffort(authSession.fetch, baseUrl, previousActiveMatter, targetName);
     return failedReport({
       baseUrl,
       authenticated: authSession.authenticated,
@@ -115,11 +117,12 @@ export async function runPrivateVmServiceCheck({
       mattersHome: mattersPayload.mattersHome ?? null,
       matterCount: matters.length,
       targetMatter: targetName,
-      error: error.message,
+      error: joinWarnings(error.message, restoreWarning),
     });
   }
   const previewPath = firstPreviewableFilePath(workspace.tree || workspace.files || []);
   if (!previewPath) {
+    const restoreWarning = await restoreActiveMatterBestEffort(authSession.fetch, baseUrl, previousActiveMatter, targetName);
     return {
       passed: true,
       baseUrl,
@@ -134,7 +137,7 @@ export async function runPrivateVmServiceCheck({
       previewPath: "",
       filePreviewReadable: false,
       previewBytes: 0,
-      warning: "No previewable file found in workspace tree.",
+      warning: joinWarnings("No previewable file found in workspace tree.", restoreWarning),
       error: "",
     };
   }
@@ -143,6 +146,7 @@ export async function runPrivateVmServiceCheck({
   try {
     preview = await getJson(authSession.fetch, `${baseUrl}/api/file?${new URLSearchParams({ matterName: targetName, path: previewPath })}`);
   } catch (error) {
+    const restoreWarning = await restoreActiveMatterBestEffort(authSession.fetch, baseUrl, previousActiveMatter, targetName);
     return failedReport({
       baseUrl,
       authenticated: authSession.authenticated,
@@ -154,11 +158,12 @@ export async function runPrivateVmServiceCheck({
       targetMatter: targetName,
       workspaceReadable: true,
       previewPath,
-      error: error.message,
+      error: joinWarnings(error.message, restoreWarning),
     });
   }
   const content = typeof preview.content === "string" ? preview.content : "";
   const passed = Boolean(rootText.length && matters.length && targetName && content.length);
+  const restoreWarning = await restoreActiveMatterBestEffort(authSession.fetch, baseUrl, previousActiveMatter, targetName);
 
   return {
     passed,
@@ -174,6 +179,7 @@ export async function runPrivateVmServiceCheck({
     previewPath,
     filePreviewReadable: Boolean(content.length),
     previewBytes: content.length,
+    warning: restoreWarning,
     error: passed ? "" : "Private VM service check failed.",
   };
 }
@@ -277,6 +283,20 @@ async function postJson(fetchImpl, url, body = {}) {
   const payload = await response.json();
   if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
   return payload;
+}
+
+async function restoreActiveMatterBestEffort(fetchImpl, baseUrl, previousActiveMatter, targetName) {
+  if (!previousActiveMatter || previousActiveMatter === targetName) return "";
+  try {
+    await postJson(fetchImpl, `${baseUrl}/api/switch-matter`, { name: previousActiveMatter });
+    return "";
+  } catch (error) {
+    return `Could not restore previously active matter after service check: ${error.message}`;
+  }
+}
+
+function joinWarnings(...warnings) {
+  return warnings.filter(Boolean).join(" ");
 }
 
 function failedReport(fields = {}) {

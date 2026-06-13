@@ -116,6 +116,113 @@ test("private VM service check verifies root, matters, workspace, and preview", 
   assert.equal(calls.length, 4);
 });
 
+test("private VM service check restores the previously active matter after probing another matter", async () => {
+  const switchedTo = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/matters") {
+      return jsonResponse({
+        enabled: true,
+        mattersHome: null,
+        active: "Client Matter",
+        matters: [
+          { name: "Probe Matter", matterName: "Probe Matter" },
+          { name: "Client Matter", matterName: "Client Matter" },
+        ],
+      });
+    }
+    if (parsed.pathname === "/api/switch-matter") {
+      assert.equal(init?.method, "POST");
+      const body = JSON.parse(init.body);
+      switchedTo.push(body.name);
+      return jsonResponse({
+        tree: {
+          children: [
+            { kind: "file", path: "matter.json", previewable: true, previewKind: "text" },
+          ],
+        },
+      });
+    }
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "{\"matterName\":\"Probe Matter\"}" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, true);
+  assert.equal(report.targetMatter, "Probe Matter");
+  assert.deepEqual(switchedTo, ["Probe Matter", "Client Matter"]);
+});
+
+test("private VM service check does not restore when the probed matter was already active", async () => {
+  const switchedTo = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/matters") {
+      return jsonResponse({
+        enabled: true,
+        mattersHome: null,
+        active: "Probe Matter",
+        matters: [{ name: "Probe Matter", matterName: "Probe Matter" }],
+      });
+    }
+    if (parsed.pathname === "/api/switch-matter") {
+      const body = JSON.parse(init.body);
+      switchedTo.push(body.name);
+      return jsonResponse({
+        tree: {
+          children: [
+            { kind: "file", path: "matter.json", previewable: true, previewKind: "text" },
+          ],
+        },
+      });
+    }
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "{\"matterName\":\"Probe Matter\"}" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, true);
+  assert.deepEqual(switchedTo, ["Probe Matter"]);
+});
+
+test("private VM service check tries to restore active matter when the probe switch fails", async () => {
+  const switchedTo = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/matters") {
+      return jsonResponse({
+        enabled: true,
+        mattersHome: null,
+        active: "Client Matter",
+        matters: [
+          { name: "Probe Matter", matterName: "Probe Matter" },
+          { name: "Client Matter", matterName: "Client Matter" },
+        ],
+      });
+    }
+    if (parsed.pathname === "/api/switch-matter") {
+      const body = JSON.parse(init.body);
+      switchedTo.push(body.name);
+      if (body.name === "Probe Matter") {
+        throw new Error("switch failed after partial state change");
+      }
+      return jsonResponse({ tree: { children: [] } });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, false);
+  assert.match(report.error, /switch failed after partial state change/);
+  assert.deepEqual(switchedTo, ["Probe Matter", "Client Matter"]);
+});
+
 test("private VM service check logs in when private beta credentials are supplied", async () => {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
