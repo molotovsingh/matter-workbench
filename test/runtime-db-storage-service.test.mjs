@@ -459,6 +459,9 @@ test("runtime DB storage service tombstones materialized artifacts deleted by a 
   assert.match(tombstoneSql, /state\s*=\s*'deleted_pending'/i);
   assert.match(tombstoneSql, /deleted_at\s*=\s*now\(\)/i);
   assert.match(tombstoneSql, /DB Matter\/10_Library\/Old Artifact\.md/);
+  assert.match(tombstoneSql, /update extraction_records\nset superseded_at = now\(\)/i);
+  assert.match(tombstoneSql, /update source_descriptors\nset superseded_at = now\(\), updated_at = now\(\)/i);
+  assert.equal((tombstoneSql.match(/superseded_at is null/gi) || []).length, 2);
   assert.doesNotMatch(tombstoneSql, /insert into storage_object_payloads/i);
   assert.doesNotMatch(tombstoneSql, /secret/);
 });
