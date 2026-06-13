@@ -25,6 +25,7 @@ import {
 import { toCsv } from "../shared/csv.mjs";
 import { makeHttpError, toPosix, validateRelativePath } from "../shared/safe-paths.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import { missingMetadataLabels, prepareStageDefinition, warningsForPlan } from "../shared/preparation-stages.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import {
   WORKSPACE_PREVIEW_LIMITS,
@@ -338,7 +339,10 @@ export function createRuntimeDbStorageService({
 
   async function readMatterStatus(matter) {
     const normalizedMatter = normalizeMatter(matter);
-    const { objects, tree } = readWorkspaceState(normalizedMatter);
+    return matterStatusFromState(normalizedMatter, readWorkspaceState(normalizedMatter));
+  }
+
+  function matterStatusFromState(normalizedMatter, { objects, tree }) {
     const paths = workspaceFilePaths(tree.root);
     const runtimeInputs = runtimeStatusInputs({ matter: normalizedMatter, objects });
     const stages = [
@@ -384,7 +388,9 @@ export function createRuntimeDbStorageService({
 
   async function readPrepareMatterPlan(matter) {
     const normalizedMatter = normalizeMatter(matter);
-    const status = await readMatterStatus(normalizedMatter);
+    const state = readWorkspaceState(normalizedMatter);
+    const status = matterStatusFromState(normalizedMatter, state);
+    const missingMetadata = missingMetadataLabels(state.dbMatter);
     const stageBySlash = new Map(status.stages.map((stage) => [stage.slash, stage]));
     const setup = prepareStage("/matter-init", stageBySlash.get("/matter-init"));
     const extraction = prepareStage("/extract", stageBySlash.get("/extract"), setup);
@@ -399,8 +405,8 @@ export function createRuntimeDbStorageService({
         folderName: normalizedMatter.name,
       },
       metadata: {
-        missing: [],
-        complete: true,
+        missing: missingMetadata,
+        complete: missingMetadata.length === 0,
       },
       stages,
       downstream: {
@@ -421,7 +427,7 @@ export function createRuntimeDbStorageService({
             stage: "",
             slash: "",
           },
-      warnings: [],
+      warnings: warningsForPlan({ missingMetadata, stages, listOfDates }),
     };
   }
 
@@ -1285,7 +1291,7 @@ function statusStage({ id, slash, label, present, artifacts = [], rerunAdvice = 
 }
 
 function prepareStage(slash, statusStageValue, previousStage = null) {
-  const definition = stageDefinition(slash);
+  const definition = prepareStageDefinition(slash);
   const advice = statusStageValue?.rerunAdvice || null;
   const adviceState = advice?.state || (statusStageValue?.present ? RERUN_ADVICE_STATES.CURRENT : RERUN_ADVICE_STATES.MISSING);
   const base = {
@@ -1335,36 +1341,6 @@ function prepareStage(slash, statusStageValue, previousStage = null) {
     action: definition.paidProviderCall ? PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN : PREPARATION_STAGE_ACTIONS.RUN,
     reason: `${definition.label} is missing from DB payload custody.`,
   };
-}
-
-function stageDefinition(slash) {
-  const definitions = {
-    "/matter-init": {
-      id: "matter-init",
-      label: "Set up matter",
-      description: "Create matter metadata, intake registers, and preserved source folders.",
-      paidProviderCall: false,
-    },
-    "/extract": {
-      id: "extract",
-      label: "Extract documents",
-      description: "Build source-backed extraction records from registered working copies.",
-      paidProviderCall: false,
-    },
-    "/describe_sources": {
-      id: "describe-sources",
-      label: "Label sources",
-      description: "Create lawyer-readable source labels in Source Index.json.",
-      paidProviderCall: true,
-    },
-    "/create_listofdates": {
-      id: "create-listofdates",
-      label: "Create List of Dates",
-      description: "Build a source-backed chronology for lawyer review.",
-      paidProviderCall: true,
-    },
-  };
-  return definitions[slash];
 }
 
 async function listMatterFiles(root, relativePrefix = "") {
