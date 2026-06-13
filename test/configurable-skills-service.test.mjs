@@ -45,6 +45,15 @@ test("configurable skills create active skills from approved samples and allocat
   assert.ok(cards.every((card) => card.configurable));
 });
 
+test("configurable skills mark the source idea created after successful activation", async () => {
+  const { service, statusUpdates } = await makeServiceHarness();
+
+  const created = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  assert.equal(created.skill.status, "active");
+  assert.deepEqual(statusUpdates, [{ id: "idea_party_1", status: "created" }]);
+});
+
 test("failed new skill drafts do not reserve the clean slash on retry", async () => {
   const { service } = await makeServiceHarness({
     runMarkdownSequence: [
@@ -495,6 +504,7 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequ
     ["idea_party_2", makeSample("sample_party_2", sampleMarkdown)],
     ["idea_party_improve", makeSample("sample_party_improve", sampleMarkdown)],
   ]);
+  const statusUpdates = [];
   const runLedger = createConfigurableSkillRunsService({
     appDir,
     idFactory: (() => {
@@ -514,6 +524,10 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequ
         const idea = ideas.get(id);
         if (!idea) throw new Error(`missing idea ${id}`);
         return idea;
+      },
+      updateIdeaStatus: async (id, status) => {
+        statusUpdates.push({ id, status });
+        return { idea: { ...ideas.get(id), status } };
       },
     },
     skillSamplesService: {
@@ -557,7 +571,7 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequ
       ].join("\n");
     },
   });
-  return { service, matterRoot, runLedger };
+  return { service, matterRoot, runLedger, statusUpdates };
 }
 
 function makeIdea(id) {

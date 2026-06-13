@@ -2,6 +2,7 @@ export const SKILL_IDEA_STATUS = Object.freeze({
   INCOMPLETE: "incomplete",
   READY_FOR_REVIEW: "ready_for_review",
   PARKED: "parked",
+  CREATED: "created",
   DISMISSED: "dismissed",
 });
 

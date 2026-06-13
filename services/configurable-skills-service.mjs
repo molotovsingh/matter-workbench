@@ -36,6 +36,7 @@ import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { SKILL_IDEA_STATUS } from "../shared/skill-idea-statuses.mjs";
 
 export { CONFIGURABLE_SKILLS_SCHEMA_VERSION } from "./configurable-skill-store.mjs";
 export { CONFIGURABLE_SKILL_SCHEMA_VERSION, skillToRegistryCard } from "./configurable-skill-definition.mjs";
@@ -123,6 +124,9 @@ export function createConfigurableSkillsService({
       });
     });
     if (validationError) throw validationError;
+    if (typeof skillIdeasService.updateIdeaStatus === "function") {
+      await skillIdeasService.updateIdeaStatus(idea.id, SKILL_IDEA_STATUS.CREATED);
+    }
     return result;
   }
 

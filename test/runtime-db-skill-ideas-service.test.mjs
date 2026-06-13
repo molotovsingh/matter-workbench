@@ -55,11 +55,13 @@ test("runtime DB skill ideas service creates and updates ideas in Postgres", asy
     notes: "Prefer concise issue-wise output.",
   });
   const parked = await service.updateIdeaStatus("idea_route_plan", "parked");
+  const createdStatus = await service.updateIdeaStatus("idea_route_plan", "created");
 
   assert.equal(created.idea.id, "idea_route_plan");
   assert.equal(created.idea.status, "incomplete");
   assert.equal(updated.idea.designBrief.notes, "Prefer concise issue-wise output.");
   assert.equal(parked.idea.status, "parked");
+  assert.equal(createdStatus.idea.status, "created");
   const sql = calls.map((call) => call.input || "").join("\n");
   assertTransactionWrapped(calls[0].input);
   assertTransactionWrapped(calls[1].input);

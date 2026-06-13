@@ -39,6 +39,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "015_storage_object_payloads.sql",
       "016_source_descriptors_storage_object_link.sql",
       "017_custody_supersession.sql",
+      "018_skill_idea_created_status.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -58,6 +59,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("015_storage_object_payloads.sql"), "015_storage_object_payloads");
   assert.equal(migrationVersionFromFile("016_source_descriptors_storage_object_link.sql"), "016_source_descriptors_storage_object_link");
   assert.equal(migrationVersionFromFile("017_custody_supersession.sql"), "017_custody_supersession");
+  assert.equal(migrationVersionFromFile("018_skill_idea_created_status.sql"), "018_skill_idea_created_status");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

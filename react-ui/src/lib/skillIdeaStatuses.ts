@@ -2,6 +2,7 @@ export const SKILL_IDEA_STATUS = {
   INCOMPLETE: 'incomplete',
   READY_FOR_REVIEW: 'ready_for_review',
   PARKED: 'parked',
+  CREATED: 'created',
   DISMISSED: 'dismissed',
 } as const;
 
@@ -28,6 +29,7 @@ export function skillIdeaStatusLabel(status: string | null | undefined): string 
   const normalized = normalizeSkillIdeaStatus(status);
   if (normalized === SKILL_IDEA_STATUS.READY_FOR_REVIEW) return 'Ready to review';
   if (normalized === SKILL_IDEA_STATUS.PARKED) return 'Parked';
+  if (normalized === SKILL_IDEA_STATUS.CREATED) return 'Skill created';
   if (normalized === SKILL_IDEA_STATUS.DISMISSED) return 'Dismissed';
   return 'Draft saved';
 }

@@ -170,8 +170,14 @@ export default function SkillsPage() {
     setIntroHidden(true);
   }
 
-  const activeIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) !== SKILL_IDEA_STATUS.DISMISSED);
-  const dismissedIdeas = ideas.filter((i) => normalizeSkillIdeaStatus(i.status) === SKILL_IDEA_STATUS.DISMISSED);
+  const activeIdeas = ideas.filter((i) => {
+    const status = normalizeSkillIdeaStatus(i.status);
+    return status !== SKILL_IDEA_STATUS.DISMISSED && status !== SKILL_IDEA_STATUS.CREATED;
+  });
+  const dismissedIdeas = ideas.filter((i) => {
+    const status = normalizeSkillIdeaStatus(i.status);
+    return status === SKILL_IDEA_STATUS.DISMISSED || status === SKILL_IDEA_STATUS.CREATED;
+  });
   const builtinRegistrySkills = registrySkills.filter((skill) => !skill.configurable);
   const visibleCustomSkills = customSkills.filter((skill) => skill.status === 'active' || skill.status === 'suspended');
   const draftCustomSkills = customSkills.filter((skill) => skill.status === 'draft');
@@ -531,7 +537,7 @@ function SkillHistorySection({
           />
         ))}
         {dismissedIdeas.length > 0 && (
-          <div className="skills-subsection-label">Dismissed ideas</div>
+          <div className="skills-subsection-label">Past skill ideas</div>
         )}
         {dismissedIdeas.map((idea) => (
           <SkillIdeaRow key={idea.id} idea={idea} />

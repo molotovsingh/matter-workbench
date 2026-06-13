@@ -104,6 +104,8 @@ test("React Skills page lets saved skill ideas continue instead of rendering ine
   const commandSource = await readFile(commandPanelPath, "utf8");
 
   assert.match(skillsSource, /function handleContinueIdea\(idea: SkillIdea\)/);
+  assert.match(skillsSource, /status !== SKILL_IDEA_STATUS\.DISMISSED && status !== SKILL_IDEA_STATUS\.CREATED/);
+  assert.match(skillsSource, /Past skill ideas/);
   assert.match(skillsSource, /SET_PENDING_SKILL_IDEA_RESUME/);
   assert.match(skillsSource, /Pick a matter, then continue the saved skill idea from Skills\./);
   assert.match(skillsSource, /hasActiveMatter \? 'Continue' : 'Pick matter first'/);
