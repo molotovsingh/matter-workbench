@@ -137,6 +137,8 @@ test("React matter overview presents preparation and advisory language", async (
   assert.match(overview, /Automatic preparation has run for this matter/);
   assert.match(overview, /Automatic preparation is running/);
   assert.match(overview, /Automatic preparation stopped/);
+  assert.match(overview, /Matter details are incomplete/);
+  assert.match(overview, /formatMissingMatterDetails\(missingFields\)/);
   assert.match(overview, /preparationRefreshKey/);
   assert.match(overview, /<PipelineCard[\s\S]*refreshKey=\{preparationRefreshKey\}/);
   assert.match(overview, /<AttentionCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} preparationRun=\{preparationRun\}/);
@@ -145,6 +147,7 @@ test("React matter overview presents preparation and advisory language", async (
   assert.match(overview, /preparationRun/);
   assert.doesNotMatch(overview, /Matter readiness/);
   assert.doesNotMatch(overview, /Developer attention/);
+  assert.doesNotMatch(overview, /matter\.json/);
 });
 
 test("React prepare-matter empty state describes the full mandatory chain", async () => {

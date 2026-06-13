@@ -24,3 +24,12 @@ test("React Prepare Matter full-run button uses the shared automatic preparation
   assert.match(source, /onProgress: \(status\) => \{/);
   assert.doesNotMatch(source, /pendingPaidConfirm/);
 });
+
+test("React Prepare Matter uses lawyer-facing matter detail language", async () => {
+  const source = await readFile(prepareMatterPath, "utf8");
+
+  assert.match(source, /Matter details are incomplete/);
+  assert.match(source, /formatMissingMatterDetails\(plan\.metadataCheck\.missing\)/);
+  assert.doesNotMatch(source, /Missing metadata/);
+  assert.doesNotMatch(source, /matter\.json/);
+});

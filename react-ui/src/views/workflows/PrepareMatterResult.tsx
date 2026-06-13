@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { lookupString } from '../../lib/lookup';
+import { formatMissingMatterDetails } from '../../lib/matterDetails';
 import { cleanCommandLabel } from '../../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../../lib/presentationLabels';
 import { PREPARATION_STAGE_ACTIONS } from '../../lib/preparationStageActions';
@@ -287,7 +288,7 @@ export default function PrepareMatterResult() {
           </div>
           {plan.metadataCheck && !plan.metadataCheck.valid && plan.metadataCheck.missing && (
             <p className="form-error" style={{ marginTop: 8 }}>
-              Missing metadata: {plan.metadataCheck.missing.join(', ')}
+              Matter details are incomplete: {formatMissingMatterDetails(plan.metadataCheck.missing)}
             </p>
           )}
         </section>

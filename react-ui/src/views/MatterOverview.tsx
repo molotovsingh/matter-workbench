@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from '../lib/listOfDatesDependencyState';
+import { formatMissingMatterDetails } from '../lib/matterDetails';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
@@ -63,8 +64,8 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
 
       {missingFields.length > 0 && (
         <p className="form-error">
-          Missing metadata: {missingFields.join(', ')}. Update the matter details file
-          (<code>matter.json</code>) and refresh, or recreate the matter via <code>Add new matter</code>.
+          Matter details are incomplete: {formatMissingMatterDetails(missingFields)}. Recreate the matter
+          with these details, or ask the Matter Workbench operator to update them.
         </p>
       )}
 
