@@ -1578,6 +1578,7 @@ async function uploadIntakeResultFromMatterRoot({
       fileNumber: fileNumberForFileId(row.file_id),
       fileId: stringValue(row.file_id).toUpperCase(),
       sha256: stringValue(row.sha256),
+      duplicateOf: stringValue(row.duplicate_of).toUpperCase(),
     }))
     .filter((row) => row.fileNumber > 0 && /^FILE-\d{4}$/.test(row.fileId));
   return {
@@ -1800,10 +1801,11 @@ function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importI
     const documentId = documentIdForImportItem(matter, item);
     const blobId = documentBlobIdForImportItem(matter, item);
     const originalName = path.posix.basename(normalizeObjectKey(item.originalRelativePath || item.relativePath));
+    const duplicateDocumentIdSql = duplicateDocumentIdForImportItemSql({ matter, item });
     return [
       [
-        "insert into documents (id, tenant_id, matter_id, intake_id, upload_session_id, file_number, file_id, original_name, category, sha256, size_bytes, status)",
-        `values (${sqlUuid(documentId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeId)}, ${sqlUuid(uploadSessionId)}, ${sqlInteger(item.fileNumber)}, ${sqlString(item.fileId)}, ${sqlString(originalName)}, 'source_upload', ${sqlString(item.sha256)}, ${sqlInteger(row.sizeBytes)}, 'verified')`,
+        "insert into documents (id, tenant_id, matter_id, intake_id, upload_session_id, file_number, file_id, original_name, category, sha256, size_bytes, duplicate_of_document_id, status)",
+        `values (${sqlUuid(documentId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeId)}, ${sqlUuid(uploadSessionId)}, ${sqlInteger(item.fileNumber)}, ${sqlString(item.fileId)}, ${sqlString(originalName)}, 'source_upload', ${sqlString(item.sha256)}, ${sqlInteger(row.sizeBytes)}, ${duplicateDocumentIdSql}, 'verified')`,
         "on conflict (matter_id, file_id) do update set",
         "  intake_id = excluded.intake_id,",
         "  upload_session_id = excluded.upload_session_id,",
@@ -1812,6 +1814,7 @@ function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importI
         "  category = excluded.category,",
         "  sha256 = excluded.sha256,",
         "  size_bytes = excluded.size_bytes,",
+        "  duplicate_of_document_id = excluded.duplicate_of_document_id,",
         "  status = excluded.status,",
         "  updated_at = now();",
       ].join("\n"),
@@ -1848,6 +1851,18 @@ function documentIdForImportItem(matter, item) {
 
 function documentBlobIdForImportItem(matter, item) {
   return deterministicUuid(`runtime-db-document-blob:${matter.id}:${item.fileId}:original`);
+}
+
+function duplicateDocumentIdForImportItemSql({ matter, item }) {
+  const duplicateOf = stringValue(item.duplicateOf).toUpperCase();
+  if (!/^FILE-\d{4}$/.test(duplicateOf) || duplicateOf === item.fileId) return "null";
+  return [
+    "(select id from documents",
+    " where tenant_id = current_app_tenant_id()",
+    `   and matter_id = ${sqlUuid(matter.id)}`,
+    `   and file_id = ${sqlString(duplicateOf)}`,
+    " limit 1)",
+  ].join("");
 }
 
 function materializedFileUpsertSql({ matter, row }) {

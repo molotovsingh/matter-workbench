@@ -535,6 +535,36 @@ test("runtime DB storage service creates matter upload custody rows with payload
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB storage service preserves duplicate source identity in document custody", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-duplicate-upload-"));
+  const firstFile = path.join(tmp, "notice-a.txt");
+  const secondFile = path.join(tmp, "notice-b.txt");
+  await writeFile(firstFile, "Same notice served on 1 January 2026.");
+  await writeFile(secondFile, "Same notice served on 1 January 2026.");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [{}, {}]),
+  });
+
+  await service.createMatterFromUploadedFiles({
+    name: "DB Duplicate Matter",
+    metadata: { matterName: "DB Duplicate Matter" },
+    files: [
+      { index: 0, tempPath: firstFile, filename: "notice-a.txt", bytes: 37 },
+      { index: 1, tempPath: secondFile, filename: "notice-b.txt", bytes: 37 },
+    ],
+    relativePaths: ["evidence/notice-a.txt", "evidence/notice-b.txt"],
+  });
+
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /duplicate_of_document_id/i);
+  assert.match(sql, /FILE-0002[\s\S]+FILE-0001/i);
+  assert.match(sql, /duplicate_of_document_id = excluded\.duplicate_of_document_id/i);
+  assert.doesNotMatch(sql, /secret/);
+});
+
 test("runtime DB storage service stamps uploaded matters with the current private beta user", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-owned-upload-"));
   const uploadedFile = path.join(tmp, "notice.txt");
