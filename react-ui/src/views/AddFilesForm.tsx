@@ -10,16 +10,11 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
+import { canHashFileSha256, hashFileSha256 } from '../lib/browserFileHash';
 
 interface Props {
   onCancel: () => void;
   onDone: (opts?: { autoPrepare?: boolean }) => void;
-}
-
-async function hashFile(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 export default function AddFilesForm({ onCancel, onDone }: Props) {
@@ -70,24 +65,28 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
 
     try {
       if (!bypassOverlap) {
-        appendTerminal(['[add-files] checking for duplicates…']);
-        const hashes = await Promise.all(collected.map((c) => hashFile(c.file)));
-        if (activeMatterNameRef.current !== matterName) return;
-        const checkResult = await api.checkOverlap({
-          hashes,
-          proposedName: matterName,
-        });
-        if (activeMatterNameRef.current !== matterName) return;
+        if (canHashFileSha256()) {
+          appendTerminal(['[add-files] checking for duplicates…']);
+          const hashes = await Promise.all(collected.map((c) => hashFileSha256(c.file)));
+          if (activeMatterNameRef.current !== matterName) return;
+          const checkResult = await api.checkOverlap({
+            hashes,
+            proposedName: matterName,
+          });
+          if (activeMatterNameRef.current !== matterName) return;
 
-        const warnings = checkResult.warnings ?? [];
-        const self = warnings.find((w) => w.matterName === matterName);
-        const others = warnings.filter((w) => w.matterName !== matterName);
+          const warnings = checkResult.warnings ?? [];
+          const self = warnings.find((w) => w.matterName === matterName);
+          const others = warnings.filter((w) => w.matterName !== matterName);
 
-        if (self || others.length > 0) {
-          setSelfOverlap(self ?? null);
-          setOtherOverlaps(others);
-          setSubmitting(false);
-          return;
+          if (self || others.length > 0) {
+            setSelfOverlap(self ?? null);
+            setOtherOverlaps(others);
+            setSubmitting(false);
+            return;
+          }
+        } else {
+          appendTerminal(['[add-files] Duplicate check is unavailable in this browser; uploading without duplicate warning.']);
         }
       }
 
