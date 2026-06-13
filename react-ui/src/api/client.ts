@@ -134,7 +134,11 @@ async function readErrorPayload(res: Response): Promise<unknown> {
 }
 
 function formatApiErrorMessage(payload: unknown, res: Response, url: string): string {
-  if (typeof payload === 'string' && payload.trim()) return payload.trim();
+  if (typeof payload === 'string' && payload.trim()) {
+    const text = payload.trim();
+    if (isHtmlErrorBody(text)) return formatHttpFallbackMessage(res, url);
+    return text;
+  }
 
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
@@ -142,7 +146,25 @@ function formatApiErrorMessage(payload: unknown, res: Response, url: string): st
     if (typeof record.message === 'string' && record.message.trim()) return record.message.trim();
   }
 
+  return formatHttpFallbackMessage(res, url);
+}
+
+function formatHttpFallbackMessage(res: Response, url: string): string {
+  const status = `${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
+  if (res.status === 504 && url.includes('/api/extract')) {
+    return `Reading documents took too long (${status}). The app may still be finishing in the background; refresh the matter in a minute, then run preparation again if needed.`;
+  }
+  if (res.status === 504) {
+    return `This request took too long (${status}). Please refresh and retry in a minute.`;
+  }
+  if (res.status >= 500) {
+    return `The server could not complete this request (${status}). Please retry in a minute.`;
+  }
   return `${url} returned ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
+}
+
+function isHtmlErrorBody(text: string): boolean {
+  return /^<!doctype\s+html/i.test(text) || /<\/?(html|head|body|title|h1|center)\b/i.test(text);
 }
 
 function withQuery(path: string, query: Record<string, string | undefined | null>): string {
