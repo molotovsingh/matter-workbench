@@ -565,8 +565,8 @@ function CustomSkillRow({
       <div className="skill-row-main">
         <div className="skill-row-title">
           <strong>{skill.title}</strong>
-          <span className={`pipeline-state ${customSkillStateClass(skill.status)}`}>
-            {statusOverride || customSkillStateLabel(skill.status)}
+          <span className={`pipeline-state ${customSkillStateClass(skill)}`}>
+            {statusOverride || customSkillStateLabel(skill)}
           </span>
         </div>
         <div className="skill-row-meta">
@@ -695,7 +695,9 @@ function lifecycleReason(action: LifecycleAction): string {
   return 'Deleted from Skills page.';
 }
 
-function customSkillStateLabel(status?: string): string {
+function customSkillStateLabel(skill: ConfigurableSkill): string {
+  const status = skill.status;
+  if (status === 'draft' && String(skill.slash || '').endsWith('_failed_validation')) return 'Failed validation';
   if (status === 'active') return 'Active';
   if (status === 'suspended') return 'Paused';
   if (status === 'archived') return 'Archived';
@@ -704,8 +706,10 @@ function customSkillStateLabel(status?: string): string {
   return 'Custom skill';
 }
 
-function customSkillStateClass(status?: string): string {
+function customSkillStateClass(skill: ConfigurableSkill): string {
+  const status = skill.status;
   if (status === 'active') return 'present';
+  if (status === 'draft' && String(skill.slash || '').endsWith('_failed_validation')) return 'failed';
   if (status === 'suspended' || status === 'draft') return 'pending';
   if (status === 'archived' || status === 'disabled') return 'not-run';
   return 'pending';

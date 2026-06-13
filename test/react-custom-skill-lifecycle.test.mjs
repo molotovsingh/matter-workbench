@@ -156,3 +156,10 @@ test("React Skills page keeps technical custom skill slugs out of in-progress ro
   assert.match(skillsSource, /Command: \{skill\.slash\}/);
   assert.match(skillsSource, /\{showCommandInline && <span>\{skill\.slash\}<\/span>\}/);
 });
+
+test("React Skills page labels failed-validation drafts distinctly", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+
+  assert.match(skillsSource, /endsWith\('_failed_validation'\)[\s\S]*return 'Failed validation'/);
+  assert.match(skillsSource, /endsWith\('_failed_validation'\)[\s\S]*return 'failed'/);
+});
