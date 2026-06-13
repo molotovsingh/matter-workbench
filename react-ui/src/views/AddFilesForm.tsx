@@ -4,11 +4,12 @@ import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { OverlapWarning } from '../types';
-
-interface CollectedFile {
-  file: File;
-  relativePath: string;
-}
+import {
+  collectDroppedEntries,
+  collectFilesFromFileList,
+  getDroppedFileSystemEntries,
+  type CollectedUploadFile,
+} from '../lib/uploadFileCollection';
 
 interface Props {
   onCancel: () => void;
@@ -24,7 +25,7 @@ async function hashFile(file: File): Promise<string> {
 export default function AddFilesForm({ onCancel, onDone }: Props) {
   const { state, appendTerminal } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
-  const [collected, setCollected] = useState<CollectedFile[]>([]);
+  const [collected, setCollected] = useState<CollectedUploadFile[]>([]);
   const [label, setLabel] = useState('');
   const [dragover, setDragover] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -35,7 +36,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
 
-  function addFiles(files: CollectedFile[]) {
+  function addFiles(files: CollectedUploadFile[]) {
     setCollected((prev) => [...prev, ...files]);
     setSelfOverlap(null);
     setOtherOverlaps([]);
@@ -45,28 +46,17 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragover(false);
-    const items = Array.from(e.dataTransfer.items);
-    const entries = items
-      .map((item) => item.webkitGetAsEntry?.())
-      .filter((entry): entry is FileSystemEntry => entry != null);
+    const entries = getDroppedFileSystemEntries(e.dataTransfer);
 
     if (entries.length > 0) {
-      walkEntries(entries).then(addFiles);
+      collectDroppedEntries(entries).then(addFiles).catch((err) => setError(getErrorMessage(err)));
     } else {
-      const dropped = Array.from(e.dataTransfer.files).map((f) => ({
-        file: f,
-        relativePath: f.name,
-      }));
-      addFiles(dropped);
+      addFiles(collectFilesFromFileList(e.dataTransfer.files));
     }
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).map((f) => ({
-      file: f,
-      relativePath: f.webkitRelativePath || f.name,
-    }));
-    addFiles(files);
+    addFiles(collectFilesFromFileList(e.target.files));
     e.target.value = '';
   }
 
@@ -238,28 +228,4 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-async function walkEntries(entries: FileSystemEntry[]): Promise<CollectedFile[]> {
-  const results: CollectedFile[] = [];
-  async function walk(entry: FileSystemEntry, prefix: string) {
-    if (entry.isFile) {
-      const file = await new Promise<File>((resolve, reject) => {
-        (entry as FileSystemFileEntry).file(resolve, reject);
-      });
-      results.push({ file, relativePath: prefix + entry.name });
-    } else if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      const children = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-        reader.readEntries(resolve, reject);
-      });
-      for (const child of children) {
-        await walk(child, prefix + entry.name + '/');
-      }
-    }
-  }
-  for (const entry of entries) {
-    await walk(entry, '');
-  }
-  return results;
 }

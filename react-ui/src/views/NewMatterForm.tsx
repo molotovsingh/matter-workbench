@@ -2,6 +2,12 @@ import { useState, useRef } from 'react';
 import { isMatterSwitchSupersededError, useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
+import {
+  collectDroppedEntries,
+  collectFilesFromFileList,
+  getDroppedFileSystemEntries,
+  type CollectedUploadFile,
+} from '../lib/uploadFileCollection';
 
 interface Props {
   onCancel: () => void;
@@ -16,17 +22,29 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   const [oppositeParty, setOppositeParty] = useState('');
   const [jurisdiction, setJurisdiction] = useState('');
   const [briefDescription, setBriefDescription] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<CollectedUploadFile[]>([]);
   const [dragover, setDragover] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragover(false);
-    const dropped = Array.from(e.dataTransfer.files);
-    setFiles((prev) => [...prev, ...dropped]);
+    const entries = getDroppedFileSystemEntries(e.dataTransfer);
+    if (entries.length > 0) {
+      collectDroppedEntries(entries)
+        .then((dropped) => setFiles((prev) => [...prev, ...dropped]))
+        .catch((err) => setError(getErrorMessage(err)));
+    } else {
+      setFiles((prev) => [...prev, ...collectFilesFromFileList(e.dataTransfer.files)]);
+    }
+  }
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    setFiles((prev) => [...prev, ...collectFilesFromFileList(e.target.files)]);
+    e.target.value = '';
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,8 +63,8 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       if (jurisdiction) metadata.jurisdiction = jurisdiction;
       if (briefDescription) metadata.briefDescription = briefDescription;
       fd.append('metadata', JSON.stringify(metadata));
-      fd.append('paths', JSON.stringify(files.map((f) => f.name)));
-      files.forEach((f) => fd.append('files', f, f.name));
+      fd.append('paths', JSON.stringify(files.map((f) => f.relativePath)));
+      files.forEach((f) => fd.append('files', f.file, f.relativePath));
 
       await api.newMatter(fd);
       appendTerminal([`[new-matter] created "${name}"`]);
@@ -158,24 +176,38 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
             onDragLeave={() => setDragover(false)}
             onDrop={handleDrop}
           >
-            <p style={{ margin: 0 }}>Drag & drop files here</p>
+            <p style={{ margin: 0 }}>Drag & drop files or folders here</p>
             <div className="drop-actions">
               <button type="button" onClick={() => fileInput.current?.click()}>Browse files</button>
+              <button type="button" onClick={() => folderInput.current?.click()}>Browse folder</button>
             </div>
             <input
               ref={fileInput}
               type="file"
               multiple
               hidden
-              onChange={(e) => setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
+              onChange={handleFileInput}
+            />
+            <input
+              ref={folderInput}
+              type="file"
+              multiple
+              hidden
+              {...{ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>}
+              onChange={handleFileInput}
             />
           </div>
           {files.length > 0 && (
             <div className="file-list">
               <div className="file-list-summary">{files.length} file{files.length !== 1 ? 's' : ''} selected</div>
-              {files.map((f, i) => (
-                <div key={i} className="file-list-entry">{f.name}</div>
+              {files.slice(0, 20).map((f, i) => (
+                <div key={i} className="file-list-entry">{f.relativePath}</div>
               ))}
+              {files.length > 20 && (
+                <div className="file-list-entry" style={{ color: 'var(--muted)' }}>
+                  +{files.length - 20} more
+                </div>
+              )}
             </div>
           )}
         </div>
