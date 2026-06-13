@@ -664,12 +664,11 @@ export default function CommandPanel({
               ))}
             </div>
             <label className="beta-feedback-label">
-              <span>Tell us what happened</span>
+              <span>What happened? One sentence is enough.</span>
               <textarea
                 value={feedbackHappenedInstead}
                 onChange={(event) => setFeedbackHappenedInstead(event.target.value)}
                 rows={3}
-                required
               />
             </label>
             <label className="beta-feedback-label">

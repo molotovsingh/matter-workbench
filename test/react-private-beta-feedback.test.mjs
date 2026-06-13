@@ -15,8 +15,9 @@ test("React command panel exposes child-simple private beta feedback intake", as
   assert.match(source, /I got confused/);
   assert.match(source, /I want a new feature/);
   assert.match(source, /Optional: pick the closest type/);
-  assert.match(source, /Tell us what happened/);
+  assert.match(source, /What happened\? One sentence is enough/);
   assert.match(source, /What were you trying to do\? Optional/);
+  assert.doesNotMatch(source, /<textarea[^>]+required/);
   assert.doesNotMatch(source, /Saved\. You can keep working\./);
   assert.match(source, /setFeedbackOpen\(false\);/);
   assert.match(source, /buildPrivateBetaFeedbackDraft/);

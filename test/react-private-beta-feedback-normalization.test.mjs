@@ -34,6 +34,23 @@ test("React feedback helper lets one plain problem sentence become a saveable re
   });
 });
 
+test("React feedback helper accepts trying-to-do text even when what-happened is blank", async () => {
+  const { buildPrivateBetaFeedbackDraft, hasPrivateBetaFeedbackDraftText } = await importFeedbackHelperModule();
+
+  const draft = {
+    choice: "want_something",
+    tryingToDo: "I wanted a copy button for the generated note.",
+    happenedInstead: "   ",
+  };
+
+  assert.equal(hasPrivateBetaFeedbackDraftText(draft), true);
+  assert.deepEqual(buildPrivateBetaFeedbackDraft(draft), {
+    choice: "want_something",
+    tryingToDo: "I wanted a copy button for the generated note.",
+    happenedInstead: undefined,
+  });
+});
+
 test("React feedback helper treats a blank form as unsaveable", async () => {
   const { buildPrivateBetaFeedbackDraft, hasPrivateBetaFeedbackDraftText } = await importFeedbackHelperModule();
 
