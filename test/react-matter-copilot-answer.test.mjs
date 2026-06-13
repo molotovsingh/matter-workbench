@@ -64,3 +64,28 @@ test("React matter copilot answer hides unsupported citation internals from lawy
   assert.match(rendered, /Run preparation again/i);
   assert.doesNotMatch(rendered, /unsupported citation|FILE-0008|p1\.b2/i);
 });
+
+test("React matter copilot terminal errors do not expose unsupported citation internals", async () => {
+  const source = await readFile(matterCopilotAnswerPath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
+  const { formatMatterCopilotTerminalError } = await import(moduleUrl);
+
+  const rendered = formatMatterCopilotTerminalError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
+
+  assert.match(rendered, /\[copilot\] failed:/);
+  assert.match(rendered, /could not verify the sources/i);
+  assert.doesNotMatch(rendered, /unsupported citation|FILE-0008|p1\.b2/i);
+});
+
+test("React App routes copilot failures through the terminal-safe formatter", async () => {
+  const appSource = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /formatMatterCopilotTerminalError/);
+  assert.doesNotMatch(appSource, /\[copilot\] failed: \$\{message\}/);
+});

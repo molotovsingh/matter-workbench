@@ -33,6 +33,7 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
 }
 
 export function renderMothershipReportMarkdown(report = {}) {
+  const actionLanes = report.summary?.actionLanes || {};
   const lines = [
     "# Matter Workbench Beta Development Report",
     "",
@@ -47,6 +48,10 @@ export function renderMothershipReportMarkdown(report = {}) {
     `- Confusing UX: ${report.summary?.confusingUx || 0}`,
     `- Feature requests: ${report.summary?.featureRequests || 0}`,
     `- Legacy feature ideas: ${report.summary?.featureIdeas || 0}`,
+    `- Fix now: ${actionLanes.fix_now || 0}`,
+    `- Investigate: ${actionLanes.investigate || 0}`,
+    `- Product decisions: ${actionLanes.product_decision || 0}`,
+    `- Watch: ${actionLanes.watch || 0}`,
     "",
   ];
   if (report.metrics?.latest) {

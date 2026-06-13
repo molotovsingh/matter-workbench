@@ -18,6 +18,12 @@ const CLASSIFICATION_BY_CHOICE = {
   confused: "confusing_ux",
   want_something: "feature_request",
 };
+const VALID_CLASSIFICATIONS = new Set([
+  "bug",
+  "confusing_ux",
+  "feature_request",
+  "feature_idea",
+]);
 
 export function createPrivateBetaFeedbackService({
   appDir = process.cwd(),
@@ -146,9 +152,10 @@ export function createPrivateBetaFeedbackService({
   }
 }
 
-export function normalizeFeedback(input = {}, { telemetryMode = "safe" } = {}) {
+export function normalizeFeedback(input = {}, { telemetryMode = "safe", preserveStoredClassification = false } = {}) {
   const normalizedTelemetryMode = normalizeTelemetryMode(input.telemetryMode || telemetryMode);
   const choice = normalizeChoice(input.choice);
+  const storedClassification = preserveStoredClassification ? normalizeClassification(input.classification) : "";
   const happenedInstead = sanitizeText(input.happenedInstead, 1000).trim();
   const tryingToDo = (
     sanitizeText(input.tryingToDo, 1000).trim()
@@ -164,7 +171,7 @@ export function normalizeFeedback(input = {}, { telemetryMode = "safe" } = {}) {
     schema_version: FEEDBACK_SCHEMA_VERSION,
     id: validId(input.id) || `feedback_${randomUUID()}`,
     choice,
-    classification: CLASSIFICATION_BY_CHOICE[choice],
+    classification: storedClassification || CLASSIFICATION_BY_CHOICE[choice],
     status: normalizeStatus(input.status),
     telemetryMode: normalizedTelemetryMode,
     tryingToDo,
@@ -180,7 +187,7 @@ export function normalizeFeedback(input = {}, { telemetryMode = "safe" } = {}) {
 }
 
 export function formatPrivateBetaFeedbackReport(feedback = {}) {
-  const item = normalizeFeedback(feedback);
+  const item = normalizeFeedback(feedback, { preserveStoredClassification: true });
   const lines = [
     "Private beta feedback",
     "",
@@ -217,7 +224,7 @@ function normalizeStore(store = {}, { telemetryMode = "safe" } = {}) {
   if (Array.isArray(store.feedback)) {
     for (const item of store.feedback) {
       try {
-        feedback.push(normalizeFeedback(item, { telemetryMode }));
+        feedback.push(normalizeFeedback(item, { telemetryMode, preserveStoredClassification: true }));
       } catch {
         // Historical or manually edited beta feedback rows should not disable
         // the whole ledger. New writes still use strict normalizeFeedback().
@@ -231,7 +238,10 @@ function normalizeStore(store = {}, { telemetryMode = "safe" } = {}) {
 }
 
 function buildSyncPayload(feedback, installId) {
-  const safeFeedback = normalizeFeedback(feedback, { telemetryMode: feedback.telemetryMode || "safe" });
+  const safeFeedback = normalizeFeedback(feedback, {
+    telemetryMode: feedback.telemetryMode || "safe",
+    preserveStoredClassification: true,
+  });
   delete safeFeedback.sync;
   return {
     schema_version: "private-beta-feedback-sync/v1",
@@ -341,6 +351,11 @@ function normalizeChoice(choice) {
     throw makeHttpError("choice must be one of: did_not_work, confused, want_something", 400);
   }
   return value;
+}
+
+function normalizeClassification(value) {
+  const classification = stringOr(value, "");
+  return VALID_CLASSIFICATIONS.has(classification) ? classification : "";
 }
 
 function normalizeStatus(status) {

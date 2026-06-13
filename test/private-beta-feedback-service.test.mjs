@@ -398,3 +398,32 @@ test("private beta feedback service ignores malformed historical ledger rows on 
   assert.equal(listed.feedback.length, 1);
   assert.equal(listed.feedback[0].id, "feedback_good");
 });
+
+test("private beta feedback service preserves valid legacy feature idea classifications on read", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-legacy-classification-"));
+  const feedbackPath = path.join(tmp, "feedback-ledger.json");
+  await writeFile(feedbackPath, JSON.stringify({
+    schema_version: "private-beta-feedback-ledger/v1",
+    feedback: [
+      {
+        schema_version: "private-beta-feedback/v1",
+        id: "feedback_legacy_feature_idea",
+        choice: "want_something",
+        classification: "feature_idea",
+        status: "new",
+        telemetryMode: "safe",
+        tryingToDo: "Add a deadline calendar",
+        createdAt: "2026-06-07T10:00:00.000Z",
+        updatedAt: "2026-06-07T10:00:00.000Z",
+      },
+    ],
+  }, null, 2));
+
+  const service = createPrivateBetaFeedbackService({ feedbackPath });
+
+  const listed = await service.listFeedback();
+
+  assert.equal(listed.feedback.length, 1);
+  assert.equal(listed.feedback[0].choice, "want_something");
+  assert.equal(listed.feedback[0].classification, "feature_idea");
+});

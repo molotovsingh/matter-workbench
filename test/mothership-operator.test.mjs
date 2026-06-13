@@ -134,6 +134,10 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
   assert.match(markdown, /Backend Suitability: 74\/100/);
   assert.match(markdown, /Deployment Portability: 82\/100/);
   assert.match(markdown, /User Patience Risk: medium/);
+  assert.match(markdown, /Fix now: 1/);
+  assert.match(markdown, /Investigate: 2/);
+  assert.match(markdown, /Product decisions: 3/);
+  assert.match(markdown, /Watch: 0/);
   assert.match(markdown, /Action lane: fix_now/);
   assert.match(markdown, /Recommended action:/);
   assert.match(markdown, /Job failed token=\[redacted-secret\]/);

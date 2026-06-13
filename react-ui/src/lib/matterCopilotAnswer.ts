@@ -54,6 +54,10 @@ export function formatMatterCopilotError(message: string): string {
   return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
 }
 
+export function formatMatterCopilotTerminalError(message: string): string {
+  return `[copilot] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
+}
+
 function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {
   const labels = [];
   const seen = new Set<string>();
