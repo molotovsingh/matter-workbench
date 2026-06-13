@@ -5,12 +5,30 @@ export function canHashFileSha256(): boolean {
 }
 
 export async function hashFileSha256(file: Pick<File, 'arrayBuffer'>): Promise<string> {
-  const digestFn = globalThis.crypto?.subtle?.digest;
+  const subtle = globalThis.crypto?.subtle;
+  const digestFn = subtle?.digest;
   if (typeof digestFn !== 'function') {
     throw new Error(BROWSER_HASH_UNAVAILABLE_MESSAGE);
   }
 
   const buffer = await file.arrayBuffer();
-  const digest = await digestFn.call(globalThis.crypto.subtle, 'SHA-256', buffer);
+  const digest = await digestFn.call(subtle, 'SHA-256', buffer);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function hashFilesSha256IfAvailable(files: Array<Pick<File, 'arrayBuffer'>>): Promise<string[] | null> {
+  if (!canHashFileSha256()) return null;
+
+  try {
+    return await Promise.all(files.map((file) => hashFileSha256(file)));
+  } catch (err) {
+    if (isBrowserHashingFailure(err)) return null;
+    throw err;
+  }
+}
+
+function isBrowserHashingFailure(err: unknown): boolean {
+  if (err instanceof Error && err.message.includes(BROWSER_HASH_UNAVAILABLE_MESSAGE)) return true;
+  if (err instanceof TypeError) return true;
+  return false;
 }

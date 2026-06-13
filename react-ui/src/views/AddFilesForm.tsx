@@ -10,7 +10,7 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
-import { canHashFileSha256, hashFileSha256 } from '../lib/browserFileHash';
+import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 
 interface Props {
   onCancel: () => void;
@@ -65,10 +65,13 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
 
     try {
       if (!bypassOverlap) {
-        if (canHashFileSha256()) {
-          appendTerminal(['[add-files] checking for duplicates…']);
-          const hashes = await Promise.all(collected.map((c) => hashFileSha256(c.file)));
-          if (activeMatterNameRef.current !== matterName) return;
+        appendTerminal(['[add-files] checking for duplicates…']);
+        const hashes = await hashFilesSha256IfAvailable(collected.map((c) => c.file));
+        if (activeMatterNameRef.current !== matterName) return;
+
+        if (!hashes) {
+          appendTerminal(['[add-files] Duplicate check is unavailable in this browser; uploading without duplicate warning.']);
+        } else {
           const checkResult = await api.checkOverlap({
             hashes,
             proposedName: matterName,
@@ -85,8 +88,6 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
             setSubmitting(false);
             return;
           }
-        } else {
-          appendTerminal(['[add-files] Duplicate check is unavailable in this browser; uploading without duplicate warning.']);
         }
       }
 

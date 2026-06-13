@@ -27,7 +27,31 @@ test("browser file hashing is explicitly unavailable without Web Crypto subtle d
   }
 });
 
-async function importHelper() {
+test("browser file hashing degrades to unavailable when digest fails during duplicate pre-check", async () => {
+  const { hashFilesSha256IfAvailable } = await importHelper("digest-failure");
+  const originalCrypto = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {
+        subtle: {
+          digest() {
+            throw new TypeError("Cannot read properties of undefined (reading 'digest')");
+          },
+        },
+      },
+    });
+
+    assert.equal(await hashFilesSha256IfAvailable([fakeFile("hello")]), null);
+  } finally {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  }
+});
+
+async function importHelper(label = "default") {
   const source = await readFile(helperPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -35,7 +59,7 @@ async function importHelper() {
       target: ts.ScriptTarget.ES2020,
     },
   }).outputText;
-  return import(`data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`);
+  return import(`data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}#${label}`);
 }
 
 function fakeFile(text) {
