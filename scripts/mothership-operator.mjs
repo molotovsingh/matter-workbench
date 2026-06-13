@@ -4,6 +4,7 @@ import process from "node:process";
 import { buildMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
 import { createMothershipStore, createPostgresMothershipDatabase } from "../mothership/store.mjs";
 import { loadMothershipScriptEnv } from "./mothership-env.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 export function parseMothershipOperatorArgs(argv = []) {
   const parts = [...argv];
@@ -90,10 +91,7 @@ function positiveInteger(value, fallback) {
 }
 
 function redactOperatorError(value) {
-  return String(value || "Mothership operator failed")
-    .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@/gi, "postgres://$1:***@")
-    .replace(/\bmwb_ing_[A-Za-z0-9_-]+/gi, "mwb_ing_[redacted-secret]")
-    .slice(0, 500);
+  return redactSensitiveText(String(value || "Mothership operator failed")).slice(0, 500);
 }
 
 function usage() {

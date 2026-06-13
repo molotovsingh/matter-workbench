@@ -10,6 +10,7 @@ import {
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-metrics-ledger/v1";
 const METRICS_SCHEMA_VERSION = "private-beta-metrics/v1";
@@ -428,15 +429,7 @@ function normalizeTelemetryMode(value) {
 }
 
 function sanitizeText(value, maxLength = 500) {
-  return redactSecretLikeText(String(value ?? "")).slice(0, maxLength);
-}
-
-function redactSecretLikeText(text) {
-  return text
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g, "$1=[redacted-secret]")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]")
-    .replace(/\bmwb_ing_[A-Za-z0-9_-]+/gi, "mwb_ing_[redacted-secret]");
+  return redactSensitiveText(String(value ?? "")).slice(0, maxLength);
 }
 
 function clampNumber(value, min, max) {

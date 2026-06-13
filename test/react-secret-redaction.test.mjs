@@ -26,6 +26,11 @@ test("React secret redaction mirrors shared sensitive-text policy", async () => 
     '{"apiKey":"sk-json-secret","nested":"safe"}',
     "{ api_key: sk-plain-secret, x-api-key: sk-header-secret }",
     "Matter name contains sk-matter-secret and should be copied safely",
+    "connect failed: postgres://operator:fixture-pass@db.internal:5432/mothership",
+    "postgresql://operator:fixture-pass@db.internal:5432/mothership",
+    "sync rejected mwb_ing_fixture-ingestion-token",
+    "MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=fixture-sync-token",
+    "login failed password: fixture-pass token=fixture-token",
   ];
 
   for (const input of inputs) {

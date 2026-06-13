@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+
 export async function readJsonBody(request, { maxBodyBytes = 256 * 1024 } = {}) {
   const declared = Number(request.headers["content-length"] || 0);
   if (Number.isFinite(declared) && declared > maxBodyBytes) throw httpError("Request body is too large", 413);
@@ -40,10 +42,5 @@ export function httpError(message, statusCode = 500) {
 }
 
 export function redactErrorText(value) {
-  return String(value || "Unexpected mothership error")
-    .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@/gi, "postgres://$1:***@")
-    .replace(/\b(Bearer\s+)[A-Za-z0-9._~-]+/gi, "$1[redacted-secret]")
-    .replace(/\b(mwb_ing_)[A-Za-z0-9_-]+/gi, "$1[redacted-secret]")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .slice(0, 500);
+  return redactSensitiveText(String(value || "Unexpected mothership error")).slice(0, 500);
 }

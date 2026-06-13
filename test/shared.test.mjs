@@ -13,7 +13,7 @@ import {
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
-import { redactSensitiveText, REDACTED_SECRET } from "../shared/secret-redaction.mjs";
+import { redactSensitiveText, redactSensitiveValues, REDACTED_SECRET } from "../shared/secret-redaction.mjs";
 import {
   effectiveShortSourceLabel,
   effectiveSourceLabel,
@@ -105,6 +105,41 @@ test("secret redaction helper covers provider keys and bearer tokens", () => {
   assert.match(redacted, new RegExp(`Bearer ${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`"apiKey":${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`x-api-key=${escapeRegExp(REDACTED_SECRET)}`));
+});
+
+test("secret redaction helper covers connection strings, ingestion tokens, and generic secret pairs", () => {
+  const text = [
+    "connect failed: postgres://operator:fixture-pass@db.internal:5432/mothership",
+    "POSTGRESQL url postgresql://operator:fixture-pass@db.internal:5432/db",
+    "sync rejected mwb_ing_fixture-ingestion-token",
+    "MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=fixture-sync-token",
+    "login failed password: fixture-pass",
+    "retry with token=fixture-token",
+  ].join("\n");
+
+  const redacted = redactSensitiveText(text);
+
+  assert.doesNotMatch(redacted, /fixture-pass|fixture-ingestion-token|fixture-sync-token|fixture-token/);
+  assert.match(redacted, /postgres:\/\/operator:\*\*\*@db\.internal:5432\/mothership/);
+  assert.match(redacted, /postgresql:\/\/operator:\*\*\*@db\.internal:5432\/db/);
+  assert.match(redacted, new RegExp(`mwb_ing_${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=${escapeRegExp(REDACTED_SECRET)}`));
+  assert.match(redacted, new RegExp(`password=${escapeRegExp(REDACTED_SECRET)}`));
+});
+
+test("secret redaction walks JSON-shaped values for verbatim serialization", () => {
+  const redacted = redactSensitiveValues({
+    runtime: {
+      lastError: "connect failed: postgres://operator:fixture-pass@db.internal:5432/mothership",
+      diskFreePercent: 42,
+    },
+    notes: ["token=fixture-token", { detail: "Bearer fixture-bearer" }],
+    enabled: true,
+  });
+
+  assert.equal(redacted.runtime.diskFreePercent, 42);
+  assert.equal(redacted.enabled, true);
+  assert.doesNotMatch(JSON.stringify(redacted), /fixture-pass|fixture-token|fixture-bearer/);
 });
 
 test("local env parser supports named and raw OpenAI keys", async () => {

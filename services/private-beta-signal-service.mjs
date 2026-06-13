@@ -7,6 +7,7 @@ import {
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-signal-ledger/v1";
 const SIGNAL_SCHEMA_VERSION = "private-beta-signal/v1";
@@ -579,12 +580,5 @@ function humanizeText(text = "") {
 }
 
 function sanitizeText(value, maxLength = 500) {
-  return redactSecretLikeText(String(value ?? "")).slice(0, maxLength);
-}
-
-function redactSecretLikeText(text) {
-  return text
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g, "$1=[redacted-secret]")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]");
+  return redactSensitiveText(String(value ?? "")).slice(0, maxLength);
 }

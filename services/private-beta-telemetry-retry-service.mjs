@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 
 export function createPrivateBetaTelemetryRetryService({
@@ -98,8 +100,5 @@ export function createPrivateBetaTelemetryRetryService({
 }
 
 function redactRetryError(value) {
-  return String(value || "sync failed")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]+/g, "[redacted-secret]")
-    .slice(0, 300);
+  return redactSensitiveText(String(value || "sync failed")).slice(0, 300);
 }

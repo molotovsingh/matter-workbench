@@ -1,4 +1,4 @@
-import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-redaction.mjs";
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
   const metricSummary = summarizeMetrics(dataset.metrics || []);
@@ -200,10 +200,10 @@ function metricSnapshot(row = {}) {
     installationId: String(row.installation_id || ""),
     capturedAt: toIso(row.captured_at || payload.createdAt),
     receivedAt: toIso(row.received_at || payload.updatedAt || payload.createdAt),
-    deployment: safeObject(payload.deployment),
-    runtime: safeObject(payload.runtime),
-    latency: safeObject(payload.latency),
-    scores: safeObject(payload.scores),
+    deployment: redactSensitiveValues(safeObject(payload.deployment)),
+    runtime: redactSensitiveValues(safeObject(payload.runtime)),
+    latency: redactSensitiveValues(safeObject(payload.latency)),
+    scores: redactSensitiveValues(safeObject(payload.scores)),
   };
 }
 
@@ -458,8 +458,7 @@ function toIso(value) {
 }
 
 function redactReportText(value) {
-  return redactSensitiveText(value)
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]");
+  return redactSensitiveText(value);
 }
 
 function normalizeReportText(value) {
