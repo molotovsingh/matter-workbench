@@ -146,6 +146,7 @@ instead of sharing one password:
 ```text
 MWB_PRIVATE_BETA_AUTH=required
 MWB_PRIVATE_BETA_USERS_FILE=~/.config/matter-workbench/private-beta-users.json
+MWB_PRIVATE_BETA_SESSIONS_FILE=~/.config/matter-workbench/private-beta-sessions.json
 ```
 
 Create or update tester accounts with:
@@ -165,8 +166,9 @@ service only when changing runtime environment variables such as the account
 file path itself.
 
 The access gate is intentionally local/private-beta scoped: it uses an
-HttpOnly, `SameSite=Strict` session cookie and in-process sessions. Login
-attempts are throttled per client; tune with
+HttpOnly, `SameSite=Strict` session cookie and a protected session file that
+stores session hashes, not raw cookie tokens. Login attempts are throttled per
+client; tune with
 `MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS` and
 `MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS` if needed. Cookies are not marked
 `Secure` on local HTTP by default. Set `MWB_PRIVATE_BETA_PUBLIC_URL=https://...`

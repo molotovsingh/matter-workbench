@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -210,6 +210,119 @@ test("private beta auth invalidates existing sessions when a file-backed account
     authenticated: false,
     user: null,
   });
+});
+
+test("private beta auth preserves file-backed sessions across service restarts", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-session-store-"));
+  const sessionsFile = path.join(tmp, "sessions.json");
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+    },
+    tokenBytes: () => Buffer.from("dddddddddddddddddddddddddddddddd"),
+    now: () => 1_000,
+  });
+
+  const login = service.login({ username: "operator", password: "secret" });
+  assert.equal(login.statusCode, 200);
+  const cookie = login.setCookie.split(";")[0];
+  assert.equal(service.isAuthenticated({ headers: { cookie } }), true);
+
+  const restarted = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+    },
+    now: () => 2_000,
+  });
+
+  assert.deepEqual(restarted.status({ headers: { cookie } }), {
+    enabled: true,
+    authenticated: true,
+    user: { username: "operator" },
+  });
+});
+
+test("private beta auth persists session hashes instead of raw cookie tokens", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-session-hash-"));
+  const sessionsFile = path.join(tmp, "sessions.json");
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+    },
+    tokenBytes: () => Buffer.from("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+    now: () => 1_000,
+  });
+
+  const login = service.login({ username: "operator", password: "secret" });
+  assert.equal(login.statusCode, 200);
+  const rawToken = parseCookies(login.setCookie).mwb_private_beta_session;
+  const persisted = await readFile(sessionsFile, "utf8");
+
+  assert.doesNotMatch(persisted, new RegExp(rawToken));
+  assert.match(persisted, /"tokenHash"/);
+});
+
+test("private beta auth persists logout revocation across service restarts", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-session-logout-"));
+  const sessionsFile = path.join(tmp, "sessions.json");
+  const env = {
+    MWB_PRIVATE_BETA_AUTH: "required",
+    MWB_PRIVATE_BETA_USERNAME: "operator",
+    MWB_PRIVATE_BETA_PASSWORD: "secret",
+    MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+  };
+  const service = createPrivateBetaAuthService({
+    env,
+    tokenBytes: () => Buffer.from("abababababababababababababababab"),
+    now: () => 1_000,
+  });
+  const login = service.login({ username: "operator", password: "secret" });
+  const cookie = login.setCookie.split(";")[0];
+  assert.equal(service.isAuthenticated({ headers: { cookie } }), true);
+
+  service.logout({ headers: { cookie } });
+  const restarted = createPrivateBetaAuthService({ env, now: () => 2_000 });
+
+  assert.equal(restarted.isAuthenticated({ headers: { cookie } }), false);
+});
+
+test("private beta auth ignores expired persisted sessions on startup", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-private-beta-session-expired-"));
+  const sessionsFile = path.join(tmp, "sessions.json");
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+      MWB_PRIVATE_BETA_SESSION_TTL_SECONDS: "1",
+    },
+    tokenBytes: () => Buffer.from("cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"),
+    now: () => 1_000,
+  });
+
+  const login = service.login({ username: "operator", password: "secret" });
+  const cookie = login.setCookie.split(";")[0];
+  const restarted = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_SESSIONS_FILE: sessionsFile,
+    },
+    now: () => 3_000,
+  });
+
+  assert.equal(restarted.isAuthenticated({ headers: { cookie } }), false);
 });
 
 test("private beta auth rejects disabled file-backed tester accounts", async () => {

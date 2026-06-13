@@ -156,8 +156,9 @@ function buildCommandPhases({ targetUrl, deploymentHost, deploymentUser, deploym
       commands: [
         "mkdir -p \"$HOME/.config/matter-workbench\"",
         "install -m 600 /dev/null \"$HOME/.config/matter-workbench/runtime.env\"",
-        "edit \"$HOME/.config/matter-workbench/runtime.env\" with runtime DB, provider, auth users file, and mothership values",
+        "edit \"$HOME/.config/matter-workbench/runtime.env\" with runtime DB, provider, auth users/session files, and mothership values",
         "include MWB_PRIVATE_BETA_USERS_FILE=$HOME/.config/matter-workbench/private-beta-users.json",
+        "include MWB_PRIVATE_BETA_SESSIONS_FILE=$HOME/.config/matter-workbench/private-beta-sessions.json",
         "chmod 600 \"$HOME/.config/matter-workbench/runtime.env\"",
       ],
     },

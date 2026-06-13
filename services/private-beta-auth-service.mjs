@@ -8,6 +8,7 @@ const DEFAULT_TTL_SECONDS = 8 * 60 * 60;
 const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;
 const DEFAULT_LOGIN_WINDOW_SECONDS = 5 * 60;
 const PRIVATE_BETA_USERS_SCHEMA_VERSION = "private-beta-users/v1";
+const PRIVATE_BETA_SESSIONS_SCHEMA_VERSION = "private-beta-sessions/v1";
 const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
 const DEFAULT_PASSWORD_HASH_ITERATIONS = 210_000;
 const PASSWORD_HASH_BYTES = 32;
@@ -24,7 +25,8 @@ export function createPrivateBetaAuthService({
   const secureCookie = shouldUseSecureCookie(env);
   const loginMaxAttempts = positiveInt(env.MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS, DEFAULT_LOGIN_MAX_ATTEMPTS);
   const loginWindowMs = positiveInt(env.MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS, DEFAULT_LOGIN_WINDOW_SECONDS) * 1000;
-  const sessions = new Map();
+  const sessionsFile = enabled ? resolvePrivateBetaSessionsFile(env) : "";
+  const sessions = enabled ? readPrivateBetaSessionsFile(sessionsFile, now()) : new Map();
   const loginFailures = new Map();
 
   function requireAuth() {
@@ -39,21 +41,25 @@ export function createPrivateBetaAuthService({
     if (!enabled) return true;
     const token = sessionTokenFromRequest(request);
     if (!token) return null;
-    const session = sessions.get(token);
+    const tokenHash = hashSessionToken(token);
+    const session = sessions.get(tokenHash);
     if (!session) return null;
     if (session.expiresAt <= now()) {
-      sessions.delete(token);
+      sessions.delete(tokenHash);
+      persistSessionsBestEffort();
       return null;
     }
     try {
       const refreshedUser = credentialSource.refreshSessionUser(session.user);
       if (!refreshedUser) {
-        sessions.delete(token);
+        sessions.delete(tokenHash);
+        persistSessionsBestEffort();
         return null;
       }
       session.user = refreshedUser;
     } catch {
-      sessions.delete(token);
+      sessions.delete(tokenHash);
+      persistSessionsBestEffort();
       return null;
     }
     return session;
@@ -113,11 +119,23 @@ export function createPrivateBetaAuthService({
 
     loginFailures.delete(clientKey);
     const token = tokenBytes(32).toString("hex");
+    const tokenHash = hashSessionToken(token);
     const user = publicUserForAccount(account);
-    sessions.set(token, {
+    sessions.set(tokenHash, {
       user,
       expiresAt: now() + ttlSeconds * 1000,
     });
+    try {
+      persistSessions();
+    } catch {
+      sessions.delete(tokenHash);
+      return {
+        ok: false,
+        statusCode: 503,
+        payload: { error: "Private beta session store is not writable. Ask the operator to check the server session file." },
+        setCookie: "",
+      };
+    }
     return {
       ok: true,
       statusCode: 200,
@@ -132,7 +150,10 @@ export function createPrivateBetaAuthService({
 
   function logout(request = {}) {
     const token = sessionTokenFromRequest(request);
-    if (token) sessions.delete(token);
+    if (token) {
+      sessions.delete(hashSessionToken(token));
+      persistSessionsBestEffort();
+    }
     return {
       ok: true,
       statusCode: 200,
@@ -165,6 +186,19 @@ export function createPrivateBetaAuthService({
       count: existing.count + 1,
       resetAt: existing.resetAt > currentTime ? existing.resetAt : currentTime + loginWindowMs,
     });
+  }
+
+  function persistSessions() {
+    if (!enabled || !sessionsFile) return;
+    writePrivateBetaSessionsFile(sessionsFile, sessions, now());
+  }
+
+  function persistSessionsBestEffort() {
+    try {
+      persistSessions();
+    } catch {
+      // A stale session should fail closed even if cleanup cannot be persisted.
+    }
   }
 
   return {
@@ -233,6 +267,81 @@ export function readPrivateBetaUsersFile(usersFile) {
     seen.add(key);
   }
   return users;
+}
+
+function readPrivateBetaSessionsFile(sessionsFile, currentTime) {
+  const sessions = new Map();
+  if (!sessionsFile || !fs.existsSync(sessionsFile)) return sessions;
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(sessionsFile, "utf8"));
+  } catch {
+    return sessions;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return sessions;
+  if (parsed.schemaVersion !== PRIVATE_BETA_SESSIONS_SCHEMA_VERSION) return sessions;
+  if (!Array.isArray(parsed.sessions)) return sessions;
+  for (const rawSession of parsed.sessions) {
+    const session = normalizePrivateBetaSession(rawSession);
+    if (!session || session.expiresAt <= currentTime) continue;
+    sessions.set(session.tokenHash, {
+      user: session.user,
+      expiresAt: session.expiresAt,
+    });
+  }
+  return sessions;
+}
+
+function writePrivateBetaSessionsFile(sessionsFile, sessions, currentTime) {
+  const rows = [];
+  for (const [tokenHash, session] of sessions.entries()) {
+    if (!session || session.expiresAt <= currentTime) {
+      sessions.delete(tokenHash);
+      continue;
+    }
+    const user = normalizeSessionUser(session.user);
+    if (!user) {
+      sessions.delete(tokenHash);
+      continue;
+    }
+    rows.push({
+      tokenHash,
+      user,
+      expiresAt: session.expiresAt,
+    });
+  }
+  const payload = `${JSON.stringify({
+    schemaVersion: PRIVATE_BETA_SESSIONS_SCHEMA_VERSION,
+    sessions: rows,
+  }, null, 2)}\n`;
+  writeFileAtomicSync(sessionsFile, payload);
+}
+
+function normalizePrivateBetaSession(rawSession) {
+  if (!rawSession || typeof rawSession !== "object" || Array.isArray(rawSession)) return null;
+  const tokenHash = String(rawSession.tokenHash || "").trim();
+  if (!/^[a-f0-9]{64}$/i.test(tokenHash)) return null;
+  const expiresAt = Number(rawSession.expiresAt);
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) return null;
+  const user = normalizeSessionUser(rawSession.user);
+  if (!user) return null;
+  return {
+    tokenHash: tokenHash.toLowerCase(),
+    user,
+    expiresAt,
+  };
+}
+
+function normalizeSessionUser(rawUser) {
+  if (!rawUser || typeof rawUser !== "object" || Array.isArray(rawUser)) return null;
+  const username = String(rawUser.username || "").trim();
+  if (!username) return null;
+  const user = { username };
+  const rawRole = String(rawUser.role || "").trim();
+  if (rawRole) user.role = normalizeRole(rawRole);
+  const displayName = String(rawUser.displayName || "").trim();
+  if (displayName) user.displayName = displayName;
+  return user;
 }
 
 function loadPrivateBetaCredentialSource(env) {
@@ -361,6 +470,38 @@ function clearSessionCookie({ secure = false } = {}) {
   ];
   if (secure) parts.push("Secure");
   return parts.join("; ");
+}
+
+function hashSessionToken(token) {
+  return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+function resolvePrivateBetaSessionsFile(env = {}) {
+  const explicit = String(env.MWB_PRIVATE_BETA_SESSIONS_FILE || "").trim();
+  if (explicit) return expandHomePath(explicit);
+  const usersFile = String(env.MWB_PRIVATE_BETA_USERS_FILE || "").trim();
+  if (usersFile) {
+    return path.join(path.dirname(expandHomePath(usersFile)), "private-beta-sessions.json");
+  }
+  return path.join(os.homedir(), ".config", "matter-workbench", "private-beta-sessions.json");
+}
+
+function writeFileAtomicSync(filePath, contents) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tempPath = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(tempPath, contents, { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(tempPath, filePath);
+    fs.chmodSync(filePath, 0o600);
+  } catch (error) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {
+      // Preserve the original write/rename error.
+    }
+    throw error;
+  }
 }
 
 function secureEqual(left, right) {

@@ -52,6 +52,7 @@ Set private beta access:
 MWB_PRIVATE_BETA_PUBLIC_URL=https://...
 MWB_PRIVATE_BETA_AUTH=required
 MWB_PRIVATE_BETA_USERS_FILE=~/.config/matter-workbench/private-beta-users.json
+MWB_PRIVATE_BETA_SESSIONS_FILE=~/.config/matter-workbench/private-beta-sessions.json
 ```
 
 Create tester accounts with:
@@ -66,7 +67,8 @@ available for one-operator local compatibility, but a private web beta with
 multiple testers should use the account file so each tester has their own login.
 Account file changes are picked up on the next login attempt. Restart the
 service only when changing runtime environment variables such as the account
-file path itself.
+file path itself. The optional sessions file keeps active logins alive across
+service restarts and stores hashes only, not raw cookie tokens.
 
 `MWB_PRIVATE_BETA_PUBLIC_URL=https://...` is important because the auth service
 uses it to mark the session cookie `Secure`. If the public URL is HTTPS but that

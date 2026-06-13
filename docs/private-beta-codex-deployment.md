@@ -170,6 +170,7 @@ the URL to a tester:
    ```bash
    MWB_PRIVATE_BETA_PUBLIC_URL=https://mwb-beta.example.com
    MWB_PRIVATE_BETA_COOKIE_SECURE=true
+   MWB_PRIVATE_BETA_SESSIONS_FILE=$HOME/.config/matter-workbench/private-beta-sessions.json
    ```
 
 5. Restart the runtime service and run the web readiness check:
