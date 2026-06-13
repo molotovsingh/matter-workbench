@@ -36,6 +36,15 @@ test("heartbeat service queues compact journey snapshots and syncs later", async
         lastError: "504 Gateway Time-out",
         patienceRisk: "high",
       }],
+      matterHealth: [{
+        matter: "Gionee India Pvt Ltd v Bharat Nagpal",
+        prepareState: "complete",
+        nextStepLabel: "Core preparation is current",
+        attentionState: "clear",
+        blockers: 0,
+        warnings: 0,
+        checkedAt: "2026-06-13T09:59:00.000Z",
+      }],
       counters: { queuedFeedback: 1, openSignals: 2, failedJobs: 1, slowStages: 1 },
     }),
     deploymentProvider: () => ({
@@ -54,6 +63,9 @@ test("heartbeat service queues compact journey snapshots and syncs later", async
   assert.equal(heartbeat.activeSessions, 1);
   assert.equal(heartbeat.journeys[0].currentStage, "extract_documents");
   assert.equal(heartbeat.journeys[0].lastError, "504 Gateway Time-out");
+  assert.equal(heartbeat.matterHealth[0].matter, "Gionee India Pvt Ltd v Bharat Nagpal");
+  assert.equal(heartbeat.matterHealth[0].prepareState, "complete");
+  assert.equal(heartbeat.matterHealth[0].attentionState, "clear");
   assert.equal(heartbeat.sync.status, "queued");
   assert.equal(requests.length, 0);
 

@@ -63,6 +63,7 @@ export function createPrivateBetaHeartbeatService({
         sentAt: createdAt,
         activeSessions: input.activeSessions ?? journey.activeSessions,
         journeys: input.journeys ?? journey.journeys,
+        matterHealth: input.matterHealth ?? journey.matterHealth,
         counters: input.counters ?? journey.counters,
       });
       heartbeat.sync = markTelemetrySyncQueued({
@@ -169,6 +170,7 @@ function normalizeHeartbeat(input = {}) {
     sentAt: normalizeIso(input.sentAt) || createdAt,
     activeSessions: nonNegativeInt(input.activeSessions),
     journeys: sanitizeJourneys(input.journeys, telemetryMode),
+    matterHealth: sanitizeMatterHealth(input.matterHealth, telemetryMode),
     counters: sanitizeCounters(input.counters),
     sync: normalizeSync(input.sync),
   };
@@ -204,6 +206,25 @@ function sanitizeCounters(counters = {}) {
     failedJobs: nonNegativeInt(counters.failedJobs),
     slowStages: nonNegativeInt(counters.slowStages),
   };
+}
+
+function sanitizeMatterHealth(items = [], telemetryMode = "safe") {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 20).map((item = {}) => {
+    const normalized = {
+      matter: sanitizeText(item.matter || item.matterName, 300).trim(),
+      prepareState: sanitizeText(item.prepareState || item.nextStepState, 80).trim(),
+      nextStepLabel: sanitizeText(item.nextStepLabel || item.nextStep || "", 160).trim(),
+      attentionState: sanitizeText(item.attentionState, 80).trim(),
+      blockers: nonNegativeInt(item.blockers),
+      warnings: nonNegativeInt(item.warnings),
+      checkedAt: normalizeIso(item.checkedAt) || "",
+    };
+    if (telemetryMode === "firm_internal" && item.details && typeof item.details === "object") {
+      normalized.details = safeObject(item.details, { maxDepth: 2 });
+    }
+    return normalized;
+  }).filter((item) => item.matter);
 }
 
 function buildSyncPayload(heartbeat, installId) {

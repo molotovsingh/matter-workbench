@@ -6,10 +6,10 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
   const latestRuntimeEvidenceAt = latestEvidenceTime(metricSummary, heartbeatSummary);
   const signalItems = (dataset.signals || [])
     .map(signalReportItem)
-    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt }));
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
   const feedbackItems = (dataset.feedback || [])
     .map(feedbackReportItem)
-    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt }));
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
       || laneSort(left.action_lane) - laneSort(right.action_lane)
@@ -83,7 +83,7 @@ export function renderMothershipReportMarkdown(report = {}) {
   if (report.heartbeats?.latestByInstallation?.length) {
     lines.push("## Heartbeats", "");
     for (const item of report.heartbeats.latestByInstallation.slice(0, 10)) {
-      lines.push(`- ${redactReportText(item.installationId)}: last seen ${item.lastSeenAt || ""}; sessions ${item.activeSessions}; patience ${item.highestPatienceRisk}`);
+      lines.push(`- ${redactReportText(item.installationId)}: last seen ${item.receivedAt || item.capturedAt || ""}; sessions ${item.activeSessions}; patience ${item.highestPatienceRisk}`);
     }
     lines.push("");
   }
@@ -188,6 +188,7 @@ function summarizeHeartbeats(rows = [], generatedAt = new Date().toISOString()) 
       return ageMinutes >= 15;
     }).length,
     latestByInstallation,
+    latestMatterHealth: latestMatterHealthByInstallationAndMatter(snapshots),
     snapshots: snapshots.slice(0, 20),
   };
 }
@@ -221,6 +222,15 @@ function heartbeatSnapshot(row = {}) {
     lastError: redactReportText(journey.lastError || ""),
     patienceRisk: normalizePatienceRisk(journey.patienceRisk),
   })) : [];
+  const matterHealth = Array.isArray(payload.matterHealth) ? payload.matterHealth.slice(0, 20).map((item) => ({
+    matter: String(item.matter || item.matterName || ""),
+    prepareState: String(item.prepareState || ""),
+    nextStepLabel: String(item.nextStepLabel || ""),
+    attentionState: String(item.attentionState || ""),
+    blockers: positiveInteger(item.blockers, 0),
+    warnings: positiveInteger(item.warnings, 0),
+    checkedAt: toIso(item.checkedAt || row.received_at || payload.updatedAt || payload.createdAt),
+  })).filter((item) => item.matter) : [];
   return {
     id: String(row.heartbeat_id || payload.id || ""),
     installationId: String(row.installation_id || payload.installId || ""),
@@ -229,6 +239,7 @@ function heartbeatSnapshot(row = {}) {
     activeSessions: positiveInteger(payload.activeSessions, 0),
     highestPatienceRisk: highestPatienceRisk(journeys),
     journeys,
+    matterHealth,
     counters: safeObject(payload.counters),
   };
 }
@@ -248,15 +259,27 @@ function normalizePatienceRisk(value = "") {
 }
 
 function annotateTriage(item = {}, context = {}) {
-  const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt);
-  const triage = routeTriage({ ...item, currentness });
-  return { ...item, currentness, ...triage };
+  const currentMatterState = latestMatterStateForItem(item, context.latestMatterHealth);
+  const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt, currentMatterState);
+  const triage = routeTriage({ ...item, currentness, currentMatterState });
+  return {
+    ...item,
+    currentness,
+    ...(currentMatterState ? { currentMatterState } : {}),
+    ...triage,
+  };
 }
 
 function routeTriage(item = {}) {
   const text = normalizeReportText(`${item.title || ""} ${item.detail || ""}`);
   if (item.category === "critical_signal") {
     if (/no extraction records|run extract|source index|create_listofdates|list of dates|label sources/.test(text)) {
+      if (item.currentness === "resolved_by_latest_matter_state") {
+        return {
+          action_lane: "watch",
+          recommended_action: "No code action unless this reproduces. Latest matter health says preparation is current and the advisory is clear.",
+        };
+      }
       return {
         action_lane: "fix_now",
         recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/List of Dates path if records exist but downstream stages cannot see them.",
@@ -338,11 +361,60 @@ function latestEvidenceTime(metricSummary = {}, heartbeatSummary = {}) {
   return times.length ? Math.max(...times) : null;
 }
 
-function classifyCurrentness(item = {}, latestRuntimeEvidenceAt = null) {
+function classifyCurrentness(item = {}, latestRuntimeEvidenceAt = null, currentMatterState = null) {
+  if (isResolvedByMatterState(item, currentMatterState)) return "resolved_by_latest_matter_state";
   const itemTime = Date.parse(item.receivedAt || "");
   if (!Number.isFinite(itemTime) || !Number.isFinite(latestRuntimeEvidenceAt)) return "unknown";
   if (latestRuntimeEvidenceAt - itemTime >= 10 * 60 * 1000) return "needs_live_recheck";
   return "current";
+}
+
+function latestMatterHealthByInstallationAndMatter(snapshots = []) {
+  const map = new Map();
+  for (const snapshot of snapshots) {
+    for (const state of snapshot.matterHealth || []) {
+      const key = matterStateKey(snapshot.installationId, state.matter);
+      if (!key) continue;
+      const checkedAt = state.checkedAt || snapshot.receivedAt || snapshot.capturedAt || "";
+      const existing = map.get(key);
+      if (existing && Date.parse(existing.checkedAt || 0) >= Date.parse(checkedAt || 0)) continue;
+      map.set(key, {
+        ...state,
+        checkedAt,
+        installationId: snapshot.installationId,
+      });
+    }
+  }
+  return map;
+}
+
+function latestMatterStateForItem(item = {}, latestMatterHealth) {
+  if (!(latestMatterHealth instanceof Map)) return null;
+  return latestMatterHealth.get(matterStateKey(item.installationId, item.matterName)) || null;
+}
+
+function matterStateKey(installationId = "", matterName = "") {
+  const install = String(installationId || "").trim().toLowerCase();
+  const matter = String(matterName || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return install && matter ? `${install}:${matter}` : "";
+}
+
+function isResolvedByMatterState(item = {}, currentMatterState = null) {
+  if (!currentMatterState || !item.matterName) return false;
+  if (!isPreparationPipelineIssue(item)) return false;
+  const itemTime = Date.parse(item.receivedAt || "");
+  const checkedTime = Date.parse(currentMatterState.checkedAt || "");
+  if (!Number.isFinite(itemTime) || !Number.isFinite(checkedTime) || checkedTime <= itemTime) return false;
+  return currentMatterState.prepareState === "complete"
+    && currentMatterState.attentionState === "clear"
+    && (Number(currentMatterState.blockers) || 0) === 0
+    && (Number(currentMatterState.warnings) || 0) === 0;
+}
+
+function isPreparationPipelineIssue(item = {}) {
+  const text = normalizeReportText(`${item.title || ""} ${item.detail || ""}`);
+  return item.category === "critical_signal"
+    && /no extraction records|run extract|source index|create_listofdates|list of dates|label sources/.test(text);
 }
 
 function actionLaneCounts(items = []) {

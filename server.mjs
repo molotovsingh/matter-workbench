@@ -145,6 +145,10 @@ export async function createWorkbenchServer(options = {}) {
       privateBetaFeedbackService,
       privateBetaSignalService,
       jobStatusService,
+      matterStore,
+      runtimeDbStorageService,
+      matterAttentionService,
+      prepareMatterService,
     }),
   });
   const telemetryRetryService = options.telemetryRetryService || createPrivateBetaTelemetryRetryService({
@@ -440,6 +444,10 @@ async function buildHeartbeatJourneyContext({
   privateBetaFeedbackService,
   privateBetaSignalService,
   jobStatusService,
+  matterStore,
+  runtimeDbStorageService,
+  matterAttentionService,
+  prepareMatterService,
 } = {}) {
   const [feedbackLedger, signalLedger, jobLedger] = await Promise.all([
     safeReadTelemetryLedger(() => privateBetaFeedbackService?.listFeedback?.({ limit: 50 })),
@@ -451,6 +459,13 @@ async function buildHeartbeatJourneyContext({
   const jobs = Array.isArray(jobLedger.jobs) ? jobLedger.jobs : [];
   const runningJobs = jobs.filter((job) => job.status === "running");
   const failedJobs = jobs.filter((job) => job.status === "failed");
+  const matterHealth = await readRecentMatterHealthSnapshots({
+    matterNames: recentProblemMatterNames({ feedback, signals, jobs }),
+    matterStore,
+    runtimeDbStorageService,
+    matterAttentionService,
+    prepareMatterService,
+  });
   return {
     activeSessions: 0,
     journeys: runningJobs.slice(0, 10).map((job) => ({
@@ -471,6 +486,104 @@ async function buildHeartbeatJourneyContext({
       failedJobs: failedJobs.length,
       slowStages: runningJobs.length,
     },
+    matterHealth,
+  };
+}
+
+function recentProblemMatterNames({ feedback = [], signals = [], jobs = [] } = {}) {
+  const names = [];
+  for (const job of jobs) {
+    if (job.matterName) names.push(job.matterName);
+  }
+  for (const signal of signals) {
+    if (signal.matterName) names.push(signal.matterName);
+  }
+  for (const item of feedback) {
+    if (item.context?.activeMatterName) names.push(item.context.activeMatterName);
+    if (item.matterName) names.push(item.matterName);
+  }
+  const seen = new Set();
+  const output = [];
+  for (const name of names) {
+    const normalized = String(name || "").trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    output.push(normalized);
+    if (output.length >= 8) break;
+  }
+  return output;
+}
+
+async function readRecentMatterHealthSnapshots({
+  matterNames = [],
+  matterStore,
+  runtimeDbStorageService,
+  matterAttentionService,
+  prepareMatterService,
+} = {}) {
+  const snapshots = [];
+  for (const matterName of matterNames) {
+    try {
+      snapshots.push(await readMatterHealthSnapshot({
+        matterName,
+        matterStore,
+        runtimeDbStorageService,
+        matterAttentionService,
+        prepareMatterService,
+      }));
+    } catch (error) {
+      snapshots.push({
+        matter: matterName,
+        prepareState: "unavailable",
+        nextStepLabel: "",
+        attentionState: "unknown",
+        blockers: 0,
+        warnings: 0,
+        checkedAt: new Date().toISOString(),
+        details: { error: String(error?.message || "matter health unavailable").slice(0, 220) },
+      });
+    }
+  }
+  return snapshots;
+}
+
+async function readMatterHealthSnapshot({
+  matterName,
+  matterStore,
+  runtimeDbStorageService,
+  matterAttentionService,
+  prepareMatterService,
+} = {}) {
+  const checkedAt = new Date().toISOString();
+  if (matterStore?.hasRuntimeDbStorageMode?.() && runtimeDbStorageService?.enabled) {
+    const matter = await matterStore.resolveExistingMatter(matterName);
+    const [plan, attention] = await Promise.all([
+      runtimeDbStorageService.readPrepareMatterPlan(matter),
+      runtimeDbStorageService.readMatterAttention(matter),
+    ]);
+    return matterHealthFromPlanAndAttention({ matterName, plan, attention, checkedAt });
+  }
+
+  const { name, matterPath } = await matterStore.resolveExistingMatter(matterName);
+  const [plan, attention] = await Promise.all([
+    prepareMatterService.readPrepareMatterPlan(matterPath),
+    matterAttentionService.readMatterAttention(matterPath, { matterName: name }),
+  ]);
+  return matterHealthFromPlanAndAttention({ matterName: name, plan, attention, checkedAt });
+}
+
+function matterHealthFromPlanAndAttention({ matterName, plan = {}, attention = {}, checkedAt }) {
+  const nextStep = plan.nextStep || {};
+  const summary = attention.summary || {};
+  return {
+    matter: matterName,
+    prepareState: String(nextStep.state || ""),
+    nextStepLabel: String(nextStep.label || ""),
+    attentionState: String(summary.state || ""),
+    blockers: Number(summary.blocker) || 0,
+    warnings: Number(summary.warning) || 0,
+    checkedAt,
   };
 }
 
