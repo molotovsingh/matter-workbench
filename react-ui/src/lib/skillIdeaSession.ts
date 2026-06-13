@@ -87,12 +87,13 @@ export function buildSkillIdeaDesignBrief(
     plannedBrief?.notes,
     answerNotes,
   ].filter(Boolean).join('\n');
-  const problem = plannedBrief?.problem
-    || answers.problem
+  const plannedProblem = usableSkillIdeaProblem(plannedBrief?.problem);
+  const problem = answers.problem
     || answers.goal
     || answers.job
     || ideaText
-    || inferSkillIdeaProblemFromAnswers(answers, questions);
+    || inferSkillIdeaProblemFromAnswers(answers, questions)
+    || plannedProblem;
   return {
     intendedUser: plannedBrief?.intendedUser || DEFAULT_SKILL_IDEA_DESIGN_BRIEF.intendedUser,
     problem,
@@ -108,7 +109,7 @@ export function buildSkillIdeaDesignBrief(
 export function skillIdeaTextForSave(ideaText: string, brief: SkillIdeaDesignBrief): string {
   const text = normalizeBriefText(ideaText);
   if (text) return text;
-  const problem = normalizeBriefText(brief.problem);
+  const problem = usableSkillIdeaProblem(brief.problem);
   if (problem) return `Create a reusable skill to ${lowercaseLead(problem)}`;
   const output = normalizeBriefText(brief.expectedOutputArtifact);
   const inputs = normalizeBriefText(brief.expectedInputs);
@@ -182,17 +183,24 @@ export function formatSkillIdeaAnswerNotes(answers: Record<string, string>, ques
 
 function ensureProblemQuestionForEmptyIdea(questions: InterviewQuestion[], fallbackIdeaText: string): InterviewQuestion[] {
   if (fallbackIdeaText.trim()) return questions;
-  const hasProblemQuestion = questions.some((question) => {
-    const id = String(question.id || '').toLowerCase();
+  const hasExactIdeaQuestion = questions.some((question) => {
     const label = String(question.label || '').toLowerCase();
-    return /\b(problem|goal|job|task|purpose)\b/.test(id)
-      || /\b(what is the exact skill idea|what should this skill|what should the skill|what decision or task)\b/.test(label);
+    return /\bwhat is the exact skill idea\b/.test(label);
   });
-  if (hasProblemQuestion) return questions;
+  if (hasExactIdeaQuestion) return questions;
   return [
     SKILL_IDEA_KICKOFF_QUESTIONS[0],
     ...questions,
   ];
+}
+
+function usableSkillIdeaProblem(value: unknown): string {
+  const text = normalizeBriefText(value);
+  if (!text) return '';
+  if (/^unknown\b/i.test(text)) return '';
+  if (/not (?:yet )?(?:provided|described|specified|known)/i.test(text)) return '';
+  if (/skill idea has not been described/i.test(text)) return '';
+  return text;
 }
 
 function inferSkillIdeaProblemFromAnswers(answers: Record<string, string>, questions: InterviewQuestion[]): string {

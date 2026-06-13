@@ -48,6 +48,11 @@ test("React empty new-skill interviews synthesize save text and ask for the core
   assert.match(source, /ensureProblemQuestionForEmptyIdea/);
   assert.match(source, /What is the exact skill idea in one sentence\?/);
   assert.match(source, /inferSkillIdeaProblemFromAnswers/);
+  assert.match(source, /usableSkillIdeaProblem\(plannedBrief\?\.problem\)/);
+  assert.match(source, /const problem = answers\.problem[\s\S]*inferSkillIdeaProblemFromAnswers\(answers, questions\)[\s\S]*\|\| plannedProblem/);
+  assert.match(source, /if \(\/\^unknown\\b\/i\.test\(text\)\) return ''/);
+  assert.match(source, /if \(\/not \(\?:yet \)\?\(\?:provided\|described\|specified\|known\)\/i\.test\(text\)\) return ''/);
+  assert.doesNotMatch(source, /what decision or task\)\\b\.test\(label\)/);
 });
 
 test("React blank new-skill sessions show a kickoff question while planner continues in background", async () => {

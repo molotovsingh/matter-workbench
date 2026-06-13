@@ -43,6 +43,29 @@ idea / requested workflow
 
 The active skill is not edited in place.
 
+## Matter Context Requirement
+
+Skill creation should be matter-anchored before the user invests in the
+interview.
+
+If the user intends to create a new skill and no matter is selected, the app
+should ask them to pick a test matter before proceeding past the opening step.
+The reason is practical: the interview ends in sample generation, and a sample is
+only meaningful against a real matter record. If the user completes the whole
+interview with no matter selected, the flow can feel like it disappears or hits a
+dead end at the exact moment they expect a sample.
+
+The preferred behavior is:
+
+- accept the user's new-skill intent;
+- immediately surface that a test matter is needed;
+- let the user pick or create a matter;
+- resume the skill interview with that matter as the sample context.
+
+The app may still allow drafting or parking a raw idea without a matter, but the
+primary "make a new skill" path should treat selected matter context as required
+before sample generation.
+
 ## Skill Ideas
 
 An idea is not a runnable skill.
