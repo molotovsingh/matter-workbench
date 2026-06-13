@@ -2,6 +2,7 @@ import { hasSkillCreationOverlapOverride } from '../../lib/skillCreationOverlap'
 import {
   formatSkillIdeaDesignBrief,
   overlapMatchedLabel,
+  skillNameSuggestions,
 } from '../../lib/skillIdeaSession';
 import {
   formatIntentDiscoveryGuidance,
@@ -23,6 +24,9 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
     hasMatter,
     actions,
   } = useSkillIdeaSessionMachine({ initialInput, onClose, onInputOverride });
+  const currentQuestionExamples = currentQuestion?.id === 'skillName'
+    ? skillNameSuggestions(session.ideaText, session.plannedBrief, session.answers)
+    : currentQuestion?.examples;
 
   return (
     <div className="skill-idea-session">
@@ -63,9 +67,9 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
         <div className="skill-idea-question">
           <div className="skill-idea-q-label">{currentQuestion.label}</div>
           {currentQuestion.help && <p className="skill-idea-q-help">{currentQuestion.help}</p>}
-          {currentQuestion.examples && currentQuestion.examples.length > 0 && (
+          {currentQuestionExamples && currentQuestionExamples.length > 0 && (
             <div className="skill-idea-q-examples">
-              {currentQuestion.examples.map((example) => (
+              {currentQuestionExamples.map((example) => (
                 <button
                   key={example}
                   type="button"

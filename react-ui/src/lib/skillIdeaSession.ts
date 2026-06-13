@@ -230,14 +230,44 @@ function appendSkillNameQuestion(
 export function skillNameSuggestions(
   ideaText: string,
   plannedBrief: SkillIdeaDesignBrief | null,
+  answers: Record<string, string> = {},
 ): string[] {
+  const intentText = [
+    answers.problem,
+    answers.goal,
+    answers.job,
+    answers.task,
+    answers.purpose,
+    answers.decision,
+  ].filter(Boolean).join(' ');
+  const answerText = Object.entries(answers)
+    .filter(([id, value]) => id !== SKILL_IDEA_NAME_QUESTION.id && normalizeBriefText(value))
+    .map(([, value]) => value)
+    .join(' ');
   const candidates = [
+    titleFromIntent(intentText),
+    titleFromIntent(answers.output || ''),
+    titleFromIntent(answerText),
+    titleFromIntent(ideaText),
     titleFromText(plannedBrief?.expectedOutputArtifact || ''),
-    titleFromText(plannedBrief?.problem || ''),
-    titleFromText(ideaText),
+    titleFromIntent(plannedBrief?.problem || ''),
     ...(SKILL_IDEA_NAME_QUESTION.examples || []),
   ].filter(Boolean);
   return Array.from(new Set(candidates)).slice(0, 3);
+}
+
+function titleFromIntent(value: string): string {
+  const text = normalizeBriefText(value);
+  if (!text || /^unknown\b/i.test(text)) return '';
+  if (/\blimitation|time[- ]bar|time barred|delay\b/i.test(text)) return 'Limitation Risk Review';
+  if (/\bclient\b/i.test(text) && /\b(update|email|mail|letter)\b/i.test(text)) return 'Client Update Email';
+  if (/\b(email|mail)\b/i.test(text) && /\bclient|party|opposite|respondent|petitioner\b/i.test(text)) return 'Client Update Email';
+  if (/\bforum|jurisdiction|filing route|where to file|petition|notice|external documents?\b/i.test(text)) return 'Filing Route Plan';
+  if (/\b(document|documents|notice|notices|petition|petitions|annexure|filings?)\b/i.test(text)) return 'Document Preparation Plan';
+  if (/\bparty|parties|officer|entity|entities|director|signatory\b/i.test(text)) return 'Party and Officer Map';
+  if (/\bchronolog|timeline|list of dates|key dates?\b/i.test(text)) return 'List of Dates Review';
+  if (/\bweakness|risk|gap|support|unsupported|merits?\b/i.test(text)) return 'Case Risk Review';
+  return titleFromText(text);
 }
 
 function titleFromText(value: string): string {

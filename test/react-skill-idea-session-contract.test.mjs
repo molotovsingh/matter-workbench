@@ -42,12 +42,17 @@ test("React skill idea session keeps samples tied to the saved design brief and 
 
 test("React empty new-skill interviews synthesize save text and ask for the core job", async () => {
   const source = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
+  const sessionComponentSource = await readFile(skillIdeaSessionPath, "utf8");
 
   assert.match(source, /export function skillIdeaTextForSave/);
   assert.match(source, /export function skillIdeaTextForSaveWithName/);
   assert.match(source, /export const SKILL_IDEA_NAME_QUESTION/);
   assert.match(source, /What would you like to name this skill\?/);
   assert.match(source, /skillNameSuggestions/);
+  assert.match(source, /answers\.problem/);
+  assert.match(source, /titleFromIntent\(/);
+  assert.match(sessionComponentSource, /currentQuestionExamples/);
+  assert.match(sessionComponentSource, /skillNameSuggestions\(session\.ideaText, session\.plannedBrief, session\.answers\)/);
   assert.match(source, /Create a reusable skill to/);
   assert.match(source, /ensureProblemQuestionForEmptyIdea/);
   assert.match(source, /What is the exact skill idea in one sentence\?/);
