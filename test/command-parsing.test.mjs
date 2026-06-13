@@ -12,7 +12,7 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("prepare matter"), { type: "skill", command: "/prepare_matter" });
   assert.deepEqual(parseDeterministicCommand("prepare this matter"), { type: "skill", command: "/prepare_matter" });
   assert.deepEqual(parseDeterministicCommand("matter prep"), { type: "skill", command: "/prepare_matter" });
-  assert.deepEqual(parseDeterministicCommand("setup matter"), { type: "skill", command: "/prepare_matter" });
+  assert.deepEqual(parseDeterministicCommand("setup matter"), { type: "skill", command: "/matter-init" });
   assert.deepEqual(parseDeterministicCommand("/extract"), { type: "skill", command: "/extract" });
   assert.deepEqual(parseDeterministicCommand("extract"), { type: "skill", command: "/extract" });
   assert.deepEqual(parseDeterministicCommand("describe sources"), { type: "skill", command: "/describe_sources" });
@@ -20,7 +20,9 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("/context_preview"), { type: "skill", command: "/context_preview" });
   assert.deepEqual(parseDeterministicCommand("context"), { type: "skill", command: "/context_preview" });
   assert.deepEqual(parseDeterministicCommand("show context"), { type: "skill", command: "/context_preview" });
+  assert.deepEqual(parseDeterministicCommand("preview matter context"), { type: "skill", command: "/context_preview" });
   assert.deepEqual(parseDeterministicCommand("/context_search"), { type: "search", command: "/context_search", query: "" });
+  assert.deepEqual(parseDeterministicCommand("find in matter"), { type: "search", command: "/context_search", query: "" });
   assert.deepEqual(parseDeterministicCommand("search"), { type: "search", command: "/context_search", query: "" });
   assert.deepEqual(parseDeterministicCommand("find"), { type: "search", command: "/context_search", query: "" });
   assert.deepEqual(parseDeterministicCommand("search payment receipts"), { type: "search", command: "/context_search", query: "payment receipts" });
@@ -29,6 +31,7 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("create list of dates"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_listofdates" });
   assert.deepEqual(parseDeterministicCommand("doctor"), { type: "skill", command: "/doctor" });
+  assert.deepEqual(parseDeterministicCommand("check matter health"), { type: "skill", command: "/doctor" });
   assert.deepEqual(parseDeterministicCommand("open inbox"), { type: "lane", input: "open inbox", lanePath: "00_Inbox" });
   assert.deepEqual(parseDeterministicCommand("open library"), { type: "lane", input: "open library", lanePath: "10_Library" });
   assert.deepEqual(parseDeterministicCommand("show library"), { type: "lane", input: "show library", lanePath: "10_Library" });

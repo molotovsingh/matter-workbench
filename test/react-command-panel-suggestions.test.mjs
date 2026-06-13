@@ -20,6 +20,27 @@ test("React command panel suggestions include custom skills and a larger command
   assert.doesNotMatch(source, /setSuggestions\(matched\.slice\(0, 5\)\)/);
 });
 
+test("React command panel suggestions expose all built-in workflow labels", async () => {
+  const source = await readFile(new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url), "utf8");
+
+  for (const label of [
+    "Set up matter",
+    "Prepare matter",
+    "Read documents",
+    "Source Labels / Document Index",
+    "Preview matter context",
+    "Find in matter",
+    "Create List of Dates",
+    "Check matter health",
+  ]) {
+    const labelIndex = source.indexOf(`label: '${label}'`);
+    assert.notEqual(labelIndex, -1, `${label} should exist as a native command label`);
+    const commandEnd = source.indexOf("\n  },", labelIndex);
+    const commandBlock = source.slice(labelIndex, commandEnd);
+    assert.match(commandBlock, /showInCommandPanel: true/, `${label} should be visible in command suggestions`);
+  }
+});
+
 test("React command handling can invoke configurable skills returned by intent routing", async () => {
   const source = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
 

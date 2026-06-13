@@ -20,7 +20,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     view: 'prepare-matter',
     pill: 'Local',
     showInSidebar: true,
-    showInCommandPanel: false,
+    showInCommandPanel: true,
     overviewPlacement: 'primary',
   },
   {
@@ -60,7 +60,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     view: 'context-preview',
     pill: 'Local',
     showInSidebar: true,
-    showInCommandPanel: false,
+    showInCommandPanel: true,
   },
   {
     command: '/context_search',
@@ -69,7 +69,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     view: 'context-search',
     pill: 'Local',
     showInSidebar: true,
-    showInCommandPanel: false,
+    showInCommandPanel: true,
   },
   {
     command: '/create_listofdates',
@@ -88,7 +88,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     view: 'doctor',
     pill: 'Local',
     showInSidebar: true,
-    showInCommandPanel: false,
+    showInCommandPanel: true,
     overviewPlacement: 'secondary',
   },
 ];

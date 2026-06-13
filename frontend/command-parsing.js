@@ -31,15 +31,15 @@ const NEW_SKILL_MODE_ALIASES = new Set([
 export function parseDeterministicCommand(input) {
   const normalized = normalizeCommandInput(input);
   if (!normalized) return null;
-  const searchCommand = parseSearchCommand(normalized);
-  if (searchCommand) return searchCommand;
   if (STATUS_ALIASES.has(normalized)) return { type: "status" };
   if (SKILLS_ALIASES.has(normalized)) return { type: "skills", input: normalized };
   const lanePath = LANE_COMMANDS.get(normalized);
   if (lanePath) return { type: "lane", input: normalized, lanePath };
-  if (BUILTIN_SKILL_COMMAND_SET.has(normalized)) return { type: "skill", command: normalized };
   const aliasCommand = BUILTIN_SKILL_COMMAND_ALIAS_MAP.get(normalized);
-  if (aliasCommand) return { type: "skill", command: aliasCommand };
+  if (aliasCommand) return nativeCommandResult(aliasCommand);
+  const searchCommand = parseSearchCommand(normalized);
+  if (searchCommand) return searchCommand;
+  if (BUILTIN_SKILL_COMMAND_SET.has(normalized)) return nativeCommandResult(normalized);
   return null;
 }
 
@@ -89,4 +89,9 @@ function parseSearchCommand(normalized) {
     }
   }
   return null;
+}
+
+function nativeCommandResult(command) {
+  if (command === "/context_search") return { type: "search", command, query: "" };
+  return { type: "skill", command };
 }
