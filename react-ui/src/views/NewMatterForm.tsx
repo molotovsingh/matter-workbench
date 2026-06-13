@@ -80,7 +80,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         successMessage: false,
         failureMessage: (err) => `[new-matter] switch error: ${getErrorMessage(err)}`,
       });
-      onCreated(name.trim(), { autoPrepare: files.length > 0 });
+      onCreated(name.trim(), { autoPrepare: true });
     } catch (err) {
       if (isMatterSwitchSupersededError(err)) return;
       setError(getErrorMessage(err));
