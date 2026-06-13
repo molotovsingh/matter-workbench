@@ -195,6 +195,9 @@ export function buildPrivateVmRsyncDeployPlan({
         remote,
         "set -e; "
           + "if test -r \"$HOME/.config/matter-workbench/mothership.env\"; then "
+          + `cd ${shellQuote(appDir)}; `
+          + "set -a; . \"$HOME/.config/matter-workbench/mothership.env\"; set +a; "
+          + "npm run mothership:migrate --silent; "
           + "systemctl --user enable --now 'matter-workbench-mothership.service'; "
           + "systemctl --user restart 'matter-workbench-mothership.service'; "
           + "systemctl --user is-active 'matter-workbench-mothership.service'; "
