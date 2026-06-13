@@ -95,6 +95,74 @@ export function markTelemetrySyncQueued({ syncConfig, previousSync = {}, normali
   };
 }
 
+export async function syncTelemetryItemOutsideLock({
+  writeMutatedStore,
+  selectItems,
+  item,
+  attemptSync,
+} = {}) {
+  if (!item || typeof item !== "object") return item;
+  const sync = typeof attemptSync === "function" ? await attemptSync(item, item.sync) : item.sync;
+  const synced = {
+    ...item,
+    sync,
+    updatedAt: sync?.lastAttemptAt || item.updatedAt,
+  };
+  if (typeof writeMutatedStore !== "function" || typeof selectItems !== "function") return synced;
+  await writeMutatedStore(async (store) => {
+    const items = selectItems(store);
+    if (!Array.isArray(items)) return null;
+    const index = items.findIndex((candidate) => candidate?.id === item.id);
+    if (index < 0) return null;
+    items[index].sync = sync;
+    items[index].updatedAt = sync?.lastAttemptAt || items[index].updatedAt;
+    return null;
+  });
+  return synced;
+}
+
+export async function drainQueuedTelemetrySync({
+  loadStore,
+  writeMutatedStore,
+  selectItems,
+  attemptSync,
+  schemaVersion = "telemetry-sync-result/v1",
+  excludeId = "",
+  limit = 100,
+} = {}) {
+  const result = emptyTelemetrySyncResult(schemaVersion);
+  if (typeof loadStore !== "function" || typeof writeMutatedStore !== "function" || typeof selectItems !== "function") {
+    result.skipped += 1;
+    return result;
+  }
+  const store = await loadStore();
+  const candidates = (Array.isArray(selectItems(store)) ? selectItems(store) : [])
+    .filter((item) => item?.id !== excludeId)
+    .filter((item) => item?.sync?.status === "queued")
+    .sort(compareOldestTelemetrySyncFirst)
+    .slice(0, normalizeLimit(limit));
+
+  for (const item of candidates) {
+    result.attempted += 1;
+    const synced = await syncTelemetryItemOutsideLock({
+      writeMutatedStore,
+      selectItems,
+      item,
+      attemptSync,
+    });
+    tallyTelemetrySyncStatus(result, synced?.sync?.status);
+  }
+  return result;
+}
+
+export function tallyTelemetrySyncStatus(result, status) {
+  if (status === "sent") result.sent += 1;
+  else if (status === "queued") result.queued += 1;
+  else if (status === "not_configured") result.skipped += 1;
+  else result.failed += 1;
+  return result;
+}
+
 function normalizeUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return null;
@@ -141,6 +209,27 @@ function normalizeDefaultSync(sync = {}) {
     status,
     attempts: Number.isFinite(Number(sync.attempts)) ? Math.max(0, Math.round(Number(sync.attempts))) : 0,
   };
+}
+
+function emptyTelemetrySyncResult(schemaVersion) {
+  return {
+    schema_version: schemaVersion,
+    attempted: 0,
+    sent: 0,
+    queued: 0,
+    failed: 0,
+    skipped: 0,
+  };
+}
+
+function compareOldestTelemetrySyncFirst(a, b) {
+  return Date.parse(a.sync?.lastAttemptAt || a.createdAt || 0) - Date.parse(b.sync?.lastAttemptAt || b.createdAt || 0);
+}
+
+function normalizeLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 100;
+  return Math.min(Math.trunc(parsed), 500);
 }
 
 function isoNow(now) {

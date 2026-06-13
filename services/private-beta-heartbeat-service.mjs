@@ -5,6 +5,7 @@ import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import {
   attemptTelemetrySync,
+  drainQueuedTelemetrySync,
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
@@ -91,30 +92,13 @@ export function createPrivateBetaHeartbeatService({
   }
 
   async function syncQueuedHeartbeats(filters = {}) {
-    return writeMutatedStore(async (store) => {
-      const limit = parseLimit(filters.limit);
-      const candidates = store.heartbeats
-        .filter((heartbeat) => heartbeat.sync?.status === "queued")
-        .sort(compareOldestSyncFirst)
-        .slice(0, limit);
-      const result = {
-        schema_version: SYNC_RESULT_SCHEMA_VERSION,
-        attempted: 0,
-        sent: 0,
-        queued: 0,
-        failed: 0,
-        skipped: 0,
-      };
-      for (const heartbeat of candidates) {
-        result.attempted += 1;
-        heartbeat.sync = await attemptSync(heartbeat, heartbeat.sync);
-        heartbeat.updatedAt = heartbeat.sync.lastAttemptAt || heartbeat.updatedAt;
-        if (heartbeat.sync.status === "sent") result.sent += 1;
-        else if (heartbeat.sync.status === "queued") result.queued += 1;
-        else if (heartbeat.sync.status === "not_configured") result.skipped += 1;
-        else result.failed += 1;
-      }
-      return result;
+    return drainQueuedTelemetrySync({
+      loadStore,
+      writeMutatedStore,
+      selectItems: (store) => store.heartbeats,
+      attemptSync,
+      schemaVersion: SYNC_RESULT_SCHEMA_VERSION,
+      limit: parseLimit(filters.limit),
     });
   }
 
@@ -276,10 +260,6 @@ function normalizeSync(sync = {}) {
 
 function compareNewestFirst(a, b) {
   return Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0);
-}
-
-function compareOldestSyncFirst(a, b) {
-  return Date.parse(a.sync?.lastAttemptAt || a.createdAt || 0) - Date.parse(b.sync?.lastAttemptAt || b.createdAt || 0);
 }
 
 function parseLimit(value) {

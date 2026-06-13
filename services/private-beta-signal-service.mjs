@@ -4,6 +4,7 @@ import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import {
   attemptTelemetrySync,
+  drainQueuedTelemetrySync,
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
@@ -190,30 +191,13 @@ export function createPrivateBetaSignalService({
   }
 
   async function syncQueuedSignals(filters = {}) {
-    return writeMutatedStore(async (store) => {
-      const limit = parseLimit(filters.limit);
-      const candidates = store.signals
-        .filter((signal) => signal.sync?.status === "queued")
-        .sort(compareOldestSyncFirst)
-        .slice(0, limit);
-      const result = {
-        schema_version: SYNC_RESULT_SCHEMA_VERSION,
-        attempted: 0,
-        sent: 0,
-        queued: 0,
-        failed: 0,
-        skipped: 0,
-      };
-      for (const signal of candidates) {
-        result.attempted += 1;
-        signal.sync = await attemptSync(signal, signal.sync);
-        signal.updatedAt = signal.sync.lastAttemptAt || signal.updatedAt;
-        if (signal.sync.status === "sent") result.sent += 1;
-        else if (signal.sync.status === "queued") result.queued += 1;
-        else if (signal.sync.status === "not_configured") result.skipped += 1;
-        else result.failed += 1;
-      }
-      return result;
+    return drainQueuedTelemetrySync({
+      loadStore,
+      writeMutatedStore,
+      selectItems: (store) => store.signals,
+      attemptSync,
+      schemaVersion: SYNC_RESULT_SCHEMA_VERSION,
+      limit: parseLimit(filters.limit),
     });
   }
 
@@ -537,10 +521,6 @@ function stableFingerprint(parts = []) {
 
 function compareNewestSignalFirst(a, b) {
   return Date.parse(b.lastSeenAt || b.createdAt || 0) - Date.parse(a.lastSeenAt || a.createdAt || 0);
-}
-
-function compareOldestSyncFirst(a, b) {
-  return Date.parse(a.sync?.lastAttemptAt || a.createdAt || 0) - Date.parse(b.sync?.lastAttemptAt || b.createdAt || 0);
 }
 
 function parseLimit(value) {

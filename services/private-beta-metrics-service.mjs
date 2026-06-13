@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import {
   attemptTelemetrySync,
+  drainQueuedTelemetrySync,
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
@@ -96,30 +97,13 @@ export function createPrivateBetaMetricsService({
   }
 
   async function syncQueuedMetrics(filters = {}) {
-    return writeMutatedStore(async (store) => {
-      const limit = parseLimit(filters.limit);
-      const candidates = store.metrics
-        .filter((metric) => metric.sync?.status === "queued")
-        .sort(compareOldestSyncFirst)
-        .slice(0, limit);
-      const result = {
-        schema_version: SYNC_RESULT_SCHEMA_VERSION,
-        attempted: 0,
-        sent: 0,
-        queued: 0,
-        failed: 0,
-        skipped: 0,
-      };
-      for (const metric of candidates) {
-        result.attempted += 1;
-        metric.sync = await attemptSync(metric, metric.sync);
-        metric.updatedAt = metric.sync.lastAttemptAt || metric.updatedAt;
-        if (metric.sync.status === "sent") result.sent += 1;
-        else if (metric.sync.status === "queued") result.queued += 1;
-        else if (metric.sync.status === "not_configured") result.skipped += 1;
-        else result.failed += 1;
-      }
-      return result;
+    return drainQueuedTelemetrySync({
+      loadStore,
+      writeMutatedStore,
+      selectItems: (store) => store.metrics,
+      attemptSync,
+      schemaVersion: SYNC_RESULT_SCHEMA_VERSION,
+      limit: parseLimit(filters.limit),
     });
   }
 
@@ -386,10 +370,6 @@ function normalizeSync(sync = {}) {
 
 function compareNewestMetricFirst(a, b) {
   return Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0);
-}
-
-function compareOldestSyncFirst(a, b) {
-  return Date.parse(a.sync?.lastAttemptAt || a.createdAt || 0) - Date.parse(b.sync?.lastAttemptAt || b.createdAt || 0);
 }
 
 function percentile(sortedDurations = [], ratio = 0.95) {

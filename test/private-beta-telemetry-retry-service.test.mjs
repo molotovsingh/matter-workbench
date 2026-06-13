@@ -131,3 +131,24 @@ test("telemetry retry service prevents overlaps and isolates queue failures", as
   assert.match(errors.join("\n"), /token=\[redacted-secret\]/);
   assert.doesNotMatch(errors.join("\n"), /super-secret/);
 });
+
+test("telemetry retry tick deadline releases the guard while a hung drain continues", async () => {
+  const logged = [];
+  const service = createPrivateBetaTelemetryRetryService({
+    feedbackService: { syncQueuedFeedback: () => new Promise(() => {}) },
+    signalService: { syncQueuedSignals: async () => {} },
+    tickDeadlineMs: 20,
+    setIntervalImpl: () => ({ unref() {} }),
+    clearIntervalImpl: () => {},
+    log: { error: (line) => logged.push(line) },
+  });
+
+  const first = await service.runOnce();
+  assert.equal(first.timedOut, true);
+  assert.equal(first.completed, false);
+  assert.match(logged.join("\n"), /tick exceeded 20ms/);
+
+  const second = await service.runOnce();
+  assert.equal(second.timedOut, true);
+  assert.notEqual(second.reason, "already_running");
+});

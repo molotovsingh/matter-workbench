@@ -1,6 +1,7 @@
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_TICK_DEADLINE_MS = 4 * 60 * 1000;
 
 export function createPrivateBetaTelemetryRetryService({
   feedbackService,
@@ -9,6 +10,7 @@ export function createPrivateBetaTelemetryRetryService({
   signalService,
   heartbeatService,
   intervalMs = DEFAULT_INTERVAL_MS,
+  tickDeadlineMs = DEFAULT_TICK_DEADLINE_MS,
   setIntervalImpl = setInterval,
   clearIntervalImpl = clearInterval,
   log = console,
@@ -19,16 +21,34 @@ export function createPrivateBetaTelemetryRetryService({
   async function runOnce() {
     if (running) return { skipped: true, reason: "already_running" };
     running = true;
-    const result = { completed: true, feedback: null, metrics: null, signals: null, heartbeats: null };
     try {
-      result.feedback = await runQueue("feedback", feedbackService?.syncQueuedFeedback);
-      result.metrics = await runMetrics();
-      result.heartbeats = await runHeartbeats();
-      result.signals = await runQueue("signals", signalService?.syncQueuedSignals);
-      return result;
+      return await raceWithTickDeadline(drainAll());
     } finally {
       running = false;
     }
+  }
+
+  async function drainAll() {
+    const result = { completed: true, feedback: null, metrics: null, signals: null, heartbeats: null };
+    result.feedback = await runQueue("feedback", feedbackService?.syncQueuedFeedback);
+    result.metrics = await runMetrics();
+    result.heartbeats = await runHeartbeats();
+    result.signals = await runQueue("signals", signalService?.syncQueuedSignals);
+    return result;
+  }
+
+  function raceWithTickDeadline(work) {
+    const deadlineMs = Number(tickDeadlineMs);
+    if (!Number.isFinite(deadlineMs) || deadlineMs <= 0) return work;
+    let deadlineTimer;
+    const deadline = new Promise((resolve) => {
+      deadlineTimer = setTimeout(() => {
+        log.error?.(`private beta telemetry tick exceeded ${deadlineMs}ms; drain continues in background`);
+        resolve({ completed: false, timedOut: true });
+      }, deadlineMs);
+      deadlineTimer?.unref?.();
+    });
+    return Promise.race([work, deadline]).finally(() => clearTimeout(deadlineTimer));
   }
 
   function start({ immediate = false } = {}) {

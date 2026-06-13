@@ -4,6 +4,7 @@ import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import {
   attemptTelemetrySync,
+  drainQueuedTelemetrySync,
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
@@ -102,9 +103,13 @@ export function createPrivateBetaFeedbackService({
   }
 
   async function syncQueuedFeedback(filters = {}) {
-    return writeMutatedStore(async (store) => {
-      const limit = parseLimit(filters.limit);
-      return syncQueuedItems(store, { limit });
+    return drainQueuedTelemetrySync({
+      loadStore,
+      writeMutatedStore,
+      selectItems: (store) => store.feedback,
+      attemptSync,
+      schemaVersion: "private-beta-feedback-sync-result/v1",
+      limit: parseLimit(filters.limit),
     });
   }
 
@@ -125,32 +130,6 @@ export function createPrivateBetaFeedbackService({
     });
   }
 
-  async function syncQueuedItems(store, { excludeId = "", limit = DEFAULT_LIMIT } = {}) {
-    const candidates = store.feedback
-      .filter((item) => item.id !== excludeId)
-      .filter((item) => item.sync?.status === "queued")
-      .sort(compareOldestSyncFirst)
-      .slice(0, limit);
-    const result = {
-      schema_version: "private-beta-feedback-sync-result/v1",
-      attempted: 0,
-      sent: 0,
-      queued: 0,
-      failed: 0,
-      skipped: 0,
-    };
-
-    for (const item of candidates) {
-      result.attempted += 1;
-      item.sync = await attemptSync(item, item.sync);
-      item.updatedAt = item.sync.lastAttemptAt || item.updatedAt;
-      if (item.sync.status === "sent") result.sent += 1;
-      else if (item.sync.status === "queued") result.queued += 1;
-      else if (item.sync.status === "not_configured") result.skipped += 1;
-      else result.failed += 1;
-    }
-    return result;
-  }
 }
 
 export function normalizeFeedback(input = {}, { telemetryMode = "safe", preserveStoredClassification = false } = {}) {
@@ -378,10 +357,6 @@ function sanitizeText(value, maxLength = 500) {
 
 function compareNewestFeedbackFirst(a, b) {
   return Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0);
-}
-
-function compareOldestSyncFirst(a, b) {
-  return Date.parse(a.sync?.lastAttemptAt || a.createdAt || 0) - Date.parse(b.sync?.lastAttemptAt || b.createdAt || 0);
 }
 
 function parseLimit(value) {
