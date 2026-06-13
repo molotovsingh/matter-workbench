@@ -95,7 +95,11 @@ export function createConfigurableSkillsService({
       .map(skillToRegistryCard);
   }
 
-  async function createSkillFromApprovedSample({ ideaId } = {}) {
+  async function createSkillFromApprovedSample({
+    ideaId,
+    matterRootOverride = "",
+    matterRecordOverride = null,
+  } = {}) {
     const idea = await skillIdeasService.getIdea(ideaId);
     const sample = await skillSamplesService.getApprovedCurrentSample({
       ideaId: idea.id,
@@ -112,6 +116,8 @@ export function createConfigurableSkillsService({
         env,
         fetchImpl,
         endpoint,
+        matterRootOverride,
+        matterRecordOverride,
         now,
         idFactory,
       });

@@ -31,6 +31,8 @@ export async function createSkillFromApprovedSampleInStore({
   env = process.env,
   fetchImpl = fetch,
   endpoint,
+  matterRootOverride = "",
+  matterRecordOverride = null,
   now = () => new Date(),
   idFactory,
 } = {}) {
@@ -84,6 +86,8 @@ export async function createSkillFromApprovedSampleInStore({
     draft,
     sample,
     matterStore,
+    matterRootOverride,
+    matterRecordOverride,
     runProvider: validationRunProvider,
     providerConfig: runProviderConfig,
   });

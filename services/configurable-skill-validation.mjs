@@ -8,6 +8,8 @@ export async function validateDraftSkill({
   draft,
   sample,
   matterStore,
+  matterRootOverride = "",
+  matterRecordOverride = null,
   runProvider,
   providerConfig,
 }) {
@@ -23,7 +25,12 @@ export async function validateDraftSkill({
   }
   if (!messages.length) {
     try {
-      const matterRoot = resolveSampleMatterRoot({ sample, matterStore });
+      const matterRoot = resolveSampleMatterRoot({
+        sample,
+        matterStore,
+        matterRootOverride,
+        matterRecordOverride,
+      });
       const packet = await buildConfigurableSkillMatterContextPacket(matterRoot);
       const validationMarkdown = boundedOutputMarkdown(await runProvider({
         skill: draft,
@@ -47,8 +54,20 @@ export async function validateDraftSkill({
   };
 }
 
-function resolveSampleMatterRoot({ sample, matterStore }) {
-  const folderName = normalizeText(sample?.matter?.folderName || sample?.matter?.folder_name);
+function resolveSampleMatterRoot({
+  sample,
+  matterStore,
+  matterRootOverride = "",
+  matterRecordOverride = null,
+}) {
+  const overrideRoot = normalizeText(matterRootOverride, 10_000);
+  if (overrideRoot) return overrideRoot;
+  const folderName = normalizeText(
+    matterRecordOverride?.name
+    || matterRecordOverride?.folderName
+    || sample?.matter?.folderName
+    || sample?.matter?.folder_name,
+  );
   if (folderName && typeof matterStore?.matterPathForName === "function") {
     return matterStore.matterPathForName(folderName).matterPath;
   }

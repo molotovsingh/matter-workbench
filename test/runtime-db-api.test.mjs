@@ -1310,6 +1310,129 @@ test("runtime DB sample output materializes matter context before building sampl
   }
 });
 
+test("runtime DB skill creation validates approved samples through materialized matter context", async () => {
+  const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-create-skill");
+  const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
+  const calls = [];
+  const store = { schema_version: "configurable-skills/v1", skills: [] };
+  const idea = {
+    id: "idea_issues",
+    text: "discover legal and factual issues from the matter record",
+    status: "ready_for_review",
+    matter: { matterName: matter.matterName, folderName: matter.name },
+    designBrief: {
+      intendedUser: "advocate",
+      problem: "Find legal and factual issues from the matter record.",
+      expectedInputs: "matter record",
+      expectedOutputArtifact: "20_Workshop/Issue Discovery.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "medium",
+      notes: "Internal review only.",
+    },
+    readiness: { ready: true },
+  };
+  const sample = {
+    id: "sample_issues",
+    ideaId: idea.id,
+    approved: true,
+    matter: { matter_name: matter.matterName, folder_name: matter.name },
+    sampleMarkdown: "# Issues Note\n\nTaori issue supported by the record (FILE-0001 p1.b1).",
+    aiRun: { provider: "openai-direct", model: "gpt-5.4", task: "skill_sample_output" },
+  };
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [matter],
+      findMatterFolder: async (name) => (name === matter.name || name === matter.matterName ? matter : null),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async runMaterializedMatterRead(targetMatter, operation) {
+        calls.push(["materialized-read", targetMatter.name]);
+        const matterRoot = path.join(materializedRoot, targetMatter.name);
+        await writeExtractedTextMatter(matterRoot, targetMatter);
+        return operation({ matterRoot, matter: targetMatter });
+      },
+    },
+    skillIdeasService: {
+      getIdea: async (id) => {
+        assert.equal(id, idea.id);
+        return idea;
+      },
+    },
+    skillSamplesService: {
+      getApprovedCurrentSample: async ({ ideaId }) => {
+        assert.equal(ideaId, idea.id);
+        return sample;
+      },
+    },
+    configurableSkillStore: {
+      readStore: async () => store,
+      updateStore: async (mutator) => mutator(store),
+    },
+    configurableSkillAuthoringProvider: async () => ({
+      title: "Issue Discovery",
+      slash: "/issue_discovery",
+      description: "Find legal and factual issues from the current matter record.",
+      target_lane: "20_Workshop",
+      output_artifact: "20_Workshop/Issue Discovery.md",
+      matter_required: true,
+      paid_provider_call: true,
+      source_backed: "required",
+      prompt: "Prepare a source-backed issue discovery note for the active matter. Identify legal issues, factual issues, weaknesses, missing evidence, and next steps. Every material point must cite raw FILE-NNNN pX.bY citations and preserve uncertainty where the record is incomplete.",
+      citation_policy: "Every material point must cite raw FILE-NNNN pX.bY citations.",
+    }),
+    configurableSkillRunProvider: async () => [
+      "# Issue Discovery",
+      "",
+      "Taori issues include payment and possession questions supported by the matter record (FILE-0001 p1.b1).",
+    ].join("\n"),
+    skillRouterProvider: async () => ({
+      intent: "new_skill",
+      decision: "new_skill",
+      confidence: 0.95,
+      matched_skill: "",
+      matched_skill_card: null,
+      reason: "No overlapping skill.",
+      suggested_next_step: "create_new",
+      suggested_next_action: "Create the custom skill.",
+      recommended_action: "new_skill",
+      user_gate_required: false,
+      mece_violation: false,
+      legal_setting: {
+        jurisdiction: "",
+        forum: "",
+        case_type: "",
+        procedure_stage: "",
+        side: "",
+        relief_type: "",
+      },
+      override_requires: [],
+      requires_confirmation: false,
+    }),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const created = await postJson(baseUrl, `/api/skill-ideas/${idea.id}/create-skill`, {});
+
+    assert.equal(created.skill.status, "active");
+    assert.equal(created.skill.slash, "/issue_discovery");
+    assert.deepEqual(calls, [["materialized-read", matter.name]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode checks skill factory health from runtime DB services", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skill-factory-health");
   const calls = [];

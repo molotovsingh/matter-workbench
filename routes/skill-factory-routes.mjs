@@ -129,9 +129,17 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           skillRouterService,
           overrideJustification: body.overlapOverrideJustification,
         });
-        sendJson(response, 200, await configurableSkillsService.createSkillFromApprovedSample({
-          ideaId,
-        }));
+        if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
+          sendJson(response, 200, await createRuntimeDbSkillFromApprovedSample({
+            configurableSkillsService,
+            matterStore,
+            runtimeDbStorageService,
+            idea,
+            ideaId,
+          }));
+          return;
+        }
+        sendJson(response, 200, await configurableSkillsService.createSkillFromApprovedSample({ ideaId }));
       }),
       patternRoute("POST", /^\/api\/skill-ideas\/([^/]+)\/status$/, async ({ params }) => {
         const body = await readRequestJson(request);
@@ -248,10 +256,30 @@ async function generateRuntimeDbSampleOutput({
   }));
 }
 
+async function createRuntimeDbSkillFromApprovedSample({
+  configurableSkillsService,
+  matterStore,
+  runtimeDbStorageService,
+  idea = {},
+  ideaId = "",
+}) {
+  const matter = await runtimeDbMatterForBody(matterStore, matterNameForIdea(idea));
+  return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => configurableSkillsService.createSkillFromApprovedSample({
+    ideaId,
+    matterRootOverride: matterRoot,
+    matterRecordOverride: matter,
+  }));
+}
+
 function matterNameForSampleOutput(body = {}) {
   const direct = typeof body.matterName === "string" ? body.matterName.trim() : "";
   if (direct) return direct;
   const ideaMatter = body.idea?.matter && typeof body.idea.matter === "object" ? body.idea.matter : {};
+  return String(ideaMatter.folderName || ideaMatter.matterName || "").trim();
+}
+
+function matterNameForIdea(idea = {}) {
+  const ideaMatter = idea?.matter && typeof idea.matter === "object" ? idea.matter : {};
   return String(ideaMatter.folderName || ideaMatter.matterName || "").trim();
 }
 
