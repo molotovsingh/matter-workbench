@@ -9,21 +9,23 @@ import {
   formatIntentDiscoveryReason,
 } from '../../lib/skillIntentRouting';
 import { useSkillIdeaSessionMachine } from '../../hooks/useSkillIdeaSessionMachine';
+import type { SkillIdea } from '../../types';
 
 interface Props {
   initialInput: string;
+  initialIdea?: SkillIdea | null;
   onClose: () => void;
   onInputOverride: (handler: ((input: string) => boolean) | null) => void;
 }
 
-export default function SkillIdeaSession({ initialInput, onClose, onInputOverride }: Props) {
+export default function SkillIdeaSession({ initialInput, initialIdea = null, onClose, onInputOverride }: Props) {
   const isImprovementSession = /^Improve\s+\//i.test(initialInput.trim());
   const {
     session,
     currentQuestion,
     hasMatter,
     actions,
-  } = useSkillIdeaSessionMachine({ initialInput, onClose, onInputOverride });
+  } = useSkillIdeaSessionMachine({ initialInput, initialIdea, onClose, onInputOverride });
   const currentQuestionExamples = currentQuestion?.id === 'skillName'
     ? skillNameSuggestions(session.ideaText, session.plannedBrief, session.answers)
     : currentQuestion?.examples;
@@ -122,8 +124,13 @@ export default function SkillIdeaSession({ initialInput, onClose, onInputOverrid
           <div className="skill-idea-actions">
             <button
               type="button"
-              disabled={!hasMatter}
-              onClick={() => { void actions.handleGenerateSample(); }}
+              onClick={() => {
+                if (hasMatter) {
+                  void actions.handleGenerateSample();
+                } else {
+                  actions.handlePickMatterForSample();
+                }
+              }}
             >
               {hasMatter ? 'Generate sample' : 'Pick matter to test this skill'}
             </button>

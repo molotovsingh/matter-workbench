@@ -99,6 +99,20 @@ test("React Skills page keeps load failures local and retryable", async () => {
   assert.doesNotMatch(skillsSource, /\[skills\] load failed/);
 });
 
+test("React Skills page lets saved skill ideas continue instead of rendering inert drafts", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+  const commandSource = await readFile(commandPanelPath, "utf8");
+
+  assert.match(skillsSource, /function handleContinueIdea\(idea: SkillIdea\)/);
+  assert.match(skillsSource, /SET_PENDING_SKILL_IDEA_RESUME/);
+  assert.match(skillsSource, /Pick a matter, then continue the saved skill idea from Skills\./);
+  assert.match(skillsSource, /hasActiveMatter \? 'Continue' : 'Pick matter first'/);
+  assert.match(commandSource, /state\.pendingSkillIdeaResume/);
+  assert.match(commandSource, /setResumedSkillIdea\(idea\)/);
+  assert.match(commandSource, /initialIdea=\{resumedSkillIdea\}/);
+  assert.match(commandSource, /SET_PENDING_SKILL_IDEA_RESUME', payload: null/);
+});
+
 test("React Skills page keeps custom lifecycle controls out of built-ins", async () => {
   const skillsSource = await readFile(skillsPagePath, "utf8");
   const builtInSection = skillsSource.slice(

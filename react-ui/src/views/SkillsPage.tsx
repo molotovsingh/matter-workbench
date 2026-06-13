@@ -24,7 +24,7 @@ interface PendingOverwrite {
 }
 
 export default function SkillsPage() {
-  const { state, appendTerminal, refreshActiveMatterWorkspace } = useApp();
+  const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
   const [customSkills, setCustomSkills] = useState<ConfigurableSkill[]>([]);
@@ -185,6 +185,19 @@ export default function SkillsPage() {
     onLifecycleAction: (skill, action) => { void handleLifecycleAction(skill, action); },
   };
 
+  function handleContinueIdea(idea: SkillIdea) {
+    if (!state.activeMatter) {
+      appendTerminal(['[skill-idea] pick a matter before continuing this saved idea']);
+      dispatch({ type: 'SET_TAB', payload: 'home' });
+      dispatch({ type: 'SET_VIEW', payload: 'find-matter' });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter, then continue the saved skill idea from Skills.' });
+      return;
+    }
+    dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: idea });
+    appendTerminal([`[skill-idea] continuing saved idea — id: ${idea.id}`]);
+  }
+
   return (
     <div className="skills-page">
       <div className="skills-hero">
@@ -234,6 +247,8 @@ export default function SkillsPage() {
         <SkillsInProgressSection
           ideas={activeIdeas}
           draftCustomSkills={draftCustomSkills}
+          hasActiveMatter={Boolean(state.activeMatter)}
+          onContinueIdea={handleContinueIdea}
           renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
         />
       )}
@@ -395,10 +410,14 @@ function YourSkillsSection({
 function SkillsInProgressSection({
   ideas,
   draftCustomSkills,
+  hasActiveMatter,
+  onContinueIdea,
   renderManageActions,
 }: {
   ideas: SkillIdea[];
   draftCustomSkills: ConfigurableSkill[];
+  hasActiveMatter: boolean;
+  onContinueIdea: (idea: SkillIdea) => void;
   renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
 }) {
   return (
@@ -421,7 +440,19 @@ function SkillsInProgressSection({
           <div className="skills-subsection-label">Skill ideas</div>
         )}
         {ideas.map((idea) => (
-          <SkillIdeaRow key={idea.id} idea={idea} />
+          <SkillIdeaRow
+            key={idea.id}
+            idea={idea}
+            primaryAction={(
+              <button
+                type="button"
+                className="run-skill-button secondary"
+                onClick={() => onContinueIdea(idea)}
+              >
+                {hasActiveMatter ? 'Continue' : 'Pick matter first'}
+              </button>
+            )}
+          />
         ))}
       </div>
     </section>
@@ -559,7 +590,7 @@ function CustomSkillRow({
   );
 }
 
-function SkillIdeaRow({ idea }: { idea: SkillIdea }) {
+function SkillIdeaRow({ idea, primaryAction }: { idea: SkillIdea; primaryAction?: JSX.Element }) {
   return (
     <div className="skill-row">
       <div className="skill-row-main">
@@ -572,6 +603,11 @@ function SkillIdeaRow({ idea }: { idea: SkillIdea }) {
           {idea.sampleCount !== undefined && <span>{idea.sampleCount} sample{idea.sampleCount !== 1 ? 's' : ''}</span>}
         </div>
       </div>
+      {primaryAction && (
+        <div className="skill-row-actions">
+          {primaryAction}
+        </div>
+      )}
     </div>
   );
 }

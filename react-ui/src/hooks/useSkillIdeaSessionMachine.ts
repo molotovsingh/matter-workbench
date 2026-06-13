@@ -56,37 +56,40 @@ export interface SkillIdeaSessionState {
 
 interface UseSkillIdeaSessionMachineProps {
   initialInput: string;
+  initialIdea?: SkillIdea | null;
   onClose: () => void;
   onInputOverride: (handler: ((input: string) => boolean) | null) => void;
 }
 
 export function useSkillIdeaSessionMachine({
   initialInput,
+  initialIdea = null,
   onClose,
   onInputOverride,
 }: UseSkillIdeaSessionMachineProps) {
   const { state, appendTerminal, dispatch } = useApp();
-  const ideaText = parseSkillIdeaText(initialInput) ?? initialInput;
+  const ideaText = initialIdea?.text || (parseSkillIdeaText(initialInput) ?? initialInput);
   const startsWithBlankIdea = !ideaText.trim();
+  const startsFromSavedIdea = Boolean(initialIdea?.id);
   const planningStarted = useRef(false);
   const mountedRef = useRef(true);
   const activeMatterRef = useLatestValue(state.activeMatter);
   const hasMatter = hasSkillIdeaTestMatter(state.activeMatter);
 
   const [session, setSession] = useState<SkillIdeaSessionState>({
-    phase: startsWithBlankIdea ? 'interviewing' : 'planning',
+    phase: startsFromSavedIdea ? 'saved' : startsWithBlankIdea ? 'interviewing' : 'planning',
     ideaText,
     understoodText: ideaText,
     questions: startsWithBlankIdea ? [...SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION] : [],
-    answers: {},
+    answers: startsFromSavedIdea ? { skillName: ideaText } : {},
     questionIndex: 0,
     planner: null,
-    plannedBrief: null,
+    plannedBrief: initialIdea?.designBrief || null,
     defaultAssumptions: [],
     riskFlags: [],
-    savedIdeaId: null,
-    savedIdea: null,
-    designBrief: null,
+    savedIdeaId: initialIdea?.id || null,
+    savedIdea: initialIdea,
+    designBrief: initialIdea?.designBrief || null,
     sample: null,
     answersDirtySinceSave: false,
     overlapGate: null,
@@ -105,6 +108,10 @@ export function useSkillIdeaSessionMachine({
   }, []);
 
   useEffect(() => {
+    if (startsFromSavedIdea) {
+      appendTerminal([`[skill-idea] resumed saved idea — id: ${initialIdea?.id}`]);
+      return;
+    }
     if (planningStarted.current) return;
     planningStarted.current = true;
     void planInterview();
@@ -169,7 +176,7 @@ export function useSkillIdeaSessionMachine({
         appendTerminal([`[skill-idea] planner unavailable; using basic interview: ${getErrorMessage(e)}`]);
       }
     }
-  }, [activeMatterRef, appendTerminal, ideaText, initialInput, safeSetSession]);
+  }, [activeMatterRef, appendTerminal, ideaText, initialIdea?.id, initialInput, safeSetSession, startsFromSavedIdea]);
 
   const handleAnswer = useCallback((answer: string) => {
     safeSetSession((s) => {
@@ -458,6 +465,14 @@ export function useSkillIdeaSessionMachine({
     }));
   }
 
+  function handlePickMatterForSample() {
+    dispatch({ type: 'SET_TAB', payload: 'home' });
+    dispatch({ type: 'SET_VIEW', payload: 'find-matter' });
+    dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
+    showSessionGuidance('Pick a matter to test this saved skill idea, then continue it from Skills.');
+    appendTerminal(['[skill-idea] pick a matter before generating a sample']);
+  }
+
   async function handleMarkReady() {
     if (!session.savedIdeaId) return;
     if (!session.savedIdea?.readiness?.ready) {
@@ -611,6 +626,7 @@ export function useSkillIdeaSessionMachine({
       handleCopySample,
       handleEditAnswers,
       handleGenerateSample,
+      handlePickMatterForSample,
       handleSave,
       parkOverlapGate,
       setOverlapJustification,

@@ -73,11 +73,30 @@ test("React blank new-skill sessions show a kickoff question while planner conti
   assert.match(sessionSource, /review limitation risk for a consumer complaint/);
   assert.match(sessionSource, /draft a client update email from the latest matter record/);
   assert.match(machineSource, /const startsWithBlankIdea = !ideaText\.trim\(\)/);
-  assert.match(machineSource, /phase: startsWithBlankIdea \? 'interviewing' : 'planning'/);
+  assert.match(machineSource, /phase: startsFromSavedIdea \? 'saved' : startsWithBlankIdea \? 'interviewing' : 'planning'/);
   assert.match(machineSource, /questions: startsWithBlankIdea \? \[\.\.\.SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION\] : \[\]/);
   assert.match(sessionSource, /appendSkillNameQuestion\(questions, fallbackIdeaText, designBrief\)/);
   assert.match(machineSource, /if \(Object\.keys\(s\.answers\)\.length > 0\) \{/);
   assert.match(machineSource, /return \{[\s\S]*planner: result\.planner,[\s\S]*\}/);
+});
+
+test("React saved skill ideas resume without replanning and can route to matter selection", async () => {
+  const componentSource = await readFile(skillIdeaSessionPath, "utf8");
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const appContextSource = await readFile(new URL("../react-ui/src/store/AppContext.tsx", import.meta.url), "utf8");
+  const typesSource = await readFile(new URL("../react-ui/src/types/index.ts", import.meta.url), "utf8");
+
+  assert.match(typesSource, /pendingSkillIdeaResume: SkillIdea \| null/);
+  assert.match(appContextSource, /SET_PENDING_SKILL_IDEA_RESUME/);
+  assert.match(componentSource, /initialIdea\?: SkillIdea \| null/);
+  assert.match(componentSource, /hasMatter\) \{[\s\S]*handleGenerateSample/);
+  assert.match(componentSource, /handlePickMatterForSample/);
+  assert.match(machineSource, /startsFromSavedIdea/);
+  assert.match(machineSource, /phase: startsFromSavedIdea \? 'saved'/);
+  assert.match(machineSource, /savedIdeaId: initialIdea\?\.id \|\| null/);
+  assert.match(machineSource, /if \(startsFromSavedIdea\) \{/);
+  assert.match(machineSource, /function handlePickMatterForSample\(\)/);
+  assert.match(machineSource, /Pick a matter to test this saved skill idea, then continue it from Skills\./);
 });
 
 test("React skill idea session component delegates orchestration to the machine hook", async () => {

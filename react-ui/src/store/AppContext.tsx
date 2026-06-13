@@ -14,6 +14,7 @@ import type {
   ActiveView,
   FilePreview,
   PreparationRunStatus,
+  SkillIdea,
   WorkspaceApiResponse,
 } from '../types';
 import { api } from '../api/client';
@@ -27,6 +28,7 @@ type Action =
   | { type: 'SET_MATTERS'; payload: Matter[] }
   | { type: 'SET_ACTIVE_MATTER'; payload: ActiveMatter | null }
   | { type: 'SET_RESUME_MATTER'; payload: string | null }
+  | { type: 'SET_PENDING_SKILL_IDEA_RESUME'; payload: SkillIdea | null }
   | { type: 'SET_TAB'; payload: ActiveTab }
   | { type: 'SET_VIEW'; payload: ActiveView }
   | { type: 'SET_FILE_PREVIEW'; payload: FilePreview | null }
@@ -59,6 +61,7 @@ const initialState: AppState = {
   activeMatter: null,
   matters: [],
   resumeMatterName: null,
+  pendingSkillIdeaResume: null,
   activeTab: 'home',
   activeView: 'home',
   filePreview: null,
@@ -86,6 +89,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, activeMatter: action.payload };
     case 'SET_RESUME_MATTER':
       return { ...state, resumeMatterName: action.payload };
+    case 'SET_PENDING_SKILL_IDEA_RESUME':
+      return { ...state, pendingSkillIdeaResume: action.payload };
     case 'SET_TAB':
       return { ...state, activeTab: action.payload, activeView: 'home' };
     case 'SET_VIEW':

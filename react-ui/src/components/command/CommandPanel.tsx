@@ -92,6 +92,7 @@ export default function CommandPanel({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
+  const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
   const [copilotProvider, setCopilotProvider] = useState('openrouter');
   const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
@@ -180,11 +181,30 @@ export default function CommandPanel({
     setShowSuggestions(false);
     setActiveSuggestion(-1);
     setSkillIdeaInput(null);
+    setResumedSkillIdea(null);
     setPendingIntentChoice(null);
     setCopilotSwitchStatus('');
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
   }, [dispatch, loadCommandSuggestions]);
+
+  useEffect(() => {
+    const idea = state.pendingSkillIdeaResume;
+    if (!idea) return;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    inputOverrideRef.current = null;
+    setInput('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setActiveSuggestion(-1);
+    setPendingIntentChoice(null);
+    setResumedSkillIdea(idea);
+    setSkillIdeaInput(idea.text || 'new skill');
+    dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: null });
+  }, [dispatch, state.pendingSkillIdeaResume]);
 
   useEffect(() => {
     const activeMatterName = state.activeMatter?.name ?? null;
@@ -243,6 +263,7 @@ export default function CommandPanel({
     setActiveSuggestion(-1);
     setPendingIntentChoice(null);
     if (command === 'new skill') {
+      setResumedSkillIdea(null);
       setSkillIdeaInput(command);
       return;
     }
@@ -366,6 +387,7 @@ export default function CommandPanel({
         ? `[skill-idea] user chose to improve ${matchedSkill}`
         : '[skill-idea] user chose reusable skill',
     ]);
+    setResumedSkillIdea(null);
     setSkillIdeaInput(improveExisting ? `Improve ${matchedSkill}: ${command}` : command);
   }
 
@@ -385,6 +407,7 @@ export default function CommandPanel({
     const shouldCheckIntent = ideaParsed !== null || looksLikeCustomSkillModification(cmd, baseSuggestions);
     if (shouldCheckIntent) {
       if (ideaParsed === '') {
+        setResumedSkillIdea(null);
         setSkillIdeaInput(cmd);
         return;
       }
@@ -394,9 +417,11 @@ export default function CommandPanel({
       try {
         const decision = await api.checkIntent({ userRequest: cmd, matterName: matterName ?? undefined });
         if (shouldStartSkillIdeaSessionFromIntent(decision)) {
+          setResumedSkillIdea(null);
           setSkillIdeaInput(cmd);
         } else if (shouldAutoStartConfigurableSkillImprovement(decision, cmd)) {
           appendTerminal([`[skill-idea] routed to improve ${decision.matched_skill}`]);
+          setResumedSkillIdea(null);
           setSkillIdeaInput(`Improve ${decision.matched_skill}: ${cmd}`);
         } else if (decision.decision === 'transient_copilot' && onTransientCopilotQuestion) {
           appendTerminal(['[skill-idea] routed to copilot answer']);
@@ -412,6 +437,7 @@ export default function CommandPanel({
         await api.logCommandInteraction({ command: cmd, matterName: matterName ?? undefined });
       } catch (error) {
         const message = getErrorMessage(error);
+        setResumedSkillIdea(null);
         setSkillIdeaInput(cmd);
         appendTerminal([`[skill-idea] intent check unavailable; starting interview: ${message}`]);
       } finally {
@@ -541,6 +567,7 @@ export default function CommandPanel({
         <div className="command-panel-session" style={{ order: 5 }}>
           <SkillIdeaSession
             initialInput={skillIdeaInput}
+            initialIdea={resumedSkillIdea}
             onClose={resetCommandPanel}
             onInputOverride={(handler) => { inputOverrideRef.current = handler; }}
           />

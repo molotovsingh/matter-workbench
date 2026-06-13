@@ -993,6 +993,7 @@ export interface AppState {
   activeMatter: ActiveMatter | null;
   matters: Matter[];
   resumeMatterName: string | null;
+  pendingSkillIdeaResume: SkillIdea | null;
   activeTab: ActiveTab;
   activeView: ActiveView;
   filePreview: FilePreview | null;
