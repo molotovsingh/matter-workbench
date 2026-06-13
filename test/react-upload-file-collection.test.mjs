@@ -62,6 +62,15 @@ test("React upload inputs copy selected files before clearing the browser input"
   }
 });
 
+test("React new-matter form presents source files as required before submit", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+
+  assert.doesNotMatch(newMatter, /Source files \(optional\)/);
+  assert.match(newMatter, /Attach at least one source file\./);
+  assert.match(newMatter, /if \(files\.length === 0\)/);
+  assert.match(newMatter, /disabled=\{submitting \|\| files\.length === 0\}/);
+});
+
 async function importHelper() {
   const source = await readFile(helperPath, "utf8");
   const transpiled = ts.transpileModule(source, {

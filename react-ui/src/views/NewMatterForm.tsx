@@ -56,6 +56,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) { setError('Matter name is required.'); return; }
+    if (files.length === 0) { setError('Attach at least one source file.'); return; }
     setSubmitting(true);
     setError('');
     appendTerminal([`[new-matter] creating "${name}"…`]);
@@ -99,7 +100,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
           Create a new matter
         </h1>
         <p style={{ color: 'var(--muted)', margin: 0, fontSize: 14 }}>
-          Add the basic details and optionally upload source files.
+          Add the basic details and upload the source files for this matter.
         </p>
       </div>
 
@@ -175,7 +176,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         </div>
 
         <div className="matter-intake-section">
-          <h2>Source files (optional)</h2>
+          <h2>Source files</h2>
           <div
             className={`drop-zone${dragover ? ' dragover' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setDragover(true); }}
@@ -216,12 +217,17 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
               )}
             </div>
           )}
+          {files.length === 0 && (
+            <div className="form-hint" style={{ marginTop: 10 }}>
+              Attach at least one source file.
+            </div>
+          )}
         </div>
 
         {error && <div className="form-error">{error}</div>}
 
         <div className="form-actions">
-          <button type="submit" disabled={submitting}>
+          <button type="submit" disabled={submitting || files.length === 0}>
             {submitting ? 'Creating…' : 'Create matter'}
           </button>
           <button type="button" className="secondary" onClick={onCancel}>
