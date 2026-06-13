@@ -1,6 +1,7 @@
 import { api } from '../api/client';
 import { LIST_OF_DATES_DEPENDENCY_STATES } from './listOfDatesDependencyState';
 import { cleanCommandLabel } from './nativeCommands';
+import { formatVisiblePreparationError } from './preparationErrors';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
 import type {
   PreparationPlan,
@@ -148,7 +149,7 @@ export async function runAutomaticPreparation({
       await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'succeeded', stageStarts);
       onProgress(status);
     } catch (error) {
-      const message = formatVisiblePreparationError(error);
+      const message = formatVisiblePreparationError(error, nextStage);
       status = markStageFailed(status, nextStage, message);
       await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'failed', stageStarts, message);
       onProgress(status);
@@ -207,7 +208,7 @@ async function runFullPreparation({
       await recordStageTelemetry(telemetryRunId, matterName, stage, 'succeeded', stageStarts);
       publishProgress(next);
     } catch (error) {
-      const message = formatVisiblePreparationError(error);
+      const message = formatVisiblePreparationError(error, stage);
       next = markStageFailed(next, stage, message);
       await recordStageTelemetry(telemetryRunId, matterName, stage, 'failed', stageStarts, message);
       publishProgress(next);
@@ -364,19 +365,6 @@ function createPreparationTelemetryRunId(): string {
     ? crypto.randomUUID()
     : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   return `prep_${randomId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-}
-
-function formatVisiblePreparationError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error ?? '');
-  const title = raw.match(/<title>([^<]+)<\/title>/i)?.[1];
-  const withoutTags = title || raw.replace(/<[^>]+>/g, ' ');
-  const redacted = withoutTags
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/gi, '$1=[redacted-secret]')
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, '$1=[redacted-secret]')
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, '[redacted-secret]')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return redacted.slice(0, 500) || 'Preparation failed.';
 }
 
 async function safeRecordPreparationRunTelemetry(body: PreparationRunTelemetryRequest): Promise<void> {

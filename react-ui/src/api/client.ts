@@ -154,10 +154,10 @@ function formatApiErrorMessage(payload: unknown, res: Response, url: string): st
 function formatHttpFallbackMessage(res: Response, url: string): string {
   const status = `${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
   if (res.status === 504 && url.includes('/api/extract')) {
-    return `Reading documents took too long (${status}). The app may still be finishing in the background; refresh the matter in a minute, then run preparation again if needed.`;
+    return 'Reading documents took too long. The app may still be finishing in the background; refresh the matter in a minute, then run preparation again if needed.';
   }
   if (res.status === 504) {
-    return `This request took too long (${status}). Please refresh and retry in a minute.`;
+    return 'This request took too long. Please refresh and retry in a minute.';
   }
   if (res.status >= 500) {
     return `The server could not complete this request (${status}). Please retry in a minute.`;

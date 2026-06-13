@@ -28,7 +28,7 @@ test("React API client hides raw HTML gateway errors from preparation stages", a
       (error) => {
         assert.equal(error.statusCode, 504);
         assert.match(error.message, /Reading documents took too long/i);
-        assert.doesNotMatch(error.message, /<html|<head|nginx|Gateway Time-out/i);
+        assert.doesNotMatch(error.message, /<html|<head|nginx|504|Gateway/i);
         return true;
       },
     );

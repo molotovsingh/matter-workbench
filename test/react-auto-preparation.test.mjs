@@ -106,14 +106,10 @@ test("React automatic preparation does not report prepared when workspace refres
 test("React automatic preparation sanitizes upstream HTML before showing failures", async () => {
   const runner = await readFile(runnerPath, "utf8");
 
-  assert.match(runner, /function formatVisiblePreparationError\(error: unknown\)/);
-  assert.match(runner, /raw\.match\(\/<title>\(\[\^<\]\+\)<\\\/title>\/i\)\?\.\[1\]/);
-  assert.match(runner, /raw\.replace\(\/<\[\^>\]\+>\/g, ' '\)/);
-  assert.match(runner, /replace\(\/\\s\+\/g, ' '\)/);
-  assert.match(runner, /return redacted\.slice\(0, 500\) \|\| 'Preparation failed\.'/);
+  assert.match(runner, /import \{ formatVisiblePreparationError \} from '\.\/preparationErrors';/);
   assert.doesNotMatch(runner, /const message = error instanceof Error \? error\.message : String\(error\);/);
-  assert.match(runner, /const message = formatVisiblePreparationError\(error\);[\s\S]*markStageFailed\(status, nextStage, message\)/);
-  assert.match(runner, /const message = formatVisiblePreparationError\(error\);[\s\S]*markStageFailed\(next, stage, message\)/);
+  assert.match(runner, /const message = formatVisiblePreparationError\(error, nextStage\);[\s\S]*markStageFailed\(status, nextStage, message\)/);
+  assert.match(runner, /const message = formatVisiblePreparationError\(error, stage\);[\s\S]*markStageFailed\(next, stage, message\)/);
 });
 
 test("React automatic preparation does not fail downstream blocked steps while an upstream step can run", async () => {
