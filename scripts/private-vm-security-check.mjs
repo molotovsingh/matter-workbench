@@ -155,7 +155,7 @@ export async function analyzeServiceUnit(serviceUnitPath) {
   const findings = [];
   if (!/EnvironmentFile=%h\/\.config\/matter-workbench\/runtime\.env/.test(unit)) findings.push("missing protected EnvironmentFile");
   if (!/WorkingDirectory=%h\/matter-workbench-deployments\/current\/app/.test(unit)) findings.push("missing deployment symlink WorkingDirectory");
-  if (!/ExecStart=.*scripts\/start-runtime-server\.mjs.*--host 0\.0\.0\.0.*--port 4191/.test(unit)) findings.push("missing expected runtime server ExecStart");
+  if (!/ExecStart=.*scripts\/start-runtime-server\.mjs.*--host 127\.0\.0\.1.*--port 4191/.test(unit)) findings.push("runtime server must bind to 127.0.0.1 behind the HTTPS proxy");
   if (!/^Restart=on-failure$/m.test(unit)) findings.push("missing Restart=on-failure");
   if (!/^NoNewPrivileges=true$/m.test(unit)) findings.push("missing NoNewPrivileges=true");
   if (!/^PrivateTmp=true$/m.test(unit)) findings.push("missing PrivateTmp=true");
