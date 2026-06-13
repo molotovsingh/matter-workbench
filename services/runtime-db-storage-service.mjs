@@ -592,8 +592,8 @@ export function createRuntimeDbStorageService({
           original_name: item.originalName || path.posix.basename(item.path),
           sha256: item.documentSha || item.sha256,
           size_bytes: String(item.documentSizeBytes || item.size || ""),
-          duplicate_of: "",
-          status: "unique",
+          duplicate_of: item.duplicateOf || "",
+          status: item.duplicateOf ? "exact-duplicate" : "unique",
           engine_version: "runtime-db-storage-synthetic-register-v1",
           notes: "Synthesized from runtime DB document custody.",
         }));
@@ -706,6 +706,7 @@ function buildWorkspaceTree({ matter, objects }) {
         originalName: object.originalName,
         documentSha: object.documentSha,
         documentSizeBytes: object.documentSizeBytes,
+        duplicateOf: object.duplicateOf,
       });
       fileCount += 1;
     }
@@ -769,11 +770,13 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "    coalesce(d.original_name, '') as original_name,",
     "    coalesce(d.sha256, '') as document_sha,",
     "    coalesce(d.size_bytes, 0)::bigint as document_size_bytes,",
+    "    coalesce(duplicate_source.file_id, '') as duplicate_of,",
     "    (sop.id is not null) as has_payload",
     "  from storage_objects so",
     "  join storage_object_payloads sop on sop.storage_object_id = so.id and sop.tenant_id = so.tenant_id",
     "  left join document_blobs db on db.storage_object_id = so.id and db.tenant_id = so.tenant_id and db.matter_id = so.matter_id and db.blob_kind = 'original'",
     "  left join documents d on d.id = db.document_id and d.tenant_id = db.tenant_id and d.matter_id = db.matter_id",
+    "  left join documents duplicate_source on duplicate_source.id = d.duplicate_of_document_id and duplicate_source.tenant_id = d.tenant_id and duplicate_source.matter_id = d.matter_id",
     "  where so.tenant_id = current_app_tenant_id()",
     `    and so.matter_id = ${sqlUuid(matter.id)}`,
     "    and so.state in ('uploaded', 'verified')",
@@ -802,6 +805,7 @@ function buildWorkspaceSql({ tenantId, matter }) {
     "    'originalName', original_name,",
     "    'documentSha', document_sha,",
     "    'documentSizeBytes', document_size_bytes,",
+    "    'duplicateOf', duplicate_of,",
     "    'hasPayload', has_payload",
     "  ) order by object_key) from object_rows), '[]'::jsonb)",
     ")::text;",
@@ -1116,6 +1120,7 @@ function workspaceFilePaths(root) {
         originalName: node.originalName || "",
         documentSha: node.documentSha || "",
         documentSizeBytes: node.documentSizeBytes || 0,
+        duplicateOf: node.duplicateOf || "",
       });
     }
     for (const child of node.children || []) visit(child);
@@ -2115,6 +2120,7 @@ function normalizeObjectRow(row = {}) {
     originalName: stringValue(row.originalName || row.original_name),
     documentSha: stringValue(row.documentSha || row.document_sha),
     documentSizeBytes: Number(row.documentSizeBytes || row.document_size_bytes) || 0,
+    duplicateOf: stringValue(row.duplicateOf || row.duplicate_of),
   };
 }
 

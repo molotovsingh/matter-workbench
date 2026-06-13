@@ -368,6 +368,63 @@ test("runtime DB storage service synthesizes a missing file register from DB cus
   assert.doesNotMatch(persistSql, /secret/);
 });
 
+test("runtime DB storage service synthesizes duplicate source rows from DB custody", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-duplicate-register-"));
+  const calls = [];
+  const intakeDir = "00_Inbox/Intake 01 - Initial";
+  const firstSourcePath = `${intakeDir}/Source Files/notice-a.txt`;
+  const duplicateSourcePath = `${intakeDir}/Source Files/notice-b.txt`;
+  const duplicateHash = "3d3b57112347ad8388808a7129673a321c3deeef5ac9968c3ae230735dcaeb5e";
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    tempRoot: tmp,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+          storageRow(`DB Matter/${firstSourcePath}`, "source_working_copy", "text/plain", 37, true, {
+            fileId: "FILE-0001",
+            originalName: "notice-a.txt",
+            sha256: duplicateHash,
+          }),
+          storageRow(`DB Matter/${duplicateSourcePath}`, "source_working_copy", "text/plain", 37, true, {
+            fileId: "FILE-0002",
+            originalName: "notice-b.txt",
+            sha256: duplicateHash,
+            duplicate_of: "FILE-0001",
+          }),
+        ],
+      },
+      payloadRow(`DB Matter/${firstSourcePath}`, "Same notice served on 1 January 2026.", "text/plain"),
+      payloadRow(`DB Matter/${duplicateSourcePath}`, "Same notice served on 1 January 2026.", "text/plain"),
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        intakes: [{
+          intake_id: "INTAKE-01",
+          intake_dir: intakeDir,
+          label: "Initial",
+          received_date: "2026-06-11",
+        }],
+      }), "application/json"),
+      {},
+    ]),
+  });
+
+  await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
+    const register = await readFile(path.join(matterRoot, intakeDir, "File Register.csv"), "utf8");
+    assert.match(register, /FILE-0002/);
+    assert.match(register, /FILE-0001/);
+    assert.match(register, /exact-duplicate/);
+    return { sawRegister: true };
+  });
+
+  const persistSql = calls.at(-1).input;
+  assert.match(persistSql, /DB Matter\/00_Inbox\/Intake 01 - Initial\/File Register\.csv/);
+  assert.doesNotMatch(persistSql, /secret/);
+});
+
 test("runtime DB storage service tombstones materialized artifacts deleted by a workflow", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-delete-"));
   const calls = [];
