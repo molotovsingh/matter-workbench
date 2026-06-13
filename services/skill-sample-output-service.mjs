@@ -41,8 +41,9 @@ export function createSkillSampleOutputService({
     idea = {},
     feedback = "",
     previousSample = "",
+    matterRootOverride = "",
   } = {}) {
-    const root = matterStore.getMatterRoot?.();
+    const root = String(matterRootOverride || "").trim() || matterStore.getMatterRoot?.();
     if (!root) throw makeHttpError("Pick a test matter before generating sample output.", 409);
     const normalizedIdea = normalizeIdeaForSample(idea);
     const normalizedFeedback = boundedText(feedback, MAX_FEEDBACK_LENGTH, "feedback");

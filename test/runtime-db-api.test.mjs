@@ -1225,6 +1225,91 @@ test("runtime DB postgres storage mode reads skill ideas and samples from runtim
   }
 });
 
+test("runtime DB sample output materializes matter context before building sample", async () => {
+  const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-sample-output");
+  const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
+  const calls = [];
+  const providerCalls = [];
+  const app = await createWorkbenchServer({
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [matter],
+      findMatterFolder: async (name) => (name === matter.name || name === matter.matterName ? matter : null),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readWorkspace(targetMatter) {
+        calls.push(["workspace", targetMatter.name]);
+        return {
+          folderName: targetMatter.name,
+          inputLabel: `postgres:${targetMatter.name}`,
+          metadata: {
+            matterName: targetMatter.matterName,
+            clientName: targetMatter.clientName,
+            oppositeParty: "",
+            matterType: "",
+            jurisdiction: "",
+          },
+          fileCount: 1,
+          directoryCount: 1,
+          tree: { name: targetMatter.name, kind: "directory", path: "", children: [] },
+        };
+      },
+      async runMaterializedMatterRead(targetMatter, operation) {
+        calls.push(["materialized-read", targetMatter.name]);
+        const matterRoot = path.join(materializedRoot, targetMatter.name);
+        await writeExtractedTextMatter(matterRoot, targetMatter);
+        return operation({ matterRoot, matter: targetMatter });
+      },
+    },
+    skillSampleOutputProvider: async (payload) => {
+      providerCalls.push(payload);
+      return "# Sample\n\nReview from the current matter record.";
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: matter.name });
+    const sample = await postJson(baseUrl, "/api/skill-ideas/sample-output", {
+      idea: {
+        id: "idea_taori",
+        text: "discover issues from the matter record",
+        status: "draft",
+        matter: { matterName: matter.matterName, folderName: matter.name },
+        designBrief: {
+          intendedUser: "advocate",
+          problem: "Find legal and factual issues.",
+          expectedInputs: "matter record",
+          expectedOutputArtifact: "20_Workshop/Issue Discovery.md",
+          targetLane: "20_Workshop",
+          paidPosture: "paid",
+          riskLevel: "medium",
+        },
+      },
+    });
+
+    assert.equal(sample.schema_version, "skill-sample-output/v1");
+    assert.equal(providerCalls.length, 1);
+    assert.equal(providerCalls[0].matterContext.matter.folder_name, matter.name);
+    assert.equal(providerCalls[0].matterContext.evidence_blocks[0].citation, "FILE-0001 p1.b1");
+    assert.deepEqual(calls, [
+      ["workspace", matter.name],
+      ["materialized-read", matter.name],
+    ]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode checks skill factory health from runtime DB services", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skill-factory-health");
   const calls = [];

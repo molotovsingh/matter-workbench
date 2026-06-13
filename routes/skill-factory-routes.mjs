@@ -76,11 +76,18 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       }),
       exactRoute("POST", "/api/skill-ideas/sample-output", async () => {
         const body = await readRequestJson(request);
-        const sample = await skillSampleOutputService.generateSampleOutput({
-          idea: body.idea || {},
-          feedback: body.feedback || "",
-          previousSample: body.previousSample || "",
-        });
+        const sample = hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)
+          ? await generateRuntimeDbSampleOutput({
+            matterStore,
+            runtimeDbStorageService,
+            skillSampleOutputService,
+            body,
+          })
+          : await skillSampleOutputService.generateSampleOutput({
+            idea: body.idea || {},
+            feedback: body.feedback || "",
+            previousSample: body.previousSample || "",
+          });
         const stored = await skillSamplesService.recordSample({
           idea: body.idea || sample.idea || {},
           sample,
@@ -218,6 +225,34 @@ async function scopedSkillRuns({ matterStore, runs }) {
 function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.runMaterializedMatterWrite === "function";
+}
+
+function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.runMaterializedMatterRead === "function";
+}
+
+async function generateRuntimeDbSampleOutput({
+  matterStore,
+  runtimeDbStorageService,
+  skillSampleOutputService,
+  body = {},
+}) {
+  const idea = body.idea || {};
+  const matter = await runtimeDbMatterForBody(matterStore, matterNameForSampleOutput(body));
+  return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => skillSampleOutputService.generateSampleOutput({
+    idea,
+    feedback: body.feedback || "",
+    previousSample: body.previousSample || "",
+    matterRootOverride: matterRoot,
+  }));
+}
+
+function matterNameForSampleOutput(body = {}) {
+  const direct = typeof body.matterName === "string" ? body.matterName.trim() : "";
+  if (direct) return direct;
+  const ideaMatter = body.idea?.matter && typeof body.idea.matter === "object" ? body.idea.matter : {};
+  return String(ideaMatter.folderName || ideaMatter.matterName || "").trim();
 }
 
 async function runtimeDbMatterForBody(matterStore, matterName = "") {
