@@ -74,7 +74,7 @@ export function createJobStatusService({
       const updated = normalizeJobStatus({
         ...current,
         ...patch,
-        metadata: sanitizeMetadata({ ...(current.metadata || {}), ...(patch.metadata || {}) }),
+        metadata: sanitizeMetadata(mergeMetadata(current.metadata || {}, patch.metadata || {})),
         errorMessage: patch.errorMessage !== undefined ? sanitizeText(patch.errorMessage) : current.errorMessage,
         updatedAt: isoNow(now),
       });
@@ -230,6 +230,26 @@ function sanitizeMetadata(metadata = {}) {
     .slice(0, 30)
     .map(([key, value]) => [key, sanitizeMetadataValue(value)]);
   return Object.fromEntries(entries);
+}
+
+function mergeMetadata(current = {}, patch = {}) {
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(patch || {})) {
+    if (value === undefined) continue;
+    if (
+      value
+      && typeof value === "object"
+      && !Array.isArray(value)
+      && merged[key]
+      && typeof merged[key] === "object"
+      && !Array.isArray(merged[key])
+    ) {
+      merged[key] = mergeMetadata(merged[key], value);
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
 }
 
 function sanitizeMetadataValue(value) {

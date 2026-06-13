@@ -919,6 +919,38 @@ export interface PreparationRunStatus {
   steps: PreparationProgressStep[];
 }
 
+export interface PreparationRunTelemetryRequest {
+  action: 'start' | 'stage' | 'finish';
+  runId: string;
+  matterName?: string;
+  mode?: 'needed' | 'full';
+  status?: 'running' | 'succeeded' | 'prepared' | 'needs_review' | 'blocked' | 'failed';
+  message?: string;
+  error?: string;
+  stage?: {
+    id?: string;
+    label?: string;
+    status?: 'pending' | 'running' | 'succeeded' | 'done' | 'failed' | 'skipped';
+    durationMs?: number;
+    message?: string;
+    detail?: string;
+  };
+  stages?: Array<string | {
+    id?: string;
+    label?: string;
+    status?: 'pending' | 'running' | 'succeeded' | 'done' | 'failed' | 'skipped';
+    durationMs?: number;
+    message?: string;
+    detail?: string;
+  }>;
+}
+
+export interface PreparationRunTelemetryResponse {
+  schema_version: 'private-beta-preparation-run-response/v1';
+  skipped?: boolean;
+  job?: JobStatus;
+}
+
 export type ActiveTab = 'home' | 'skills' | 'activity' | 'settings';
 export type ActiveView =
   | 'home'

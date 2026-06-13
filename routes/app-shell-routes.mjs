@@ -83,6 +83,14 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
         sendJson(response, 200, jobs);
       }),
+      exactRoute("POST", "/api/private-beta/preparation-runs", async () => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await recordPreparationRunTelemetry({
+          body,
+          jobStatusService,
+          matterStore,
+        }));
+      }),
       exactRoute("GET", "/api/private-beta/feedback", async () => {
         const feedback = await privateBetaFeedbackService.listFeedback({
           status: requestUrl.searchParams.get("status") || "",
@@ -294,6 +302,160 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+const PREPARATION_RUN_RESPONSE_SCHEMA = "private-beta-preparation-run-response/v1";
+const PREPARATION_RUN_KIND = "preparation_run";
+
+async function recordPreparationRunTelemetry({ body = {}, jobStatusService, matterStore }) {
+  if (!jobStatusService) {
+    return { schema_version: PREPARATION_RUN_RESPONSE_SCHEMA, skipped: true };
+  }
+  const action = normalizePreparationRunAction(body.action);
+  const runId = normalizePreparationRunId(body.runId);
+  const matterName = matterNameForTelemetry(body, matterStore);
+  const metadata = {
+    preparationRun: normalizePreparationRunMetadata(body),
+  };
+
+  if (action === "start") {
+    const job = await jobStatusService.createJob({
+      id: runId || undefined,
+      kind: PREPARATION_RUN_KIND,
+      label: "Matter Preparation",
+      matterName,
+      metadata,
+    });
+    return { schema_version: PREPARATION_RUN_RESPONSE_SCHEMA, job };
+  }
+
+  if (!runId) {
+    const error = new Error("preparation run id is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (action === "stage") {
+    const stage = normalizePreparationStage(body.stage || {});
+    const job = await jobStatusService.updateJob(runId, {
+      summary: stage.label ? `${stage.label}: ${stage.status}` : `Preparation stage: ${stage.status}`,
+      metadata: {
+        ...metadata,
+        latestStage: stage,
+      },
+    });
+    return { schema_version: PREPARATION_RUN_RESPONSE_SCHEMA, job };
+  }
+
+  const status = normalizePreparationRunStatus(body.status);
+  const message = normalizePreparationMessage(body.message || body.error || "");
+  if (action === "finish" && (status === "failed" || status === "blocked")) {
+    const job = await jobStatusService.failJob(runId, new Error(message || "Preparation failed"), {
+      failureClass: classifyPreparationFailure(message),
+      metadata,
+    });
+    return { schema_version: PREPARATION_RUN_RESPONSE_SCHEMA, job };
+  }
+
+  const job = await jobStatusService.completeJob(runId, {
+    resultState: status || "succeeded",
+    summary: message || "Preparation run finished.",
+    metadata,
+  });
+  return { schema_version: PREPARATION_RUN_RESPONSE_SCHEMA, job };
+}
+
+function normalizePreparationRunAction(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (["start", "stage", "finish"].includes(text)) return text;
+  const error = new Error("preparation run action must be start, stage, or finish");
+  error.statusCode = 400;
+  throw error;
+}
+
+function normalizePreparationRunId(value) {
+  const text = sanitizeTelemetryText(value, 120).trim();
+  return /^[a-zA-Z0-9_-]{3,120}$/.test(text) ? text : "";
+}
+
+function matterNameForTelemetry(body = {}, matterStore) {
+  const matterName = sanitizeTelemetryText(body.matterName, 180).trim();
+  if (matterName) return matterName;
+  return matterStore?.activeMatterNameWithinHome?.() || matterStore?.getActiveMatterRecord?.()?.name || "";
+}
+
+function normalizePreparationRunMetadata(body = {}) {
+  const metadata = {};
+  if (body.mode !== undefined) metadata.mode = normalizePreparationMode(body.mode);
+  if (body.status !== undefined) metadata.status = normalizePreparationRunStatus(body.status);
+  if (body.message !== undefined || body.error !== undefined) metadata.message = normalizePreparationMessage(body.message || body.error || "");
+  if (body.stages !== undefined) metadata.stages = normalizePreparationStages(body.stages);
+  return metadata;
+}
+
+function normalizePreparationMode(value) {
+  const text = sanitizeTelemetryText(value, 40).trim();
+  return text === "full" ? "full" : "needed";
+}
+
+function normalizePreparationRunStatus(value) {
+  const text = sanitizeTelemetryText(value, 40).trim();
+  if (["running", "succeeded", "prepared", "needs_review", "blocked", "failed"].includes(text)) return text;
+  return "running";
+}
+
+function normalizePreparationStages(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 20).map((stage) => {
+    if (typeof stage === "string") return normalizePreparationStage({ id: stage, status: "pending" });
+    return normalizePreparationStage(stage || {});
+  }).filter((stage) => stage.id || stage.label);
+}
+
+function normalizePreparationStage(stage = {}) {
+  return {
+    id: sanitizeTelemetryText(stage.id, 80).trim(),
+    label: sanitizeTelemetryText(stage.label, 120).trim(),
+    status: normalizePreparationStageStatus(stage.status || stage.state),
+    durationMs: normalizeDuration(stage.durationMs),
+    message: normalizePreparationMessage(stage.message || stage.detail || ""),
+  };
+}
+
+function normalizePreparationStageStatus(value) {
+  const text = sanitizeTelemetryText(value, 40).trim();
+  if (["pending", "running", "succeeded", "done", "failed", "skipped"].includes(text)) return text;
+  return "pending";
+}
+
+function normalizeDuration(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return 0;
+  return Math.min(Math.round(number), 24 * 60 * 60 * 1000);
+}
+
+function normalizePreparationMessage(value) {
+  const text = String(value ?? "");
+  const title = text.match(/<title>([^<]+)<\/title>/i)?.[1];
+  const withoutTags = title || text.replace(/<[^>]+>/g, " ");
+  return sanitizeTelemetryText(withoutTags.replace(/\s+/g, " "), 500).trim();
+}
+
+function classifyPreparationFailure(message = "") {
+  const text = String(message || "").toLowerCase();
+  if (/login required|unauth|forbidden|permission denied/.test(text)) return "auth";
+  if (/api key|provider|openrouter|openai|gemini|mistral|rate limit|quota|timeout|time-out|gateway/.test(text)) return "provider";
+  if (/database|postgres|psql|storage|write|read|enoent|no such file|not found/.test(text)) return "storage";
+  if (/source folder is missing|source files|pick one|no matter|missing|required|invalid/.test(text)) return "user_action_needed";
+  return "unknown";
+}
+
+function sanitizeTelemetryText(value, maxLength = 500) {
+  return String(value ?? "")
+    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
+    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
+    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]")
+    .slice(0, maxLength);
 }
 
 function isWorkspacePreviewDeniedForCurrentUser(relativePath) {

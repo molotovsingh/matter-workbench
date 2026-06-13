@@ -31,6 +31,8 @@ import type {
   MatterAttention,
   MatterStatus,
   PreparationPlan,
+  PreparationRunTelemetryRequest,
+  PreparationRunTelemetryResponse,
   PrivateBetaFeedbackList,
   PrivateBetaFeedbackRequest,
   PrivateBetaFeedbackResponse,
@@ -280,6 +282,8 @@ export const api = {
   getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
   getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
   getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),
+  recordPreparationRunTelemetry: (body: PreparationRunTelemetryRequest) =>
+    postJson<PreparationRunTelemetryResponse>('/api/private-beta/preparation-runs', body),
   runMatterInit: (body: MatterSkillRunRequest) => postJson('/api/matter-init', body),
   runExtract: (body: MatterSkillRunRequest) => postJson<ExtractRunResult>('/api/extract', body),
   runDescribeSources: (body: MatterSkillRunRequest) => postJson<DescribeSourcesResult>('/api/describe-sources', body),

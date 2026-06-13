@@ -7,6 +7,7 @@ import type {
   PreparationProgressStep,
   PreparationRunStatus,
   PreparationStage,
+  PreparationRunTelemetryRequest,
 } from '../types';
 
 export const AUTO_PREPARATION_STEPS: PreparationProgressStep[] = [
@@ -36,6 +37,8 @@ export interface AutomaticPreparationResult {
   message: string;
 }
 
+type AutomaticPreparationTelemetryResult = AutomaticPreparationResult & { status?: PreparationRunStatus };
+
 export function createInitialPreparationRun(matterName: string, message = 'Preparing matter…'): PreparationRunStatus {
   return {
     matterName,
@@ -64,20 +67,45 @@ export async function runAutomaticPreparation({
   initialMessage = 'Preparing matter…',
 }: RunAutomaticPreparationOptions): Promise<AutomaticPreparationResult> {
   let status = createInitialPreparationRun(matterName, initialMessage);
+  const telemetryRunId = createPreparationTelemetryRunId();
+  const stageStarts = new Map<string, number>();
+  await safeRecordPreparationRunTelemetry({
+    action: 'start',
+    runId: telemetryRunId,
+    matterName,
+    mode,
+    status: 'running',
+    stages: status.steps.map(telemetryStageForProgressStep),
+  });
+  const finishWithTelemetry = async (result: AutomaticPreparationTelemetryResult, runStatus: PreparationRunStatus = status): Promise<AutomaticPreparationResult> => {
+    await safeRecordPreparationRunTelemetry({
+      action: 'finish',
+      runId: telemetryRunId,
+      matterName,
+      mode,
+      status: telemetryStatusForResult(result),
+      message: result.message,
+      stages: runStatus.steps.map(telemetryStageForProgressStep),
+    });
+    return { state: result.state, message: result.message };
+  };
   onProgress(status);
 
   if (mode === 'full') {
-    return runFullPreparation({
+    const result = await runFullPreparation({
       matterName,
       appendTerminal,
       onProgress,
       isStale,
       status,
+      telemetryRunId,
+      stageStarts,
     });
+    return finishWithTelemetry(result, result.status || status);
   }
 
   for (let pass = 0; pass < maxPasses; pass += 1) {
-    if (isStale()) return staleResult();
+    if (isStale()) return finishWithTelemetry(staleResult());
 
     const plan = await api.getPrepareMatter(matterName);
     const nextStage = firstRunnablePreparationStage(plan);
@@ -86,51 +114,56 @@ export async function runAutomaticPreparation({
 
     if (!nextStage) {
       const advisoryStatus = markStep(status, 'advisory', 'running', 'Checking preparation advisory…');
+      await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
       onProgress(advisoryStatus);
-      if (isStale()) return staleResult();
+      if (isStale()) return finishWithTelemetry(staleResult(), advisoryStatus);
       const finalPlan = await api.getPrepareMatter(matterName);
       const finalNextStage = firstRunnablePreparationStage(finalPlan);
       const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: !finalNextStage }), 'advisory', 'done');
+      await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
       onProgress(finalStatus);
       if (firstBlockedStage(finalPlan)) {
-        return {
+        return finishWithTelemetry({
           state: 'blocked',
           message: 'Preparation stopped because one required step is blocked.',
-        };
+        }, finalStatus);
       }
-      return {
+      return finishWithTelemetry({
         state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
         message: allStagesCurrent(finalPlan)
           ? 'Automatic preparation completed.'
           : 'Automatic preparation finished with items to review.',
-      };
+      }, finalStatus);
     }
 
     status = markStageRunning(status, nextStage);
+    await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'running', stageStarts);
     onProgress(status);
     appendTerminal([`[prepare] auto running: ${stageLabel(nextStage)}`]);
     try {
       await runPreparationStage(nextStage, matterName);
-      if (isStale()) return staleResult();
+      if (isStale()) return finishWithTelemetry(staleResult(), status);
       appendTerminal([`[prepare] auto complete: ${stageLabel(nextStage)}`]);
       status = markStageDone(status, nextStage);
+      await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'succeeded', stageStarts);
       onProgress(status);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       status = markStageFailed(status, nextStage, message);
+      await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'failed', stageStarts, message);
       onProgress(status);
       appendTerminal([`[prepare] auto failed: ${stageLabel(nextStage)} — ${message}`]);
-      return {
+      return finishWithTelemetry({
         state: 'blocked',
         message,
-      };
+      }, status);
     }
   }
 
-  return {
+  return finishWithTelemetry({
     state: 'needs_review',
     message: 'Preparation stopped after repeated passes. Review the preparation plan before rerunning.',
-  };
+  });
 }
 
 async function runFullPreparation({
@@ -139,13 +172,17 @@ async function runFullPreparation({
   onProgress,
   isStale,
   status,
+  telemetryRunId,
+  stageStarts,
 }: {
   matterName: string;
   appendTerminal: (lines: string[]) => void;
   onProgress: ProgressUpdate;
   isStale: () => boolean;
   status: PreparationRunStatus;
-}): Promise<AutomaticPreparationResult> {
+  telemetryRunId: string;
+  stageStarts: Map<string, number>;
+}): Promise<AutomaticPreparationTelemetryResult> {
   let next = status;
   const publishProgress = (run: PreparationRunStatus) => {
     if (!isStale()) onProgress(run);
@@ -156,6 +193,7 @@ async function runFullPreparation({
 
   for (const stage of FULL_PREPARATION_STAGES) {
     next = markStageRunning(next, stage);
+    await recordStageTelemetry(telemetryRunId, matterName, stage, 'running', stageStarts);
     publishProgress(next);
     publishTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);
     try {
@@ -166,28 +204,34 @@ async function runFullPreparation({
       });
       publishTerminal([`[prepare] rerun complete: ${stageLabel(stage)}`]);
       next = markStageDone(next, stage);
+      await recordStageTelemetry(telemetryRunId, matterName, stage, 'succeeded', stageStarts);
       publishProgress(next);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       next = markStageFailed(next, stage, message);
+      await recordStageTelemetry(telemetryRunId, matterName, stage, 'failed', stageStarts, message);
       publishProgress(next);
       publishTerminal([`[prepare] rerun failed: ${stageLabel(stage)} — ${message}`]);
       return {
         state: 'blocked',
         message,
+        status: next,
       };
     }
   }
 
   const advisoryStatus = markStep(next, 'advisory', 'running', 'Checking preparation advisory…');
+  await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
   publishProgress(advisoryStatus);
   const finalPlan = await api.getPrepareMatter(matterName);
   const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: false }), 'advisory', 'done');
+  await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
   publishProgress(finalStatus);
   if (firstBlockedStage(finalPlan)) {
     return {
       state: 'blocked',
       message: 'Preparation stopped because one required step is blocked.',
+      status: finalStatus,
     };
   }
   return {
@@ -195,6 +239,7 @@ async function runFullPreparation({
     message: allStagesCurrent(finalPlan)
       ? 'Preparation rerun completed.'
       : 'Preparation rerun finished with items to review.',
+    status: finalStatus,
   };
 }
 
@@ -312,6 +357,87 @@ function stepIdForStage(stage: PreparationStage): string | null {
 
 function cloneSteps(): PreparationProgressStep[] {
   return AUTO_PREPARATION_STEPS.map((step) => ({ ...step }));
+}
+
+function createPreparationTelemetryRunId(): string {
+  const randomId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  return `prep_${randomId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+async function safeRecordPreparationRunTelemetry(body: PreparationRunTelemetryRequest): Promise<void> {
+  try {
+    await api.recordPreparationRunTelemetry(body);
+  } catch {
+    // Telemetry must never block matter preparation.
+  }
+}
+
+async function recordStageTelemetry(
+  runId: string,
+  matterName: string,
+  stage: PreparationStage,
+  status: NonNullable<PreparationRunTelemetryRequest['stage']>['status'],
+  stageStarts: Map<string, number>,
+  message = '',
+) {
+  const stepId = stepIdForStage(stage) || stage.id || stage.slash || stage.label;
+  const stageKey = stepId || stageLabel(stage);
+  const now = Date.now();
+  if (status === 'running') stageStarts.set(stageKey, now);
+  const startedAt = stageStarts.get(stageKey) || now;
+  await safeRecordPreparationRunTelemetry({
+    action: 'stage',
+    runId,
+    matterName,
+    stage: {
+      id: stepId || undefined,
+      label: stageLabel(stage),
+      status,
+      durationMs: status === 'running' ? 0 : now - startedAt,
+      message,
+    },
+  });
+}
+
+async function recordProgressStepTelemetry(
+  runId: string,
+  matterName: string,
+  step: PreparationProgressStep | undefined,
+  status: NonNullable<PreparationRunTelemetryRequest['stage']>['status'],
+  stageStarts: Map<string, number>,
+) {
+  if (!step) return;
+  const now = Date.now();
+  if (status === 'running') stageStarts.set(step.id, now);
+  const startedAt = stageStarts.get(step.id) || now;
+  await safeRecordPreparationRunTelemetry({
+    action: 'stage',
+    runId,
+    matterName,
+    stage: {
+      id: step.id,
+      label: step.label,
+      status,
+      durationMs: status === 'running' ? 0 : now - startedAt,
+      message: step.detail,
+    },
+  });
+}
+
+function telemetryStageForProgressStep(step: PreparationProgressStep): NonNullable<PreparationRunTelemetryRequest['stages']>[number] {
+  return {
+    id: step.id,
+    label: step.label,
+    status: step.state,
+    message: step.detail,
+  };
+}
+
+function telemetryStatusForResult(result: AutomaticPreparationResult): PreparationRunTelemetryRequest['status'] {
+  if (result.state === 'blocked') return 'blocked';
+  return result.state;
 }
 
 function staleResult(): AutomaticPreparationResult {

@@ -47,6 +47,12 @@ test("React automatic preparation runner includes List of Dates, story, and labe
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
   assert.match(runner, /api\.runMatterStory\(/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
+  assert.match(runner, /api\.recordPreparationRunTelemetry\(/);
+  assert.match(runner, /action: 'start'/);
+  assert.match(runner, /action: 'stage'/);
+  assert.match(runner, /action: 'finish'/);
+  assert.match(runner, /createPreparationTelemetryRunId\(\)/);
+  assert.match(runner, /safeRecordPreparationRunTelemetry/);
   assert.match(runner, /LABEL_REFRESH_NEEDED/);
   assert.match(prepareMatter, /runPreparationStage\(matchedStage, matterName\)/);
   assert.match(prepareMatter, /runAutomaticPreparation\(\{/);
