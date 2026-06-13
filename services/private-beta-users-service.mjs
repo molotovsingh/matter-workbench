@@ -108,7 +108,8 @@ export function createPrivateBetaUsersService({
         }))
         .sort((left, right) => left.username.localeCompare(right.username)),
     };
-    await writeFileAtomic(storePath, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8" });
+    // The store contains password hashes, so keep it unreadable to other local accounts.
+    await writeFileAtomic(storePath, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   }
 
   return {

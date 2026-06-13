@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -29,6 +29,8 @@ test("private beta users service manages tester access without exposing password
 
   const store = JSON.parse(await readFile(usersFile, "utf8"));
   assert.equal(verifyPrivateBetaPassword("temp-test-password", store.users[0].passwordHash), true);
+  const mode = (await stat(usersFile)).mode & 0o777;
+  assert.equal(mode, 0o600);
 
   const listed = await service.listUsers();
   assert.equal(listed.users.length, 1);

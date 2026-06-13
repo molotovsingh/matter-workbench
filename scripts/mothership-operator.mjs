@@ -67,8 +67,12 @@ export async function runMothershipOperator({
       const dataset = await store.queryReport({ sinceDays });
       const report = buildMothershipReport(dataset);
       stdout(parsed.options.format === "json" ? JSON.stringify(report, null, 2) : renderMothershipReportMarkdown(report).trimEnd());
-    } else {
+    } else if (parsed.command === "help") {
       stdout(usage());
+    } else {
+      stderr(`Unknown command: ${parsed.command}`);
+      stderr(usage());
+      return 1;
     }
     return 0;
   } catch (error) {

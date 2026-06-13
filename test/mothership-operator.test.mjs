@@ -59,6 +59,22 @@ test("mothership operator creates and revokes installations and prunes payloads"
   ]);
 });
 
+test("mothership operator fails unknown commands instead of printing successful help", async () => {
+  const stdout = [];
+  const stderr = [];
+  const result = await runMothershipOperator({
+    argv: ["bogus"],
+    store: {},
+    stdout: (line) => stdout.push(line),
+    stderr: (line) => stderr.push(line),
+  });
+
+  assert.equal(result, 1);
+  assert.equal(stdout.join("\n"), "");
+  assert.match(stderr.join("\n"), /Unknown command: bogus/);
+  assert.match(stderr.join("\n"), /Mothership operator/);
+});
+
 test("mothership report prioritizes actionable evidence and redacts secrets", () => {
   const report = buildMothershipReport({
     sinceDays: 30,
