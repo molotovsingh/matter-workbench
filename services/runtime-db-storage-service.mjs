@@ -136,7 +136,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     const matterName = normalizeMatterName(name);
     if (!matterName) throw makeHttpError("Matter name is required", 400);
-    if (!Array.isArray(files) || !files.length) throw makeHttpError("No files attached", 400);
+    if (!Array.isArray(files) || !files.length) throw noUploadedFilesError("creating a matter");
     if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
       throw makeHttpError("paths array must match file count", 400);
     }
@@ -224,7 +224,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
     if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400);
-    if (!Array.isArray(files) || !files.length) throw makeHttpError("No files attached", 400);
+    if (!Array.isArray(files) || !files.length) throw noUploadedFilesError("adding files");
     if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
       throw makeHttpError("paths array must match file count", 400);
     }
@@ -2219,6 +2219,14 @@ function positiveInteger(value, fallback = 1) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 1) return fallback;
   return Math.trunc(number);
+}
+
+function noUploadedFilesError(action = "creating a matter") {
+  return makeHttpError(
+    `Attach at least one source file before ${action}.`,
+    400,
+    "upload.no_files_attached",
+  );
 }
 
 function deterministicUuid(seed) {

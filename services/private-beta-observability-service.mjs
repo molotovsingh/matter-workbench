@@ -109,13 +109,15 @@ function relatedSignalsForFeedback(feedback = {}, signals = [], relatedJobs = []
 function buildTopProblems({ failedJobs = [], signals = [], feedback = [] } = {}) {
   const map = new Map();
   for (const job of failedJobs) {
-    const key = `job_failed:${job.kind || "job"}:${job.failureClass || "unknown"}:${job.errorMessage || ""}`;
+    const code = failureCodeForJob(job);
+    const key = `job_failed:${job.kind || "job"}:${job.failureClass || "unknown"}:${code || job.errorMessage || ""}`;
     addProblem(map, key, {
       kind: "job_failed",
       severity: severityForFailureClass(job.failureClass),
       title: job.label || job.kind || "Failed job",
       category: job.kind || "job",
       failureClass: job.failureClass || "unknown",
+      code,
       matterName: job.matterName || "",
       latestAt: job.finishedAt || job.updatedAt || job.startedAt || "",
       sample: job.errorMessage || "",
@@ -151,6 +153,11 @@ function buildTopProblems({ failedJobs = [], signals = [], feedback = [] } = {})
       || (right.occurrenceCount || 0) - (left.occurrenceCount || 0)
       || Date.parse(right.latestAt || 0) - Date.parse(left.latestAt || 0))
     .slice(0, 20);
+}
+
+function failureCodeForJob(job = {}) {
+  const code = sanitizeText(job.errorCode || job.metadata?.latestStage?.diagnostic?.code || "", 120).trim();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : "";
 }
 
 function addProblem(map, key, item) {

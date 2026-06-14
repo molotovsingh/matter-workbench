@@ -193,6 +193,8 @@ export interface JobStatus {
   resultState?: string;
   summary?: string;
   errorMessage?: string;
+  errorCode?: string;
+  failureClass?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -934,6 +936,7 @@ export interface PreparationRunTelemetryRequest {
     durationMs?: number;
     message?: string;
     detail?: string;
+    diagnostic?: PreparationRunDiagnostic;
   };
   stages?: Array<string | {
     id?: string;
@@ -942,7 +945,17 @@ export interface PreparationRunTelemetryRequest {
     durationMs?: number;
     message?: string;
     detail?: string;
+    diagnostic?: PreparationRunDiagnostic;
   }>;
+}
+
+export interface PreparationRunDiagnostic {
+  statusCode?: number;
+  code?: string;
+  statusText?: string;
+  urlPath?: string;
+  bodyKind?: 'html' | 'json' | 'text' | 'empty' | string;
+  htmlTitle?: string;
 }
 
 export interface PreparationRunTelemetryResponse {

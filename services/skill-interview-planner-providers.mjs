@@ -220,6 +220,7 @@ function mapOpenAiPlannerError(response, payload) {
   const message = payload?.error?.message || `OpenAI returned ${response?.status || "an error"}`;
   const error = new Error(message);
   error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
+  error.code = "provider.error";
   return error;
 }
 
@@ -227,5 +228,6 @@ function mapOpenRouterPlannerError(response, payload) {
   const message = payload?.error?.message || `OpenRouter returned ${response?.status || "an error"}`;
   const error = new Error(message);
   error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
+  error.code = "provider.error";
   return error;
 }

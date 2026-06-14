@@ -18,6 +18,8 @@ test("Activity page renders durable jobs separately from custom skill receipts",
   assert.match(source, /Matter Jobs/);
   assert.match(source, /JobCard/);
   assert.match(source, /job\.kind/);
+  assert.match(source, /jobFailureCode/);
+  assert.match(source, /Failure code/);
 });
 
 test("React types include the beta job status contract", async () => {

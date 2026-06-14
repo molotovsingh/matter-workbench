@@ -1310,7 +1310,7 @@ test("runtime DB sample output materializes matter context before building sampl
   }
 });
 
-test("runtime DB skill creation validates approved samples through materialized matter context", async () => {
+test("runtime DB skill creation validates approved samples through materialized matter context without matters home", async () => {
   const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-create-skill");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
   const calls = [];
@@ -1342,7 +1342,6 @@ test("runtime DB skill creation validates approved samples through materialized 
   };
   const app = await createWorkbenchServer({
     env: {
-      MATTERS_HOME: mattersHome,
       MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     },
     host: "127.0.0.1",

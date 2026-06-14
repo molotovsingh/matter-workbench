@@ -4,9 +4,10 @@ export function toPosix(value) {
   return value.split(path.sep).join("/");
 }
 
-export function makeHttpError(message, statusCode = 400) {
+export function makeHttpError(message, statusCode = 400, code = "") {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (code) error.code = code;
   return error;
 }
 

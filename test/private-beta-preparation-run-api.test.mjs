@@ -127,3 +127,62 @@ test("private beta preparation run API records failed runs without raw html dump
     app.server.close();
   }
 });
+
+test("private beta preparation run API keeps bounded stage diagnostics without raw html", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-prep-run-api-diagnostic-"));
+  const appDir = path.join(tmp, "app");
+  await mkdir(appDir, { recursive: true });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const runId = "prep_test_run_diagnostic";
+    await postJson(baseUrl, "/api/private-beta/preparation-runs", {
+      action: "start",
+      runId,
+      matterName: "State v Rajesh Mehra",
+      mode: "full",
+    });
+    await postJson(baseUrl, "/api/private-beta/preparation-runs", {
+      action: "stage",
+      runId,
+      matterName: "State v Rajesh Mehra",
+      stage: {
+        id: "extract",
+        label: "Reading documents",
+        status: "failed",
+        message: "Reading documents took too long. The app may still be finishing in the background.",
+        diagnostic: {
+          statusCode: 504,
+          code: "preparation.extract_timeout",
+          statusText: "Gateway Timeout",
+          urlPath: "/api/extract",
+          bodyKind: "html",
+          htmlTitle: "504 Gateway Time-out",
+          rawBody: "<html><body><center>nginx/1.24.0</center></body></html>",
+        },
+      },
+    });
+
+    const jobs = await getJson(baseUrl, "/api/jobs?kind=preparation_run&limit=5");
+    assert.equal(jobs.jobs.length, 1);
+    const latestStage = jobs.jobs[0].metadata.latestStage;
+    assert.deepEqual(latestStage.diagnostic, {
+      statusCode: 504,
+      code: "preparation.extract_timeout",
+      statusText: "Gateway Timeout",
+      urlPath: "/api/extract",
+      bodyKind: "html",
+      htmlTitle: "504 Gateway Time-out",
+    });
+    assert.doesNotMatch(JSON.stringify(jobs.jobs[0]), /<html>|<body>|nginx/i);
+  } finally {
+    app.server.close();
+  }
+});

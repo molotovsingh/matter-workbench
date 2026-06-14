@@ -62,12 +62,24 @@ import type {
 
 class ApiError extends Error {
   statusCode: number;
+  code?: string;
   authRequired: boolean;
-  constructor(message: string, statusCode: number) {
+  diagnostic?: ApiErrorDiagnostic;
+  constructor(message: string, statusCode: number, code?: string) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
     this.authRequired = false;
   }
+}
+
+interface ApiErrorDiagnostic {
+  statusCode: number;
+  code?: string;
+  statusText?: string;
+  urlPath: string;
+  bodyKind: 'html' | 'json' | 'text' | 'empty';
+  htmlTitle?: string;
 }
 
 type AuthRequiredHandler = () => void;
@@ -107,7 +119,8 @@ async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {
 
 async function createApiError(res: Response, url: string): Promise<ApiError> {
   const payload = await readErrorPayload(res);
-  const error = new ApiError(formatApiErrorMessage(payload, res, url), res.status);
+  const error = new ApiError(formatApiErrorMessage(payload, res, url), res.status, apiErrorCode(payload, res, url));
+  error.diagnostic = buildApiErrorDiagnostic(payload, res, url);
   if (payload && typeof payload === 'object' && (payload as Record<string, unknown>).authRequired === true) {
     error.authRequired = true;
     authRequiredHandler?.();
@@ -165,8 +178,55 @@ function formatHttpFallbackMessage(res: Response, url: string): string {
   return `${url} returned ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
 }
 
+function apiErrorCode(payload: unknown, res: Response, url: string): string | undefined {
+  if (payload && typeof payload === 'object') {
+    const value = (payload as Record<string, unknown>).code;
+    if (typeof value === 'string' && isSafeApiErrorCode(value)) return value.trim();
+  }
+  if (res.status === 504 && url.includes('/api/extract')) return 'preparation.extract_timeout';
+  if (res.status === 504) return 'http.gateway_timeout';
+  if (res.status >= 500) return 'http.server_error';
+  if (res.status === 401) return 'auth.login_required';
+  if (res.status === 403) return 'auth.forbidden';
+  return undefined;
+}
+
+function isSafeApiErrorCode(value: string): boolean {
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(value.trim());
+}
+
 function isHtmlErrorBody(text: string): boolean {
   return /^<!doctype\s+html/i.test(text) || /<\/?(html|head|body|title|h1|center)\b/i.test(text);
+}
+
+function buildApiErrorDiagnostic(payload: unknown, res: Response, url: string): ApiErrorDiagnostic {
+  const diagnostic: ApiErrorDiagnostic = {
+    statusCode: res.status,
+    code: apiErrorCode(payload, res, url),
+    statusText: res.statusText || undefined,
+    urlPath: urlPathForDiagnostic(url),
+    bodyKind: errorBodyKind(payload),
+  };
+  if (typeof payload === 'string') {
+    const title = payload.match(/<title>([^<]+)<\/title>/i)?.[1]?.replace(/\s+/g, ' ').trim();
+    if (title) diagnostic.htmlTitle = title.slice(0, 120);
+  }
+  return diagnostic;
+}
+
+function errorBodyKind(payload: unknown): ApiErrorDiagnostic['bodyKind'] {
+  if (payload == null || payload === '') return 'empty';
+  if (typeof payload === 'string') return isHtmlErrorBody(payload) ? 'html' : 'text';
+  return 'json';
+}
+
+function urlPathForDiagnostic(url: string): string {
+  try {
+    const parsed = new URL(url, 'http://matter-workbench.local');
+    return `${parsed.pathname}${parsed.search}`.slice(0, 220);
+  } catch {
+    return String(url || '').slice(0, 220);
+  }
 }
 
 function withQuery(path: string, query: Record<string, string | undefined | null>): string {

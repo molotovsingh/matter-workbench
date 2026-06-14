@@ -33,7 +33,7 @@ export async function fetchProviderJsonWithTimeout({
     });
   } catch (error) {
     if (controller?.signal.aborted || error?.name === "AbortError") {
-      throw makeHttpError(timeoutMessage || `Provider request timed out after ${timeoutMs}ms`, 504);
+      throw makeHttpError(timeoutMessage || `Provider request timed out after ${timeoutMs}ms`, 504, "provider.timeout");
     }
     throw error;
   } finally {
@@ -42,7 +42,7 @@ export async function fetchProviderJsonWithTimeout({
   if (isErrorPayload({ response, payload })) {
     if (mapProviderError) throw mapProviderError(response, payload);
     const message = formatProviderErrorMessage(response, payload);
-    throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503);
+    throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503, "provider.error");
   }
   return payload;
 }
@@ -53,33 +53,33 @@ function defaultProviderErrorPredicate({ response, payload }) {
 
 export function parseOpenAiJsonOutput(payload, label) {
   const outputText = extractResponsesOutputText(payload);
-  if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502);
+  if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502, "provider.empty_output");
   try {
     return JSON.parse(outputText);
   } catch (error) {
-    throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502);
+    throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502, "provider.invalid_json");
   }
 }
 
 export function extractOpenAiOutputText(payload, label) {
   const outputText = extractResponsesOutputText(payload);
-  if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502);
+  if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502, "provider.empty_output");
   return outputText;
 }
 
 export function parseOpenRouterJsonMessage(payload, label) {
   const choiceError = firstChoiceError(payload);
-  if (choiceError) throw makeHttpError(formatProviderErrorMessage(null, { error: choiceError }), 502);
+  if (choiceError) throw makeHttpError(formatProviderErrorMessage(null, { error: choiceError }), 502, "provider.error");
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string") {
     try {
       return JSON.parse(content);
     } catch (error) {
-      throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502);
+      throw makeHttpError(`${label} response was not valid JSON: ${error.message}`, 502, "provider.invalid_json");
     }
   }
   if (content && typeof content === "object") return content;
-  throw makeHttpError(`${label} response did not include JSON message content`, 502);
+  throw makeHttpError(`${label} response did not include JSON message content`, 502, "provider.empty_output");
 }
 
 function formatProviderErrorMessage(response, payload) {
@@ -126,5 +126,5 @@ function truncateProviderError(value, limit = 500) {
 export function extractOpenRouterMessageText(payload, label) {
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string" && content.trim()) return content;
-  throw makeHttpError(`${label} response did not include message content`, 502);
+  throw makeHttpError(`${label} response did not include message content`, 502, "provider.empty_output");
 }

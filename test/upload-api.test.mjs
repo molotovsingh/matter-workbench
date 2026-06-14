@@ -456,3 +456,18 @@ test("multipart upload route returns 413 when the configured byte limit is excee
     assert.match(payload.error, /upload too large/i);
   }, { maxUploadBytes: 10 });
 });
+
+test("multipart upload returns a stable error code when no files are attached", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const form = new FormData();
+    form.set("name", "Empty Matter");
+    form.set("metadata", JSON.stringify({ matterName: "Empty Matter" }));
+    form.set("paths", JSON.stringify([]));
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.error, "Attach at least one source file before creating a matter.");
+    assert.equal(payload.code, "upload.no_files_attached");
+  });
+});

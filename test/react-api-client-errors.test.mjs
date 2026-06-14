@@ -27,8 +27,17 @@ test("React API client hides raw HTML gateway errors from preparation stages", a
       () => api.runExtract({ matterName: "Demo Matter", forceRefresh: true }),
       (error) => {
         assert.equal(error.statusCode, 504);
+        assert.equal(error.code, "preparation.extract_timeout");
         assert.match(error.message, /Reading documents took too long/i);
         assert.doesNotMatch(error.message, /<html|<head|nginx|504|Gateway/i);
+        assert.deepEqual(error.diagnostic, {
+          statusCode: 504,
+          code: "preparation.extract_timeout",
+          statusText: "Gateway Timeout",
+          urlPath: "/api/extract",
+          bodyKind: "html",
+          htmlTitle: "504 Gateway Time-out",
+        });
         return true;
       },
     );
@@ -49,6 +58,33 @@ test("React API client still preserves plain text API errors", async () => {
     await assert.rejects(
       () => api.runMatterInit({ matterName: "Demo Matter" }),
       (error) => error.statusCode === 409 && error.message === "Matter already exists",
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("React API client preserves structured API error codes", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => new Response(JSON.stringify({
+    error: "Attach at least one source file.",
+    code: "upload.no_files_attached",
+  }), {
+    status: 400,
+    statusText: "Bad Request",
+    headers: { "content-type": "application/json" },
+  }));
+
+  try {
+    await assert.rejects(
+      () => api.runMatterInit({ matterName: "Demo Matter" }),
+      (error) => {
+        assert.equal(error.statusCode, 400);
+        assert.equal(error.code, "upload.no_files_attached");
+        assert.equal(error.message, "Attach at least one source file.");
+        assert.equal(error.diagnostic.code, "upload.no_files_attached");
+        return true;
+      },
     );
   } finally {
     restoreFetch();

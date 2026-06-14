@@ -356,6 +356,7 @@ export async function createWorkbenchServer(options = {}) {
     } catch (error) {
       sendJson(response, error.statusCode || 500, {
         error: error.message,
+        code: safeErrorCode(error.code),
         stack: env.NODE_ENV === "development" ? error.stack : undefined,
       });
     } finally {
@@ -599,6 +600,11 @@ async function safeReadTelemetryLedger(reader) {
 
 function isLikelySilentWaitPath(pathname = "") {
   return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|create-listofdates)/.test(pathname);
+}
+
+function safeErrorCode(value) {
+  const code = String(value || "").trim();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : undefined;
 }
 
 if (process.argv[1] === __filename) {

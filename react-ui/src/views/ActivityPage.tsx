@@ -414,6 +414,7 @@ function JobCard({ job }: { job: JobStatus }) {
   const finishedTime = job.finishedAt ? formatTime(job.finishedAt) : null;
   const startedTime = formatTime(job.startedAt);
   const statusClass = jobStatusClass(job.status);
+  const failureCode = jobFailureCode(job);
   return (
     <article className={`activity-card compact ${statusClass}`}>
       <div className="activity-card-main">
@@ -430,6 +431,11 @@ function JobCard({ job }: { job: JobStatus }) {
           {job.errorMessage && (
             <p style={{ color: 'var(--danger)', fontSize: 12, margin: '6px 0 0' }}>{job.errorMessage}</p>
           )}
+          {failureCode && (
+            <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>
+              Failure code: <code>{failureCode}</code>
+            </p>
+          )}
         </div>
         <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
           {finishedTime || startedTime}
@@ -437,6 +443,17 @@ function JobCard({ job }: { job: JobStatus }) {
       </div>
     </article>
   );
+}
+
+function jobFailureCode(job: JobStatus): string {
+  const directCode = String(job.errorCode || '').trim();
+  if (/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(directCode)) return directCode;
+  const latestStage = job.metadata?.latestStage;
+  if (!latestStage || typeof latestStage !== 'object' || Array.isArray(latestStage)) return '';
+  const diagnostic = (latestStage as { diagnostic?: unknown }).diagnostic;
+  if (!diagnostic || typeof diagnostic !== 'object' || Array.isArray(diagnostic)) return '';
+  const code = String((diagnostic as { code?: unknown }).code || '').trim();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : '';
 }
 
 function RunCard({

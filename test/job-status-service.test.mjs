@@ -74,6 +74,36 @@ test("job status service fails closed and keeps secret-looking details out of th
   assert.doesNotMatch(JSON.stringify(listed), /sk-job-secret/);
 });
 
+test("job status service stores safe app error codes separately from messages", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-code-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:02.000Z",
+    ]),
+    idFactory: () => "job_failed_code",
+  });
+
+  await assert.rejects(
+    () => service.runTrackedJob({
+      kind: "upload",
+      label: "Create Matter",
+      matterName: "State v Rajesh Mehra",
+      operation: async () => {
+        const error = new Error("Attach at least one source file before creating a matter.");
+        error.code = "upload.no_files_attached";
+        throw error;
+      },
+    }),
+    /Attach at least one source file/,
+  );
+
+  const listed = await service.listJobs({ status: "failed" });
+  assert.equal(listed.jobs.length, 1);
+  assert.equal(listed.jobs[0].errorCode, "upload.no_files_attached");
+});
+
 test("job status service lists newest jobs with matter, kind, and status filters", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-list-"));
   const service = createJobStatusService({

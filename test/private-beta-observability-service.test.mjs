@@ -189,6 +189,53 @@ test("observability links signals through related failed job ids", async () => {
   assert.deepEqual(result.feedbackEvidence[0].relatedSignals.map((signal) => signal.id), ["signal_001"]);
 });
 
+test("observability groups failed jobs by diagnostic code before message text", async () => {
+  const service = createPrivateBetaObservabilityService({
+    feedbackService: {
+      listFeedback: async () => ({ schema_version: "private-beta-feedback-ledger/v1", feedback: [] }),
+    },
+    jobStatusService: {
+      listJobs: async () => ({
+        schema_version: "job-status-ledger/v1",
+        jobs: [
+          {
+            id: "job_extract_1",
+            kind: "preparation_run",
+            label: "Reading documents",
+            status: "failed",
+            failureClass: "provider",
+            matterName: "Matter A",
+            errorMessage: "Reading documents took too long.",
+            metadata: { latestStage: { diagnostic: { code: "preparation.extract_timeout" } } },
+            finishedAt: "2026-06-12T12:00:00.000Z",
+          },
+          {
+            id: "job_extract_2",
+            kind: "preparation_run",
+            label: "Reading documents",
+            status: "failed",
+            failureClass: "provider",
+            matterName: "Matter B",
+            errorMessage: "The app may still be finishing in the background.",
+            metadata: { latestStage: { diagnostic: { code: "preparation.extract_timeout" } } },
+            finishedAt: "2026-06-12T12:01:00.000Z",
+          },
+        ],
+      }),
+    },
+    signalService: {
+      listSignals: async () => ({ schema_version: "private-beta-signal-ledger/v1", signals: [] }),
+    },
+  });
+
+  const result = await service.readObservability({ limit: 10 });
+  const extractProblem = result.topProblems.find((problem) => problem.code === "preparation.extract_timeout");
+
+  assert.ok(extractProblem);
+  assert.equal(extractProblem.occurrenceCount, 2);
+  assert.equal(extractProblem.kind, "job_failed");
+});
+
 test("observability includes latest local heartbeat", async () => {
   const service = createPrivateBetaObservabilityService({
     feedbackService: {

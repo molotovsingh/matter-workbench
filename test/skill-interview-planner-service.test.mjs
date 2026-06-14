@@ -345,6 +345,64 @@ test("OpenAI direct skill interview planner sends strict Responses JSON-schema r
   assert.doesNotMatch(JSON.stringify(requests[0].body), /extraction records body|Source Index body|List of Dates body/);
 });
 
+test("skill interview planner provider HTTP failures carry stable error codes", async () => {
+  const openAiProvider = createOpenAiSkillInterviewPlannerProvider({
+    apiKey: "sk-openai",
+    endpoint: "https://api.openai.com/v1/responses",
+    model: "gpt-5.4",
+    maxOutputTokens: 2600,
+    timeoutMs: 90000,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: { message: "Rate limit exceeded" } }),
+    }),
+  });
+  await assert.rejects(
+    () => openAiProvider({
+      userRequest: "draft client update email",
+      skillIdea: { mode: "new_skill", text: "draft client update email" },
+      activeMatter: { matterName: "Demo" },
+      skillRegistry: [],
+      designBrief: {},
+      schema: { type: "object", properties: {}, additionalProperties: true },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, "provider.error");
+      return true;
+    },
+  );
+
+  const openRouterProvider = createOpenRouterSkillInterviewPlannerProvider({
+    apiKey: "or-key",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    model: "openai/gpt-4.1",
+    maxOutputTokens: 1800,
+    timeoutMs: 45000,
+    fetchImpl: async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: { message: "Rate limit exceeded" } }),
+    }),
+  });
+  await assert.rejects(
+    () => openRouterProvider({
+      userRequest: "draft client update email",
+      skillIdea: { mode: "new_skill", text: "draft client update email" },
+      activeMatter: { matterName: "Demo" },
+      skillRegistry: [],
+      designBrief: {},
+      schema: { type: "object", properties: {}, additionalProperties: true },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, "provider.error");
+      return true;
+    },
+  );
+});
+
 test("skill interview planner can use OpenAI direct gpt-5.4 provider policy", async () => {
   const requests = [];
   const service = createSkillInterviewPlannerService({

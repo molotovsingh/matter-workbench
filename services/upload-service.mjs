@@ -24,6 +24,11 @@ export function createUploadService({
 
   const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
   const matterWriteQueues = new Map();
+  const noFilesError = (action = "creating a matter") => makeHttpError(
+    `Attach at least one source file before ${action}.`,
+    400,
+    "upload.no_files_attached",
+  );
 
   async function createMatter(request) {
     const upload = await handleMultipartUpload(request);
@@ -46,6 +51,7 @@ export function createUploadService({
         matterName: String(submittedMetadata.matterName || name).trim() || name,
       };
       const relativePaths = validateUploadPathList(fields, files);
+      if (!files.length) throw noFilesError("creating a matter");
 
       if (useRuntimeDbStorage) {
         const matter = await runtimeDbStorageService.createMatterFromUploadedFiles({
@@ -84,7 +90,7 @@ export function createUploadService({
     try {
       const label = validateIntakeLabel(fields.label);
       const relativePaths = validateUploadPathList(fields, files);
-      if (!files.length) throw makeHttpError("No files attached", 400);
+      if (!files.length) throw noFilesError("adding files");
 
       if (matterStore.hasRuntimeDbStorageMode?.() && typeof runtimeDbStorageService?.addUploadedFilesToMatter === "function") {
         const matter = await resolveMatterRecordForFields(fields);

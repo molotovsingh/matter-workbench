@@ -151,7 +151,7 @@ export async function runAutomaticPreparation({
     } catch (error) {
       const message = formatVisiblePreparationError(error, nextStage);
       status = markStageFailed(status, nextStage, message);
-      await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'failed', stageStarts, message);
+      await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'failed', stageStarts, message, preparationErrorDiagnostic(error));
       onProgress(status);
       appendTerminal([`[prepare] auto failed: ${stageLabel(nextStage)} — ${message}`]);
       return finishWithTelemetry({
@@ -210,7 +210,7 @@ async function runFullPreparation({
     } catch (error) {
       const message = formatVisiblePreparationError(error, stage);
       next = markStageFailed(next, stage, message);
-      await recordStageTelemetry(telemetryRunId, matterName, stage, 'failed', stageStarts, message);
+      await recordStageTelemetry(telemetryRunId, matterName, stage, 'failed', stageStarts, message, preparationErrorDiagnostic(error));
       publishProgress(next);
       publishTerminal([`[prepare] rerun failed: ${stageLabel(stage)} — ${message}`]);
       return {
@@ -382,6 +382,7 @@ async function recordStageTelemetry(
   status: NonNullable<PreparationRunTelemetryRequest['stage']>['status'],
   stageStarts: Map<string, number>,
   message = '',
+  diagnostic?: NonNullable<PreparationRunTelemetryRequest['stage']>['diagnostic'],
 ) {
   const stepId = stepIdForStage(stage) || stage.id || stage.slash || stage.label;
   const stageKey = stepId || stageLabel(stage);
@@ -398,6 +399,7 @@ async function recordStageTelemetry(
       status,
       durationMs: status === 'running' ? 0 : now - startedAt,
       message,
+      diagnostic,
     },
   });
 }
@@ -439,6 +441,13 @@ function telemetryStageForProgressStep(step: PreparationProgressStep): NonNullab
 function telemetryStatusForResult(result: AutomaticPreparationResult): PreparationRunTelemetryRequest['status'] {
   if (result.state === 'blocked') return 'blocked';
   return result.state;
+}
+
+function preparationErrorDiagnostic(error: unknown): NonNullable<PreparationRunTelemetryRequest['stage']>['diagnostic'] | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const diagnostic = (error as { diagnostic?: unknown }).diagnostic;
+  if (!diagnostic || typeof diagnostic !== 'object' || Array.isArray(diagnostic)) return undefined;
+  return diagnostic as NonNullable<PreparationRunTelemetryRequest['stage']>['diagnostic'];
 }
 
 function staleResult(): AutomaticPreparationResult {

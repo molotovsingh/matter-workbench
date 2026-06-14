@@ -6,12 +6,14 @@ export function parseOpenRouterJsonContent(payload) {
     } catch (parseError) {
       const error = new Error(`OpenRouter response did not include valid JSON message content: ${parseError.message}`);
       error.statusCode = 502;
+      error.code = "provider.invalid_json";
       throw error;
     }
   }
   if (content && typeof content === "object") return attachOpenRouterAiRunMetadata(content, payload);
   const error = new Error("OpenRouter response did not include JSON message content");
   error.statusCode = 502;
+  error.code = "provider.empty_output";
   throw error;
 }
 
@@ -19,6 +21,7 @@ export function createOpenRouterProviderError(response, payload) {
   const errorPayload = payload?.error || {};
   const error = new Error(formatOpenRouterErrorMessage(response, errorPayload));
   error.statusCode = mapOpenRouterErrorStatus(response?.status, errorPayload.code);
+  error.code = "provider.error";
   const providerName = normalizeOptionalString(errorPayload?.metadata?.provider_name);
   if (providerName) error.providerName = providerName;
   if (errorPayload.code) error.openRouterCode = errorPayload.code;

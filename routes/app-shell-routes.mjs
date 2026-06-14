@@ -413,12 +413,14 @@ function normalizePreparationStages(value) {
 }
 
 function normalizePreparationStage(stage = {}) {
+  const diagnostic = normalizePreparationDiagnostic(stage.diagnostic);
   return {
     id: sanitizeTelemetryText(stage.id, 80).trim(),
     label: sanitizeTelemetryText(stage.label, 120).trim(),
     status: normalizePreparationStageStatus(stage.status || stage.state),
     durationMs: normalizeDuration(stage.durationMs),
     message: normalizePreparationMessage(stage.message || stage.detail || ""),
+    ...(diagnostic ? { diagnostic } : {}),
   };
 }
 
@@ -439,6 +441,27 @@ function normalizePreparationMessage(value) {
   const title = text.match(/<title>([^<]+)<\/title>/i)?.[1];
   const withoutTags = title || text.replace(/<[^>]+>/g, " ");
   return sanitizeTelemetryText(withoutTags.replace(/\s+/g, " "), 500).trim();
+}
+
+function normalizePreparationDiagnostic(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value;
+  const diagnostic = {};
+  const statusCode = Number(record.statusCode);
+  if (Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599) {
+    diagnostic.statusCode = statusCode;
+  }
+  const code = sanitizeTelemetryText(record.code, 120).trim();
+  if (/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code)) diagnostic.code = code;
+  const statusText = sanitizeTelemetryText(record.statusText, 80).replace(/\s+/g, " ").trim();
+  if (statusText) diagnostic.statusText = statusText;
+  const urlPath = sanitizeTelemetryText(record.urlPath, 220).trim();
+  if (urlPath && !/^https?:\/\//i.test(urlPath)) diagnostic.urlPath = urlPath;
+  const bodyKind = sanitizeTelemetryText(record.bodyKind, 40).trim();
+  if (["html", "json", "text", "empty"].includes(bodyKind)) diagnostic.bodyKind = bodyKind;
+  const htmlTitle = sanitizeTelemetryText(record.htmlTitle, 120).replace(/\s+/g, " ").trim();
+  if (htmlTitle) diagnostic.htmlTitle = htmlTitle;
+  return Object.keys(diagnostic).length ? diagnostic : null;
 }
 
 function classifyPreparationFailure(message = "") {

@@ -76,6 +76,7 @@ export function createJobStatusService({
         ...patch,
         metadata: sanitizeMetadata(mergeMetadata(current.metadata || {}, patch.metadata || {})),
         errorMessage: patch.errorMessage !== undefined ? sanitizeText(patch.errorMessage) : current.errorMessage,
+        errorCode: patch.errorCode !== undefined ? safeErrorCode(patch.errorCode) : current.errorCode,
         updatedAt: isoNow(now),
       });
       store.jobs[index] = updated;
@@ -93,11 +94,13 @@ export function createJobStatusService({
 
   async function failJob(jobId, error, patch = {}) {
     const message = errorToMessage(error);
+    const errorCode = safeErrorCode(patch.errorCode || error?.code);
     return updateJob(jobId, {
       ...patch,
       status: "failed",
       finishedAt: isoNow(now),
       errorMessage: message,
+      ...(errorCode ? { errorCode } : {}),
       failureClass: patch.failureClass || classifyFailure(message),
     });
   }
@@ -186,6 +189,7 @@ export function normalizeJobStatus(job = {}) {
   if (job.resultState) normalized.resultState = sanitizeText(job.resultState, 120);
   if (job.summary) normalized.summary = sanitizeText(job.summary, 500);
   if (job.errorMessage) normalized.errorMessage = sanitizeText(job.errorMessage, 500);
+  if (job.errorCode) normalized.errorCode = safeErrorCode(job.errorCode);
   if (job.failureClass) normalized.failureClass = normalizeFailureClass(job.failureClass);
   if (job.metadata && typeof job.metadata === "object") normalized.metadata = sanitizeMetadata(job.metadata);
   return normalized;
@@ -340,6 +344,11 @@ function humanizeKind(kind) {
 
 function stringOr(value, fallback) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function safeErrorCode(value) {
+  const code = String(value || "").trim();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : "";
 }
 
 function normalizeIso(value) {
