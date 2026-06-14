@@ -157,11 +157,19 @@ function formatApiErrorMessage(payload: unknown, res: Response, url: string): st
 
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
-    if (typeof record.error === 'string' && record.error.trim()) return record.error.trim();
-    if (typeof record.message === 'string' && record.message.trim()) return record.message.trim();
+    const errorText = safePayloadMessage(record.error, res, url);
+    if (errorText) return errorText;
+    const messageText = safePayloadMessage(record.message, res, url);
+    if (messageText) return messageText;
   }
 
   return formatHttpFallbackMessage(res, url);
+}
+
+function safePayloadMessage(value: unknown, res: Response, url: string): string {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  const text = value.trim();
+  return isHtmlErrorBody(text) ? formatHttpFallbackMessage(res, url) : text;
 }
 
 function formatHttpFallbackMessage(res: Response, url: string): string {

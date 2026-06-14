@@ -91,6 +91,33 @@ test("React API client preserves structured API error codes", async () => {
   }
 });
 
+test("React API client hides raw HTML even when wrapped in JSON error fields", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => new Response(JSON.stringify({
+    error: "<html><head><title>504 Gateway Time-out</title></head><body><center>nginx/1.24.0</center></body></html>",
+    code: "provider.error",
+  }), {
+    status: 502,
+    statusText: "Bad Gateway",
+    headers: { "content-type": "application/json" },
+  }));
+
+  try {
+    await assert.rejects(
+      () => api.planSkillIdeaInterview({ userRequest: "new skill", activeMatter: null, skillIdea: { mode: "new_skill" } }),
+      (error) => {
+        assert.equal(error.statusCode, 502);
+        assert.equal(error.code, "provider.error");
+        assert.match(error.message, /server could not complete this request/i);
+        assert.doesNotMatch(error.message, /<html|<head|nginx|504 Gateway/i);
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
 async function importReactApiClient() {
   const source = await readFile(apiClientPath, "utf8");
   const compiled = ts.transpileModule(source, {

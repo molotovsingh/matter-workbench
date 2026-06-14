@@ -20,6 +20,13 @@ test("skill idea labels hide placeholder unknown copy", async () => {
   );
   assert.equal(
     skillIdeaDisplayTitle({
+      text: "Create a reusable skill to unknown",
+      designBrief: {},
+    }),
+    "Unfinished skill idea",
+  );
+  assert.equal(
+    skillIdeaDisplayTitle({
       text: "",
       designBrief: { problem: "Review limitation risk from the matter record" },
     }),
