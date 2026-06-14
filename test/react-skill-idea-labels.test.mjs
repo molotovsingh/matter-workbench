@@ -39,6 +39,13 @@ test("skill idea labels hide placeholder unknown copy", async () => {
     }),
     "Identify unknown defendants from the pleadings",
   );
+  assert.equal(
+    skillIdeaDisplayTitle({
+      text: "Create a reusable skill to unknown defendants from pleadings",
+      designBrief: {},
+    }),
+    "Create a reusable skill to unknown defendants from pleadings",
+  );
 });
 
 test("Skills page renders saved idea labels through the display helper", async () => {

@@ -46,6 +46,34 @@ test("React API client hides raw HTML gateway errors from preparation stages", a
   }
 });
 
+test("React API client hides raw plain-text gateway errors from preparation stages", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async (url) => {
+    assert.equal(url, "/api/extract");
+    return new Response("504 Gateway Time-out\nnginx/1.24.0 (Ubuntu)", {
+      status: 504,
+      statusText: "Gateway Timeout",
+      headers: { "content-type": "text/plain" },
+    });
+  });
+
+  try {
+    await assert.rejects(
+      () => api.runExtract({ matterName: "Demo Matter", forceRefresh: true }),
+      (error) => {
+        assert.equal(error.statusCode, 504);
+        assert.equal(error.code, "preparation.extract_timeout");
+        assert.match(error.message, /Reading documents took too long/i);
+        assert.doesNotMatch(error.message, /nginx|Gateway Time-out/i);
+        assert.equal(error.diagnostic.bodyKind, "text");
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("React API client still preserves plain text API errors", async () => {
   const { api } = await importReactApiClient();
   const restoreFetch = mockFetch(async () => new Response("Matter already exists", {
@@ -109,6 +137,34 @@ test("React API client hides raw HTML even when wrapped in JSON error fields", a
         assert.equal(error.statusCode, 502);
         assert.equal(error.code, "provider.error");
         assert.match(error.message, /server could not complete this request/i);
+        assert.doesNotMatch(error.message, /<html|<head|nginx|504 Gateway/i);
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("React API client prefers a clean JSON message over a contaminated error field", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => new Response(JSON.stringify({
+    error: "<html><head><title>504 Gateway Time-out</title></head><body><center>nginx/1.24.0</center></body></html>",
+    message: "Provider returned an invalid response. Try again in a minute.",
+    code: "provider.invalid_response",
+  }), {
+    status: 502,
+    statusText: "Bad Gateway",
+    headers: { "content-type": "application/json" },
+  }));
+
+  try {
+    await assert.rejects(
+      () => api.planSkillIdeaInterview({ userRequest: "new skill", activeMatter: null, skillIdea: { mode: "new_skill" } }),
+      (error) => {
+        assert.equal(error.statusCode, 502);
+        assert.equal(error.code, "provider.invalid_response");
+        assert.equal(error.message, "Provider returned an invalid response. Try again in a minute.");
         assert.doesNotMatch(error.message, /<html|<head|nginx|504 Gateway/i);
         return true;
       },

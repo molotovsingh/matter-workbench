@@ -151,25 +151,27 @@ async function readErrorPayload(res: Response): Promise<unknown> {
 function formatApiErrorMessage(payload: unknown, res: Response, url: string): string {
   if (typeof payload === 'string' && payload.trim()) {
     const text = payload.trim();
-    if (isHtmlErrorBody(text)) return formatHttpFallbackMessage(res, url);
+    if (isRawInfrastructureErrorBody(text)) return formatHttpFallbackMessage(res, url);
     return text;
   }
 
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
-    const errorText = safePayloadMessage(record.error, res, url);
-    if (errorText) return errorText;
-    const messageText = safePayloadMessage(record.message, res, url);
-    if (messageText) return messageText;
+    const errorText = payloadMessageText(record.error);
+    if (errorText && !isRawInfrastructureErrorBody(errorText)) return errorText;
+    const messageText = payloadMessageText(record.message);
+    if (messageText && !isRawInfrastructureErrorBody(messageText)) return messageText;
+    if ((errorText && isRawInfrastructureErrorBody(errorText)) || (messageText && isRawInfrastructureErrorBody(messageText))) {
+      return formatHttpFallbackMessage(res, url);
+    }
   }
 
   return formatHttpFallbackMessage(res, url);
 }
 
-function safePayloadMessage(value: unknown, res: Response, url: string): string {
+function payloadMessageText(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return '';
-  const text = value.trim();
-  return isHtmlErrorBody(text) ? formatHttpFallbackMessage(res, url) : text;
+  return value.trim();
 }
 
 function formatHttpFallbackMessage(res: Response, url: string): string {
@@ -205,6 +207,11 @@ function isSafeApiErrorCode(value: string): boolean {
 
 function isHtmlErrorBody(text: string): boolean {
   return /^<!doctype\s+html/i.test(text) || /<\/?(html|head|body|title|h1|center)\b/i.test(text);
+}
+
+function isRawInfrastructureErrorBody(text: string): boolean {
+  if (isHtmlErrorBody(text)) return true;
+  return /^\s*(?:\d{3}\s+)?(?:Gateway Time-?out|Bad Gateway)\b/i.test(text) || /\bnginx\/\d/i.test(text);
 }
 
 function buildApiErrorDiagnostic(payload: unknown, res: Response, url: string): ApiErrorDiagnostic {

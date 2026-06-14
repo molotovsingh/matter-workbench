@@ -17,7 +17,7 @@ function cleanLabelText(value: unknown): string {
 function isUsefulSkillIdeaLabel(value: string): boolean {
   if (!value) return false;
   if (/^unknown$/i.test(value)) return false;
-  if (/^create a reusable skill to unknown\b/i.test(value)) return false;
+  if (/^create a reusable skill to unknown(?:$|\s*[;:,.!?-])/i.test(value)) return false;
   if (/^(?:skill idea )?not yet provided$/i.test(value)) return false;
   if (/^skill idea(?: text)? is required$/i.test(value)) return false;
   return true;
