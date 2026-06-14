@@ -99,6 +99,16 @@ test("React saved skill ideas resume without replanning and can route to matter 
   assert.match(machineSource, /Pick a matter to test this saved skill idea, then continue it from Skills\./);
 });
 
+test("React skill idea session explains no-matter saved idea flow before sample generation", async () => {
+  const componentSource = await readFile(skillIdeaSessionPath, "utf8");
+
+  assert.match(componentSource, /NO_MATTER_SAMPLE_GUIDANCE_PHASES/);
+  assert.match(componentSource, /'ready', 'saved', 'sampled'/);
+  assert.match(componentSource, /!hasMatter && NO_MATTER_SAMPLE_GUIDANCE_PHASES\.has\(session\.phase\)/);
+  assert.doesNotMatch(componentSource, /!hasMatter && session\.phase !== 'created'/);
+  assert.match(componentSource, /You can save this idea now, but pick a matter before generating a sample or creating the skill\./);
+});
+
 test("React skill idea session component delegates orchestration to the machine hook", async () => {
   const source = await readFile(skillIdeaSessionPath, "utf8");
 

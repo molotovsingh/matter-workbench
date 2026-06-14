@@ -3,6 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus, skillIdeaStatusLabel } from '../lib/skillIdeaStatuses';
+import { skillIdeaDisplayTitle } from '../lib/skillIdeaLabels';
 import { humanizeArtifactPath } from '../lib/presentationLabels';
 import { useLatestValue } from '../hooks/useLatestValue';
 import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
@@ -32,6 +33,7 @@ export default function SkillsPage() {
   const [health, setHealth] = useState<SkillFactoryHealth | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [loadingLifecycle, setLoadingLifecycle] = useState<string | null>(null);
+  const [loadingIdeaStatus, setLoadingIdeaStatus] = useState<string | null>(null);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [introHidden, setIntroHidden] = useState(readSkillsIntroHidden);
@@ -172,11 +174,11 @@ export default function SkillsPage() {
 
   const activeIdeas = ideas.filter((i) => {
     const status = normalizeSkillIdeaStatus(i.status);
-    return status !== SKILL_IDEA_STATUS.DISMISSED && status !== SKILL_IDEA_STATUS.CREATED;
+    return status !== SKILL_IDEA_STATUS.DISMISSED && status !== SKILL_IDEA_STATUS.CREATED && status !== SKILL_IDEA_STATUS.PARKED;
   });
   const dismissedIdeas = ideas.filter((i) => {
     const status = normalizeSkillIdeaStatus(i.status);
-    return status === SKILL_IDEA_STATUS.DISMISSED || status === SKILL_IDEA_STATUS.CREATED;
+    return status === SKILL_IDEA_STATUS.DISMISSED || status === SKILL_IDEA_STATUS.CREATED || status === SKILL_IDEA_STATUS.PARKED;
   });
   const builtinRegistrySkills = registrySkills.filter((skill) => !skill.configurable);
   const visibleCustomSkills = customSkills.filter((skill) => skill.status === 'active' || skill.status === 'suspended');
@@ -202,6 +204,20 @@ export default function SkillsPage() {
     }
     dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: idea });
     appendTerminal([`[skill-idea] continuing saved idea — id: ${idea.id}`]);
+  }
+
+  async function handleParkIdea(idea: SkillIdea) {
+    if (loadingIdeaStatus) return;
+    setLoadingIdeaStatus(idea.id);
+    try {
+      await api.updateSkillIdeaStatus(idea.id, { status: SKILL_IDEA_STATUS.PARKED });
+      await loadSkillData();
+      appendTerminal([`[skill-idea] parked saved idea — id: ${idea.id}`]);
+    } catch (error) {
+      appendTerminal([`[skill-idea] park failed: ${getErrorMessage(error)}`]);
+    } finally {
+      setLoadingIdeaStatus(null);
+    }
   }
 
   return (
@@ -255,6 +271,8 @@ export default function SkillsPage() {
           draftCustomSkills={draftCustomSkills}
           hasActiveMatter={Boolean(state.activeMatter)}
           onContinueIdea={handleContinueIdea}
+          onParkIdea={(idea) => { void handleParkIdea(idea); }}
+          loadingIdeaStatus={loadingIdeaStatus}
           renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
         />
       )}
@@ -418,12 +436,16 @@ function SkillsInProgressSection({
   draftCustomSkills,
   hasActiveMatter,
   onContinueIdea,
+  onParkIdea,
+  loadingIdeaStatus,
   renderManageActions,
 }: {
   ideas: SkillIdea[];
   draftCustomSkills: ConfigurableSkill[];
   hasActiveMatter: boolean;
   onContinueIdea: (idea: SkillIdea) => void;
+  onParkIdea: (idea: SkillIdea) => void;
+  loadingIdeaStatus: string | null;
   renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
 }) {
   return (
@@ -450,13 +472,24 @@ function SkillsInProgressSection({
             key={idea.id}
             idea={idea}
             primaryAction={(
-              <button
-                type="button"
-                className="run-skill-button secondary"
-                onClick={() => onContinueIdea(idea)}
-              >
-                {hasActiveMatter ? 'Continue' : 'Pick matter first'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="run-skill-button secondary"
+                  onClick={() => onContinueIdea(idea)}
+                  disabled={loadingIdeaStatus === idea.id}
+                >
+                  {hasActiveMatter ? 'Continue' : 'Pick matter first'}
+                </button>
+                <button
+                  type="button"
+                  className="run-skill-button secondary"
+                  onClick={() => onParkIdea(idea)}
+                  disabled={loadingIdeaStatus === idea.id}
+                >
+                  {loadingIdeaStatus === idea.id ? 'Parking…' : 'Park'}
+                </button>
+              </>
             )}
           />
         ))}
@@ -597,11 +630,12 @@ function CustomSkillRow({
 }
 
 function SkillIdeaRow({ idea, primaryAction }: { idea: SkillIdea; primaryAction?: JSX.Element }) {
+  const title = skillIdeaDisplayTitle(idea);
   return (
     <div className="skill-row">
       <div className="skill-row-main">
         <div className="skill-row-title">
-          <strong>{idea.text}</strong>
+          <strong>{title}</strong>
           <span className="pipeline-state pending">{skillIdeaStatusLabel(idea.status)}</span>
         </div>
         <div className="skill-row-meta">

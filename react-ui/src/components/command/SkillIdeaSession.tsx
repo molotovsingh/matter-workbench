@@ -11,6 +11,8 @@ import {
 import { useSkillIdeaSessionMachine } from '../../hooks/useSkillIdeaSessionMachine';
 import type { SkillIdea } from '../../types';
 
+const NO_MATTER_SAMPLE_GUIDANCE_PHASES = new Set(['ready', 'saved', 'sampled']);
+
 interface Props {
   initialInput: string;
   initialIdea?: SkillIdea | null;
@@ -29,6 +31,7 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
   const currentQuestionExamples = currentQuestion?.id === 'skillName'
     ? skillNameSuggestions(session.ideaText, session.plannedBrief, session.answers)
     : currentQuestion?.examples;
+  const showNoMatterSampleGuidance = !hasMatter && NO_MATTER_SAMPLE_GUIDANCE_PHASES.has(session.phase);
 
   return (
     <div className="skill-idea-session">
@@ -52,6 +55,12 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
 
       {session.notice && (
         <div className="skill-idea-notice">{session.notice}</div>
+      )}
+
+      {showNoMatterSampleGuidance && (
+        <div className="skill-idea-notice">
+          You can save this idea now, but pick a matter before generating a sample or creating the skill.
+        </div>
       )}
 
       {Object.keys(session.answers).length > 0 && (
