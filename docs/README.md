@@ -10,7 +10,7 @@ equally authoritative.
 
 | Need | Read |
 | --- | --- |
-| Product and engineering design philosophy | [Matter Workbench Design Philosophy](design-philosophy.md) |
+| Durable product and engineering North Star | [Matter Workbench North Star Design Philosophy](design-philosophy.md) |
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |

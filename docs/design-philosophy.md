@@ -1,6 +1,14 @@
-# Matter Workbench Design Philosophy
+# Matter Workbench North Star Design Philosophy
 
-Status: Current product and engineering philosophy
+Status: Durable product and engineering policy
+
+This is a durable North Star for Matter Workbench. Future product, UX,
+engineering, and documentation changes should comply with it within reasonable
+implementation boundaries.
+
+When a local implementation constraint forces a trade-off, the preferred move
+is to keep the user-facing surface simple while preserving the rigorous spine,
+then record the exception or follow-up explicitly.
 
 ## One Sentence
 
