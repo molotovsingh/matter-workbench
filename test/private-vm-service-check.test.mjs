@@ -189,6 +189,42 @@ test("private VM service check does not restore when the probed matter was alrea
   assert.deepEqual(switchedTo, ["Probe Matter"]);
 });
 
+test("private VM service check does not restore a stale active matter absent from the matter list", async () => {
+  const switchedTo = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/matters") {
+      return jsonResponse({
+        enabled: true,
+        mattersHome: null,
+        active: "Runtime DB Write Smoke - stale",
+        matters: [{ name: "Client Matter", matterName: "Client Matter" }],
+      });
+    }
+    if (parsed.pathname === "/api/switch-matter") {
+      const body = JSON.parse(init.body);
+      switchedTo.push(body.name);
+      assert.equal(body.name, "Client Matter");
+      return jsonResponse({
+        tree: {
+          children: [
+            { kind: "file", path: "matter.json", previewable: true, previewKind: "text" },
+          ],
+        },
+      });
+    }
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "{\"matterName\":\"Client Matter\"}" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, true);
+  assert.equal(report.warning, "");
+  assert.deepEqual(switchedTo, ["Client Matter"]);
+});
+
 test("private VM service check tries to restore active matter when the probe switch fails", async () => {
   const switchedTo = [];
   const fetchImpl = async (url, init = {}) => {

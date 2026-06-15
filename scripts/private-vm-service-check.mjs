@@ -80,7 +80,11 @@ export async function runPrivateVmServiceCheck({
   }
   const matters = Array.isArray(mattersPayload.matters) ? mattersPayload.matters : [];
   if (!matters.length) return failedReport({ baseUrl, authenticated: authSession.authenticated, rootOk: true, rootBytes: rootText.length, runtimeDbEnabled: Boolean(mattersPayload.enabled), mattersHome: mattersPayload.mattersHome ?? null, error: "No matters returned by /api/matters." });
-  const previousActiveMatter = typeof mattersPayload.active === "string" ? mattersPayload.active : "";
+  const matterNames = matters
+    .map((matter) => matter.name || matter.matterName || "")
+    .filter(Boolean);
+  const activeMatter = typeof mattersPayload.active === "string" ? mattersPayload.active : "";
+  const previousActiveMatter = matterNames.includes(activeMatter) ? activeMatter : "";
 
   const target = matterName
     ? matters.find((matter) => matter.name === matterName || matter.matterName === matterName)
