@@ -402,7 +402,9 @@ test("private beta runtime DB matters and active matter state are scoped per log
           schema_version: "private-beta-feedback-ledger/v1",
           feedback: [
             { id: "feedback_aks", context: { activeMatterName: "AKS Matter" } },
+            { id: "feedback_aks_home", context: { username: "aks", activeMatterName: "No matter selected" } },
             { id: "feedback_shivangi", context: { activeMatterName: "Shivangi Matter" } },
+            { id: "feedback_shivangi_home", context: { username: "shivangi@lawzeus.com", activeMatterName: "No matter selected" } },
           ],
         };
       },
@@ -486,7 +488,7 @@ test("private beta runtime DB matters and active matter state are scoped per log
     assert.deepEqual(shivangiRuns.runs.map((run) => run.id), ["run_shivangi"]);
 
     const shivangiFeedback = await getJson(baseUrl, "/api/private-beta/feedback?limit=10", shivangiCookie);
-    assert.deepEqual(shivangiFeedback.feedback.map((item) => item.id), ["feedback_shivangi"]);
+    assert.deepEqual(shivangiFeedback.feedback.map((item) => item.id), ["feedback_shivangi", "feedback_shivangi_home"]);
 
     const shivangiOverlap = await postJson(baseUrl, "/api/matters/check-overlap", {
       hashes: ["a".repeat(64)],

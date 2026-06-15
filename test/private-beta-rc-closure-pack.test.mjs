@@ -487,6 +487,12 @@ test("private beta RC closure pack sanitizes runtime env for local verification 
     MWB_RUNTIME_DATABASE_URL: "postgres://runtime:secret@example/mwb",
     MWB_PRIVATE_BETA_AUTH: "required",
     MWB_PRIVATE_BETA_PASSWORD: "private-secret",
+    SOURCE_BACKED_ANALYSIS_PROVIDER: "openrouter",
+    OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "openai/gpt-4.1",
+    MISTRAL_API_KEY: "mistral-secret",
+    MISTRAL_OCR_ENABLED: "1",
+    GEMINI_API_KEY: "gemini-secret",
+    GEMINI_OCR_REPAIR_ENABLED: "1",
   };
   const previousEnv = Object.fromEntries(Object.keys(dirtyEnv).map((key) => [key, process.env[key]]));
 
@@ -524,6 +530,12 @@ test("private beta RC closure pack sanitizes runtime env for local verification 
     assert.equal(env.MWB_RUNTIME_DATABASE_URL, undefined);
     assert.equal(env.MWB_PRIVATE_BETA_AUTH, undefined);
     assert.equal(env.MWB_PRIVATE_BETA_PASSWORD, undefined);
+    assert.equal(env.SOURCE_BACKED_ANALYSIS_PROVIDER, undefined);
+    assert.equal(env.OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL, undefined);
+    assert.equal(env.MISTRAL_API_KEY, undefined);
+    assert.equal(env.MISTRAL_OCR_ENABLED, undefined);
+    assert.equal(env.GEMINI_API_KEY, undefined);
+    assert.equal(env.GEMINI_OCR_REPAIR_ENABLED, undefined);
   }
 });
 
@@ -552,7 +564,7 @@ test("private beta RC closure pack runs the full test gate serially for constrai
   assert.equal(result.success, true);
   assert.deepEqual(
     commands.find((gate) => gate.label === "full_test_suite"),
-    { label: "full_test_suite", command: "node", args: ["--test", "--test-concurrency=1"] },
+    { label: "full_test_suite", command: "node", args: ["scripts/node-test-file-runner.mjs"] },
   );
 });
 

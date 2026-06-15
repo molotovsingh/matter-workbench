@@ -1,10 +1,58 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createAiSettingsService } from "../services/ai-settings-service.mjs";
+
+async function closeTestServer(server) {
+  const closed = new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+  server.closeIdleConnections?.();
+  server.closeAllConnections?.();
+  await closed;
+}
+
+async function fetchJsonOnce(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(new URL(url), {
+      method: options.method || "GET",
+      headers: {
+        ...(options.headers || {}),
+        connection: "close",
+      },
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        resolve({
+          ok: response.statusCode >= 200 && response.statusCode < 300,
+          status: response.statusCode,
+          json: async () => JSON.parse(body || "null"),
+          text: async () => body,
+        });
+      });
+    });
+    request.on("error", reject);
+    if (options.signal) {
+      options.signal.addEventListener("abort", () => {
+        const error = new Error("The operation was aborted");
+        error.name = "AbortError";
+        request.destroy(error);
+      }, { once: true });
+    }
+    if (options.body) request.write(options.body);
+    request.end();
+  });
+}
 
 test("AI settings save model/token config and replace API key without exposing it", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
@@ -114,6 +162,7 @@ test("AI settings save Matter Copilot routing without changing global AI default
       appDir,
       env,
       openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+      fetchImpl: fetchJsonOnce,
     });
     saved = await service.saveSettings({
       copilotProvider: "openrouter",
@@ -121,7 +170,7 @@ test("AI settings save Matter Copilot routing without changing global AI default
       copilotApiKey: "sk-or-v1-test",
     });
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeTestServer(server);
   }
 
   assert.equal(env.OPENAI_MODEL, "gpt-existing");
@@ -177,6 +226,7 @@ test("AI settings do not persist Matter Copilot switch when model ping fails", a
       appDir,
       env,
       openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+      fetchImpl: fetchJsonOnce,
     });
     await assert.rejects(
       () => service.saveSettings({
@@ -187,7 +237,7 @@ test("AI settings do not persist Matter Copilot switch when model ping fails", a
       /Matter Copilot model check failed: model not available/,
     );
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeTestServer(server);
   }
 
   assert.equal(env.COPILOT_ANSWER_PROVIDER, undefined);
@@ -223,6 +273,7 @@ test("AI settings reject Matter Copilot switch when OpenRouter returns a choice 
       appDir,
       env,
       openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+      fetchImpl: fetchJsonOnce,
     });
     await assert.rejects(
       () => service.saveSettings({
@@ -232,7 +283,7 @@ test("AI settings reject Matter Copilot switch when OpenRouter returns a choice 
       /structured outputs unavailable/,
     );
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeTestServer(server);
   }
 
   assert.equal(env.COPILOT_ANSWER_PROVIDER, undefined);
@@ -295,12 +346,13 @@ test("AI settings test connection sends a tiny server-side OpenAI request", asyn
         OPENAI_MAX_OUTPUT_TOKENS: "2048",
       },
       endpoint: `http://${address.address}:${address.port}/v1/responses`,
+      fetchImpl: fetchJsonOnce,
     });
     const result = await service.testConnection();
     assert.equal(result.ok, true);
     assert.equal(result.model, "gpt-5-mini");
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeTestServer(server);
   }
 
   assert.equal(bodies.length, 1);
@@ -327,6 +379,7 @@ test("AI settings test connection redacts upstream OpenAI error messages", async
         OPENAI_MODEL: "gpt-5-mini",
       },
       endpoint: `http://${address.address}:${address.port}/v1/responses`,
+      fetchImpl: fetchJsonOnce,
     });
 
     await assert.rejects(
@@ -338,6 +391,6 @@ test("AI settings test connection redacts upstream OpenAI error messages", async
       },
     );
   } finally {
-    await new Promise((resolve) => server.close(resolve));
+    await closeTestServer(server);
   }
 });

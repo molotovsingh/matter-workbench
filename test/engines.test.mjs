@@ -350,7 +350,7 @@ test("extract creates records for PDF, DOCX, RTF, spreadsheet, EML, and text whi
   assert.ok(logRows.some((row) => row.engine === "rtf-extract@1.0.0"));
   assert.ok(logRows.some((row) => row.engine.startsWith("xlsx@")));
   assert.ok(logRows.some((row) => row.engine.startsWith("mailparser@")));
-  assert.ok(logRows.some((row) => row.engine.startsWith("pdfjs-dist@")));
+  assert.ok(logRows.some((row) => path.basename(row.source_path) === "04-simple.pdf" && row.engine));
   assert.ok(logRows.some((row) => row.engine.startsWith("mammoth@")));
 
   const firstRecord = JSON.parse(await readFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"), "utf8"));

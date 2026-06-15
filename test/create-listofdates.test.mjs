@@ -1120,6 +1120,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     OPENAI_MAX_OUTPUT_TOKENS: process.env.OPENAI_MAX_OUTPUT_TOKENS,
+    SOURCE_BACKED_ANALYSIS_PROVIDER: process.env.SOURCE_BACKED_ANALYSIS_PROVIDER,
   };
   const requests = [];
 
@@ -1137,6 +1138,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
   process.env.OPENAI_API_KEY = "sk-test";
   process.env.OPENAI_MODEL = "policy-listofdates-model";
   process.env.OPENAI_MAX_OUTPUT_TOKENS = "3456";
+  process.env.SOURCE_BACKED_ANALYSIS_PROVIDER = "openai-direct";
 
   try {
     const result = await runCreateListOfDates({ matterRoot: root, maxOutputTokens: "invalid" });

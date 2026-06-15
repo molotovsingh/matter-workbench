@@ -22,7 +22,7 @@ const DEFAULT_RELEASE = "v1.0.0-beta.10";
 const DEFAULT_LOCAL_GATES = [
   { label: "ui_typecheck", command: "npm", args: ["run", "ui:typecheck", "--silent"] },
   { label: "ui_build", command: "npm", args: ["run", "ui:build", "--silent"] },
-  { label: "full_test_suite", command: "node", args: ["--test", "--test-concurrency=1"] },
+  { label: "full_test_suite", command: "node", args: ["scripts/node-test-file-runner.mjs"] },
 ];
 
 export function parseRcClosurePackArgs(argv = [], env = process.env) {
@@ -372,10 +372,18 @@ function localGateEnv(sourceEnv = process.env) {
     "PGPASSWORD",
     "PGPORT",
     "PGUSER",
+    "SOURCE_BACKED_ANALYSIS_PROVIDER",
+    "MISTRAL_API_KEY",
+    "MISTRAL_OCR_ENABLED",
+    "GEMINI_API_KEY",
+    "GEMINI_OCR_REPAIR_ENABLED",
+    "GEMINI_OCR_REPAIR_MODEL",
+    "GEMINI_OCR_REPAIR_FAST_MODEL",
   ];
   for (const key of exactKeys) delete env[key];
   for (const key of Object.keys(env)) {
     if (key.startsWith("MWB_PRIVATE_BETA_")) delete env[key];
+    if (key.startsWith("OPENROUTER_")) delete env[key];
   }
   return env;
 }

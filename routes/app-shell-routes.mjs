@@ -521,11 +521,16 @@ async function scopedMatterLedger({ matterStore, list, key, fields }) {
 async function scopedPrivateBetaFeedback({ matterStore, feedback }) {
   if (!isPrivateBetaScopedUser()) return feedback;
   const visibleNames = await visibleMatterNameSet(matterStore);
+  const username = currentRequestContext().user?.username || "";
+  const isVisibleToCurrentUser = (item) => {
+    if (username && item?.context?.username === username) return true;
+    return filterByVisibleMatterNames([item], visibleNames, {
+      fields: ["context.activeMatterName", "context.activeMatterFolder"],
+    }).length > 0;
+  };
   return {
     ...feedback,
-    feedback: filterByVisibleMatterNames(feedback?.feedback, visibleNames, {
-      fields: ["context.activeMatterName", "context.activeMatterFolder"],
-    }),
+    feedback: Array.isArray(feedback?.feedback) ? feedback.feedback.filter(isVisibleToCurrentUser) : [],
   };
 }
 
