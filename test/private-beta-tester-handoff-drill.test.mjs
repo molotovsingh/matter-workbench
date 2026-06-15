@@ -108,6 +108,36 @@ test("private beta tester handoff drill restores state when a later check fails"
   }
 });
 
+test("private beta tester handoff drill accepts fresh testers with no assigned matters", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-handoff-drill-empty-matters-"));
+  const usersFile = path.join(tmp, "users.json");
+  const feedbackPath = path.join(tmp, "feedback.json");
+  await writeFile(usersFile, `${JSON.stringify({ schemaVersion: "private-beta-users/v1", users: [] }, null, 2)}\n`, "utf8");
+  await writeFile(feedbackPath, `${JSON.stringify({ schema_version: "private-beta-feedback-ledger/v1", feedback: [] }, null, 2)}\n`, "utf8");
+
+  const server = await startDrillServer({ usersFile, feedbackPath, matterCount: 0 });
+  try {
+    const result = await runPrivateBetaTesterHandoffDrill({
+      baseUrl: server.baseUrl,
+      usersFile,
+      feedbackPath,
+      outDir: path.join(tmp, "evidence"),
+      timestamp: "2026-06-07T17:00:00.000Z",
+      username: "codex-test-empty-matter-handoff",
+      password: "temporary-password",
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.checks.mattersList.ok, true);
+    assert.equal(result.checks.mattersList.count, 0);
+    assert.match(result.checks.mattersList.note, /fresh tester/i);
+    assert.equal(result.checks.feedbackCreated.ok, true);
+    assert.equal(result.checks.signalEndpoint.ok, true);
+  } finally {
+    await server.close();
+  }
+});
+
 test("private beta tester handoff drill parser reads env defaults and CLI overrides", () => {
   assert.deepEqual(
     parsePrivateBetaTesterHandoffDrillArgs([
@@ -153,7 +183,7 @@ test("package and docs expose the tester handoff drill", async () => {
   assert.match(deploymentDoc, /private-beta:tester-handoff-drill/);
 });
 
-async function startDrillServer({ usersFile, feedbackPath, failMatters = false }) {
+async function startDrillServer({ usersFile, feedbackPath, failMatters = false, matterCount = 2 }) {
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://127.0.0.1");
@@ -194,7 +224,7 @@ async function startDrillServer({ usersFile, feedbackPath, failMatters = false }
           sendJson(response, 500, { error: "matter list failed" });
           return;
         }
-        sendJson(response, 200, { matters: [{ name: "Matter One" }, { name: "Matter Two" }] });
+        sendJson(response, 200, { matters: Array.from({ length: matterCount }, (_, index) => ({ name: `Matter ${index + 1}` })) });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/private-beta/feedback") {
