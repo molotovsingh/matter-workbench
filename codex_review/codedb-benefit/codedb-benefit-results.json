@@ -1,0 +1,467 @@
+{
+  "generatedAt": "2026-06-14T05:50:32.190Z",
+  "repoRoot": "/Users/aksingh/matter-workbench",
+  "taskCount": 10,
+  "totals": {
+    "codedbMs": 18.324833,
+    "rgMs": 91.222458,
+    "codedbBytes": 6348,
+    "rgBytes": 11071,
+    "codedbRecall": 6,
+    "rgRecall": 6.5,
+    "codedbNoise": 27,
+    "rgNoise": 19
+  },
+  "averages": {
+    "codedbMs": 1.8324833000000003,
+    "rgMs": 9.1222458,
+    "codedbBytes": 634.8,
+    "rgBytes": 1107.1,
+    "codedbRecall": 0.6,
+    "rgRecall": 0.65,
+    "codedbNoise": 2.7,
+    "rgNoise": 1.9
+  },
+  "rows": [
+    {
+      "id": "skill-workspace-ux",
+      "query": "SkillIdeaSession",
+      "expected": [
+        "react-ui/src/components/command/SkillIdeaSession.tsx",
+        "react-ui/src/hooks/useSkillIdeaSessionMachine.ts",
+        "react-ui/src/lib/skillIdeaSessionActions.ts",
+        "react-ui/src/components/command/CommandPanel.tsx"
+      ],
+      "codedb": {
+        "ms": 1.83225,
+        "bytes": 685,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/hooks/useSkillIdeaSessionMachine.ts",
+          "react-ui/src/lib/skillIdeaSessionActions.ts",
+          "react-ui/src/components/command/SkillIdeaSession.tsx",
+          "scripts/react-ui-smoke.mjs",
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "found": [
+          "react-ui/src/components/command/SkillIdeaSession.tsx",
+          "react-ui/src/hooks/useSkillIdeaSessionMachine.ts",
+          "react-ui/src/lib/skillIdeaSessionActions.ts",
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 1
+      },
+      "rg": {
+        "ms": 8.883834,
+        "bytes": 5231,
+        "status": 0,
+        "candidates": [
+          "shared/skill-idea-session-commands.mjs",
+          "react-ui/src/components/command/SkillIdeaSession.tsx",
+          "react-ui/src/components/command/CommandPanel.tsx",
+          "scripts/react-ui-smoke.mjs",
+          "react-ui/src/lib/skillIdeaSessionActions.ts",
+          "react-ui/src/lib/skillIdeaSessionCommands.ts",
+          "react-ui/src/lib/skillIntentRouting.ts",
+          "react-ui/src/hooks/useSkillIdeaSessionMachine.ts"
+        ],
+        "found": [
+          "react-ui/src/components/command/SkillIdeaSession.tsx",
+          "react-ui/src/hooks/useSkillIdeaSessionMachine.ts",
+          "react-ui/src/lib/skillIdeaSessionActions.ts",
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 4
+      }
+    },
+    {
+      "id": "skills-page-progress",
+      "query": "Skills in Progress",
+      "expected": [
+        "react-ui/src/views/SkillsPage.tsx"
+      ],
+      "codedb": {
+        "ms": 1.662542,
+        "bytes": 555,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/views/SkillsPage.tsx",
+          "react-ui/src/types/index.ts",
+          "services/configurable-skills-service.mjs",
+          "react-ui/src/styles/global.css"
+        ],
+        "found": [
+          "react-ui/src/views/SkillsPage.tsx"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 3
+      },
+      "rg": {
+        "ms": 8.494416,
+        "bytes": 171,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/views/SkillsPage.tsx"
+        ],
+        "found": [
+          "react-ui/src/views/SkillsPage.tsx"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 0
+      }
+    },
+    {
+      "id": "new-matter-upload",
+      "query": "No files attached",
+      "expected": [
+        "react-ui/src/views/NewMatterForm.tsx",
+        "services/runtime-db-storage-service.mjs"
+      ],
+      "codedb": {
+        "ms": 1.600541,
+        "bytes": 1525,
+        "status": 0,
+        "candidates": [
+          "services/upload-service.mjs"
+        ],
+        "found": [],
+        "missing": [
+          "react-ui/src/views/NewMatterForm.tsx",
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "recall": 0,
+        "noise": 1
+      },
+      "rg": {
+        "ms": 8.993,
+        "bytes": 387,
+        "status": 0,
+        "candidates": [
+          "services/upload-service.mjs",
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "found": [
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "missing": [
+          "react-ui/src/views/NewMatterForm.tsx"
+        ],
+        "recall": 0.5,
+        "noise": 1
+      }
+    },
+    {
+      "id": "feedback-capture",
+      "query": "Have a problem",
+      "expected": [
+        "react-ui/src/components/command/CommandPanel.tsx",
+        "services/private-beta-feedback-service.mjs"
+      ],
+      "codedb": {
+        "ms": 2.476833,
+        "bytes": 592,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/lib/skillIdeaSession.ts",
+          "shared/skill-idea-design-brief.mjs",
+          "react-ui/src/lib/skillIdeaDesignBrief.ts"
+        ],
+        "found": [],
+        "missing": [
+          "react-ui/src/components/command/CommandPanel.tsx",
+          "services/private-beta-feedback-service.mjs"
+        ],
+        "recall": 0,
+        "noise": 3
+      },
+      "rg": {
+        "ms": 10.875375,
+        "bytes": 321,
+        "status": 0,
+        "candidates": [
+          "scripts/private-beta-ui-hardening-pass.mjs",
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "found": [
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "missing": [
+          "services/private-beta-feedback-service.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 1
+      }
+    },
+    {
+      "id": "runtime-db-storage",
+      "query": "createMatterFromUploadedFiles",
+      "expected": [
+        "services/runtime-db-storage-service.mjs"
+      ],
+      "codedb": {
+        "ms": 2.110291,
+        "bytes": 438,
+        "status": 0,
+        "candidates": [
+          "services/runtime-db-storage-service.mjs",
+          "services/upload-service.mjs"
+        ],
+        "found": [
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 1
+      },
+      "rg": {
+        "ms": 9.000708,
+        "bytes": 416,
+        "status": 0,
+        "candidates": [
+          "services/upload-service.mjs",
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "found": [
+          "services/runtime-db-storage-service.mjs"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 1
+      }
+    },
+    {
+      "id": "copilot-selector",
+      "query": "Copilot strength",
+      "expected": [
+        "react-ui/src/components/command/CommandPanel.tsx",
+        "react-ui/src/lib/copilotModels.ts"
+      ],
+      "codedb": {
+        "ms": 1.750375,
+        "bytes": 606,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/components/command/CommandPanel.tsx",
+          "react-ui/src/views/SettingsPage.tsx",
+          "services/matter-copilot-providers.mjs",
+          "scripts/private-beta-ui-hardening-pass.mjs",
+          "react-ui/src/lib/copilotModels.ts",
+          "services/matter-copilot-service.mjs",
+          "react-ui/src/lib/matterCopilotAnswer.ts"
+        ],
+        "found": [
+          "react-ui/src/components/command/CommandPanel.tsx",
+          "react-ui/src/lib/copilotModels.ts"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 5
+      },
+      "rg": {
+        "ms": 8.798166,
+        "bytes": 433,
+        "status": 0,
+        "candidates": [
+          "scripts/private-beta-ui-hardening-pass.mjs",
+          "react-ui/src/views/SettingsPage.tsx",
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "found": [
+          "react-ui/src/components/command/CommandPanel.tsx"
+        ],
+        "missing": [
+          "react-ui/src/lib/copilotModels.ts"
+        ],
+        "recall": 0.5,
+        "noise": 2
+      }
+    },
+    {
+      "id": "list-of-dates",
+      "query": "createListOfDates",
+      "expected": [
+        "create-listofdates-engine.mjs",
+        "services/create-listofdates-service.mjs"
+      ],
+      "codedb": {
+        "ms": 1.803209,
+        "bytes": 554,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/views/workflows/ListOfDatesResult.tsx",
+          "listofdates/artifacts.mjs",
+          "listofdates/run-config.mjs"
+        ],
+        "found": [],
+        "missing": [
+          "create-listofdates-engine.mjs",
+          "services/create-listofdates-service.mjs"
+        ],
+        "recall": 0,
+        "noise": 3
+      },
+      "rg": {
+        "ms": 9.102083,
+        "bytes": 1036,
+        "status": 0,
+        "candidates": [
+          "create-listofdates-engine.mjs",
+          "listofdates/run-config.mjs",
+          "listofdates/providers.mjs",
+          "listofdates/artifacts.mjs",
+          "listofdates/two-pass-runner.mjs"
+        ],
+        "found": [
+          "create-listofdates-engine.mjs"
+        ],
+        "missing": [
+          "services/create-listofdates-service.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 4
+      }
+    },
+    {
+      "id": "ocr-repair",
+      "query": "ocr_repair_status",
+      "expected": [
+        "extract-engine.mjs",
+        "services/chained-ocr-provider.mjs"
+      ],
+      "codedb": {
+        "ms": 1.706542,
+        "bytes": 203,
+        "status": 0,
+        "candidates": [
+          "extract-engine.mjs",
+          "extract-utils/ocr-policy.mjs",
+          "shared/matter-contract.mjs"
+        ],
+        "found": [
+          "extract-engine.mjs"
+        ],
+        "missing": [
+          "services/chained-ocr-provider.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 2
+      },
+      "rg": {
+        "ms": 8.061875,
+        "bytes": 194,
+        "status": 0,
+        "candidates": [
+          "extract-utils/ocr-policy.mjs",
+          "extract-engine.mjs",
+          "shared/matter-contract.mjs"
+        ],
+        "found": [
+          "extract-engine.mjs"
+        ],
+        "missing": [
+          "services/chained-ocr-provider.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 2
+      }
+    },
+    {
+      "id": "custom-skill-receipts",
+      "query": "receiptState",
+      "expected": [
+        "services/configurable-skill-runs-service.mjs",
+        "react-ui/src/views/ActivityPage.tsx"
+      ],
+      "codedb": {
+        "ms": 1.68275,
+        "bytes": 577,
+        "status": 0,
+        "candidates": [
+          "react-ui/src/types/index.ts",
+          "shared/configurable-skill-run-receipts.mjs",
+          "react-ui/src/lib/configurableSkillRunReport.ts",
+          "react-ui/src/views/ActivityPage.tsx"
+        ],
+        "found": [
+          "react-ui/src/views/ActivityPage.tsx"
+        ],
+        "missing": [
+          "services/configurable-skill-runs-service.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 3
+      },
+      "rg": {
+        "ms": 9.177459,
+        "bytes": 2644,
+        "status": 0,
+        "candidates": [
+          "services/matter-attention-custom-runs.mjs",
+          "shared/configurable-skill-run-receipts.mjs",
+          "react-ui/src/types/index.ts",
+          "react-ui/src/views/ActivityPage.tsx",
+          "react-ui/src/lib/configurableSkillRunReport.ts"
+        ],
+        "found": [
+          "react-ui/src/views/ActivityPage.tsx"
+        ],
+        "missing": [
+          "services/configurable-skill-runs-service.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 4
+      }
+    },
+    {
+      "id": "private-beta-auth",
+      "query": "Login required",
+      "expected": [
+        "services/private-beta-auth-service.mjs",
+        "routes/private-beta-auth-routes.mjs"
+      ],
+      "codedb": {
+        "ms": 1.6995,
+        "bytes": 613,
+        "status": 0,
+        "candidates": [
+          "scripts/private-beta-auth-preflight.mjs",
+          "scripts/private-beta-tester-handoff-drill.mjs",
+          "routes/private-beta-auth-routes.mjs",
+          "scripts/private-beta-ui-hardening-pass.mjs",
+          "react-ui/src/App.tsx",
+          "react-ui/src/api/client.ts",
+          "services/private-beta-auth-service.mjs"
+        ],
+        "found": [
+          "services/private-beta-auth-service.mjs",
+          "routes/private-beta-auth-routes.mjs"
+        ],
+        "missing": [],
+        "recall": 1,
+        "noise": 5
+      },
+      "rg": {
+        "ms": 9.835542,
+        "bytes": 238,
+        "status": 0,
+        "candidates": [
+          "routes/private-beta-auth-routes.mjs"
+        ],
+        "found": [
+          "routes/private-beta-auth-routes.mjs"
+        ],
+        "missing": [
+          "services/private-beta-auth-service.mjs"
+        ],
+        "recall": 0.5,
+        "noise": 0
+      }
+    }
+  ]
+}

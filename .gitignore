@@ -45,7 +45,8 @@ configurable-skills.json
 configurable-skill-runs.json
 .doctor-backups/
 .pi/
+codedb.snapshot
+codex_review/codedb-artifacts/
 .claude/
 claude_tests/
-claude_review/
-quality-pass/
+/quality-pass/

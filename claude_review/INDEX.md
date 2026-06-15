@@ -1,0 +1,49 @@
+# Agent Review — Run Index
+
+Chronological history of all review runs, by review type. Newest last. Each type's `latest.md` is always its current report.
+
+## Skills user-journey reviews (`skills-journey/`)
+
+| Run | Date (IST) | Commit | High | Med | Low | Snapshot |
+|---|---|---|---|---|---|---|
+| 1 | 2026-06-12 15:56 (+16:01 addendum) | `5e3ffcd` | 2 (SJ1 resumable ideas, SJ2 validation dead end) | 4 (SJ3-SJ5, SJ9) | 4 (SJ6-SJ8, SJ10) | [skills-journey/2026-06-12-5e3ffcd.md](skills-journey/2026-06-12-5e3ffcd.md) |
+
+Verdict (Run 1): run journey fine (1 click); creation journey too complicated in surface + exits, not steps — 3 contract beats drifted to ~7 visible, ~12-14 concepts vs ~4 budgeted; funnel: 21 ideas → 12 stuck `incomplete` → 8 skills (57% structural abandonment). Addendum: live UX test independently confirmed the SJ3/SJ5 discoverability cluster on builtins (all 8 slashes exist; labels ≠ slash names, 4 hidden from autocomplete, unknown slashes silently route to copilot) + 2 new findings (SJ9 "setup matter" alias runs the wrong workflow; SJ10 suggestions never reload after login).
+
+## Engineering quality passes (`quality-pass/`)
+
+| Run | Date (IST) | Commit | P1 | P2 | P3 | Snapshot |
+|---|---|---|---|---|---|---|
+| 1 | 2026-06-06 11:46 | `8fa0b3e` | 8 | 4 | 16 | [legacy: claude_tests/quality-pass/2026-06-06-run1-8fa0b3e.md](../claude_tests/quality-pass/2026-06-06-run1-8fa0b3e.md) |
+| 2 | 2026-06-06 15:18 | `bf6d8fb` | 7 | 3 | 18 | [legacy: claude_tests/quality-pass/2026-06-06-run2-bf6d8fb.md](../claude_tests/quality-pass/2026-06-06-run2-bf6d8fb.md) |
+| 3 | 2026-06-07 20:15 | `05b67ce` | 4 | 6 | 23 | (initial review, same-commit revised below) |
+| 3r | 2026-06-07 21:30 | `05b67ce` | 4 | 8 | 27 | [quality-pass/2026-06-07-05b67ce.md](quality-pass/2026-06-07-05b67ce.md) |
+| 4 | 2026-06-09 21:16 | `c75c6d1` | 3 | 12 | ~16 | [quality-pass/2026-06-09-c75c6d1.md](quality-pass/2026-06-09-c75c6d1.md) |
+| 5 | 2026-06-10 07:27 | `30c0a37` | 1 | 11 | ~17 | [quality-pass/2026-06-10-30c0a37.md](quality-pass/2026-06-10-30c0a37.md) |
+| 6 | 2026-06-12 13:13 | `5d64a13` | 2 | ~21 | ~25 | [quality-pass/2026-06-12-5d64a13.md](quality-pass/2026-06-12-5d64a13.md) |
+| 7 | 2026-06-12 18:00 | `5e3ffcd` | **0** | ~19 | ~28 | [quality-pass/2026-06-12-5e3ffcd.md](quality-pass/2026-06-12-5e3ffcd.md) |
+| 8 | 2026-06-12 19:25 | `53cdf62` ⁽ᵇ⁾ | **0** | ~13 | ~30 | [quality-pass/2026-06-12-53cdf62.md](quality-pass/2026-06-12-53cdf62.md) |
+
+⁽ᵇ⁾ Run 8 reviews branch `claude/elastic-pasteur-e2c8c1` (5 fix commits atop `5e3ffcd`), not yet merged to the codex development line.
+
+## Deltas
+
+- **Run 1 → Run 2** (9 commits): 2 P1s cleared (`source-descriptors` resilience, `workspace-service` twin-drift).
+- **Run 2 → Run 3** (81 files, ~9800 insertions): 3 P1s cleared (`runtime-db-sql-safety` test added, `matter-status` route-dispatched, `matter-store` dispatch stabilized). 5 new surfaces reviewed. 3 P2s added. Net: **4×P1** (down from 7).
+- **Run 3 → Run 3 revised** (same commit, expanded dirty worktree): 6 new surfaces reviewed. `private-beta-feedback-service` P2 (store fragility on malformed ledger) + route-helper triplication P2 (T7 new theme). Net: **+2 P2, +4 P3**. 4×P1 unchanged.
+- **Run 3r → Run 4** (50 commits, 166 files, ~17k insertions): 2 P1s cleared (`create-listofdates-engine` monolith decomposed, `upload-service` concurrency serialized). 2 P2s cleared (route-helper triplication, feedback lenient-load). 1 new P1 (`private-beta-users` --password arg). 8 new P2s (skill-store updateStore bug, runtime-db tombstone gap, auth-service hot path, skill-runs maxBuffer, AppContext ref, entries T4 residue, skill-store fingerprint bypass, settings defaults drift). New T8 theme (write-path integrity). Net: **3×P1** (down from 4), **12×P2** (up from 8).
+- **Run 4 → Run 5** (2 commits, 9 files — fix-verification delta): 2 P1s cleared (`ai-settings` testConnection redaction, `private-beta-users` argv password rejected), both verified against code + 46/46 tests run. 2 P2s cleared (`updateStore` pre-mutation write on the DB twin, `entries.mjs` Skyline residue). 1 new P2: **F1b** — the updateStore fix landed in one twin only; the filesystem `configurable-skill-store` (default mode) still ignores replacement returns, so the mutator contract now diverges by mode (T7×T8). 1 new P3 (`$HOME` literal defaults remain in deploy script). Run 4's prescribed F1 fix (`result ?? store`) retracted as wrong — implemented `isStoreReplacement` guard is correct. Net: **1×P1** (down from 3), **11×P2**.
+
+- **Run 5 → Run 6** (23 commits, 112 files, ~7,300 insertions — major delta: new mothership telemetry server, telemetry/observability services, per-login authz layer, lawyer-mode UI, superuser panel; 8 parallel reviewers, ~210 tests run, all passing): Run 5's P1 cleared (mtime guard landed + tested; residual downgraded to P2 watch, trigger path possibly unreachable). F1b cleared the right way (`shared/store-mutation.mjs`, both twins import). $HOME-literals P3 cleared beyond prescription. F2 (tombstone) still open and more entrenched (migration 016); F3 (auth sync read) still open and **worse** (now ×3 per API request); write-race still open. **2 new P1s, both T7 twin-drift on the new auth/visibility layer:** F9 — login scoping is DB-twin-only, auth+filesystem combo exposes all matters cross-tenant (`matter-store.mjs:40`); F10 — client operator predicate stricter than server's, default local mode loses the entire Settings surface (`lawyerMode.ts:25-27`). ~13 new P2s led by T9 (telemetry egress without deadlines: no AbortSignal anywhere, inline sync in request paths, retry guard turns one hung socket into permanent silence) and F15 (runtime-db-storage god-module; prepare plans now diverge by storage mode, user-visible). New T10 theme: string-matching tests (SQL-by-regex, React regex-over-source) at exactly the boundaries where the bugs shipped. Net: **2×P1**, **~21×P2**, **~25×P3**.
+
+- **Run 6 → Run 7** (7 commits, 38 files, ~795 insertions — fix-verification delta; 103 tests run across 18 delta-touched files, all passing; tsc clean): **Both P1s cleared, verified beyond prescription.** F9: per-user `activeState()` scoping independent of storage mode + fail-closed startup on auth-without-runtime-index, both prescribed tests landed. F10: `canSeeOperatorSurface(authEnabled, user)` with compiler-enforced threading through all 6 consumers + a behavioral (transpile-and-execute) local-mode test. Run 6's highest-leverage #2 landed: `services/telemetry-sync-client.mjs` de-triplicates sync plumbing and puts `AbortSignal.timeout` (10s) on every egress fetch — F12 cleared as prescribed (dedupe branch queues instead of POSTing); F11 half-cleared (syncs still run inside store-mutation locks, drains hold lock N×10s, no per-tick retry deadline → residual P2). Bonus fix Run 6 missed: materialized-read `return` without `await` inside try/finally deleted the work dir mid-read (`runtime-db-storage-service.mjs:520`), now fixed + regression-tested. New: **N1** feedback sync payloads now carry tester username/displayName/userRole off-VM in safe mode (F22 widened — deliberate but undocumented product call, P2*); **N2** forgiving-feedback contract duplicated client/server (new T7 seed, P3); **N3** sync client has no direct unit test (P3); **N4** deployment-pack Caddyfile clobber (P3). F13/F14/F15/F16/F17/F2/F3 carry — grep-verified still present where files changed orthogonally. Net: **0×P1** (first time since Run 3), **~19×P2**, **~28×P3**.
+
+- **Run 7 → Run 8** (5 commits on `claude/elastic-pasteur-e2c8c1`, 30 files, ~857 insertions — fix-wave over Run 7's queue, authored and then adversarially re-reviewed by the same agent; 1,223 tests passing, tsc clean): **6 P2 rows cleared, all verified in code:** F2 (migration 017 `superseded_at` + tombstone supersession; RLS FOR-ALL verified; *string-tier only — run the real-PG smoke before cutover*), F11r (two-phase sync, no network under store locks, 4-min tick deadline, lock-discipline asserted behaviorally), F13 (pool error handler, fake-pool tested), F15's user-visible half (shared `preparation-stages.mjs`, real DB-mode metadata/warnings, cross-mode parity test), F17 (headersSent + stream listener — sabotage-verified: test hangs without the fix), F14 → P3 (7 copies delegated incl. React twin; **3 stragglers found contradicting the fix's own commit message**: observability:207, job-status:266, ui-hardening-pass:434 — the last knows `AIza` keys the shared list doesn't). P3s cleared: creds 0600, CLI exit 1, sync-client tests (N3). New: **R8-1** redactor stragglers (P3) · **R8-2** raw-stream fd retention on client disconnect (P3, 1-liner) · R8-3 feedback now persists before sync (improvement, noted). Two suspicions raised against the new code and retired with evidence (RLS, atomic ledger writes). Net: **0×P1**, **~13×P2**, **~30×P3**.
+
+## Open P1 queue (as of Run 8)
+
+**Empty** (second consecutive run). Highest-value next reviews: execute migration 017 via the real-Postgres smoke, and the dedicated security scan over the auth/scoping/telemetry boundaries.
+
+## Open P2 queue (as of Run 8)
+
+**N1** tester identity + matter names off-VM in safe telemetry (user product call pending: keep-and-document vs strip `displayName` from sync payloads) · **F15r** runtime-db-storage god-module size + N+1 psql reads (divergence half cleared) · **F16** auth-service trio + **F3** sync read ×3/request (parked for the dedicated security pass) · **F18** request-context background default + deterministicUuid ×3 · **F19** name-based matter scoping (security pass) · **F20** deploy rm -rf live release on same-commit retry · **F21** stale-sweep × provider-timeout · **F23** residue (duplicated visibility fixtures; behavioral-test tier keeps growing) · write race (watch) · mtime freshness-unknown residual (watch) · F4/F5/F7/F8 (carried, not re-verified since Run 5)
