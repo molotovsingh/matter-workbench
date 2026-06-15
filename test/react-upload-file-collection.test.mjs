@@ -33,6 +33,19 @@ test("React upload file collection drains every directory reader batch", async (
   );
 });
 
+test("React upload file collection detects duplicate relative paths", async () => {
+  const { findDuplicateRelativePath } = await importHelper();
+
+  assert.equal(findDuplicateRelativePath([
+    { relativePath: "Notice.pdf", file: { name: "Notice.pdf" } },
+    { relativePath: "notice.pdf", file: { name: "notice.pdf" } },
+  ]), "Notice.pdf / notice.pdf");
+  assert.equal(findDuplicateRelativePath([
+    { relativePath: "Bundle/notice.pdf", file: { name: "notice.pdf" } },
+    { relativePath: "Bundle/receipt.pdf", file: { name: "receipt.pdf" } },
+  ]), "");
+});
+
 test("React new-matter and add-files forms share folder-aware upload collection helpers", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
   const addFiles = await readFile(addFilesPath, "utf8");
@@ -40,6 +53,7 @@ test("React new-matter and add-files forms share folder-aware upload collection 
   for (const source of [newMatter, addFiles]) {
     assert.match(source, /collectDroppedEntries/);
     assert.match(source, /collectFilesFromFileList/);
+    assert.match(source, /findDuplicateRelativePath/);
   }
   assert.match(newMatter, /webkitdirectory/);
   assert.match(newMatter, /files\.slice\(0, 20\)/);
@@ -69,6 +83,25 @@ test("React new-matter form presents source files as required before submit", as
   assert.match(newMatter, /Attach at least one source file\./);
   assert.match(newMatter, /if \(files\.length === 0\)/);
   assert.match(newMatter, /disabled=\{submitting \|\| files\.length === 0\}/);
+});
+
+test("React new-matter form checks overlap before creating a matter", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+
+  assert.match(newMatter, /hashFilesSha256IfAvailable/);
+  assert.match(newMatter, /api\.checkOverlap\(\{ hashes, proposedName: cleanName \}\)/);
+  assert.match(newMatter, /Possible duplicate matter/);
+  assert.match(newMatter, /Continue creating new matter/);
+  assert.match(newMatter, /setBypassOverlap\(true\)/);
+});
+
+test("React new-matter form switches to the server-returned matter folder after create", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+
+  assert.match(newMatter, /const created = await api\.newMatter\(fd\)/);
+  assert.match(newMatter, /const createdName = created\.folderName \|\| cleanName/);
+  assert.match(newMatter, /await switchActiveMatter\(createdName,/);
+  assert.match(newMatter, /onCreated\(createdName, \{ autoPrepare: true \}\)/);
 });
 
 async function importHelper() {

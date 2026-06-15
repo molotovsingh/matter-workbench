@@ -7,6 +7,7 @@ import type { OverlapWarning } from '../types';
 import {
   collectDroppedEntries,
   collectFilesFromFileList,
+  findDuplicateRelativePath,
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
@@ -64,6 +65,11 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (collected.length === 0) { setError('Select at least one file.'); return; }
+    const duplicatePath = findDuplicateRelativePath(collected);
+    if (duplicatePath) {
+      setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
+      return;
+    }
     const matterName = state.activeMatter?.name;
     if (!matterName) return;
     setSubmitting(true);

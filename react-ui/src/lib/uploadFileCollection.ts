@@ -12,6 +12,19 @@ export function collectFilesFromFileList(files: FileList | File[] | null | undef
     .filter((item) => item.relativePath.length > 0);
 }
 
+export function findDuplicateRelativePath(files: CollectedUploadFile[]): string {
+  const seen = new Map<string, string>();
+  for (const item of files) {
+    const relativePath = normalizeBrowserRelativePath(item.relativePath);
+    if (!relativePath) continue;
+    const key = relativePath.toLowerCase();
+    const existing = seen.get(key);
+    if (existing) return existing === relativePath ? relativePath : `${existing} / ${relativePath}`;
+    seen.set(key, relativePath);
+  }
+  return '';
+}
+
 export async function collectDroppedEntries(entries: FileSystemEntry[]): Promise<CollectedUploadFile[]> {
   const results: CollectedUploadFile[] = [];
 

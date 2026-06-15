@@ -410,6 +410,95 @@ test("multipart upload falls back to folder name when metadata omits matter name
   });
 });
 
+test("multipart upload accepts lawyer-style matter captions and derives a safe storage name", async () => {
+  await withServer(async ({ baseUrl, mattersHome }) => {
+    const createForm = new FormData();
+    createForm.set("name", "State/Rajesh Mehra");
+    createForm.set("metadata", JSON.stringify({
+      matterName: "State/Rajesh Mehra",
+      clientName: "Rajesh Mehra",
+      oppositeParty: "State",
+      matterType: "Criminal",
+      jurisdiction: "Delhi",
+    }));
+    createForm.set("paths", JSON.stringify(["baazi.pdf"]));
+    appendTextFile(createForm, "files", "baazi.pdf", "PDF placeholder text.");
+
+    const created = await postMultipart(baseUrl, "/api/matters/new", createForm);
+
+    assert.equal(created.folderName, "State - Rajesh Mehra");
+    assert.equal(created.metadata.matterName, "State/Rajesh Mehra");
+    const matterJson = JSON.parse(await readFile(path.join(mattersHome, "State - Rajesh Mehra", "matter.json"), "utf8"));
+    assert.equal(matterJson.matter_name, "State/Rajesh Mehra");
+  });
+});
+
+test("multipart runtime DB upload accepts lawyer-style captions and keeps legal caption metadata", async () => {
+  const runtimeMatters = [];
+  const calls = [];
+  await withServer(async ({ baseUrl }) => {
+    const createForm = new FormData();
+    createForm.set("name", "State/Rajesh Mehra");
+    createForm.set("metadata", JSON.stringify({
+      matterName: "State/Rajesh Mehra",
+      clientName: "Rajesh Mehra",
+      oppositeParty: "State",
+    }));
+    createForm.set("paths", JSON.stringify(["baazi.pdf"]));
+    appendTextFile(createForm, "files", "baazi.pdf", "PDF placeholder text.");
+
+    const created = await postMultipart(baseUrl, "/api/matters/new", createForm);
+
+    assert.equal(created.folderName, "State - Rajesh Mehra");
+    assert.equal(created.inputLabel, "postgres:State - Rajesh Mehra");
+    assert.equal(created.metadata.matterName, "State/Rajesh Mehra");
+    assert.deepEqual(calls[0], ["create", "State - Rajesh Mehra", "State/Rajesh Mehra"]);
+  }, {
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => runtimeMatters,
+      findMatterFolder: async (name) => runtimeMatters.find((matter) => matter.name === name || matter.matterName === name) || null,
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async createMatterFromUploadedFiles({ name, metadata }) {
+        calls.push(["create", name, metadata.matterName]);
+        const matter = {
+          id: "33333333-3333-4333-8333-333333333333",
+          name,
+          matterName: metadata.matterName,
+          clientName: metadata.clientName,
+          oppositeParty: metadata.oppositeParty,
+          runtimeStorageMode: "postgres",
+        };
+        runtimeMatters.push(matter);
+        return matter;
+      },
+      async readWorkspace(matter) {
+        calls.push(["workspace", matter.name]);
+        return {
+          folderName: matter.name,
+          inputLabel: `postgres:${matter.name}`,
+          metadata: {
+            matterName: matter.matterName,
+            clientName: matter.clientName,
+            oppositeParty: matter.oppositeParty,
+          },
+          fileCount: 2,
+          directoryCount: 2,
+          tree: {
+            name: matter.name,
+            kind: "directory",
+            path: "",
+            children: [],
+          },
+        };
+      },
+    },
+  });
+});
+
 test("multipart add-files honors explicit matter without switching active matter", async () => {
   await withServer(async ({ baseUrl }) => {
     const firstForm = new FormData();
@@ -438,6 +527,23 @@ test("multipart add-files honors explicit matter without switching active matter
 
     const activeWorkspace = await getJson(baseUrl, "/api/workspace");
     assert.equal(activeWorkspace.folderName, "Second Upload Matter");
+  });
+});
+
+test("multipart upload rejects duplicate relative paths instead of overwriting earlier files", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const form = new FormData();
+    form.set("name", "Duplicate Path Matter");
+    form.set("metadata", JSON.stringify({ matterName: "Duplicate Path Matter" }));
+    form.set("paths", JSON.stringify(["same.txt", "same.txt"]));
+    appendTextFile(form, "files", "first.txt", "First body should not be overwritten.");
+    appendTextFile(form, "files", "second.txt", "Second body should not overwrite silently.");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.code, "upload.duplicate_paths");
+    assert.match(payload.error, /duplicate uploaded file path/i);
   });
 });
 

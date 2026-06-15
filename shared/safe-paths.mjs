@@ -33,6 +33,19 @@ export function validateMatterName(rawName) {
   return name;
 }
 
+export function matterStorageNameFromCaption(rawName) {
+  const caption = typeof rawName === "string" ? rawName.trim() : "";
+  const safeName = caption
+    .replace(/[\\/]+/g, " - ")
+    .replace(/\.\.+/g, ".")
+    .replace(/[\0\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+/, "")
+    .trim();
+  if (!safeName) throw makeHttpError("Matter name is required", 400, "upload.invalid_matter_name");
+  return validateMatterName(safeName);
+}
+
 export function validateRelativePath(rawPath) {
   const value = typeof rawPath === "string" ? rawPath : "";
   if (!value) throw makeHttpError("Empty file path", 400);

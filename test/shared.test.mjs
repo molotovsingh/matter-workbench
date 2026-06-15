@@ -12,7 +12,7 @@ import {
   MATTER_LIBRARY_DIR,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
-import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
+import { isInsideRoot, matterStorageNameFromCaption, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
 import { redactSensitiveText, redactSensitiveValues, REDACTED_SECRET } from "../shared/secret-redaction.mjs";
 import {
   effectiveShortSourceLabel,
@@ -34,6 +34,8 @@ test("CSV parser and writer preserve quoted fields", () => {
 test("safe path helpers reject path escapes", () => {
   assert.equal(validateMatterName("Mehta vs Skyline"), "Mehta vs Skyline");
   assert.throws(() => validateMatterName("../bad"), /Invalid matter name/);
+  assert.equal(matterStorageNameFromCaption("State/Rajesh Mehra"), "State - Rajesh Mehra");
+  assert.equal(matterStorageNameFromCaption("...State\\\\Rajesh   Mehra"), "State - Rajesh Mehra");
   assert.equal(validateRelativePath("folder/file.txt"), "folder/file.txt");
   assert.throws(() => validateRelativePath("/tmp/file.txt"), /Absolute paths/);
   assert.throws(() => validateRelativePath("folder/../file.txt"), /Invalid path segment/);

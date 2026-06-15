@@ -20,11 +20,11 @@ test("React starts automatic preparation after first upload and added files", as
   assert.match(app, /activeMatterNameRef\.current = name/);
   assert.match(app, /if \(opts\.autoPrepare\) \{/);
   assert.match(app, /startAutoPreparation\(name,/);
-  assert.match(newMatter, /const metadata: Record<string, string> = \{ matterName: name\.trim\(\) \}/);
+  assert.match(newMatter, /const metadata: Record<string, string> = \{ matterName: cleanName \}/);
   assert.match(app, /async function handleAddFilesDone\(opts: \{ autoPrepare\?: boolean \} = \{\}\)/);
   assert.match(app, /startAutoPreparation\(matterName,/);
   assert.match(newMatter, /if \(files\.length === 0\) \{ setError\('Attach at least one source file\.'\); return; \}/);
-  assert.match(newMatter, /onCreated\(name\.trim\(\), \{ autoPrepare: true \}\)/);
+  assert.match(newMatter, /onCreated\(createdName, \{ autoPrepare: true \}\)/);
   assert.match(addFiles, /onDone\(\{ autoPrepare: \(result\.intakeAdded\?\.unique \?\? collected\.length\) > 0 \}\)/);
 });
 

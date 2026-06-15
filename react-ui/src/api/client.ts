@@ -346,7 +346,7 @@ export const api = {
 
   // ─── Matters ─────────────────────────────
   getMatters: () => getJson<{ matters: Array<{ name: string }> }>('/api/matters'),
-  newMatter: (formData: FormData) => postFormData('/api/matters/new', formData),
+  newMatter: (formData: FormData) => postFormData<WorkspaceApiResponse>('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData<AddFilesResponse>('/api/matters/add-files', formData),
   checkOverlap: (body: CheckOverlapRequest) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
   switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),

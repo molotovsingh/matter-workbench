@@ -16,7 +16,21 @@ export function validateUploadPathList(fields = {}, files = []) {
   if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
     throw makeHttpError("paths array must match file count", 400);
   }
-  return relativePaths;
+
+  const seen = new Map();
+  return relativePaths.map((rawPath) => {
+    const safePath = validateRelativePath(rawPath);
+    const key = safePath.toLowerCase();
+    const firstPath = seen.get(key);
+    if (firstPath) {
+      const message = firstPath === safePath
+        ? `Duplicate uploaded file path "${safePath}"`
+        : `Duplicate uploaded file path "${safePath}" conflicts with "${firstPath}"`;
+      throw makeHttpError(message, 400, "upload.duplicate_paths");
+    }
+    seen.set(key, safePath);
+    return safePath;
+  });
 }
 
 export async function writeUploadedFiles(files = [], relativePaths = [], destinationRoot, {

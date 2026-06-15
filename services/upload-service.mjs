@@ -2,7 +2,7 @@ import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
-import { isInsideRoot, makeHttpError, validateMatterName } from "../shared/safe-paths.mjs";
+import { isInsideRoot, makeHttpError, matterStorageNameFromCaption } from "../shared/safe-paths.mjs";
 import {
   parseUploadJsonField,
   validateUploadPathList,
@@ -37,9 +37,11 @@ export function createUploadService({
       const useRuntimeDbStorage = matterStore.hasRuntimeDbStorageMode?.()
         && typeof runtimeDbStorageService?.createMatterFromUploadedFiles === "function";
       const mattersHome = useRuntimeDbStorage ? null : matterStore.ensureMattersHome();
+      const submittedMatterName = String(fields.name || "").trim();
+      const storageName = matterStorageNameFromCaption(submittedMatterName);
       const { name, matterPath } = useRuntimeDbStorage
-        ? { name: validateMatterName(fields.name), matterPath: null }
-        : matterStore.matterPathForName(fields.name);
+        ? { name: storageName, matterPath: null }
+        : matterStore.matterPathForName(storageName);
 
       const siblings = await matterStore.listMattersHomeChildren();
       const collision = siblings.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
@@ -48,7 +50,7 @@ export function createUploadService({
       const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
       const metadata = {
         ...submittedMetadata,
-        matterName: String(submittedMetadata.matterName || name).trim() || name,
+        matterName: String(submittedMetadata.matterName || submittedMatterName || name).trim() || name,
       };
       const relativePaths = validateUploadPathList(fields, files);
       if (!files.length) throw noFilesError("creating a matter");

@@ -5,9 +5,12 @@ import { getErrorMessage } from '../lib/errors';
 import {
   collectDroppedEntries,
   collectFilesFromFileList,
+  findDuplicateRelativePath,
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
+import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
+import type { OverlapWarning } from '../types';
 
 interface Props {
   onCancel: () => void;
@@ -26,8 +29,18 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   const [dragover, setDragover] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [overlapWarnings, setOverlapWarnings] = useState<OverlapWarning[]>([]);
+  const [bypassOverlap, setBypassOverlap] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+
+  function addFiles(nextFiles: CollectedUploadFile[]) {
+    if (nextFiles.length > 0) {
+      setFiles((prev) => [...prev, ...nextFiles]);
+    }
+    setOverlapWarnings([]);
+    setBypassOverlap(false);
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -35,10 +48,10 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     const entries = getDroppedFileSystemEntries(e.dataTransfer);
     if (entries.length > 0) {
       collectDroppedEntries(entries)
-        .then((dropped) => setFiles((prev) => [...prev, ...dropped]))
+        .then(addFiles)
         .catch((err) => setError(getErrorMessage(err)));
     } else {
-      setFiles((prev) => [...prev, ...collectFilesFromFileList(e.dataTransfer.files)]);
+      addFiles(collectFilesFromFileList(e.dataTransfer.files));
     }
   }
 
@@ -46,24 +59,65 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     const input = e.currentTarget;
     const selectedFiles = collectFilesFromFileList(Array.from(input.files ?? []));
     if (selectedFiles.length > 0) {
-      setFiles((prev) => [...prev, ...selectedFiles]);
+      addFiles(selectedFiles);
     }
     window.setTimeout(() => {
       input.value = '';
     }, 0);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) { setError('Matter name is required.'); return; }
-    if (files.length === 0) { setError('Attach at least one source file.'); return; }
+  function handleContinueWithOverlap() {
+    setBypassOverlap(true);
+    setOverlapWarnings([]);
+  }
+
+  async function handleOpenExistingMatter(matterName: string) {
     setSubmitting(true);
     setError('');
-    appendTerminal([`[new-matter] creating "${name}"…`]);
     try {
+      await switchActiveMatter(matterName);
+      onCancel();
+    } catch (err) {
+      if (isMatterSwitchSupersededError(err)) return;
+      setError(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const cleanName = name.trim();
+    if (!cleanName) { setError('Matter name is required.'); return; }
+    if (files.length === 0) { setError('Attach at least one source file.'); return; }
+    const duplicatePath = findDuplicateRelativePath(files);
+    if (duplicatePath) {
+      setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      if (!bypassOverlap) {
+        appendTerminal([`[new-matter] checking ${files.length} file(s) for duplicate matter overlap…`]);
+        const hashes = await hashFilesSha256IfAvailable(files.map((f) => f.file));
+        if (!hashes) {
+          appendTerminal(['[new-matter] Duplicate check is unavailable in this browser; creating without duplicate warning.']);
+        } else {
+          const checkResult = await api.checkOverlap({ hashes, proposedName: cleanName });
+          const warnings = checkResult.warnings ?? [];
+          if (warnings.length > 0) {
+            setOverlapWarnings(warnings);
+            setSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      appendTerminal([`[new-matter] creating "${cleanName}"…`]);
       const fd = new FormData();
-      fd.append('name', name.trim());
-      const metadata: Record<string, string> = { matterName: name.trim() };
+      fd.append('name', cleanName);
+      const metadata: Record<string, string> = { matterName: cleanName };
       if (clientName) metadata.clientName = clientName;
       if (matterType) metadata.matterType = matterType;
       if (oppositeParty) metadata.oppositeParty = oppositeParty;
@@ -73,14 +127,15 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       fd.append('paths', JSON.stringify(files.map((f) => f.relativePath)));
       files.forEach((f) => fd.append('files', f.file, f.relativePath));
 
-      await api.newMatter(fd);
-      appendTerminal([`[new-matter] created "${name}"`]);
-      await switchActiveMatter(name.trim(), {
+      const created = await api.newMatter(fd);
+      const createdName = created.folderName || cleanName;
+      appendTerminal([`[new-matter] created "${createdName}"`]);
+      await switchActiveMatter(createdName, {
         startMessage: false,
         successMessage: false,
         failureMessage: (err) => `[new-matter] switch error: ${getErrorMessage(err)}`,
       });
-      onCreated(name.trim(), { autoPrepare: true });
+      onCreated(createdName, { autoPrepare: true });
     } catch (err) {
       if (isMatterSwitchSupersededError(err)) return;
       setError(getErrorMessage(err));
@@ -223,6 +278,28 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
             </div>
           )}
         </div>
+
+        {overlapWarnings.length > 0 && (
+          <div className="form-warning">
+            <h2>Possible duplicate matter</h2>
+            <p>Your selected files overlap with existing matter{overlapWarnings.length !== 1 ? 's' : ''}.</p>
+            <ul className="overlap-list">
+              {overlapWarnings.map((warning) => (
+                <li key={warning.matterName}>
+                  <strong>{warning.matterName}</strong> — {warning.overlapCount} of {warning.totalIncoming} file{warning.totalIncoming !== 1 ? 's' : ''} match ({warning.overlapPercent}%)
+                </li>
+              ))}
+            </ul>
+            <div className="warning-actions">
+              <button type="button" onClick={() => void handleOpenExistingMatter(overlapWarnings[0].matterName)}>
+                Open {overlapWarnings[0].matterName}
+              </button>
+              <button type="button" className="secondary" onClick={handleContinueWithOverlap}>
+                Continue creating new matter
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && <div className="form-error">{error}</div>}
 

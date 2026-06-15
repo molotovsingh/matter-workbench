@@ -32,6 +32,24 @@ test("validateUploadPathList requires one relative path per uploaded file", () =
   );
 });
 
+test("validateUploadPathList rejects duplicate relative paths before files can overwrite", () => {
+  const files = [{ index: 0 }, { index: 1 }];
+
+  assert.throws(
+    () => validateUploadPathList({ paths: JSON.stringify(["same.txt", "same.txt"]) }, files),
+    (error) => error.statusCode === 400
+      && error.code === "upload.duplicate_paths"
+      && /duplicate uploaded file path/i.test(error.message),
+  );
+
+  assert.throws(
+    () => validateUploadPathList({ paths: JSON.stringify(["Evidence/Notice.pdf", "evidence/notice.pdf"]) }, files),
+    (error) => error.statusCode === 400
+      && error.code === "upload.duplicate_paths"
+      && /conflicts with/i.test(error.message),
+  );
+});
+
 test("writeUploadedFiles copies uploads by file index and rejects unsafe paths", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "upload-file-intake-"));
   try {
