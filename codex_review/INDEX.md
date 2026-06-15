@@ -14,7 +14,7 @@
 
 ## Engineering Quality Passes
 
-Local engineering quality-pass reports may exist under
-`codex_review/quality-pass/`, but that folder is ignored unless a specific report
-is intentionally force-added. Do not link those reports from this index unless
-they are part of the tracked artifact set.
+| Date | Commit | Scope | Report |
+| --- | --- | --- | --- |
+| 2026-06-15 | `5289a0d` | Beta 3/private-beta delta from prior Codex pass `c124d4e` | [2026-06-15-5289a0d.md](quality-pass/2026-06-15-5289a0d.md) |
+| 2026-06-12 | `c124d4e` | delta from `6c26233` | [2026-06-12-c124d4e.md](quality-pass/2026-06-12-c124d4e.md) |
