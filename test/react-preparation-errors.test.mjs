@@ -6,6 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 
 const preparationErrorsPath = new URL("../react-ui/src/lib/preparationErrors.ts", import.meta.url);
+const secretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
 
 test("preparation errors hide raw HTML gateway failures from lawyer-facing progress", async () => {
   const { formatVisiblePreparationError } = await importPreparationErrors();
@@ -25,18 +26,28 @@ test("preparation errors redact secrets while preserving useful plain errors", a
   const { formatVisiblePreparationError } = await importPreparationErrors();
 
   const message = formatVisiblePreparationError(
-    new Error("Provider failed with OPENAI_API_KEY=sk-hidden and token=abc123"),
+    new Error("Provider failed with OPENAI_API_KEY=sk-hidden token=abc123 postgres://operator:dbpass@db:5432/mwb mwb_ing_hidden AIzaSyFixtureGoogleKeyValue"),
   );
 
   assert.match(message, /Provider failed/i);
   assert.match(message, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.match(message, /token=\[redacted-secret\]/);
-  assert.doesNotMatch(message, /sk-hidden|abc123/);
+  assert.match(message, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
+  assert.match(message, /mwb_ing_\[redacted-secret\]/);
+  assert.doesNotMatch(message, /sk-hidden|abc123|dbpass|mwb_ing_hidden|AIzaSyFixtureGoogleKeyValue/);
 });
 
 async function importPreparationErrors() {
   const source = await readFile(preparationErrorsPath, "utf8");
-  const compiled = ts.transpileModule(source, {
+  const redactionSource = await readFile(secretRedactionPath, "utf8");
+  const compiled = ts.transpileModule(source.replace("./secretRedaction", "./secretRedaction.mjs"), {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+      importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+    },
+  }).outputText;
+  const redactionCompiled = ts.transpileModule(redactionSource, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
       target: ts.ScriptTarget.ES2022,
@@ -45,7 +56,9 @@ async function importPreparationErrors() {
   }).outputText;
   const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-react-preparation-errors-"));
   const modulePath = path.join(dir, "preparationErrors.mjs");
+  const redactionModulePath = path.join(dir, "secretRedaction.mjs");
   await writeFile(modulePath, compiled);
+  await writeFile(redactionModulePath, redactionCompiled);
   try {
     return await import(`${modulePath}?t=${Date.now()}-${Math.random()}`);
   } finally {

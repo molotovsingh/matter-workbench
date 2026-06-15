@@ -97,6 +97,17 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
       }
       if (/select 1 \/ 0/.test(sql)) throw new Error("division by zero");
       if (/rollbackProbeRows/.test(sql)) return { rollbackProbeRows: 0 };
+      if (/insert into extraction_records/i.test(sql) && /insert into source_descriptors/i.test(sql) && /superseded_at/i.test(sql)) {
+        return {
+          targetRows: 1,
+          insertedExtractionRows: 1,
+          insertedSourceDescriptorRows: 1,
+          extractionRows: 1,
+          sourceDescriptorRows: 1,
+          liveExtractionRows: 0,
+          liveSourceDescriptorRows: 0,
+        };
+      }
       if (/delete from matters/.test(sql)) {
         deleted = true;
         return {};
@@ -123,9 +134,12 @@ test("runtime DB write smoke uploads, verifies DB rows, proves rollback, and del
   assert.equal(report.addFilesCreated, true);
   assert.equal(report.followUpPreviewReadable, true);
   assert.equal(report.dbRowsVerified, true);
+  assert.equal(report.supersessionVerified, true);
+  assert.equal(report.supersessionCounts.insertedExtractionRows, 1);
   assert.equal(report.rollbackVerified, true);
   assert.equal(report.cleanupDeleted, true);
   assert.equal(sqlCalls.some((call) => /begin;\ndo \$mwb_runtime_role_guard\$/.test(call.sql)), true);
+  assert.equal(sqlCalls.some((call) => /insert into extraction_records/i.test(call.sql) && /insert into source_descriptors/i.test(call.sql) && /superseded_at/i.test(call.sql)), true);
   assert.equal(sqlCalls.some((call) => /delete from matters/i.test(call.sql)), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/auth/login")), true);
   assert.equal(fetchCalls.some((call) => call.url.includes("/api/matters/new")), true);

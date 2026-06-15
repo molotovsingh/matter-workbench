@@ -9,6 +9,7 @@ import {
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-heartbeat-ledger/v1";
 const HEARTBEAT_SCHEMA_VERSION = "private-beta-heartbeat/v1";
@@ -40,18 +41,18 @@ export function createPrivateBetaHeartbeatService({
   });
 
   async function captureHeartbeat(input = {}) {
+    const deployment = safeObject(
+      typeof deploymentProvider === "function"
+        ? await deploymentProvider()
+        : deploymentProvider,
+    );
+    const journey = safeObject(
+      typeof journeyProvider === "function"
+        ? await journeyProvider()
+        : journeyProvider,
+    );
     return writeMutatedStore(async (store) => {
       const createdAt = isoNow(now);
-      const deployment = safeObject(
-        typeof deploymentProvider === "function"
-          ? await deploymentProvider()
-          : deploymentProvider,
-      );
-      const journey = safeObject(
-        typeof journeyProvider === "function"
-          ? await journeyProvider()
-          : journeyProvider,
-      );
       const heartbeat = normalizeHeartbeat({
         schema_version: HEARTBEAT_SCHEMA_VERSION,
         id: validId(input.id) || idFactory(),
@@ -294,15 +295,7 @@ function normalizePatienceRisk(value) {
 }
 
 function sanitizeText(value, maxLength = 500) {
-  return redactSecretLikeText(String(value ?? "")).slice(0, maxLength);
-}
-
-function redactSecretLikeText(text) {
-  return text
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g, "$1=[redacted-secret]")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]")
-    .replace(/\bmwb_ing_[A-Za-z0-9_-]+/gi, "mwb_ing_[redacted-secret]");
+  return redactSensitiveText(value).slice(0, maxLength);
 }
 
 function nonNegativeInt(value) {

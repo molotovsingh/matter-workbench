@@ -1,3 +1,5 @@
+import { redactSensitiveText } from './secretRedaction';
+
 export interface PreparationErrorContext {
   id?: string;
   slash?: string;
@@ -13,12 +15,7 @@ export function formatVisiblePreparationError(error: unknown, context: Preparati
     return preparationTimeoutMessage(context);
   }
 
-  const redacted = normalized
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/gi, '$1=[redacted-secret]')
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, '$1=[redacted-secret]')
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, '[redacted-secret]')
-    .slice(0, 500)
-    .trim();
+  const redacted = redactSensitiveText(normalized).slice(0, 500).trim();
 
   return redacted || 'Preparation failed.';
 }

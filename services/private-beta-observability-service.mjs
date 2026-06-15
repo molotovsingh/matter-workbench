@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+
 const OBSERVABILITY_SCHEMA_VERSION = "private-beta-observability/v1";
 const DEFAULT_LIMIT = 50;
 const NEARBY_WINDOW_MS = 30 * 60 * 1000;
@@ -227,11 +229,7 @@ function highestHeartbeatPatienceRisk(heartbeat = null) {
 }
 
 function sanitizeText(value, maxLength = 500) {
-  return String(value ?? "")
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*([^\s"'`]+)/g, "$1=[redacted-secret]")
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "$1=[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]")
-    .slice(0, maxLength);
+  return redactSensitiveText(value).slice(0, maxLength);
 }
 
 function isoNow(now) {

@@ -61,7 +61,7 @@ test("job status service fails closed and keeps secret-looking details out of th
       label: "The Story",
       matterName: "Bharat Nagpal Vs Gionee India",
       operation: async () => {
-        throw new Error("provider failed with OPENAI_API_KEY=sk-job-secret");
+        throw new Error("provider failed with OPENAI_API_KEY=sk-job-secret postgres://operator:jobpass@db:5432/mwb AIzaSyFixtureGoogleKeyValue");
       },
     }),
     /provider failed/,
@@ -71,7 +71,8 @@ test("job status service fails closed and keeps secret-looking details out of th
   assert.equal(listed.jobs.length, 1);
   assert.equal(listed.jobs[0].status, "failed");
   assert.match(listed.jobs[0].errorMessage, /\[redacted-secret\]/);
-  assert.doesNotMatch(JSON.stringify(listed), /sk-job-secret/);
+  assert.match(listed.jobs[0].errorMessage, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
+  assert.doesNotMatch(JSON.stringify(listed), /sk-job-secret|jobpass|AIzaSyFixtureGoogleKeyValue/);
 });
 
 test("job status service stores safe app error codes separately from messages", async () => {

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createJsonStorePersistence, formatJsonStore } from "./json-store-persistence.mjs";
 import { currentRequestContext } from "./request-context.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const LEDGER_SCHEMA_VERSION = "job-status-ledger/v1";
 const JOB_SCHEMA_VERSION = "job-status/v1";
@@ -281,15 +282,7 @@ function errorToMessage(error) {
 }
 
 function sanitizeText(value, maxLength = 500) {
-  const text = String(value ?? "");
-  return redactSecretLikeText(text).slice(0, maxLength);
-}
-
-function redactSecretLikeText(text) {
-  return text
-    .replace(/\b[A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*\s*=\s*([^\s"'`]+)/gi, "[redacted-secret]")
-    .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, "[redacted-secret]")
-    .replace(/\b(?:password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, "[redacted-secret]");
+  return redactSensitiveText(value).slice(0, maxLength);
 }
 
 function compareNewestJobFirst(a, b) {

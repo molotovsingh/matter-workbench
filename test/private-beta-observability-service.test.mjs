@@ -7,7 +7,7 @@ test("observability reports ledger errors while preserving available evidence", 
   const service = createPrivateBetaObservabilityService({
     feedbackService: {
       listFeedback: async () => {
-        throw new Error("feedback ledger is corrupt token=sk-hidden");
+        throw new Error("feedback ledger is corrupt token=sk-hidden postgres://operator:obs-pass@db:5432/mwb AIzaSyFixtureGoogleKeyValue");
       },
     },
     jobStatusService: {
@@ -43,7 +43,8 @@ test("observability reports ledger errors while preserving available evidence", 
   assert.equal(result.ledgerErrors.length, 1);
   assert.equal(result.ledgerErrors[0].source, "feedback");
   assert.match(result.ledgerErrors[0].message, /feedback ledger is corrupt/);
-  assert.doesNotMatch(JSON.stringify(result), /sk-hidden/);
+  assert.match(result.ledgerErrors[0].message, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
+  assert.doesNotMatch(JSON.stringify(result), /sk-hidden|obs-pass|AIzaSyFixtureGoogleKeyValue/);
 });
 
 test("observability links feedback by nearby matter time without pulling stale jobs", async () => {

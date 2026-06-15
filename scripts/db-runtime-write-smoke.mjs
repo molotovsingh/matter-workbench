@@ -44,6 +44,8 @@ export async function runRuntimeDbWriteSmoke({
     followUpPreviewReadable: false,
     rawFileReadable: false,
     dbRowsVerified: false,
+    supersessionVerified: false,
+    supersessionCounts: {},
     rollbackVerified: false,
     cleanupDeleted: false,
     counts: {},
@@ -125,6 +127,18 @@ export async function runRuntimeDbWriteSmoke({
       && counts?.importBatches >= 2
     );
 
+    const supersession = await execSql({
+      databaseUrl,
+      sql: buildSupersessionProbeSql({ tenantId, matterName, sourcePath, testRunId }),
+    });
+    report.supersessionCounts = supersession || {};
+    report.supersessionVerified = Boolean(
+      supersession?.extractionRows === 1
+      && supersession?.sourceDescriptorRows === 1
+      && supersession?.liveExtractionRows === 0
+      && supersession?.liveSourceDescriptorRows === 0
+    );
+
     await assertRollbackProbe({ databaseUrl, tenantId, testRunId, execSql });
     report.rollbackVerified = true;
 
@@ -147,6 +161,7 @@ export async function runRuntimeDbWriteSmoke({
       && report.followUpPreviewReadable
       && report.rawFileReadable
       && report.dbRowsVerified
+      && report.supersessionVerified
       && report.rollbackVerified
       && report.cleanupDeleted
     );
@@ -175,6 +190,8 @@ export function renderRuntimeDbWriteSmokeReport(report = {}) {
     `follow_up_preview_readable: ${report.followUpPreviewReadable ? "yes" : "no"}`,
     `raw_file_readable: ${report.rawFileReadable ? "yes" : "no"}`,
     `db_rows_verified: ${report.dbRowsVerified ? "yes" : "no"}`,
+    `supersession_verified: ${report.supersessionVerified ? "yes" : "no"}`,
+    `supersession_counts: ${JSON.stringify(report.supersessionCounts || {})}`,
     `rollback_verified: ${report.rollbackVerified ? "yes" : "no"}`,
     `cleanup_deleted: ${report.cleanupDeleted ? "yes" : "no"}`,
     `counts: ${JSON.stringify(report.counts || {})}`,
@@ -349,6 +366,48 @@ function buildRollbackProbeCountSql({ tenantId, testRunId }) {
     "where tenant_id = current_app_tenant_id()",
     "  and action = 'runtime_db_write_smoke_rollback_probe'",
     `  and metadata_json->>'testRunId' = ${sqlString(testRunId)};`,
+  ].join("\n"));
+}
+
+function buildSupersessionProbeSql({ tenantId, matterName, sourcePath, testRunId }) {
+  const sourceFileName = path.basename(sourcePath);
+  return wrapRuntimeDbWriteTransaction([
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    "with target as (",
+    "  select m.id as matter_id, d.id as document_id, db.id as document_blob_id, so.id as storage_object_id",
+    "  from matters m",
+    "  join documents d on d.tenant_id = m.tenant_id and d.matter_id = m.id",
+    "  join document_blobs db on db.tenant_id = m.tenant_id and db.matter_id = m.id and db.document_id = d.id",
+    "  join storage_objects so on so.tenant_id = db.tenant_id and so.id = db.storage_object_id",
+    "  where m.tenant_id = current_app_tenant_id()",
+    `    and m.name = ${sqlString(matterName)}`,
+    `    and d.original_name = ${sqlString(sourceFileName)}`,
+    "    and db.blob_kind = 'original'",
+    "    and db.state in ('uploaded', 'verified')",
+    "  order by so.created_at desc",
+    "  limit 1",
+    "), inserted_extraction as (",
+    "  insert into extraction_records (tenant_id, matter_id, document_id, document_blob_id, status, engine, needs_review, payload_object_key, content_hash, storage_object_id, superseded_at)",
+    "  select current_app_tenant_id(), matter_id, document_id, document_blob_id, 'succeeded', 'runtime-db-write-smoke', false,",
+    `    'runtime-db-write-smoke/' || ${sqlString(testRunId)} || '/extraction.json',`,
+    `    ${sqlString(testRunId)}, storage_object_id, now()`,
+    "  from target",
+    "  returning id, matter_id, document_id, storage_object_id",
+    "), inserted_descriptor as (",
+    "  insert into source_descriptors (tenant_id, matter_id, document_id, extraction_record_id, suggested_label, label_status, label_source, storage_object_id, superseded_at)",
+    "  select current_app_tenant_id(), matter_id, document_id, id, 'Runtime DB write smoke source', 'suggested', 'model', storage_object_id, now()",
+    "  from inserted_extraction",
+    "  returning id, matter_id, storage_object_id",
+    ")",
+    "select jsonb_build_object(",
+    "  'targetRows', (select count(*)::int from target),",
+    "  'insertedExtractionRows', (select count(*)::int from inserted_extraction),",
+    "  'insertedSourceDescriptorRows', (select count(*)::int from inserted_descriptor),",
+    "  'extractionRows', (select count(*)::int from inserted_extraction),",
+    "  'sourceDescriptorRows', (select count(*)::int from inserted_descriptor),",
+    "  'liveExtractionRows', (select count(*)::int from extraction_records er join inserted_extraction ie on ie.id = er.id where er.tenant_id = current_app_tenant_id() and er.superseded_at is null),",
+    "  'liveSourceDescriptorRows', (select count(*)::int from source_descriptors sd join inserted_descriptor idesc on idesc.id = sd.id where sd.tenant_id = current_app_tenant_id() and sd.superseded_at is null)",
+    ")::text;",
   ].join("\n"));
 }
 

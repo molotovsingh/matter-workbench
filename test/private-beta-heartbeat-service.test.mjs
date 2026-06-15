@@ -101,7 +101,7 @@ test("heartbeat service redacts secrets and legal text in safe mode", async () =
         lastAction: "ask_copilot",
         currentStage: "copilot_answer",
         currentStageStatus: "failed",
-        lastError: "OPENAI_API_KEY=sk-secret failed",
+        lastError: "OPENAI_API_KEY=sk-secret failed postgres://operator:heartpass@db:5432/mwb AIzaSyFixtureGoogleKeyValue",
         sourceText: "The contract says the client admitted liability.",
         generatedOutput: "Draft legal output body",
       }],
@@ -112,7 +112,52 @@ test("heartbeat service redacts secrets and legal text in safe mode", async () =
   const text = JSON.stringify(heartbeat);
 
   assert.match(text, /OPENAI_API_KEY=\[redacted-secret\]/);
-  assert.doesNotMatch(text, /sk-secret/);
+  assert.match(text, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
+  assert.doesNotMatch(text, /sk-secret|heartpass|AIzaSyFixtureGoogleKeyValue/);
   assert.doesNotMatch(text, /admitted liability/);
   assert.doesNotMatch(text, /Draft legal output body/);
 });
+
+test("heartbeat service does not hold the store lock while waiting on providers", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-heartbeat-provider-lock-"));
+  let releaseFirstProvider;
+  let firstProviderStarted = false;
+  let secondProviderCompleted = false;
+  const service = createPrivateBetaHeartbeatService({
+    appDir: tmp,
+    heartbeatPath: path.join(tmp, "heartbeat-ledger.json"),
+    installId: "firm-beta-01",
+    idFactory: incrementingIds("heartbeat_"),
+    now: () => new Date("2026-06-13T10:00:00.000Z"),
+    journeyProvider: () => {
+      if (!firstProviderStarted) {
+        firstProviderStarted = true;
+        return new Promise((resolve) => {
+          releaseFirstProvider = () => resolve({ activeSessions: 1 });
+        });
+      }
+      return { activeSessions: 2 };
+    },
+  });
+
+  const first = service.captureHeartbeat();
+  await Promise.resolve();
+  const second = service.captureHeartbeat().then((heartbeat) => {
+    secondProviderCompleted = true;
+    return heartbeat;
+  });
+
+  const secondHeartbeat = await second;
+
+  assert.equal(secondProviderCompleted, true);
+  assert.equal(secondHeartbeat.activeSessions, 2);
+
+  releaseFirstProvider();
+  const firstHeartbeat = await first;
+  assert.equal(firstHeartbeat.activeSessions, 1);
+});
+
+function incrementingIds(prefix) {
+  let index = 0;
+  return () => `${prefix}${String(++index).padStart(3, "0")}`;
+}

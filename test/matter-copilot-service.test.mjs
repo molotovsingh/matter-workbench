@@ -102,6 +102,39 @@ test("matter copilot discards unsupported provider citations when validated sour
   assert.doesNotMatch(answer.warnings.join(" "), /FILE-9999|p1\.b1|unsupported citation/i);
 });
 
+test("matter copilot blocks answers whose prose still cites unsupported references", async () => {
+  const root = await makeMatterRoot();
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async () => ({
+      answer_status: "answered",
+      answer_markdown: "The unsupported event is decisive (FILE-9999 p1.b1), while the complaint filing is supported.",
+      confidence: 0.72,
+      sources: [
+        {
+          raw_citation: "FILE-9999 p1.b1",
+          source_label: "Unknown source",
+          snippet: "Unsupported source.",
+        },
+        {
+          raw_citation: "FILE-0001 p1.b1",
+          source_label: "Consumer complaint filing record",
+          snippet: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
+        },
+      ],
+      warnings: [],
+    }),
+  });
+
+  const answer = await service.answerQuestion({ question: "what happened?" });
+
+  assert.equal(answer.answer_status, "blocked");
+  assert.deepEqual(answer.sources, []);
+  assert.match(answer.answer_markdown, /could not verify the source references/i);
+  assert.doesNotMatch(JSON.stringify(answer), /FILE-9999|Unsupported source|unsupported event is decisive/i);
+});
+
 test("matter copilot resolves an unambiguous source label back to a raw citation", async () => {
   const root = await makeMatterRoot();
   const service = createMatterCopilotService({

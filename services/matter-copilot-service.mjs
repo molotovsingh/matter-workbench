@@ -199,6 +199,7 @@ function normalizeMatterCopilotAnswer({
   const answerStatus = normalizeAnswerStatus(record.answer_status);
   const sourceResolver = buildSourceResolver(packet);
   const { sources, unsupportedCount } = normalizeSources(record.sources, sourceResolver);
+  const answerMarkdown = boundedText(record.answer_markdown, MAX_ANSWER_LENGTH) || fallbackAnswer(answerStatus);
   const effectiveAnswerStatus = answerStatus === "answered" && unsupportedCount > 0 ? "partial" : answerStatus;
   const unsupportedOnly = SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && unsupportedCount > 0 && !sources.length;
   if (SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && !sources.length) {
@@ -213,6 +214,18 @@ function normalizeMatterCopilotAnswer({
     }
     throw makeHttpError("Matter copilot answer did not include validated source citations.", 502);
   }
+  if (
+    SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus)
+    && answerHasUnsupportedRawCitations(answerMarkdown, sources, sourceResolver)
+  ) {
+    return blockedUnsupportedCitationAnswer({
+      question,
+      packet,
+      policy,
+      providerConfig,
+      answeredAt,
+    });
+  }
   const sourceWarnings = unsupportedCount > 0 && sources.length > 0
     ? ["Some source references could not be verified and were ignored."]
     : [];
@@ -222,7 +235,7 @@ function normalizeMatterCopilotAnswer({
     answered_at: answeredAt,
     question,
     answer_status: effectiveAnswerStatus,
-    answer_markdown: boundedText(record.answer_markdown, MAX_ANSWER_LENGTH) || fallbackAnswer(answerStatus),
+    answer_markdown: answerMarkdown,
     confidence: normalizeConfidence(record.confidence),
     sources,
     warnings: [
@@ -371,6 +384,22 @@ function resolveSourceReference(sourceReference, source = {}, sourceResolver = {
   }
 
   return candidates[0];
+}
+
+function answerHasUnsupportedRawCitations(answerMarkdown, sources = [], sourceResolver = {}) {
+  const tokens = extractRawCitationTokens(answerMarkdown);
+  if (!tokens.length) return false;
+  const allowed = new Set(sources.map((source) => source.raw_citation).filter(Boolean));
+  for (const token of tokens) {
+    if (allowed.has(token)) continue;
+    if (resolveSourceReference(token, { raw_citation: token }, sourceResolver)) continue;
+    return true;
+  }
+  return false;
+}
+
+function extractRawCitationTokens(text = "") {
+  return [...new Set(String(text).match(/\bFILE-\d{4}\s+p\d+\.b\d+\b/g) || [])];
 }
 
 function sourceMatchScore(snippet, blockText) {

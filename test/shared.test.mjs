@@ -101,13 +101,14 @@ test("secret redaction helper covers provider keys and bearer tokens", () => {
     '"apiKey": "future-provider-token"',
     "x-api-key=opaque-provider-token",
     "raw sk-raw-secret",
+    "google key AIzaSyFixtureGoogleKeyValue",
   ].join("\n");
 
   const redacted = redactSensitiveText(text);
 
   assert.doesNotMatch(
     redacted,
-    /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|mistral-token-secret|future-provider-token|opaque-provider-token|sk-raw-secret/,
+    /sk-openai-secret|sk-openrouter-secret|sk-mistral-secret|sk-bearer-secret|mistral-token-secret|future-provider-token|opaque-provider-token|sk-raw-secret|AIzaSyFixtureGoogleKeyValue/,
   );
   assert.match(redacted, new RegExp(`OPENAI_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
   assert.match(redacted, new RegExp(`OPENROUTER_API_KEY=${escapeRegExp(REDACTED_SECRET)}`));
