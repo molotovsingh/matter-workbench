@@ -174,6 +174,38 @@ test("React API client prefers a clean JSON message over a contaminated error fi
   }
 });
 
+test("React API client reports malformed success responses as API errors", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => new Response("<html><head><title>Welcome</title></head><body>not json</body></html>", {
+    status: 200,
+    statusText: "OK",
+    headers: { "content-type": "text/html" },
+  }));
+
+  try {
+    await assert.rejects(
+      () => api.getMatters(),
+      (error) => {
+        assert.equal(error.statusCode, 200);
+        assert.equal(error.code, "api.invalid_json_response");
+        assert.match(error.message, /server returned an invalid response/i);
+        assert.doesNotMatch(error.message, /<html|<head|not json/i);
+        assert.deepEqual(error.diagnostic, {
+          statusCode: 200,
+          code: "api.invalid_json_response",
+          statusText: "OK",
+          urlPath: "/api/matters",
+          bodyKind: "html",
+          htmlTitle: "Welcome",
+        });
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
 async function importReactApiClient() {
   const source = await readFile(apiClientPath, "utf8");
   const compiled = ts.transpileModule(source, {

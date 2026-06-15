@@ -114,7 +114,12 @@ async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {
     throw await createApiError(res, url);
   }
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const diagnosticResponse = res.clone();
+  try {
+    return await res.json() as T;
+  } catch {
+    throw await createInvalidJsonResponseError(diagnosticResponse, url);
+  }
 }
 
 async function createApiError(res: Response, url: string): Promise<ApiError> {
@@ -125,6 +130,20 @@ async function createApiError(res: Response, url: string): Promise<ApiError> {
     error.authRequired = true;
     authRequiredHandler?.();
   }
+  return error;
+}
+
+async function createInvalidJsonResponseError(res: Response, url: string): Promise<ApiError> {
+  const payload = await readErrorPayload(res);
+  const error = new ApiError(
+    'The server returned an invalid response. Please refresh and try again.',
+    res.status,
+    'api.invalid_json_response',
+  );
+  error.diagnostic = {
+    ...buildApiErrorDiagnostic(payload, res, url),
+    code: 'api.invalid_json_response',
+  };
   return error;
 }
 
