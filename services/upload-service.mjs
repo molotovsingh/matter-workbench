@@ -2,7 +2,12 @@ import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
-import { isInsideRoot, makeHttpError, matterStorageNameFromCaption } from "../shared/safe-paths.mjs";
+import {
+  matterIdentityFromCaption,
+  matterMetadataFields,
+  matterStorageCollisionKey,
+} from "../shared/matter-identity-policy.mjs";
+import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
 import {
   parseUploadJsonField,
   validateUploadPathList,
@@ -38,20 +43,22 @@ export function createUploadService({
         && typeof runtimeDbStorageService?.createMatterFromUploadedFiles === "function";
       const mattersHome = useRuntimeDbStorage ? null : matterStore.ensureMattersHome();
       const submittedMatterName = String(fields.name || "").trim();
-      const storageName = matterStorageNameFromCaption(submittedMatterName);
+      const identity = matterIdentityFromCaption(submittedMatterName);
+      const storageName = identity.storageName;
       const { name, matterPath } = useRuntimeDbStorage
         ? { name: storageName, matterPath: null }
         : matterStore.matterPathForName(storageName);
 
       const siblings = await matterStore.listMattersHomeChildren();
-      const collision = siblings.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+      const collision = siblings.find((entry) => matterStorageCollisionKey(entry.name) === identity.collisionKey);
       if (collision) throw makeHttpError(`A matter named "${collision.name}" already exists`, 409);
 
       const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
-      const metadata = {
-        ...submittedMetadata,
-        matterName: String(submittedMetadata.matterName || submittedMatterName || name).trim() || name,
-      };
+      const metadata = matterMetadataFields({
+        metadata: submittedMetadata,
+        caption: identity.displayName,
+        storageName: name,
+      });
       const relativePaths = validateUploadPathList(fields, files);
       if (!files.length) throw noFilesError("creating a matter");
 
