@@ -105,6 +105,7 @@ test("runtime DB config exposes sanitized release metadata for the title bar", a
     env: {
       MWB_RELEASE_LABEL: "Beta 3\nignored",
       MWB_RELEASE_COMMIT: "5d10ca7",
+      MWB_RELEASE_DATE: "2026-06-15",
       MWB_RELEASE_NOTE: "Release byte for testers",
     },
   });
@@ -115,6 +116,7 @@ test("runtime DB config exposes sanitized release metadata for the title bar", a
     assert.deepEqual(config.release, {
       label: "Beta 3 ignored",
       commit: "5d10ca7",
+      date: "2026-06-15",
       note: "Release byte for testers",
     });
   } finally {

@@ -41,6 +41,7 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
     skipServiceCheck: false,
     skipUiHardening: false,
     releaseLabel: env.MWB_RELEASE_LABEL || "",
+    releaseDate: env.MWB_RELEASE_DATE || "",
     releaseNote: env.MWB_RELEASE_NOTE || "",
   };
 
@@ -69,6 +70,9 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
       i += 1;
     } else if (arg === "--release-label") {
       parsed.releaseLabel = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--release-date") {
+      parsed.releaseDate = requiredValue(argv, i, arg);
       i += 1;
     } else if (arg === "--release-note") {
       parsed.releaseNote = requiredValue(argv, i, arg);
@@ -108,6 +112,7 @@ export function buildPrivateVmRsyncDeployPlan({
   skipServiceCheck = false,
   skipUiHardening = false,
   releaseLabel = "",
+  releaseDate = "",
   releaseNote = "",
 } = {}) {
   if (!host) throw new Error("--host is required");
@@ -117,6 +122,7 @@ export function buildPrivateVmRsyncDeployPlan({
   const remote = user ? `${user}@${host}` : host;
   const releaseDir = `${deploymentRoot.replace(/\/+$/, "")}/${commit}`;
   const appDir = `${releaseDir}/app`;
+  const stampedReleaseDate = normalizeReleaseDate(releaseDate) || new Date().toISOString().slice(0, 10);
   const remoteAppTarget = `${remote}:${appDir}/`;
   const steps = [
     {
@@ -195,6 +201,7 @@ export function buildPrivateVmRsyncDeployPlan({
             "systemctl --user set-environment",
             `MWB_RELEASE_COMMIT=${shellQuote(commit)}`,
             `MWB_RELEASE_LABEL=${shellQuote(releaseLabel)}`,
+            `MWB_RELEASE_DATE=${shellQuote(stampedReleaseDate)}`,
             `MWB_RELEASE_NOTE=${shellQuote(releaseNote)}`,
           ].join(" "),
           `systemctl --user restart ${shellQuote(serviceName)}`,
@@ -278,6 +285,7 @@ export function buildPrivateVmRsyncDeployPlan({
     release: {
       label: releaseLabel,
       commit,
+      date: stampedReleaseDate,
       note: releaseNote,
     },
     excludes: [...RSYNC_EXCLUDES],
@@ -299,6 +307,7 @@ export async function runPrivateVmRsyncDeploy({
   skipServiceCheck = false,
   skipUiHardening = false,
   releaseLabel = "",
+  releaseDate = "",
   releaseNote = "",
   commandRunner = runCommand,
   gitDirtyChecker = hasTrackedGitChanges,
@@ -325,6 +334,7 @@ export async function runPrivateVmRsyncDeploy({
     skipServiceCheck,
     skipUiHardening,
     releaseLabel,
+    releaseDate,
     releaseNote,
   });
 
@@ -411,6 +421,11 @@ function requiredValue(argv, index, arg) {
 
 function normalizeUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizeReleaseDate(value) {
+  const date = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 }
 
 function commitMatchesHead(requested, head) {

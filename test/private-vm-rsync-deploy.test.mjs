@@ -35,6 +35,7 @@ test("private VM rsync deploy parser reads target options without accepting pass
       skipServiceCheck: false,
       skipUiHardening: false,
       releaseLabel: "",
+      releaseDate: "",
       releaseNote: "",
     },
   );
@@ -97,6 +98,7 @@ test("private VM rsync deploy stamps release metadata before restarting the serv
     commit: "abc1234",
     sourceDir: "/Users/aksingh/matter-workbench",
     releaseLabel: "Beta 3",
+    releaseDate: "2026-06-15",
     releaseNote: "Small release byte for testers",
   });
 
@@ -105,10 +107,12 @@ test("private VM rsync deploy stamps release metadata before restarting the serv
   assert.match(command, /systemctl --user set-environment/);
   assert.match(command, /MWB_RELEASE_COMMIT='abc1234'/);
   assert.match(command, /MWB_RELEASE_LABEL='Beta 3'/);
+  assert.match(command, /MWB_RELEASE_DATE='2026-06-15'/);
   assert.match(command, /MWB_RELEASE_NOTE='Small release byte for testers'/);
   assert.deepEqual(plan.release, {
     label: "Beta 3",
     commit: "abc1234",
+    date: "2026-06-15",
     note: "Small release byte for testers",
   });
 });

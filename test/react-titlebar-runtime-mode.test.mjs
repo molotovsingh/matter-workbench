@@ -22,6 +22,7 @@ test("React AppConfig carries runtime storage mode and display label", async () 
   assert.match(body, /runtimeStorageMode\?:/);
   assert.match(body, /workspaceModeLabel\?: string/);
   assert.match(body, /release\?:/);
+  assert.match(body, /date\?: string/);
 });
 
 test("React TitleBar renders compact release metadata when configured", async () => {
@@ -29,6 +30,7 @@ test("React TitleBar renders compact release metadata when configured", async ()
   const css = await readFile(cssPath, "utf8");
 
   assert.match(titleBar, /releaseBadgeText/);
+  assert.match(titleBar, /releaseBadgeDate/);
   assert.match(titleBar, /className="release-badge"/);
   assert.match(titleBar, /release\?\.commit/);
   assert.match(css, /\.release-badge\s*\{/);

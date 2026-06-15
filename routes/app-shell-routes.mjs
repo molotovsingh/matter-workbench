@@ -309,9 +309,10 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
 function releaseConfig(env = process.env) {
   const label = cleanReleaseText(env.MWB_RELEASE_LABEL, 40);
   const commit = cleanReleaseCommit(env.MWB_RELEASE_COMMIT);
+  const date = cleanReleaseDate(env.MWB_RELEASE_DATE);
   const note = cleanReleaseText(env.MWB_RELEASE_NOTE, 180);
-  if (!label && !commit && !note) return null;
-  return { label, commit, note };
+  if (!label && !commit && !date && !note) return null;
+  return { label, commit, date, note };
 }
 
 function cleanReleaseText(value, maxLength) {
@@ -325,6 +326,11 @@ function cleanReleaseText(value, maxLength) {
 function cleanReleaseCommit(value) {
   const commit = String(value || "").trim();
   return /^[a-f0-9]{7,40}$/i.test(commit) ? commit : "";
+}
+
+function cleanReleaseDate(value) {
+  const date = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 }
 
 const PREPARATION_RUN_RESPONSE_SCHEMA = "private-beta-preparation-run-response/v1";

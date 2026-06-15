@@ -46,6 +46,7 @@ export interface AppConfig {
   release?: {
     label?: string;
     commit?: string;
+    date?: string;
     note?: string;
   } | null;
   theme?: 'light' | 'dark';
