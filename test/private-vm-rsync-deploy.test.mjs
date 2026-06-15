@@ -204,6 +204,21 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   );
   assert.doesNotMatch(installAndBuild.command.join(" "), /mothership\.env/);
 
+  const runtimeDbMigration = plan.steps.find((step) => step.id === "runtime_db_migrate");
+  assert.ok(runtimeDbMigration);
+  assert.match(runtimeDbMigration.command.join(" "), /runtime\.env/);
+  assert.match(runtimeDbMigration.command.join(" "), /MWB_RUNTIME_DB/);
+  assert.match(runtimeDbMigration.command.join(" "), /MWB_DATABASE_URL/);
+  assert.match(runtimeDbMigration.command.join(" "), /npm run db:migrate --silent/);
+  assert.ok(
+    plan.steps.findIndex((step) => step.id === "install_and_build")
+      < plan.steps.findIndex((step) => step.id === "runtime_db_migrate"),
+  );
+  assert.ok(
+    plan.steps.findIndex((step) => step.id === "runtime_db_migrate")
+      < plan.steps.findIndex((step) => step.id === "activate_release"),
+  );
+
   const mothershipActivation = plan.steps.find((step) => step.id === "activate_mothership_if_configured");
   assert.ok(mothershipActivation);
   assert.match(mothershipActivation.command.at(-1), /^set -e; if /);

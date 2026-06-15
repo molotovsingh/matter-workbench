@@ -32,7 +32,7 @@ MWB_RUNTIME_DB=postgres
 MWB_RUNTIME_DB_STORAGE=postgres
 MWB_DB_RUNTIME_CUTOVER_APPROVED=yes
 MWB_RUNTIME_DATABASE_URL=<redacted runtime role URL>
-MWB_DATABASE_URL=<redacted admin or backup-capable URL, if needed for operator scripts>
+MWB_DATABASE_URL=<redacted migration-capable URL required for runtime DB deploys>
 MWB_PRIVATE_BETA_AUTH=required
 MWB_PRIVATE_BETA_USERS_FILE=/home/aks/.config/matter-workbench/private-beta-users.json
 MWB_PRIVATE_BETA_FEEDBACK_PATH=/home/aks/.local/share/matter-workbench/private-beta-feedback-ledger.json
@@ -112,9 +112,12 @@ and `.env*`.
 Before mutating the release directory, it checks the VM has `rsync`, `node`,
 `npm`, user-level `systemd`, a readable
 `$HOME/.config/matter-workbench/runtime.env`, and a writable deployment root.
-Only then does it build React, switch the `current` symlink, restart the
-user-level service, and run the VM-local service check plus rendered UI
-hardening pass.
+Only then does it build React, apply runtime database migrations when
+`MWB_RUNTIME_DB=postgres` or `MWB_RUNTIME_DB_STORAGE=postgres`, switch the
+`current` symlink, restart the user-level service, and run the VM-local service
+check plus rendered UI hardening pass. Runtime-DB deployment fails before
+activation if neither `MWB_DATABASE_URL` nor `DATABASE_URL` is configured for
+the migration runner.
 
 The deploy also installs `matter-workbench-mothership.service`. If
 `$HOME/.config/matter-workbench/mothership.env` exists, it restarts the

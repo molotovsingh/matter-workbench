@@ -189,6 +189,21 @@ export function buildPrivateVmRsyncDeployPlan({
       ],
     },
     {
+      id: "runtime_db_migrate",
+      title: "Apply runtime database migrations before activation",
+      command: [
+        "ssh",
+        remote,
+        "set -e; "
+          + `cd ${shellQuote(appDir)}; `
+          + "set -a; . \"$HOME/.config/matter-workbench/runtime.env\"; set +a; "
+          + "if test \"${MWB_RUNTIME_DB:-}\" = \"postgres\" || test \"${MWB_RUNTIME_DB_STORAGE:-}\" = \"postgres\"; then "
+          + "(test -n \"${MWB_DATABASE_URL:-}\" || test -n \"${DATABASE_URL:-}\") || { printf '%s\\n' 'runtime DB migrations require MWB_DATABASE_URL or DATABASE_URL'; exit 1; }; "
+          + "npm run db:migrate --silent; "
+          + "else printf '%s\\n' 'runtime DB mode absent; skipping runtime migrations'; fi",
+      ],
+    },
+    {
       id: "activate_release",
       title: "Atomically point current at the release and restart the user service",
       command: [
