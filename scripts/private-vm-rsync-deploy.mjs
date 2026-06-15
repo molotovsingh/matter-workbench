@@ -40,6 +40,8 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
     allowDirty: false,
     skipServiceCheck: false,
     skipUiHardening: false,
+    releaseLabel: env.MWB_RELEASE_LABEL || "",
+    releaseNote: env.MWB_RELEASE_NOTE || "",
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -64,6 +66,12 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
       i += 1;
     } else if (arg === "--service-name") {
       parsed.serviceName = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--release-label") {
+      parsed.releaseLabel = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--release-note") {
+      parsed.releaseNote = requiredValue(argv, i, arg);
       i += 1;
     } else if (arg === "--dry-run") {
       parsed.dryRun = true;
@@ -99,6 +107,8 @@ export function buildPrivateVmRsyncDeployPlan({
   serviceName = "matter-workbench-runtime.service",
   skipServiceCheck = false,
   skipUiHardening = false,
+  releaseLabel = "",
+  releaseNote = "",
 } = {}) {
   if (!host) throw new Error("--host is required");
   if (!commit) throw new Error("--commit is required");
@@ -181,6 +191,12 @@ export function buildPrivateVmRsyncDeployPlan({
         [
           "set -e",
           `ln -sfn ${shellQuote(releaseDir)} ${shellQuote(`${deploymentRoot.replace(/\/+$/, "")}/current`)}`,
+          [
+            "systemctl --user set-environment",
+            `MWB_RELEASE_COMMIT=${shellQuote(commit)}`,
+            `MWB_RELEASE_LABEL=${shellQuote(releaseLabel)}`,
+            `MWB_RELEASE_NOTE=${shellQuote(releaseNote)}`,
+          ].join(" "),
           `systemctl --user restart ${shellQuote(serviceName)}`,
           `systemctl --user is-active ${shellQuote(serviceName)}`,
           `readlink -f ${shellQuote(`${deploymentRoot.replace(/\/+$/, "")}/current`)}`,
@@ -259,6 +275,11 @@ export function buildPrivateVmRsyncDeployPlan({
     sourceDir: path.resolve(sourceDir),
     baseUrl,
     serviceName,
+    release: {
+      label: releaseLabel,
+      commit,
+      note: releaseNote,
+    },
     excludes: [...RSYNC_EXCLUDES],
     includes: [...RSYNC_INCLUDES],
     steps,
@@ -277,6 +298,8 @@ export async function runPrivateVmRsyncDeploy({
   allowDirty = false,
   skipServiceCheck = false,
   skipUiHardening = false,
+  releaseLabel = "",
+  releaseNote = "",
   commandRunner = runCommand,
   gitDirtyChecker = hasTrackedGitChanges,
   commitResolver = resolveGitCommit,
@@ -301,6 +324,8 @@ export async function runPrivateVmRsyncDeploy({
     serviceName,
     skipServiceCheck,
     skipUiHardening,
+    releaseLabel,
+    releaseNote,
   });
 
   const result = {

@@ -9,6 +9,8 @@ export default function TitleBar({ onLogout }: Props) {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
   const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
+  const releaseText = releaseBadgeText(state.config?.release);
+  const releaseTitle = releaseBadgeTitle(state.config?.release);
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   return (
@@ -29,6 +31,11 @@ export default function TitleBar({ onLogout }: Props) {
         {showOperatorChrome && (
           <span className="workspace-mode">{workspaceModeLabel}</span>
         )}
+        {releaseText && (
+          <span className="release-badge" title={releaseTitle}>
+            {releaseText}
+          </span>
+        )}
         <button
           className="theme-toggle"
           type="button"
@@ -45,4 +52,21 @@ export default function TitleBar({ onLogout }: Props) {
       </div>
     </header>
   );
+}
+
+function releaseBadgeText(release: { label?: string; commit?: string } | null | undefined) {
+  const label = String(release?.label || '').trim();
+  const commit = String(release?.commit || '').trim();
+  const shortCommit = commit ? commit.slice(0, 7) : '';
+  if (label && shortCommit) return `${label} | ${shortCommit}`;
+  return label || shortCommit;
+}
+
+function releaseBadgeTitle(release: { label?: string; commit?: string; note?: string } | null | undefined) {
+  const parts = [
+    releaseBadgeText(release),
+    release?.note ? String(release.note).trim() : '',
+    release?.commit ? `Commit ${String(release.commit).trim()}` : '',
+  ].filter(Boolean);
+  return parts.join(' - ');
 }

@@ -21,6 +21,17 @@ test("React AppConfig carries runtime storage mode and display label", async () 
 
   assert.match(body, /runtimeStorageMode\?:/);
   assert.match(body, /workspaceModeLabel\?: string/);
+  assert.match(body, /release\?:/);
+});
+
+test("React TitleBar renders compact release metadata when configured", async () => {
+  const titleBar = await readFile(titleBarPath, "utf8");
+  const css = await readFile(cssPath, "utf8");
+
+  assert.match(titleBar, /releaseBadgeText/);
+  assert.match(titleBar, /className="release-badge"/);
+  assert.match(titleBar, /release\?\.commit/);
+  assert.match(css, /\.release-badge\s*\{/);
 });
 
 test("private beta logout stays inside TitleBar controls instead of floating over workspace mode", async () => {

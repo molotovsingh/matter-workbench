@@ -381,6 +381,21 @@ strong { font-weight: 600; }
 .title-left { min-width: 0; }
 .title-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; text-align: right; }
 .workspace-mode { white-space: nowrap; }
+.release-badge {
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  max-width: 160px;
+  overflow: hidden;
+  padding: 4px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .active-matter-pill {
   align-items: center;
   background: var(--panel);

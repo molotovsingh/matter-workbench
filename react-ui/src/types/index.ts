@@ -43,6 +43,11 @@ export interface AppConfig {
   activeMatterName?: string;
   runtimeStorageMode?: 'filesystem' | 'postgres';
   workspaceModeLabel?: string;
+  release?: {
+    label?: string;
+    commit?: string;
+    note?: string;
+  } | null;
   theme?: 'light' | 'dark';
 }
 

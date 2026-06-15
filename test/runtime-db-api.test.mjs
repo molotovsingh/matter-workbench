@@ -98,6 +98,50 @@ test("runtime DB postgres storage mode exposes config custody label", async () =
   }
 });
 
+test("runtime DB config exposes sanitized release metadata for the title bar", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-config-release");
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    env: {
+      MWB_RELEASE_LABEL: "Beta 3\nignored",
+      MWB_RELEASE_COMMIT: "5d10ca7",
+      MWB_RELEASE_NOTE: "Release byte for testers",
+    },
+  });
+
+  try {
+    const config = await getJson(server.baseUrl, "/api/config");
+
+    assert.deepEqual(config.release, {
+      label: "Beta 3 ignored",
+      commit: "5d10ca7",
+      note: "Release byte for testers",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("runtime DB config suppresses invalid release commit text", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-config-release-invalid");
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    env: {
+      MWB_RELEASE_LABEL: "Beta 3",
+      MWB_RELEASE_COMMIT: "not a commit",
+    },
+  });
+
+  try {
+    const config = await getJson(server.baseUrl, "/api/config");
+
+    assert.equal(config.release.label, "Beta 3");
+    assert.equal(config.release.commit, "");
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB postgres storage mode serves workspace and files without local matter folder", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-storage");
   const rawBytes = Buffer.from("%PDF-1.7");

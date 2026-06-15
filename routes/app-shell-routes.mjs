@@ -20,6 +20,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     aiSettingsService,
     commandInteractionLogService,
     configService,
+    env = process.env,
     jobStatusService,
     matterStore,
     privateBetaFeedbackService,
@@ -174,6 +175,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           activeMatterName,
           runtimeStorageMode,
           workspaceModeLabel: runtimeStorageMode === "postgres" ? "DB workspace" : "Local workspace",
+          release: releaseConfig(env),
         });
       }),
       exactRoute("POST", "/api/config", async () => {
@@ -302,6 +304,27 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
     ],
   });
+}
+
+function releaseConfig(env = process.env) {
+  const label = cleanReleaseText(env.MWB_RELEASE_LABEL, 40);
+  const commit = cleanReleaseCommit(env.MWB_RELEASE_COMMIT);
+  const note = cleanReleaseText(env.MWB_RELEASE_NOTE, 180);
+  if (!label && !commit && !note) return null;
+  return { label, commit, note };
+}
+
+function cleanReleaseText(value, maxLength) {
+  return String(value || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function cleanReleaseCommit(value) {
+  const commit = String(value || "").trim();
+  return /^[a-f0-9]{7,40}$/i.test(commit) ? commit : "";
 }
 
 const PREPARATION_RUN_RESPONSE_SCHEMA = "private-beta-preparation-run-response/v1";

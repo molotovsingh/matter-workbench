@@ -34,6 +34,8 @@ test("private VM rsync deploy parser reads target options without accepting pass
       allowDirty: false,
       skipServiceCheck: false,
       skipUiHardening: false,
+      releaseLabel: "",
+      releaseNote: "",
     },
   );
 
@@ -84,6 +86,31 @@ test("private VM rsync deploy plan and runner use remote-user deployment root de
 
   assert.equal(result.plan.deploymentRoot, "/home/aks/matter-workbench-deployments");
   assert.equal(result.plan.releaseDir, "/home/aks/matter-workbench-deployments/abc1234");
+});
+
+test("private VM rsync deploy stamps release metadata before restarting the service", async () => {
+  const { buildPrivateVmRsyncDeployPlan } = await import(deployPath.href);
+
+  const plan = buildPrivateVmRsyncDeployPlan({
+    host: "172.16.37.128",
+    user: "aks",
+    commit: "abc1234",
+    sourceDir: "/Users/aksingh/matter-workbench",
+    releaseLabel: "Beta 3",
+    releaseNote: "Small release byte for testers",
+  });
+
+  const activate = plan.steps.find((step) => step.id === "activate_release");
+  const command = activate?.command.join(" ") || "";
+  assert.match(command, /systemctl --user set-environment/);
+  assert.match(command, /MWB_RELEASE_COMMIT='abc1234'/);
+  assert.match(command, /MWB_RELEASE_LABEL='Beta 3'/);
+  assert.match(command, /MWB_RELEASE_NOTE='Small release byte for testers'/);
+  assert.deepEqual(plan.release, {
+    label: "Beta 3",
+    commit: "abc1234",
+    note: "Small release byte for testers",
+  });
 });
 
 test("private VM rsync deploy direct APIs reject missing deployment root when user is unknown", async () => {
