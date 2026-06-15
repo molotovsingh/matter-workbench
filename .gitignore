@@ -48,5 +48,7 @@ configurable-skill-runs.json
 codedb.snapshot
 codex_review/codedb-artifacts/
 .claude/
-claude_tests/
-/quality-pass/
+claude_tests/*
+!claude_tests/engineering-quality-pass.md
+!claude_tests/quality-pass/
+!claude_tests/quality-pass/**
