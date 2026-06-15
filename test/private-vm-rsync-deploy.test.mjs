@@ -208,6 +208,8 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.ok(runtimeDbMigration);
   assert.match(runtimeDbMigration.command.join(" "), /runtime\.env/);
   assert.match(runtimeDbMigration.command.join(" "), /MWB_RUNTIME_DB/);
+  assert.match(runtimeDbMigration.command.join(" "), /MWB_MIGRATION_DATABASE_URL/);
+  assert.match(runtimeDbMigration.command.join(" "), /MWB_RUNTIME_DATABASE_URL/);
   assert.match(runtimeDbMigration.command.join(" "), /MWB_DATABASE_URL/);
   assert.match(runtimeDbMigration.command.join(" "), /npm run db:migrate --silent/);
   assert.ok(

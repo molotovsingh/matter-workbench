@@ -198,8 +198,9 @@ export function buildPrivateVmRsyncDeployPlan({
           + `cd ${shellQuote(appDir)}; `
           + "set -a; . \"$HOME/.config/matter-workbench/runtime.env\"; set +a; "
           + "if test \"${MWB_RUNTIME_DB:-}\" = \"postgres\" || test \"${MWB_RUNTIME_DB_STORAGE:-}\" = \"postgres\"; then "
-          + "(test -n \"${MWB_DATABASE_URL:-}\" || test -n \"${DATABASE_URL:-}\") || { printf '%s\\n' 'runtime DB migrations require MWB_DATABASE_URL or DATABASE_URL'; exit 1; }; "
-          + "npm run db:migrate --silent; "
+          + "migration_url=\"${MWB_MIGRATION_DATABASE_URL:-${MWB_RUNTIME_DATABASE_URL:-${MWB_DATABASE_URL:-${DATABASE_URL:-}}}}\"; "
+          + "test -n \"$migration_url\" || { printf '%s\\n' 'runtime DB migrations require MWB_MIGRATION_DATABASE_URL, MWB_RUNTIME_DATABASE_URL, MWB_DATABASE_URL, or DATABASE_URL'; exit 1; }; "
+          + "MWB_DATABASE_URL=\"$migration_url\" npm run db:migrate --silent; "
           + "else printf '%s\\n' 'runtime DB mode absent; skipping runtime migrations'; fi",
       ],
     },
