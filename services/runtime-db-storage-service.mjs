@@ -14,7 +14,6 @@ import { Readable } from "node:stream";
 import path from "node:path";
 import process from "node:process";
 
-import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import {
   classifyFile,
@@ -35,7 +34,8 @@ import {
   isWorkspaceTextPreviewExtension,
 } from "../shared/workspace-preview-policy.mjs";
 import { runtimeDbUserFromRequestContext } from "./request-context.mjs";
-import { ensureRuntimeDbSafeRoleSql, wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
+import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
+import { wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
 
 const {
@@ -1032,43 +1032,20 @@ function buildAdvisorySnapshotSql({ tenantId, matter }) {
 }
 
 function queryJson({ databaseUrl, tenantId, spawn, sql }) {
-  const { command, args, env } = psqlConnectionArgs(databaseUrl);
-  const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: ensureRuntimeDbSafeRoleSql(sql),
-    encoding: "utf8",
-    env: { ...process.env, ...env },
+  return queryRuntimeDbJson({
+    databaseUrl,
+    spawn,
+    sql,
     maxBuffer: runtimeDbStoragePsqlMaxBuffer(),
+    errorPrefix: "runtime DB storage query failed",
+    noJsonMessage: "runtime DB storage query returned no JSON.",
+    invalidJsonMessage: "runtime DB storage query returned invalid JSON.",
   });
-  if (result.error) {
-    throw makeHttpError(`runtime DB storage query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
-  }
-  if (result.status !== 0) {
-    const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-    throw makeHttpError(`runtime DB storage query failed: ${redactRuntimeDbError(detail)}`, 503);
-  }
-  return parsePsqlJson(result.stdout || "");
 }
 
 function runtimeDbStoragePsqlMaxBuffer() {
   const configured = Number(process.env.MWB_RUNTIME_DB_STORAGE_PSQL_MAX_BUFFER_BYTES);
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
-}
-
-function parsePsqlJson(stdout = "") {
-  const text = String(stdout || "").trim();
-  const objectStart = text.indexOf("{");
-  const arrayStart = text.indexOf("[");
-  const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB storage query returned no JSON.", 503);
-  const start = Math.min(...starts);
-  const objectEnd = text.lastIndexOf("}");
-  const arrayEnd = text.lastIndexOf("]");
-  const end = Math.max(objectEnd, arrayEnd);
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    throw makeHttpError("runtime DB storage query returned invalid JSON.", 503);
-  }
 }
 
 function relativePathFromObjectKey(objectKey, matterName) {
@@ -2235,11 +2212,4 @@ function deterministicUuid(seed) {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = bytes.subarray(0, 16).toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
-
-function redactRuntimeDbError(value) {
-  return String(value || "")
-    .replace(/postgres:\/\/([^:@]+):([^@]+)@/g, "postgres://$1:***@")
-    .replace(/\bsecret\b/gi, "***")
-    .replace(/\btop-secret\b/gi, "***");
 }
