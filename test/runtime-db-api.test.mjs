@@ -298,6 +298,60 @@ test("runtime DB postgres storage mode serves workspace and files without local 
   }
 });
 
+test("runtime DB raw file route contains stream failures without crashing the server", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-raw-stream-error");
+  const matter = runtimeDbMatter();
+  let sourceStreamErrored = false;
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbStorageService: {
+      enabled: true,
+      async getRawFile() {
+        const stream = new Readable({
+          read() {
+            this.push("partial");
+            this.destroy(Object.assign(new Error("synthetic raw stream failure"), { code: "E_SYNTHETIC_RAW" }));
+          },
+        });
+        stream.once("error", () => {
+          sourceStreamErrored = true;
+        });
+        return {
+          contentType: "application/octet-stream",
+          fileSize: 1024,
+          safeFilename: "broken.bin",
+          stream,
+        };
+      },
+    },
+  });
+  const uncaught = [];
+  const onUncaught = (error) => { uncaught.push(error); };
+  process.on("uncaughtException", onUncaught);
+
+  try {
+    let requestFailed = false;
+    try {
+      const response = await fetch(
+        `${server.baseUrl}/api/file-raw?path=broken.bin&matter=${encodeURIComponent(matter.name)}`,
+      );
+      await response.arrayBuffer();
+    } catch {
+      requestFailed = true;
+    }
+
+    const config = await getJson(server.baseUrl, "/api/config");
+    assert.equal(requestFailed, true);
+    assert.equal(sourceStreamErrored, true);
+    assert.equal(config.runtimeStorageMode, "postgres");
+    assert.deepEqual(uncaught, []);
+  } finally {
+    process.off("uncaughtException", onUncaught);
+    await server.close();
+  }
+});
+
 test("runtime DB postgres storage mode checks upload overlap from DB custody rows", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-overlap");
   const duplicateHash = "a".repeat(64);

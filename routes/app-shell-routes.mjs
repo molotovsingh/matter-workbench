@@ -1,3 +1,4 @@
+import { pipeline } from "node:stream/promises";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
@@ -283,27 +284,34 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
           const raw = await runtimeDbStorageService.getRawFile(relativePath, matter);
-          response.writeHead(200, {
-            "content-type": raw.contentType,
-            "content-length": raw.fileSize,
-            "content-disposition": `inline; filename="${raw.safeFilename}"`,
-            "cache-control": "no-store",
-          });
-          raw.stream.pipe(response);
+          await sendRawFileStream(response, raw);
           return;
         }
         const root = await matterRootForQuery(matterStore, requestUrl);
         const raw = await workspaceService.getRawFile(relativePath, root);
-        response.writeHead(200, {
-          "content-type": raw.contentType,
-          "content-length": raw.fileSize,
-          "content-disposition": `inline; filename="${raw.safeFilename}"`,
-          "cache-control": "no-store",
-        });
-        raw.stream.pipe(response);
+        await sendRawFileStream(response, raw);
       }),
     ],
   });
+}
+
+async function sendRawFileStream(response, raw) {
+  try {
+    response.writeHead(200, {
+      "content-type": raw.contentType,
+      "content-length": raw.fileSize,
+      "content-disposition": `inline; filename="${raw.safeFilename}"`,
+      "cache-control": "no-store",
+    });
+    await pipeline(raw.stream, response);
+  } catch (error) {
+    raw.stream?.destroy?.();
+    if (response.headersSent) {
+      response.destroy?.(error);
+      return;
+    }
+    throw error;
+  }
 }
 
 function releaseConfig(env = process.env) {
