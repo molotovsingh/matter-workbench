@@ -76,27 +76,33 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
       }),
       exactRoute("POST", "/api/skill-ideas/sample-output", async () => {
         const body = await readRequestJson(request);
-        const sample = hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)
-          ? await generateRuntimeDbSampleOutput({
-            matterStore,
-            runtimeDbStorageService,
-            skillSampleOutputService,
-            body,
-          })
-          : await skillSampleOutputService.generateSampleOutput({
-            idea: body.idea || {},
-            feedback: body.feedback || "",
-            previousSample: body.previousSample || "",
-          });
-        const stored = await skillSamplesService.recordSample({
-          idea: body.idea || sample.idea || {},
-          sample,
-        });
-        sendJson(response, 200, {
-          ...sample,
-          sample_id: stored.sample.id,
-          storedSample: stored.sample,
-        });
+        sendJson(response, 200, await runTrackedSkillSampleOutput({
+          jobStatusService,
+          matterName: matterNameForSampleJob(matterStore, body),
+          operation: async () => {
+            const sample = hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)
+              ? await generateRuntimeDbSampleOutput({
+                matterStore,
+                runtimeDbStorageService,
+                skillSampleOutputService,
+                body,
+              })
+              : await skillSampleOutputService.generateSampleOutput({
+                idea: body.idea || {},
+                feedback: body.feedback || "",
+                previousSample: body.previousSample || "",
+              });
+            const stored = await skillSamplesService.recordSample({
+              idea: body.idea || sample.idea || {},
+              sample,
+            });
+            return {
+              ...sample,
+              sample_id: stored.sample.id,
+              storedSample: stored.sample,
+            };
+          },
+        }));
       }),
       patternRoute("GET", /^\/api\/skill-ideas\/([^/]+)\/samples$/, async ({ params }) => {
         const idea = await skillIdeasService.getIdea(decodeURIComponent(params[0]));
@@ -283,6 +289,10 @@ function matterNameForIdea(idea = {}) {
   return String(ideaMatter.folderName || ideaMatter.matterName || "").trim();
 }
 
+function matterNameForSampleJob(matterStore, body = {}) {
+  return matterNameForSampleOutput(body) || matterStore.activeMatterNameWithinHome?.() || "";
+}
+
 async function runtimeDbMatterForBody(matterStore, matterName = "") {
   const target = matterName || matterStore.activeMatterNameWithinHome?.();
   if (!target) throw makeHttpError("No matter is active — pick one before running a custom skill.", 409);
@@ -304,6 +314,21 @@ async function runTrackedSkill({
   });
   if (result && typeof result === "object" && !Array.isArray(result)) return { ...result, job };
   return { result, job };
+}
+
+async function runTrackedSkillSampleOutput({
+  jobStatusService,
+  matterName,
+  operation,
+}) {
+  if (!jobStatusService?.runTrackedJob) return operation();
+  const { result } = await jobStatusService.runTrackedJob({
+    kind: "skill_sample_output",
+    label: "Generate skill sample",
+    matterName,
+    operation,
+  });
+  return result;
 }
 
 function matterNameForSkillRun(matterStore, matterName = "") {

@@ -57,6 +57,34 @@ test("provider HTTP response failures carry a stable app error code", async () =
   );
 });
 
+test("provider HTTP quota and billing failures carry a specific app error code", async () => {
+  await assert.rejects(
+    () => fetchProviderJsonWithTimeout({
+      endpoint: "https://provider.example/v1",
+      apiKey: "sk-test",
+      body: {},
+      timeoutMs: 0,
+      fetchImpl: async () => ({
+        ok: false,
+        status: 429,
+        json: async () => ({
+          error: {
+            message: "You exceeded your current quota, please check your plan and billing details.",
+            code: "insufficient_quota",
+          },
+        }),
+      }),
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, "provider.quota_exceeded");
+      assert.match(error.message, /AI quota or billing limit reached/);
+      assert.doesNotMatch(error.message, /platform\.openai\.com/);
+      return true;
+    },
+  );
+});
+
 test("provider output parsing failures distinguish empty output from invalid JSON", () => {
   assert.throws(
     () => parseOpenAiJsonOutput({}, "OpenAI skill authoring"),

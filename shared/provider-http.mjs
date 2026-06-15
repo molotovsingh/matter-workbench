@@ -42,7 +42,12 @@ export async function fetchProviderJsonWithTimeout({
   if (isErrorPayload({ response, payload })) {
     if (mapProviderError) throw mapProviderError(response, payload);
     const message = formatProviderErrorMessage(response, payload);
-    throw makeHttpError(message, response?.status >= 400 && response.status < 500 ? 502 : 503, "provider.error");
+    const code = classifyProviderErrorCode(payload, message);
+    throw makeHttpError(
+      providerErrorMessageForCode(code, message),
+      response?.status >= 400 && response.status < 500 ? 502 : 503,
+      code,
+    );
   }
   return payload;
 }
@@ -91,6 +96,29 @@ function formatProviderErrorMessage(response, payload) {
     if (rawMessage) return rawMessage;
   }
   return `Provider returned ${response?.status || "an error"}`;
+}
+
+function classifyProviderErrorCode(payload, message = "") {
+  const error = payload?.error;
+  const providerCode = typeof error?.code === "string" ? error.code : "";
+  const providerType = typeof error?.type === "string" ? error.type : "";
+  const haystack = `${providerCode} ${providerType} ${message}`.toLowerCase();
+  if (
+    haystack.includes("insufficient_quota")
+    || haystack.includes("exceeded your current quota")
+    || haystack.includes("billing")
+    || haystack.includes("payment required")
+  ) {
+    return "provider.quota_exceeded";
+  }
+  return "provider.error";
+}
+
+function providerErrorMessageForCode(code, message = "") {
+  if (code === "provider.quota_exceeded") {
+    return "AI quota or billing limit reached. Ask the operator to check the AI account before trying again.";
+  }
+  return message;
 }
 
 function firstChoiceError(payload) {

@@ -1310,6 +1310,64 @@ test("runtime DB sample output materializes matter context before building sampl
   }
 });
 
+test("runtime DB sample output provider failures are recorded as job telemetry", async () => {
+  const { appDir, mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-sample-output-fail");
+  const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    mattersHome,
+    matter,
+    env: {
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async runMaterializedMatterRead(targetMatter, operation) {
+        const matterRoot = path.join(materializedRoot, targetMatter.name);
+        await writeExtractedTextMatter(matterRoot, targetMatter);
+        return operation({ matterRoot, matter: targetMatter });
+      },
+    },
+    skillSampleOutputProvider: async () => {
+      const error = new Error("AI quota or billing limit reached. Ask the operator to check the AI account.");
+      error.statusCode = 502;
+      error.code = "provider.quota_exceeded";
+      throw error;
+    },
+  });
+
+  try {
+    const response = await fetch(`${server.baseUrl}/api/skill-ideas/sample-output`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        idea: {
+          id: "idea_taori",
+          text: "discover issues from the matter record",
+          matter: { matterName: matter.matterName, folderName: matter.name },
+          designBrief: {
+            intendedUser: "advocate",
+            problem: "Find legal and factual issues.",
+          },
+        },
+      }),
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 502);
+    assert.equal(payload.code, "provider.quota_exceeded");
+
+    const jobs = await getJson(server.baseUrl, "/api/jobs?kind=skill_sample_output&status=failed&limit=5");
+    assert.equal(jobs.jobs.length, 1);
+    assert.equal(jobs.jobs[0].kind, "skill_sample_output");
+    assert.equal(jobs.jobs[0].label, "Generate skill sample");
+    assert.equal(jobs.jobs[0].matterName, matter.name);
+    assert.equal(jobs.jobs[0].errorCode, "provider.quota_exceeded");
+    assert.equal(jobs.jobs[0].failureClass, "provider");
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB skill creation validates approved samples through materialized matter context without matters home", async () => {
   const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-create-skill");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
