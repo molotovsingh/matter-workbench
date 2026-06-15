@@ -72,12 +72,13 @@ export function buildPrivateVmRollbackPlan({
   skipUiHardening = false,
 } = {}) {
   if (!host) throw new Error("--host is required");
-  if (!targetRelease) throw new Error("--to is required");
+  if (!targetRelease) throw new Error("--to is required: target release is required");
   if (!deploymentRoot) deploymentRoot = defaultRemoteDeploymentRoot(user);
 
   const remote = user ? `${user}@${host}` : host;
   const root = deploymentRoot.replace(/\/+$/, "");
-  const targetDir = `${root}/${targetRelease}`;
+  const safeTargetRelease = validateTargetReleaseToken(targetRelease);
+  const targetDir = `${root}/${safeTargetRelease}`;
   const appDir = `${targetDir}/app`;
   const currentLink = `${root}/current`;
   const steps = [
@@ -156,7 +157,7 @@ export function buildPrivateVmRollbackPlan({
     schemaVersion: SCHEMA_VERSION,
     remote,
     deploymentRoot,
-    targetRelease,
+    targetRelease: safeTargetRelease,
     targetDir,
     appDir,
     currentLink,
@@ -254,6 +255,14 @@ function defaultRemoteDeploymentRoot(user) {
   if (remoteUser === "root") return "/root/matter-workbench-deployments";
   if (remoteUser) return `/home/${remoteUser}/matter-workbench-deployments`;
   throw new Error("deployment root is required when the remote user is not specified.");
+}
+
+function validateTargetReleaseToken(value) {
+  const token = String(value || "").trim();
+  if (!/^[0-9a-f]{7,40}$/i.test(token)) {
+    throw new Error("target release must be a 7-40 character git commit hash");
+  }
+  return token;
 }
 
 function shellQuote(value) {

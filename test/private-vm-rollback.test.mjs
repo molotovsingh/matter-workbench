@@ -57,6 +57,32 @@ test("private VM rollback defaults to the remote user's absolute deployment root
   assert.doesNotMatch(JSON.stringify(plan), /\$HOME\/matter-workbench-deployments/);
 });
 
+test("private VM rollback rejects unsafe target release tokens before building remote paths", async () => {
+  const { buildPrivateVmRollbackPlan } = await import(rollbackPath.href);
+
+  for (const targetRelease of ["../498f83e", "release/498f83e", "498f83e\nwhoami", ".hidden", ""]) {
+    assert.throws(
+      () => buildPrivateVmRollbackPlan({
+        host: "172.16.37.128",
+        user: "aks",
+        deploymentRoot: "/home/aks/matter-workbench-deployments",
+        targetRelease,
+      }),
+      /target release/i,
+    );
+  }
+
+  assert.equal(
+    buildPrivateVmRollbackPlan({
+      host: "172.16.37.128",
+      user: "aks",
+      deploymentRoot: "/home/aks/matter-workbench-deployments",
+      targetRelease: "9d8dd53",
+    }).targetDir,
+    "/home/aks/matter-workbench-deployments/9d8dd53",
+  );
+});
+
 test("private VM rollback plan switches current, restarts service, and verifies target app", async () => {
   const { buildPrivateVmRollbackPlan } = await import(rollbackPath.href);
 

@@ -16,16 +16,16 @@ export function createPrivateBetaTelemetryRetryService({
   log = console,
 } = {}) {
   let timer = null;
-  let running = false;
+  let activeDrain = null;
 
   async function runOnce() {
-    if (running) return { skipped: true, reason: "already_running" };
-    running = true;
-    try {
-      return await raceWithTickDeadline(drainAll());
-    } finally {
-      running = false;
-    }
+    if (activeDrain) return { skipped: true, reason: "already_running" };
+    const drain = drainAll();
+    activeDrain = drain;
+    void drain.finally(() => {
+      if (activeDrain === drain) activeDrain = null;
+    }).catch(() => {});
+    return raceWithTickDeadline(drain);
   }
 
   async function drainAll() {

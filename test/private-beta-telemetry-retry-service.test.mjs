@@ -132,11 +132,21 @@ test("telemetry retry service prevents overlaps and isolates queue failures", as
   assert.doesNotMatch(errors.join("\n"), /super-secret/);
 });
 
-test("telemetry retry tick deadline releases the guard while a hung drain continues", async () => {
+test("telemetry retry tick deadline keeps the guard until the timed-out drain finishes", async () => {
   const logged = [];
+  let releaseFeedback;
+  let feedbackCalls = 0;
+  let signalCalls = 0;
   const service = createPrivateBetaTelemetryRetryService({
-    feedbackService: { syncQueuedFeedback: () => new Promise(() => {}) },
-    signalService: { syncQueuedSignals: async () => {} },
+    feedbackService: {
+      syncQueuedFeedback: async () => {
+        feedbackCalls += 1;
+        if (feedbackCalls === 1) {
+          await new Promise((resolve) => { releaseFeedback = resolve; });
+        }
+      },
+    },
+    signalService: { syncQueuedSignals: async () => { signalCalls += 1; } },
     tickDeadlineMs: 20,
     setIntervalImpl: () => ({ unref() {} }),
     clearIntervalImpl: () => {},
@@ -149,6 +159,15 @@ test("telemetry retry tick deadline releases the guard while a hung drain contin
   assert.match(logged.join("\n"), /tick exceeded 20ms/);
 
   const second = await service.runOnce();
-  assert.equal(second.timedOut, true);
-  assert.notEqual(second.reason, "already_running");
+  assert.deepEqual(second, { skipped: true, reason: "already_running" });
+  assert.equal(feedbackCalls, 1);
+  assert.equal(signalCalls, 0);
+
+  releaseFeedback();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const third = await service.runOnce();
+  assert.equal(third.completed, true);
+  assert.equal(feedbackCalls, 2);
+  assert.equal(signalCalls, 2);
 });
