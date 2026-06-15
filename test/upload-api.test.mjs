@@ -433,6 +433,29 @@ test("multipart upload accepts lawyer-style matter captions and derives a safe s
   });
 });
 
+test("multipart upload rejects matter captions that collide after storage-name cleanup", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const firstForm = new FormData();
+    firstForm.set("name", "State - Rajesh Mehra");
+    firstForm.set("metadata", JSON.stringify({ matterName: "State - Rajesh Mehra" }));
+    firstForm.set("paths", JSON.stringify(["first.txt"]));
+    appendTextFile(firstForm, "files", "first.txt", "First matter.");
+    await postMultipart(baseUrl, "/api/matters/new", firstForm);
+
+    const secondForm = new FormData();
+    secondForm.set("name", "State/Rajesh Mehra");
+    secondForm.set("metadata", JSON.stringify({ matterName: "State/Rajesh Mehra" }));
+    secondForm.set("paths", JSON.stringify(["second.txt"]));
+    appendTextFile(secondForm, "files", "second.txt", "Second matter.");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", secondForm);
+
+    assert.equal(response.status, 409);
+    assert.match(payload.error, /already exists/i);
+    assert.match(payload.error, /State - Rajesh Mehra/);
+  });
+});
+
 test("multipart runtime DB upload accepts lawyer-style captions and keeps legal caption metadata", async () => {
   const runtimeMatters = [];
   const calls = [];

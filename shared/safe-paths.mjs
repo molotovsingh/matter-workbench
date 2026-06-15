@@ -35,15 +35,31 @@ export function validateMatterName(rawName) {
 
 export function matterStorageNameFromCaption(rawName) {
   const caption = typeof rawName === "string" ? rawName.trim() : "";
-  const safeName = caption
+  const safeName = normalizeReservedStorageName(caption
     .replace(/[\\/]+/g, " - ")
+    .replace(/:+/g, " - ")
+    .replace(/[?]+/g, "")
+    .replace(/[<>"|*]+/g, " ")
     .replace(/\.\.+/g, ".")
     .replace(/[\0\r\n\t]+/g, " ")
     .replace(/\s+/g, " ")
     .replace(/^\.+/, "")
-    .trim();
-  if (!safeName) throw makeHttpError("Matter name is required", 400, "upload.invalid_matter_name");
+    .replace(/[ .-]+$/g, "")
+    .trim());
+  if (!safeName || !/[\p{L}\p{N}]/u.test(safeName)) {
+    throw makeHttpError("Matter name is required", 400, "upload.invalid_matter_name");
+  }
   return validateMatterName(safeName);
+}
+
+function normalizeReservedStorageName(name) {
+  const match = name.match(/^([^.]*)((?:\..*)?)$/);
+  const base = match?.[1] || name;
+  const extension = match?.[2] || "";
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) {
+    return `${base} matter${extension}`;
+  }
+  return name;
 }
 
 export function validateRelativePath(rawPath) {
