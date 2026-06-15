@@ -1,4 +1,6 @@
 export const DEFAULT_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses";
+const PROVIDER_QUOTA_EXCEEDED_CODE = "provider.quota_exceeded";
+const PROVIDER_QUOTA_EXCEEDED_MESSAGE = "AI quota or billing limit reached. Ask the operator to check the AI account before trying again.";
 
 export async function requestResponsesJson({
   apiKey,
@@ -40,8 +42,11 @@ export async function fetchResponses({ apiKey, endpoint = DEFAULT_RESPONSES_ENDP
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(payload?.error?.message || `OpenAI Responses API returned ${response.status}`);
+    const providerMessage = payload?.error?.message || `OpenAI Responses API returned ${response.status}`;
+    const code = classifyResponsesProviderErrorCode(payload, providerMessage);
+    const error = new Error(providerErrorMessageForCode(code, providerMessage));
     error.statusCode = response.status >= 400 && response.status < 500 ? 502 : 503;
+    error.code = code;
     throw error;
   }
   return payload;
@@ -56,4 +61,24 @@ export function extractResponsesOutputText(payload) {
     }
   }
   return parts.join("").trim();
+}
+
+function classifyResponsesProviderErrorCode(payload, message = "") {
+  const providerCode = typeof payload?.error?.code === "string" ? payload.error.code : "";
+  const providerType = typeof payload?.error?.type === "string" ? payload.error.type : "";
+  const haystack = `${providerCode} ${providerType} ${message}`.toLowerCase();
+  if (
+    haystack.includes("insufficient_quota")
+    || haystack.includes("exceeded your current quota")
+    || haystack.includes("billing")
+    || haystack.includes("payment required")
+  ) {
+    return PROVIDER_QUOTA_EXCEEDED_CODE;
+  }
+  return "provider.error";
+}
+
+function providerErrorMessageForCode(code, message = "") {
+  if (code === PROVIDER_QUOTA_EXCEEDED_CODE) return PROVIDER_QUOTA_EXCEEDED_MESSAGE;
+  return message;
 }

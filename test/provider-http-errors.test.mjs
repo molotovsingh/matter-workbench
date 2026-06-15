@@ -11,6 +11,7 @@ import {
   createOpenRouterProviderError,
   parseOpenRouterJsonContent,
 } from "../shared/openrouter-response.mjs";
+import { requestResponsesJson } from "../shared/responses-client.mjs";
 
 test("provider HTTP timeout failures carry a stable app error code", async () => {
   await assert.rejects(
@@ -83,6 +84,38 @@ test("provider HTTP quota and billing failures carry a specific app error code",
       return true;
     },
   );
+});
+
+test("Responses API quota failures carry the same stable app error code", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 429,
+      json: async () => ({
+        error: {
+          message: "You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.",
+          code: "insufficient_quota",
+        },
+      }),
+    });
+
+    await assert.rejects(
+      () => requestResponsesJson({
+        apiKey: "sk-test",
+        body: { model: "gpt-test", input: "hello" },
+      }),
+      (error) => {
+        assert.equal(error.statusCode, 502);
+        assert.equal(error.code, "provider.quota_exceeded");
+        assert.equal(error.message, "AI quota or billing limit reached. Ask the operator to check the AI account before trying again.");
+        assert.doesNotMatch(error.message, /platform\.openai\.com/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("provider output parsing failures distinguish empty output from invalid JSON", () => {
