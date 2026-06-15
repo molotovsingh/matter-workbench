@@ -20,7 +20,11 @@ export async function hashFilesSha256IfAvailable(files: Array<Pick<File, 'arrayB
   if (!canHashFileSha256()) return null;
 
   try {
-    return await Promise.all(files.map((file) => hashFileSha256(file)));
+    const hashes: string[] = [];
+    for (const file of files) {
+      hashes.push(await hashFileSha256(file));
+    }
+    return hashes;
   } catch (err) {
     if (isBrowserHashingFailure(err)) return null;
     throw err;

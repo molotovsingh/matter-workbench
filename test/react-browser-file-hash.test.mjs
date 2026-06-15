@@ -51,6 +51,49 @@ test("browser file hashing degrades to unavailable when digest fails during dupl
   }
 });
 
+test("browser file hashing reads selected files one at a time", async () => {
+  const { hashFilesSha256IfAvailable } = await importHelper("sequential-reads");
+  const originalCrypto = globalThis.crypto;
+  let activeReads = 0;
+  let maxActiveReads = 0;
+
+  try {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {
+        subtle: {
+          async digest(_algorithm, buffer) {
+            const input = new Uint8Array(buffer);
+            const digest = new Uint8Array(32);
+            digest[31] = input[0] ?? 0;
+            return digest.buffer;
+          },
+        },
+      },
+    });
+
+    const hashes = await hashFilesSha256IfAvailable(
+      Array.from({ length: 4 }, (_, index) => ({
+        async arrayBuffer() {
+          activeReads += 1;
+          maxActiveReads = Math.max(maxActiveReads, activeReads);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          activeReads -= 1;
+          return new Uint8Array([index + 1]).buffer;
+        },
+      })),
+    );
+
+    assert.equal(hashes?.length, 4);
+    assert.equal(maxActiveReads, 1);
+  } finally {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  }
+});
+
 async function importHelper(label = "default") {
   const source = await readFile(helperPath, "utf8");
   const transpiled = ts.transpileModule(source, {
