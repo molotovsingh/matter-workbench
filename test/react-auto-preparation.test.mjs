@@ -113,6 +113,15 @@ test("React automatic preparation sanitizes upstream HTML before showing failure
   assert.match(runner, /const message = formatVisiblePreparationError\(error, stage\);[\s\S]*markStageFailed\(next, stage, message\)/);
 });
 
+test("React automatic preparation suppresses failed-stage UI updates after the matter goes stale", async () => {
+  const runner = await readFile(runnerPath, "utf8");
+
+  assert.match(
+    runner,
+    /catch \(error\) \{[\s\S]*const message = formatVisiblePreparationError\(error, nextStage\);[\s\S]*status = markStageFailed\(status, nextStage, message\);[\s\S]*await recordStageTelemetry\([\s\S]*?\);\n\s+if \(isStale\(\)\) return finishWithTelemetry\(staleResult\(\), status\);\n\s+onProgress\(status\);[\s\S]*appendTerminal\(\[`\[prepare\] auto failed:/,
+  );
+});
+
 test("React automatic preparation does not fail downstream blocked steps while an upstream step can run", async () => {
   const runner = await readFile(runnerPath, "utf8");
 

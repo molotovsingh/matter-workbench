@@ -152,6 +152,7 @@ export async function runAutomaticPreparation({
       const message = formatVisiblePreparationError(error, nextStage);
       status = markStageFailed(status, nextStage, message);
       await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'failed', stageStarts, message, preparationErrorDiagnostic(error));
+      if (isStale()) return finishWithTelemetry(staleResult(), status);
       onProgress(status);
       appendTerminal([`[prepare] auto failed: ${stageLabel(nextStage)} — ${message}`]);
       return finishWithTelemetry({
