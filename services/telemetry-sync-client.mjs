@@ -185,12 +185,8 @@ function createSyncTimeout(timeoutMs) {
   if (!timeoutMs || typeof AbortController === "undefined") {
     return { signal: undefined, clear: () => {} };
   }
-  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
-    return { signal: AbortSignal.timeout(timeoutMs), clear: () => {} };
-  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  timer.unref?.();
   return {
     signal: controller.signal,
     clear: () => clearTimeout(timer),

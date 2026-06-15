@@ -5,9 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
-const repoRoot = path.resolve(import.meta.dirname, "..");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(repoRoot, "scripts", "matter-attention-report.mjs");
 
 test("matter attention report CLI summarizes all matters without switching active matter", async () => {

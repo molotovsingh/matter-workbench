@@ -22,7 +22,7 @@ const DEFAULT_RELEASE = "v1.0.0-beta.10";
 const DEFAULT_LOCAL_GATES = [
   { label: "ui_typecheck", command: "npm", args: ["run", "ui:typecheck", "--silent"] },
   { label: "ui_build", command: "npm", args: ["run", "ui:build", "--silent"] },
-  { label: "full_test_suite", command: "npm", args: ["test", "--silent"] },
+  { label: "full_test_suite", command: "node", args: ["--test", "--test-concurrency=1"] },
 ];
 
 export function parseRcClosurePackArgs(argv = [], env = process.env) {

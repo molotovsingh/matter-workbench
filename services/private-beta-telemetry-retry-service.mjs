@@ -46,7 +46,6 @@ export function createPrivateBetaTelemetryRetryService({
         log.error?.(`private beta telemetry tick exceeded ${deadlineMs}ms; drain continues in background`);
         resolve({ completed: false, timedOut: true });
       }, deadlineMs);
-      deadlineTimer?.unref?.();
     });
     return Promise.race([work, deadline]).finally(() => clearTimeout(deadlineTimer));
   }

@@ -527,6 +527,35 @@ test("private beta RC closure pack sanitizes runtime env for local verification 
   }
 });
 
+test("private beta RC closure pack runs the full test gate serially for constrained VMs", async () => {
+  const { runPrivateBetaRcClosurePack } = await import(packPath.href);
+  const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-serial-tests-"));
+  const commands = [];
+
+  const result = await runPrivateBetaRcClosurePack({
+    outDir,
+    timestamp: "2026-06-06T22:00:00.000Z",
+    gitInfoFn: async () => ({ branch: "main", commit: "abc1234", statusShort: "" }),
+    localGateRunner: async ({ label, command, args }) => {
+      commands.push({ label, command, args });
+      return { ok: true, stdout: "", stderr: "", exitCode: 0 };
+    },
+    runtimeBrowserPackFn: async () => ({ passed: true, writeSmoke: { passed: true }, browser: { passed: true, checks: [] } }),
+    operatorAuthPreflightFn: happyOperatorAuth,
+    serviceCheckFn: async () => ({ passed: true }),
+    testerHandoffDrillFn: happyTesterHandoff,
+    opsPackFn: async () => ({ success: true, deployment: {}, serviceCheck: { ok: true }, logs: { ok: true }, disk: {} }),
+    securityCheckFn: async () => ({ passed: true, checks: [] }),
+    recoverabilityPackFn: async () => ({ success: true, steps: {} }),
+  });
+
+  assert.equal(result.success, true);
+  assert.deepEqual(
+    commands.find((gate) => gate.label === "full_test_suite"),
+    { label: "full_test_suite", command: "node", args: ["--test", "--test-concurrency=1"] },
+  );
+});
+
 test("package and release docs expose the private beta RC closure pack", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");

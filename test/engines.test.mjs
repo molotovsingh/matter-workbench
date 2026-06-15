@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import test from "node:test";
 import { runExtract } from "../extract-engine.mjs";
 import { PDF_ENGINE_FINGERPRINT } from "../extract-utils/pdf-extract.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { parseCsv } from "../shared/csv.mjs";
-
-const execFileAsync = promisify(execFile);
 
 async function makeMatterRoot(name = "matter") {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-workbench-test-"));
@@ -114,22 +110,95 @@ async function writeMixedPdf(filePath) {
 
 async function writeSimpleDocx(filePath) {
   await rm(filePath, { force: true });
-  const buildDir = await mkdtemp(path.join(os.tmpdir(), "matter-docx-"));
-  await mkdir(path.join(buildDir, "_rels"), { recursive: true });
-  await mkdir(path.join(buildDir, "word"), { recursive: true });
-  await writeFile(path.join(buildDir, "[Content_Types].xml"), `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  await writeFile(filePath, makeStoredZip([
+    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`);
-  await writeFile(path.join(buildDir, "_rels", ".rels"), `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+</Types>`],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`);
-  await writeFile(path.join(buildDir, "word", "document.xml"), `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Hello DOCX</w:t></w:r></w:p></w:body></w:document>`);
-  await execFileAsync("zip", ["-qr", filePath, "."], { cwd: buildDir });
+</Relationships>`],
+    ["word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Hello DOCX</w:t></w:r></w:p></w:body></w:document>`],
+  ]));
+}
+
+function makeStoredZip(entries) {
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const time = 0;
+  const day = ((2026 - 1980) << 9) | (1 << 5) | 1;
+
+  for (const [name, value] of entries) {
+    const nameBytes = Buffer.from(name);
+    const content = Buffer.from(value);
+    const checksum = crc32(content);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(time, 10);
+    local.writeUInt16LE(day, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(content.length, 18);
+    local.writeUInt32LE(content.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    local.writeUInt16LE(0, 28);
+    chunks.push(local, nameBytes, content);
+
+    const directory = Buffer.alloc(46);
+    directory.writeUInt32LE(0x02014b50, 0);
+    directory.writeUInt16LE(20, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(0, 8);
+    directory.writeUInt16LE(0, 10);
+    directory.writeUInt16LE(time, 12);
+    directory.writeUInt16LE(day, 14);
+    directory.writeUInt32LE(checksum, 16);
+    directory.writeUInt32LE(content.length, 20);
+    directory.writeUInt32LE(content.length, 24);
+    directory.writeUInt16LE(nameBytes.length, 28);
+    directory.writeUInt16LE(0, 30);
+    directory.writeUInt16LE(0, 32);
+    directory.writeUInt16LE(0, 34);
+    directory.writeUInt16LE(0, 36);
+    directory.writeUInt32LE(0, 38);
+    directory.writeUInt32LE(offset, 42);
+    central.push(directory, nameBytes);
+
+    offset += local.length + nameBytes.length + content.length;
+  }
+
+  const centralOffset = offset;
+  const centralSize = central.reduce((sum, chunk) => sum + chunk.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...chunks, ...central, end]);
+}
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function metadata() {
