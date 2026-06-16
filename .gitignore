@@ -45,6 +45,7 @@ configurable-skills.json
 configurable-skill-runs.json
 .doctor-backups/
 .pi/
+pi-session-*.html
 codedb.snapshot
 codex_review/codedb-artifacts/
 .claude/
