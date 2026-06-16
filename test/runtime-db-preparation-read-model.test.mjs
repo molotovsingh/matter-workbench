@@ -70,6 +70,45 @@ test("runtime DB preparation read model marks downstream paid stages stale from 
   assert.deepEqual(plan.metadata.missing, ["Client name", "Matter name", "Opposite party", "Jurisdiction"]);
 });
 
+test("runtime DB preparation read model reruns extraction when added files have no extracted records", () => {
+  const matter = { name: "DB Matter", matterName: "Legal Caption" };
+  const objects = [
+    objectRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "2026-06-07T09:00:00.000Z"),
+    objectRow("DB Matter/00_Inbox/Intake 01/Source Files/notice-a.pdf", "2026-06-07T09:05:00.000Z", {
+      objectRole: "source_working_copy",
+      fileId: "FILE-0001",
+      documentSha: "a".repeat(64),
+    }),
+    objectRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "2026-06-07T09:30:00.000Z", {
+      objectRole: "extraction_payload",
+    }),
+    objectRow("DB Matter/00_Inbox/Intake 02/Source Files/new-notice.pdf", "2026-06-07T13:00:00.000Z", {
+      objectRole: "source_working_copy",
+      fileId: "FILE-0002",
+      documentSha: "b".repeat(64),
+    }),
+    objectRow("DB Matter/10_Library/Source Index.json", "2026-06-07T11:00:00.000Z"),
+    objectRow("DB Matter/10_Library/List of Dates.md", "2026-06-07T12:00:00.000Z"),
+  ];
+  const tree = buildRuntimeWorkspaceTree({ matter, objects });
+  const status = runtimeMatterStatusFromWorkspaceState({ matter, objects, tree });
+
+  const extractStatus = status.stages.find((stage) => stage.slash === "/extract");
+  assert.equal(extractStatus.rerunAdvice.state, "stale");
+  assert.equal(extractStatus.rerunAdvice.newestInputPath, "00_Inbox/Intake 02/Source Files/new-notice.pdf");
+
+  const plan = runtimePrepareMatterPlanFromStatus({
+    matter,
+    dbMatter: { clientName: "Client", matterName: "Legal Caption", oppositeParty: "Other", matterType: "Consumer", jurisdiction: "India" },
+    status,
+  });
+
+  const extractStage = plan.stages.find((stage) => stage.slash === "/extract");
+  assert.equal(extractStage.state, "stale");
+  assert.equal(extractStage.action, "run");
+  assert.equal(plan.nextStep.slash, "/extract");
+});
+
 test("runtime DB preparation read model blocks later stages when upstream DB artifacts are missing", () => {
   const matter = { name: "DB Matter" };
   const objects = [

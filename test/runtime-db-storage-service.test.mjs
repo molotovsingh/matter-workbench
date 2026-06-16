@@ -255,6 +255,52 @@ test("runtime DB storage service marks List of Dates stale when Source Index is 
   assert.equal(listPlanStage.action, "confirm_paid_run");
 });
 
+test("runtime DB storage service sends added files through extraction before regenerating chronology", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {
+      matter,
+      objects: [
+        storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true, {
+          sha256: "1".repeat(64),
+          updatedAt: "2026-06-07T09:00:00.000Z",
+        }),
+        storageRow("DB Matter/00_Inbox/Intake 01/By Type/PDFs/FILE-0001__old.pdf", "source_working_copy", "application/pdf", 20, true, {
+          fileId: "FILE-0001",
+          documentSha: "2".repeat(64),
+          updatedAt: "2026-06-07T09:05:00.000Z",
+        }),
+        storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true, {
+          sha256: "3".repeat(64),
+          updatedAt: "2026-06-07T09:30:00.000Z",
+        }),
+        storageRow("DB Matter/00_Inbox/Intake 02/By Type/PDFs/FILE-0002__new.pdf", "source_working_copy", "application/pdf", 20, true, {
+          fileId: "FILE-0002",
+          documentSha: "4".repeat(64),
+          updatedAt: "2026-06-07T13:00:00.000Z",
+        }),
+        storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
+          sha256: "5".repeat(64),
+          updatedAt: "2026-06-07T11:00:00.000Z",
+        }),
+        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+          sha256: "6".repeat(64),
+          updatedAt: "2026-06-07T12:00:00.000Z",
+        }),
+      ],
+    }),
+  });
+
+  const plan = await service.readPrepareMatterPlan(matter);
+
+  const extractStage = plan.stages.find((stage) => stage.slash === "/extract");
+  assert.equal(extractStage.state, "stale");
+  assert.equal(extractStage.action, "run");
+  assert.equal(extractStage.rerunAdvice.newestInputPath, "00_Inbox/Intake 02/By Type/PDFs/FILE-0002__new.pdf");
+  assert.equal(plan.nextStep.slash, "/extract");
+});
+
 test("runtime DB storage service reads latest advisory snapshot from Postgres", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",

@@ -20,6 +20,7 @@ export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tr
       label: "Extract Documents",
       present: paths.some((item) => /(^|\/)_extracted\/[^/]+\.json$/i.test(item.path)),
       artifacts: extractedArtifacts(paths),
+      rerunAdvice: runtimeExtractRerunAdvice(runtimeInputs),
     }),
     statusStage({
       id: "describe-sources",
@@ -133,13 +134,93 @@ function runtimeStatusInputs({ matter, objects = [] } = {}) {
   const byPath = new Map(rows.map((row) => [row.relativePath, row]));
   const extractionInputs = rows
     .filter((row) => /(^|\/)_extracted\/[^/]+\.json$/i.test(row.relativePath))
-    .map((row) => runtimeInput(row, "extraction_record"));
+    .map((row) => runtimeInput({
+      ...row,
+      fileId: row.fileId || fileIdForExtractionPayload(row.relativePath),
+    }, "extraction_record"));
   return {
+    sourceInputs: runtimeSourceInputs(rows),
     extractionInputs,
     sourceIndex: byPath.get("10_Library/Source Index.json") || null,
     listOfDatesMarkdown: byPath.get("10_Library/List of Dates.md") || null,
     listOfDatesJson: byPath.get("10_Library/List of Dates.json") || null,
   };
+}
+
+function runtimeSourceInputs(rows = []) {
+  const byFileId = new Map();
+  for (const row of rows) {
+    if (row.objectRole !== "source_working_copy" || !row.fileId) continue;
+    const input = runtimeInput({
+      ...row,
+      sha256: row.documentSha || row.sha256,
+    }, "source_working_copy");
+    const previous = byFileId.get(input.fileId);
+    if (!previous || input.updatedMs > previous.updatedMs) byFileId.set(input.fileId, input);
+  }
+  return [...byFileId.values()];
+}
+
+function runtimeExtractRerunAdvice(inputs = {}) {
+  const sourceInputs = inputs.sourceInputs || [];
+  const extractionInputs = inputs.extractionInputs || [];
+  if (!sourceInputs.length) return null;
+  if (!extractionInputs.length) {
+    const newestInput = newestRuntimeInput(sourceInputs);
+    return runtimeAdvice({
+      skill: "/extract",
+      label: "extraction records",
+      state: RERUN_ADVICE_STATES.MISSING,
+      shouldConfirm: false,
+      reason: "Source files are present but extraction records are missing from DB payload custody.",
+      newestInputPath: newestInput?.relativePath || "",
+      newestInputAt: newestInput?.updatedAt || "",
+      inputCount: sourceInputs.length,
+    });
+  }
+
+  const extractionByFileId = new Map(extractionInputs
+    .filter((input) => input.fileId)
+    .map((input) => [input.fileId, input]));
+  for (const source of sourceInputs) {
+    const extracted = extractionByFileId.get(source.fileId);
+    if (!extracted) {
+      return runtimeAdvice({
+        skill: "/extract",
+        label: "extraction records",
+        state: RERUN_ADVICE_STATES.STALE,
+        shouldConfirm: false,
+        reason: "Added source files do not have extraction records in DB payload custody.",
+        newestInputPath: source.relativePath,
+        newestInputAt: source.updatedAt || "",
+        inputCount: sourceInputs.length,
+      });
+    }
+    if (source.updatedMs > extracted.updatedMs + 1) {
+      return runtimeAdvice({
+        skill: "/extract",
+        label: "extraction records",
+        state: RERUN_ADVICE_STATES.STALE,
+        shouldConfirm: false,
+        reason: "Newer source files were found after extraction records were built.",
+        newestInputPath: source.relativePath,
+        newestInputAt: source.updatedAt || "",
+        inputCount: sourceInputs.length,
+      });
+    }
+  }
+
+  const newestExtraction = newestRuntimeInput(extractionInputs);
+  return runtimeAdvice({
+    skill: "/extract",
+    label: "extraction records",
+    state: RERUN_ADVICE_STATES.CURRENT,
+    shouldConfirm: true,
+    artifactPath: newestExtraction?.relativePath || "",
+    lastRunAt: newestExtraction?.updatedAt || "",
+    reason: "Every DB source file has an extraction record.",
+    inputCount: sourceInputs.length,
+  });
 }
 
 function runtimeSourceLabelsRerunAdvice(inputs = {}) {
@@ -227,7 +308,19 @@ function runtimeInput(row, inputKind) {
     updatedAt: row.updatedAt || "",
     updatedMs: row.updatedMs || Date.parse(row.updatedAt || "") || 0,
     contentHash: row.sha256 || "",
+    fileId: row.fileId || "",
   };
+}
+
+function newestRuntimeInput(inputs = []) {
+  return inputs.reduce((newest, input) => (
+    !newest || input.updatedMs > newest.updatedMs ? input : newest
+  ), null);
+}
+
+function fileIdForExtractionPayload(relativePath = "") {
+  const match = String(relativePath || "").match(/(?:^|\/)_extracted\/(FILE-\d{4})\.json$/i);
+  return match ? match[1].toUpperCase() : "";
 }
 
 function runtimeAdvice({
