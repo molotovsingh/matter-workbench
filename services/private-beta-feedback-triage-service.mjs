@@ -9,6 +9,7 @@ export const TRIAGE_CLASSIFICATIONS = Object.freeze([
   "blocked_workflow",
   "legal_quality_concern",
   "operator_note",
+  // Legacy historical rows remain readable, but new tester asks/classifier output use feature_request.
   "feature_idea",
 ]);
 
@@ -58,6 +59,7 @@ export function buildFeedbackTriagePacket(item = {}) {
       currentMatterState: summarizeMatterState(item.currentMatterState),
     },
     allowed: {
+      // Keep legacy feature_idea out of the classifier contract; report readers still accept old rows.
       classifications: TRIAGE_CLASSIFICATIONS.filter((value) => value !== "feature_idea"),
       actionLanes: TRIAGE_ACTION_LANES,
       confidence: ["high", "medium", "low"],

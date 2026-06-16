@@ -192,3 +192,122 @@ test("mothership report downgrades stale preparation failures when latest matter
   assert.match(item.recommended_action, /No code action/);
   assert.equal(item.currentMatterState.prepareState, "complete");
 });
+
+test("mothership report links nearby same-matter signals to feedback triage", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    signals: [
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        signal_id: "signal_nearby_source_labels_failed",
+        severity: "error",
+        source: "job_status",
+        matter_name: "Pipeline Matter",
+        received_at: "2026-06-12T10:15:00.000Z",
+        payload: {
+          title: "Label Sources",
+          details: { errorMessage: "No extraction records found. Run /extract before creating a source index." },
+        },
+      },
+      {
+        installation_id: "matter-workbench-do-beta-2",
+        signal_id: "signal_other_installation",
+        severity: "error",
+        source: "job_status",
+        matter_name: "Pipeline Matter",
+        received_at: "2026-06-12T10:10:00.000Z",
+        payload: {
+          title: "Label Sources",
+          details: { errorMessage: "No extraction records found. Run /extract before creating a source index." },
+        },
+      },
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        signal_id: "signal_too_old",
+        severity: "error",
+        source: "job_status",
+        matter_name: "Pipeline Matter",
+        received_at: "2026-06-12T07:00:00.000Z",
+        payload: {
+          title: "Label Sources",
+          details: { errorMessage: "No extraction records found. Run /extract before creating a source index." },
+        },
+      },
+    ],
+    feedback: [{
+      installation_id: "matter-workbench-do-beta-1",
+      feedback_id: "feedback_cannot_find_lod",
+      classification: "confusing_ux",
+      received_at: "2026-06-12T10:00:00.000Z",
+      payload: {
+        tryingToDo: "Find List of Dates",
+        happenedInstead: "I cannot find where the List of Dates went.",
+        context: { activeMatterName: "Pipeline Matter" },
+      },
+    }],
+  }, { generatedAt: "2026-06-12T10:20:00.000Z" });
+
+  const feedback = report.items.find((item) => item.id === "feedback_cannot_find_lod");
+  assert.equal(feedback.action_lane, "fix_now");
+  assert.equal(feedback.relatedSignals.length, 1);
+  assert.equal(feedback.relatedSignals[0].id, "signal_nearby_source_labels_failed");
+  assert.match(feedback.reason, /extraction\/source-label\/List of Dates/i);
+  assert.match(renderMothershipReportMarkdown(report), /Related signals: 1/);
+});
+
+test("mothership report does not let stale matter health clear newer related signal evidence", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    signals: [{
+      installation_id: "matter-workbench-do-beta-1",
+      signal_id: "signal_newer_source_labels_failed",
+      severity: "error",
+      source: "job_status",
+      matter_name: "Taori vs Roma Builder",
+      received_at: "2026-06-13T10:45:00.000Z",
+      payload: {
+        title: "Label Sources",
+        details: { errorMessage: "No extraction records found. Run /extract before creating a source index." },
+      },
+    }],
+    feedback: [{
+      installation_id: "matter-workbench-do-beta-1",
+      feedback_id: "feedback_after_clear_health",
+      classification: "confusing_ux",
+      received_at: "2026-06-13T10:00:00.000Z",
+      payload: {
+        tryingToDo: "Use List of Dates",
+        happenedInstead: "Preparation says it already ran but List of Dates was not generated.",
+        context: { activeMatterName: "Taori vs Roma Builder" },
+      },
+    }],
+    heartbeats: [{
+      installation_id: "matter-workbench-do-beta-1",
+      heartbeat_id: "heartbeat_taori_clear_then_stale",
+      captured_at: "2026-06-13T10:30:00.000Z",
+      received_at: "2026-06-13T10:30:00.000Z",
+      payload: {
+        id: "heartbeat_taori_clear_then_stale",
+        activeSessions: 0,
+        matterHealth: [{
+          matter: "Taori vs Roma Builder",
+          prepareState: "complete",
+          nextStepLabel: "Core preparation is current",
+          attentionState: "clear",
+          blockers: 0,
+          warnings: 0,
+          checkedAt: "2026-06-13T10:30:00.000Z",
+        }],
+      },
+    }],
+  }, { generatedAt: "2026-06-13T10:50:00.000Z" });
+
+  const feedback = report.items.find((item) => item.id === "feedback_after_clear_health");
+  assert.equal(feedback.currentness, "current");
+  assert.equal(feedback.action_lane, "fix_now");
+  assert.equal(feedback.relatedSignals[0].id, "signal_newer_source_labels_failed");
+
+  const signal = report.items.find((item) => item.id === "signal_newer_source_labels_failed");
+  assert.equal(signal.currentness, "current");
+  assert.equal(signal.action_lane, "fix_now");
+});

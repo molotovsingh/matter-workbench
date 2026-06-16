@@ -1,15 +1,19 @@
 import { routePrivateBetaFeedbackTriage } from "../services/private-beta-feedback-triage-service.mjs";
 import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-redaction.mjs";
 
+const RELATED_SIGNAL_WINDOW_MS = 2 * 60 * 60 * 1000;
+const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|list of dates|label sources|source labels?/;
+
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
   const metricSummary = summarizeMetrics(dataset.metrics || []);
   const heartbeatSummary = summarizeHeartbeats(dataset.heartbeats || [], generatedAt);
   const latestRuntimeEvidenceAt = latestEvidenceTime(metricSummary, heartbeatSummary);
-  const signalItems = (dataset.signals || [])
-    .map(signalReportItem)
+  const rawSignalItems = (dataset.signals || []).map(signalReportItem);
+  const signalItems = rawSignalItems
     .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
   const feedbackItems = (dataset.feedback || [])
     .map(feedbackReportItem)
+    .map((item) => attachRelatedSignals(item, rawSignalItems))
     .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
@@ -100,7 +104,10 @@ export function renderMothershipReportMarkdown(report = {}) {
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
       if (item.action_lane) lines.push(`- Action lane: ${item.action_lane}`);
+      if (item.triage_source || item.confidence) lines.push(`- Triage: ${[item.triage_source, item.confidence].filter(Boolean).join(" / ")}`);
       if (item.currentness) lines.push(`- Currentness: ${item.currentness}`);
+      if (item.relatedSignals?.length) lines.push(`- Related signals: ${item.relatedSignals.length}`);
+      if (item.reason) lines.push(`- Reason: ${redactReportText(item.reason)}`);
       if (item.recommended_action) lines.push(`- Recommended action: ${redactReportText(item.recommended_action)}`);
       lines.push(`- Received: ${item.receivedAt || ""}`);
       if (item.detail) lines.push(`- Detail: ${redactReportText(item.detail)}`);
@@ -132,6 +139,8 @@ function signalReportItem(row = {}) {
       || payload.details?.action
       || "",
     ),
+    firstSeenAt: toIsoIfPresent(row.first_seen_at, payload.firstSeenAt, payload.createdAt),
+    lastSeenAt: toIsoIfPresent(row.last_seen_at, payload.lastSeenAt, payload.updatedAt, payload.createdAt),
   };
 }
 
@@ -271,6 +280,51 @@ function annotateTriage(item = {}, context = {}) {
   };
 }
 
+function attachRelatedSignals(item = {}, signalItems = []) {
+  const relatedSignals = relatedSignalsForFeedback(item, signalItems);
+  return relatedSignals.length ? { ...item, relatedSignals } : item;
+}
+
+function relatedSignalsForFeedback(item = {}, signalItems = []) {
+  const installationId = normalizeReportKey(item.installationId);
+  const matterName = normalizeMatterName(item.matterName);
+  const feedbackTime = Date.parse(item.receivedAt || "");
+  if (!installationId || !matterName || !Number.isFinite(feedbackTime)) return [];
+  return signalItems
+    .filter((signal) => normalizeReportKey(signal.installationId) === installationId)
+    .filter((signal) => normalizeMatterName(signal.matterName) === matterName)
+    .filter((signal) => isNearbySignalTime(feedbackTime, signal))
+    .sort(compareRelatedSignalRecency)
+    .slice(0, 8)
+    .map((signal) => ({
+      id: signal.id,
+      category: signal.category,
+      title: signal.title,
+      detail: signal.detail,
+      receivedAt: signal.receivedAt,
+      firstSeenAt: signal.firstSeenAt,
+      lastSeenAt: signal.lastSeenAt,
+    }));
+}
+
+function isNearbySignalTime(feedbackTime, signal = {}) {
+  return [signal.receivedAt, signal.lastSeenAt, signal.firstSeenAt]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite)
+    .some((signalTime) => Math.abs(feedbackTime - signalTime) <= RELATED_SIGNAL_WINDOW_MS);
+}
+
+function compareRelatedSignalRecency(left = {}, right = {}) {
+  return latestSignalTime(right) - latestSignalTime(left);
+}
+
+function latestSignalTime(signal = {}) {
+  const times = [signal.receivedAt, signal.lastSeenAt, signal.firstSeenAt]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : 0;
+}
+
 function latestEvidenceTime(metricSummary = {}, heartbeatSummary = {}) {
   const times = [
     metricSummary.latest?.receivedAt,
@@ -285,7 +339,7 @@ function latestEvidenceTime(metricSummary = {}, heartbeatSummary = {}) {
 
 function classifyCurrentness(item = {}, latestRuntimeEvidenceAt = null, currentMatterState = null) {
   if (isResolvedByMatterState(item, currentMatterState)) return "resolved_by_latest_matter_state";
-  const itemTime = Date.parse(item.receivedAt || "");
+  const itemTime = latestItemEvidenceTime(item);
   if (!Number.isFinite(itemTime) || !Number.isFinite(latestRuntimeEvidenceAt)) return "unknown";
   if (latestRuntimeEvidenceAt - itemTime >= 10 * 60 * 1000) return "needs_live_recheck";
   return "current";
@@ -324,7 +378,7 @@ function matterStateKey(installationId = "", matterName = "") {
 function isResolvedByMatterState(item = {}, currentMatterState = null) {
   if (!currentMatterState || !item.matterName) return false;
   if (!isPreparationPipelineIssue(item)) return false;
-  const itemTime = Date.parse(item.receivedAt || "");
+  const itemTime = latestItemEvidenceTime(item);
   const checkedTime = Date.parse(currentMatterState.checkedAt || "");
   if (!Number.isFinite(itemTime) || !Number.isFinite(checkedTime) || checkedTime <= itemTime) return false;
   return currentMatterState.prepareState === "complete"
@@ -335,8 +389,21 @@ function isResolvedByMatterState(item = {}, currentMatterState = null) {
 
 function isPreparationPipelineIssue(item = {}) {
   const text = normalizeReportText(`${item.title || ""} ${item.detail || ""}`);
-  return item.category === "critical_signal"
-    && /no extraction records|run extract|source index|create_listofdates|list of dates|label sources/.test(text);
+  if (item.category === "critical_signal" && PREPARATION_PIPELINE_RE.test(text)) return true;
+  if (PREPARATION_PIPELINE_RE.test(text) && /failed|missing|not found|cannot|can't|error|already ran|blocked|not created|not generated|not showing/.test(text)) return true;
+  return Array.isArray(item.relatedSignals)
+    && item.relatedSignals.some((signal) => PREPARATION_PIPELINE_RE.test(normalizeReportText(`${signal.title || ""} ${signal.detail || ""}`)));
+}
+
+function latestItemEvidenceTime(item = {}) {
+  const times = [item.receivedAt, item.lastSeenAt, item.firstSeenAt]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+  for (const signal of Array.isArray(item.relatedSignals) ? item.relatedSignals : []) {
+    const signalTime = latestSignalTime(signal);
+    if (Number.isFinite(signalTime) && signalTime > 0) times.push(signalTime);
+  }
+  return times.length ? Math.max(...times) : NaN;
 }
 
 function actionLaneCounts(items = []) {
@@ -379,8 +446,21 @@ function toIso(value) {
   return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
+function toIsoIfPresent(...values) {
+  const value = values.find((item) => item !== undefined && item !== null && String(item).trim() !== "");
+  return value === undefined ? "" : toIso(value);
+}
+
 function redactReportText(value) {
   return redactSensitiveText(value);
+}
+
+function normalizeReportKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeMatterName(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function normalizeReportText(value) {
