@@ -9,7 +9,7 @@ const packPath = new URL("../scripts/private-beta-rc-closure-pack.mjs", import.m
 const packagePath = new URL("../package.json", import.meta.url);
 const readmePath = new URL("../README.md", import.meta.url);
 const checklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.url);
-const releasePath = new URL("../docs/releases/v1.0.0-beta.10.md", import.meta.url);
+const releasePath = new URL("../docs/releases/v1.0.0-beta.12.md", import.meta.url);
 const docsPath = new URL("../docs/private-beta-rc-closure-pack.md", import.meta.url);
 
 async function happyTesterHandoff({ baseUrl, usersFile, feedbackPath, outDir, timestamp }) {
@@ -53,7 +53,7 @@ test("private beta RC closure pack writes release evidence across required gates
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-"));
   const calls = [];
 
-  assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.10");
+  assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.12");
   const parsedHandoffArgs = parseRcClosurePackArgs([
     "--tester-users-file",
     "/secure/users.json",
@@ -66,7 +66,7 @@ test("private beta RC closure pack writes release evidence across required gates
   const result = await runPrivateBetaRcClosurePack({
     outDir,
     timestamp: "2026-06-06T22:00:00.000Z",
-    release: "v1.0.0-beta.10",
+    release: "v1.0.0-beta.12",
     baseUrl: "http://172.16.37.128:4191",
     authUsername: "aks",
     authPassword: "private-secret",
@@ -172,7 +172,7 @@ test("private beta RC closure pack writes release evidence across required gates
 
   assert.equal(result.success, true);
   assert.equal(result.schemaVersion, "private-beta-rc-closure-pack/v1");
-  assert.equal(result.release, "v1.0.0-beta.10");
+  assert.equal(result.release, "v1.0.0-beta.12");
   assert.equal(result.git.commit, "abc1234");
   assert.equal(result.localGates.ok, true);
   assert.equal(result.runtimeDbBrowser.ok, true);
@@ -573,11 +573,11 @@ test("package and release docs expose the private beta RC closure pack", async (
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");
 
   const readme = await readFile(readmePath, "utf8");
-  assert.match(readme, /v1\.0\.0-beta\.10/);
+  assert.match(readme, /v1\.0\.0-beta\.12/);
   assert.match(readme, /private-beta:rc-closure-pack/);
 
   const checklist = await readFile(checklistPath, "utf8");
-  assert.match(checklist, /v1\.0\.0-beta\.10/);
+  assert.match(checklist, /v1\.0\.0-beta\.12/);
   assert.match(checklist, /private-beta:rc-closure-pack/);
 
   const release = await readFile(releasePath, "utf8");
