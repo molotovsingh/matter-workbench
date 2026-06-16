@@ -14,6 +14,7 @@ equally authoritative.
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
 | Fast local/private beta start | [Quickstart](../QUICKSTART.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
+| Archived root technical README | [Engineering README Archive](engineering-readme-archive.md) |
 | Beta user/operator runbook | [Beta User Runbook](beta-user-runbook.md) |
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
 | Private beta tester brief | [Private Beta Tester Brief](private-beta-tester-brief.md) |
