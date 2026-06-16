@@ -107,7 +107,7 @@ npm run private-vm:rsync-deploy -- \
 The helper deploys the current committed `HEAD` into
 `$deploymentRoot/<commit>/app`. It pipes `git ls-files -z` into `rsync`, so
 untracked local scratch files are not deployed. It also excludes local-only
-folders such as `node_modules/`, `.local/`, `codex_review/`, `claude_review/`,
+folders such as `node_modules/`, `.local/`, `codex_review/`,
 and `.env*`.
 
 Before mutating the release directory, it checks the VM has `rsync`, `node`,

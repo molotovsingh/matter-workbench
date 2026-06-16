@@ -44,9 +44,9 @@ The retest was run after changing the OpenRouter request path to omit default `t
 | Model | Route | Result | Time | Rows | Accepted | Clustered | Cost | Notes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | `openai/gpt-5.5-pro` | OpenRouter, latency | Failed | 300s | - | - | - | - | Routed successfully, but timed out on the full matter at the 300s request timeout. |
-| `anthropic/claude-opus-4.7` | OpenRouter, latency | Failed | 3s | - | - | - | - | Latency routing selected Amazon Bedrock, which rejected the structured-output request. |
-| `anthropic/claude-opus-4.7` | OpenRouter, `provider.order=Anthropic` | Passed | 152s | 42 | 54 | 12 | `$0.4651` | Highest-cost successful premium run. |
-| `anthropic/claude-sonnet-4.6` | OpenRouter, latency | Passed | 204s | 48 | 66 | 18 | `$0.2744` | Most exhaustive successful run, but somewhat over-inclusive. |
+| `<openrouter-premium-model>` | OpenRouter, latency | Failed | 3s | - | - | - | - | Latency routing selected Amazon Bedrock, which rejected the structured-output request. |
+| `<openrouter-premium-model>` | OpenRouter, `provider.order=Anthropic` | Passed | 152s | 42 | 54 | 12 | `$0.4651` | Highest-cost successful premium run. |
+| `<openrouter-editor-model>` | OpenRouter, latency | Passed | 204s | 48 | 66 | 18 | `$0.2744` | Most exhaustive successful run, but somewhat over-inclusive. |
 | `openai/gpt-4.1` | OpenRouter, latency | Passed | 40s | 35 | 49 | 14 | `$0.0708` | Best practical beta default: fastest, cheapest, and clean enough. |
 
 ## Quality Notes
@@ -67,7 +67,7 @@ Observed weakness:
 
 - one non-merits/procedural row slipped through: a vakalatnama execution row.
 
-### `anthropic/claude-opus-4.7`
+### `<openrouter-premium-model>`
 
 Opus 4.7 is the premium comparison mode, but only when pinned to Anthropic:
 
@@ -84,7 +84,7 @@ Tradeoff:
 - much slower than GPT-4.1;
 - unsafe to run unpinned with latency routing, because Bedrock may be selected and fail structured output.
 
-### `anthropic/claude-sonnet-4.6`
+### `<openrouter-editor-model>`
 
 Sonnet 4.6 was detailed and useful for review, but more over-inclusive:
 
@@ -115,7 +115,7 @@ Use Opus 4.7 as premium review mode only when explicitly pinned to Anthropic:
 
 ```text
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
-OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=anthropic/claude-opus-4.7
+OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=<openrouter-premium-model>
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_ORDER=Anthropic
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=8000
@@ -124,7 +124,7 @@ OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=8000
 Avoid for now:
 
 - `openai/gpt-5.5-pro` for full matters, because the full-matter run timed out.
-- unpinned `anthropic/claude-opus-4.7` with latency routing, because it can route to Bedrock and fail structured output.
+- unpinned `<openrouter-premium-model>` with latency routing, because it can route to Bedrock and fail structured output.
 
 ## Engineering Follow-Up
 

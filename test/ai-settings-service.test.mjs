@@ -166,7 +166,7 @@ test("AI settings save Matter Copilot routing without changing global AI default
     });
     saved = await service.saveSettings({
       copilotProvider: "openrouter",
-      copilotModel: "anthropic/claude-sonnet-4.5",
+      copilotModel: "openai/gpt-4.1",
       copilotApiKey: "sk-or-v1-test",
     });
   } finally {
@@ -176,12 +176,12 @@ test("AI settings save Matter Copilot routing without changing global AI default
   assert.equal(env.OPENAI_MODEL, "gpt-existing");
   assert.equal(env.OPENAI_MAX_OUTPUT_TOKENS, "2048");
   assert.equal(env.COPILOT_ANSWER_PROVIDER, "openrouter");
-  assert.equal(env.OPENROUTER_COPILOT_ANSWER_MODEL, "anthropic/claude-sonnet-4.5");
+  assert.equal(env.OPENROUTER_COPILOT_ANSWER_MODEL, "openai/gpt-4.1");
   assert.equal(env.OPENROUTER_API_KEY, "sk-or-v1-test");
 
   const copilot = saved.aiTasks.find((task) => task.task === "copilot_answer");
   assert.equal(copilot.provider, "openrouter");
-  assert.equal(copilot.model, "anthropic/claude-sonnet-4.5");
+  assert.equal(copilot.model, "openai/gpt-4.1");
   assert.equal(copilot.ready, true);
   assert.equal(copilot.note, "Ready");
   assert.equal(saved.model, "gpt-existing");
@@ -189,11 +189,11 @@ test("AI settings save Matter Copilot routing without changing global AI default
   const text = await readFile(path.join(appDir, ".env"), "utf8");
   assert.match(text, /OPENAI_MODEL=gpt-existing/);
   assert.match(text, /COPILOT_ANSWER_PROVIDER=openrouter/);
-  assert.match(text, /OPENROUTER_COPILOT_ANSWER_MODEL=anthropic\/claude-sonnet-4\.5/);
+  assert.match(text, /OPENROUTER_COPILOT_ANSWER_MODEL=openai\/gpt-4\.1/);
   assert.match(text, /OPENROUTER_API_KEY=sk-or-v1-test/);
 
   assert.equal(bodies.length, 1);
-  assert.equal(bodies[0].model, "anthropic/claude-sonnet-4.5");
+  assert.equal(bodies[0].model, "openai/gpt-4.1");
   assert.equal(bodies[0].provider.allow_fallbacks, false);
   assert.equal(bodies[0].provider.require_parameters, true);
   assert.equal(bodies[0].response_format.type, "json_schema");
@@ -231,7 +231,7 @@ test("AI settings do not persist Matter Copilot switch when model ping fails", a
     await assert.rejects(
       () => service.saveSettings({
         copilotProvider: "openrouter",
-        copilotModel: "anthropic/claude-sonnet-4.5",
+        copilotModel: "openai/gpt-4.1",
         copilotApiKey: "sk-or-v1-test",
       }),
       /Matter Copilot model check failed: model not available/,
@@ -336,7 +336,7 @@ test("AI settings reject Matter Copilot switch when OpenRouter returns a choice 
     await assert.rejects(
       () => service.saveSettings({
         copilotProvider: "openrouter",
-        copilotModel: "anthropic/claude-sonnet-4.5",
+        copilotModel: "openai/gpt-4.1",
       }),
       /structured outputs unavailable/,
     );

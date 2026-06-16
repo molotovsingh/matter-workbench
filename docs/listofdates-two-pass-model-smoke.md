@@ -140,9 +140,9 @@ Cross-provider editor test using OpenRouter:
 node evals/listofdates/two-pass-model-smoke.mjs \
   --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-41-20260515/candidates.json" \
   --pass2-provider openrouter \
-  --pass2-model anthropic/claude-sonnet-4.6 \
+  --pass2-model <openrouter-editor-model> \
   --pass2-max-output-tokens 24000 \
-  --run-label atlas-gpt-41-to-claude-sonnet-46
+  --run-label atlas-gpt-41-to-openrouter-editor-model
 ```
 
 Models with `/` in the model id default to OpenRouter. Explicit `--pass1-provider` and `--pass2-provider` can be used when needed.
@@ -153,9 +153,9 @@ Opus editor variant:
 node evals/listofdates/two-pass-model-smoke.mjs \
   --candidates-file ".local/listofdates-two-pass/atlas-pass1-gpt-41-20260515/candidates.json" \
   --pass2-provider openrouter \
-  --pass2-model anthropic/claude-opus-4.6 \
+  --pass2-model anthropic/openrouter-model-opus-4.6 \
   --pass2-max-output-tokens 24000 \
-  --run-label atlas-gpt-41-to-claude-opus-46
+  --run-label atlas-gpt-41-to-openrouter-premium-model
 ```
 
 ## Review Gates

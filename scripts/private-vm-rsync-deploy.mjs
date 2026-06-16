@@ -13,7 +13,6 @@ const RSYNC_EXCLUDES = [
   "react-dist/",
   ".local/",
   "codex_review/",
-  "claude_review/",
   ".env",
   ".env.*",
   "*.tgz",

@@ -462,8 +462,8 @@ clean concise alternate: gpt-5.4-mini -> gpt-5.4
 Operational finding:
 
 ```text
-OpenRouter Claude editor passes can work, but strict JSON can be fragile.
-Claude as verbose first pass repeatedly returned truncated / unterminated JSON with the current chunk shape.
+OpenRouter editor passes can work, but strict JSON can be fragile.
+One non-default verbose first-pass model repeatedly returned truncated / unterminated JSON with the current chunk shape.
 ```
 
 This means OpenRouter should not be treated as "bad" or "good" globally. It should be treated as another route with task-specific evidence.
@@ -486,7 +486,7 @@ pass 1 fallback:
   only to a model proven to return valid candidate JSON on chunks of this size
 
 pass 2 fallback:
-  OpenRouter Claude can be tested as an editor fallback, but the run must record JSON retries and returned model aliases
+  OpenRouter editor fallbacks can be tested, but the run must record JSON retries and returned model aliases
 ```
 
 For skill interviews and skill authoring:
@@ -528,7 +528,7 @@ If fallback happens:
   "requestedProvider": "openai-direct",
   "requestedModel": "gpt-5.4-mini",
   "actualProvider": "openrouter",
-  "actualModel": "anthropic/claude-4.6-sonnet-20260217",
+  "actualModel": "<returned-provider-model-id>",
   "fallbackUsed": true,
   "fallbackReason": "primary provider timeout",
   "structuredOutputValid": true,

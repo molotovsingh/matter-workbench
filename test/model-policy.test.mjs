@@ -104,7 +104,7 @@ test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deter
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, {
     env: {
       SKILL_INTERVIEW_PLANNER_PROVIDER: "openrouter",
-      OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL: "anthropic/claude-opus-4.1",
+      OPENROUTER_SKILL_INTERVIEW_PLANNER_MODEL: "openai/gpt-4.1",
       OPENROUTER_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS: "2200",
       OPENROUTER_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS: "30000",
     },
@@ -114,7 +114,7 @@ test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deter
     tier: "skill_design_interview",
     provider: AI_PROVIDERS.OPENROUTER,
     endpoint: DEFAULT_OPENROUTER_ENDPOINT,
-    model: "anthropic/claude-opus-4.1",
+    model: "openai/gpt-4.1",
     maxOutputTokens: 2200,
     timeoutMs: 30000,
     fallback: "deterministic_fallback",

@@ -201,7 +201,7 @@ The Atlas ranking currently supports two model-pair profiles:
 | Legal-use accuracy default candidate | `gpt-4.1` | `gpt-5.4-mini` | The goal is richer legal coverage on messy PDFs. |
 | Clean concise alternate | `gpt-5.4-mini` | `gpt-5.4` | The goal is a cleaner first draft with lower row count. |
 
-Claude/OpenRouter editor passes can be useful as comparison or fallback experiments, but Claude should not be the default verbose first pass under the current strict JSON/chunk shape. The observed failure mode was truncated or unterminated JSON.
+OpenRouter editor passes can be useful as comparison or fallback experiments, but non-default editor models should not become the default verbose first pass under the current strict JSON/chunk shape without a fresh reliability bakeoff. The observed failure mode in one prior provider trial was truncated or unterminated JSON.
 
 Production should use central model policy rather than hardcoding model IDs inside the engine. The policy must record requested provider/model and returned provider/model for both passes.
 

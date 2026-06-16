@@ -25,7 +25,7 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.doesNotMatch(models, /shortLabel: '4\.1'/);
   assert.doesNotMatch(models, /label: 'Gemini 2\.5 Pro'/);
   assert.doesNotMatch(models, /shortLabel: 'Gemini'/);
-  assert.doesNotMatch(models, /label: 'Claude Sonnet 4\.[56]'/);
+  assert.doesNotMatch(models, /provider-branded model labels/);
   assert.match(source, /copilotProvider/);
   assert.match(source, /copilotModel/);
   assert.match(source, /Skills and List of Dates keep their governed routes/);

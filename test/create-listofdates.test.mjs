@@ -968,7 +968,7 @@ test("OpenRouter provider surfaces upstream provider error details", async () =>
   const provider = createOpenRouterProvider({
     apiKey: "sk-openrouter-test",
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
-    model: "anthropic/claude-sonnet-4.6",
+    model: "openai/gpt-4.1",
     fetchImpl: async () => ({
       ok: false,
       status: 400,

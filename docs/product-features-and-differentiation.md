@@ -322,9 +322,9 @@ When current artifacts already exist, rerun advice can tell the user:
 
 The goal is not to block the lawyer. The goal is to prevent accidental paid reruns and accidental replacement of reviewed work.
 
-## Why A Lawyer Cannot Just Do This With Claude Or OpenAI Chat
+## Why A Lawyer Cannot Just Do This With Generic AI Chat
 
-A lawyer can absolutely ask Claude or OpenAI to summarize documents, draft a chronology, or answer questions. Generic chat is useful.
+A lawyer can absolutely ask a generic AI chat product to summarize documents, draft a chronology, or answer questions. Generic chat is useful.
 
 But generic chat is not a matter workbench.
 
@@ -409,7 +409,7 @@ Matter Workbench encodes those boundaries. `10_Library` outputs are generated so
 
 ### Generic chat does not create governed reusable skills
 
-A lawyer can save prompts in Claude or OpenAI, but a saved prompt is not the same as a governed skill lifecycle.
+A lawyer can save prompts in a generic AI product, but a saved prompt is not the same as a governed skill lifecycle.
 
 Matter Workbench custom skills require:
 

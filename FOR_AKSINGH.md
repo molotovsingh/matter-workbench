@@ -898,7 +898,7 @@ The current safe arrangement is:
 - `npm run ui:smoke` checks that the production React root and the live backend still agree on the API shapes React renders.
 - `npm run ui:accept` runs the build and live smoke together before promoting frontend experiments.
 
-This means the separate `matter-workbench-react-ui-claude` repo is no longer a
+This means the separate `matter-workbench-react-ui-prototype` repo is no longer a
 source of truth. Keep it only as a temporary backup until we are comfortable
 deleting it.
 
