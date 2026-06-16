@@ -4,7 +4,8 @@ import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
 import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
-import type { AiSettings, PrivateBetaUser, Skill } from '../types';
+import { canSeeOperatorSurface } from '../lib/lawyerMode';
+import type { AiSettings, PrivateBetaUser, Skill, SystemHealthReport } from '../types';
 
 function findCopilotTask(settings: AiSettings | null) {
   return settings?.aiTasks?.find((task) => task.task === 'copilot_answer') || null;
@@ -37,6 +38,8 @@ export default function SettingsPage() {
 
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsError, setSkillsError] = useState('');
+  const [systemHealth, setSystemHealth] = useState<SystemHealthReport | null>(null);
+  const [systemHealthError, setSystemHealthError] = useState('');
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [betaUsers, setBetaUsers] = useState<PrivateBetaUser[]>([]);
   const [betaUsersError, setBetaUsersError] = useState('');
@@ -47,18 +50,21 @@ export default function SettingsPage() {
   const [temporaryPasswordNotice, setTemporaryPasswordNotice] = useState('');
 
   const isSuperuser = state.authUser?.role === 'superuser';
+  const canReviewSystemHealth = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   const loadSettingsData = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoadingSettings(true);
     setMattersHomeError('');
     setAiLoadError('');
     setSkillsError('');
+    setSystemHealthError('');
     setBetaUsersError('');
 
-    const [configResult, aiResult, skillsResult] = await Promise.allSettled([
+    const [configResult, aiResult, skillsResult, systemHealthResult] = await Promise.allSettled([
       api.getConfig(),
       api.getAiSettings(),
       api.getSkills(),
+      canReviewSystemHealth ? api.getSystemHealth() : Promise.resolve(null),
     ]);
 
     if (isCancelled()) return;
@@ -91,6 +97,14 @@ export default function SettingsPage() {
       setSkillsError(getErrorMessage(skillsResult.reason));
     }
 
+    if (systemHealthResult.status === 'fulfilled') {
+      setSystemHealth(systemHealthResult.value);
+    } else if (canReviewSystemHealth) {
+      setSystemHealthError(getErrorMessage(systemHealthResult.reason));
+    } else {
+      setSystemHealth(null);
+    }
+
     if (isSuperuser) {
       setBetaUsersLoading(true);
       const usersResult = await api.getPrivateBetaUsers()
@@ -108,7 +122,7 @@ export default function SettingsPage() {
     }
 
     setLoadingSettings(false);
-  }, [isSuperuser]);
+  }, [canReviewSystemHealth, isSuperuser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,7 +296,8 @@ export default function SettingsPage() {
     }
   }
 
-  const overallReady = (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false);
+  const systemHealthNeedsAttention = systemHealth?.status === 'warning' || systemHealth?.status === 'error';
+  const overallReady = !systemHealthNeedsAttention && (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false);
   const copilotTask = findCopilotTask(settings);
   const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
     ? copilotPresetValue(copilotProvider, copilotModel)
@@ -303,7 +318,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {(aiLoadError || skillsError || (!mattersHome && mattersHomeError)) && (
+      {(aiLoadError || skillsError || systemHealthError || (!mattersHome && mattersHomeError)) && (
         <div className="run-failure-card" style={{ marginBottom: 18 }}>
           <strong>Some settings data could not be loaded</strong>
           <button
@@ -314,6 +329,70 @@ export default function SettingsPage() {
           >
             {loadingSettings ? 'Retrying…' : 'Retry loading settings'}
           </button>
+        </div>
+      )}
+
+      {canReviewSystemHealth && (
+        <div className="settings-section">
+          <h2>System Health</h2>
+          <div className="settings-card" style={{ display: 'grid', gap: 12 }}>
+            {systemHealth ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <strong>{systemHealthNeedsAttention ? 'System health needs attention' : 'All systems ready'}</strong>
+                    <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                      {systemHealth.summary?.checks ?? systemHealth.checks.length} read-only checks · {systemHealth.runtime?.storageMode || runtimeStorageMode} storage
+                    </div>
+                  </div>
+                  <span className={`provider-status ${systemHealth.status === 'ok' ? 'ready' : 'needs-setup'}`}>
+                    {systemHealth.status === 'ok' ? 'Ready' : systemHealth.status === 'error' ? 'Errors' : 'Warnings'}
+                  </span>
+                </div>
+                {systemHealth.recommendations && systemHealth.recommendations.length > 0 && (
+                  <ul className="skill-idea-sample-warnings" style={{ margin: 0 }}>
+                    {systemHealth.recommendations.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                )}
+                <details>
+                  <summary style={{ cursor: 'pointer' }}>Technical health checks</summary>
+                  <div className="table-scroll" style={{ marginTop: 12 }}>
+                    <table className="extract-table">
+                      <thead>
+                        <tr>
+                          <th>Check</th>
+                          <th>Area</th>
+                          <th>Status</th>
+                          <th>Message</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {systemHealth.checks.map((check) => (
+                          <tr key={check.id}>
+                            <td>{check.label}</td>
+                            <td>{check.category}</td>
+                            <td>
+                              <span className={`provider-status ${check.status === 'ok' ? 'ready' : 'needs-setup'}`}>
+                                {check.status}
+                              </span>
+                            </td>
+                            <td>{check.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <div>
+                <strong>System health unavailable</strong>
+                <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+                  {systemHealthError || 'Loading read-only system checks…'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

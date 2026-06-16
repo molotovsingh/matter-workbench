@@ -33,6 +33,7 @@ import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-id
 import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-samples-service.mjs";
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
+import { createSystemHealthService } from "./services/system-health-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
@@ -288,6 +289,16 @@ export async function createWorkbenchServer(options = {}) {
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.skillSampleOutputEndpoint,
   });
+  const systemHealthService = options.systemHealthService || createSystemHealthService({
+    appDir,
+    aiSettingsService,
+    commandInteractionLogService,
+    configService,
+    env,
+    jobStatusService,
+    matterStore,
+    runtimeDbStorageService,
+  });
   const services = {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
@@ -320,6 +331,7 @@ export async function createWorkbenchServer(options = {}) {
     skillRouterService,
     skillSamplesService,
     skillSampleOutputService,
+    systemHealthService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,
     uploadService,
     workspaceService,

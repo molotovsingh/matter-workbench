@@ -88,20 +88,27 @@ System Health answers:
 Is the app itself configured, connected, writable, and operational?
 ```
 
-System Health is parked as a future feature.
+Current first-slice implementation:
 
-Its scope should include app/runtime setup rather than any one matter:
+- `GET /api/system-health`;
+- schema `system-health/v1`;
+- `npm run system-health:report`;
+- compact Settings-page readiness card for operator/local surfaces.
+
+Its scope includes app/runtime setup rather than any one matter:
 
 - matters home configured, readable, and writable where required;
-- `.env` and app-local stores parse correctly;
+- runtime DB storage mode configured when selected;
+- `.env` readability/parseability without exposing secret values;
 - provider/model routes resolve through policy;
 - configured provider keys exist where required;
-- key routes return shaped errors;
-- command logs and custom-skill stores are readable;
-- cross-matter failures point to a shared root cause.
+- recent global job failures point to provider/runtime posture;
+- command interaction log is readable and recent command failures are summarized;
+- matter list scanning does not throw.
 
-Future System Health should be read-only in its first slice. It should not run
-skills, call expensive providers, mutate config, or write matter artifacts.
+System Health is read-only in this first slice. It must not run skills, call
+providers, mutate config, write matter artifacts, enforce credits, or initiate
+billing/payment flows.
 
 ## Examples
 
@@ -157,7 +164,6 @@ diagnostics during normal legal work.
 
 ## Non-Goals
 
-- This contract does not implement `/api/system-health`.
 - This contract does not create a background monitor.
 - This contract does not define a hosted incident schema.
 - This contract does not make diagnostics lawyer-facing legal advice.
@@ -175,7 +181,10 @@ Current code and docs connected to this contract include:
 - `services/matter-attention-custom-runs.mjs`;
 - `services/matter-attention-command-failures.mjs`;
 - `scripts/matter-attention-report.mjs`;
+- `scripts/system-health-report.mjs`;
+- `services/system-health-service.mjs`;
 - `routes/matter-workflow-routes.mjs`;
+- `routes/app-shell-routes.mjs`;
 - `docs/future-design-decisions/matter-developer-attention-surface.md`;
 - `docs/future-design-decisions/system-health-surface.md`;
 - `test/matter-attention-*.test.mjs`.

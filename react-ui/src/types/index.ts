@@ -36,6 +36,37 @@ export interface WorkspaceTree {
   children: WorkspaceFile[];
 }
 
+export interface SystemHealthCheck {
+  id: string;
+  category: 'configuration' | 'provider' | 'runtime' | 'storage' | string;
+  label: string;
+  status: 'ok' | 'warning' | 'error' | string;
+  message: string;
+  detail?: string;
+  recommendation?: string;
+  evidence?: Array<Record<string, unknown>>;
+}
+
+export interface SystemHealthReport {
+  schema_version?: 'system-health/v1' | string;
+  generatedAt: string;
+  status: 'ok' | 'warning' | 'error' | string;
+  summary?: {
+    ok?: number;
+    warning?: number;
+    error?: number;
+    checks?: number;
+    blockingIssues?: number;
+  };
+  runtime?: {
+    storageMode?: string;
+    nodeVersion?: string;
+    appDir?: string;
+  };
+  checks: SystemHealthCheck[];
+  recommendations?: string[];
+}
+
 export interface AppConfig {
   mattersHome?: string;
   defaultMattersHome?: string;

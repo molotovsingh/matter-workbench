@@ -28,6 +28,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     privateBetaObservabilityService,
     privateBetaSignalService,
     runtimeDbStorageService,
+    systemHealthService,
     uploadService,
     workspaceService,
   } = services;
@@ -163,6 +164,13 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, await privateBetaSignalService.syncQueuedSignals({
           limit: body.limit,
         }));
+      }),
+      exactRoute("GET", "/api/system-health", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 403, { error: "System health requires an operator account." });
+          return;
+        }
+        sendJson(response, 200, await systemHealthService.readSystemHealth());
       }),
       exactRoute("GET", "/api/config", async () => {
         const activeMatterName = matterStore.activeMatterNameWithinHome();

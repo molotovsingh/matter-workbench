@@ -1,7 +1,7 @@
 # Future Design Decision: System Health Surface
 
 Date: 2026-05-17
-Status: Parked future feature
+Status: First slice implemented; future enhancements parked
 
 ## Why This Exists
 
@@ -38,28 +38,28 @@ Do not merge these into one score.
 Matter Attention may point to a system issue when the same failure repeats
 across matters, but the system-level explanation should live in System Health.
 
-## Candidate First Contract
+## First Contract
 
-Future endpoint:
+Current endpoint:
 
 ```text
 GET /api/system-health
 ```
 
-Future schema:
+Current schema:
 
 ```text
 system-health/v1
 ```
 
-Future CLI:
+Current CLI:
 
 ```sh
 npm run system-health:report
 ```
 
-The first implementation should be read-only. It should not run skills, call
-providers for expensive probes, mutate config, or write matter artifacts.
+The first implementation is read-only. It does not run skills, call providers,
+mutate config, or write matter artifacts.
 
 ## Initial Checks
 
@@ -162,14 +162,15 @@ Cost visibility is related but separately parked in
 
 ## First Useful Slice
 
-When implemented, start with:
+Implemented first slice:
 
 1. `GET /api/system-health`.
 2. A read-only `system-health/v1` response.
 3. Settings-page compact readiness status.
 4. CLI report for local debugging.
-5. Tests proving provider/config/filesystem failures are reported as system
-   health issues, not matter lifecycle issues.
+5. Tests proving provider/config/filesystem/runtime failures are reported as
+   system health issues, not matter lifecycle issues.
 
-Only after that should the app consider persisted history, acknowledge/resolve
-states, or cross-session monitoring.
+Future enhancements remain parked until after Beta 3 review. Only after that
+should the app consider persisted history, acknowledge/resolve states,
+cross-session monitoring, or explicit cheap provider probes.

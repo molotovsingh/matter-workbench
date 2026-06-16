@@ -20,6 +20,7 @@
     "private-vm:recoverability-pack": "node scripts/private-vm-recoverability-pack.mjs",
     "private-vm:security-check": "node scripts/private-vm-security-check.mjs",
     "private-web:readiness-check": "node scripts/private-web-beta-readiness-check.mjs",
+    "system-health:report": "node scripts/system-health-report.mjs",
     "private-beta:deployment-pack": "node scripts/private-beta-deployment-pack.mjs",
     "private-beta:tester-handoff-drill": "node scripts/private-beta-tester-handoff-drill.mjs",
     "private-beta:auth-preflight": "node scripts/private-beta-auth-preflight.mjs",

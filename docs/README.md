@@ -12,7 +12,9 @@ equally authoritative.
 | --- | --- |
 | Durable product and engineering North Star | [Matter Workbench North Star Design Philosophy](design-philosophy.md) |
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
+| Fast local/private beta start | [Quickstart](../QUICKSTART.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
+| Beta user/operator runbook | [Beta User Runbook](beta-user-runbook.md) |
 | Beta operator checklist | [Beta Operator Checklist](beta-operator-checklist.md) |
 | Private beta tester brief | [Private Beta Tester Brief](private-beta-tester-brief.md) |
 | Private web beta readiness | [Private Web Beta Readiness Pack](private-web-beta-readiness-pack.md) |
@@ -75,6 +77,7 @@ implementation plan.
 | [v1.0.0-beta.10](releases/v1.0.0-beta.10.md) | Named-tester-account private beta release marker. |
 | [v1.0.0-beta.11](releases/v1.0.0-beta.11.md) | First tagged Beta 3 public-private deployment marker. |
 | [v1.0.0-beta.12](releases/v1.0.0-beta.12.md) | Current Beta 3 private-cloud checkpoint. |
+| [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
 | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) | Operating rule for bug-fix-only supervised beta work. |
