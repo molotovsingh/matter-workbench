@@ -622,8 +622,8 @@ Still parked: if feature-request volume grows, split `feature_request` into a se
 
 ## Intelligent Feedback Triage Router
 
-Status: Next implementation slice
-Date: 2026-06-13
+Status: First server-side slice landed in `codex/feedback-triage-router`
+Date: 2026-06-13; updated 2026-06-16
 
 ### Problem
 
@@ -747,7 +747,7 @@ real backlog/ticket destination.
 
 ### Implementation Shape
 
-Add a small server-side triage module, not React logic:
+The first server-side slice adds a triage module, not React logic:
 
 ```text
 services/private-beta-feedback-triage-service.mjs

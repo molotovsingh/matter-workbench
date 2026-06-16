@@ -1,0 +1,137 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  FEEDBACK_TRIAGE_POLICY_VERSION,
+  buildFeedbackTriagePacket,
+  routePrivateBetaFeedbackTriage,
+} from "../services/private-beta-feedback-triage-service.mjs";
+
+test("feedback triage keeps unsupported-citation bugs deterministic even when classifier disagrees", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Ask Copilot",
+    detail: "Matter copilot returned unsupported citation: FILE-0008 p1.b2",
+    currentness: "current",
+  }, {
+    classifierResult: {
+      classification: "confusing_ux",
+      action_lane: "product_decision",
+      confidence: "high",
+      reason: "The tester may be confused.",
+    },
+  });
+
+  assert.equal(triage.policyVersion, FEEDBACK_TRIAGE_POLICY_VERSION);
+  assert.equal(triage.triage_source, "deterministic");
+  assert.equal(triage.action_lane, "fix_now");
+  assert.match(triage.recommended_action, /Copilot fail-closed/i);
+});
+
+test("feedback triage lets high-confidence classifier clarify a misfiled feature request", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Add deadline calendar",
+    detail: "I want a week view for filing dates.",
+  }, {
+    classifierResult: {
+      classification: "feature_request",
+      action_lane: "product_decision",
+      confidence: "high",
+      reason: "The tester is asking for a capability that does not currently exist.",
+      recommended_action: "Decide whether deadline calendar belongs in beta scope.",
+      missing_evidence: [],
+    },
+  });
+
+  assert.equal(triage.triage_source, "classifier");
+  assert.equal(triage.classification, "feature_request");
+  assert.equal(triage.action_lane, "product_decision");
+  assert.doesNotMatch(triage.recommended_action, /bug/i);
+});
+
+test("feedback triage treats cannot-find chronology feedback as UX unless hard evidence exists", () => {
+  const ux = routePrivateBetaFeedbackTriage({
+    category: "confusing_ux",
+    title: "Find output",
+    detail: "I cannot find where the List of Dates went.",
+  });
+
+  assert.equal(ux.action_lane, "product_decision");
+  assert.match(ux.reason, /existing output/i);
+
+  const hard = routePrivateBetaFeedbackTriage({
+    category: "confusing_ux",
+    title: "Find output",
+    detail: "I cannot find where the List of Dates went.",
+    relatedSignals: [{ title: "List of Dates", detail: "create_listofdates failed with no Source Index." }],
+  });
+
+  assert.equal(hard.action_lane, "fix_now");
+  assert.match(hard.recommended_action, /extraction-to-source-labels/i);
+});
+
+test("feedback triage escalates vague feedback when related source-label jobs failed", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "confusing_ux",
+    title: "Understand case",
+    detail: "It says preparation is not ready but I already ran it.",
+    relatedJobs: [{ kind: "source_labels", status: "failed", detail: "Label Sources failed." }],
+  });
+
+  assert.equal(triage.action_lane, "fix_now");
+  assert.equal(triage.confidence, "high");
+});
+
+test("feedback triage ignores malformed or unsupported classifier output", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "operator_note",
+    title: "Maybe backlog",
+    detail: "Add a product backlog item.",
+  }, {
+    classifierResult: {
+      classification: "feature_request",
+      action_lane: "product_backlog",
+      confidence: "high",
+      reason: "Send to backlog.",
+    },
+  });
+
+  assert.equal(triage.action_lane, "investigate");
+  assert.notEqual(triage.action_lane, "product_backlog");
+  assert.match(triage.reason, /unsupported action lane/i);
+});
+
+test("feedback triage falls back to investigate for low-confidence classifier output", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "operator_note",
+    title: "Ambiguous",
+    detail: "Something felt off.",
+  }, {
+    classifierResult: {
+      classification: "bug",
+      action_lane: "fix_now",
+      confidence: "low",
+      reason: "Maybe a bug.",
+    },
+  });
+
+  assert.equal(triage.action_lane, "investigate");
+  assert.equal(triage.confidence, "low");
+  assert.match(triage.recommended_action, /Investigate manually/i);
+});
+
+test("feedback triage packet is bounded and redacts secrets before any classifier", () => {
+  const packet = buildFeedbackTriagePacket({
+    id: "feedback_secret",
+    category: "bug",
+    title: "Provider failed",
+    detail: "The key sk-secret-feedback leaked in the error.",
+    relatedSignals: [{ title: "Signal", detail: "Bearer sk-other-secret appeared." }],
+  });
+  const text = JSON.stringify(packet);
+
+  assert.equal(packet.schema_version, "private-beta-feedback-triage-packet/v1");
+  assert.doesNotMatch(text, /sk-secret-feedback|sk-other-secret/);
+  assert.match(text, /\[redacted-secret\]/);
+  assert.deepEqual(packet.allowed.actionLanes, ["fix_now", "investigate", "product_decision", "watch"]);
+});

@@ -1,3 +1,4 @@
+import { routePrivateBetaFeedbackTriage } from "../services/private-beta-feedback-triage-service.mjs";
 import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-redaction.mjs";
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
@@ -261,91 +262,12 @@ function normalizePatienceRisk(value = "") {
 function annotateTriage(item = {}, context = {}) {
   const currentMatterState = latestMatterStateForItem(item, context.latestMatterHealth);
   const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt, currentMatterState);
-  const triage = routeTriage({ ...item, currentness, currentMatterState });
+  const triage = routePrivateBetaFeedbackTriage({ ...item, currentness, currentMatterState });
   return {
     ...item,
     currentness,
     ...(currentMatterState ? { currentMatterState } : {}),
     ...triage,
-  };
-}
-
-function routeTriage(item = {}) {
-  const text = normalizeReportText(`${item.title || ""} ${item.detail || ""}`);
-  if (item.category === "critical_signal") {
-    if (/no extraction records|run extract|source index|create_listofdates|list of dates|label sources/.test(text)) {
-      if (item.currentness === "resolved_by_latest_matter_state") {
-        return {
-          action_lane: "watch",
-          recommended_action: "No code action unless this reproduces. Latest matter health says preparation is current and the advisory is clear.",
-        };
-      }
-      return {
-        action_lane: "fix_now",
-        recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/List of Dates path if records exist but downstream stages cannot see them.",
-      };
-    }
-    return {
-      action_lane: "fix_now",
-      recommended_action: "Inspect the failed runtime path before the next beta session.",
-    };
-  }
-
-  if (item.category === "warning_signal") {
-    if (item.occurrenceCount > 1) {
-      return {
-        action_lane: "investigate",
-        recommended_action: "Check whether this warning is repeated for the same matter, user, or workflow.",
-      };
-    }
-    return {
-      action_lane: "watch",
-      recommended_action: "Keep this as a watch item unless it repeats or is paired with tester feedback.",
-    };
-  }
-
-  if (item.category === "bug") {
-    if (/unsupported citation|matter copilot returned unsupported citation/.test(text)) {
-      if (item.currentness === "needs_live_recheck") {
-        return {
-          action_lane: "investigate",
-          recommended_action: "Recheck this against the current deployment. Treat it as fix_now only if Copilot citation failure reproduces after the latest heartbeat or metrics snapshot.",
-        };
-      }
-      return {
-        action_lane: "fix_now",
-        recommended_action: "Keep Copilot fail-closed validation, but show a lawyer-safe source verification message and preserve the raw citation only in diagnostics.",
-      };
-    }
-    if (/login|logged out|asking login|authentication/.test(text)) {
-      return {
-        action_lane: "investigate",
-        recommended_action: "Verify session persistence across reload, tab reopen, and deploy restart before changing auth behavior.",
-      };
-    }
-    return {
-      action_lane: "investigate",
-      recommended_action: "Reproduce the reported bug in the current deployment and attach runtime evidence before fixing.",
-    };
-  }
-
-  if (item.category === "feature_request") {
-    return {
-      action_lane: "product_decision",
-      recommended_action: "Decide whether this is a net-new product feature for beta, then either scope it or park it in the product backlog.",
-    };
-  }
-
-  if (item.category === "confusing_ux" || item.category === "feature_idea") {
-    return {
-      action_lane: "product_decision",
-      recommended_action: "Decide whether this changes beta onboarding/copy or belongs in the parked product backlog.",
-    };
-  }
-
-  return {
-    action_lane: "watch",
-    recommended_action: "No immediate action unless this appears again.",
   };
 }
 
