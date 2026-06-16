@@ -27,7 +27,7 @@ equally authoritative.
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
-| Current release notes | [v1.0.0-beta.12](releases/v1.0.0-beta.12.md) |
+| Current release notes | [v1.0.0-beta.15](releases/v1.0.0-beta.15.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -77,7 +77,8 @@ implementation plan.
 | [v1.0.0-beta.9](releases/v1.0.0-beta.9.md) | Feedback-first tester handoff release marker. |
 | [v1.0.0-beta.10](releases/v1.0.0-beta.10.md) | Named-tester-account private beta release marker. |
 | [v1.0.0-beta.11](releases/v1.0.0-beta.11.md) | First tagged Beta 3 public-private deployment marker. |
-| [v1.0.0-beta.12](releases/v1.0.0-beta.12.md) | Current Beta 3 private-cloud checkpoint. |
+| [v1.0.0-beta.12](releases/v1.0.0-beta.12.md) | Runtime DB query-helper private-cloud checkpoint. |
+| [v1.0.0-beta.15](releases/v1.0.0-beta.15.md) | Current Beta 3 private-cloud release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
