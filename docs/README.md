@@ -23,6 +23,7 @@ equally authoritative.
 | Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
+| Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Current release notes | [v1.0.0-beta.12](releases/v1.0.0-beta.12.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
@@ -79,6 +80,7 @@ implementation plan.
 | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) | Operating rule for bug-fix-only supervised beta work. |
 | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) | One-bug private beta handoff evidence. |
 | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) | Clean-slate real-matter acceptance evidence. |
+| [Release Policy](release-policy.md) | Rules for tags, release notes, deployed commits, and current-release pointers. |
 
 Historical model bakeoffs and runtime smokes are evidence notes. They are useful
 for context, but they should not override current contracts or release notes.

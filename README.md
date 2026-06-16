@@ -18,6 +18,9 @@ artifacts, and eval tooling, see
 
 Current release checkpoint: [Matter Workbench v1.0.0-beta.12](docs/releases/v1.0.0-beta.12.md).
 
+For the release policy that governs tags, release notes, deployed commits, and
+current-release pointers, see [docs/release-policy.md](docs/release-policy.md).
+
 For the practical supervised local/private beta runbook, see
 [docs/beta-operator-checklist.md](docs/beta-operator-checklist.md).
 For the concise trusted-tester handout, see
