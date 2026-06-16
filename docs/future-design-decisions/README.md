@@ -7,7 +7,7 @@ This folder holds parked product decisions, SME requirement capture, current loc
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 26 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 28 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -45,6 +45,8 @@ This README tracks the 26 decision documents in this folder. The README itself i
 | [Lawyer-Facing Terminology Contract](lawyer-terminology-contract.md) | Parked for later product decision | Medium-High near-term polish | Beta UX polish, confusing labels, or command/report copy churn | Promote a small presentation-label slice before deeper engine work: lanes, statuses, paid/local posture, known artifacts, command states. |
 | [Model-To-App Task Policy](model-to-app-task-policy.md) | Current boundary landed; broader selector policy parked | Medium | Any broader model selector, draft-amendment selector, or provider-choice expansion is proposed | Follow [Model Task Boundaries](../contracts/model-task-boundaries.md): Copilot selection is narrow; durable skills/artifacts stay on app-owned policy. |
 | [Cost Estimation Framework](cost-estimation-framework.md) | Parked for later product decision | Medium | Cost confusion, hosted provider-run ledger, or paid rerun UX pressure | Start with read-only derived matter cost from existing `ai_run` metadata; avoid billing language. |
+| [Credit System](credit-system.md) | Working product note; shadow metering only | Medium | Provider-run/cost-event evidence is authoritative enough to rehearse monetisation, or credit enforcement is proposed | Keep current work shadow-only. Do not enforce balances, charge money, or expose user-facing depletion counters until shadow reports and failure/refund semantics are accepted. |
+| [Credit Metering Shadow Plan](credit-metering-shadow-plan.md) | Implementation contract draft; no enforcement | Medium | Beta 3 reviewers evaluate the isolated credit-metering branch | Use only as a review plan for static policy, no-write reports, and future credit ledger shape. Keep isolated from Beta 3 release behavior. |
 | [System Health Surface](system-health-surface.md) | First slice landed | Medium | Provider/config/runtime diagnostics need history, acknowledgement, monitoring, or explicit cheap probes | Keep separate from Matter Attention via [Diagnostic Surfaces](../contracts/diagnostic-surfaces.md). First slice is read-only Settings/API/CLI health; broader monitoring remains parked. |
 | [Parallel Processing and Latency Strategy](parallel-processing-latency.md) | Parked future feature; local/V1 runtime path | Medium | Long native-skill latency becomes a beta blocker | First local slice should be bounded parallel Source Labels batches with deterministic merge and progress receipts. |
 | [Upload Intake Scheduler](upload-intake-scheduler.md) | Parked future feature; important before high-volume beta matters | Medium-High | Large uploads, ZIP/email containers, or hundreds-of-PDF matters become common in beta | First slice should be a read-only intake sizing report after upload; later use an intake-head plus dependency-matrix scheduler to choose immediate, batched, background, or review-before-processing modes. |

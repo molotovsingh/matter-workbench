@@ -57,7 +57,7 @@ test("shadow credit planner derives idempotent debit rows from provider runs", (
   assert.equal(lodDebit.metadata.provider, "openrouter");
 });
 
-test("shadow credit planner marks failed provider runs for policy decision", () => {
+test("shadow credit planner marks failed provider runs for policy decision without debiting", () => {
   const plan = buildShadowCreditPlan({
     providerRunPlan: {
       tenant,
@@ -74,11 +74,12 @@ test("shadow credit planner marks failed provider runs for policy decision", () 
     },
   });
 
-  assert.equal(plan.creditLedgerEvents.length, 1);
-  assert.equal(plan.creditLedgerEvents[0].creditsDelta, -3);
-  assert.equal(plan.creditLedgerEvents[0].metadata.needsPolicyDecision, true);
-  assert.match(plan.creditLedgerEvents[0].reason, /charge policy pending/i);
+  assert.equal(plan.creditLedgerEvents.length, 0);
+  assert.equal(plan.totals.shadowCredits, 0);
+  assert.equal(plan.totals.billableShadowRuns, 0);
   assert.equal(plan.totals.policyReviewRuns, 1);
+  assert.equal(plan.warnings.length, 1);
+  assert.match(plan.warnings[0], /failure charge policy is pending/i);
 });
 
 test("shadow credit planner does not debit started or unclassified runs", () => {

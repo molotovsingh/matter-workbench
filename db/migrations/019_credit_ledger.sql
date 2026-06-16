@@ -109,7 +109,12 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   metadata_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   idempotency_key text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, idempotency_key)
+  UNIQUE (tenant_id, idempotency_key),
+  CHECK (
+    (event_type IN ('grant', 'release', 'refund', 'shadow_refund') AND credits_delta > 0)
+    OR (event_type IN ('reserve', 'debit', 'shadow_debit') AND credits_delta < 0)
+    OR (event_type = 'adjustment' AND credits_delta <> 0)
+  )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_id_tenant_id_unique

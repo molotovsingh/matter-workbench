@@ -132,7 +132,7 @@ function creditRowFromProviderRun({ tenantId, accountId, providerRun = {}, costE
   const ledgerEvents = [];
   let warning = "";
 
-  if (credits > 0 && ["succeeded", "failed"].includes(status)) {
+  if (credits > 0 && status === "succeeded") {
     ledgerEvents.push(shadowLedgerEvent({
       tenantId,
       accountId,
@@ -143,6 +143,8 @@ function creditRowFromProviderRun({ tenantId, accountId, providerRun = {}, costE
       status,
       needsPolicyDecision,
     }));
+  } else if (credits > 0 && status === "failed") {
+    warning = `No shadow debit for failed provider run ${providerRun.id || "unknown"} (${policy.sku}); failure charge policy is pending.`;
   } else if (credits > 0 && ["started", "cancelled"].includes(status)) {
     warning = `No shadow debit for ${status} provider run ${providerRun.id || "unknown"} (${policy.sku}).`;
   } else if (policy.requiresPolicyDecision) {
@@ -199,7 +201,7 @@ function shadowLedgerEvent({ tenantId, accountId, providerRun, costEvent, policy
     currency: CREDIT_CURRENCY,
     policyVersion: policy.policyVersion,
     sku: policy.sku,
-    reason: status === "succeeded" ? "shadow usable provider-backed output" : "shadow failed provider run; charge policy pending",
+    reason: "shadow usable provider-backed output",
     metadata: {
       shadow: true,
       provider: normalizeText(providerRun.provider),

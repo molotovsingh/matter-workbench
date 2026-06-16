@@ -39,10 +39,15 @@ The report command is:
 
 ```bash
 npm run db:credits:shadow:report
-npm run db:credits:shadow:report -- --json
+npm --silent run db:credits:shadow:report -- --json
 ```
 
-It does not write database rows.
+Use the `npm --silent` form for machine-readable JSON so npm's banner text does
+not contaminate stdout.
+
+It does not write database rows. Failed, started, cancelled, or unclassified
+provider runs are reported for policy review but are not counted as shadow
+debits.
 
 ## Initial Shadow SKUs
 
@@ -90,6 +95,9 @@ Every write path uses:
 ```text
 unique (tenant_id, idempotency_key)
 ```
+
+The ledger also constrains event signs: grants/releases/refunds are positive,
+reserves/debits/shadow debits are negative, and adjustments cannot be zero.
 
 This is mandatory before enforcement because retries and double-clicks must not
 double-charge credits.

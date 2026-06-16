@@ -47,6 +47,14 @@ test("nineteenth database migration makes credit writes idempotent", () => {
   assert.match(tableBlock(sql, "credit_ledger"), /unique \(tenant_id, idempotency_key\)/i);
 });
 
+test("nineteenth database migration constrains credit ledger signs by event type", () => {
+  const ledger = tableBlock(readMigration(), "credit_ledger");
+
+  assert.match(ledger, /event_type in \('grant', 'release', 'refund', 'shadow_refund'\) and credits_delta > 0/i);
+  assert.match(ledger, /event_type in \('reserve', 'debit', 'shadow_debit'\) and credits_delta < 0/i);
+  assert.match(ledger, /event_type = 'adjustment' and credits_delta <> 0/i);
+});
+
 test("nineteenth database migration keeps credit references tenant-local", () => {
   const sql = readMigration();
 
