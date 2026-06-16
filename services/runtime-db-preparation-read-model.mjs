@@ -1,0 +1,322 @@
+import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
+import { missingMetadataLabels, prepareStageDefinition, warningsForPlan } from "../shared/preparation-stages.mjs";
+import { validatedRelativePathFromRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
+
+export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tree } = {}) {
+  const paths = runtimeWorkspaceFilePaths(tree.root);
+  const runtimeInputs = runtimeStatusInputs({ matter, objects });
+  const stages = [
+    statusStage({
+      id: "matter-init",
+      slash: "/matter-init",
+      label: "Set Up Matter",
+      present: paths.some((item) => /(^|\/)File Register\.csv$/i.test(item.path)) || Boolean(matter.id),
+      artifacts: paths.filter((item) => /(^|\/)File Register\.csv$/i.test(item.path)).map((item) => item.path),
+    }),
+    statusStage({
+      id: "extract",
+      slash: "/extract",
+      label: "Extract Documents",
+      present: paths.some((item) => /(^|\/)_extracted\/[^/]+\.json$/i.test(item.path)),
+      artifacts: extractedArtifacts(paths),
+    }),
+    statusStage({
+      id: "describe-sources",
+      slash: "/describe_sources",
+      label: "Source Labels / Document Index",
+      present: paths.some((item) => item.path === "10_Library/Source Index.json"),
+      artifacts: paths.filter((item) => item.path === "10_Library/Source Index.json").map((item) => item.path),
+      rerunAdvice: runtimeSourceLabelsRerunAdvice(runtimeInputs),
+    }),
+    statusStage({
+      id: "create-listofdates",
+      slash: "/create_listofdates",
+      label: "Create List of Dates",
+      present: paths.some((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json"),
+      artifacts: paths
+        .filter((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json")
+        .map((item) => item.path),
+      rerunAdvice: runtimeListOfDatesRerunAdvice(runtimeInputs),
+    }),
+  ];
+  return {
+    matterRoot: `postgres:${matter.name}`,
+    matterName: matter.name,
+    stages,
+  };
+}
+
+export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, status } = {}) {
+  const missingMetadata = missingMetadataLabels(dbMatter);
+  const stageBySlash = new Map(status.stages.map((stage) => [stage.slash, stage]));
+  const setup = prepareStage("/matter-init", stageBySlash.get("/matter-init"));
+  const extraction = prepareStage("/extract", stageBySlash.get("/extract"), setup);
+  const sourceLabels = prepareStage("/describe_sources", stageBySlash.get("/describe_sources"), extraction);
+  const listOfDates = prepareStage("/create_listofdates", stageBySlash.get("/create_listofdates"), sourceLabels);
+  const stages = [setup, extraction, sourceLabels, listOfDates];
+  const nextStep = stages.find((stage) => stage.action !== PREPARATION_STAGE_ACTIONS.SKIP_CURRENT);
+  return {
+    schema_version: "prepare-matter-plan/v1",
+    matter: {
+      name: matter.matterName || matter.name,
+      folderName: matter.name,
+    },
+    metadata: {
+      missing: missingMetadata,
+      complete: missingMetadata.length === 0,
+    },
+    stages,
+    downstream: {
+      listOfDates,
+    },
+    nextStep: nextStep
+      ? {
+          state: nextStep.state,
+          label: nextStep.label,
+          message: nextStep.reason,
+          stage: nextStep.id,
+          slash: nextStep.slash,
+        }
+      : {
+          state: "complete",
+          label: "Core preparation is current",
+          message: "Review the preparation advisory before drafting.",
+          stage: "",
+          slash: "",
+        },
+    warnings: warningsForPlan({ missingMetadata, stages, listOfDates }),
+  };
+}
+
+export function runtimeWorkspaceFilePaths(root) {
+  const rows = [];
+  function visit(node) {
+    if (!node) return;
+    if (node.kind === "file" && node.path) {
+      rows.push({
+        path: node.path,
+        size: node.size || 0,
+        objectRole: node.objectRole || "",
+        sha256: node.sha256 || "",
+        updatedAt: node.updatedAt || "",
+        fileId: node.fileId || "",
+        originalName: node.originalName || "",
+        documentSha: node.documentSha || "",
+        documentSizeBytes: node.documentSizeBytes || 0,
+        duplicateOf: node.duplicateOf || "",
+      });
+    }
+    for (const child of node.children || []) visit(child);
+  }
+  visit(root);
+  return rows;
+}
+
+function extractedArtifacts(paths = []) {
+  const extracted = paths.filter((item) => /(^|\/)_extracted\/[^/]+\.json$/i.test(item.path));
+  if (!extracted.length) return [];
+  const byDirectory = new Map();
+  for (const item of extracted) {
+    const directory = item.path.replace(/\/[^/]+$/, "");
+    byDirectory.set(directory, (byDirectory.get(directory) || 0) + 1);
+  }
+  return [...byDirectory.entries()].map(([directory, count]) => `${directory} (${count} record${count === 1 ? "" : "s"})`);
+}
+
+function runtimeStatusInputs({ matter, objects = [] } = {}) {
+  const rows = objects.map((object) => ({
+    ...object,
+    relativePath: validatedRelativePathFromRuntimeObjectKey(object.objectKey, matter.name),
+    updatedMs: Date.parse(object.updatedAt || "") || 0,
+  }));
+  const byPath = new Map(rows.map((row) => [row.relativePath, row]));
+  const extractionInputs = rows
+    .filter((row) => /(^|\/)_extracted\/[^/]+\.json$/i.test(row.relativePath))
+    .map((row) => runtimeInput(row, "extraction_record"));
+  return {
+    extractionInputs,
+    sourceIndex: byPath.get("10_Library/Source Index.json") || null,
+    listOfDatesMarkdown: byPath.get("10_Library/List of Dates.md") || null,
+    listOfDatesJson: byPath.get("10_Library/List of Dates.json") || null,
+  };
+}
+
+function runtimeSourceLabelsRerunAdvice(inputs = {}) {
+  return buildRuntimeRerunAdvice({
+    skill: "/describe_sources",
+    label: "source descriptors",
+    target: inputs.sourceIndex,
+    upstreamInputs: inputs.extractionInputs || [],
+    staleDescription: "newer extraction records were found in DB payload custody",
+    currentDescription: "No newer extraction records were found in DB payload custody.",
+  });
+}
+
+function runtimeListOfDatesRerunAdvice(inputs = {}) {
+  const target = inputs.listOfDatesMarkdown || inputs.listOfDatesJson;
+  const upstreamInputs = [
+    ...(inputs.extractionInputs || []),
+    ...(inputs.sourceIndex ? [runtimeInput(inputs.sourceIndex, "source_index")] : []),
+  ];
+  return buildRuntimeRerunAdvice({
+    skill: "/create_listofdates",
+    label: "list of dates",
+    target,
+    upstreamInputs,
+    staleDescription: "newer extraction records or Source Index changes were found in DB payload custody",
+    currentDescription: "No newer extraction records or Source Index changes were found in DB payload custody.",
+  });
+}
+
+function buildRuntimeRerunAdvice({
+  skill,
+  label,
+  target,
+  upstreamInputs,
+  staleDescription,
+  currentDescription,
+}) {
+  if (!target) {
+    return runtimeAdvice({ skill, label, state: RERUN_ADVICE_STATES.MISSING, shouldConfirm: false });
+  }
+  if (!upstreamInputs.length) {
+    return runtimeAdvice({
+      skill,
+      label,
+      state: RERUN_ADVICE_STATES.MISSING_UPSTREAM,
+      shouldConfirm: false,
+      artifactPath: target.relativePath,
+      lastRunAt: target.updatedAt || "",
+    });
+  }
+  const newestInput = upstreamInputs.reduce((newest, input) => (
+    !newest || input.updatedMs > newest.updatedMs ? input : newest
+  ), null);
+  if (newestInput?.updatedMs > (Date.parse(target.updatedAt || "") || 0) + 1) {
+    return runtimeAdvice({
+      skill,
+      label,
+      state: RERUN_ADVICE_STATES.STALE,
+      shouldConfirm: false,
+      artifactPath: target.relativePath,
+      lastRunAt: target.updatedAt || "",
+      reason: staleDescription,
+      newestInputPath: newestInput.relativePath,
+      newestInputAt: newestInput.updatedAt || "",
+    });
+  }
+  const advice = runtimeAdvice({
+    skill,
+    label,
+    state: RERUN_ADVICE_STATES.CURRENT,
+    shouldConfirm: true,
+    artifactPath: target.relativePath,
+    lastRunAt: target.updatedAt || "",
+    reason: currentDescription,
+    inputCount: upstreamInputs.length,
+  });
+  advice.message = `${skill} has a current ${label} artifact in DB payload custody. Run it again anyway?`;
+  return advice;
+}
+
+function runtimeInput(row, inputKind) {
+  return {
+    inputKind,
+    relativePath: row.relativePath,
+    updatedAt: row.updatedAt || "",
+    updatedMs: row.updatedMs || Date.parse(row.updatedAt || "") || 0,
+    contentHash: row.sha256 || "",
+  };
+}
+
+function runtimeAdvice({
+  skill,
+  label,
+  state,
+  shouldConfirm,
+  artifactPath = "",
+  lastRunAt = "",
+  reason = "",
+  newestInputPath = "",
+  newestInputAt = "",
+  inputCount = 0,
+}) {
+  return {
+    skill,
+    label,
+    state,
+    shouldConfirm,
+    artifactPath,
+    lastRunAt,
+    reason,
+    newestInputPath,
+    newestInputAt,
+    inputCount,
+  };
+}
+
+function statusStage({ id, slash, label, present, artifacts = [], rerunAdvice = null }) {
+  return {
+    id,
+    slash,
+    label,
+    present: Boolean(present),
+    state: present ? "present" : "not_run",
+    artifacts,
+    ...(rerunAdvice ? { rerunAdvice } : {}),
+  };
+}
+
+function prepareStage(slash, statusStageValue, previousStage = null) {
+  const definition = prepareStageDefinition(slash);
+  const advice = statusStageValue?.rerunAdvice || null;
+  const adviceState = advice?.state || (statusStageValue?.present ? RERUN_ADVICE_STATES.CURRENT : RERUN_ADVICE_STATES.MISSING);
+  const base = {
+    id: definition.id,
+    slash,
+    label: definition.label,
+    description: definition.description,
+    paidProviderCall: definition.paidProviderCall,
+    artifacts: Array.isArray(statusStageValue?.artifacts) ? statusStageValue.artifacts : [],
+    rerunAdvice: advice,
+  };
+  if (adviceState === RERUN_ADVICE_STATES.CURRENT) {
+    return {
+      ...base,
+      state: "current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: `${definition.label} is available from DB payload custody.`,
+    };
+  }
+  if (previousStage && previousStage.state !== "current") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: `Complete ${previousStage.label} before ${definition.label}.`,
+    };
+  }
+  if (adviceState === RERUN_ADVICE_STATES.MISSING_UPSTREAM) {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: `${definition.label} inputs are missing from DB payload custody.`,
+    };
+  }
+  if (adviceState === RERUN_ADVICE_STATES.STALE || adviceState === RERUN_ADVICE_STATES.FAILED) {
+    return {
+      ...base,
+      state: adviceState,
+      action: definition.paidProviderCall ? PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN : PREPARATION_STAGE_ACTIONS.RUN,
+      reason: advice?.reason || `${definition.label} needs to run again.`,
+    };
+  }
+  return {
+    ...base,
+    state: "missing",
+    action: definition.paidProviderCall ? PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN : PREPARATION_STAGE_ACTIONS.RUN,
+    reason: `${definition.label} is missing from DB payload custody.`,
+  };
+}
