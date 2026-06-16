@@ -1,12 +1,13 @@
 import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
-import { composeIntakeDirName, validateIntakeLabel } from "../shared/matter-contract.mjs";
+import { validateIntakeLabel } from "../shared/matter-contract.mjs";
+import { matterStorageCollisionKey } from "../shared/matter-identity-policy.mjs";
 import {
-  matterIdentityFromCaption,
-  matterMetadataFields,
-  matterStorageCollisionKey,
-} from "../shared/matter-identity-policy.mjs";
+  planAddFilesIntake,
+  planNewMatterIdentity,
+  planNewMatterUpload,
+} from "../shared/upload-intake-planner.mjs";
 import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
 import {
   parseUploadJsonField,
@@ -29,12 +30,6 @@ export function createUploadService({
 
   const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
   const matterWriteQueues = new Map();
-  const noFilesError = (action = "creating a matter") => makeHttpError(
-    `Attach at least one source file before ${action}.`,
-    400,
-    "upload.no_files_attached",
-  );
-
   async function createMatter(request) {
     const upload = await handleMultipartUpload(request);
     const { fields, files, tempDir } = upload;
@@ -43,24 +38,24 @@ export function createUploadService({
         && typeof runtimeDbStorageService?.createMatterFromUploadedFiles === "function";
       const mattersHome = useRuntimeDbStorage ? null : matterStore.ensureMattersHome();
       const submittedMatterName = String(fields.name || "").trim();
-      const identity = matterIdentityFromCaption(submittedMatterName);
-      const storageName = identity.storageName;
+      const identityPlan = planNewMatterIdentity({ name: submittedMatterName });
       const { name, matterPath } = useRuntimeDbStorage
-        ? { name: storageName, matterPath: null }
-        : matterStore.matterPathForName(storageName);
+        ? { name: identityPlan.storageName, matterPath: null }
+        : matterStore.matterPathForName(identityPlan.storageName);
 
       const siblings = await matterStore.listMattersHomeChildren();
-      const collision = siblings.find((entry) => matterStorageCollisionKey(entry.name) === identity.collisionKey);
+      const collision = siblings.find((entry) => matterStorageCollisionKey(entry.name) === identityPlan.identity.collisionKey);
       if (collision) throw makeHttpError(`A matter named "${collision.name}" already exists`, 409);
 
-      const submittedMetadata = parseUploadJsonField(fields, "metadata", {});
-      const metadata = matterMetadataFields({
-        metadata: submittedMetadata,
-        caption: identity.displayName,
-        storageName: name,
+      const uploadPlan = planNewMatterUpload({
+        name: submittedMatterName,
+        metadata: parseUploadJsonField(fields, "metadata", {}),
+        files,
+        relativePaths: parseUploadJsonField(fields, "paths", []),
+        action: "creating a matter",
       });
-      const relativePaths = validateUploadPathList(fields, files);
-      if (!files.length) throw noFilesError("creating a matter");
+      const metadata = uploadPlan.metadata;
+      const relativePaths = uploadPlan.relativePaths;
 
       if (useRuntimeDbStorage) {
         const matter = await runtimeDbStorageService.createMatterFromUploadedFiles({
@@ -98,8 +93,7 @@ export function createUploadService({
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
       const label = validateIntakeLabel(fields.label);
-      const relativePaths = validateUploadPathList(fields, files);
-      if (!files.length) throw noFilesError("adding files");
+      const relativePaths = validateUploadPathList(fields, files, { action: "adding files" });
 
       if (matterStore.hasRuntimeDbStorageMode?.() && typeof runtimeDbStorageService?.addUploadedFilesToMatter === "function") {
         const matter = await resolveMatterRecordForFields(fields);
@@ -121,12 +115,17 @@ export function createUploadService({
         const intakeNumber = await matterStore.nextIntakeNumber(root);
         const fileIdStart = await matterStore.nextFileIdStart(root);
         const priorHashes = await matterStore.priorHashIndex(root);
-        const receivedDate = new Date().toISOString().slice(0, 10);
-        const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
-        const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
+        const intakePlan = planAddFilesIntake({
+          label,
+          files,
+          relativePaths,
+          intakeNumber,
+          fileIdStart,
+        });
+        const { receivedDate, intakeDirName, intakeId } = intakePlan;
         const sourceFilesDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
         if (!isInsideRoot(root, sourceFilesDir)) throw makeHttpError("Resolved intake path escapes matter root", 400);
-        await writeUploadedFiles(files, relativePaths, sourceFilesDir, {
+        await writeUploadedFiles(files, intakePlan.relativePaths, sourceFilesDir, {
           escapeMessage: "Resolved destination escapes intake root",
         });
 

@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import { composeIntakeDirName } from "../shared/matter-contract.mjs";
-import {
-  matterIdentityFromCaption,
-  matterMetadataFields,
-} from "../shared/matter-identity-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
-import { validateUploadRelativePaths } from "../shared/upload-path-policy.mjs";
+import {
+  dateOnly,
+  normalizeUploadMatter,
+  planAddFilesIntake,
+  planNewMatterUpload,
+  stringValue,
+  validateUploadInputs,
+} from "../shared/upload-intake-planner.mjs";
 
 export function planNewRuntimeMatterUpload({
   name = "",
@@ -15,14 +17,15 @@ export function planNewRuntimeMatterUpload({
   actor = null,
   now = new Date(),
 } = {}) {
-  const identity = matterIdentityFromCaption(name);
-  const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "creating a matter" });
-  const storageName = identity.storageName;
-  const normalizedMetadata = matterMetadataFields({
+  const uploadPlan = planNewMatterUpload({
+    name,
     metadata,
-    caption: identity.displayName,
-    storageName,
+    files,
+    relativePaths,
+    action: "creating a matter",
   });
+  const storageName = uploadPlan.storageName;
+  const normalizedMetadata = uploadPlan.metadata;
   const actorId = stringValue(actor?.id);
   const matter = {
     id: deterministicUuid(`runtime-db-matter:${actorId || "anonymous"}:${storageName}`),
@@ -45,7 +48,7 @@ export function planNewRuntimeMatterUpload({
     matter,
     metadata: matter,
     files,
-    relativePaths: safeRelativePaths,
+    relativePaths: uploadPlan.relativePaths,
     intakeDbId,
     uploadSessionId,
     importBatchId,
@@ -57,7 +60,7 @@ export function planNewRuntimeMatterUpload({
   };
   return {
     matter,
-    relativePaths: safeRelativePaths,
+    relativePaths: uploadPlan.relativePaths,
     intakeDbId,
     uploadSessionId,
     importBatchId,
@@ -74,97 +77,59 @@ export function planRuntimeAddFilesUpload({
   relativePaths = [],
   now = new Date(),
 } = {}) {
-  const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "adding files" });
-  const dbMatter = normalizeMatter({ ...normalizeMatter(matter), ...(allocation.matter || {}) });
-  if (!dbMatter.id) throw makeHttpError(`Matter not found in runtime database: ${normalizeMatter(matter).name}`, 404);
-  const intakeNumber = positiveInteger(allocation.nextIntakeNumber, 1);
-  const fileIdStart = positiveInteger(allocation.fileIdStart || allocation.matter?.nextFileNumber, 1);
+  const dbMatter = normalizeUploadMatter({ ...normalizeUploadMatter(matter), ...(allocation.matter || {}) });
+  if (!dbMatter.id) throw makeHttpError(`Matter not found in runtime database: ${normalizeUploadMatter(matter).name}`, 404);
   const intakeDbId = stringValue(allocation.intakeDbId);
   const uploadSessionId = stringValue(allocation.uploadSessionId);
   if (!intakeDbId || !uploadSessionId) throw makeHttpError("Runtime DB upload allocation failed", 500);
-  const receivedDate = stringValue(allocation.receivedDate) || dateOnly(now);
-  const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
-  const intakeDir = `00_Inbox/${intakeDirName}`;
-  const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
-  const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakeNumber}`);
+  const intakePlan = planAddFilesIntake({
+    label,
+    files,
+    relativePaths,
+    intakeNumber: allocation.nextIntakeNumber,
+    fileIdStart: allocation.fileIdStart || allocation.matter?.nextFileNumber,
+    receivedDate: allocation.receivedDate,
+    now,
+    action: "adding files",
+  });
+  const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakePlan.intakeNumber}`);
   const buildIntakeArgs = {
     matter: dbMatter,
     metadata: dbMatter,
     files,
-    relativePaths: safeRelativePaths,
+    relativePaths: intakePlan.relativePaths,
     intakeDbId,
     uploadSessionId,
     importBatchId,
-    intakeId,
-    intakeDirName,
+    intakeId: intakePlan.intakeId,
+    intakeDirName: intakePlan.intakeDirName,
     intakeLabel: label,
-    receivedDate,
-    fileIdStart,
+    receivedDate: intakePlan.receivedDate,
+    fileIdStart: intakePlan.fileIdStart,
     materializeExisting: true,
     persistPaths: [
       "matter.json",
-      `${intakeDir}/`,
+      `${intakePlan.intakeDir}/`,
     ],
   };
   return {
     matter: dbMatter,
-    relativePaths: safeRelativePaths,
-    intakeNumber,
-    intakeId,
-    intakeDirName,
-    intakeDir,
-    fileIdStart,
+    relativePaths: intakePlan.relativePaths,
+    intakeNumber: intakePlan.intakeNumber,
+    intakeId: intakePlan.intakeId,
+    intakeDirName: intakePlan.intakeDirName,
+    intakeDir: intakePlan.intakeDir,
+    fileIdStart: intakePlan.fileIdStart,
     intakeDbId,
     uploadSessionId,
     importBatchId,
-    receivedDate,
+    receivedDate: intakePlan.receivedDate,
     buildIntakeArgs,
   };
 }
 
 export function validateRuntimeUploadInputs({ files = [], relativePaths = [], action = "uploading files" } = {}) {
-  if (!Array.isArray(files) || !files.length) throw noUploadedFilesError(action);
-  if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-    throw makeHttpError("paths array must match file count", 400);
-  }
-  return validateUploadRelativePaths(relativePaths);
-}
-
-function normalizeMatter(matter = {}) {
-  return {
-    id: stringValue(matter.id),
-    name: stringValue(matter.name || matter.folderName || matter.matterName),
-    folderName: stringValue(matter.folderName || matter.name),
-    matterName: stringValue(matter.matterName || matter.name),
-    clientName: stringValue(matter.clientName),
-    oppositeParty: stringValue(matter.oppositeParty),
-    matterType: stringValue(matter.matterType),
-    jurisdiction: stringValue(matter.jurisdiction),
-    briefDescription: stringValue(matter.briefDescription),
-  };
-}
-
-function noUploadedFilesError(action = "creating a matter") {
-  return makeHttpError(
-    `Attach at least one source file before ${action}.`,
-    400,
-    "upload.no_files_attached",
-  );
-}
-
-function positiveInteger(value, fallback = 1) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 1) return fallback;
-  return Math.trunc(number);
-}
-
-function stringValue(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function dateOnly(value) {
-  const time = value instanceof Date ? value.getTime() : Date.parse(value);
-  return Number.isFinite(time) ? new Date(time).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return validateUploadInputs({ files, relativePaths, action });
 }
 
 function deterministicUuid(seed) {

@@ -1,10 +1,8 @@
 import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
-import {
-  validateUploadRelativePath,
-  validateUploadRelativePaths,
-} from "../shared/upload-path-policy.mjs";
+import { validateUploadInputs } from "../shared/upload-intake-planner.mjs";
+import { validateUploadRelativePath } from "../shared/upload-path-policy.mjs";
 
 export function parseUploadJsonField(fields = {}, name, fallback) {
   if (!fields[name]) return fallback;
@@ -15,13 +13,9 @@ export function parseUploadJsonField(fields = {}, name, fallback) {
   }
 }
 
-export function validateUploadPathList(fields = {}, files = []) {
+export function validateUploadPathList(fields = {}, files = [], { action = "uploading files" } = {}) {
   const relativePaths = parseUploadJsonField(fields, "paths", []);
-  if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-    throw makeHttpError("paths array must match file count", 400);
-  }
-
-  return validateUploadRelativePaths(relativePaths);
+  return validateUploadInputs({ files, relativePaths, action });
 }
 
 export async function writeUploadedFiles(files = [], relativePaths = [], destinationRoot, {
