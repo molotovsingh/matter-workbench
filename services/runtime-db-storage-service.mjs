@@ -38,6 +38,12 @@ import {
   planRuntimeAddFilesUpload,
   validateRuntimeUploadInputs,
 } from "./runtime-db-upload-intake-planner.mjs";
+import {
+  normalizeRuntimeObjectKey,
+  runtimeObjectKeyCandidates,
+  runtimeObjectKeyForMatterPath,
+  validatedRelativePathFromRuntimeObjectKey,
+} from "./runtime-db-object-key-policy.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import { wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
@@ -628,7 +634,7 @@ function buildWorkspaceTree({ matter, objects }) {
   const directoryPaths = new Set();
 
   for (const object of objects) {
-    const relativePath = validatedRelativePathFromObjectKey(object.objectKey, matter.name);
+    const relativePath = validatedRelativePathFromRuntimeObjectKey(object.objectKey, matter.name);
     if (!relativePath) continue;
     const pathParts = relativePath.split("/").filter(Boolean);
     if (!pathParts.length) continue;
@@ -880,7 +886,7 @@ function buildMatterAddFilesAllocationSql({
 }
 
 function buildPayloadSql({ tenantId, matter, relativePath }) {
-  const keys = objectKeyCandidates({ matter, relativePath });
+  const keys = runtimeObjectKeyCandidates({ matter, relativePath });
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     "with candidates as (",
@@ -1004,32 +1010,6 @@ function runtimeDbStoragePsqlMaxBuffer() {
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
 }
 
-function relativePathFromObjectKey(objectKey, matterName) {
-  const key = normalizeObjectKey(objectKey);
-  const prefix = `${normalizeObjectKey(matterName)}/`;
-  return key.startsWith(prefix) ? key.slice(prefix.length) : key;
-}
-
-function validatedRelativePathFromObjectKey(objectKey, matterName) {
-  const relativePath = relativePathFromObjectKey(objectKey, matterName);
-  if (!relativePath) return "";
-  try {
-    return validateRelativePath(relativePath);
-  } catch {
-    throw makeHttpError("Stored object path is outside the matter root", 409);
-  }
-}
-
-function objectKeyCandidates({ matter, relativePath }) {
-  const names = [
-    matter.name,
-    matter.folderName,
-    matter.matterName,
-  ].map(normalizeObjectKey).filter(Boolean);
-  const uniqueNames = [...new Set(names)];
-  return uniqueNames.map((name) => `${name}/${relativePath}`);
-}
-
 function normalizeMatterRelativePath(value) {
   const raw = String(value || "").replaceAll("\\", "/").trim();
   if (!raw) throw makeHttpError("File path is required", 400);
@@ -1082,7 +1062,7 @@ function extractedArtifacts(paths = []) {
 function runtimeStatusInputs({ matter, objects = [] } = {}) {
   const rows = objects.map((object) => ({
     ...object,
-    relativePath: validatedRelativePathFromObjectKey(object.objectKey, matter.name),
+    relativePath: validatedRelativePathFromRuntimeObjectKey(object.objectKey, matter.name),
     updatedMs: Date.parse(object.updatedAt || "") || 0,
   }));
   const byPath = new Map(rows.map((row) => [row.relativePath, row]));
@@ -1292,7 +1272,7 @@ async function listMatterFiles(root, relativePrefix = "") {
       rows.push(...await listMatterFiles(root, relativePath));
       continue;
     }
-    if (entry.isFile()) rows.push({ relativePath: normalizeObjectKey(relativePath) });
+    if (entry.isFile()) rows.push({ relativePath: normalizeRuntimeObjectKey(relativePath) });
   }
   return rows.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
@@ -1327,10 +1307,13 @@ function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files 
 
 function persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter, files }) {
   const rows = files
-    .map((file) => ({
-      relativePath: normalizeObjectKey(file.relativePath),
-      objectKey: normalizeObjectKey(file.objectKey || `${matter.name}/${file.relativePath}`),
-    }))
+    .map((file) => {
+      const relativePath = normalizeRuntimeObjectKey(file.relativePath);
+      return {
+        relativePath,
+        objectKey: normalizeRuntimeObjectKey(file.objectKey || runtimeObjectKeyForMatterPath({ matter, relativePath })),
+      };
+    })
     .filter((row) => row.relativePath && row.objectKey);
   if (!rows.length) return [];
   const sql = wrapRuntimeDbWriteTransaction([
@@ -1351,7 +1334,7 @@ function persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter, fi
 function materializedRowsForFiles({ matter, files }) {
   const rows = [];
   for (const file of files) {
-    const objectKey = `${normalizeObjectKey(matter.name)}/${normalizeObjectKey(file.relativePath)}`;
+    const objectKey = runtimeObjectKeyForMatterPath({ matter, relativePath: file.relativePath });
     const storageObjectId = deterministicUuid(`runtime-storage:${matter.id}:${objectKey}`);
     const payloadId = deterministicUuid(`runtime-storage-payload:${storageObjectId}`);
     rows.push({
@@ -1423,7 +1406,7 @@ async function buildRuntimeUploadIntake({
 
 async function writeExistingPayloadFilesToMatterRoot({ matterRoot, files = [] }) {
   for (const file of files) {
-    const relativePath = validateRelativePath(normalizeObjectKey(file.relativePath));
+    const relativePath = validateRelativePath(normalizeRuntimeObjectKey(file.relativePath));
     if (!relativePath) continue;
     const absolutePath = path.join(matterRoot, ...relativePath.split("/"));
     await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -1446,7 +1429,7 @@ async function writeUploadedFilesToMatterRoot({
     const destination = path.join(sourceRoot, ...safeRel.split("/"));
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, bytes);
-    uploadedSourceBytes.set(normalizeObjectKey(`00_Inbox/${intakeDirName}/Source Files/${safeRel}`), bytes);
+    uploadedSourceBytes.set(normalizeRuntimeObjectKey(`00_Inbox/${intakeDirName}/Source Files/${safeRel}`), bytes);
   }
   return uploadedSourceBytes;
 }
@@ -1485,10 +1468,10 @@ async function uploadIntakeResultFromMatterRoot({
   const importItems = fileRegisterRows
     .filter((row) => stringValue(row.file_id) && stringValue(row.source_path))
     .map((row) => ({
-      relativePath: normalizeObjectKey(row.source_path),
-      originalPath: normalizeObjectKey(row.original_path),
-      workingCopyPath: normalizeObjectKey(row.working_copy_path),
-      originalRelativePath: sourceRelativePathForImport(row.source_path) || stringValue(row.original_name) || normalizeObjectKey(row.source_path),
+      relativePath: normalizeRuntimeObjectKey(row.source_path),
+      originalPath: normalizeRuntimeObjectKey(row.original_path),
+      workingCopyPath: normalizeRuntimeObjectKey(row.working_copy_path),
+      originalRelativePath: sourceRelativePathForImport(row.source_path) || stringValue(row.original_name) || normalizeRuntimeObjectKey(row.source_path),
       fileNumber: fileNumberForFileId(row.file_id),
       fileId: stringValue(row.file_id).toUpperCase(),
       sha256: stringValue(row.sha256),
@@ -1508,10 +1491,10 @@ async function upsertRegisteredSourceFiles(storageFiles, {
   uploadedSourceBytes = new Map(),
 }) {
   for (const row of fileRegisterRows) {
-    const sourcePath = normalizeObjectKey(row.source_path);
+    const sourcePath = normalizeRuntimeObjectKey(row.source_path);
     const sourceBytes = sourcePath ? uploadedSourceBytes.get(sourcePath) : null;
     const registeredPaths = [sourcePath, row.original_path, row.working_copy_path]
-      .map((value) => normalizeObjectKey(value))
+      .map((value) => normalizeRuntimeObjectKey(value))
       .filter(Boolean);
     for (const relativePath of registeredPaths) {
       const bytes = sourceBytes || await readRegisteredFileBytes({ matterRoot, relativePath });
@@ -1535,10 +1518,10 @@ function createPersistPathMatcher(persistPaths) {
     return () => true;
   }
   const normalizedPaths = persistPaths
-    .map((item) => normalizeObjectKey(item))
+    .map((item) => normalizeRuntimeObjectKey(item))
     .filter(Boolean);
   return (relativePath) => {
-    const normalized = normalizeObjectKey(relativePath);
+    const normalized = normalizeRuntimeObjectKey(relativePath);
     return normalizedPaths.some((persistPath) => {
       if (persistPath.endsWith("/")) return normalized.startsWith(persistPath);
       return normalized === persistPath;
@@ -1577,15 +1560,15 @@ function upsertGeneratedIntakeArtifacts(storageFiles, result = {}) {
 }
 
 function upsertStorageFile(storageFiles, file) {
-  const relativePath = normalizeObjectKey(file.relativePath);
-  const index = storageFiles.findIndex((existing) => normalizeObjectKey(existing.relativePath) === relativePath);
+  const relativePath = normalizeRuntimeObjectKey(file.relativePath);
+  const index = storageFiles.findIndex((existing) => normalizeRuntimeObjectKey(existing.relativePath) === relativePath);
   const normalized = { ...file, relativePath };
   if (index >= 0) storageFiles[index] = normalized;
   else storageFiles.push(normalized);
 }
 
 function sourceRelativePathForImport(value) {
-  const normalized = normalizeObjectKey(value);
+  const normalized = normalizeRuntimeObjectKey(value);
   const marker = "/Source Files/";
   const index = normalized.indexOf(marker);
   return index >= 0 ? normalized.slice(index + marker.length) : "";
@@ -1714,7 +1697,7 @@ function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importI
     if (!row) throw new Error(`Runtime DB upload did not persist a source payload for ${item.fileId}`);
     const documentId = documentIdForImportItem(matter, item);
     const blobId = documentBlobIdForImportItem(matter, item);
-    const originalName = path.posix.basename(normalizeObjectKey(item.originalRelativePath || item.relativePath));
+    const originalName = path.posix.basename(normalizeRuntimeObjectKey(item.originalRelativePath || item.relativePath));
     const duplicateDocumentIdSql = duplicateDocumentIdForImportItemSql({ matter, item });
     return [
       [
@@ -1751,7 +1734,7 @@ function documentIdentityUpsertSqls({ matter, intakeId, uploadSessionId, importI
 
 function storageRowForImportItem(storageByRelativePath, item) {
   for (const candidate of [item.workingCopyPath, item.originalPath, item.relativePath]) {
-    const normalized = normalizeObjectKey(candidate);
+    const normalized = normalizeRuntimeObjectKey(candidate);
     if (!normalized) continue;
     const row = storageByRelativePath.get(normalized);
     if (row) return row;
@@ -1900,7 +1883,7 @@ function extractionRecordUpsertSql({ matter, row }) {
 }
 
 function sourceDescriptorUpsertSql({ matter, row }) {
-  if (normalizeObjectKey(row.relativePath) !== "10_Library/Source Index.json") return [];
+  if (normalizeRuntimeObjectKey(row.relativePath) !== "10_Library/Source Index.json") return [];
   let artifact;
   try {
     artifact = JSON.parse(Buffer.from(row.payloadHex || "", "hex").toString("utf8"));
@@ -1954,14 +1937,14 @@ function normalizeSourceLabelStatus(value) {
 }
 
 function fileIdForExtractionPayloadPath(relativePath) {
-  const normalized = normalizeObjectKey(relativePath);
+  const normalized = normalizeRuntimeObjectKey(relativePath);
   const match = normalized.match(/(^|\/)_extracted\/(FILE-\d{4})\.json$/i);
   return match ? match[2].toUpperCase() : "";
 }
 
 function artifactMetadataForRow(row = {}) {
   if (row.objectRole !== "matter_artifact") return null;
-  const relativePath = normalizeObjectKey(row.relativePath);
+  const relativePath = normalizeRuntimeObjectKey(row.relativePath);
   const format = artifactFormatForPath(relativePath);
   if (!format) return null;
   if (relativePath === "10_Library/Source Index.json") {
@@ -1983,20 +1966,20 @@ function artifactMetadataForRow(row = {}) {
 }
 
 function artifactProfileForPath(relativePath) {
-  const normalized = normalizeObjectKey(relativePath);
+  const normalized = normalizeRuntimeObjectKey(relativePath);
   const extension = path.posix.extname(normalized);
   const withoutExtension = extension ? normalized.slice(0, -extension.length) : normalized;
   return withoutExtension || "default";
 }
 
 function artifactFormatForPath(relativePath) {
-  const extension = path.posix.extname(normalizeObjectKey(relativePath)).toLowerCase().replace(/^\./, "");
+  const extension = path.posix.extname(normalizeRuntimeObjectKey(relativePath)).toLowerCase().replace(/^\./, "");
   if (extension === "markdown") return "md";
   return new Set(["json", "md", "csv", "pdf", "docx", "txt"]).has(extension) ? extension : "";
 }
 
 function roleForMaterializedPath(relativePath) {
-  const normalized = normalizeObjectKey(relativePath);
+  const normalized = normalizeRuntimeObjectKey(relativePath);
   if (normalized === "matter.json" || /(^|\/)(File Register|Intake Log)\.csv$/i.test(normalized)) return "matter_artifact";
   if (/(^|\/)_extracted\/[^/]+\.json$/i.test(normalized)) return "extraction_payload";
   if (/^10_Library\//i.test(normalized) || /^20_Workshop\//i.test(normalized) || /^30_Drafts\//i.test(normalized) || /^40_Dispatch\//i.test(normalized)) {
@@ -2024,10 +2007,6 @@ function emptyAttention(matter) {
     summary: { total: 0, blocker: 0, warning: 0, info: 0, state: "clear" },
     items: [],
   };
-}
-
-function normalizeObjectKey(value) {
-  return String(value || "").replaceAll("\\", "/").replace(/^\/+/, "").trim();
 }
 
 function normalizeObjectRow(row = {}) {
