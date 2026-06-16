@@ -17,7 +17,6 @@ import process from "node:process";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import {
   classifyFile,
-  composeIntakeDirName,
   FILE_REGISTER_HEADERS,
   INTAKE_LOG_HEADERS,
 } from "../shared/matter-contract.mjs";
@@ -34,6 +33,11 @@ import {
   isWorkspaceTextPreviewExtension,
 } from "../shared/workspace-preview-policy.mjs";
 import { runtimeDbUserFromRequestContext } from "./request-context.mjs";
+import {
+  planNewRuntimeMatterUpload,
+  planRuntimeAddFilesUpload,
+  validateRuntimeUploadInputs,
+} from "./runtime-db-upload-intake-planner.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import { wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
@@ -134,12 +138,10 @@ export function createRuntimeDbStorageService({
     relativePaths = [],
   } = {}) {
     ensureEnabled();
-    const matterName = normalizeMatterName(name);
-    if (!matterName) throw makeHttpError("Matter name is required", 400);
-    if (!Array.isArray(files) || !files.length) throw noUploadedFilesError("creating a matter");
-    if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-      throw makeHttpError("paths array must match file count", 400);
-    }
+    const actor = runtimeDbUserFromRequestContext();
+    const uploadPlan = planNewRuntimeMatterUpload({ name, metadata, files, relativePaths, actor });
+    const matter = uploadPlan.matter;
+    const matterName = matter.name;
     const existing = queryJson({
       databaseUrl,
       tenantId,
@@ -148,36 +150,9 @@ export function createRuntimeDbStorageService({
     });
     if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409);
 
-    const actor = runtimeDbUserFromRequestContext();
-    const matter = {
-      id: deterministicUuid(`runtime-db-matter:${actor?.id || "anonymous"}:${matterName}`),
-      name: matterName,
-      folderName: matterName,
-      matterName: stringValue(metadata.matterName) || matterName,
-      clientName: stringValue(metadata.clientName),
-      oppositeParty: stringValue(metadata.oppositeParty),
-      matterType: stringValue(metadata.matterType),
-      jurisdiction: stringValue(metadata.jurisdiction),
-      briefDescription: stringValue(metadata.briefDescription),
-      createdByUserId: actor?.id || "",
-      runtimeStorageMode: "postgres",
-    };
-    const intakeDbId = deterministicUuid(`runtime-db-intake:${matter.id}:1`);
-    const uploadSessionId = deterministicUuid(`runtime-db-upload-session:${matter.id}:1`);
-    const importBatchId = deterministicUuid(`runtime-db-import-batch:${matter.id}:1`);
-    const receivedDate = new Date().toISOString().slice(0, 10);
-    const intakeDirName = "Intake 01 - Initial";
     const { storageFiles, importItems } = await buildRuntimeUploadIntake({
-      matter,
-      metadata,
-      files,
-      relativePaths,
+      ...uploadPlan.buildIntakeArgs,
       tempRoot,
-      intakeId: "INTAKE-01",
-      intakeDirName,
-      intakeLabel: "Initial",
-      receivedDate,
-      fileIdStart: 1,
     });
 
     const filesToPersist = storageFiles.map((file) => ({
@@ -192,22 +167,22 @@ export function createRuntimeDbStorageService({
       ...createMatterUploadSql({
         matter,
         actor,
-        intakeId: intakeDbId,
-        uploadSessionId,
-        importBatchId,
+        intakeId: uploadPlan.intakeDbId,
+        uploadSessionId: uploadPlan.uploadSessionId,
+        importBatchId: uploadPlan.importBatchId,
         importItems,
         expectedFileCount: importItems.length,
-        receivedDate,
+        receivedDate: uploadPlan.receivedDate,
       }),
       ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
       ...documentIdentityUpsertSqls({
         matter,
-        intakeId: intakeDbId,
-        uploadSessionId,
+        intakeId: uploadPlan.intakeDbId,
+        uploadSessionId: uploadPlan.uploadSessionId,
         importItems,
         persistedRows,
       }),
-      ...matterImportItemUpsertSqls({ matter, importBatchId, importItems, persistedRows }),
+      ...matterImportItemUpsertSqls({ matter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
       "select '{}'::jsonb::text;",
       "",
     ].join("\n"));
@@ -224,10 +199,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
     if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400);
-    if (!Array.isArray(files) || !files.length) throw noUploadedFilesError("adding files");
-    if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-      throw makeHttpError("paths array must match file count", 400);
-    }
+    const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "adding files" });
 
     const actor = runtimeDbUserFromRequestContext();
     const allocation = queryJson({
@@ -244,34 +216,18 @@ export function createRuntimeDbStorageService({
       }),
     });
     if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404);
-    const dbMatter = normalizeMatter({ ...normalizedMatter, ...allocation.matter });
-    const intakeNumber = positiveInteger(allocation.nextIntakeNumber, 1);
-    const fileIdStart = positiveInteger(allocation.fileIdStart || allocation.matter.nextFileNumber, 1);
-    const intakeDbId = stringValue(allocation.intakeDbId);
-    const uploadSessionId = stringValue(allocation.uploadSessionId);
-    const receivedDate = stringValue(allocation.receivedDate) || new Date().toISOString().slice(0, 10);
-    if (!intakeDbId || !uploadSessionId) throw makeHttpError("Runtime DB upload allocation failed", 500);
-    const intakeDirName = composeIntakeDirName(intakeNumber, label, receivedDate);
-    const intakeDir = `00_Inbox/${intakeDirName}`;
-    const intakeId = `INTAKE-${String(intakeNumber).padStart(2, "0")}`;
-    const importBatchId = deterministicUuid(`runtime-db-import-batch:${dbMatter.id}:${intakeNumber}`);
-    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
-      matter: dbMatter,
-      metadata: dbMatter,
+    const uploadPlan = planRuntimeAddFilesUpload({
+      matter: normalizedMatter,
+      allocation,
+      label,
       files,
-      relativePaths,
+      relativePaths: safeRelativePaths,
+    });
+    const dbMatter = uploadPlan.matter;
+    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
+      ...uploadPlan.buildIntakeArgs,
       tempRoot,
-      intakeId,
-      intakeDirName,
-      intakeLabel: label,
-      receivedDate,
-      fileIdStart,
-      materializeExisting: true,
       existingFiles: await readWorkspacePayloadFiles(dbMatter),
-      persistPaths: [
-        "matter.json",
-        `${intakeDir}/`,
-      ],
     });
 
     const filesToPersist = storageFiles.map((file) => ({
@@ -286,32 +242,32 @@ export function createRuntimeDbStorageService({
       ...createMatterAddFilesSql({
         matter: dbMatter,
         actor,
-        intakeDbId,
-        intakeNumber,
-        uploadSessionId,
-        importBatchId,
+        intakeDbId: uploadPlan.intakeDbId,
+        intakeNumber: uploadPlan.intakeNumber,
+        uploadSessionId: uploadPlan.uploadSessionId,
+        importBatchId: uploadPlan.importBatchId,
         importItems,
         expectedFileCount: importItems.length,
         label,
-        receivedDate,
+        receivedDate: uploadPlan.receivedDate,
       }),
       ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter: dbMatter, row })),
       ...documentIdentityUpsertSqls({
         matter: dbMatter,
-        intakeId: intakeDbId,
-        uploadSessionId,
+        intakeId: uploadPlan.intakeDbId,
+        uploadSessionId: uploadPlan.uploadSessionId,
         importItems,
         persistedRows,
       }),
-      ...matterImportItemUpsertSqls({ matter: dbMatter, importBatchId, importItems, persistedRows }),
+      ...matterImportItemUpsertSqls({ matter: dbMatter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
       "select '{}'::jsonb::text;",
       "",
     ].join("\n"));
     queryJson({ databaseUrl, tenantId, spawn, sql });
     return {
-      intakeId,
-      intakeDirName,
-      receivedDate,
+      intakeId: uploadPlan.intakeId,
+      intakeDirName: uploadPlan.intakeDirName,
+      receivedDate: uploadPlan.receivedDate,
       label,
       scanned: importItems.length,
       unique: importItems.length,
@@ -2074,14 +2030,6 @@ function normalizeObjectKey(value) {
   return String(value || "").replaceAll("\\", "/").replace(/^\/+/, "").trim();
 }
 
-function normalizeMatterName(value) {
-  const text = stringValue(value);
-  if (!text || text.startsWith(".") || text.includes("/") || text.includes("\\") || text.includes("..")) {
-    throw makeHttpError("Invalid matter name", 400);
-  }
-  return text;
-}
-
 function normalizeObjectRow(row = {}) {
   return {
     objectKey: stringValue(row.objectKey),
@@ -2190,20 +2138,6 @@ function normalizeIsoString(value) {
   if (typeof value !== "string" || !value.trim()) return "";
   const time = Date.parse(value);
   return Number.isFinite(time) ? new Date(time).toISOString() : "";
-}
-
-function positiveInteger(value, fallback = 1) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 1) return fallback;
-  return Math.trunc(number);
-}
-
-function noUploadedFilesError(action = "creating a matter") {
-  return makeHttpError(
-    `Attach at least one source file before ${action}.`,
-    400,
-    "upload.no_files_attached",
-  );
 }
 
 function deterministicUuid(seed) {

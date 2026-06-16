@@ -595,6 +595,35 @@ test("runtime DB storage service creates matter upload custody rows with payload
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB storage service creates lawyer-captioned matters under safe storage names", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-captioned-upload-"));
+  const uploadedFile = path.join(tmp, "fir.txt");
+  await writeFile(uploadedFile, "FIR placeholder.");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [{}, {}]),
+  });
+
+  const created = await service.createMatterFromUploadedFiles({
+    name: "State/Rajesh Mehra",
+    metadata: {
+      matterName: "State/Rajesh Mehra",
+      clientName: "Rajesh Mehra",
+      oppositeParty: "State",
+    },
+    files: [{ index: 0, tempPath: uploadedFile, filename: "fir.txt", bytes: 16 }],
+    relativePaths: ["FIR.txt"],
+  });
+
+  assert.equal(created.name, "State - Rajesh Mehra");
+  assert.equal(created.matterName, "State/Rajesh Mehra");
+  const sql = calls.map((call) => call.input || "").join("\n");
+  assert.match(sql, /State - Rajesh Mehra\/matter\.json/);
+  assert.doesNotMatch(sql, /State\/Rajesh Mehra\/matter\.json/);
+});
+
 test("runtime DB storage service preserves duplicate source identity in document custody", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-duplicate-upload-"));
   const firstFile = path.join(tmp, "notice-a.txt");
@@ -736,6 +765,28 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   assert.match(calls[0].input, /next_file_number\s*=\s*coalesce\(m\.next_file_number,\s*1\)\s*\+\s*1/i);
   assert.doesNotMatch(writeSql, /next_file_number\s*=\s*greatest/i);
   assert.doesNotMatch(sql, /secret/);
+});
+
+test("runtime DB storage service rejects duplicate add-files paths before DB allocation", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [{}]),
+  });
+
+  await assert.rejects(
+    () => service.addUploadedFilesToMatter({
+      matter,
+      files: [
+        { index: 0, tempPath: "/tmp/first.txt", filename: "first.txt", bytes: 1 },
+        { index: 1, tempPath: "/tmp/second.txt", filename: "second.txt", bytes: 1 },
+      ],
+      relativePaths: ["Evidence/notice.pdf", "evidence/notice.pdf"],
+    }),
+    (error) => error.statusCode === 400 && error.code === "upload.duplicate_paths",
+  );
+  assert.equal(calls.length, 0);
 });
 
 test("runtime DB storage service reserves add-files allocation under a matter row lock", async () => {
