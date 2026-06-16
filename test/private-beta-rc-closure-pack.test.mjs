@@ -8,6 +8,7 @@ import test from "node:test";
 const packPath = new URL("../scripts/private-beta-rc-closure-pack.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const readmePath = new URL("../README.md", import.meta.url);
+const engineeringReadmeArchivePath = new URL("../docs/engineering-readme-archive.md", import.meta.url);
 const checklistPath = new URL("../docs/beta-operator-checklist.md", import.meta.url);
 const releasePath = new URL("../docs/releases/v1.0.0-beta.12.md", import.meta.url);
 const docsPath = new URL("../docs/private-beta-rc-closure-pack.md", import.meta.url);
@@ -573,8 +574,11 @@ test("package and release docs expose the private beta RC closure pack", async (
   assert.equal(pkg.scripts["private-beta:rc-closure-pack"], "node scripts/private-beta-rc-closure-pack.mjs");
 
   const readme = await readFile(readmePath, "utf8");
-  assert.match(readme, /v1\.0\.0-beta\.12/);
-  assert.match(readme, /private-beta:rc-closure-pack/);
+  assert.match(readme, /v1\.0\.0-beta\.15/);
+  assert.match(readme, /engineering-readme-archive\.md/);
+
+  const engineeringReadmeArchive = await readFile(engineeringReadmeArchivePath, "utf8");
+  assert.match(engineeringReadmeArchive, /private-beta:rc-closure-pack/);
 
   const checklist = await readFile(checklistPath, "utf8");
   assert.match(checklist, /v1\.0\.0-beta\.12/);
