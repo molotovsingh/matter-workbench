@@ -238,6 +238,11 @@ provider run, including known token/cost values where available and `unknown`
 cost confidence where the local provider metadata lacks spend information. It is
 still a ledger rehearsal, not a billing system or approval workflow.
 
+`db:credits:shadow:report` layers the shadow credit policy over the mirrored
+provider-run and cost-event evidence. It reports what credits would have been
+charged by task/SKU, matter, provider, and model, but it does not write credit
+rows, enforce balances, or integrate payment systems.
+
 `db:audit:hydrate:dry-run` rehearses privacy-safe audit-event rows from
 `.local/command-interactions.jsonl`. It mirrors command action metadata, matter
 links where they can be matched, and provider-invoked flags, but it deliberately

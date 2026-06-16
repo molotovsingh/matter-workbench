@@ -1,7 +1,7 @@
 # Credit Metering Shadow Plan
 
 Date: 2026-06-16
-Status: Planning branch / no enforcement
+Status: Shadow implementation branch / no enforcement
 Branch: `codex/credit-metering-shadow`
 Base: `8a27c8f Extract runtime DB object key policy`
 
@@ -117,7 +117,7 @@ Keep this branch isolated from Beta 3 release work.
 
 ## Phase 1 — Static Credit Policy, No DB Writes
 
-Add:
+Implemented in this branch:
 
 ```text
 shared/credit-policy.mjs
@@ -170,10 +170,11 @@ Do not expose this as billing.
 
 ## Phase 2 — Credit Ledger Migration
 
-Add a new migration, likely:
+Implemented in this branch:
 
 ```text
 db/migrations/019_credit_ledger.sql
+test/database-credit-ledger-migration.test.mjs
 ```
 
 Minimum tables:
@@ -316,7 +317,7 @@ test/database-credit-ledger-migration.test.mjs
 
 ## Phase 3 — Shadow Credit Planner From Existing Evidence
 
-Add:
+Implemented in this branch:
 
 ```text
 services/credit-shadow-planner.mjs

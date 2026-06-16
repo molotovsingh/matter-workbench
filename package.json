@@ -64,6 +64,7 @@
     "db:costs:hydrate": "node scripts/db-hydrate-local-cost-events.mjs --apply",
     "db:costs:hydrate:verify": "node scripts/db-hydrate-local-cost-events.mjs --verify",
     "db:costs:shadow:inspect": "node scripts/db-hydrate-local-cost-events.mjs --inspect",
+    "db:credits:shadow:report": "node scripts/db-credit-shadow-report.mjs",
     "db:audit:hydrate:dry-run": "node scripts/db-hydrate-local-audit-events.mjs --dry-run",
     "db:audit:hydrate": "node scripts/db-hydrate-local-audit-events.mjs --apply",
     "db:audit:hydrate:verify": "node scripts/db-hydrate-local-audit-events.mjs --verify",
