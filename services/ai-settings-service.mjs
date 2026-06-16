@@ -4,6 +4,10 @@ import {
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
 import { extractResponsesOutputText } from "../shared/responses-client.mjs";
+import {
+  classifyProviderErrorCode,
+  providerErrorMessageForCode,
+} from "../shared/provider-http.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { upsertLocalEnv } from "../shared/local-env.mjs";
 import {
@@ -312,11 +316,15 @@ function throwCopilotPingError(provider, response, payload) {
   const choiceError = Array.isArray(payload?.choices)
     ? payload.choices.find((choice) => choice?.error)?.error
     : null;
-  const message = redactSensitiveText(
+  const providerPayload = { error: payload?.error || choiceError };
+  const rawMessage = redactSensitiveText(
     payload?.error?.message || choiceError?.message || `${provider} returned ${response?.status || "an error"}`,
   );
+  const code = classifyProviderErrorCode(providerPayload, rawMessage);
+  const message = providerErrorMessageForCode(code, rawMessage);
   const error = new Error(`Matter Copilot model check failed: ${message}`);
   error.statusCode = response?.status >= 400 && response.status < 500 ? 502 : 503;
+  error.code = code;
   throw error;
 }
 

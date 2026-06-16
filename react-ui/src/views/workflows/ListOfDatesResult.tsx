@@ -147,8 +147,8 @@ function sourceLabels(entry: ChronologyEntry): string[] {
   const sources = entry.supporting_sources?.length ? entry.supporting_sources : [entry];
   const labels = sources
     .map((source) => lawyerFacingSourceLabel({
-      label: source.source_short_label
-        || source.source_label
+      label: source.source_label
+        || source.source_short_label
         || source.original_name
         || readableSourcePath(source.source_path)
         || '',

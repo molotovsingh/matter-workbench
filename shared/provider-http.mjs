@@ -98,7 +98,7 @@ function formatProviderErrorMessage(response, payload) {
   return `Provider returned ${response?.status || "an error"}`;
 }
 
-function classifyProviderErrorCode(payload, message = "") {
+export function classifyProviderErrorCode(payload, message = "") {
   const error = payload?.error;
   const providerCode = typeof error?.code === "string" ? error.code : "";
   const providerType = typeof error?.type === "string" ? error.type : "";
@@ -114,7 +114,7 @@ function classifyProviderErrorCode(payload, message = "") {
   return "provider.error";
 }
 
-function providerErrorMessageForCode(code, message = "") {
+export function providerErrorMessageForCode(code, message = "") {
   if (code === "provider.quota_exceeded") {
     return "AI quota or billing limit reached. Ask the operator to check the AI account before trying again.";
   }

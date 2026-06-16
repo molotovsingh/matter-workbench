@@ -249,6 +249,64 @@ test("AI settings do not persist Matter Copilot switch when model ping fails", a
   assert.doesNotMatch(text, /OPENROUTER_API_KEY/);
 });
 
+test("AI settings Matter Copilot switch normalizes provider quota failures", async () => {
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      response.writeHead(429, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        error: {
+          code: "insufficient_quota",
+          message: "You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.",
+        },
+      }));
+    });
+  });
+
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), [
+    "OPENAI_API_KEY=sk-openai-existing",
+    "OPENAI_MODEL=gpt-existing",
+    "",
+  ].join("\n"));
+  const env = {
+    OPENAI_API_KEY: "sk-openai-existing",
+    OPENAI_MODEL: "gpt-existing",
+  };
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      endpoint: `http://${address.address}:${address.port}/v1/responses`,
+      fetchImpl: fetchJsonOnce,
+    });
+    await assert.rejects(
+      () => service.saveSettings({
+        copilotProvider: "openai-direct",
+        copilotModel: "gpt-5.4",
+      }),
+      (error) => {
+        assert.equal(error.code, "provider.quota_exceeded");
+        assert.equal(error.statusCode, 502);
+        assert.equal(error.message, "Matter Copilot model check failed: AI quota or billing limit reached. Ask the operator to check the AI account before trying again.");
+        assert.doesNotMatch(error.message, /platform\.openai\.com/);
+        return true;
+      },
+    );
+  } finally {
+    await closeTestServer(server);
+  }
+
+  assert.equal(env.COPILOT_ANSWER_PROVIDER, undefined);
+  assert.equal(env.OPENAI_COPILOT_ANSWER_MODEL, undefined);
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.doesNotMatch(text, /COPILOT_ANSWER_PROVIDER/);
+  assert.doesNotMatch(text, /OPENAI_COPILOT_ANSWER_MODEL/);
+});
+
 test("AI settings reject Matter Copilot switch when OpenRouter returns a choice error", async () => {
   const server = createServer((request, response) => {
     request.resume();
