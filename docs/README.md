@@ -44,6 +44,7 @@ Treat edits here as contract edits.
 | [Copilot Q&A](copilot-qna-contract.md) | Transient matter Q&A boundaries. |
 | [Source Descriptors](source-descriptors.md) | Source Index and lawyer-readable labels. |
 | [Source Identity and Labels](contracts/source-identity-and-labels.md) | Canonical split between internal source identity and lawyer-facing labels. |
+| [Upload Intake](contracts/upload-intake-contract.md) | Canonical shared planning rules for matter upload and add-files intake across filesystem/runtime DB storage. |
 | [Artifact Visibility and Dispatch](contracts/artifact-visibility-and-dispatch.md) | Canonical classes for generated artifacts, drafts, technical files, and dispatch copies. |
 | [Dependency States and Staleness](contracts/dependency-states-and-staleness.md) | Canonical List of Dates dependency states for label refresh, review, and regeneration. |
 | [Custom Skill Governance](contracts/custom-skill-governance.md) | Canonical no-silent-mutation path for skill ideas, samples, validation, and versions. |
