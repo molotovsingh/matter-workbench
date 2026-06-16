@@ -69,6 +69,29 @@ test("matter copilot blocks unsupported-only citations without throwing a server
   assert.doesNotMatch(JSON.stringify(answer), /FILE-9999|p1\.b1|Unsupported answer|unsupported citation/i);
 });
 
+test("matter copilot blocks source-required answers with no citations instead of throwing", async () => {
+  const root = await makeMatterRoot();
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async () => ({
+      answer_status: "answered",
+      answer_markdown: "The record is strong on merits, but I forgot to cite it.",
+      confidence: 0.7,
+      sources: [],
+      warnings: [],
+    }),
+  });
+
+  const answer = await service.answerQuestion({ question: "is this a good case?" });
+
+  assert.equal(answer.answer_status, "blocked");
+  assert.deepEqual(answer.sources, []);
+  assert.match(answer.answer_markdown, /could not verify the source references/i);
+  assert.match(answer.warnings.join(" "), /source references could not be verified/i);
+  assert.doesNotMatch(JSON.stringify(answer), /forgot to cite|did not include validated source citations/i);
+});
+
 test("matter copilot discards unsupported provider citations when validated sources remain", async () => {
   const root = await makeMatterRoot();
   const service = createMatterCopilotService({

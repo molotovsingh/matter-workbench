@@ -201,18 +201,14 @@ function normalizeMatterCopilotAnswer({
   const { sources, unsupportedCount } = normalizeSources(record.sources, sourceResolver);
   const answerMarkdown = boundedText(record.answer_markdown, MAX_ANSWER_LENGTH) || fallbackAnswer(answerStatus);
   const effectiveAnswerStatus = answerStatus === "answered" && unsupportedCount > 0 ? "partial" : answerStatus;
-  const unsupportedOnly = SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && unsupportedCount > 0 && !sources.length;
   if (SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus) && !sources.length) {
-    if (unsupportedOnly) {
-      return blockedUnsupportedCitationAnswer({
-        question,
-        packet,
-        policy,
-        providerConfig,
-        answeredAt,
-      });
-    }
-    throw makeHttpError("Matter copilot answer did not include validated source citations.", 502);
+    return blockedUnsupportedCitationAnswer({
+      question,
+      packet,
+      policy,
+      providerConfig,
+      answeredAt,
+    });
   }
   if (
     SOURCE_REQUIRED_STATUSES.has(effectiveAnswerStatus)
