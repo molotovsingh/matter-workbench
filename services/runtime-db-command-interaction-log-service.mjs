@@ -48,17 +48,17 @@ export function createRuntimeDbCommandInteractionLogService({
       env: { ...process.env, ...env },
     });
     if (result.error) {
-      throw makeHttpError(`runtime DB command log query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+      throw makeHttpError(`runtime DB command log query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.command_log.query_failed");
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-      throw makeHttpError(`runtime DB command log query failed: ${redactRuntimeDbError(detail)}`, 503);
+      throw makeHttpError(`runtime DB command log query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.command_log.query_failed");
     }
     return parsePsqlJson(result.stdout || "");
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB command interaction log is not configured", 503);
+    if (!enabled) throw makeHttpError("Runtime DB command interaction log is not configured", 503, "runtime_db.command_log.not_configured");
   }
 
   return {
@@ -114,7 +114,7 @@ function parsePsqlJson(stdout = "") {
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB command log query returned no JSON.", 503);
+  if (!starts.length) throw makeHttpError("runtime DB command log query returned no JSON.", 503, "runtime_db.command_log.no_json");
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -122,7 +122,7 @@ function parsePsqlJson(stdout = "") {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB command log query returned invalid JSON.", 503);
+    throw makeHttpError("runtime DB command log query returned invalid JSON.", 503, "runtime_db.command_log.invalid_json");
   }
 }
 

@@ -34,6 +34,39 @@ test("runtime DB command interaction log writes audit events", async () => {
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB command interaction log exposes stable query and configuration codes", async () => {
+  const disabled = createRuntimeDbCommandInteractionLogService({});
+  await assert.rejects(
+    () => disabled.readRecentInteractions(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.command_log.not_configured",
+  );
+
+  const noJson = createRuntimeDbCommandInteractionLogService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({ status: 0, stdout: "NOTICE: no json here\n", stderr: "" }),
+  });
+  await assert.rejects(
+    () => noJson.readRecentInteractions(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.command_log.no_json",
+  );
+
+  const failed = createRuntimeDbCommandInteractionLogService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({ status: 1, stdout: "", stderr: "ERROR: password=top-secret failure" }),
+  });
+  await assert.rejects(
+    () => failed.readRecentInteractions(),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.command_log.query_failed");
+      assert.doesNotMatch(error.message, /top-secret/);
+      return true;
+    },
+  );
+});
+
 test("runtime DB command interaction log reads recent audit events", async () => {
   const calls = [];
   const service = createRuntimeDbCommandInteractionLogService({
