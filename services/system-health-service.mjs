@@ -19,6 +19,7 @@ export function createSystemHealthService({
   env = process.env,
   jobStatusService,
   matterStore,
+  privateBetaObservabilityService,
   runtimeDbStorageService,
   now = () => new Date(),
   fsAccess = access,
@@ -241,6 +242,35 @@ export function createSystemHealthService({
         })),
       }));
     }
+
+    const observability = await safeReadPrivateBetaObservability(recentLimit);
+    if (observability.available) {
+      if (observability.error) {
+        checks.push(check({
+          id: "runtime.private_beta_observability_ledgers",
+          category: "runtime",
+          label: "Private beta observability ledgers",
+          status: "warning",
+          message: `Private beta observability could not be read: ${observability.error}`,
+        }));
+      } else {
+        const ledgerErrors = Array.isArray(observability.report?.ledgerErrors) ? observability.report.ledgerErrors : [];
+        checks.push(check({
+          id: "runtime.private_beta_observability_ledgers",
+          category: "runtime",
+          label: "Private beta observability ledgers",
+          status: ledgerErrors.length ? "warning" : "ok",
+          message: ledgerErrors.length
+            ? `${ledgerErrors.length} private beta observability ledger${ledgerErrors.length === 1 ? "" : "s"} could not be read.`
+            : "Private beta observability ledgers are readable.",
+          evidence: ledgerErrors.slice(0, DEFAULT_TASK_SAMPLE_LIMIT).map((entry) => ({
+            source: entry.source,
+            message: redactSensitiveText(String(entry.message || "")),
+          })),
+          recommendation: ledgerErrors.length ? "Check private beta feedback/signal/metrics/heartbeat ledger paths before relying on telemetry retry evidence." : "",
+        }));
+      }
+    }
     return checks;
   }
 
@@ -368,6 +398,15 @@ export function createSystemHealthService({
       return { items: await commandInteractionLogService.readRecentInteractions({ limit }) };
     } catch (error) {
       return { items: [], error: safeMessage(error) };
+    }
+  }
+
+  async function safeReadPrivateBetaObservability(limit) {
+    if (typeof privateBetaObservabilityService?.readObservability !== "function") return { available: false };
+    try {
+      return { available: true, report: await privateBetaObservabilityService.readObservability({ limit }) };
+    } catch (error) {
+      return { available: true, error: safeMessage(error) };
     }
   }
 

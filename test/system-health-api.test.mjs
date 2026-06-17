@@ -136,5 +136,6 @@ test("server constructs system health service with existing diagnostics dependen
   assert.match(source, /aiSettingsService/);
   assert.match(source, /commandInteractionLogService/);
   assert.match(source, /jobStatusService/);
+  assert.match(source, /privateBetaObservabilityService/);
   assert.match(source, /runtimeDbStorageService/);
 });

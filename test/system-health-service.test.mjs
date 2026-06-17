@@ -91,6 +91,45 @@ test("system health reports runtime DB storage mode configuration errors", async
   assert.match(storageModeCheck.recommendation, /runtime database URL/i);
 });
 
+test("system health surfaces private beta observability ledger errors", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-system-health-observability-"));
+  await mkdir(path.join(tmp, ".local"));
+  const calls = [];
+  const report = await createSystemHealthService({
+    appDir: tmp,
+    configService: { getMattersHome: () => "" },
+    aiSettingsService: { readSettings: () => ({ aiTasks: [] }) },
+    jobStatusService: { listJobs: async () => ({ jobs: [] }) },
+    commandInteractionLogService: { readRecentInteractions: async () => [] },
+    matterStore: {
+      hasRuntimeDbStorageMode: () => true,
+      listMattersHomeChildren: async () => [],
+    },
+    runtimeDbStorageService: { enabled: true },
+    privateBetaObservabilityService: {
+      readObservability: async (filters) => {
+        calls.push(filters);
+        return {
+          ledgerErrors: [
+            { source: "metrics", message: "Could not read token=super-secret metrics ledger" },
+            { source: "signals", message: "Signal ledger missing" },
+          ],
+          summary: { ledgerErrors: 2 },
+        };
+      },
+    },
+  }).readSystemHealth({ recentLimit: 7 });
+
+  const observabilityCheck = report.checks.find((item) => item.id === "runtime.private_beta_observability_ledgers");
+  assert.equal(observabilityCheck.status, "warning");
+  assert.match(observabilityCheck.message, /2 private beta observability ledgers/i);
+  assert.equal(observabilityCheck.evidence[0].source, "metrics");
+  assert.match(observabilityCheck.evidence[0].message, /token=\[redacted-secret\]/);
+  assert.doesNotMatch(JSON.stringify(observabilityCheck), /super-secret/);
+  assert.match(observabilityCheck.recommendation, /ledger paths/i);
+  assert.deepEqual(calls, [{ limit: 7 }]);
+});
+
 test("system health surfaces global job failures separately from matter attention", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-system-health-jobs-"));
   const report = await createSystemHealthService({

@@ -297,6 +297,7 @@ export async function createWorkbenchServer(options = {}) {
     env,
     jobStatusService,
     matterStore,
+    privateBetaObservabilityService,
     runtimeDbStorageService,
   });
   const services = {
