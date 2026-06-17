@@ -105,6 +105,13 @@ test("system health surfaces global job failures separately from matter attentio
           status: "failed",
           matterName: `Matter ${index}`,
           errorCode: "provider_auth",
+          failureClass: "provider",
+          metadata: {
+            workflow: {
+              stage: "source_labels",
+              route: "/api/describe-sources",
+            },
+          },
           errorMessage: "OpenRouter API key rejected: sk-secret",
         })),
       }),
@@ -119,6 +126,9 @@ test("system health surfaces global job failures separately from matter attentio
 
   const jobCheck = report.checks.find((item) => item.id === "runtime.recent_job_failures");
   assert.equal(jobCheck.status, "warning");
+  assert.equal(jobCheck.evidence[0].failureClass, "provider");
+  assert.equal(jobCheck.evidence[0].stage, "source_labels");
+  assert.equal(jobCheck.evidence[0].route, "/api/describe-sources");
   assert.match(jobCheck.recommendation, /provider credentials\/quotas/i);
   assert.doesNotMatch(JSON.stringify(jobCheck), /sk-secret/);
   assert.equal(report.runtime.storageMode, "postgres");
