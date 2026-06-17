@@ -153,6 +153,8 @@ export function createJobStatusService({
         job.finishedAt = currentIso;
         job.updatedAt = currentIso;
         job.errorMessage = sanitizeText(`Stale running job marked failed after ${Math.round(staleAfterMs / 1000)} seconds without progress.`);
+        job.errorCode = "job.stale_running";
+        job.failureClass = "unknown";
       }
     });
   }

@@ -208,6 +208,8 @@ test("job status service marks abandoned running jobs failed when listed", async
   assert.equal(listed.jobs.length, 1);
   assert.equal(listed.jobs[0].status, "failed");
   assert.match(listed.jobs[0].errorMessage, /stale running job/i);
+  assert.equal(listed.jobs[0].errorCode, "job.stale_running");
+  assert.equal(listed.jobs[0].failureClass, "unknown");
   assert.equal(listed.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");
 
   const listedAgain = await service.listJobs({ matterName: "State v Rajesh Mehra" });
