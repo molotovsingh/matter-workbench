@@ -14,7 +14,7 @@ export async function readRequestJson(request, { maxBodyBytes = DEFAULT_JSON_BOD
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     totalBytes += buffer.length;
     if (totalBytes > maxBodyBytes) {
-      throw makeHttpError("JSON request body too large", 413);
+      throw makeHttpError("JSON request body too large", 413, "http.json_body_too_large");
     }
     chunks.push(buffer);
   }
@@ -23,7 +23,7 @@ export async function readRequestJson(request, { maxBodyBytes = DEFAULT_JSON_BOD
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw makeHttpError("Invalid JSON request body", 400);
+      throw makeHttpError("Invalid JSON request body", 400, "http.invalid_json_body");
     }
     throw error;
   }
