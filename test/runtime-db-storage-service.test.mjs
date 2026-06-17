@@ -752,6 +752,70 @@ test("runtime DB storage service creates lawyer-captioned matters under safe sto
   assert.doesNotMatch(sql, /State\/Rajesh Mehra\/matter\.json/);
 });
 
+test("runtime DB storage service exposes stable runtime upload error codes", async () => {
+  const collisionService = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [{ id: "existing-matter-id" }]),
+  });
+  await assert.rejects(
+    () => collisionService.createMatterFromUploadedFiles({
+      name: "DB Upload Matter",
+      metadata: { matterName: "DB Upload Matter" },
+      files: [{ index: 0, tempPath: "/tmp/not-read.txt", filename: "not-read.txt", bytes: 1 }],
+      relativePaths: ["not-read.txt"],
+    }),
+    (error) => error.statusCode === 409
+      && error.code === "runtime_db.upload.matter_exists"
+      && /DB Upload Matter/.test(error.message),
+  );
+
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [{}]),
+  });
+  await assert.rejects(
+    () => service.addUploadedFilesToMatter({
+      matter: { name: "DB Matter" },
+      files: [{ index: 0, tempPath: "/tmp/not-read.txt", filename: "not-read.txt", bytes: 1 }],
+      relativePaths: ["not-read.txt"],
+    }),
+    (error) => error.statusCode === 400
+      && error.code === "runtime_db.upload.matter_id_required",
+  );
+
+  await assert.rejects(
+    () => service.addUploadedFilesToMatter({
+      matter,
+      files: [{ index: 0, tempPath: "/tmp/not-read.txt", filename: "not-read.txt", bytes: 1 }],
+      relativePaths: ["not-read.txt"],
+    }),
+    (error) => error.statusCode === 404
+      && error.code === "runtime_db.upload.matter_not_found"
+      && /DB Matter/.test(error.message),
+  );
+});
+
+test("runtime DB storage service exposes stable materialized operation guard codes", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], { matter, objects: [] }),
+  });
+
+  await assert.rejects(
+    () => service.runMaterializedMatterWrite(matter, null),
+    (error) => error.statusCode === 500
+      && error.code === "runtime_db.materialized_write.operation_required",
+  );
+  await assert.rejects(
+    () => service.runMaterializedMatterRead(matter, null),
+    (error) => error.statusCode === 500
+      && error.code === "runtime_db.materialized_read.operation_required",
+  );
+});
+
 test("runtime DB storage service preserves duplicate source identity in document custody", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-duplicate-upload-"));
   const firstFile = path.join(tmp, "notice-a.txt");

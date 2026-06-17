@@ -76,6 +76,31 @@ test("runtime upload planner rejects empty and colliding uploads with stable cod
   );
 });
 
+test("runtime upload planner exposes stable add-files allocation codes", () => {
+  assert.throws(
+    () => planRuntimeAddFilesUpload({
+      matter: { name: "Missing Matter" },
+      allocation: {},
+      files: [{ index: 0 }],
+      relativePaths: ["evidence.pdf"],
+    }),
+    (error) => error.statusCode === 404
+      && error.code === "runtime_db.upload.matter_not_found"
+      && /Missing Matter/.test(error.message),
+  );
+
+  assert.throws(
+    () => planRuntimeAddFilesUpload({
+      matter: { id: "11111111-1111-4111-8111-111111111111", name: "DB Matter" },
+      allocation: { matter: { id: "11111111-1111-4111-8111-111111111111", name: "DB Matter" } },
+      files: [{ index: 0 }],
+      relativePaths: ["evidence.pdf"],
+    }),
+    (error) => error.statusCode === 500
+      && error.code === "runtime_db.upload.allocation_failed",
+  );
+});
+
 test("runtime upload planner converts runtime DB allocation into add-files intake plan", () => {
   const plan = planRuntimeAddFilesUpload({
     matter: {

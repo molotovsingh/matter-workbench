@@ -78,10 +78,10 @@ export function planRuntimeAddFilesUpload({
   now = new Date(),
 } = {}) {
   const dbMatter = normalizeUploadMatter({ ...normalizeUploadMatter(matter), ...(allocation.matter || {}) });
-  if (!dbMatter.id) throw makeHttpError(`Matter not found in runtime database: ${normalizeUploadMatter(matter).name}`, 404);
+  if (!dbMatter.id) throw makeHttpError(`Matter not found in runtime database: ${normalizeUploadMatter(matter).name}`, 404, "runtime_db.upload.matter_not_found");
   const intakeDbId = stringValue(allocation.intakeDbId);
   const uploadSessionId = stringValue(allocation.uploadSessionId);
-  if (!intakeDbId || !uploadSessionId) throw makeHttpError("Runtime DB upload allocation failed", 500);
+  if (!intakeDbId || !uploadSessionId) throw makeHttpError("Runtime DB upload allocation failed", 500, "runtime_db.upload.allocation_failed");
   const intakePlan = planAddFilesIntake({
     label,
     files,

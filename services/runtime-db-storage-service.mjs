@@ -187,7 +187,7 @@ export function createRuntimeDbStorageService({
       spawn,
       sql: buildMatterByNameSql({ tenantId, name: matterName }),
     });
-    if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409);
+    if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409, "runtime_db.upload.matter_exists");
 
     const { storageFiles, importItems } = await buildRuntimeUploadIntake({
       ...uploadPlan.buildIntakeArgs,
@@ -225,7 +225,7 @@ export function createRuntimeDbStorageService({
   } = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
-    if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400);
+    if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400, "runtime_db.upload.matter_id_required");
     const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "adding files" });
 
     const actor = runtimeDbUserFromRequestContext();
@@ -242,7 +242,7 @@ export function createRuntimeDbStorageService({
         actor,
       }),
     });
-    if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404);
+    if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404, "runtime_db.upload.matter_not_found");
     const uploadPlan = planRuntimeAddFilesUpload({
       matter: normalizedMatter,
       allocation,
@@ -339,7 +339,7 @@ export function createRuntimeDbStorageService({
 
   async function runMaterializedMatterWrite(matter, operation) {
     ensureEnabled();
-    if (typeof operation !== "function") throw makeHttpError("Runtime DB write operation is required", 500);
+    if (typeof operation !== "function") throw makeHttpError("Runtime DB write operation is required", 500, "runtime_db.materialized_write.operation_required");
     const normalizedMatter = normalizeMatter(matter);
     const workspace = readWorkspaceForMaterialization(normalizedMatter);
     const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
@@ -413,7 +413,7 @@ export function createRuntimeDbStorageService({
 
   async function runMaterializedMatterRead(matter, operation) {
     ensureEnabled();
-    if (typeof operation !== "function") throw makeHttpError("Runtime DB read operation is required", 500);
+    if (typeof operation !== "function") throw makeHttpError("Runtime DB read operation is required", 500, "runtime_db.materialized_read.operation_required");
     const normalizedMatter = normalizeMatter(matter);
     const workspace = readWorkspaceForMaterialization(normalizedMatter);
     const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
