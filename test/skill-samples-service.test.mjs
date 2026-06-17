@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createSkillSamplesService } from "../services/skill-samples-service.mjs";
+import {
+  createSkillSamplesService,
+  SKILL_SAMPLES_SCHEMA_VERSION,
+} from "../services/skill-samples-service.mjs";
 
 test("skill samples persist generated samples and approve only current design briefs", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-samples-test-"));
@@ -162,3 +165,95 @@ test("skill samples list versions with current, stale, and approval states", asy
     ["sample_2", true, "approved_stale"],
   ]);
 });
+
+test("skill samples service emits stable diagnostic codes", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-samples-codes-"));
+  const idea = {
+    id: "idea_code_sample",
+    designBrief: {
+      intendedUser: "Litigation team",
+      problem: "Map parties and officers.",
+      expectedInputs: "Matter context.",
+      expectedOutputArtifact: "20_Workshop/Party and Officer Map.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "medium",
+      notes: "Use source-backed citations.",
+    },
+  };
+  const service = createSkillSamplesService({
+    appDir,
+    idFactory: () => "sample_code_test",
+  });
+
+  await assertRejectsCode(() => service.recordSample({ sample: {} }), "skill_sample.idea_id_required", 400);
+  await assertRejectsCode(() => service.approveSample({ ideaId: idea.id }), "skill_sample.id_required", 400);
+  await assertRejectsCode(
+    () => service.approveSample({ ideaId: idea.id, sampleId: "missing", designBrief: idea.designBrief }),
+    "skill_sample.not_found",
+    404,
+  );
+  await assertRejectsCode(
+    () => service.getApprovedCurrentSample({ ideaId: idea.id, designBrief: idea.designBrief }),
+    "skill_sample.no_approved_sample",
+    409,
+  );
+  await assertRejectsCode(() => service.listSamplesForIdea({ ideaId: " " }), "skill_sample.idea_id_required", 400);
+
+  await service.recordSample({
+    idea,
+    sample: { sample_markdown: "# Sample" },
+  });
+  await assertRejectsCode(
+    () => service.approveSample({
+      ideaId: idea.id,
+      sampleId: "sample_code_test",
+      designBrief: { ...idea.designBrief, notes: "Changed before approval." },
+    }),
+    "skill_sample.stale",
+    409,
+  );
+  await assertRejectsCode(
+    () => service.recordSample({ idea, sample: { sample_markdown: "x".repeat(60001) } }),
+    "skill_sample.markdown_too_long",
+    400,
+  );
+});
+
+test("skill samples service emits stable local-store diagnostic codes", async () => {
+  const invalidJsonDir = await mkdtemp(path.join(os.tmpdir(), "skill-samples-invalid-json-"));
+  await writeFile(path.join(invalidJsonDir, "skill-samples.json"), "{not json\n");
+  await assertRejectsCode(
+    () => createSkillSamplesService({ appDir: invalidJsonDir }).listSamples(),
+    "skill_samples.invalid_json",
+    500,
+  );
+
+  const invalidSchemaDir = await mkdtemp(path.join(os.tmpdir(), "skill-samples-invalid-schema-"));
+  await writeFile(path.join(invalidSchemaDir, "skill-samples.json"), `${JSON.stringify({ schema_version: "old", samples: [] })}\n`);
+  await assertRejectsCode(
+    () => createSkillSamplesService({ appDir: invalidSchemaDir }).listSamples(),
+    "skill_samples.invalid_schema",
+    500,
+  );
+
+  const invalidStoreDir = await mkdtemp(path.join(os.tmpdir(), "skill-samples-invalid-store-"));
+  await writeFile(path.join(invalidStoreDir, "skill-samples.json"), `${JSON.stringify({ schema_version: SKILL_SAMPLES_SCHEMA_VERSION, samples: {} })}\n`);
+  await assertRejectsCode(
+    () => createSkillSamplesService({ appDir: invalidStoreDir }).listSamples(),
+    "skill_samples.invalid_store",
+    500,
+  );
+});
+
+async function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    await operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}

@@ -25,7 +25,7 @@ export function createSkillSamplesService({
 
   async function recordSample({ idea = {}, sample = {} } = {}) {
     const ideaId = String(idea.id || sample.idea?.id || "").trim();
-    if (!ideaId) throw makeHttpError("Skill idea id is required for sample storage", 400);
+    if (!ideaId) throw makeHttpError("Skill idea id is required for sample storage", 400, "skill_sample.idea_id_required");
     return persistence.withStoreMutation(async () => {
       const timestamp = now().toISOString();
       const store = await readStore();
@@ -59,15 +59,15 @@ export function createSkillSamplesService({
   async function approveSample({ ideaId, sampleId, designBrief = {} } = {}) {
     const normalizedIdeaId = String(ideaId || "").trim();
     const normalizedSampleId = String(sampleId || "").trim();
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
-    if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "skill_sample.idea_id_required");
+    if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400, "skill_sample.id_required");
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const sample = store.samples.find((candidate) => candidate.ideaId === normalizedIdeaId && candidate.id === normalizedSampleId);
-      if (!sample) throw makeHttpError("Skill sample not found", 404);
+      if (!sample) throw makeHttpError("Skill sample not found", 404, "skill_sample.not_found");
       const currentHash = hashDesignBrief(designBrief);
       if (sample.designBriefHash !== currentHash) {
-        throw makeHttpError("Approved sample is stale because the design brief changed", 409);
+        throw makeHttpError("Approved sample is stale because the design brief changed", 409, "skill_sample.stale");
       }
       const timestamp = now().toISOString();
       for (const candidate of store.samples) {
@@ -90,15 +90,15 @@ export function createSkillSamplesService({
 
   async function getApprovedCurrentSample({ ideaId, designBrief = {} } = {}) {
     const normalizedIdeaId = String(ideaId || "").trim();
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "skill_sample.idea_id_required");
     const store = await readStore();
     const currentHash = hashDesignBrief(designBrief);
     const sample = [...store.samples]
       .reverse()
       .find((candidate) => candidate.ideaId === normalizedIdeaId && candidate.approved);
-    if (!sample) throw makeHttpError("No approved sample found for this skill idea", 409);
+    if (!sample) throw makeHttpError("No approved sample found for this skill idea", 409, "skill_sample.no_approved_sample");
     if (sample.designBriefHash !== currentHash) {
-      throw makeHttpError("Approved sample is stale because the design brief changed", 409);
+      throw makeHttpError("Approved sample is stale because the design brief changed", 409, "skill_sample.stale");
     }
     return normalizeStoredSample(sample);
   }
@@ -116,7 +116,7 @@ export function createSkillSamplesService({
 
   async function listSamplesForIdea({ ideaId = "", designBrief = {} } = {}) {
     const normalizedIdeaId = String(ideaId || "").trim();
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "skill_sample.idea_id_required");
     const store = await readStore();
     const currentHash = hashDesignBrief(designBrief);
     const samples = store.samples
@@ -132,21 +132,32 @@ export function createSkillSamplesService({
   }
 
   async function readStore() {
+    let raw;
     try {
-      const parsed = JSON.parse(await readFile(storePath, "utf8"));
-      if (parsed?.schema_version !== SKILL_SAMPLES_SCHEMA_VERSION || !Array.isArray(parsed.samples)) {
-        throw makeHttpError(`Invalid skill samples store at ${storePath}`, 500);
-      }
-      return {
-        schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-        samples: parsed.samples.map(normalizeStoredSample),
-      };
+      raw = await readFile(storePath, "utf8");
     } catch (error) {
       if (error?.code === "ENOENT") {
         return { schema_version: SKILL_SAMPLES_SCHEMA_VERSION, samples: [] };
       }
       throw error;
     }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw makeHttpError(`Invalid skill samples JSON at ${storePath}`, 500, "skill_samples.invalid_json");
+    }
+    if (parsed?.schema_version !== SKILL_SAMPLES_SCHEMA_VERSION) {
+      throw makeHttpError(`Invalid skill samples schema at ${storePath}`, 500, "skill_samples.invalid_schema");
+    }
+    if (!Array.isArray(parsed.samples)) {
+      throw makeHttpError(`Invalid skill samples store at ${storePath}`, 500, "skill_samples.invalid_store");
+    }
+    return {
+      schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
+      samples: parsed.samples.map(normalizeStoredSample),
+    };
   }
 
   async function writeStore(store) {
@@ -225,7 +236,7 @@ function decorateSampleWithState(sample, currentHash) {
 function boundedSampleMarkdown(value) {
   const markdown = String(value || "").trim();
   if (markdown.length > MAX_SAMPLE_MARKDOWN_LENGTH) {
-    throw makeHttpError(`Skill sample Markdown must be ${MAX_SAMPLE_MARKDOWN_LENGTH} characters or less`, 400);
+    throw makeHttpError(`Skill sample Markdown must be ${MAX_SAMPLE_MARKDOWN_LENGTH} characters or less`, 400, "skill_sample.markdown_too_long");
   }
   return markdown;
 }

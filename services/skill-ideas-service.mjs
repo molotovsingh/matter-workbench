@@ -45,10 +45,10 @@ export function createSkillIdeasService({
 
   async function getIdea(id) {
     const normalizedId = String(id || "").trim();
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "skill_idea.id_required");
     const store = await readStore();
     const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
-    if (!idea) throw makeHttpError("Skill idea not found", 404);
+    if (!idea) throw makeHttpError("Skill idea not found", 404, "skill_idea.not_found");
     return normalizeStoredIdea(idea);
   }
 
@@ -78,11 +78,11 @@ export function createSkillIdeasService({
 
   async function updateIdeaDesignBrief(id, designBrief = {}) {
     const normalizedId = String(id || "").trim();
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "skill_idea.id_required");
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
-      if (!idea) throw makeHttpError("Skill idea not found", 404);
+      if (!idea) throw makeHttpError("Skill idea not found", 404, "skill_idea.not_found");
       idea.designBrief = normalizeDesignBrief(designBrief);
       if (idea.status === SKILL_IDEA_STATUS.READY_FOR_REVIEW && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
         idea.status = SKILL_IDEA_STATUS.INCOMPLETE;
@@ -100,17 +100,17 @@ export function createSkillIdeasService({
 
   async function updateIdeaStatus(id, status) {
     const normalizedId = String(id || "").trim();
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "skill_idea.id_required");
     const normalizedStatus = String(status || "").trim();
     if (!SKILL_IDEA_STATUSES.has(normalizedStatus)) {
-      throw makeHttpError(`Invalid skill idea status: ${normalizedStatus || "blank"}`, 400);
+      throw makeHttpError(`Invalid skill idea status: ${normalizedStatus || "blank"}`, 400, "skill_idea.invalid_status");
     }
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const idea = store.ideas.find((candidate) => candidate.id === normalizedId);
-      if (!idea) throw makeHttpError("Skill idea not found", 404);
+      if (!idea) throw makeHttpError("Skill idea not found", 404, "skill_idea.not_found");
       if (normalizedStatus === SKILL_IDEA_STATUS.READY_FOR_REVIEW && !calculateSkillIdeaReadiness(idea.designBrief).ready) {
-        throw makeHttpError("Skill idea is not ready for review", 400);
+        throw makeHttpError("Skill idea is not ready for review", 400, "skill_idea.not_ready");
       }
       idea.status = normalizedStatus;
       idea.updatedAt = now().toISOString();
@@ -125,20 +125,26 @@ export function createSkillIdeasService({
   }
 
   async function readStore() {
+    let raw;
     let parsed;
     try {
-      parsed = JSON.parse(await readFile(storePath, "utf8"));
+      raw = await readFile(storePath, "utf8");
     } catch (error) {
       if (error?.code === "ENOENT") {
         return { schema_version: SKILL_IDEAS_SCHEMA_VERSION, ideas: [] };
       }
       throw error;
     }
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw makeHttpError(`Invalid skill ideas JSON at ${storePath}`, 500, "skill_ideas.invalid_json");
+    }
     if (parsed?.schema_version !== SKILL_IDEAS_SCHEMA_VERSION) {
-      throw makeHttpError(`Invalid skill ideas schema at ${storePath}`, 500);
+      throw makeHttpError(`Invalid skill ideas schema at ${storePath}`, 500, "skill_ideas.invalid_schema");
     }
     if (!Array.isArray(parsed.ideas)) {
-      throw makeHttpError(`Invalid skill ideas store at ${storePath}`, 500);
+      throw makeHttpError(`Invalid skill ideas store at ${storePath}`, 500, "skill_ideas.invalid_store");
     }
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
@@ -169,9 +175,9 @@ function serializeStore(store) {
 
 function normalizeIdeaText(text) {
   const normalized = String(text || "").trim().replace(/\s+/g, " ");
-  if (!normalized) throw makeHttpError("Skill idea text is required", 400);
+  if (!normalized) throw makeHttpError("Skill idea text is required", 400, "skill_idea.text_required");
   if (normalized.length > MAX_IDEA_TEXT_LENGTH) {
-    throw makeHttpError(`Skill idea text must be ${MAX_IDEA_TEXT_LENGTH} characters or less`, 400);
+    throw makeHttpError(`Skill idea text must be ${MAX_IDEA_TEXT_LENGTH} characters or less`, 400, "skill_idea.text_too_long");
   }
   return normalized;
 }
@@ -210,6 +216,6 @@ function normalizeStoredIdea(idea) {
 
 function normalizeDesignBrief(designBrief) {
   return normalizeSkillIdeaDesignBrief(designBrief, {
-    makeError: (message, statusCode) => makeHttpError(message, statusCode),
+    makeError: (message, statusCode) => makeHttpError(message, statusCode, "skill_idea.invalid_design_brief"),
   });
 }

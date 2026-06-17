@@ -267,3 +267,65 @@ test("skill ideas service rejects invalid design brief enum values", async () =>
     /Invalid skill idea design brief risk level/,
   );
 });
+
+test("skill ideas service emits stable diagnostic codes", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-codes-"));
+  const service = createSkillIdeasService({
+    appDir,
+    idFactory: () => "idea_code_test",
+  });
+
+  await assertRejectsCode(() => service.createIdea({ text: " " }), "skill_idea.text_required", 400);
+  await assertRejectsCode(() => service.getIdea(" "), "skill_idea.id_required", 400);
+  await assertRejectsCode(() => service.getIdea("missing"), "skill_idea.not_found", 404);
+  await assertRejectsCode(() => service.updateIdeaStatus("missing", "active"), "skill_idea.invalid_status", 400);
+
+  await service.createIdea({ text: "review limitation risk" });
+  await assertRejectsCode(() => service.updateIdeaStatus("idea_code_test", "ready_for_review"), "skill_idea.not_ready", 400);
+  await assertRejectsCode(
+    () => service.updateIdeaDesignBrief("idea_code_test", { targetLane: "50_Unknown" }),
+    "skill_idea.invalid_design_brief",
+    400,
+  );
+
+  const longText = "x".repeat(2001);
+  await assertRejectsCode(() => service.createIdea({ text: longText }), "skill_idea.text_too_long", 400);
+});
+
+test("skill ideas service emits stable local-store diagnostic codes", async () => {
+  const invalidJsonDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-invalid-json-"));
+  await writeFile(path.join(invalidJsonDir, "skill-ideas.json"), "{not json\n");
+  await assertRejectsCode(
+    () => createSkillIdeasService({ appDir: invalidJsonDir }).listIdeas(),
+    "skill_ideas.invalid_json",
+    500,
+  );
+
+  const invalidSchemaDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-invalid-schema-"));
+  await writeFile(path.join(invalidSchemaDir, "skill-ideas.json"), `${JSON.stringify({ schema_version: "old", ideas: [] })}\n`);
+  await assertRejectsCode(
+    () => createSkillIdeasService({ appDir: invalidSchemaDir }).listIdeas(),
+    "skill_ideas.invalid_schema",
+    500,
+  );
+
+  const invalidStoreDir = await mkdtemp(path.join(os.tmpdir(), "matter-skill-ideas-invalid-store-"));
+  await writeFile(path.join(invalidStoreDir, "skill-ideas.json"), `${JSON.stringify({ schema_version: SKILL_IDEAS_SCHEMA_VERSION, ideas: {} })}\n`);
+  await assertRejectsCode(
+    () => createSkillIdeasService({ appDir: invalidStoreDir }).listIdeas(),
+    "skill_ideas.invalid_store",
+    500,
+  );
+});
+
+async function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    await operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}
