@@ -6,6 +6,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
 import { hashDesignBrief } from "../services/skill-samples-service.mjs";
 import {
   getJson,
@@ -295,6 +296,42 @@ test("runtime DB postgres storage mode serves workspace and files without local 
     ]);
   } finally {
     app.server.close();
+  }
+});
+
+test("runtime DB file API returns stable read-side codes for DB payload misses", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-api-read-errors");
+  const calls = [];
+  const matter = runtimeDbMatter();
+  const runtimeDbStorageService = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId: "82dc5ad0-fb23-5c08-a06c-73232cd0281f",
+    spawn: jsonApiSpawn(calls, {}),
+  });
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbStorageService,
+  });
+
+  try {
+    const missing = await fetch(`${server.baseUrl}/api/file?matter=${encodeURIComponent(matter.matterName)}&path=${encodeURIComponent("10_Library/List of Dates.md")}`);
+    const missingPayload = await missing.json();
+    assert.equal(missing.status, 404);
+    assert.equal(missingPayload.code, "runtime_db.read.file_not_found");
+    assert.match(missingPayload.error, /10_Library\/List of Dates\.md/);
+
+    const sql = calls.map((call) => call.input || "").join("\n");
+    assert.match(sql, /DB Listed Matter\/10_Library\/List of Dates\.md/);
+    assert.match(sql, /Legal Caption\/10_Library\/List of Dates\.md/);
+    assert.doesNotMatch(sql, /postgres:/i);
+
+    const escaped = await fetch(`${server.baseUrl}/api/file?matter=${encodeURIComponent(matter.matterName)}&path=${encodeURIComponent("../secret.txt")}`);
+    const escapedPayload = await escaped.json();
+    assert.equal(escaped.status, 400);
+    assert.equal(escapedPayload.code, "runtime_db.read.path_outside_matter");
+  } finally {
+    await server.close();
   }
 });
 
@@ -1911,4 +1948,15 @@ async function writeListOfDatesRefreshMatter(matterRoot, matter) {
       confidence: 0.91,
     }],
   }, null, 2)}\n`);
+}
+
+function jsonApiSpawn(calls, payload) {
+  return (command, args, options = {}) => {
+    calls.push({ command, args, input: options.input });
+    return {
+      status: 0,
+      stdout: `${JSON.stringify(payload)}\n`,
+      stderr: "",
+    };
+  };
 }

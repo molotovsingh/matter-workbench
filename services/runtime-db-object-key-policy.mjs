@@ -16,7 +16,11 @@ export function validatedRelativePathFromRuntimeObjectKey(objectKey, matterName)
   try {
     return validateRelativePath(relativePath);
   } catch {
-    throw makeHttpError("Stored object path is outside the matter root", 409);
+    throw makeHttpError(
+      "Stored object path is outside the matter root",
+      409,
+      "runtime_db.read.stored_path_outside_matter",
+    );
   }
 }
 

@@ -107,6 +107,13 @@ export function createRuntimeDbStorageService({
       spawn,
       sql: buildWorkspaceSql({ tenantId, matter: normalizedMatter }),
     });
+    if (!result?.matter?.id) {
+      throw runtimeDbReadError({
+        message: `Matter not found in runtime database storage: ${normalizedMatter.name}`,
+        statusCode: 404,
+        code: "runtime_db.read.matter_not_found",
+      });
+    }
     const objects = Array.isArray(result.objects) ? result.objects.map(normalizeRuntimeWorkspaceObjectRow) : [];
     const dbMatter = normalizeMatter({ ...normalizedMatter, ...(result.matter || {}) });
     const tree = buildRuntimeWorkspaceTree({ matter: dbMatter, objects });
@@ -122,10 +129,20 @@ export function createRuntimeDbStorageService({
     const normalizedPath = normalizeMatterRelativePath(relativePath);
     const extension = path.extname(normalizedPath).toLowerCase();
     if (!isWorkspaceTextPreviewExtension(normalizedPath)) {
-      throw makeHttpError("File type is not previewable as text", 415);
+      throw runtimeDbReadError({
+        message: "File type is not previewable as text",
+        statusCode: 415,
+        code: "runtime_db.read.unsupported_preview_type",
+      });
     }
     const payload = readPayloadRow({ matter: normalizeMatter(matter), relativePath: normalizedPath });
-    if (payload.sizeBytes > getWorkspaceTextPreviewLimit(normalizedPath)) throw makeHttpError("File is too large to preview", 413);
+    if (payload.sizeBytes > getWorkspaceTextPreviewLimit(normalizedPath)) {
+      throw runtimeDbReadError({
+        message: "File is too large to preview",
+        statusCode: 413,
+        code: "runtime_db.read.file_too_large_preview",
+      });
+    }
     return {
       path: normalizedPath,
       name: path.posix.basename(normalizedPath),
@@ -138,7 +155,13 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     const normalizedPath = normalizeMatterRelativePath(relativePath);
     const payload = readPayloadRow({ matter: normalizeMatter(matter), relativePath: normalizedPath });
-    if (payload.sizeBytes > maxRawBytes) throw makeHttpError("File is too large to display inline", 413);
+    if (payload.sizeBytes > maxRawBytes) {
+      throw runtimeDbReadError({
+        message: "File is too large to display inline",
+        statusCode: 413,
+        code: "runtime_db.read.file_too_large_raw",
+      });
+    }
     return {
       contentType: payload.mimeType || getWorkspaceRawContentType(normalizedPath),
       fileSize: payload.sizeBytes,
@@ -491,10 +514,18 @@ export function createRuntimeDbStorageService({
       sql: buildPayloadSql({ tenantId, matter, relativePath }),
     });
     if (!result || typeof result !== "object" || !result.objectKey) {
-      throw makeHttpError("File not found in runtime database storage", 404);
+      throw runtimeDbReadError({
+        message: `File not found in runtime database storage: ${relativePath}`,
+        statusCode: 404,
+        code: "runtime_db.read.file_not_found",
+      });
     }
     if (!result.hasPayload) {
-      throw makeHttpError(`Runtime DB payload is missing for ${relativePath}`, 409);
+      throw runtimeDbReadError({
+        message: `Runtime DB payload is missing for ${relativePath}`,
+        statusCode: 409,
+        code: "runtime_db.read.payload_missing",
+      });
     }
     const payloadBase64 = stringValue(result.payloadBase64);
     const bytes = Buffer.from(payloadBase64, "base64");
@@ -508,7 +539,13 @@ export function createRuntimeDbStorageService({
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB storage is not configured", 503);
+    if (!enabled) {
+      throw runtimeDbReadError({
+        message: "Runtime DB storage is not configured",
+        statusCode: 503,
+        code: "runtime_db.storage.not_configured",
+      });
+    }
   }
 
   return {
@@ -826,16 +863,40 @@ function runtimeDbStoragePsqlMaxBuffer() {
 
 function normalizeMatterRelativePath(value) {
   const raw = String(value || "").replaceAll("\\", "/").trim();
-  if (!raw) throw makeHttpError("File path is required", 400);
-  if (raw.startsWith("/")) throw makeHttpError("Requested path is outside the matter root", 400);
+  if (!raw) {
+    throw runtimeDbReadError({
+      message: "File path is required",
+      statusCode: 400,
+      code: "runtime_db.read.path_required",
+    });
+  }
+  if (raw.startsWith("/")) {
+    throw runtimeDbReadError({
+      message: "Requested path is outside the matter root",
+      statusCode: 400,
+      code: "runtime_db.read.path_outside_matter",
+    });
+  }
   const normalized = toPosix(path.posix.normalize(raw)).replace(/^\/+/, "");
   if (!normalized || normalized === "." || normalized.startsWith("../") || normalized.includes("/../")) {
-    throw makeHttpError("Requested path is outside the matter root", 400);
+    throw runtimeDbReadError({
+      message: "Requested path is outside the matter root",
+      statusCode: 400,
+      code: "runtime_db.read.path_outside_matter",
+    });
   }
   if (isBlockedWorkspacePath(normalized)) {
-    throw makeHttpError("Requested path is hidden from workspace preview", 403);
+    throw runtimeDbReadError({
+      message: "Requested path is hidden from workspace preview",
+      statusCode: 403,
+      code: "runtime_db.read.path_hidden",
+    });
   }
   return normalized;
+}
+
+function runtimeDbReadError({ message, statusCode, code }) {
+  return makeHttpError(message, statusCode, code);
 }
 
 async function listMatterFiles(root, relativePrefix = "") {

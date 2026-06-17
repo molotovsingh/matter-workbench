@@ -44,7 +44,9 @@ test("runtime DB object key policy strips matter prefix and validates stored rel
 
   assert.throws(
     () => validatedRelativePathFromRuntimeObjectKey("State - Rajesh Mehra/../secret.txt", "State - Rajesh Mehra"),
-    (error) => error.statusCode === 409 && /outside the matter root/i.test(error.message),
+    (error) => error.statusCode === 409
+      && error.code === "runtime_db.read.stored_path_outside_matter"
+      && /outside the matter root/i.test(error.message),
   );
 });
 

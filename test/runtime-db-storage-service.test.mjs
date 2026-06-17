@@ -145,7 +145,47 @@ test("runtime DB storage service fails closed when payload row is missing", asyn
 
   await assert.rejects(
     () => service.readFilePreview("10_Library/List of Dates.md", matter),
-    /payload is missing/i,
+    (error) => error.statusCode === 409
+      && error.code === "runtime_db.read.payload_missing"
+      && /payload is missing/i.test(error.message),
+  );
+});
+
+test("runtime DB storage service exposes stable read-side error codes", async () => {
+  const missingPayloadService = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {}),
+  });
+  await assert.rejects(
+    () => missingPayloadService.readFilePreview("10_Library/Missing.md", matter),
+    (error) => error.statusCode === 404
+      && error.code === "runtime_db.read.file_not_found"
+      && /10_Library\/Missing\.md/.test(error.message),
+  );
+
+  await assert.rejects(
+    () => missingPayloadService.readFilePreview("../secret.txt", matter),
+    (error) => error.statusCode === 400
+      && error.code === "runtime_db.read.path_outside_matter",
+  );
+
+  await assert.rejects(
+    () => missingPayloadService.readFilePreview("", matter),
+    (error) => error.statusCode === 400
+      && error.code === "runtime_db.read.path_required",
+  );
+
+  const missingMatterService = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], { matter: {}, objects: [] }),
+  });
+  await assert.rejects(
+    () => missingMatterService.readWorkspace(matter),
+    (error) => error.statusCode === 404
+      && error.code === "runtime_db.read.matter_not_found"
+      && /DB Matter/.test(error.message),
   );
 });
 
