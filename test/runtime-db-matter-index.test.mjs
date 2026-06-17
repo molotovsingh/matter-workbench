@@ -172,6 +172,8 @@ test("runtime DB matter index redacts database credentials from query failures",
   await assert.rejects(
     () => index.listMatterFolders(),
     (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.matter_index.query_failed");
       assert.match(error.message, /runtime DB query failed/);
       assert.doesNotMatch(error.message, /top-secret/);
       assert.match(error.message, /\*\*\*/);
@@ -196,6 +198,36 @@ test("runtime DB matter index fails closed on malformed Postgres JSON", async ()
 
   await assert.rejects(
     () => index.listMatterFolders(),
-    /runtime DB query returned no matter JSON/,
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.matter_index.no_json");
+      assert.match(error.message, /runtime DB query returned no matter JSON/);
+      return true;
+    },
+  );
+});
+
+test("runtime DB matter index exposes stable code on invalid Postgres JSON", async () => {
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+    },
+    spawn: () => ({
+      status: 0,
+      stdout: "[not-json]",
+      stderr: "",
+    }),
+  });
+
+  await assert.rejects(
+    () => index.listMatterFolders(),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.matter_index.invalid_json");
+      assert.match(error.message, /runtime DB query returned invalid matter JSON/);
+      return true;
+    },
   );
 });

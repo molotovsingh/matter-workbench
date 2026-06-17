@@ -84,11 +84,11 @@ function queryMatterRows({ databaseUrl, tenantId, spawn, name = "", viewer = nul
     env: { ...process.env, ...env },
   });
   if (result.error) {
-    throw makeHttpError(`runtime DB query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+    throw makeHttpError(`runtime DB query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.matter_index.query_failed");
   }
   if (result.status !== 0) {
     const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-    throw makeHttpError(`runtime DB query failed: ${redactRuntimeDbError(detail)}`, 503);
+    throw makeHttpError(`runtime DB query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.matter_index.query_failed");
   }
   return parsePsqlJsonArray(result.stdout || "");
 }
@@ -175,16 +175,16 @@ function parsePsqlJsonArray(stdout = "") {
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   if (start < 0 || end < start) {
-    throw makeHttpError("runtime DB query returned no matter JSON.", 503);
+    throw makeHttpError("runtime DB query returned no matter JSON.", 503, "runtime_db.matter_index.no_json");
   }
   let parsed;
   try {
     parsed = JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB query returned invalid matter JSON.", 503);
+    throw makeHttpError("runtime DB query returned invalid matter JSON.", 503, "runtime_db.matter_index.invalid_json");
   }
   if (!Array.isArray(parsed)) {
-    throw makeHttpError("runtime DB query returned non-array matter JSON.", 503);
+    throw makeHttpError("runtime DB query returned non-array matter JSON.", 503, "runtime_db.matter_index.non_array_json");
   }
   return parsed;
 }
