@@ -35,7 +35,7 @@ function createOpenAiMatterCopilotProvider({
   timeoutMs,
 } = {}) {
   return async function openAiMatterCopilotProvider({ question, matterContext, schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for matter copilot answers", 409);
+    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
     const body = {
       model,
       max_output_tokens: maxOutputTokens,
@@ -75,7 +75,7 @@ function createOpenRouterMatterCopilotProvider({
   allowFallbacks = false,
 } = {}) {
   return async function openRouterMatterCopilotProvider({ question, matterContext, schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for matter copilot answers", 409);
+    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
     const body = {
       model,
       messages: [

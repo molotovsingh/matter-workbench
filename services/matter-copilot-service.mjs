@@ -75,12 +75,12 @@ export function createMatterCopilotService({
     root = matterStore.getMatterRoot?.(),
     question = "",
   } = {}) {
-    if (!root) throw makeHttpError("Pick a matter before asking a matter question.", 409);
+    if (!root) throw makeHttpError("Pick a matter before asking a matter question.", 409, "matter_copilot.matter_required");
     const normalizedQuestion = normalizeQuestion(question);
     const packet = await buildMatterContextPacket(root, COPILOT_CONTEXT_LIMITS);
     const policy = resolveModelPolicy(AI_TASKS.COPILOT_ANSWER, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
-    if (!providerConfig.model) throw makeHttpError("Matter copilot answer model is not configured.", 409);
+    if (!providerConfig.model) throw makeHttpError("Matter copilot answer model is not configured.", 409, "matter_copilot.model_not_configured");
     const provider = answerProvider || createDefaultMatterCopilotProvider({
       providerConfig,
       env,
@@ -418,7 +418,7 @@ function normalizeSourceReference(value) {
 
 function normalizeQuestion(value) {
   const question = boundedText(value, MAX_QUESTION_LENGTH);
-  if (!question) throw makeHttpError("Question is required.", 400);
+  if (!question) throw makeHttpError("Question is required.", 400, "matter_copilot.question_required");
   return question;
 }
 

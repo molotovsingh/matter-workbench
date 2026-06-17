@@ -208,6 +208,58 @@ test("matter copilot validates citations from omitted List of Dates entries", as
   assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b121"]);
 });
 
+test("matter copilot emits stable validation and configuration codes", async () => {
+  const missingMatterService = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => "" },
+    answerProvider: async () => {
+      throw new Error("should not call provider without a matter");
+    },
+  });
+  await assertRejectsCode(
+    () => missingMatterService.answerQuestion({ question: "what happened?" }),
+    "matter_copilot.matter_required",
+    409,
+  );
+
+  const root = await makeMatterRoot();
+  const validationService = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    answerProvider: async () => {
+      throw new Error("should not call provider without a question");
+    },
+  });
+  await assertRejectsCode(
+    () => validationService.answerQuestion({ question: " " }),
+    "matter_copilot.question_required",
+    400,
+  );
+
+  const missingKeyService = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: {},
+    fetchImpl: async () => {
+      throw new Error("should not call provider without an API key");
+    },
+  });
+  await assertRejectsCode(
+    () => missingKeyService.answerQuestion({ question: "what happened?" }),
+    "matter_copilot.provider_api_key_required",
+    409,
+  );
+});
+
+async function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    await operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}
+
 async function makeMatterRoot({ extraChronologyEntries = 0 } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-copilot-test-"));
   const root = path.join(tmp, "Mehta vs Skyline");
