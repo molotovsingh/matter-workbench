@@ -138,6 +138,7 @@ Current hosted-beta families include:
 | `matter_copilot.*` | Matter Copilot validation and provider-configuration failures. | `matter_copilot.question_required`, `matter_copilot.provider_api_key_required` |
 | `rerun_advice.*` | Rerun-guard/advice validation failures. | `rerun_advice.unsupported_skill` |
 | `job.*` / `workflow.*` | Durable job and workflow failures. | `job.stale_running`, `workflow.extract.failed` |
+| `source_descriptors.*` | Source-label workflow batch/all-failed diagnostics. | `source_descriptors.batch_failed`, `source_descriptors.all_batches_failed` |
 
 These codes do not change the surface boundary: matter-specific failures still
 belong in Matter Attention, while app/runtime-wide failures belong in System

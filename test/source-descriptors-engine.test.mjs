@@ -305,6 +305,7 @@ test("source descriptors preserve successful batches and mark a hard-failed batc
 
   assert.equal(result.aiRun.batchCount, 2);
   assert.equal(result.aiRun.batches[1].status, "failed");
+  assert.equal(result.aiRun.batches[1].error.code, "source_descriptors.batch_failed");
   assert.match(result.outputLines.join("\n"), /1 source descriptor batch\(es\) need lawyer review/);
 
   const artifact = JSON.parse(await readFile(path.join(root, "10_Library", "Source Index.json"), "utf8"));
@@ -317,8 +318,9 @@ test("source descriptors fail closed when every batch fails", async () => {
   const root = await makeMatterRoot();
   let attempts = 0;
 
-  await assert.rejects(
-    () => runSourceDescriptors({
+  let thrown;
+  try {
+    await runSourceDescriptors({
       matterRoot: root,
       sourceBatchSize: 1,
       sourceMaxAttempts: 1,
@@ -328,10 +330,14 @@ test("source descriptors fail closed when every batch fails", async () => {
         error.statusCode = 504;
         throw error;
       },
-    }),
-    /All source descriptor batches failed/,
-  );
+    });
+  } catch (error) {
+    thrown = error;
+  }
 
+  assert.match(thrown?.message || "", /All source descriptor batches failed/);
+  assert.equal(thrown?.code, "source_descriptors.all_batches_failed");
+  assert.equal(thrown?.statusCode, 504);
   assert.equal(attempts, 3);
   await assert.rejects(
     () => stat(path.join(root, "10_Library", "Source Index.json")),

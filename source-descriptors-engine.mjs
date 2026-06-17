@@ -144,7 +144,7 @@ function assertAtLeastOneSourceDescriptorBatchSucceeded(providerResponses) {
     "All source descriptor batches failed; Source Index was not written.",
     firstError?.message ? `First failure: ${firstError.message}` : "",
   ].filter(Boolean).join(" ");
-  throw makeHttpError(message, firstError?.statusCode || 502);
+  throw makeHttpError(message, firstError?.statusCode || 502, "source_descriptors.all_batches_failed");
 }
 
 async function reportSourceDescriptorProgress(onProgress, event) {
@@ -201,6 +201,7 @@ async function describeSourceBatchResilient({
         status: "failed",
         error: {
           statusCode: wrapped.statusCode || 502,
+          code: wrapped.code || "source_descriptors.batch_failed",
           message: wrapped.message,
         },
       },
@@ -386,7 +387,7 @@ function sourceDescriptorBatchError({ error, batchIndex, batchCount, attempt, ma
     `after ${attempt}/${maxAttempts} attempt(s)`,
     error?.message || String(error || "unknown error"),
   ].join(": ");
-  const wrapped = makeHttpError(message, error?.statusCode || 502);
+  const wrapped = makeHttpError(message, error?.statusCode || 502, "source_descriptors.batch_failed");
   wrapped.cause = error;
   return wrapped;
 }
