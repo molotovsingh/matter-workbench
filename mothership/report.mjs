@@ -34,6 +34,7 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
       featureIdeas: feedbackItems.filter((item) => item.category === "feature_idea").length,
       total: items.length,
       actionLanes: actionLaneCounts(items),
+      severity: severityCounts(items),
       latestBackendSuitability: metricSummary.latest?.scores?.backendSuitability,
       latestPortability: metricSummary.latest?.scores?.portability,
       latestUserPatienceRisk: metricSummary.latest?.scores?.userPatienceRisk,
@@ -48,6 +49,7 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
 
 export function renderMothershipReportMarkdown(report = {}) {
   const actionLanes = report.summary?.actionLanes || {};
+  const severity = report.summary?.severity || {};
   const lines = [
     "# Matter Workbench Beta Development Report",
     "",
@@ -62,6 +64,10 @@ export function renderMothershipReportMarkdown(report = {}) {
     `- Confusing UX: ${report.summary?.confusingUx || 0}`,
     `- Feature requests: ${report.summary?.featureRequests || 0}`,
     `- Legacy feature ideas: ${report.summary?.featureIdeas || 0}`,
+    `- Blocker evidence: ${severity.blocker || 0}`,
+    `- Error evidence: ${severity.error || 0}`,
+    `- Warning evidence: ${severity.warning || 0}`,
+    `- Info evidence: ${severity.info || 0}`,
     `- Fix now: ${actionLanes.fix_now || 0}`,
     `- Investigate: ${actionLanes.investigate || 0}`,
     `- Product decisions: ${actionLanes.product_decision || 0}`,
@@ -100,7 +106,9 @@ export function renderMothershipReportMarkdown(report = {}) {
       lines.push(`### ${index + 1}. ${redactReportText(item.title || item.id)}`);
       lines.push("");
       lines.push(`- Type: ${item.category}`);
-      lines.push(`- Installation: ${item.installationId}`);
+      if (item.severity) lines.push(`- Severity: ${item.severity}`);
+      if (item.status) lines.push(`- Status: ${item.status}`);
+      lines.push(`- Installation: ${redactReportText(item.installationId)}`);
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
       if (item.action_lane) lines.push(`- Action lane: ${item.action_lane}`);
@@ -120,12 +128,13 @@ export function renderMothershipReportMarkdown(report = {}) {
 
 function signalReportItem(row = {}) {
   const payload = parsePayload(row.payload);
-  const severity = String(row.severity || payload.severity || "warning").toLowerCase();
+  const severity = normalizeSeverity(row.severity || payload.severity || "warning");
   const critical = severity === "blocker" || severity === "error";
   const occurrenceCount = positiveInteger(row.occurrence_count ?? payload.occurrenceCount, 1);
   return {
     id: String(row.signal_id || payload.id || "signal"),
     category: critical ? "critical_signal" : "warning_signal",
+    severity,
     priority: critical ? 0 : 1,
     installationId: String(row.installation_id || ""),
     matterName: String(row.matter_name || payload.matterName || ""),
@@ -146,12 +155,13 @@ function signalReportItem(row = {}) {
 
 function feedbackReportItem(row = {}) {
   const payload = parsePayload(row.payload);
-  const classification = String(row.classification || payload.classification || "bug");
-  const priority = classification === "bug" ? 2 : classification === "confusing_ux" ? 3 : 4;
+  const classification = normalizeFeedbackCategory(row.classification || payload.classification || "bug");
   return {
     id: String(row.feedback_id || payload.id || "feedback"),
     category: classification,
-    priority,
+    severity: severityForFeedbackCategory(classification),
+    status: normalizeFeedbackStatus(row.status || payload.status),
+    priority: priorityForFeedbackCategory(classification),
     installationId: String(row.installation_id || ""),
     matterName: String(row.matter_name || payload.context?.activeMatterName || ""),
     occurrenceCount: 1,
@@ -412,6 +422,48 @@ function actionLaneCounts(items = []) {
     if (Object.prototype.hasOwnProperty.call(counts, item.action_lane)) counts[item.action_lane] += 1;
   }
   return counts;
+}
+
+function severityCounts(items = []) {
+  const counts = { blocker: 0, error: 0, warning: 0, info: 0 };
+  for (const item of items) {
+    if (Object.prototype.hasOwnProperty.call(counts, item.severity)) counts[item.severity] += 1;
+  }
+  return counts;
+}
+
+function normalizeSeverity(value = "") {
+  const severity = String(value || "").trim().toLowerCase();
+  return ["blocker", "error", "warning", "info"].includes(severity) ? severity : "warning";
+}
+
+function normalizeFeedbackCategory(value = "") {
+  const category = String(value || "").trim().toLowerCase();
+  return [
+    "bug",
+    "confusing_ux",
+    "feature_request",
+    "feature_idea",
+    "blocked_workflow",
+    "legal_quality_concern",
+    "operator_note",
+  ].includes(category) ? category : "operator_note";
+}
+
+function normalizeFeedbackStatus(value = "") {
+  const status = String(value || "new").trim().toLowerCase();
+  return ["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"].includes(status) ? status : "new";
+}
+
+function severityForFeedbackCategory(category = "") {
+  if (["bug", "blocked_workflow", "legal_quality_concern"].includes(category)) return "warning";
+  return "info";
+}
+
+function priorityForFeedbackCategory(category = "") {
+  if (category === "bug" || category === "blocked_workflow" || category === "legal_quality_concern") return 2;
+  if (category === "confusing_ux") return 3;
+  return 4;
 }
 
 function laneSort(lane = "") {

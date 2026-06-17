@@ -114,7 +114,7 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
     ],
     signals: [
       signalRow({ signal_id: "warning", severity: "warning", occurrence_count: 7, title: "OCR warning" }),
-      signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret" }),
+      signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret", installation_id: "token=super-secret" }),
     ],
     feedback: [
       feedbackRow({ feedback_id: "feature", classification: "feature_request", tryingToDo: "Add a dashboard" }),
@@ -139,6 +139,12 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
       product_decision: 3,
       watch: 0,
     },
+    severity: {
+      blocker: 0,
+      error: 1,
+      warning: 2,
+      info: 3,
+    },
     latestBackendSuitability: 74,
     latestPortability: 82,
     latestUserPatienceRisk: "medium",
@@ -146,6 +152,9 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
     silentInstallations: 0,
   });
   assert.equal(report.metrics.latest.scores.backendSuitability, 74);
+  assert.equal(report.items.find((item) => item.id === "bug").severity, "warning");
+  assert.equal(report.items.find((item) => item.id === "bug").status, "new");
+  assert.equal(report.items.find((item) => item.id === "feature").severity, "info");
 
   const markdown = renderMothershipReportMarkdown(report);
   assert.match(markdown, /# Matter Workbench Beta Development Report/);
@@ -156,7 +165,12 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
   assert.match(markdown, /Investigate: 2/);
   assert.match(markdown, /Product decisions: 3/);
   assert.match(markdown, /Watch: 0/);
+  assert.match(markdown, /Error evidence: 1/);
+  assert.match(markdown, /Warning evidence: 2/);
   assert.match(markdown, /Action lane: fix_now/);
+  assert.match(markdown, /Severity: error/);
+  assert.match(markdown, /Status: new/);
+  assert.match(markdown, /Installation: token=\[redacted-secret\]/);
   assert.match(markdown, /Recommended action:/);
   assert.match(markdown, /Job failed token=\[redacted-secret\]/);
   assert.doesNotMatch(markdown, /super-secret/);

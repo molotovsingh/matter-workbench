@@ -122,6 +122,19 @@ The optional classifier-result path is intentionally strict:
 - `fix_now` requires high confidence plus concrete related evidence;
 - deterministic hard failures beat classifier output.
 
+## Follow-up Report Hardening
+
+The mothership development report now adds bounded operator metadata to each
+prioritized evidence item:
+
+- `severity`: one of `blocker`, `error`, `warning`, or `info`;
+- `status`: currently preserved for feedback rows (`new`, `reviewed`,
+  `needs_evidence`, `fixed`, `parked`, or `not_reproducible`).
+
+These fields are additive report metadata for operators. They do not change the
+tester-facing feedback form, ingestion payload, or triage routing policy.
+Markdown rendering also redacts installation identifiers before display.
+
 ## Tests Added
 
 The new tests cover the examples from the parked decision note:

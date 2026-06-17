@@ -57,6 +57,7 @@ test("mothership report routes live beta signals into action lanes", () => {
         installation_id: "matter-workbench-do-beta-1",
         feedback_id: "feedback_feature_request",
         classification: "feature_request",
+        status: "needs_evidence",
         received_at: "2026-06-12T09:00:00.000Z",
         payload: {
           tryingToDo: "Add deadline calendar",
@@ -110,6 +111,12 @@ test("mothership report routes live beta signals into action lanes", () => {
     product_decision: 2,
     watch: 1,
   });
+  assert.deepEqual(report.summary.severity, {
+    blocker: 0,
+    error: 1,
+    warning: 3,
+    info: 2,
+  });
 
   assert.equal(report.summary.featureRequests, 1);
   assert.equal(report.summary.featureIdeas, 0);
@@ -125,6 +132,8 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.match(missingExtraction.recommended_action, /preparation/i);
 
   const copilotCitation = report.items.find((item) => item.id === "feedback_copilot_citation");
+  assert.equal(copilotCitation.severity, "warning");
+  assert.equal(copilotCitation.status, "new");
   assert.equal(copilotCitation.action_lane, "investigate");
   assert.equal(copilotCitation.currentness, "needs_live_recheck");
   assert.match(copilotCitation.recommended_action, /current deployment/i);
@@ -139,6 +148,8 @@ test("mothership report routes live beta signals into action lanes", () => {
 
   const featureRequest = report.items.find((item) => item.id === "feedback_feature_request");
   assert.equal(featureRequest.category, "feature_request");
+  assert.equal(featureRequest.severity, "info");
+  assert.equal(featureRequest.status, "needs_evidence");
   assert.equal(featureRequest.action_lane, "product_decision");
   assert.match(featureRequest.recommended_action, /feature/i);
   assert.doesNotMatch(featureRequest.recommended_action, /bug/i);
