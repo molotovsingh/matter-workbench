@@ -16,7 +16,7 @@ artifacts, and eval tooling, see
 
 ## Beta Workflow
 
-Current release checkpoint: [Matter Workbench v1.0.0-beta.19](releases/v1.0.0-beta.19.md).
+Current release checkpoint: [Matter Workbench v1.0.0-beta.20](releases/v1.0.0-beta.20.md).
 
 For the release policy that governs tags, release notes, deployed commits, and
 current-release pointers, see [docs/release-policy.md](docs/release-policy.md).
@@ -38,7 +38,7 @@ For runtime DB browser acceptance evidence, see
 For representative intake/file-type acceptance evidence, see
 [docs/intake-reliability-pack.md](docs/intake-reliability-pack.md).
 For the current private-cloud Beta 3 release marker,
-see [releases/v1.0.0-beta.19.md](releases/v1.0.0-beta.19.md).
+see [releases/v1.0.0-beta.20.md](releases/v1.0.0-beta.20.md).
 
 For the current tester-facing workflow, command panel inputs, recommended
 local env, paid rerun behavior, and review checklist, see
