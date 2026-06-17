@@ -95,7 +95,7 @@ export function createJobStatusService({
 
   async function failJob(jobId, error, patch = {}) {
     const message = errorToMessage(error);
-    const errorCode = safeErrorCode(patch.errorCode || error?.code);
+    const errorCode = safeErrorCode(patch.errorCode || error?.code) || safeErrorCode(patch.fallbackErrorCode);
     return updateJob(jobId, {
       ...patch,
       status: "failed",
@@ -106,7 +106,7 @@ export function createJobStatusService({
     });
   }
 
-  async function runTrackedJob({ operation, ...input } = {}) {
+  async function runTrackedJob({ operation, failureErrorCode, ...input } = {}) {
     if (typeof operation !== "function") throw new Error("operation is required");
     const job = await createJob(input);
     try {
@@ -114,7 +114,7 @@ export function createJobStatusService({
       const completed = await completeJob(job.id, resultMetadata(result));
       return { result, job: completed };
     } catch (error) {
-      await failJob(job.id, error);
+      await failJob(job.id, error, { fallbackErrorCode: failureErrorCode });
       throw error;
     }
   }

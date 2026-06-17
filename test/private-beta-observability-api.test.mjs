@@ -62,6 +62,12 @@ test("private beta observability correlates feedback with trace-linked failed jo
     assert.equal(jobs.payload.jobs.length, 1);
     assert.equal(jobs.payload.jobs[0].traceId, traceId);
     assert.equal(jobs.payload.jobs[0].failureClass, "user_action_needed");
+    assert.equal(jobs.payload.jobs[0].errorCode, "workflow.intake.failed");
+    assert.deepEqual(jobs.payload.jobs[0].metadata.workflow, {
+      stage: "intake",
+      label: "Set Up Matter",
+      route: "/api/matter-init",
+    });
 
     const observability = await getJson(baseUrl, "/api/private-beta/observability?limit=10");
     assert.equal(observability.payload.schema_version, "private-beta-observability/v1");

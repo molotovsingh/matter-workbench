@@ -189,8 +189,18 @@ test("private beta signal service captures failed jobs and skill factory health 
       label: "Run The Story",
       matterName: "Bharat Nagpal Vs Gionee India",
       status: "failed",
+      errorCode: "workflow.custom_skill.failed",
+      failureClass: "provider",
       errorMessage: "OPENROUTER_API_KEY=sk-failed while reading draft facts",
-      metadata: { sourceText: "do not send", apiKey: "sk-hidden" },
+      metadata: {
+        workflow: {
+          stage: "custom_skill",
+          route: "/api/matter-story",
+          label: "The Story",
+        },
+        sourceText: "do not send",
+        apiKey: "sk-hidden",
+      },
     }, {
       id: "job_002",
       kind: "extract",
@@ -201,6 +211,13 @@ test("private beta signal service captures failed jobs and skill factory health 
 
   assert.equal(jobs.captured, 1);
   assert.equal(jobs.signals[0].source, "job_status");
+  assert.equal(jobs.signals[0].code, "workflow.custom_skill.failed");
+  assert.equal(jobs.signals[0].summary.errorCode, "workflow.custom_skill.failed");
+  assert.equal(jobs.signals[0].summary.stage, "custom_skill");
+  assert.equal(jobs.signals[0].details.errorCode, "workflow.custom_skill.failed");
+  assert.equal(jobs.signals[0].details.failureClass, "provider");
+  assert.equal(jobs.signals[0].details.stage, "custom_skill");
+  assert.equal(jobs.signals[0].details.route, "/api/matter-story");
   assert.equal(jobs.signals[0].details.errorMessage, "OPENROUTER_API_KEY=[redacted-secret] while reading draft facts");
   assert.equal(jobs.signals[0].details.metadata, undefined);
 

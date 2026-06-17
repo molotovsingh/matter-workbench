@@ -33,6 +33,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "intake",
+          route: "/api/matter-init",
           label: "Set Up Matter",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -71,6 +72,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "extract",
+          route: "/api/extract",
           label: "Extract Documents",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -107,6 +109,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "source_labels",
+          route: "/api/describe-sources",
           label: "Label Sources",
           matterName: matterNameForBody(matterStore, body),
           operation: async ({ job } = {}) => {
@@ -142,6 +145,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "list_of_dates",
+          route: "/api/create-listofdates",
           label: "Create List of Dates",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -190,6 +194,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "label_refresh",
+          route: "/api/create-listofdates/refresh-labels",
           label: "Refresh List of Dates Labels",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -218,6 +223,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "custom_skill",
+          route: "/api/matter-story",
           label: "The Story",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -267,6 +273,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "validation",
+          route: "/api/doctor/fix",
           label: "Fix Matter",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
@@ -414,6 +421,7 @@ function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {
 async function runTrackedWorkflow({
   jobStatusService,
   kind,
+  route = "",
   label,
   matterName,
   operation,
@@ -423,6 +431,8 @@ async function runTrackedWorkflow({
     kind,
     label,
     matterName,
+    metadata: workflowJobMetadata({ kind, route, label }),
+    failureErrorCode: workflowFailureErrorCode(kind),
     operation,
   });
   return attachJobStatus(result, job);
@@ -433,6 +443,39 @@ function attachJobStatus(result, job) {
     return { ...result, job };
   }
   return { result, job };
+}
+
+function workflowJobMetadata({ kind, route, label } = {}) {
+  const workflow = {
+    stage: normalizeWorkflowStage(kind),
+    label: sanitizeWorkflowText(label, 120),
+  };
+  const normalizedRoute = normalizeWorkflowRoute(route);
+  if (normalizedRoute) workflow.route = normalizedRoute;
+  return { workflow };
+}
+
+function workflowFailureErrorCode(kind) {
+  return `workflow.${normalizeWorkflowStage(kind)}.failed`;
+}
+
+function normalizeWorkflowStage(value) {
+  const text = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+  return text || "job";
+}
+
+function normalizeWorkflowRoute(value) {
+  const text = String(value || "").trim();
+  return /^\/api\/[a-z0-9/_-]+$/i.test(text) ? text.slice(0, 120) : "";
+}
+
+function sanitizeWorkflowText(value, maxLength = 120) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
 function sourceLabelJobProgressReporter(jobStatusService, job) {

@@ -291,23 +291,32 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
   const normalizedTelemetryMode = normalizeTelemetryMode(telemetryMode);
   const kind = sanitizeText(job.kind || "job", 80).trim();
   const title = sanitizeText(job.label || humanizeText(kind) || "Job failed", 180).trim();
+  const code = sanitizeSignalCode(job.errorCode || "job_failed");
+  const workflow = sanitizeWorkflowSignalDetails(job.metadata?.workflow);
+  const failureClass = sanitizeText(job.failureClass || "", 80).trim();
   return {
     source: "job_status",
     fingerprint: stableFingerprint(["job_status", job.id || "", job.matterName || "", kind, title]),
     severity: "error",
     category: kind,
-    code: "job_failed",
+    code,
     title,
     matterName: sanitizeText(job.matterName, 180).trim(),
     runtimeMode,
     telemetryMode: normalizedTelemetryMode,
     summary: {
       state: "failed",
+      ...(code ? { errorCode: code } : {}),
+      ...(workflow.stage ? { stage: workflow.stage } : {}),
     },
     details: {
       jobId: sanitizeText(job.id, 120).trim(),
       kind,
       status: "failed",
+      errorCode: code,
+      ...(failureClass ? { failureClass } : {}),
+      ...(workflow.stage ? { stage: workflow.stage } : {}),
+      ...(workflow.route ? { route: workflow.route } : {}),
       errorMessage: sanitizeText(job.errorMessage || "Job failed", 300).trim(),
       startedAt: normalizeIso(job.startedAt),
       finishedAt: normalizeIso(job.finishedAt),
@@ -438,13 +447,17 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "action",
     "detail",
     "evidence",
+    "errorCode",
     "errorMessage",
+    "failureClass",
     "finishedAt",
     "jobId",
     "kind",
     "message",
     "metadata",
     "matterRoot",
+    "route",
+    "stage",
     "startedAt",
     "status",
     "storePaths",
@@ -465,6 +478,21 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     else if (typeof value === "number" || typeof value === "boolean") safe[key] = value;
   }
   return safe;
+}
+
+function sanitizeSignalCode(value, fallback = "job_failed") {
+  const code = sanitizeText(value, 120).trim();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : fallback;
+}
+
+function sanitizeWorkflowSignalDetails(workflow = {}) {
+  if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) return {};
+  const stage = sanitizeText(workflow.stage, 80).trim();
+  const route = sanitizeText(workflow.route, 120).trim();
+  const details = {};
+  if (/^[a-z0-9_]{1,80}$/.test(stage)) details.stage = stage;
+  if (/^\/api\/[a-z0-9/_-]{1,120}$/i.test(route)) details.route = route;
+  return details;
 }
 
 function sanitizeEvidenceList(evidence = [], { telemetryMode = "safe" } = {}) {
