@@ -75,6 +75,53 @@ test("mothership operator fails unknown commands instead of printing successful 
   assert.match(stderr.join("\n"), /Mothership operator/);
 });
 
+test("mothership operator filters report views for triage queues", async () => {
+  const output = [];
+  const store = {
+    queryReport: async (input) => {
+      assert.deepEqual(input, { sinceDays: 7 });
+      return {
+        sinceDays: 7,
+        signals: [signalRow({ signal_id: "error", severity: "error", title: "Runtime failed" })],
+        feedback: [feedbackRow({ feedback_id: "bug", classification: "bug", tryingToDo: "Run a skill" })],
+        metrics: [],
+        heartbeats: [],
+      };
+    },
+  };
+
+  const result = await runMothershipOperator({
+    argv: ["report", "--since-days", "7", "--format", "json", "--action-lane", "fix_now", "--severity", "error", "--limit", "5"],
+    store,
+    stdout: (line) => output.push(line),
+  });
+
+  assert.equal(result, 0);
+  const report = JSON.parse(output.join("\n"));
+  assert.deepEqual(report.view.filters, { action_lane: "fix_now", severity: "error", limit: 5 });
+  assert.equal(report.view.totalBeforeFilter, 2);
+  assert.equal(report.view.totalAfterFilter, 1);
+  assert.deepEqual(report.items.map((item) => item.id), ["error"]);
+});
+
+test("mothership operator rejects unsupported report filters", async () => {
+  const output = [];
+  const errors = [];
+  const result = await runMothershipOperator({
+    argv: ["report", "--action-lane", "product_backlog"],
+    store: {
+      queryReport: async () => ({ sinceDays: 30, signals: [], feedback: [], metrics: [], heartbeats: [] }),
+    },
+    stdout: (line) => output.push(line),
+    stderr: (line) => errors.push(line),
+  });
+
+  assert.equal(result, 1);
+  assert.equal(output.join("\n"), "");
+  assert.match(errors.join("\n"), /action-lane must be one of/i);
+  assert.doesNotMatch(errors.join("\n"), /product_backlog.*secret/i);
+});
+
 test("mothership report prioritizes actionable evidence and redacts secrets", () => {
   const report = buildMothershipReport({
     sinceDays: 30,

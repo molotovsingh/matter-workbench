@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
+import { buildMothershipReport, filterMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
 
 test("mothership report routes live beta signals into action lanes", () => {
   const report = buildMothershipReport({
@@ -156,6 +156,63 @@ test("mothership report routes live beta signals into action lanes", () => {
 
   const warning = report.items.find((item) => item.id === "signal_warning");
   assert.equal(warning.action_lane, "watch");
+});
+
+test("mothership report supports bounded filtered operator views", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    signals: [{
+      installation_id: "matter-workbench-do-beta-1",
+      signal_id: "signal_fix_now",
+      severity: "error",
+      source: "job_status",
+      matter_name: "Pipeline Matter",
+      received_at: "2026-06-12T10:15:00.000Z",
+      payload: {
+        title: "Label Sources",
+        details: { errorMessage: "No extraction records found. Run /extract before creating a source index." },
+      },
+    }],
+    feedback: [
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        feedback_id: "feedback_new_bug",
+        classification: "bug",
+        status: "new",
+        received_at: "2026-06-12T10:00:00.000Z",
+        payload: { tryingToDo: "Run a skill", happenedInstead: "It failed." },
+      },
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        feedback_id: "feedback_parked_feature",
+        classification: "feature_request",
+        status: "parked",
+        received_at: "2026-06-12T09:00:00.000Z",
+        payload: { tryingToDo: "Add a dashboard", happenedInstead: "I want a dashboard." },
+      },
+    ],
+  }, { generatedAt: "2026-06-12T10:20:00.000Z" });
+
+  const fixNow = filterMothershipReport(report, { actionLane: "fix_now", severity: "error", limit: "1" });
+  assert.equal(fixNow.view.schema_version, "mothership-report-view/v1");
+  assert.deepEqual(fixNow.view.filters, { action_lane: "fix_now", severity: "error", limit: 1 });
+  assert.equal(fixNow.view.totalBeforeFilter, 3);
+  assert.equal(fixNow.view.totalAfterFilter, 1);
+  assert.deepEqual(fixNow.items.map((item) => item.id), ["signal_fix_now"]);
+  assert.match(renderMothershipReportMarkdown(fixNow), /Items shown: 1\/3/);
+  assert.match(renderMothershipReportMarkdown(fixNow), /Filters: action_lane=fix_now, severity=error, limit=1/);
+
+  const parked = filterMothershipReport(report, { status: "parked" });
+  assert.deepEqual(parked.items.map((item) => item.id), ["feedback_parked_feature"]);
+
+  assert.throws(
+    () => filterMothershipReport(report, { actionLane: "product_backlog" }),
+    /action-lane must be one of/i,
+  );
+  assert.throws(
+    () => filterMothershipReport(report, { limit: "nope" }),
+    /limit must be a positive integer/i,
+  );
 });
 
 test("mothership report downgrades stale preparation failures when latest matter health is clear", () => {

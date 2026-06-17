@@ -135,6 +135,16 @@ These fields are additive report metadata for operators. They do not change the
 tester-facing feedback form, ingestion payload, or triage routing policy.
 Markdown rendering also redacts installation identifiers before display.
 
+The operator CLI supports filtered report views for triage queues:
+
+```bash
+npm run mothership:report -- --action-lane fix_now --severity error --limit 20
+npm run mothership:report -- --status needs_evidence
+```
+
+Filters are view-only and fail closed on unsupported values; they do not alter
+stored feedback, signal ingestion, or the underlying unfiltered report summary.
+
 ## Tests Added
 
 The new tests cover the examples from the parked decision note:

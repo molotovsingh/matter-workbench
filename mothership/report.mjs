@@ -3,6 +3,9 @@ import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-red
 
 const RELATED_SIGNAL_WINDOW_MS = 2 * 60 * 60 * 1000;
 const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|list of dates|label sources|source labels?/;
+const ACTION_LANES = Object.freeze(["fix_now", "investigate", "product_decision", "watch"]);
+const SEVERITIES = Object.freeze(["blocker", "error", "warning", "info"]);
+const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
   const metricSummary = summarizeMetrics(dataset.metrics || []);
@@ -44,6 +47,29 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
     metrics: metricSummary,
     heartbeats: heartbeatSummary,
     items,
+  };
+}
+
+export function filterMothershipReport(report = {}, filters = {}) {
+  const viewFilters = normalizeReportViewFilters(filters);
+  if (!Object.keys(viewFilters).length) return report;
+
+  const originalItems = Array.isArray(report.items) ? report.items : [];
+  let items = originalItems
+    .filter((item) => !viewFilters.action_lane || item.action_lane === viewFilters.action_lane)
+    .filter((item) => !viewFilters.severity || item.severity === viewFilters.severity)
+    .filter((item) => !viewFilters.status || item.status === viewFilters.status);
+  if (viewFilters.limit) items = items.slice(0, viewFilters.limit);
+
+  return {
+    ...report,
+    items,
+    view: {
+      schema_version: "mothership-report-view/v1",
+      filters: viewFilters,
+      totalBeforeFilter: originalItems.length,
+      totalAfterFilter: items.length,
+    },
   };
 }
 
@@ -97,6 +123,15 @@ export function renderMothershipReportMarkdown(report = {}) {
       lines.push(`- ${redactReportText(item.installationId)}: last seen ${item.receivedAt || item.capturedAt || ""}; sessions ${item.activeSessions}; patience ${item.highestPatienceRisk}`);
     }
     lines.push("");
+  }
+  if (report.view?.filters) {
+    lines.push(
+      "## View",
+      "",
+      `- Items shown: ${report.view.totalAfterFilter ?? 0}/${report.view.totalBeforeFilter ?? 0}`,
+      `- Filters: ${formatReportViewFilters(report.view.filters)}`,
+      "",
+    );
   }
   lines.push("## Prioritized Evidence", "");
   if (!report.items?.length) {
@@ -416,6 +451,44 @@ function latestItemEvidenceTime(item = {}) {
   return times.length ? Math.max(...times) : NaN;
 }
 
+function normalizeReportViewFilters(filters = {}) {
+  const actionLane = stringOr(filters.actionLane ?? filters.action_lane ?? filters.lane, "");
+  const severity = stringOr(filters.severity, "");
+  const status = stringOr(filters.status, "");
+  const limit = filters.limit === undefined || filters.limit === null || String(filters.limit).trim() === ""
+    ? null
+    : parseViewLimit(filters.limit);
+  const normalized = {};
+  if (actionLane) normalized.action_lane = requireAllowedFilter("action-lane", actionLane, ACTION_LANES);
+  if (severity) normalized.severity = requireAllowedFilter("severity", severity, SEVERITIES);
+  if (status) normalized.status = requireAllowedFilter("status", status, FEEDBACK_STATUSES);
+  if (limit) normalized.limit = limit;
+  return normalized;
+}
+
+function requireAllowedFilter(name, value, allowed) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!allowed.includes(normalized)) {
+    throw new Error(`${name} must be one of: ${allowed.join(", ")}`);
+  }
+  return normalized;
+}
+
+function parseViewLimit(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0) throw new Error("limit must be a positive integer");
+  return Math.min(number, 500);
+}
+
+function formatReportViewFilters(filters = {}) {
+  const parts = [];
+  if (filters.action_lane) parts.push(`action_lane=${filters.action_lane}`);
+  if (filters.severity) parts.push(`severity=${filters.severity}`);
+  if (filters.status) parts.push(`status=${filters.status}`);
+  if (filters.limit) parts.push(`limit=${filters.limit}`);
+  return parts.length ? parts.join(", ") : "none";
+}
+
 function actionLaneCounts(items = []) {
   const counts = { fix_now: 0, investigate: 0, product_decision: 0, watch: 0 };
   for (const item of items) {
@@ -434,7 +507,7 @@ function severityCounts(items = []) {
 
 function normalizeSeverity(value = "") {
   const severity = String(value || "").trim().toLowerCase();
-  return ["blocker", "error", "warning", "info"].includes(severity) ? severity : "warning";
+  return SEVERITIES.includes(severity) ? severity : "warning";
 }
 
 function normalizeFeedbackCategory(value = "") {
@@ -452,7 +525,7 @@ function normalizeFeedbackCategory(value = "") {
 
 function normalizeFeedbackStatus(value = "") {
   const status = String(value || "new").trim().toLowerCase();
-  return ["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"].includes(status) ? status : "new";
+  return FEEDBACK_STATUSES.includes(status) ? status : "new";
 }
 
 function severityForFeedbackCategory(category = "") {
@@ -517,4 +590,8 @@ function normalizeMatterName(value) {
 
 function normalizeReportText(value) {
   return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function stringOr(value, fallback) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }

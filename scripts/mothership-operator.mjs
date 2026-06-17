@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import process from "node:process";
 
-import { buildMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
+import { buildMothershipReport, filterMothershipReport, renderMothershipReportMarkdown } from "../mothership/report.mjs";
 import { createMothershipStore, createPostgresMothershipDatabase } from "../mothership/store.mjs";
 import { loadMothershipScriptEnv } from "./mothership-env.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
@@ -65,7 +65,12 @@ export async function runMothershipOperator({
     } else if (parsed.command === "report") {
       const sinceDays = positiveInteger(parsed.options["since-days"], 30);
       const dataset = await store.queryReport({ sinceDays });
-      const report = buildMothershipReport(dataset);
+      const report = filterMothershipReport(buildMothershipReport(dataset), {
+        actionLane: parsed.options["action-lane"] || parsed.options.lane,
+        severity: parsed.options.severity,
+        status: parsed.options.status,
+        limit: parsed.options.limit,
+      });
       stdout(parsed.options.format === "json" ? JSON.stringify(report, null, 2) : renderMothershipReportMarkdown(report).trimEnd());
     } else if (parsed.command === "help") {
       stdout(usage());
@@ -104,7 +109,7 @@ function usage() {
     "  installations create --id <id> --label <label>",
     "  installations revoke --id <id>",
     "  health",
-    "  report [--since-days 30] [--format markdown|json]",
+    "  report [--since-days 30] [--format markdown|json] [--action-lane fix_now] [--severity error] [--status new] [--limit 20]",
     "  prune [--retention-days 180]",
   ].join("\n");
 }
