@@ -111,6 +111,30 @@ System Health is read-only in this first slice. It must not run skills, call
 providers, mutate config, write matter artifacts, enforce credits, or initiate
 billing/payment flows.
 
+## Stable Diagnostic Code Families
+
+Operator-only chrome may include stable `code` values in terminal-style error
+copy. Those codes are for support triage and should remain safe to show without
+raw paths, secrets, provider prompts, or work product.
+
+Current hosted-beta families include:
+
+| Family | Scope | Example codes |
+| --- | --- | --- |
+| `runtime_db.read.*` | DB-backed workspace/file reads. | `runtime_db.read.file_not_found`, `runtime_db.read.payload_missing` |
+| `runtime_db.storage.*` | Low-level DB storage queries. | `runtime_db.storage.query_failed`, `runtime_db.storage.invalid_json` |
+| `runtime_db.matter_index.*` | Runtime DB matter listing/resolution. | `runtime_db.matter_index.query_failed`, `runtime_db.matter_index.no_json` |
+| `runtime_db.upload.*` | Runtime DB upload/add-files allocation. | `runtime_db.upload.matter_not_found`, `runtime_db.upload.allocation_failed` |
+| `runtime_db.command_log.*` | Runtime DB command interaction audit reads/writes. | `runtime_db.command_log.query_failed`, `runtime_db.command_log.invalid_json` |
+| `runtime_db.configurable_skill*.*` | Runtime DB custom-skill stores and run ledgers. | `runtime_db.configurable_skill_store.query_failed`, `runtime_db.configurable_skill_run.not_found` |
+| `runtime_db.skill_idea.*` / `runtime_db.skill_sample.*` | Runtime DB Skill Factory ideas/samples. | `runtime_db.skill_idea.write_failed`, `runtime_db.skill_sample.stale` |
+| `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
+
+These codes do not change the surface boundary: matter-specific failures still
+belong in Matter Attention, while app/runtime-wide failures belong in System
+Health. They simply give operators stable handles for logs, screenshots, and
+support tickets.
+
 ## Examples
 
 | Symptom | Surface |
