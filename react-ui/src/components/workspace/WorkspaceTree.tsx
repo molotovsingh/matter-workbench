@@ -46,7 +46,7 @@ function TreeNode({ file }: TreeNodeProps) {
         if (activeMatterNameRef.current !== matterName) return;
         appendTerminal([
           showOperatorChrome
-            ? `[file] error reading ${path}: ${getErrorMessage(e)}`
+            ? `[file] error reading ${path}: ${getErrorMessage(e, { includeCode: true })}`
             : '[file] Could not open that file. Please try again or tell us what happened.',
         ]);
       }
