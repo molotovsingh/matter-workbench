@@ -151,11 +151,15 @@ test("private beta feedback service rejects invalid choices and blank reports", 
 
   await assert.rejects(
     () => service.createFeedback({ choice: "bug", tryingToDo: "Run preparation" }),
-    /choice must be one of/,
+    (error) => error.statusCode === 400
+      && error.code === "private_beta.feedback.invalid_choice"
+      && /choice must be one of/.test(error.message),
   );
   await assert.rejects(
     () => service.createFeedback({ choice: "did_not_work", tryingToDo: "" }),
-    /What were you trying to do/,
+    (error) => error.statusCode === 400
+      && error.code === "private_beta.feedback.trying_to_do_required"
+      && /What were you trying to do/.test(error.message),
   );
 });
 

@@ -15,14 +15,19 @@ async function getJson(baseUrl, pathName) {
 }
 
 async function postJson(baseUrl, pathName, body = {}) {
+  const { response, payload } = await postJsonRaw(baseUrl, pathName, body);
+  assert.equal(response.ok, true, payload.error);
+  return payload;
+}
+
+async function postJsonRaw(baseUrl, pathName, body = {}) {
   const response = await fetch(`${baseUrl}${pathName}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = await response.json();
-  assert.equal(response.ok, true, payload.error);
-  return payload;
+  return { response, payload };
 }
 
 test("private beta feedback API records and lists safe feedback packets", async () => {
@@ -67,6 +72,40 @@ test("private beta feedback API records and lists safe feedback packets", async 
     assert.equal(listed.schema_version, "private-beta-feedback-ledger/v1");
     assert.equal(listed.feedback.length, 1);
     assert.equal(listed.feedback[0].id, created.feedback.id);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("private beta feedback API returns stable validation codes", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-feedback-api-validation-"));
+  const appDir = path.join(tmp, "app");
+  await mkdir(appDir, { recursive: true });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: path.join(tmp, "matters") },
+    host: "127.0.0.1",
+    port: 0,
+    privateBetaFeedbackPath: path.join(tmp, "feedback-ledger.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const invalidChoice = await postJsonRaw(baseUrl, "/api/private-beta/feedback", {
+      choice: "bug",
+      tryingToDo: "Report a problem",
+    });
+    assert.equal(invalidChoice.response.status, 400);
+    assert.equal(invalidChoice.payload.code, "private_beta.feedback.invalid_choice");
+
+    const blankReport = await postJsonRaw(baseUrl, "/api/private-beta/feedback", {
+      choice: "did_not_work",
+      tryingToDo: "",
+    });
+    assert.equal(blankReport.response.status, 400);
+    assert.equal(blankReport.payload.code, "private_beta.feedback.trying_to_do_required");
   } finally {
     app.server.close();
   }

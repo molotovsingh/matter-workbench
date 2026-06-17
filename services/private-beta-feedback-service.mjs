@@ -143,7 +143,7 @@ export function normalizeFeedback(input = {}, { telemetryMode = "safe", preserve
     || sanitizeText(input.context?.visibleError, 1000).trim()
   );
   if (!tryingToDo) {
-    throw makeHttpError("What were you trying to do? is required", 400);
+    throw makeHttpError("What were you trying to do? is required", 400, "private_beta.feedback.trying_to_do_required");
   }
 
   const createdAt = normalizeIso(input.createdAt) || isoNow(() => new Date());
@@ -328,7 +328,7 @@ function normalizeChoice(choice) {
   const value = stringOr(choice, "");
   if (!value) return "did_not_work";
   if (!ALLOWED_CHOICES.has(value)) {
-    throw makeHttpError("choice must be one of: did_not_work, confused, want_something", 400);
+    throw makeHttpError("choice must be one of: did_not_work, confused, want_something", 400, "private_beta.feedback.invalid_choice");
   }
   return value;
 }
