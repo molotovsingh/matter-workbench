@@ -37,8 +37,20 @@ export async function createSkillFromApprovedSampleInStore({
   idFactory,
 } = {}) {
   if (!store || !Array.isArray(store.skills)) throw new Error("store.skills is required");
-  if (!idea?.id) throw makeHttpError("Skill idea is required", 400);
-  if (!sample?.id) throw makeHttpError("Approved sample is required", 400);
+  if (!idea?.id) {
+    throw makeHttpError(
+      "Skill idea is required",
+      400,
+      "configurable_skill_creation.idea_required",
+    );
+  }
+  if (!sample?.id) {
+    throw makeHttpError(
+      "Approved sample is required",
+      400,
+      "configurable_skill_creation.approved_sample_required",
+    );
+  }
 
   const targetSkill = resolveTargetSkill({ idea, store });
   const reservedCustomSlashes = activeCustomSlashes(store.skills);
@@ -106,7 +118,11 @@ export async function createSkillFromApprovedSampleInStore({
         schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
         skill: normalizeStoredSkill(draft),
       },
-      validationError: makeHttpError(`Draft skill validation failed: ${validation.messages.join("; ")}`, 422),
+      validationError: makeHttpError(
+        `Draft skill validation failed: ${validation.messages.join("; ")}`,
+        422,
+        "configurable_skill_creation.draft_validation_failed",
+      ),
     };
   }
 
@@ -139,7 +155,11 @@ function resolveTargetSkill({ idea, store }) {
     ? store.skills.find((candidate) => candidate.slash === targetSlash && candidate.status === "active")
     : null;
   if (targetSlash && !targetSkill) {
-    throw makeHttpError(`No active configurable skill found for ${targetSlash}`, 409);
+    throw makeHttpError(
+      `No active configurable skill found for ${targetSlash}`,
+      409,
+      "configurable_skill_creation.target_skill_not_found",
+    );
   }
   return targetSkill;
 }
@@ -153,7 +173,13 @@ function resolveCreationProviders({
 } = {}) {
   const authoringPolicy = resolveModelPolicy(AI_TASKS.SKILL_AUTHORING, { env });
   const authoringProviderConfig = resolveProviderConfig(authoringPolicy, { endpoint });
-  if (!authoringProviderConfig.model) throw makeHttpError("Skill authoring model is not configured.", 409);
+  if (!authoringProviderConfig.model) {
+    throw makeHttpError(
+      "Skill authoring model is not configured.",
+      409,
+      "configurable_skill_creation.authoring_model_not_configured",
+    );
+  }
   const provider = authoringProvider || createDefaultAuthoringProvider({
     providerConfig: authoringProviderConfig,
     env,
@@ -162,7 +188,13 @@ function resolveCreationProviders({
 
   const runPolicy = resolveModelPolicy(AI_TASKS.CONFIGURABLE_SKILL_RUN, { env });
   const runProviderConfig = resolveProviderConfig(runPolicy, { endpoint });
-  if (!runProviderConfig.model) throw makeHttpError("Configurable skill run model is not configured.", 409);
+  if (!runProviderConfig.model) {
+    throw makeHttpError(
+      "Configurable skill run model is not configured.",
+      409,
+      "configurable_skill_creation.run_model_not_configured",
+    );
+  }
   const validationRunProvider = runProvider || createDefaultRunProvider({
     providerConfig: runProviderConfig,
     env,

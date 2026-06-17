@@ -295,7 +295,13 @@ function matterNameForSampleJob(matterStore, body = {}) {
 
 async function runtimeDbMatterForBody(matterStore, matterName = "") {
   const target = matterName || matterStore.activeMatterNameWithinHome?.();
-  if (!target) throw makeHttpError("No matter is active — pick one before running a custom skill.", 409);
+  if (!target) {
+    throw makeHttpError(
+      "No matter is active — pick one before running a custom skill.",
+      409,
+      "skill_factory.matter_required",
+    );
+  }
   return matterStore.resolveExistingMatter(target);
 }
 
@@ -349,5 +355,6 @@ async function assertSkillCreationOverlapCleared({ idea, skillRouterService, ove
   throw makeHttpError(
     `This may already be covered${matched ? ` by${matched}` : ""}. Choose the existing skill, improve it, park the idea, or explain why this should be a separate custom skill.`,
     409,
+    "skill_factory.overlap_not_cleared",
   );
 }

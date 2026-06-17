@@ -127,10 +127,11 @@ Current hosted-beta families include:
 | `runtime_db.upload.*` | Runtime DB upload/add-files allocation. | `runtime_db.upload.matter_not_found`, `runtime_db.upload.allocation_failed` |
 | `runtime_db.command_log.*` | Runtime DB command interaction audit reads/writes. | `runtime_db.command_log.query_failed`, `runtime_db.command_log.invalid_json` |
 | `runtime_db.configurable_skill*.*` | Runtime DB custom-skill stores and run ledgers. | `runtime_db.configurable_skill_store.query_failed`, `runtime_db.configurable_skill_run.not_found` |
-| `configurable_skill*.*` | Local custom-skill definitions, providers, lifecycle/run execution, stores, and ledgers. | `configurable_skill_provider.api_key_required`, `configurable_skill_lifecycle.invalid_transition` |
+| `configurable_skill*.*` | Local custom-skill definitions, creation, providers, lifecycle/run execution, stores, and ledgers. | `configurable_skill_creation.draft_validation_failed`, `configurable_skill_lifecycle.invalid_transition` |
 | `runtime_db.skill_idea.*` / `runtime_db.skill_sample.*` | Runtime DB Skill Factory ideas/samples. | `runtime_db.skill_idea.write_failed`, `runtime_db.skill_sample.stale` |
 | `skill_idea.*` / `skill_sample.*` | Local JSON-backed Skill Factory ideas/samples. | `skill_idea.invalid_design_brief`, `skill_sample.no_approved_sample` |
 | `skill_sample_output.*` | Skill Factory sample-output generation validation/provider configuration. | `skill_sample_output.matter_required`, `skill_sample_output.provider_api_key_required` |
+| `skill_factory.*` | Skill Factory route-level matter-selection and overlap guards. | `skill_factory.matter_required`, `skill_factory.overlap_not_cleared` |
 | `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
 | `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
