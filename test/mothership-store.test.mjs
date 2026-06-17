@@ -232,7 +232,7 @@ test("store inserts heartbeat events and includes them in reports", async () => 
   assert.equal(report.heartbeats[0].heartbeat_id, "heartbeat_001");
 });
 
-test("store updates feedback status through a parameterized payload patch", async () => {
+test("store updates feedback status with bounded operator audit metadata", async () => {
   const calls = [];
   const database = fakeDatabase({
     onQuery(text, values) {
@@ -243,15 +243,36 @@ test("store updates feedback status through a parameterized payload patch", asyn
       return { rowCount: 1, rows: [] };
     },
   });
-  const store = createMothershipStore({ database });
+  const store = createMothershipStore({
+    database,
+    now: () => new Date("2026-06-17T15:30:00.000Z"),
+  });
 
   assert.deepEqual(
-    await store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_1", status: "needs_evidence" }),
-    { updated: true, status: "needs_evidence" },
+    await store.updateFeedbackStatus({
+      installationId: "firm-beta-01",
+      feedbackId: "feedback_1",
+      status: "needs_evidence",
+      actor: "aks operator",
+      note: "Need repro; token=super-secret should not persist.",
+    }),
+    {
+      updated: true,
+      status: "needs_evidence",
+      updatedAt: "2026-06-17T15:30:00.000Z",
+      actor: "aks operator",
+      note: "Need repro; token=[redacted-secret] should not persist.",
+    },
   );
   assert.deepEqual(
     await store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_missing", status: "parked" }),
-    { updated: false, status: "parked" },
+    {
+      updated: false,
+      status: "parked",
+      updatedAt: "2026-06-17T15:30:00.000Z",
+      actor: "operator",
+      note: "",
+    },
   );
   await assert.rejects(
     () => store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_1", status: "product_backlog" }),
@@ -261,8 +282,17 @@ test("store updates feedback status through a parameterized payload patch", asyn
   const updates = calls.filter((call) => /update mothership_feedback_events/i.test(call.text));
   assert.equal(updates.length, 2);
   assert.match(updates[0].text, /jsonb_set\(payload, '\{status\}'/i);
-  assert.deepEqual(updates[0].values, ["firm-beta-01", "feedback_1", "needs_evidence"]);
+  assert.match(updates[0].text, /operatorTriageHistory/i);
+  assert.deepEqual(updates[0].values, [
+    "firm-beta-01",
+    "feedback_1",
+    "needs_evidence",
+    "2026-06-17T15:30:00.000Z",
+    "aks operator",
+    "Need repro; token=[redacted-secret] should not persist.",
+  ]);
   assert.match(updates[0].text, /where installation_id = \$1 and feedback_id = \$2/i);
+  assert.doesNotMatch(JSON.stringify(updates), /super-secret/);
 });
 
 test("store revokes installations and prunes expired payloads", async () => {

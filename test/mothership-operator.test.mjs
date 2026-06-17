@@ -15,8 +15,8 @@ test("mothership operator parses bounded commands without accepting secrets", ()
     { command: "report", options: { "since-days": "14", format: "json" } },
   );
   assert.deepEqual(
-    parseMothershipOperatorArgs(["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed"]),
-    { command: "feedback:update-status", options: { "installation-id": "firm-01", id: "feedback_1", status: "reviewed" } },
+    parseMothershipOperatorArgs(["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed", "--actor", "aks", "--note", "reviewed"]),
+    { command: "feedback:update-status", options: { "installation-id": "firm-01", id: "feedback_1", status: "reviewed", actor: "aks", note: "reviewed" } },
   );
   assert.throws(() => parseMothershipOperatorArgs(["report", "--token", "secret"]), /does not accept secrets/i);
 });
@@ -90,12 +90,12 @@ test("mothership operator updates feedback triage status", async () => {
   };
 
   assert.equal(await runMothershipOperator({
-    argv: ["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed"],
+    argv: ["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed", "--actor", "aks", "--note", "initial review"],
     store,
     stdout: (line) => output.push(line),
   }), 0);
   assert.match(output.join("\n"), /Updated feedback feedback_1 for firm-01 to reviewed/);
-  assert.deepEqual(calls, [{ installationId: "firm-01", feedbackId: "feedback_1", status: "reviewed" }]);
+  assert.deepEqual(calls, [{ installationId: "firm-01", feedbackId: "feedback_1", status: "reviewed", actor: "aks", note: "initial review" }]);
 
   const errors = [];
   assert.equal(await runMothershipOperator({

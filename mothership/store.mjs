@@ -1,5 +1,6 @@
 import process from "node:process";
 
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { generateIngestionToken, hashIngestionToken } from "./tokens.mjs";
 
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
@@ -7,6 +8,7 @@ const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "f
 export function createMothershipStore({
   database,
   tokenFactory = generateIngestionToken,
+  now = () => new Date(),
 } = {}) {
   if (!database?.query || !database?.transaction) {
     throw new Error("Mothership store requires a database query and transaction adapter.");
@@ -104,19 +106,48 @@ export function createMothershipStore({
     return { inserted: (result.rowCount || 0) > 0 };
   }
 
-  async function updateFeedbackStatus({ installationId, feedbackId, status }) {
+  async function updateFeedbackStatus({ installationId, feedbackId, status, actor = "operator", note = "" }) {
     const normalizedId = requireIdentifier(installationId, "installationId");
     const normalizedFeedbackId = requireIdentifier(feedbackId, "feedbackId");
     const normalizedStatus = requireFeedbackStatus(status);
+    const updatedAt = isoNow(now);
+    const normalizedActor = sanitizeAuditText(actor || "operator", 120) || "operator";
+    const normalizedNote = sanitizeAuditText(note, 500);
     const result = await database.query(
       `update mothership_feedback_events
        set status = $3,
-           payload = jsonb_set(payload, '{status}', to_jsonb($3::text), true)
+           payload = jsonb_set(
+             jsonb_set(
+               jsonb_set(payload, '{status}', to_jsonb($3::text), true),
+               '{operatorTriage}',
+               jsonb_build_object(
+                 'status', $3::text,
+                 'updatedAt', $4::text,
+                 'actor', $5::text,
+                 'note', $6::text
+               ),
+               true
+             ),
+             '{operatorTriageHistory}',
+             coalesce(payload->'operatorTriageHistory', '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+               'status', $3::text,
+               'updatedAt', $4::text,
+               'actor', $5::text,
+               'note', $6::text
+             )),
+             true
+           )
        where installation_id = $1 and feedback_id = $2
        returning id`,
-      [normalizedId, normalizedFeedbackId, normalizedStatus],
+      [normalizedId, normalizedFeedbackId, normalizedStatus, updatedAt, normalizedActor, normalizedNote],
     );
-    return { updated: (result.rowCount || 0) > 0, status: normalizedStatus };
+    return {
+      updated: (result.rowCount || 0) > 0,
+      status: normalizedStatus,
+      updatedAt,
+      actor: normalizedActor,
+      note: normalizedNote,
+    };
   }
 
   async function ingestSignal({ installationId, signal }) {
@@ -339,6 +370,10 @@ function requireFeedbackStatus(value) {
   return status;
 }
 
+function sanitizeAuditText(value, maxLength) {
+  return redactSensitiveText(String(value || "")).slice(0, maxLength).trim();
+}
+
 function optionalText(value, maxLength) {
   const text = String(value || "").trim();
   return text ? text.slice(0, maxLength) : null;
@@ -358,6 +393,11 @@ function requireObject(value, field) {
 function positiveInteger(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function isoNow(now) {
+  const value = now();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 function httpError(message, statusCode) {

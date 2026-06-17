@@ -144,6 +144,11 @@ export function renderMothershipReportMarkdown(report = {}) {
       lines.push(`- Type: ${item.category}`);
       if (item.severity) lines.push(`- Severity: ${item.severity}`);
       if (item.status) lines.push(`- Status: ${item.status}`);
+      if (item.triageStatusUpdatedAt) {
+        lines.push(`- Status updated: ${item.triageStatusUpdatedAt}${item.triageStatusActor ? ` by ${redactReportText(item.triageStatusActor)}` : ""}`);
+      }
+      if (item.triageStatusNote) lines.push(`- Status note: ${redactReportText(item.triageStatusNote)}`);
+      if (item.triageStatusHistoryCount > 1) lines.push(`- Status history entries: ${item.triageStatusHistoryCount}`);
       lines.push(`- Installation: ${redactReportText(item.installationId)}`);
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
@@ -192,11 +197,16 @@ function signalReportItem(row = {}) {
 function feedbackReportItem(row = {}) {
   const payload = parsePayload(row.payload);
   const classification = normalizeFeedbackCategory(row.classification || payload.classification || "bug");
+  const operatorTriage = safeObject(payload.operatorTriage);
   return {
     id: String(row.feedback_id || payload.id || "feedback"),
     category: classification,
     severity: severityForFeedbackCategory(classification),
     status: normalizeFeedbackStatus(row.status || payload.status),
+    triageStatusUpdatedAt: toIso(operatorTriage.updatedAt),
+    triageStatusActor: redactReportText(operatorTriage.actor || ""),
+    triageStatusNote: redactReportText(operatorTriage.note || ""),
+    triageStatusHistoryCount: Array.isArray(payload.operatorTriageHistory) ? payload.operatorTriageHistory.length : 0,
     priority: priorityForFeedbackCategory(classification),
     installationId: String(row.installation_id || ""),
     matterName: String(row.matter_name || payload.context?.activeMatterName || ""),

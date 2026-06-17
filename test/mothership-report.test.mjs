@@ -62,6 +62,16 @@ test("mothership report routes live beta signals into action lanes", () => {
         payload: {
           tryingToDo: "Add deadline calendar",
           happenedInstead: "I want a new calendar page for filing deadlines.",
+          operatorTriage: {
+            status: "needs_evidence",
+            updatedAt: "2026-06-17T15:30:00.000Z",
+            actor: "aks operator",
+            note: "Need product decision; token=super-secret must stay hidden.",
+          },
+          operatorTriageHistory: [
+            { status: "new", updatedAt: "2026-06-17T15:00:00.000Z" },
+            { status: "needs_evidence", updatedAt: "2026-06-17T15:30:00.000Z" },
+          ],
         },
       },
       {
@@ -150,9 +160,18 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.equal(featureRequest.category, "feature_request");
   assert.equal(featureRequest.severity, "info");
   assert.equal(featureRequest.status, "needs_evidence");
+  assert.equal(featureRequest.triageStatusUpdatedAt, "2026-06-17T15:30:00.000Z");
+  assert.equal(featureRequest.triageStatusActor, "aks operator");
+  assert.equal(featureRequest.triageStatusNote, "Need product decision; token=[redacted-secret] must stay hidden.");
+  assert.equal(featureRequest.triageStatusHistoryCount, 2);
   assert.equal(featureRequest.action_lane, "product_decision");
   assert.match(featureRequest.recommended_action, /feature/i);
   assert.doesNotMatch(featureRequest.recommended_action, /bug/i);
+  const markdown = renderMothershipReportMarkdown(report);
+  assert.match(markdown, /Status updated: 2026-06-17T15:30:00\.000Z by aks operator/);
+  assert.match(markdown, /Status note: Need product decision; token=\[redacted-secret\] must stay hidden\./);
+  assert.match(markdown, /Status history entries: 2/);
+  assert.doesNotMatch(markdown, /super-secret/);
 
   const warning = report.items.find((item) => item.id === "signal_warning");
   assert.equal(warning.action_lane, "watch");

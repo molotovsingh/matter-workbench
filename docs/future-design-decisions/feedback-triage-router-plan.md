@@ -151,14 +151,22 @@ The mothership operator can mark feedback triage status after review:
 npm run mothership:operator -- feedback update-status \
   --installation-id <installation_id> \
   --id <feedback_id> \
-  --status needs_evidence
+  --status needs_evidence \
+  --actor operator \
+  --note "needs current repro"
 ```
 
-Status updates use the existing `mothership_feedback_events.status` column and
-patch the stored JSON payload status for report consistency. The markdown report
-prints each prioritized evidence item ID so operators can copy the correct
-`feedback_id` into this command. This remains an operator-only action; tester
-feedback submission is unchanged.
+Status updates use the existing `mothership_feedback_events.status` column,
+patch the stored JSON payload status for report consistency, and write bounded
+redacted operator audit metadata:
+
+- `operatorTriage`: latest status, actor, note, and timestamp;
+- `operatorTriageHistory`: append-only status-change entries.
+
+The markdown report prints each prioritized evidence item ID plus latest status
+audit details so operators can copy the correct `feedback_id` into this command
+and see why a row moved. This remains an operator-only action; tester feedback
+submission is unchanged.
 
 ## Tests Added
 

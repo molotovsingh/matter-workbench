@@ -57,7 +57,13 @@ export async function runMothershipOperator({
       const installationId = requireOption(parsed.options, "installation-id");
       const feedbackId = requireOption(parsed.options, "id");
       const status = requireOption(parsed.options, "status");
-      const result = await store.updateFeedbackStatus({ installationId, feedbackId, status });
+      const result = await store.updateFeedbackStatus({
+        installationId,
+        feedbackId,
+        status,
+        actor: parsed.options.actor || "operator",
+        note: parsed.options.note || "",
+      });
       if (!result.updated) throw new Error(`No feedback found for ${installationId}/${feedbackId}.`);
       stdout(`Updated feedback ${feedbackId} for ${installationId} to ${result.status}.`);
     } else if (parsed.command === "health") {
@@ -116,7 +122,7 @@ function usage() {
     "Mothership operator",
     "  installations create --id <id> --label <label>",
     "  installations revoke --id <id>",
-    "  feedback update-status --installation-id <id> --id <feedback_id> --status <new|reviewed|needs_evidence|fixed|parked|not_reproducible>",
+    "  feedback update-status --installation-id <id> --id <feedback_id> --status <new|reviewed|needs_evidence|fixed|parked|not_reproducible> [--actor operator] [--note text]",
     "  health",
     "  report [--since-days 30] [--format markdown|json] [--action-lane fix_now] [--severity error] [--status new] [--limit 20]",
     "  prune [--retention-days 180]",
