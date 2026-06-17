@@ -46,9 +46,9 @@ export function createRuntimeDbConfigurableSkillRunsService({
   async function updateRun(id, patch = {}) {
     ensureEnabled();
     const runId = uuidValue(id);
-    if (!runId) throw makeHttpError("Run id is required", 400);
+    if (!runId) throw makeHttpError("Run id is required", 400, "runtime_db.configurable_skill_run.id_required");
     const current = transientRuns.get(runId) || readRunFromDb(runId);
-    if (!current) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404);
+    if (!current) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404, "runtime_db.configurable_skill_run.not_found");
     const next = normalizeRuntimeRun({
       ...current,
       ...patch,
@@ -146,11 +146,11 @@ export function createRuntimeDbConfigurableSkillRunsService({
       env: { ...process.env, ...env },
     });
     if (result.error) {
-      throw makeHttpError(`runtime DB skill run query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+      throw makeHttpError(`runtime DB skill run query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.configurable_skill_runs.query_failed");
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-      throw makeHttpError(`runtime DB skill run query failed: ${redactRuntimeDbError(detail)}`, 503);
+      throw makeHttpError(`runtime DB skill run query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.configurable_skill_runs.query_failed");
     }
     return parsePsqlJson(result.stdout || "");
   }
@@ -167,7 +167,7 @@ export function createRuntimeDbConfigurableSkillRunsService({
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB skill run ledger is not configured", 503);
+    if (!enabled) throw makeHttpError("Runtime DB skill run ledger is not configured", 503, "runtime_db.configurable_skill_runs.not_configured");
   }
 
   return {
@@ -344,7 +344,7 @@ function parsePsqlJson(stdout = "") {
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB skill run query returned no JSON.", 503);
+  if (!starts.length) throw makeHttpError("runtime DB skill run query returned no JSON.", 503, "runtime_db.configurable_skill_runs.no_json");
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -352,7 +352,7 @@ function parsePsqlJson(stdout = "") {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB skill run query returned invalid JSON.", 503);
+    throw makeHttpError("runtime DB skill run query returned invalid JSON.", 503, "runtime_db.configurable_skill_runs.invalid_json");
   }
 }
 

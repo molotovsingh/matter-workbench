@@ -51,7 +51,7 @@ export function createRuntimeDbConfigurableSkillStore({
 
   async function updateStore(mutator) {
     ensureEnabled();
-    if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500);
+    if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500, "runtime_db.configurable_skill_store.mutator_required");
     const store = await readStoreWithFingerprint();
     const result = await mutator(store);
     await writeStore(isStoreReplacement(result) ? result : store, { expectedCatalogFingerprint: store.catalogFingerprint });
@@ -66,20 +66,20 @@ export function createRuntimeDbConfigurableSkillStore({
       env: { ...process.env, ...env },
     });
     if (result.error) {
-      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.configurable_skill_store.query_failed");
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
       if (isStaleCatalogError(detail)) {
-        throw makeHttpError("Runtime DB configurable skill catalog changed during update.", 409);
+        throw makeHttpError("Runtime DB configurable skill catalog changed during update.", 409, "runtime_db.configurable_skill_store.stale_catalog");
       }
-      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(detail)}`, 503);
+      throw makeHttpError(`runtime DB skill store query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.configurable_skill_store.query_failed");
     }
     return parsePsqlJson(result.stdout || "");
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB configurable skill store is not configured", 503);
+    if (!enabled) throw makeHttpError("Runtime DB configurable skill store is not configured", 503, "runtime_db.configurable_skill_store.not_configured");
   }
 
   return {
@@ -298,7 +298,7 @@ function parsePsqlJson(stdout = "") {
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB skill store query returned no JSON.", 503);
+  if (!starts.length) throw makeHttpError("runtime DB skill store query returned no JSON.", 503, "runtime_db.configurable_skill_store.no_json");
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -306,7 +306,7 @@ function parsePsqlJson(stdout = "") {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB skill store query returned invalid JSON.", 503);
+    throw makeHttpError("runtime DB skill store query returned invalid JSON.", 503, "runtime_db.configurable_skill_store.invalid_json");
   }
 }
 

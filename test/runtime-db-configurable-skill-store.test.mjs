@@ -214,7 +214,27 @@ test("runtime DB configurable skill stale catalog errors fail as conflicts", asy
         version: 1,
       });
     }),
-    (error) => error?.statusCode === 409 && /catalog changed/i.test(error.message),
+    (error) => error?.statusCode === 409
+      && error.code === "runtime_db.configurable_skill_store.stale_catalog"
+      && /catalog changed/i.test(error.message),
+  );
+});
+
+test("runtime DB configurable skill store exposes stable parse and configuration codes", async () => {
+  const disabled = createRuntimeDbConfigurableSkillStore({});
+  await assert.rejects(
+    () => disabled.readStore(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.configurable_skill_store.not_configured",
+  );
+
+  const malformed = createRuntimeDbConfigurableSkillStore({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({ status: 0, stdout: "NOTICE: nothing to see here\n", stderr: "" }),
+  });
+  await assert.rejects(
+    () => malformed.readStore(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.configurable_skill_store.no_json",
   );
 });
 

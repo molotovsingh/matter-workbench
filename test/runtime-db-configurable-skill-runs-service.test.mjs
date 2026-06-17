@@ -85,6 +85,44 @@ test("runtime DB configurable skill run ledger rechecks DB object availability o
   assertSafeRuntimeRoleGuard(calls.find((sql) => /from storage_objects so/i.test(sql)));
 });
 
+test("runtime DB configurable skill run ledger exposes stable validation and missing-run codes", async () => {
+  const disabled = createRuntimeDbConfigurableSkillRunsService({});
+  await assert.rejects(
+    () => disabled.listRuns(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.configurable_skill_runs.not_configured",
+  );
+
+  const service = createRuntimeDbConfigurableSkillRunsService({
+    databaseUrl: "postgres://mwb:secret@127.0.0.1:5432/matter_workbench_shadow",
+    tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    spawn: (_command, _args, options = {}) => {
+      assert.match(String(options.input || ""), /from configurable_skill_runs csr/i);
+      return spawnResult("[]");
+    },
+  });
+  await assert.rejects(
+    () => service.updateRun("not-a-uuid", { status: "failed" }),
+    (error) => error?.statusCode === 400 && error.code === "runtime_db.configurable_skill_run.id_required",
+  );
+  await assert.rejects(
+    () => service.updateRun("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { status: "failed" }),
+    (error) => error?.statusCode === 404 && error.code === "runtime_db.configurable_skill_run.not_found",
+  );
+});
+
+test("runtime DB configurable skill run ledger exposes stable query parse codes", async () => {
+  const service = createRuntimeDbConfigurableSkillRunsService({
+    databaseUrl: "postgres://mwb:secret@127.0.0.1:5432/matter_workbench_shadow",
+    tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    spawn: () => spawnResult("NOTICE: no json here\n"),
+  });
+
+  await assert.rejects(
+    () => service.listRuns(),
+    (error) => error?.statusCode === 503 && error.code === "runtime_db.configurable_skill_runs.no_json",
+  );
+});
+
 test("runtime DB configurable skill run update recovers persisted runs after process restart", async () => {
   const calls = [];
   const service = createRuntimeDbConfigurableSkillRunsService({
