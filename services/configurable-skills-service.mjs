@@ -154,7 +154,13 @@ export function createConfigurableSkillsService({
 
     const policy = resolveModelPolicy(AI_TASKS.CONFIGURABLE_SKILL_RUN, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
-    if (!providerConfig.model) throw makeHttpError("Configurable skill run model is not configured.", 409);
+    if (!providerConfig.model) {
+      throw makeHttpError(
+        "Configurable skill run model is not configured.",
+        409,
+        "configurable_skill_run.model_not_configured",
+      );
+    }
     const provider = runProvider || createDefaultRunProvider({
       providerConfig,
       env,
@@ -277,29 +283,63 @@ export function createConfigurableSkillsService({
   async function updateSkillLifecycle({ skillId = "", action = "", reason = "" } = {}) {
     const normalizedSkillId = normalizeText(skillId);
     const normalizedAction = normalizeText(action).toLowerCase();
-    if (!normalizedSkillId) throw makeHttpError("Custom skill id is required.", 400);
-    if (!normalizedAction) throw makeHttpError("Lifecycle action is required.", 400);
+    if (!normalizedSkillId) {
+      throw makeHttpError(
+        "Custom skill id is required.",
+        400,
+        "configurable_skill_lifecycle.skill_id_required",
+      );
+    }
+    if (!normalizedAction) {
+      throw makeHttpError(
+        "Lifecycle action is required.",
+        400,
+        "configurable_skill_lifecycle.action_required",
+      );
+    }
 
     return updateStore((store) => {
       const index = store.skills.findIndex((candidate) => normalizeText(candidate.id) === normalizedSkillId);
-      if (index === -1) throw makeHttpError(`Custom skill not found: ${normalizedSkillId}`, 404);
+      if (index === -1) {
+        throw makeHttpError(
+          `Custom skill not found: ${normalizedSkillId}`,
+          404,
+          "configurable_skill_lifecycle.not_found",
+        );
+      }
       const current = normalizeStoredSkill(store.skills[index]);
       if (current.status === "disabled") {
-        throw makeHttpError("Previous versions are retained as history and cannot be managed here.", 409);
+        throw makeHttpError(
+          "Previous versions are retained as history and cannot be managed here.",
+          409,
+          "configurable_skill_lifecycle.previous_version_read_only",
+        );
       }
       if (current.status === "deleted") {
-        throw makeHttpError("Deleted custom skills cannot be changed from the normal lifecycle controls.", 409);
+        throw makeHttpError(
+          "Deleted custom skills cannot be changed from the normal lifecycle controls.",
+          409,
+          "configurable_skill_lifecycle.deleted_read_only",
+        );
       }
       const nextStatus = lifecycleTransitions[current.status]?.[normalizedAction];
       if (!nextStatus) {
-        throw makeHttpError(`Cannot ${normalizedAction} a custom skill with status ${current.status}.`, 409);
+        throw makeHttpError(
+          `Cannot ${normalizedAction} a custom skill with status ${current.status}.`,
+          409,
+          "configurable_skill_lifecycle.invalid_transition",
+        );
       }
       if (normalizedAction === "resume") {
         const collision = store.skills
           .map(normalizeStoredSkill)
           .find((candidate) => candidate.id !== current.id && candidate.status === "active" && candidate.slash === current.slash);
         if (collision) {
-          throw makeHttpError(`Another active custom skill already uses ${current.slash}.`, 409);
+          throw makeHttpError(
+            `Another active custom skill already uses ${current.slash}.`,
+            409,
+            "configurable_skill_lifecycle.slash_collision",
+          );
         }
       }
       const timestamp = now().toISOString();
@@ -380,15 +420,31 @@ function findActiveSkillForRun(skills = [], normalizedSlash = "") {
     .filter((candidate) => candidate.slash === normalizedSlash)
     .sort((left, right) => Number(right.version || 0) - Number(left.version || 0))[0];
   if (inactive?.status === "suspended") {
-    throw makeHttpError(`This custom skill is paused. Resume it before running ${normalizedSlash}.`, 409);
+    throw makeHttpError(
+      `This custom skill is paused. Resume it before running ${normalizedSlash}.`,
+      409,
+      "configurable_skill_run.suspended",
+    );
   }
   if (inactive?.status === "archived") {
-    throw makeHttpError(`This custom skill is archived. Restore it before running ${normalizedSlash}.`, 409);
+    throw makeHttpError(
+      `This custom skill is archived. Restore it before running ${normalizedSlash}.`,
+      409,
+      "configurable_skill_run.archived",
+    );
   }
   if (inactive?.status === "deleted") {
-    throw makeHttpError(`This custom skill was deleted and cannot be run: ${normalizedSlash}`, 409);
+    throw makeHttpError(
+      `This custom skill was deleted and cannot be run: ${normalizedSlash}`,
+      409,
+      "configurable_skill_run.deleted",
+    );
   }
-  throw makeHttpError(`No active configurable skill for ${normalizedSlash}`, 404);
+  throw makeHttpError(
+    `No active configurable skill for ${normalizedSlash}`,
+    404,
+    "configurable_skill_run.not_found",
+  );
 }
 
 async function exists(filePath) {
