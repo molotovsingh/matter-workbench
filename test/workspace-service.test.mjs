@@ -39,7 +39,32 @@ test("workspace service previews ordinary files but blocks hidden direct paths",
 
   await assert.rejects(
     () => service.getRawFile(".env"),
-    /hidden from workspace preview/,
+    (error) => error.statusCode === 403
+      && error.code === "workspace.path_hidden"
+      && /hidden from workspace preview/.test(error.message),
+  );
+});
+
+test("workspace service exposes stable preview and raw-file error codes", async () => {
+  const { root, service } = await makeWorkspaceFixture();
+  await writeFile(path.join(root, "10_Library", "scan.bin"), "binary-ish");
+
+  await assert.rejects(
+    () => service.readFilePreview("10_Library"),
+    (error) => error.statusCode === 400
+      && error.code === "workspace.preview.not_file",
+  );
+
+  await assert.rejects(
+    () => service.readFilePreview("10_Library/scan.bin"),
+    (error) => error.statusCode === 415
+      && error.code === "workspace.preview.unsupported_type",
+  );
+
+  await assert.rejects(
+    () => service.getRawFile("10_Library"),
+    (error) => error.statusCode === 400
+      && error.code === "workspace.raw.not_file",
   );
 });
 

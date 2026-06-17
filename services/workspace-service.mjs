@@ -42,7 +42,7 @@ export function createWorkspaceService({ matterStore } = {}) {
     const safePath = assertInsideRoot(root, resolved, "Requested path is outside the matter root");
     const matterRelative = toPosix(path.relative(root, safePath));
     if (isBlockedWorkspacePath(matterRelative)) {
-      throw makeHttpError("Requested path is hidden from workspace preview", 403);
+      throw makeHttpError("Requested path is hidden from workspace preview", 403, "workspace.path_hidden");
     }
     return safePath;
   }
@@ -175,12 +175,12 @@ export function createWorkspaceService({ matterStore } = {}) {
   async function readFilePreview(relativePath, root = matterStore.ensureMatterRoot()) {
     const filePath = resolveMatterPath(relativePath, root);
     const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
+    if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400, "workspace.preview.not_file");
 
     const extension = path.extname(filePath).toLowerCase();
-    if (!isWorkspaceTextPreviewExtension(filePath)) throw makeHttpError("File type is not previewable as text", 415);
+    if (!isWorkspaceTextPreviewExtension(filePath)) throw makeHttpError("File type is not previewable as text", 415, "workspace.preview.unsupported_type");
     if (extension === ".eml") return readEmailPreview(filePath, root, fileStat.size);
-    if (fileStat.size > getWorkspaceTextPreviewLimit(filePath)) throw makeHttpError("File is too large to preview", 413);
+    if (fileStat.size > getWorkspaceTextPreviewLimit(filePath)) throw makeHttpError("File is too large to preview", 413, "workspace.preview.file_too_large");
 
     return {
       path: toMatterRelative(filePath, root),
@@ -191,13 +191,13 @@ export function createWorkspaceService({ matterStore } = {}) {
   }
 
   async function readEmailPreview(filePath, root, fileSize) {
-    if (fileSize > maxRawBytes) throw makeHttpError("Email file is too large to preview", 413);
+    if (fileSize > maxRawBytes) throw makeHttpError("Email file is too large to preview", 413, "workspace.preview.email_too_large");
     const { simpleParser } = await loadMailparser();
     let mail;
     try {
       mail = await simpleParser(createReadStream(filePath), { skipImageLinks: true, skipHtmlToText: false });
     } catch (err) {
-      throw makeHttpError(`Email file could not be parsed for preview: ${err.message}`, 415);
+      throw makeHttpError(`Email file could not be parsed for preview: ${err.message}`, 415, "workspace.preview.email_parse_failed");
     }
 
     const sections = [];
@@ -243,8 +243,8 @@ export function createWorkspaceService({ matterStore } = {}) {
   async function getRawFile(relativePath, root = matterStore.ensureMatterRoot()) {
     const filePath = resolveMatterPath(relativePath, root);
     const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400);
-    if (fileStat.size > maxRawBytes) throw makeHttpError("File is too large to display inline", 413);
+    if (!fileStat.isFile()) throw makeHttpError("Requested path is not a file", 400, "workspace.raw.not_file");
+    if (fileStat.size > maxRawBytes) throw makeHttpError("File is too large to display inline", 413, "workspace.raw.file_too_large");
 
     return {
       contentType: getWorkspaceRawContentType(filePath),
