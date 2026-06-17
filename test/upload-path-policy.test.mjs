@@ -20,6 +20,15 @@ test("upload path policy rejects unsafe upload paths", () => {
   assert.throws(() => validateUploadRelativePath("folder/../notice.pdf"), /Invalid path segment/);
 });
 
+test("upload path policy rejects non-array path lists with a stable code", () => {
+  assert.throws(
+    () => validateUploadRelativePaths({ path: "notice.pdf" }),
+    (error) => error.statusCode === 400
+      && error.code === "upload.paths_not_array"
+      && /paths array must be an array/i.test(error.message),
+  );
+});
+
 test("upload path policy rejects case-insensitive duplicates", () => {
   assert.throws(
     () => validateUploadRelativePaths(["Notice.pdf", "notice.pdf"]),

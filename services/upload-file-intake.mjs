@@ -9,7 +9,7 @@ export function parseUploadJsonField(fields = {}, name, fallback) {
   try {
     return JSON.parse(fields[name]);
   } catch {
-    throw makeHttpError(`Invalid ${name} JSON`, 400);
+    throw makeHttpError(`Invalid ${name} JSON`, 400, "upload.invalid_json");
   }
 }
 
@@ -26,7 +26,7 @@ export async function writeUploadedFiles(files = [], relativePaths = [], destina
     const safeRel = validateUploadRelativePath(relativePaths[file.index]);
     const destination = path.resolve(destinationRoot, safeRel);
     if (!isInsideRoot(destinationRoot, destination)) {
-      throw makeHttpError(escapeMessage, 400);
+      throw makeHttpError(escapeMessage, 400, "upload.path_escapes_root");
     }
     await mkdir(path.dirname(destination), { recursive: true });
     await copyFile(file.tempPath, destination);

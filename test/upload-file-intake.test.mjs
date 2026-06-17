@@ -15,7 +15,9 @@ test("parseUploadJsonField parses JSON fields and maps bad JSON to 400", () => {
 
   assert.throws(
     () => parseUploadJsonField({ metadata: "{" }, "metadata", {}),
-    (error) => error.statusCode === 400 && /invalid metadata json/i.test(error.message),
+    (error) => error.statusCode === 400
+      && error.code === "upload.invalid_json"
+      && /invalid metadata json/i.test(error.message),
   );
 });
 
@@ -27,8 +29,17 @@ test("validateUploadPathList requires one relative path per uploaded file", () =
   );
 
   assert.throws(
+    () => validateUploadPathList({ paths: JSON.stringify({ first: "a.txt" }) }, files),
+    (error) => error.statusCode === 400
+      && error.code === "upload.paths_mismatch"
+      && /paths array must match file count/i.test(error.message),
+  );
+
+  assert.throws(
     () => validateUploadPathList({ paths: JSON.stringify(["a.txt"]) }, files),
-    (error) => error.statusCode === 400 && /paths array must match file count/i.test(error.message),
+    (error) => error.statusCode === 400
+      && error.code === "upload.paths_mismatch"
+      && /paths array must match file count/i.test(error.message),
   );
 });
 

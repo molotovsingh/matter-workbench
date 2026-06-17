@@ -16,7 +16,7 @@ export function duplicateUploadPathErrorMessage(safePath, firstPath) {
 
 export function validateUploadRelativePaths(relativePaths = []) {
   if (!Array.isArray(relativePaths)) {
-    throw makeHttpError("paths array must be an array", 400);
+    throw makeHttpError("paths array must be an array", 400, "upload.paths_not_array");
   }
 
   const seen = new Map();

@@ -64,7 +64,7 @@ export function planAddFilesIntake({
 export function validateUploadInputs({ files = [], relativePaths = [], action = "uploading files" } = {}) {
   if (!Array.isArray(files) || !files.length) throw noUploadedFilesError(action);
   if (!Array.isArray(relativePaths) || relativePaths.length !== files.length) {
-    throw makeHttpError("paths array must match file count", 400);
+    throw makeHttpError("paths array must match file count", 400, "upload.paths_mismatch");
   }
   return validateUploadRelativePaths(relativePaths);
 }

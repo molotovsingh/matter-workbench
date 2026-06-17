@@ -14,7 +14,7 @@ export function createMultipartUploadHandler({
   return async function handleMultipartUpload(request) {
     const contentType = request.headers["content-type"] || "";
     if (!contentType.startsWith("multipart/form-data")) {
-      throw makeHttpError("Expected multipart/form-data", 400);
+      throw makeHttpError("Expected multipart/form-data", 400, "upload.multipart_required");
     }
 
     const tempDir = await mkdtemp(path.join(os.tmpdir(), tempPrefix));
@@ -63,13 +63,13 @@ export function createMultipartUploadHandler({
             streamBytes += chunk.length;
             totalBytes += chunk.length;
             if (totalBytes > maxUploadBytes) {
-              const error = makeHttpError("Upload too large", 413);
+              const error = makeHttpError("Upload too large", 413, "upload.too_large");
               rejectOnce(error);
               fail(error);
             }
           });
           fileStream.on("limit", () => {
-            const error = makeHttpError("Upload too large", 413);
+            const error = makeHttpError("Upload too large", 413, "upload.too_large");
             rejectOnce(error);
             fail(error);
           });
@@ -91,7 +91,7 @@ export function createMultipartUploadHandler({
         filePromises.push(filePromise);
       });
 
-      bb.on("filesLimit", () => fail(makeHttpError("Too many files", 413)));
+      bb.on("filesLimit", () => fail(makeHttpError("Too many files", 413, "upload.too_many_files")));
       bb.on("error", fail);
       bb.on("finish", async () => {
         if (aborted) return;

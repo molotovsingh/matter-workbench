@@ -570,6 +570,20 @@ test("multipart upload rejects duplicate relative paths instead of overwriting e
   });
 });
 
+test("multipart upload route returns stable codes for invalid multipart requests", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const response = await fetch(`${baseUrl}/api/matters/new`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 400);
+    assert.match(payload.error, /expected multipart/i);
+    assert.equal(payload.code, "upload.multipart_required");
+  });
+});
+
 test("multipart upload route returns 413 when the configured byte limit is exceeded", async () => {
   await withServer(async ({ baseUrl }) => {
     const form = new FormData();
@@ -583,6 +597,7 @@ test("multipart upload route returns 413 when the configured byte limit is excee
     const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
     assert.equal(response.status, 413);
     assert.match(payload.error, /upload too large/i);
+    assert.equal(payload.code, "upload.too_large");
   }, { maxUploadBytes: 10 });
 });
 
