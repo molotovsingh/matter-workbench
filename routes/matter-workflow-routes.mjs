@@ -521,7 +521,17 @@ async function runRuntimeDbMaterializedRead({
   runner,
 }) {
   const matter = body ? await runtimeDbMatterForBody(matterStore, body) : await runtimeDbMatterForQuery(matterStore, requestUrl);
-  return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => runner({ matterRoot, matter }));
+  const result = await runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => runner({ matterRoot, matter }));
+  return runtimeDbReadResponse(result, matter);
+}
+
+function runtimeDbReadResponse(result, matter = {}) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  return {
+    ...result,
+    matterRoot: result.matterRoot || matter.matterPath || `postgres:${matter.name || ""}`,
+    matterName: result.matterName || matter.matterName || matter.name || "",
+  };
 }
 
 function assertFilesystemWorkflowAvailable(matterStore, label) {

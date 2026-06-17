@@ -513,6 +513,8 @@ export interface PipelineStageAiRun {
 
 export interface RerunAdvice {
   skill?: string;
+  matterRoot?: string;
+  matterName?: string;
   state: 'current' | 'stale' | 'missing' | 'failed' | 'missing_upstream' | string;
   reason?: string;
   shouldConfirm?: boolean;
@@ -811,6 +813,8 @@ export interface DoctorIssue {
 }
 
 export interface DoctorScanResult {
+  matterRoot?: string;
+  matterName?: string;
   issues?: DoctorIssue[];
 }
 
@@ -843,6 +847,8 @@ export interface MatterContextArtifact {
 
 export interface MatterContextPreview {
   schema_version?: string;
+  matterRoot?: string;
+  matterName?: string;
   packet_schema_version?: string;
   generated_at?: string;
   matter?: { matter_name?: string; folder_name?: string; [key: string]: unknown };
@@ -877,6 +883,8 @@ export interface MatterContextSearchResult {
 
 export interface MatterContextSearchResponse {
   schema_version?: string;
+  matterRoot?: string;
+  matterName?: string;
   query?: string;
   counts?: Record<string, number>;
   warnings?: string[];
@@ -891,6 +899,8 @@ export interface MatterCopilotSource {
 
 export interface MatterCopilotAnswer {
   schema_version?: string;
+  matterRoot?: string;
+  matterName?: string;
   answered_at?: string;
   question: string;
   answer_status: 'answered' | 'partial' | 'not_found' | 'blocked' | string;

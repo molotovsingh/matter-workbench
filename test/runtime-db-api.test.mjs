@@ -834,11 +834,15 @@ test("runtime DB postgres storage mode reads matter context through materialized
 
     const context = await getJson(baseUrl, "/api/matter-context?matter=Legal%20Caption");
     assert.equal(context.schema_version, "matter-context-preview/v1");
+    assert.equal(context.matterRoot, "postgres:DB Context Matter");
+    assert.equal(context.matterName, "Legal Caption");
     assert.equal(context.counts.file_registers, 1);
     assert.equal(context.counts.evidence_blocks_included, 1);
 
     const search = await getJson(baseUrl, "/api/matter-context/search?matter=Legal%20Caption&q=agreement");
     assert.equal(search.schema_version, "matter-context-search/v1");
+    assert.equal(search.matterRoot, "postgres:DB Context Matter");
+    assert.equal(search.matterName, "Legal Caption");
     assert.equal(search.counts.matches, 1);
     assert.match(search.results[0].snippet, /Agreement was signed/);
     assert.deepEqual(calls, [
@@ -909,6 +913,8 @@ test("runtime DB postgres storage mode answers copilot from materialized DB matt
     });
 
     assert.equal(answer.schema_version, "matter-copilot-answer/v1");
+    assert.equal(answer.matterRoot, "postgres:DB Copilot Matter");
+    assert.equal(answer.matterName, "Legal Caption");
     assert.equal(answer.answer_status, "answered");
     assert.equal(answer.sources[0].raw_citation, "FILE-0001 p1.b1");
     assert.deepEqual(calls, [
@@ -960,11 +966,15 @@ test("runtime DB postgres storage mode reads rerun advice and doctor scan throug
 
     const advice = await getJson(baseUrl, "/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates");
     assert.equal(typeof advice.state, "string");
+    assert.equal(advice.matterRoot, "postgres:DB Read Tools Matter");
+    assert.equal(advice.matterName, "Legal Caption");
 
     const scan = await postJson(baseUrl, "/api/doctor/scan", {
       matterName: "Legal Caption",
     });
     assert.deepEqual(scan.issues, []);
+    assert.equal(scan.matterRoot, "postgres:DB Read Tools Matter");
+    assert.equal(scan.matterName, "Legal Caption");
     assert.deepEqual(calls, [
       ["read", "DB Read Tools Matter", "Legal Caption"],
       ["read", "DB Read Tools Matter", "Legal Caption"],
