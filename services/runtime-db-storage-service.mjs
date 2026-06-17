@@ -39,6 +39,7 @@ import {
   planRuntimeAddFilesUpload,
   validateRuntimeUploadInputs,
 } from "./runtime-db-upload-intake-planner.mjs";
+import { runtimeUploadImportItemsFromFileRegisterRows } from "./runtime-db-upload-import-items.mjs";
 import {
   normalizeRuntimeObjectKey,
   runtimeObjectKeyCandidates,
@@ -1105,19 +1106,7 @@ async function uploadIntakeResultFromMatterRoot({
     : [];
   await upsertRegisteredSourceFiles(storageFiles, { matterRoot, fileRegisterRows, uploadedSourceBytes });
   upsertGeneratedIntakeArtifacts(storageFiles, result);
-  const importItems = fileRegisterRows
-    .filter((row) => stringValue(row.file_id) && stringValue(row.source_path))
-    .map((row) => ({
-      relativePath: normalizeRuntimeObjectKey(row.source_path),
-      originalPath: normalizeRuntimeObjectKey(row.original_path),
-      workingCopyPath: normalizeRuntimeObjectKey(row.working_copy_path),
-      originalRelativePath: sourceRelativePathForImport(row.source_path) || stringValue(row.original_name) || normalizeRuntimeObjectKey(row.source_path),
-      fileNumber: fileNumberForFileId(row.file_id),
-      fileId: stringValue(row.file_id).toUpperCase(),
-      sha256: stringValue(row.sha256),
-      duplicateOf: stringValue(row.duplicate_of).toUpperCase(),
-    }))
-    .filter((row) => row.fileNumber > 0 && /^FILE-\d{4}$/.test(row.fileId));
+  const importItems = runtimeUploadImportItemsFromFileRegisterRows(fileRegisterRows);
   return {
     storageFiles,
     importItems,
@@ -1205,20 +1194,6 @@ function upsertStorageFile(storageFiles, file) {
   const normalized = { ...file, relativePath };
   if (index >= 0) storageFiles[index] = normalized;
   else storageFiles.push(normalized);
-}
-
-function sourceRelativePathForImport(value) {
-  const normalized = normalizeRuntimeObjectKey(value);
-  const marker = "/Source Files/";
-  const index = normalized.indexOf(marker);
-  return index >= 0 ? normalized.slice(index + marker.length) : "";
-}
-
-function fileNumberForFileId(value) {
-  const match = stringValue(value).match(/^FILE-(\d{4})$/i);
-  if (!match) return 0;
-  const number = Number.parseInt(match[1], 10);
-  return Number.isFinite(number) ? number : 0;
 }
 
 function createMatterUploadSql({
