@@ -166,7 +166,11 @@ export function uniqueSlash(base, existing) {
     const candidate = `${normalized}_${index}`;
     if (!taken.has(candidate)) return candidate;
   }
-  throw makeHttpError(`Could not allocate unique slash for ${normalized}`, 409);
+  throw makeHttpError(
+    `Could not allocate unique slash for ${normalized}`,
+    409,
+    "configurable_skill_definition.slash_unavailable",
+  );
 }
 
 export function slashFromTitle(title) {
@@ -180,9 +184,19 @@ export function slashFromTitle(title) {
 
 export function boundedOutputMarkdown(value) {
   const markdown = String(value || "").trim();
-  if (!markdown) throw makeHttpError("Configurable skill output was empty", 502);
+  if (!markdown) {
+    throw makeHttpError(
+      "Configurable skill output was empty",
+      502,
+      "configurable_skill_definition.output_empty",
+    );
+  }
   if (markdown.length > MAX_OUTPUT_LENGTH) {
-    throw makeHttpError(`Configurable skill output must be ${MAX_OUTPUT_LENGTH} characters or less`, 502);
+    throw makeHttpError(
+      `Configurable skill output must be ${MAX_OUTPUT_LENGTH} characters or less`,
+      502,
+      "configurable_skill_definition.output_too_large",
+    );
   }
   return markdown;
 }
@@ -240,7 +254,11 @@ function titleFromArtifact(value) {
 function boundedPrompt(value) {
   const prompt = normalizeText(value);
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    throw makeHttpError(`Configurable skill prompt must be ${MAX_PROMPT_LENGTH} characters or less`, 400);
+    throw makeHttpError(
+      `Configurable skill prompt must be ${MAX_PROMPT_LENGTH} characters or less`,
+      400,
+      "configurable_skill_definition.prompt_too_large",
+    );
   }
   return prompt;
 }

@@ -112,7 +112,13 @@ export function createDefaultRunProvider({ providerConfig, env, fetchImpl }) {
 
 export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openAiAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill authoring", 409);
+    if (!apiKey) {
+      throw makeHttpError(
+        "OPENAI_API_KEY is required for skill authoring",
+        409,
+        "configurable_skill_provider.api_key_required",
+      );
+    }
     const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
@@ -142,7 +148,13 @@ export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fe
 
 export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openRouterAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill authoring", 409);
+    if (!apiKey) {
+      throw makeHttpError(
+        "OPENROUTER_API_KEY is required for skill authoring",
+        409,
+        "configurable_skill_provider.api_key_required",
+      );
+    }
     const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
@@ -178,7 +190,13 @@ export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl 
 
 export function createOpenAiRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openAiRunProvider({ skill, matterContext } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for configurable skill runs", 409);
+    if (!apiKey) {
+      throw makeHttpError(
+        "OPENAI_API_KEY is required for configurable skill runs",
+        409,
+        "configurable_skill_provider.api_key_required",
+      );
+    }
     const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
@@ -200,7 +218,13 @@ export function createOpenAiRunProvider({ apiKey, endpoint, fetchImpl = fetch, m
 
 export function createOpenRouterRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
   return async function openRouterRunProvider({ skill, matterContext } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for configurable skill runs", 409);
+    if (!apiKey) {
+      throw makeHttpError(
+        "OPENROUTER_API_KEY is required for configurable skill runs",
+        409,
+        "configurable_skill_provider.api_key_required",
+      );
+    }
     const payload = await fetchProviderJsonWithTimeout({
       fetchImpl,
       endpoint,
