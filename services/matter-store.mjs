@@ -49,18 +49,22 @@ export function createMatterStore({
 
   function ensureMattersHome() {
     const mattersHome = getMattersHome();
-    if (!mattersHome) throw makeHttpError("Matters home is not configured", 409);
+    if (!mattersHome) {
+      throw makeHttpError("Matters home is not configured", 409, "matter_store.matters_home_not_configured");
+    }
     return mattersHome;
   }
 
   function ensureMatterRoot() {
     const state = activeState();
     if (!state.matterRoot) {
+      const hasMattersHome = Boolean(getMattersHome());
       throw makeHttpError(
-        getMattersHome()
+        hasMattersHome
           ? "No matter is active — pick one from the sidebar or create a new one."
           : "MATTER_ROOT is not configured",
         409,
+        hasMattersHome ? "matter_store.no_active_matter" : "matter_store.matter_root_not_configured",
       );
     }
     return state.matterRoot;
@@ -117,7 +121,7 @@ export function createMatterStore({
     const mattersHome = ensureMattersHome();
     const resolved = path.join(mattersHome, name);
     if (!isInsideRoot(mattersHome, resolved) || path.dirname(resolved) !== mattersHome) {
-      throw makeHttpError("Invalid matter name", 400);
+      throw makeHttpError("Invalid matter name", 400, "matter_store.invalid_matter_name");
     }
     return { name, matterPath: resolved };
   }
@@ -131,17 +135,17 @@ export function createMatterStore({
     try {
       targetStat = await stat(target.matterPath);
     } catch (cause) {
-      if (cause && cause.code === "ENOENT") throw makeHttpError("Matter not found", 404);
+      if (cause && cause.code === "ENOENT") throw makeHttpError("Matter not found", 404, "matter_store.not_found");
       throw cause;
     }
-    if (!targetStat.isDirectory()) throw makeHttpError("Not a directory", 400);
+    if (!targetStat.isDirectory()) throw makeHttpError("Not a directory", 400, "matter_store.not_directory");
     return target;
   }
 
   async function resolveExistingRuntimeDbMatter(rawName) {
     validateMatterName(rawName);
     const matter = await runtimeMatterIndex.findMatterFolder(rawName);
-    if (!matter) throw makeHttpError("Matter not found", 404);
+    if (!matter) throw makeHttpError("Matter not found", 404, "matter_store.not_found");
 
     const name = validateMatterName(matter.name || matter.folderName);
     if (hasRuntimeDbStorageMode()) {
@@ -155,7 +159,11 @@ export function createMatterStore({
     const mattersHome = ensureMattersHome();
     const matterPath = path.join(mattersHome, name);
     if (!isInsideRoot(mattersHome, matterPath) || path.dirname(matterPath) !== mattersHome) {
-      throw makeHttpError("Invalid matter storage folder from runtime database", 500);
+      throw makeHttpError(
+        "Invalid matter storage folder from runtime database",
+        500,
+        "matter_store.runtime_storage_folder_invalid",
+      );
     }
 
     let targetStat;
@@ -163,11 +171,21 @@ export function createMatterStore({
       targetStat = await stat(matterPath);
     } catch (cause) {
       if (cause && cause.code === "ENOENT") {
-        throw makeHttpError(`Matter storage folder is missing for runtime DB matter: ${name}`, 409);
+        throw makeHttpError(
+          `Matter storage folder is missing for runtime DB matter: ${name}`,
+          409,
+          "matter_store.runtime_storage_folder_missing",
+        );
       }
       throw cause;
     }
-    if (!targetStat.isDirectory()) throw makeHttpError("Matter storage path is not a directory", 409);
+    if (!targetStat.isDirectory()) {
+      throw makeHttpError(
+        "Matter storage path is not a directory",
+        409,
+        "matter_store.runtime_storage_path_not_directory",
+      );
+    }
     return { ...matter, name, matterPath };
   }
 

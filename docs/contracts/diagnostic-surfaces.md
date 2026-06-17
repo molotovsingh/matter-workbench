@@ -136,6 +136,7 @@ Current hosted-beta families include:
 | `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
 | `path.*` | Shared matter/path containment validation. | `path.invalid_matter_name`, `path.absolute_not_allowed` |
+| `matter_store.*` | Local/runtime matter selection and storage-folder resolution. | `matter_store.no_active_matter`, `matter_store.runtime_storage_folder_missing` |
 | `workspace.*` | Local workspace preview/raw-file reads. | `workspace.path_hidden`, `workspace.preview.unsupported_type`, `workspace.raw.not_file` |
 | `matter_copilot.*` | Matter Copilot validation and provider-configuration failures. | `matter_copilot.question_required`, `matter_copilot.provider_api_key_required` |
 | `rerun_advice.*` | Rerun-guard/advice validation failures. | `rerun_advice.unsupported_skill` |
