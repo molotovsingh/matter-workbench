@@ -232,6 +232,39 @@ test("store inserts heartbeat events and includes them in reports", async () => 
   assert.equal(report.heartbeats[0].heartbeat_id, "heartbeat_001");
 });
 
+test("store updates feedback status through a parameterized payload patch", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/update mothership_feedback_events/i.test(text)) {
+        return { rowCount: values[1] === "feedback_missing" ? 0 : 1, rows: values[1] === "feedback_missing" ? [] : [{ id: 12 }] };
+      }
+      return { rowCount: 1, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  assert.deepEqual(
+    await store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_1", status: "needs_evidence" }),
+    { updated: true, status: "needs_evidence" },
+  );
+  assert.deepEqual(
+    await store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_missing", status: "parked" }),
+    { updated: false, status: "parked" },
+  );
+  await assert.rejects(
+    () => store.updateFeedbackStatus({ installationId: "firm-beta-01", feedbackId: "feedback_1", status: "product_backlog" }),
+    (error) => error.statusCode === 400 && /feedback status must be one of/i.test(error.message),
+  );
+
+  const updates = calls.filter((call) => /update mothership_feedback_events/i.test(call.text));
+  assert.equal(updates.length, 2);
+  assert.match(updates[0].text, /jsonb_set\(payload, '\{status\}'/i);
+  assert.deepEqual(updates[0].values, ["firm-beta-01", "feedback_1", "needs_evidence"]);
+  assert.match(updates[0].text, /where installation_id = \$1 and feedback_id = \$2/i);
+});
+
 test("store revokes installations and prunes expired payloads", async () => {
   const calls = [];
   const database = fakeDatabase({

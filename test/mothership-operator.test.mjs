@@ -14,6 +14,10 @@ test("mothership operator parses bounded commands without accepting secrets", ()
     parseMothershipOperatorArgs(["report", "--since-days", "14", "--format", "json"]),
     { command: "report", options: { "since-days": "14", format: "json" } },
   );
+  assert.deepEqual(
+    parseMothershipOperatorArgs(["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed"]),
+    { command: "feedback:update-status", options: { "installation-id": "firm-01", id: "feedback_1", status: "reviewed" } },
+  );
   assert.throws(() => parseMothershipOperatorArgs(["report", "--token", "secret"]), /does not accept secrets/i);
 });
 
@@ -73,6 +77,33 @@ test("mothership operator fails unknown commands instead of printing successful 
   assert.equal(stdout.join("\n"), "");
   assert.match(stderr.join("\n"), /Unknown command: bogus/);
   assert.match(stderr.join("\n"), /Mothership operator/);
+});
+
+test("mothership operator updates feedback triage status", async () => {
+  const output = [];
+  const calls = [];
+  const store = {
+    updateFeedbackStatus: async (input) => {
+      calls.push(input);
+      return { updated: input.feedbackId !== "feedback_missing", status: input.status };
+    },
+  };
+
+  assert.equal(await runMothershipOperator({
+    argv: ["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed"],
+    store,
+    stdout: (line) => output.push(line),
+  }), 0);
+  assert.match(output.join("\n"), /Updated feedback feedback_1 for firm-01 to reviewed/);
+  assert.deepEqual(calls, [{ installationId: "firm-01", feedbackId: "feedback_1", status: "reviewed" }]);
+
+  const errors = [];
+  assert.equal(await runMothershipOperator({
+    argv: ["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_missing", "--status", "parked"],
+    store,
+    stderr: (line) => errors.push(line),
+  }), 1);
+  assert.match(errors.join("\n"), /No feedback found for firm-01\/feedback_missing/);
 });
 
 test("mothership operator filters report views for triage queues", async () => {

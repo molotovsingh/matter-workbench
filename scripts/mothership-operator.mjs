@@ -10,6 +10,7 @@ export function parseMothershipOperatorArgs(argv = []) {
   const parts = [...argv];
   let command = parts.shift() || "help";
   if (command === "installations") command = `installations:${parts.shift() || ""}`;
+  if (command === "feedback") command = `feedback:${parts.shift() || ""}`;
   const options = {};
   for (let index = 0; index < parts.length; index += 1) {
     const arg = parts[index];
@@ -52,6 +53,13 @@ export async function runMothershipOperator({
       const revoked = await store.revokeInstallation({ installationId });
       if (!revoked) throw new Error(`No active installation found for ${installationId}.`);
       stdout(`Revoked installation ${installationId}.`);
+    } else if (parsed.command === "feedback:update-status") {
+      const installationId = requireOption(parsed.options, "installation-id");
+      const feedbackId = requireOption(parsed.options, "id");
+      const status = requireOption(parsed.options, "status");
+      const result = await store.updateFeedbackStatus({ installationId, feedbackId, status });
+      if (!result.updated) throw new Error(`No feedback found for ${installationId}/${feedbackId}.`);
+      stdout(`Updated feedback ${feedbackId} for ${installationId} to ${result.status}.`);
     } else if (parsed.command === "health") {
       const health = await store.health();
       stdout(`database: ${health.database}`);
@@ -108,6 +116,7 @@ function usage() {
     "Mothership operator",
     "  installations create --id <id> --label <label>",
     "  installations revoke --id <id>",
+    "  feedback update-status --installation-id <id> --id <feedback_id> --status <new|reviewed|needs_evidence|fixed|parked|not_reproducible>",
     "  health",
     "  report [--since-days 30] [--format markdown|json] [--action-lane fix_now] [--severity error] [--status new] [--limit 20]",
     "  prune [--retention-days 180]",

@@ -2,6 +2,8 @@ import process from "node:process";
 
 import { generateIngestionToken, hashIngestionToken } from "./tokens.mjs";
 
+const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
+
 export function createMothershipStore({
   database,
   tokenFactory = generateIngestionToken,
@@ -100,6 +102,21 @@ export function createMothershipStore({
       ],
     );
     return { inserted: (result.rowCount || 0) > 0 };
+  }
+
+  async function updateFeedbackStatus({ installationId, feedbackId, status }) {
+    const normalizedId = requireIdentifier(installationId, "installationId");
+    const normalizedFeedbackId = requireIdentifier(feedbackId, "feedbackId");
+    const normalizedStatus = requireFeedbackStatus(status);
+    const result = await database.query(
+      `update mothership_feedback_events
+       set status = $3,
+           payload = jsonb_set(payload, '{status}', to_jsonb($3::text), true)
+       where installation_id = $1 and feedback_id = $2
+       returning id`,
+      [normalizedId, normalizedFeedbackId, normalizedStatus],
+    );
+    return { updated: (result.rowCount || 0) > 0, status: normalizedStatus };
   }
 
   async function ingestSignal({ installationId, signal }) {
@@ -268,6 +285,7 @@ export function createMothershipStore({
     authorizeIngestion,
     revokeInstallation,
     ingestFeedback,
+    updateFeedbackStatus,
     ingestSignal,
     ingestMetricSnapshot,
     ingestHeartbeat,
@@ -311,6 +329,14 @@ function requireText(value, field, maxLength) {
   const text = String(value || "").trim();
   if (!text) throw httpError(`${field} is required`, 400);
   return text.slice(0, maxLength);
+}
+
+function requireFeedbackStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (!FEEDBACK_STATUSES.includes(status)) {
+    throw httpError(`feedback status must be one of: ${FEEDBACK_STATUSES.join(", ")}`, 400);
+  }
+  return status;
 }
 
 function optionalText(value, maxLength) {

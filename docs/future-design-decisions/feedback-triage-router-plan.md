@@ -145,6 +145,19 @@ npm run mothership:report -- --status needs_evidence
 Filters are view-only and fail closed on unsupported values; they do not alter
 stored feedback, signal ingestion, or the underlying unfiltered report summary.
 
+The mothership operator can mark feedback triage status after review:
+
+```bash
+npm run mothership:operator -- feedback update-status \
+  --installation-id <installation_id> \
+  --id <feedback_id> \
+  --status needs_evidence
+```
+
+Status updates use the existing `mothership_feedback_events.status` column and
+patch the stored JSON payload status for report consistency. This remains an
+operator-only action; tester feedback submission is unchanged.
+
 ## Tests Added
 
 The new tests cover the examples from the parked decision note:
