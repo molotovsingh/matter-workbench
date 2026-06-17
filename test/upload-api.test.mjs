@@ -388,6 +388,35 @@ test("multipart add-files appends to runtime DB matter without a live matter fol
   });
 });
 
+test("multipart runtime DB add-files returns a stable code when no matter is active", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const addForm = new FormData();
+    addForm.set("label", "Follow Up");
+    addForm.set("paths", JSON.stringify(["receipt.txt"]));
+    appendTextFile(addForm, "files", "receipt.txt", "Receipt issued on 2 January 2026.");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/add-files", addForm);
+
+    assert.equal(response.status, 409);
+    assert.match(payload.error, /No matter is active/);
+    assert.equal(payload.code, "upload.matter_required");
+  }, {
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      addUploadedFilesToMatter: async () => {
+        throw new Error("should not allocate without an active matter");
+      },
+      readWorkspace: async () => ({}),
+    },
+  });
+});
+
 test("multipart upload falls back to folder name when metadata omits matter name", async () => {
   await withServer(async ({ baseUrl, mattersHome }) => {
     const createForm = new FormData();
@@ -453,6 +482,7 @@ test("multipart upload rejects matter captions that collide after storage-name c
     assert.equal(response.status, 409);
     assert.match(payload.error, /already exists/i);
     assert.match(payload.error, /State - Rajesh Mehra/);
+    assert.equal(payload.code, "upload.matter_exists");
   });
 });
 

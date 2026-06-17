@@ -45,7 +45,9 @@ export function createUploadService({
 
       const siblings = await matterStore.listMattersHomeChildren();
       const collision = siblings.find((entry) => matterStorageCollisionKey(entry.name) === identityPlan.identity.collisionKey);
-      if (collision) throw makeHttpError(`A matter named "${collision.name}" already exists`, 409);
+      if (collision) {
+        throw makeHttpError(`A matter named "${collision.name}" already exists`, 409, "upload.matter_exists");
+      }
 
       const uploadPlan = planNewMatterUpload({
         name: submittedMatterName,
@@ -70,14 +72,16 @@ export function createUploadService({
 
       try {
         await stat(matterPath);
-        throw makeHttpError("A matter with this name already exists", 409);
+        throw makeHttpError("A matter with this name already exists", 409, "upload.matter_exists");
       } catch (cause) {
         if (cause.statusCode) throw cause;
         if (cause.code !== "ENOENT") throw cause;
       }
 
       const evidenceDir = path.join(matterPath, "00_Inbox", "Intake 01 - Initial", "Source Files");
-      if (!isInsideRoot(mattersHome, evidenceDir)) throw makeHttpError("Invalid matter path", 400);
+      if (!isInsideRoot(mattersHome, evidenceDir)) {
+        throw makeHttpError("Invalid matter path", 400, "upload.invalid_matter_path");
+      }
       await writeUploadedFiles(files, relativePaths, evidenceDir, {
         escapeMessage: "Resolved destination escapes matter root",
       });
@@ -124,7 +128,9 @@ export function createUploadService({
         });
         const { receivedDate, intakeDirName, intakeId } = intakePlan;
         const sourceFilesDir = path.join(root, "00_Inbox", intakeDirName, "Source Files");
-        if (!isInsideRoot(root, sourceFilesDir)) throw makeHttpError("Resolved intake path escapes matter root", 400);
+        if (!isInsideRoot(root, sourceFilesDir)) {
+          throw makeHttpError("Resolved intake path escapes matter root", 400, "upload.intake_path_escapes_root");
+        }
         await writeUploadedFiles(files, intakePlan.relativePaths, sourceFilesDir, {
           escapeMessage: "Resolved destination escapes intake root",
         });
@@ -184,7 +190,13 @@ export function createUploadService({
   async function resolveMatterRecordForFields(fields = {}) {
     const matterName = String(fields.matterName || fields.matter || "").trim();
     const target = matterName || matterStore.activeMatterNameWithinHome?.();
-    if (!target) throw makeHttpError("No matter is active — pick one before adding files.", 409);
+    if (!target) {
+      throw makeHttpError(
+        "No matter is active — pick one before adding files.",
+        409,
+        "upload.matter_required",
+      );
+    }
     return matterStore.resolveExistingMatter(target);
   }
 

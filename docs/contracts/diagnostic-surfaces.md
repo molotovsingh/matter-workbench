@@ -132,7 +132,7 @@ Current hosted-beta families include:
 | `skill_idea.*` / `skill_sample.*` | Local JSON-backed Skill Factory ideas/samples. | `skill_idea.invalid_design_brief`, `skill_sample.no_approved_sample` |
 | `skill_sample_output.*` | Skill Factory sample-output generation validation/provider configuration. | `skill_sample_output.matter_required`, `skill_sample_output.provider_api_key_required` |
 | `skill_factory.*` | Skill Factory route-level matter-selection and overlap guards. | `skill_factory.matter_required`, `skill_factory.overlap_not_cleared` |
-| `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
+| `upload.*` | Multipart upload, browser-relative path validation, and local upload orchestration. | `upload.multipart_required`, `upload.matter_exists`, `upload.too_large` |
 | `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
 | `path.*` | Shared matter/path containment validation. | `path.invalid_matter_name`, `path.absolute_not_allowed` |
