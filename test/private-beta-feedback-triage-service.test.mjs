@@ -30,8 +30,8 @@ test("feedback triage keeps unsupported-citation bugs deterministic even when cl
 test("feedback triage lets high-confidence classifier clarify a misfiled feature request", () => {
   const triage = routePrivateBetaFeedbackTriage({
     category: "bug",
-    title: "Add deadline calendar",
-    detail: "I want a week view for filing dates.",
+    title: "Deadline calendar",
+    detail: "A week view for filing dates would help.",
   }, {
     classifierResult: {
       classification: "feature_request",
@@ -118,6 +118,73 @@ test("feedback triage falls back to investigate for low-confidence classifier ou
   assert.equal(triage.action_lane, "investigate");
   assert.equal(triage.confidence, "low");
   assert.match(triage.recommended_action, /Investigate manually/i);
+});
+
+test("feedback triage routes product requests filed as bugs to product decision", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "An box to be created",
+    detail: "An box to be created to make changes in list of dates or ask to explain or edit or skip.",
+  });
+
+  assert.equal(triage.triage_source, "deterministic");
+  assert.equal(triage.classification, "feature_request");
+  assert.equal(triage.action_lane, "product_decision");
+  assert.match(triage.reason, /product or workflow request/i);
+  assert.deepEqual(triage.missing_evidence, []);
+});
+
+test("feedback triage keeps concrete product-control failures as bugs", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Use Copilot copy button",
+    detail: "The Copilot answer copy button did not respond.",
+  });
+
+  assert.equal(triage.classification, "bug");
+  assert.equal(triage.action_lane, "investigate");
+  assert.match(triage.missing_evidence.join(" "), /current deployment reproduction/i);
+});
+
+test("feedback triage routes onboarding complaints filed as bugs to UX review", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Learn how it works doesn't help at all",
+    detail: "Learn how it works doesn't help at all.",
+  });
+
+  assert.equal(triage.classification, "confusing_ux");
+  assert.equal(triage.action_lane, "product_decision");
+  assert.match(triage.recommended_action, /onboarding\/help copy/i);
+});
+
+test("feedback triage routes positive and smoke notes filed as bugs to watch", () => {
+  const positive = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "The app is helpful",
+    detail: "The app is helpful.",
+  });
+  const smoke = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Codex feedback smoke 1781360442119: save form should close.",
+    detail: "Codex feedback smoke 1781360442119: save form should close.",
+  });
+
+  assert.equal(positive.classification, "operator_note");
+  assert.equal(positive.action_lane, "watch");
+  assert.equal(smoke.classification, "operator_note");
+  assert.equal(smoke.action_lane, "watch");
+});
+
+test("feedback triage keeps legal-quality bugs ahead of product-request heuristics", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "In judgement case details are missing",
+    detail: "In judgement case details are missing; add more case details.",
+  });
+
+  assert.equal(triage.classification, "legal_quality_concern");
+  assert.equal(triage.action_lane, "investigate");
 });
 
 test("feedback triage packet is bounded and redacts secrets before any classifier", () => {

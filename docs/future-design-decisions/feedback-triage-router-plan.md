@@ -109,7 +109,14 @@ The service keeps hard runtime signals rule-owned:
 - missing extraction/source-label/List of Dates evidence attached to vague
   feedback becomes `fix_now`;
 - cannot-find chronology feedback stays `product_decision` / UX unless related
-  hard evidence exists.
+  hard evidence exists;
+- product/workflow requests mistakenly filed through the bug channel route to
+  `feature_request` / `product_decision` when no concrete malfunction language
+  is present;
+- onboarding/help-copy complaints filed as bugs route to `confusing_ux` /
+  `product_decision`;
+- positive notes and operator/test smokes filed as bugs route to `operator_note`
+  / `watch`.
 
 ## Classifier Guardrails
 

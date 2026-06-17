@@ -26,7 +26,11 @@ const VALID_CONFIDENCE = new Set(["high", "medium", "low"]);
 const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|list of dates|label sources|source labels?/;
 const COPILOT_CITATION_RE = /unsupported citation|matter copilot returned unsupported citation/;
 const AUTH_RE = /login|logged out|asking login|authentication/;
-const LEGAL_QUALITY_RE = /wrong law|legal quality|incorrect legal|bad chronology|missed date|missing date|incomplete answer|hallucinat|unsupported legal|wrong party|limitation/i;
+const LEGAL_QUALITY_RE = /wrong law|legal quality|incorrect legal|bad chronology|missed date|missing date|case details|judgement.*details|incomplete answer|hallucinat|unsupported legal|wrong party|limitation/i;
+const MISFILED_PRODUCT_REQUEST_RE = /\b(add|copy button|copy markdown|format word|pdf|box to be created|suggestion|can be offered|interface can be|provakil|mercury|jurisdiction)\b/;
+const MISFILED_RUNTIME_FAILURE_RE = /did not respond|not working|failed|failure|not uploading|not taken into account|missing|api failure|returned unsupported|asking login|not reflecting|not generated|doesn't work|does not work/;
+const MISFILED_UX_RE = /learn how it works.*(?:doesn't|does not|doesnt) help/;
+const POSITIVE_OR_TEST_NOTE_RE = /\b(app is helpful|codex feedback smoke|test message|trying to see if this works)\b/;
 
 export function routePrivateBetaFeedbackTriage(item = {}, options = {}) {
   const currentness = normalizeText(item.currentness) || "unknown";
@@ -188,6 +192,39 @@ function deterministicTriage(item = {}, { currentness = "unknown" } = {}) {
       reason: "Feedback appears to concern legal-output quality rather than a mechanical crash.",
       recommended_action: "Review the cited matter output against source records and decide whether this is prompt, model, extraction, or UX scope.",
       missing_evidence: ["source-backed reproduction and expected legal outcome"],
+    };
+  }
+
+  if (category === "bug" && MISFILED_PRODUCT_REQUEST_RE.test(text) && !MISFILED_RUNTIME_FAILURE_RE.test(text)) {
+    return {
+      classification: "feature_request",
+      action_lane: "product_decision",
+      confidence: "medium",
+      reason: "Tester filed a product or workflow request through the bug channel.",
+      recommended_action: "Review this as product scope or workflow-copy backlog rather than asking for runtime reproduction evidence.",
+      missing_evidence: [],
+    };
+  }
+
+  if (category === "bug" && MISFILED_UX_RE.test(text)) {
+    return {
+      classification: "confusing_ux",
+      action_lane: "product_decision",
+      confidence: "medium",
+      reason: "Tester filed an onboarding/help-copy complaint through the bug channel.",
+      recommended_action: "Review onboarding/help copy before treating this as a runtime bug.",
+      missing_evidence: [],
+    };
+  }
+
+  if (category === "bug" && POSITIVE_OR_TEST_NOTE_RE.test(text)) {
+    return {
+      classification: "operator_note",
+      action_lane: "watch",
+      confidence: "medium",
+      reason: "Feedback appears to be a positive note or operator/test smoke rather than a runtime bug.",
+      recommended_action: "Keep this as beta context; no code action unless paired with a concrete failure.",
+      missing_evidence: [],
     };
   }
 
