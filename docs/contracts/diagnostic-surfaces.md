@@ -136,6 +136,7 @@ Current hosted-beta families include:
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
 | `workspace.*` | Local workspace preview/raw-file reads. | `workspace.path_hidden`, `workspace.preview.unsupported_type`, `workspace.raw.not_file` |
 | `matter_copilot.*` | Matter Copilot validation and provider-configuration failures. | `matter_copilot.question_required`, `matter_copilot.provider_api_key_required` |
+| `rerun_advice.*` | Rerun-guard/advice validation failures. | `rerun_advice.unsupported_skill` |
 | `job.*` / `workflow.*` | Durable job and workflow failures. | `job.stale_running`, `workflow.extract.failed` |
 
 These codes do not change the surface boundary: matter-specific failures still

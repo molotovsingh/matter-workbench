@@ -23,7 +23,7 @@ export async function readRerunAdviceForSkill(skill, root) {
   const normalizedSkill = normalizeSkillName(skill);
   if (normalizedSkill === "/describe_sources") return describeSourcesRerunAdvice(root);
   if (normalizedSkill === "/create_listofdates") return listOfDatesRerunAdvice(root);
-  throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400);
+  throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400, "rerun_advice.unsupported_skill");
 }
 
 export async function describeSourcesRerunAdvice(root) {
