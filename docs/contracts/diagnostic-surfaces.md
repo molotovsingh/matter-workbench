@@ -129,6 +129,7 @@ Current hosted-beta families include:
 | `runtime_db.configurable_skill*.*` | Runtime DB custom-skill stores and run ledgers. | `runtime_db.configurable_skill_store.query_failed`, `runtime_db.configurable_skill_run.not_found` |
 | `runtime_db.skill_idea.*` / `runtime_db.skill_sample.*` | Runtime DB Skill Factory ideas/samples. | `runtime_db.skill_idea.write_failed`, `runtime_db.skill_sample.stale` |
 | `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
+| `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 
 These codes do not change the surface boundary: matter-specific failures still
 belong in Matter Attention, while app/runtime-wide failures belong in System
