@@ -155,8 +155,10 @@ npm run mothership:operator -- feedback update-status \
 ```
 
 Status updates use the existing `mothership_feedback_events.status` column and
-patch the stored JSON payload status for report consistency. This remains an
-operator-only action; tester feedback submission is unchanged.
+patch the stored JSON payload status for report consistency. The markdown report
+prints each prioritized evidence item ID so operators can copy the correct
+`feedback_id` into this command. This remains an operator-only action; tester
+feedback submission is unchanged.
 
 ## Tests Added
 

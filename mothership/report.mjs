@@ -140,6 +140,7 @@ export function renderMothershipReportMarkdown(report = {}) {
     for (const [index, item] of report.items.entries()) {
       lines.push(`### ${index + 1}. ${redactReportText(item.title || item.id)}`);
       lines.push("");
+      lines.push(`- ID: ${redactReportText(item.id)}`);
       lines.push(`- Type: ${item.category}`);
       if (item.severity) lines.push(`- Severity: ${item.severity}`);
       if (item.status) lines.push(`- Status: ${item.status}`);
