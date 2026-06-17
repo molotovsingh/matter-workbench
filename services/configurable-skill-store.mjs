@@ -16,21 +16,32 @@ export function createConfigurableSkillStore({ appDir, skillsPath } = {}) {
   });
 
   async function readStore() {
+    let raw;
     try {
-      const parsed = JSON.parse(await readFile(storePath, "utf8"));
-      if (parsed?.schema_version !== CONFIGURABLE_SKILLS_SCHEMA_VERSION || !Array.isArray(parsed.skills)) {
-        throw makeHttpError(`Invalid configurable skills store at ${storePath}`, 500);
-      }
-      return {
-        schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
-        skills: parsed.skills.map(normalizeStoredSkill),
-      };
+      raw = await readFile(storePath, "utf8");
     } catch (error) {
       if (error?.code === "ENOENT") {
         return { schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION, skills: [] };
       }
       throw error;
     }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw makeHttpError(`Invalid configurable skills JSON at ${storePath}`, 500, "configurable_skill_store.invalid_json");
+    }
+    if (parsed?.schema_version !== CONFIGURABLE_SKILLS_SCHEMA_VERSION) {
+      throw makeHttpError(`Invalid configurable skills schema at ${storePath}`, 500, "configurable_skill_store.invalid_schema");
+    }
+    if (!Array.isArray(parsed.skills)) {
+      throw makeHttpError(`Invalid configurable skills store at ${storePath}`, 500, "configurable_skill_store.invalid_store");
+    }
+    return {
+      schema_version: CONFIGURABLE_SKILLS_SCHEMA_VERSION,
+      skills: parsed.skills.map(normalizeStoredSkill),
+    };
   }
 
   async function writeStore(store) {

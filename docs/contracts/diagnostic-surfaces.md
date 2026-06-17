@@ -127,6 +127,7 @@ Current hosted-beta families include:
 | `runtime_db.upload.*` | Runtime DB upload/add-files allocation. | `runtime_db.upload.matter_not_found`, `runtime_db.upload.allocation_failed` |
 | `runtime_db.command_log.*` | Runtime DB command interaction audit reads/writes. | `runtime_db.command_log.query_failed`, `runtime_db.command_log.invalid_json` |
 | `runtime_db.configurable_skill*.*` | Runtime DB custom-skill stores and run ledgers. | `runtime_db.configurable_skill_store.query_failed`, `runtime_db.configurable_skill_run.not_found` |
+| `configurable_skill*.*` | Local JSON-backed custom-skill stores and run ledgers. | `configurable_skill_store.invalid_json`, `configurable_skill_run.not_found` |
 | `runtime_db.skill_idea.*` / `runtime_db.skill_sample.*` | Runtime DB Skill Factory ideas/samples. | `runtime_db.skill_idea.write_failed`, `runtime_db.skill_sample.stale` |
 | `skill_idea.*` / `skill_sample.*` | Local JSON-backed Skill Factory ideas/samples. | `skill_idea.invalid_design_brief`, `skill_sample.no_approved_sample` |
 | `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |

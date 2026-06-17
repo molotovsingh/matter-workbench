@@ -47,11 +47,11 @@ export function createConfigurableSkillRunsService({
 
   async function updateRun(id, patch = {}) {
     const runId = normalizeText(id);
-    if (!runId) throw makeHttpError("Run id is required", 400);
+    if (!runId) throw makeHttpError("Run id is required", 400, "configurable_skill_run.id_required");
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const index = store.runs.findIndex((run) => run.id === runId);
-      if (index === -1) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404);
+      if (index === -1) throw makeHttpError(`Configurable skill run ${runId} was not found`, 404, "configurable_skill_run.not_found");
       const next = normalizeRunRecord({
         ...store.runs[index],
         ...patch,
@@ -101,21 +101,32 @@ export function createConfigurableSkillRunsService({
   }
 
   async function readStore() {
+    let raw;
     try {
-      const parsed = JSON.parse(await readFile(storePath, "utf8"));
-      if (parsed?.schema_version !== CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION || !Array.isArray(parsed.runs)) {
-        throw makeHttpError(`Invalid configurable skill runs store at ${storePath}`, 500);
-      }
-      return {
-        schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
-        runs: parsed.runs.map(normalizeRunRecord),
-      };
+      raw = await readFile(storePath, "utf8");
     } catch (error) {
       if (error?.code === "ENOENT") {
         return { schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION, runs: [] };
       }
       throw error;
     }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw makeHttpError(`Invalid configurable skill runs JSON at ${storePath}`, 500, "configurable_skill_runs.invalid_json");
+    }
+    if (parsed?.schema_version !== CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION) {
+      throw makeHttpError(`Invalid configurable skill runs schema at ${storePath}`, 500, "configurable_skill_runs.invalid_schema");
+    }
+    if (!Array.isArray(parsed.runs)) {
+      throw makeHttpError(`Invalid configurable skill runs store at ${storePath}`, 500, "configurable_skill_runs.invalid_store");
+    }
+    return {
+      schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
+      runs: parsed.runs.map(normalizeRunRecord),
+    };
   }
 
   async function writeStore(store) {

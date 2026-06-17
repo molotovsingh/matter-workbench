@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION,
   createConfigurableSkillRunsService,
   normalizeRunRecord,
 } from "../services/configurable-skill-runs-service.mjs";
@@ -170,6 +171,50 @@ test("configurable skill run normalization bounds fields", () => {
   assert.equal(record.warnings.length, 10);
   assert.ok(record.errorMessage.length <= 800);
 });
+
+test("configurable skill run ledger emits stable validation and missing-run codes", async () => {
+  const service = await makeService();
+  await assertRejectsCode(() => service.updateRun(" ", {}), "configurable_skill_run.id_required", 400);
+  await assertRejectsCode(() => service.updateRun("missing", {}), "configurable_skill_run.not_found", 404);
+});
+
+test("configurable skill run ledger emits stable local-store diagnostic codes", async () => {
+  const invalidJsonDir = await mkdtemp(path.join(os.tmpdir(), "skill-runs-invalid-json-"));
+  await writeFile(path.join(invalidJsonDir, "configurable-skill-runs.json"), "{not json\n");
+  await assertRejectsCode(
+    () => createConfigurableSkillRunsService({ appDir: invalidJsonDir }).listRuns(),
+    "configurable_skill_runs.invalid_json",
+    500,
+  );
+
+  const invalidSchemaDir = await mkdtemp(path.join(os.tmpdir(), "skill-runs-invalid-schema-"));
+  await writeFile(path.join(invalidSchemaDir, "configurable-skill-runs.json"), `${JSON.stringify({ schema_version: "old", runs: [] })}\n`);
+  await assertRejectsCode(
+    () => createConfigurableSkillRunsService({ appDir: invalidSchemaDir }).listRuns(),
+    "configurable_skill_runs.invalid_schema",
+    500,
+  );
+
+  const invalidStoreDir = await mkdtemp(path.join(os.tmpdir(), "skill-runs-invalid-store-"));
+  await writeFile(path.join(invalidStoreDir, "configurable-skill-runs.json"), `${JSON.stringify({ schema_version: CONFIGURABLE_SKILL_RUNS_SCHEMA_VERSION, runs: {} })}\n`);
+  await assertRejectsCode(
+    () => createConfigurableSkillRunsService({ appDir: invalidStoreDir }).listRuns(),
+    "configurable_skill_runs.invalid_store",
+    500,
+  );
+});
+
+async function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    await operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}
 
 async function makeService() {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "skill-runs-test-"));
