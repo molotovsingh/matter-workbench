@@ -172,16 +172,16 @@ export function createRuntimeDbStorageService({
       tempRoot,
     });
 
-    const filesToPersist = storageFiles.map((file) => ({
-      ...file,
-      sha256: sha256Bytes(file.bytes),
-      sizeBytes: file.bytes.length,
-    }));
-    const persistedRows = materializedRowsForFiles({ matter, files: filesToPersist });
-    const sql = wrapRuntimeDbWriteTransaction([
-      `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
-      ...runtimeDbActorSqls({ actor, tenantId }),
-      ...createMatterUploadSql({
+    persistRuntimeUploadIntakeRecords({
+      databaseUrl,
+      tenantId,
+      spawn,
+      actor,
+      matter,
+      uploadPlan,
+      storageFiles,
+      importItems,
+      uploadSqls: createMatterUploadSql({
         matter,
         actor,
         intakeId: uploadPlan.intakeDbId,
@@ -191,19 +191,7 @@ export function createRuntimeDbStorageService({
         expectedFileCount: importItems.length,
         receivedDate: uploadPlan.receivedDate,
       }),
-      ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
-      ...documentIdentityUpsertSqls({
-        matter,
-        intakeId: uploadPlan.intakeDbId,
-        uploadSessionId: uploadPlan.uploadSessionId,
-        importItems,
-        persistedRows,
-      }),
-      ...matterImportItemUpsertSqls({ matter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
-      "select '{}'::jsonb::text;",
-      "",
-    ].join("\n"));
-    queryJson({ databaseUrl, tenantId, spawn, sql });
+    });
     return matter;
   }
 
@@ -247,16 +235,16 @@ export function createRuntimeDbStorageService({
       existingFiles: await readWorkspacePayloadFiles(dbMatter),
     });
 
-    const filesToPersist = storageFiles.map((file) => ({
-      ...file,
-      sha256: sha256Bytes(file.bytes),
-      sizeBytes: file.bytes.length,
-    }));
-    const persistedRows = materializedRowsForFiles({ matter: dbMatter, files: filesToPersist });
-    const sql = wrapRuntimeDbWriteTransaction([
-      `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
-      ...runtimeDbActorSqls({ actor, tenantId }),
-      ...createMatterAddFilesSql({
+    persistRuntimeUploadIntakeRecords({
+      databaseUrl,
+      tenantId,
+      spawn,
+      actor,
+      matter: dbMatter,
+      uploadPlan,
+      storageFiles,
+      importItems,
+      uploadSqls: createMatterAddFilesSql({
         matter: dbMatter,
         actor,
         intakeDbId: uploadPlan.intakeDbId,
@@ -268,19 +256,7 @@ export function createRuntimeDbStorageService({
         label,
         receivedDate: uploadPlan.receivedDate,
       }),
-      ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter: dbMatter, row })),
-      ...documentIdentityUpsertSqls({
-        matter: dbMatter,
-        intakeId: uploadPlan.intakeDbId,
-        uploadSessionId: uploadPlan.uploadSessionId,
-        importItems,
-        persistedRows,
-      }),
-      ...matterImportItemUpsertSqls({ matter: dbMatter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
-      "select '{}'::jsonb::text;",
-      "",
-    ].join("\n"));
-    queryJson({ databaseUrl, tenantId, spawn, sql });
+    });
     return {
       intakeId: uploadPlan.intakeId,
       intakeDirName: uploadPlan.intakeDirName,
@@ -957,6 +933,63 @@ function materializedRowsForFiles({ matter, files }) {
     });
   }
   return rows;
+}
+
+function persistRuntimeUploadIntakeRecords({
+  databaseUrl,
+  tenantId,
+  spawn,
+  actor,
+  matter,
+  uploadPlan,
+  storageFiles = [],
+  importItems = [],
+  uploadSqls = [],
+}) {
+  const filesToPersist = storageFiles.map((file) => ({
+    ...file,
+    sha256: sha256Bytes(file.bytes),
+    sizeBytes: file.bytes.length,
+  }));
+  const persistedRows = materializedRowsForFiles({ matter, files: filesToPersist });
+  const sql = buildRuntimeUploadPersistenceSql({
+    tenantId,
+    actor,
+    matter,
+    uploadPlan,
+    importItems,
+    persistedRows,
+    uploadSqls,
+  });
+  queryJson({ databaseUrl, tenantId, spawn, sql });
+  return { persistedRows };
+}
+
+function buildRuntimeUploadPersistenceSql({
+  tenantId,
+  actor,
+  matter,
+  uploadPlan,
+  importItems,
+  persistedRows,
+  uploadSqls,
+}) {
+  return wrapRuntimeDbWriteTransaction([
+    `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    ...runtimeDbActorSqls({ actor, tenantId }),
+    ...uploadSqls,
+    ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
+    ...documentIdentityUpsertSqls({
+      matter,
+      intakeId: uploadPlan.intakeDbId,
+      uploadSessionId: uploadPlan.uploadSessionId,
+      importItems,
+      persistedRows,
+    }),
+    ...matterImportItemUpsertSqls({ matter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
+    "select '{}'::jsonb::text;",
+    "",
+  ].join("\n"));
 }
 
 async function buildRuntimeUploadIntake({
