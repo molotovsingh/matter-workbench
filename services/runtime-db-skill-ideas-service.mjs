@@ -41,9 +41,9 @@ export function createRuntimeDbSkillIdeasService({
   async function getIdea(id) {
     ensureEnabled();
     const normalizedId = stringValue(id);
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_idea.id_required");
     const row = queryJson(getIdeaSql({ tenantId, id: normalizedId }));
-    if (!row?.id) throw makeHttpError("Skill idea not found", 404);
+    if (!row?.id) throw makeHttpError("Skill idea not found", 404, "runtime_db.skill_idea.not_found");
     return normalizeDbIdea(row);
   }
 
@@ -61,16 +61,17 @@ export function createRuntimeDbSkillIdeasService({
       designBrief,
     });
     const row = queryJson(wrapRuntimeDbWriteTransaction(upsertIdeaSql({ tenantId, idea })));
+    if (!row?.id) throw makeHttpError("Runtime DB skill idea write returned no row", 503, "runtime_db.skill_idea.write_failed");
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: row?.id ? normalizeDbIdea(row) : idea,
+      idea: normalizeDbIdea(row),
     };
   }
 
   async function updateIdeaDesignBrief(id, designBrief = {}) {
     ensureEnabled();
     const normalizedId = stringValue(id);
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_idea.id_required");
     const normalizedDesignBrief = normalizeDesignBrief(designBrief);
     const readiness = calculateSkillIdeaReadiness(normalizedDesignBrief);
     const row = queryJson(wrapRuntimeDbWriteTransaction(updateIdeaDesignBriefSql({
@@ -79,39 +80,30 @@ export function createRuntimeDbSkillIdeasService({
       designBrief: normalizedDesignBrief,
       readiness,
     })));
-    if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill idea not found", 404);
+    if (!row?.id) throw makeHttpError("Skill idea not found", 404, "runtime_db.skill_idea.not_found");
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: row?.id ? normalizeDbIdea(row) : normalizeStoredIdea({
-        id: normalizedId,
-        status: readiness.ready ? SKILL_IDEA_STATUS.READY_FOR_REVIEW : SKILL_IDEA_STATUS.INCOMPLETE,
-        designBrief: normalizedDesignBrief,
-        updatedAt: now().toISOString(),
-      }),
+      idea: normalizeDbIdea(row),
     };
   }
 
   async function updateIdeaStatus(id, status) {
     ensureEnabled();
     const normalizedId = stringValue(id);
-    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_idea.id_required");
     const normalizedStatus = stringValue(status);
     if (!SKILL_IDEA_STATUSES.has(normalizedStatus)) {
-      throw makeHttpError(`Invalid skill idea status: ${normalizedStatus || "blank"}`, 400);
+      throw makeHttpError(`Invalid skill idea status: ${normalizedStatus || "blank"}`, 400, "runtime_db.skill_idea.invalid_status");
     }
     if (normalizedStatus === SKILL_IDEA_STATUS.READY_FOR_REVIEW) {
       const current = await getIdea(normalizedId);
-      if (!current.readiness.ready) throw makeHttpError("Skill idea is not ready for review", 400);
+      if (!current.readiness.ready) throw makeHttpError("Skill idea is not ready for review", 400, "runtime_db.skill_idea.not_ready");
     }
     const row = queryJson(wrapRuntimeDbWriteTransaction(updateIdeaStatusSql({ tenantId, id: normalizedId, status: normalizedStatus })));
-    if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill idea not found", 404);
+    if (!row?.id) throw makeHttpError("Skill idea not found", 404, "runtime_db.skill_idea.not_found");
     return {
       schema_version: SKILL_IDEAS_SCHEMA_VERSION,
-      idea: row?.id ? normalizeDbIdea(row) : normalizeStoredIdea({
-        id: normalizedId,
-        status: normalizedStatus,
-        updatedAt: now().toISOString(),
-      }),
+      idea: normalizeDbIdea(row),
     };
   }
 
@@ -123,17 +115,17 @@ export function createRuntimeDbSkillIdeasService({
       env: { ...process.env, ...env },
     });
     if (result.error) {
-      throw makeHttpError(`runtime DB skill ideas query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+      throw makeHttpError(`runtime DB skill ideas query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.skill_ideas.query_failed");
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-      throw makeHttpError(`runtime DB skill ideas query failed: ${redactRuntimeDbError(detail)}`, 503);
+      throw makeHttpError(`runtime DB skill ideas query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.skill_ideas.query_failed");
     }
     return parsePsqlJson(result.stdout || "");
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB skill ideas service is not configured", 503);
+    if (!enabled) throw makeHttpError("Runtime DB skill ideas service is not configured", 503, "runtime_db.skill_ideas.not_configured");
   }
 
   return {
@@ -287,9 +279,9 @@ function normalizeStoredIdea(idea = {}) {
 
 function normalizeIdeaText(text) {
   const normalized = String(text || "").trim().replace(/\s+/g, " ");
-  if (!normalized) throw makeHttpError("Skill idea text is required", 400);
+  if (!normalized) throw makeHttpError("Skill idea text is required", 400, "runtime_db.skill_idea.text_required");
   if (normalized.length > MAX_IDEA_TEXT_LENGTH) {
-    throw makeHttpError(`Skill idea text must be ${MAX_IDEA_TEXT_LENGTH} characters or less`, 400);
+    throw makeHttpError(`Skill idea text must be ${MAX_IDEA_TEXT_LENGTH} characters or less`, 400, "runtime_db.skill_idea.text_too_long");
   }
   return normalized;
 }
@@ -304,7 +296,7 @@ function normalizeMatterSummary(matter) {
 
 function normalizeDesignBrief(designBrief) {
   return normalizeSkillIdeaDesignBrief(designBrief, {
-    makeError: (message, statusCode) => makeHttpError(message, statusCode),
+    makeError: (message, statusCode) => makeHttpError(message, statusCode, "runtime_db.skill_idea.invalid_design_brief"),
   });
 }
 
@@ -313,7 +305,7 @@ function parsePsqlJson(stdout = "") {
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB skill ideas query returned no JSON.", 503);
+  if (!starts.length) throw makeHttpError("runtime DB skill ideas query returned no JSON.", 503, "runtime_db.skill_ideas.no_json");
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -321,7 +313,7 @@ function parsePsqlJson(stdout = "") {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB skill ideas query returned invalid JSON.", 503);
+    throw makeHttpError("runtime DB skill ideas query returned invalid JSON.", 503, "runtime_db.skill_ideas.invalid_json");
   }
 }
 

@@ -24,7 +24,7 @@ export function createRuntimeDbSkillSamplesService({
   async function recordSample({ idea = {}, sample = {} } = {}) {
     ensureEnabled();
     const ideaId = stringValue(idea.id || sample.idea?.id);
-    if (!ideaId) throw makeHttpError("Skill idea id is required for sample storage", 400);
+    if (!ideaId) throw makeHttpError("Skill idea id is required for sample storage", 400, "runtime_db.skill_sample.idea_id_required");
     const timestamp = now().toISOString();
     const sampleId = stringValue(sample.sample_id || sample.id || idFactory());
     const markdown = boundedSampleMarkdown(sample.sampleMarkdown || sample.sample_markdown);
@@ -45,9 +45,10 @@ export function createRuntimeDbSkillSamplesService({
       rawSample: { ...sample, sample_markdown: markdown },
     });
     const row = queryJson(wrapRuntimeDbWriteTransaction(recordSampleSql({ tenantId, sample: stored })));
+    if (!row?.id) throw makeHttpError("Runtime DB skill sample write returned no row", 503, "runtime_db.skill_sample.write_failed");
     return {
       schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-      sample: row?.id ? normalizeStoredSample(row) : stored,
+      sample: normalizeStoredSample(row),
     };
   }
 
@@ -55,8 +56,8 @@ export function createRuntimeDbSkillSamplesService({
     ensureEnabled();
     const normalizedIdeaId = stringValue(ideaId);
     const normalizedSampleId = stringValue(sampleId);
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
-    if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_sample.idea_id_required");
+    if (!normalizedSampleId) throw makeHttpError("Sample id is required", 400, "runtime_db.skill_sample.id_required");
     const currentHash = hashDesignBrief(designBrief);
     const row = queryJson(wrapRuntimeDbWriteTransaction(approveSampleSql({
       tenantId,
@@ -64,29 +65,28 @@ export function createRuntimeDbSkillSamplesService({
       sampleId: normalizedSampleId,
       designBriefHash: currentHash,
     })));
-    if (row && Object.keys(row).length && !row.id) throw makeHttpError("Skill sample not found", 404);
+    if (row?.errorCode === "runtime_db.skill_sample.stale") {
+      throw makeHttpError("Approved sample is stale because the design brief changed", 409, row.errorCode);
+    }
+    if (row?.errorCode === "runtime_db.skill_sample.not_found" || !row?.id) {
+      throw makeHttpError("Skill sample not found", 404, "runtime_db.skill_sample.not_found");
+    }
     return {
       schema_version: SKILL_SAMPLES_SCHEMA_VERSION,
-      sample: row?.id ? normalizeStoredSample(row) : normalizeStoredSample({
-        id: normalizedSampleId,
-        ideaId: normalizedIdeaId,
-        approved: true,
-        approvedAt: now().toISOString(),
-        designBriefHash: currentHash,
-      }),
+      sample: normalizeStoredSample(row),
     };
   }
 
   async function getApprovedCurrentSample({ ideaId, designBrief = {} } = {}) {
     ensureEnabled();
     const normalizedIdeaId = stringValue(ideaId);
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_sample.idea_id_required");
     const currentHash = hashDesignBrief(designBrief);
     const row = queryJson(approvedSampleSql({ tenantId, ideaId: normalizedIdeaId }));
-    if (!row?.id) throw makeHttpError("No approved sample found for this skill idea", 409);
+    if (!row?.id) throw makeHttpError("No approved sample found for this skill idea", 409, "runtime_db.skill_sample.no_approved_sample");
     const sample = normalizeStoredSample(row);
     if (sample.designBriefHash !== currentHash) {
-      throw makeHttpError("Approved sample is stale because the design brief changed", 409);
+      throw makeHttpError("Approved sample is stale because the design brief changed", 409, "runtime_db.skill_sample.stale");
     }
     return sample;
   }
@@ -102,7 +102,7 @@ export function createRuntimeDbSkillSamplesService({
 
   async function listSamplesForIdea({ ideaId = "", designBrief = {} } = {}) {
     const normalizedIdeaId = stringValue(ideaId);
-    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400);
+    if (!normalizedIdeaId) throw makeHttpError("Skill idea id is required", 400, "runtime_db.skill_sample.idea_id_required");
     const currentHash = hashDesignBrief(designBrief);
     const result = await listSamples({ ideaId: normalizedIdeaId });
     return {
@@ -121,17 +121,17 @@ export function createRuntimeDbSkillSamplesService({
       env: { ...process.env, ...env },
     });
     if (result.error) {
-      throw makeHttpError(`runtime DB skill samples query failed: ${redactRuntimeDbError(result.error.message)}`, 503);
+      throw makeHttpError(`runtime DB skill samples query failed: ${redactRuntimeDbError(result.error.message)}`, 503, "runtime_db.skill_samples.query_failed");
     }
     if (result.status !== 0) {
       const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-      throw makeHttpError(`runtime DB skill samples query failed: ${redactRuntimeDbError(detail)}`, 503);
+      throw makeHttpError(`runtime DB skill samples query failed: ${redactRuntimeDbError(detail)}`, 503, "runtime_db.skill_samples.query_failed");
     }
     return parsePsqlJson(result.stdout || "");
   }
 
   function ensureEnabled() {
-    if (!enabled) throw makeHttpError("Runtime DB skill samples service is not configured", 503);
+    if (!enabled) throw makeHttpError("Runtime DB skill samples service is not configured", 503, "runtime_db.skill_samples.not_configured");
   }
 
   return {
@@ -242,14 +242,17 @@ function recordSampleSql({ tenantId, sample }) {
 function approveSampleSql({ tenantId, ideaId, sampleId, designBriefHash }) {
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
-    "with target as (",
-    "  select id",
+    "with candidate as (",
+    "  select id, design_brief_hash",
     "  from skill_samples",
     "  where tenant_id = current_app_tenant_id()",
     `    and idea_id = ${sqlString(ideaId)}`,
     `    and id = ${sqlString(sampleId)}`,
-    `    and design_brief_hash = ${sqlString(designBriefHash)}`,
     "  limit 1",
+    "), target as (",
+    "  select id",
+    "  from candidate",
+    `  where design_brief_hash = ${sqlString(designBriefHash)}`,
     "), cleared as (",
     "  update skill_samples",
     "  set approved = false, approved_at = null, updated_at = now()",
@@ -269,7 +272,11 @@ function approveSampleSql({ tenantId, ideaId, sampleId, designBriefHash }) {
     "  from (",
     `    ${sampleRowsSelectSql("updated")}`,
     "  ) rows",
-    "), '{}'::jsonb)::text;",
+    "), (",
+    "  select jsonb_build_object('errorCode', 'runtime_db.skill_sample.stale')",
+    "  from candidate",
+    "  where not exists (select 1 from target)",
+    "), jsonb_build_object('errorCode', 'runtime_db.skill_sample.not_found'))::text;",
     "",
   ].join("\n");
 }
@@ -351,7 +358,7 @@ function decorateSampleWithState(sample, currentHash) {
 function boundedSampleMarkdown(value) {
   const markdown = String(value || "").trim();
   if (markdown.length > MAX_SAMPLE_MARKDOWN_LENGTH) {
-    throw makeHttpError(`Skill sample Markdown must be ${MAX_SAMPLE_MARKDOWN_LENGTH} characters or less`, 400);
+    throw makeHttpError(`Skill sample Markdown must be ${MAX_SAMPLE_MARKDOWN_LENGTH} characters or less`, 400, "runtime_db.skill_sample.markdown_too_long");
   }
   return markdown;
 }
@@ -361,7 +368,7 @@ function parsePsqlJson(stdout = "") {
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError("runtime DB skill samples query returned no JSON.", 503);
+  if (!starts.length) throw makeHttpError("runtime DB skill samples query returned no JSON.", 503, "runtime_db.skill_samples.no_json");
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -369,7 +376,7 @@ function parsePsqlJson(stdout = "") {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError("runtime DB skill samples query returned invalid JSON.", 503);
+    throw makeHttpError("runtime DB skill samples query returned invalid JSON.", 503, "runtime_db.skill_samples.invalid_json");
   }
 }
 

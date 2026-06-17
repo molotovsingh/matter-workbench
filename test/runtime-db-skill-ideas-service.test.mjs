@@ -40,7 +40,12 @@ test("runtime DB skill ideas service creates and updates ideas in Postgres", asy
   const service = createRuntimeDbSkillIdeasService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
-    spawn: jsonSpawnSequence(calls, [{}, {}, {}]),
+    spawn: jsonSpawnSequence(calls, [
+      dbIdeaRow({ id: "idea_route_plan", status: "incomplete" }),
+      dbIdeaRow({ id: "idea_route_plan", status: "ready_for_review", designBriefJson: { ...readyDesignBrief(), notes: "Prefer concise issue-wise output." } }),
+      dbIdeaRow({ id: "idea_route_plan", status: "parked" }),
+      dbIdeaRow({ id: "idea_route_plan", status: "created" }),
+    ]),
     now: () => new Date("2026-06-06T02:00:00.000Z"),
     idFactory: () => "idea_route_plan",
   });
@@ -66,12 +71,74 @@ test("runtime DB skill ideas service creates and updates ideas in Postgres", asy
   assertTransactionWrapped(calls[0].input);
   assertTransactionWrapped(calls[1].input);
   assertTransactionWrapped(calls[2].input);
+  assertTransactionWrapped(calls[3].input);
   assert.match(sql, /insert into skill_ideas/i);
   assert.match(sql, /update skill_ideas/i);
   assert.match(sql, /matter_folder_name/i);
   assert.match(sql, /"expectedOutputArtifact":"20_Workshop\/Filing Route Plan.md"/);
   assert.doesNotMatch(sql, /secret/);
 });
+
+test("runtime DB skill ideas service fails closed when updates return no row", async () => {
+  const calls = [];
+  const service = createRuntimeDbSkillIdeasService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, {}),
+  });
+
+  await assert.rejects(
+    () => service.updateIdeaDesignBrief("missing_idea", readyDesignBrief()),
+    (error) => {
+      assert.equal(error.statusCode, 404);
+      assert.equal(error.code, "runtime_db.skill_idea.not_found");
+      return true;
+    },
+  );
+
+  assertTransactionWrapped(calls[0].input);
+});
+
+test("runtime DB skill ideas service fails closed when creates return no row", async () => {
+  const calls = [];
+  const service = createRuntimeDbSkillIdeasService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, {}),
+    idFactory: () => "idea_missing_return",
+  });
+
+  await assert.rejects(
+    () => service.createIdea({ text: "Draft a filing route plan.", designBrief: readyDesignBrief() }),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.skill_idea.write_failed");
+      return true;
+    },
+  );
+
+  assertTransactionWrapped(calls[0].input);
+});
+
+function dbIdeaRow({
+  id = "idea_route_plan",
+  text = "Recommend the law, forum, and filing documents.",
+  status = "incomplete",
+  designBriefJson = readyDesignBrief(),
+  matterName = "DB Matter",
+  matterFolderName = "DB Matter",
+} = {}) {
+  return {
+    id,
+    text,
+    status,
+    matterName,
+    matterFolderName,
+    designBriefJson,
+    createdAt: "2026-06-06T02:00:00.000Z",
+    updatedAt: "2026-06-06T02:00:00.000Z",
+  };
+}
 
 function readyDesignBrief() {
   return {

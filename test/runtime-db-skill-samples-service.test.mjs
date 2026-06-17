@@ -48,7 +48,10 @@ test("runtime DB skill samples service records and approves samples in Postgres"
   const service = createRuntimeDbSkillSamplesService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
-    spawn: jsonSpawnSequence(calls, [{}, {}]),
+    spawn: jsonSpawnSequence(calls, [
+      dbSampleRow({ id: "sample_route_plan", ideaId: "idea_route_plan", designBriefHash: hashDesignBrief(designBrief), approved: false }),
+      dbSampleRow({ id: "sample_route_plan", ideaId: "idea_route_plan", designBriefHash: hashDesignBrief(designBrief), approved: true }),
+    ]),
     now: () => new Date("2026-06-06T02:00:00.000Z"),
     idFactory: () => "sample_route_plan",
   });
@@ -83,6 +86,91 @@ test("runtime DB skill samples service records and approves samples in Postgres"
   assert.match(sql, /update skill_samples[\s\S]*approved = false/i);
   assert.doesNotMatch(sql, /secret/);
 });
+
+test("runtime DB skill samples service fails closed when sample writes return no row", async () => {
+  const calls = [];
+  const designBrief = readyDesignBrief();
+  const service = createRuntimeDbSkillSamplesService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn(calls, {}),
+    idFactory: () => "sample_missing_return",
+  });
+
+  await assert.rejects(
+    () => service.recordSample({
+      idea: { id: "idea_route_plan", designBrief },
+      sample: { sample_markdown: "# Filing Route Plan" },
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.skill_sample.write_failed");
+      return true;
+    },
+  );
+
+  assertTransactionWrapped(calls[0].input);
+});
+
+test("runtime DB skill samples service distinguishes stale approval from missing samples", async () => {
+  const calls = [];
+  const designBrief = readyDesignBrief();
+  const service = createRuntimeDbSkillSamplesService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      { errorCode: "runtime_db.skill_sample.stale" },
+      { errorCode: "runtime_db.skill_sample.not_found" },
+    ]),
+  });
+
+  await assert.rejects(
+    () => service.approveSample({ ideaId: "idea_route_plan", sampleId: "sample_route_plan", designBrief }),
+    (error) => {
+      assert.equal(error.statusCode, 409);
+      assert.equal(error.code, "runtime_db.skill_sample.stale");
+      return true;
+    },
+  );
+  await assert.rejects(
+    () => service.approveSample({ ideaId: "idea_route_plan", sampleId: "missing_sample", designBrief }),
+    (error) => {
+      assert.equal(error.statusCode, 404);
+      assert.equal(error.code, "runtime_db.skill_sample.not_found");
+      return true;
+    },
+  );
+
+  assertTransactionWrapped(calls[0].input);
+  assertTransactionWrapped(calls[1].input);
+  assert.match(calls[0].input, /runtime_db\.skill_sample\.stale/);
+  assert.match(calls[0].input, /runtime_db\.skill_sample\.not_found/);
+});
+
+function dbSampleRow({
+  id = "sample_route_plan",
+  ideaId = "idea_route_plan",
+  designBriefHash = hashDesignBrief(readyDesignBrief()),
+  approved = false,
+} = {}) {
+  return {
+    id,
+    ideaId,
+    version: 1,
+    approved,
+    approvedAt: approved ? "2026-06-06T02:00:00.000Z" : "",
+    designBriefHash,
+    matterName: "DB Matter",
+    matterFolderName: "DB Matter",
+    sampleMarkdown: "# Filing Route Plan\n\nUse consumer forum.",
+    feedback: "Looks useful.",
+    aiRun: { provider: "openai-direct", model: "gpt-5.4" },
+    warnings: ["check limitation"],
+    rawSample: { sample_markdown: "# Filing Route Plan\n\nUse consumer forum." },
+    createdAt: "2026-06-06T02:00:00.000Z",
+    updatedAt: "2026-06-06T02:00:00.000Z",
+  };
+}
 
 function readyDesignBrief() {
   return {
