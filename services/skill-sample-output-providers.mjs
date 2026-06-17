@@ -35,7 +35,7 @@ export function createOpenAiSkillSampleOutputProvider({
     previousSample,
     matterContext,
   } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill sample output generation", 409);
+    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill sample output generation", 409, "skill_sample_output.provider_api_key_required");
     const body = {
       model,
       max_output_tokens: maxOutputTokens,
@@ -72,7 +72,7 @@ export function createOpenRouterSkillSampleOutputProvider({
     previousSample,
     matterContext,
   } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill sample output generation", 409);
+    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill sample output generation", 409, "skill_sample_output.provider_api_key_required");
     const body = {
       model,
       messages: [

@@ -44,14 +44,14 @@ export function createSkillSampleOutputService({
     matterRootOverride = "",
   } = {}) {
     const root = String(matterRootOverride || "").trim() || matterStore.getMatterRoot?.();
-    if (!root) throw makeHttpError("Pick a test matter before generating sample output.", 409);
+    if (!root) throw makeHttpError("Pick a test matter before generating sample output.", 409, "skill_sample_output.matter_required");
     const normalizedIdea = normalizeIdeaForSample(idea);
     const normalizedFeedback = boundedText(feedback, MAX_FEEDBACK_LENGTH, "feedback");
     const normalizedPreviousSample = boundedText(previousSample, MAX_PREVIOUS_SAMPLE_LENGTH, "previous sample");
     const packet = await buildMatterContextPacket(root, SAMPLE_CONTEXT_LIMITS);
     const policy = resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
-    if (!providerConfig.model) throw makeHttpError("Skill sample output model is not configured.", 409);
+    if (!providerConfig.model) throw makeHttpError("Skill sample output model is not configured.", 409, "skill_sample_output.model_not_configured");
     const provider = sampleProvider || createDefaultSkillSampleOutputProvider({
       providerConfig,
       env,
@@ -148,13 +148,13 @@ function normalizeIdeaForSample(idea = {}) {
       notes: normalizeText(designBrief.notes),
     },
   };
-  if (!normalized.text) throw makeHttpError("Skill idea text is required for sample output.", 400);
+  if (!normalized.text) throw makeHttpError("Skill idea text is required for sample output.", 400, "skill_sample_output.idea_text_required");
   return normalized;
 }
 
 function normalizeSampleMarkdown(value) {
   const markdown = String(value || "").trim();
-  if (!markdown) throw makeHttpError("Skill sample output was blank.", 502);
+  if (!markdown) throw makeHttpError("Skill sample output was blank.", 502, "skill_sample_output.blank_output");
   return markdown.length > MAX_SAMPLE_LENGTH ? markdown.slice(0, MAX_SAMPLE_LENGTH) : markdown;
 }
 

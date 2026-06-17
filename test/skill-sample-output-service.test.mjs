@@ -135,15 +135,66 @@ test("skill sample output service requires a selected test matter", async () => 
     sampleProvider: async () => "# Sample",
   });
 
-  await assert.rejects(
+  await assertRejectsCode(
     () => service.generateSampleOutput({
       idea: {
         text: "draft a warm client update email",
       },
     }),
-    /Pick a test matter before generating sample output/,
+    "skill_sample_output.matter_required",
+    409,
   );
 });
+
+test("skill sample output service emits stable validation and provider configuration codes", async () => {
+  const matterRoot = await makeMatterRoot();
+  const blankTextService = createSkillSampleOutputService({
+    matterStore: { getMatterRoot: () => matterRoot },
+    env: {},
+    sampleProvider: async () => "# Sample",
+  });
+  await assertRejectsCode(
+    () => blankTextService.generateSampleOutput({ idea: { text: " " } }),
+    "skill_sample_output.idea_text_required",
+    400,
+  );
+
+  const blankOutputService = createSkillSampleOutputService({
+    matterStore: { getMatterRoot: () => matterRoot },
+    env: {},
+    sampleProvider: async () => " ",
+  });
+  await assertRejectsCode(
+    () => blankOutputService.generateSampleOutput({ idea: { text: "draft a warm client update email" } }),
+    "skill_sample_output.blank_output",
+    502,
+  );
+
+  const missingKeyService = createSkillSampleOutputService({
+    matterStore: { getMatterRoot: () => matterRoot },
+    env: {},
+    fetchImpl: async () => {
+      throw new Error("should not call provider without an API key");
+    },
+  });
+  await assertRejectsCode(
+    () => missingKeyService.generateSampleOutput({ idea: { text: "draft a warm client update email" } }),
+    "skill_sample_output.provider_api_key_required",
+    409,
+  );
+});
+
+async function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    await operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}
 
 async function makeMatterRoot() {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "skill-sample-test-"));

@@ -130,6 +130,7 @@ Current hosted-beta families include:
 | `configurable_skill*.*` | Local JSON-backed custom-skill stores and run ledgers. | `configurable_skill_store.invalid_json`, `configurable_skill_run.not_found` |
 | `runtime_db.skill_idea.*` / `runtime_db.skill_sample.*` | Runtime DB Skill Factory ideas/samples. | `runtime_db.skill_idea.write_failed`, `runtime_db.skill_sample.stale` |
 | `skill_idea.*` / `skill_sample.*` | Local JSON-backed Skill Factory ideas/samples. | `skill_idea.invalid_design_brief`, `skill_sample.no_approved_sample` |
+| `skill_sample_output.*` | Skill Factory sample-output generation validation/provider configuration. | `skill_sample_output.matter_required`, `skill_sample_output.provider_api_key_required` |
 | `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
 | `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
