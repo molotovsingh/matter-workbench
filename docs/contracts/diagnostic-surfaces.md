@@ -131,6 +131,7 @@ Current hosted-beta families include:
 | `upload.*` | Multipart upload and browser-relative path validation. | `upload.multipart_required`, `upload.paths_mismatch`, `upload.too_large` |
 | `private_beta.feedback.*` | Private beta feedback validation. | `private_beta.feedback.invalid_choice`, `private_beta.feedback.trying_to_do_required` |
 | `http.*` | Cross-cutting HTTP request parsing. | `http.invalid_json_body`, `http.json_body_too_large` |
+| `workspace.*` | Local workspace preview/raw-file reads. | `workspace.path_hidden`, `workspace.preview.unsupported_type`, `workspace.raw.not_file` |
 
 These codes do not change the surface boundary: matter-specific failures still
 belong in Matter Attention, while app/runtime-wide failures belong in System
