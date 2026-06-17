@@ -20,7 +20,7 @@ export function isInsideRoot(root, filePath) {
 
 export function assertInsideRoot(root, filePath, message = "Requested path is outside the allowed root") {
   if (!isInsideRoot(root, filePath)) {
-    throw makeHttpError(message, 403);
+    throw makeHttpError(message, 403, "path.outside_root");
   }
   return path.resolve(filePath);
 }
@@ -28,21 +28,21 @@ export function assertInsideRoot(root, filePath, message = "Requested path is ou
 export function validateMatterName(rawName) {
   const name = typeof rawName === "string" ? rawName.trim() : "";
   if (!name || name.startsWith(".") || name.includes("/") || name.includes("\\") || name.includes("..")) {
-    throw makeHttpError("Invalid matter name", 400);
+    throw makeHttpError("Invalid matter name", 400, "path.invalid_matter_name");
   }
   return name;
 }
 
 export function validateRelativePath(rawPath) {
   const value = typeof rawPath === "string" ? rawPath : "";
-  if (!value) throw makeHttpError("Empty file path", 400);
+  if (!value) throw makeHttpError("Empty file path", 400, "path.empty");
   if (value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:/.test(value)) {
-    throw makeHttpError("Absolute paths not allowed", 400);
+    throw makeHttpError("Absolute paths not allowed", 400, "path.absolute_not_allowed");
   }
   const segments = value.split(/[\\/]+/);
   for (const segment of segments) {
     if (!segment || segment === "." || segment === ".." || segment.includes("\0")) {
-      throw makeHttpError(`Invalid path segment in ${value}`, 400);
+      throw makeHttpError(`Invalid path segment in ${value}`, 400, "path.invalid_segment");
     }
   }
   return segments.join("/");
@@ -52,7 +52,7 @@ export function resolveRelativeInside(root, relativePath, message = "Resolved pa
   const safeRelative = validateRelativePath(relativePath);
   const resolved = path.resolve(root, safeRelative);
   if (!isInsideRoot(root, resolved) || resolved === path.resolve(root)) {
-    throw makeHttpError(message, 400);
+    throw makeHttpError(message, 400, "path.escapes_root");
   }
   return resolved;
 }

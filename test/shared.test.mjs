@@ -12,7 +12,12 @@ import {
   MATTER_LIBRARY_DIR,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
-import { isInsideRoot, validateMatterName, validateRelativePath } from "../shared/safe-paths.mjs";
+import {
+  assertInsideRoot,
+  isInsideRoot,
+  validateMatterName,
+  validateRelativePath,
+} from "../shared/safe-paths.mjs";
 import { redactSensitiveText, redactSensitiveValues, REDACTED_SECRET } from "../shared/secret-redaction.mjs";
 import {
   effectiveShortSourceLabel,
@@ -40,6 +45,26 @@ test("safe path helpers reject path escapes", () => {
   assert.equal(isInsideRoot("/tmp/root", "/tmp/root/a.txt"), true);
   assert.equal(isInsideRoot("/tmp/root", "/tmp/rooted/a.txt"), false);
 });
+
+test("safe path helpers emit stable diagnostic codes", () => {
+  assertRejectsCode(() => validateMatterName("../bad"), "path.invalid_matter_name", 400);
+  assertRejectsCode(() => validateRelativePath(""), "path.empty", 400);
+  assertRejectsCode(() => validateRelativePath("/tmp/file.txt"), "path.absolute_not_allowed", 400);
+  assertRejectsCode(() => validateRelativePath("folder/../file.txt"), "path.invalid_segment", 400);
+  assertRejectsCode(() => assertInsideRoot("/tmp/root", "/tmp/rooted/a.txt"), "path.outside_root", 403);
+});
+
+function assertRejectsCode(operation, code, statusCode) {
+  let thrown;
+  try {
+    operation();
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, `expected ${code} to be thrown`);
+  assert.equal(thrown.code, code);
+  assert.equal(thrown.statusCode, statusCode);
+}
 
 test("source label helpers prefer confirmed labels and suppress FILE identifiers", () => {
   const source = {
