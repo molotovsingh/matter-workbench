@@ -71,6 +71,48 @@ test("runtime DB storage service gives psql enough buffer for DB-backed payloads
   assert.equal(calls[0].options.encoding, "utf8");
 });
 
+test("runtime DB storage service exposes stable query parse and failure codes", async () => {
+  const failed = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({
+      status: 1,
+      stdout: "",
+      stderr: "could not connect postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    }),
+  });
+  await assert.rejects(
+    () => failed.readWorkspace(matter),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.storage.query_failed");
+      assert.doesNotMatch(error.message, /secret/);
+      assert.match(error.message, /\*\*\*/);
+      return true;
+    },
+  );
+
+  const noJson = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({ status: 0, stdout: "NOTICE: no rows", stderr: "" }),
+  });
+  await assert.rejects(
+    () => noJson.readWorkspace(matter),
+    (error) => error.statusCode === 503 && error.code === "runtime_db.storage.no_json",
+  );
+
+  const invalidJson = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: () => ({ status: 0, stdout: "{", stderr: "" }),
+  });
+  await assert.rejects(
+    () => invalidJson.readWorkspace(matter),
+    (error) => error.statusCode === 503 && error.code === "runtime_db.storage.invalid_json",
+  );
+});
+
 test("runtime DB storage service previews text from payload bytes", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",

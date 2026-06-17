@@ -14,14 +14,41 @@ test("runtime DB query parses JSON surrounded by psql notices", () => {
   );
 });
 
-test("runtime DB query exposes caller-specific parse messages", () => {
+test("runtime DB query exposes caller-specific parse messages and codes", () => {
   assert.throws(
-    () => parsePsqlJson("NOTICE: no rows", { noJsonMessage: "storage returned no JSON" }),
-    /storage returned no JSON/,
+    () => parsePsqlJson("NOTICE: no rows", {
+      noJsonMessage: "storage returned no JSON",
+      noJsonCode: "runtime_db.storage.no_json",
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.storage.no_json");
+      assert.match(error.message, /storage returned no JSON/);
+      return true;
+    },
   );
   assert.throws(
-    () => parsePsqlJson("{", { invalidJsonMessage: "storage returned bad JSON" }),
-    /storage returned bad JSON/,
+    () => parsePsqlJson("{", {
+      invalidJsonMessage: "storage returned bad JSON",
+      invalidJsonCode: "runtime_db.storage.invalid_json",
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.storage.invalid_json");
+      assert.match(error.message, /storage returned bad JSON/);
+      return true;
+    },
+  );
+});
+
+test("runtime DB query exposes stable default parse codes", () => {
+  assert.throws(
+    () => parsePsqlJson("NOTICE: no rows"),
+    (error) => error.statusCode === 503 && error.code === "runtime_db.query.no_json",
+  );
+  assert.throws(
+    () => parsePsqlJson("{"),
+    (error) => error.statusCode === 503 && error.code === "runtime_db.query.invalid_json",
   );
 });
 
@@ -56,6 +83,7 @@ test("runtime DB query redacts database passwords and provider keys from errors"
     () => queryRuntimeDbJson({
       databaseUrl: "postgres://mwb_user:pw@db.example/matter",
       errorPrefix: "runtime DB storage query failed",
+      errorCode: "runtime_db.storage.query_failed",
       sql: "select '{}'::jsonb::text;",
       spawn() {
         return {
@@ -64,6 +92,14 @@ test("runtime DB query redacts database passwords and provider keys from errors"
         };
       },
     }),
-    /runtime DB storage query failed: could not connect postgres:\/\/mwb_user:\*\*\*@db\.example\/matter using \[redacted-secret\]/,
+    (error) => {
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.code, "runtime_db.storage.query_failed");
+      assert.match(
+        error.message,
+        /runtime DB storage query failed: could not connect postgres:\/\/mwb_user:\*\*\*@db\.example\/matter using \[redacted-secret\]/,
+      );
+      return true;
+    },
   );
 });

@@ -851,8 +851,11 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
     sql,
     maxBuffer: runtimeDbStoragePsqlMaxBuffer(),
     errorPrefix: "runtime DB storage query failed",
+    errorCode: "runtime_db.storage.query_failed",
     noJsonMessage: "runtime DB storage query returned no JSON.",
+    noJsonCode: "runtime_db.storage.no_json",
     invalidJsonMessage: "runtime DB storage query returned invalid JSON.",
+    invalidJsonCode: "runtime_db.storage.invalid_json",
   });
 }
 

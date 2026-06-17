@@ -12,8 +12,11 @@ export function queryRuntimeDbJson({
   spawn = spawnSync,
   maxBuffer,
   errorPrefix = "runtime DB query failed",
+  errorCode = "runtime_db.query.query_failed",
   noJsonMessage = "runtime DB query returned no JSON.",
+  noJsonCode = "runtime_db.query.no_json",
   invalidJsonMessage = "runtime DB query returned invalid JSON.",
+  invalidJsonCode = "runtime_db.query.invalid_json",
 } = {}) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const options = {
@@ -25,24 +28,26 @@ export function queryRuntimeDbJson({
 
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], options);
   if (result.error) {
-    throw makeHttpError(`${errorPrefix}: ${redactRuntimeDbError(result.error.message)}`, 503);
+    throw makeHttpError(`${errorPrefix}: ${redactRuntimeDbError(result.error.message)}`, 503, errorCode);
   }
   if (result.status !== 0) {
     const detail = result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
-    throw makeHttpError(`${errorPrefix}: ${redactRuntimeDbError(detail)}`, 503);
+    throw makeHttpError(`${errorPrefix}: ${redactRuntimeDbError(detail)}`, 503, errorCode);
   }
-  return parsePsqlJson(result.stdout || "", { noJsonMessage, invalidJsonMessage });
+  return parsePsqlJson(result.stdout || "", { noJsonMessage, noJsonCode, invalidJsonMessage, invalidJsonCode });
 }
 
 export function parsePsqlJson(stdout = "", {
   noJsonMessage = "runtime DB query returned no JSON.",
+  noJsonCode = "runtime_db.query.no_json",
   invalidJsonMessage = "runtime DB query returned invalid JSON.",
+  invalidJsonCode = "runtime_db.query.invalid_json",
 } = {}) {
   const text = String(stdout || "").trim();
   const objectStart = text.indexOf("{");
   const arrayStart = text.indexOf("[");
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
-  if (!starts.length) throw makeHttpError(noJsonMessage, 503);
+  if (!starts.length) throw makeHttpError(noJsonMessage, 503, noJsonCode);
   const start = Math.min(...starts);
   const objectEnd = text.lastIndexOf("}");
   const arrayEnd = text.lastIndexOf("]");
@@ -50,7 +55,7 @@ export function parsePsqlJson(stdout = "", {
   try {
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw makeHttpError(invalidJsonMessage, 503);
+    throw makeHttpError(invalidJsonMessage, 503, invalidJsonCode);
   }
 }
 
