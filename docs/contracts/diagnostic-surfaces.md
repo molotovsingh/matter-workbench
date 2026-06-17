@@ -104,6 +104,7 @@ Its scope includes app/runtime setup rather than any one matter:
 - configured provider keys exist where required;
 - recent global job failures point to provider/runtime posture;
 - command interaction log is readable and recent command failures are summarized;
+- private beta observability ledgers are readable, so telemetry retry evidence can be trusted;
 - matter list scanning does not throw.
 
 System Health is read-only in this first slice. It must not run skills, call
@@ -121,6 +122,7 @@ billing/payment flows.
 | Matters home is not writable. | System Health |
 | OpenRouter key is missing and all source-label runs fail. | System Health |
 | App-local JSON stores are unreadable. | System Health |
+| Feedback/signal/metrics ledgers cannot be read for retry evidence. | System Health |
 | Provider-backed commands fail across many matters after config change. | System Health |
 
 Matter Attention may surface the symptom first. System Health should explain the
