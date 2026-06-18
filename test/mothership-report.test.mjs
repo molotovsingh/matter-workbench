@@ -398,3 +398,66 @@ test("mothership report does not let stale matter health clear newer related sig
   assert.equal(signal.currentness, "current");
   assert.equal(signal.action_lane, "fix_now");
 });
+
+test("mothership report adds a bounded what-happened packet with nearby job state", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    feedback: [{
+      installation_id: "matter-workbench-do-beta-1",
+      feedback_id: "feedback_blocked_pipeline",
+      classification: "bug",
+      received_at: "2026-06-13T10:00:00.000Z",
+      payload: {
+        tryingToDo: "Create List of Dates",
+        happenedInstead: "It was blocked.",
+        context: { activeMatterName: "Pipeline Matter" },
+      },
+    }],
+    heartbeats: [{
+      installation_id: "matter-workbench-do-beta-1",
+      heartbeat_id: "heartbeat_pipeline_failed",
+      captured_at: "2026-06-13T10:05:00.000Z",
+      received_at: "2026-06-13T10:05:00.000Z",
+      payload: {
+        id: "heartbeat_pipeline_failed",
+        activeSessions: 1,
+        journeys: [{
+          matter: "Pipeline Matter",
+          currentStage: "Label Sources",
+          currentStageStatus: "failed",
+          jobId: "job_123",
+          lastError: "No extraction records found. Run /extract before creating a source index. token=secret-token",
+          patienceRisk: "high",
+        }],
+        matterHealth: [{
+          matter: "Pipeline Matter",
+          prepareState: "stale",
+          nextStepLabel: "Extract Documents",
+          attentionState: "warning",
+          blockers: 0,
+          warnings: 1,
+          checkedAt: "2026-06-13T10:05:00.000Z",
+        }],
+      },
+    }],
+  }, { generatedAt: "2026-06-13T10:06:00.000Z" });
+
+  const feedback = report.items.find((item) => item.id === "feedback_blocked_pipeline");
+  assert.equal(feedback.action_lane, "fix_now");
+  assert.equal(feedback.relatedJobs.length, 1);
+  assert.equal(feedback.relatedJobs[0].jobId, "job_123");
+  assert.equal(feedback.relatedJobs[0].detail, "No extraction records found. Run /extract before creating a source index. token=[redacted-secret]");
+  assert.equal(feedback.whatHappened.schema_version, "mothership-what-happened/v1");
+  assert.equal(feedback.whatHappened.currentMatterState.prepareState, "stale");
+  assert.equal(feedback.whatHappened.currentMatterState.nextStepLabel, "Extract Documents");
+  assert.equal(feedback.whatHappened.nearbyJobs.length, 1);
+  assert.equal(feedback.whatHappened.nearbyJobs[0].status, "failed");
+  assert.match(feedback.whatHappened.summary, /1 nearby job/);
+  assert.match(feedback.whatHappened.nextAction, /Verify matter preparation state/);
+
+  const markdown = renderMothershipReportMarkdown(report);
+  assert.match(markdown, /What happened:/);
+  assert.match(markdown, /Current matter state: prepare=stale; attention=warning; next=Extract Documents/);
+  assert.match(markdown, /Nearby jobs: Label Sources status=failed/);
+  assert.doesNotMatch(markdown, /secret-token/);
+});

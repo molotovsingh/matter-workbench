@@ -13,11 +13,15 @@ export function buildMothershipReport(dataset = {}, { generatedAt = new Date().t
   const latestRuntimeEvidenceAt = latestEvidenceTime(metricSummary, heartbeatSummary);
   const rawSignalItems = (dataset.signals || []).map(signalReportItem);
   const signalItems = rawSignalItems
-    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
+    .map((item) => attachRelatedJobs(item, heartbeatSummary.jobEvidence))
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }))
+    .map(attachWhatHappened);
   const feedbackItems = (dataset.feedback || [])
     .map(feedbackReportItem)
     .map((item) => attachRelatedSignals(item, rawSignalItems))
-    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }));
+    .map((item) => attachRelatedJobs(item, heartbeatSummary.jobEvidence))
+    .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }))
+    .map(attachWhatHappened);
   const items = [...signalItems, ...feedbackItems]
     .sort((left, right) => left.priority - right.priority
       || laneSort(left.action_lane) - laneSort(right.action_lane)
@@ -156,6 +160,10 @@ export function renderMothershipReportMarkdown(report = {}) {
       if (item.triage_source || item.confidence) lines.push(`- Triage: ${[item.triage_source, item.confidence].filter(Boolean).join(" / ")}`);
       if (item.currentness) lines.push(`- Currentness: ${item.currentness}`);
       if (item.relatedSignals?.length) lines.push(`- Related signals: ${item.relatedSignals.length}`);
+      if (item.relatedJobs?.length) lines.push(`- Related jobs: ${item.relatedJobs.length}`);
+      if (item.whatHappened?.summary) lines.push(`- What happened: ${redactReportText(item.whatHappened.summary)}`);
+      if (item.whatHappened?.currentMatterState) lines.push(`- Current matter state: ${formatMatterStateContext(item.whatHappened.currentMatterState)}`);
+      if (item.whatHappened?.nearbyJobs?.length) lines.push(`- Nearby jobs: ${item.whatHappened.nearbyJobs.map(formatNearbyJob).join("; ")}`);
       if (item.reason) lines.push(`- Reason: ${redactReportText(item.reason)}`);
       if (item.recommended_action) lines.push(`- Recommended action: ${redactReportText(item.recommended_action)}`);
       lines.push(`- Received: ${item.receivedAt || ""}`);
@@ -255,6 +263,7 @@ function summarizeHeartbeats(rows = [], generatedAt = new Date().toISOString()) 
     }).length,
     latestByInstallation,
     latestMatterHealth: latestMatterHealthByInstallationAndMatter(snapshots),
+    jobEvidence: heartbeatJobEvidence(snapshots),
     snapshots: snapshots.slice(0, 20),
   };
 }
@@ -310,6 +319,37 @@ function heartbeatSnapshot(row = {}) {
   };
 }
 
+function heartbeatJobEvidence(snapshots = []) {
+  const rows = [];
+  for (const snapshot of snapshots) {
+    const observedAt = snapshot.receivedAt || snapshot.capturedAt || "";
+    for (const [index, journey] of (snapshot.journeys || []).entries()) {
+      const stageLabel = journey.currentStage || journey.lastAction || journey.route || "";
+      const title = stageLabel || "Heartbeat journey";
+      const status = journey.currentStageStatus || "";
+      const jobId = journey.jobId || "";
+      const detail = journey.lastError || "";
+      if (!stageLabel && !status && !jobId && !detail) continue;
+      rows.push({
+        id: redactReportText(jobId || journey.traceId || `${snapshot.id}:journey:${index + 1}`),
+        category: "heartbeat_journey",
+        title: redactReportText(title),
+        detail: redactReportText(detail),
+        status: redactReportText(status),
+        jobId: redactReportText(jobId),
+        traceId: redactReportText(journey.traceId || ""),
+        matterName: String(journey.matter || ""),
+        installationId: snapshot.installationId,
+        observedAt,
+        patienceRisk: normalizePatienceRisk(journey.patienceRisk),
+      });
+    }
+  }
+  return rows
+    .sort((left, right) => Date.parse(right.observedAt || 0) - Date.parse(left.observedAt || 0))
+    .slice(0, 100);
+}
+
 function highestPatienceRisk(journeys = []) {
   const ranks = { low: 0, medium: 1, high: 2 };
   let highest = "low";
@@ -336,9 +376,37 @@ function annotateTriage(item = {}, context = {}) {
   };
 }
 
+function attachWhatHappened(item = {}) {
+  return {
+    ...item,
+    whatHappened: buildWhatHappenedPacket(item),
+  };
+}
+
+function buildWhatHappenedPacket(item = {}) {
+  const currentMatterState = summarizeWhatHappenedMatterState(item.currentMatterState);
+  const nearbySignals = summarizeWhatHappenedSignals(item.relatedSignals);
+  const nearbyJobs = summarizeWhatHappenedJobs(item.relatedJobs);
+  const nextAction = redactReportText(item.recommended_action || nextActionFromMatterState(currentMatterState));
+  return {
+    schema_version: "mothership-what-happened/v1",
+    currentMatterState,
+    nearbySignals,
+    nearbyJobs,
+    nextAction,
+    missingEvidence: Array.isArray(item.missing_evidence) ? item.missing_evidence.slice(0, 5).map(redactReportText) : [],
+    summary: whatHappenedSummary({ item, currentMatterState, nearbySignals, nearbyJobs, nextAction }),
+  };
+}
+
 function attachRelatedSignals(item = {}, signalItems = []) {
   const relatedSignals = relatedSignalsForFeedback(item, signalItems);
   return relatedSignals.length ? { ...item, relatedSignals } : item;
+}
+
+function attachRelatedJobs(item = {}, jobEvidence = []) {
+  const relatedJobs = relatedJobsForItem(item, jobEvidence);
+  return relatedJobs.length ? { ...item, relatedJobs } : item;
 }
 
 function relatedSignalsForFeedback(item = {}, signalItems = []) {
@@ -370,8 +438,41 @@ function isNearbySignalTime(feedbackTime, signal = {}) {
     .some((signalTime) => Math.abs(feedbackTime - signalTime) <= RELATED_SIGNAL_WINDOW_MS);
 }
 
+function relatedJobsForItem(item = {}, jobEvidence = []) {
+  const installationId = normalizeReportKey(item.installationId);
+  const matterName = normalizeMatterName(item.matterName);
+  const itemTime = Date.parse(item.receivedAt || "");
+  if (!installationId || !matterName || !Number.isFinite(itemTime)) return [];
+  return (Array.isArray(jobEvidence) ? jobEvidence : [])
+    .filter((job) => normalizeReportKey(job.installationId) === installationId)
+    .filter((job) => normalizeMatterName(job.matterName) === matterName)
+    .filter((job) => isNearbyJobTime(itemTime, job))
+    .sort(compareRelatedJobRecency)
+    .slice(0, 8)
+    .map((job) => ({
+      id: job.id,
+      category: job.category,
+      title: job.title,
+      detail: job.detail,
+      status: job.status,
+      jobId: job.jobId,
+      traceId: job.traceId,
+      observedAt: job.observedAt,
+      patienceRisk: job.patienceRisk,
+    }));
+}
+
+function isNearbyJobTime(itemTime, job = {}) {
+  const jobTime = Date.parse(job.observedAt || "");
+  return Number.isFinite(jobTime) && Math.abs(itemTime - jobTime) <= RELATED_SIGNAL_WINDOW_MS;
+}
+
 function compareRelatedSignalRecency(left = {}, right = {}) {
   return latestSignalTime(right) - latestSignalTime(left);
+}
+
+function compareRelatedJobRecency(left = {}, right = {}) {
+  return Date.parse(right.observedAt || 0) - Date.parse(left.observedAt || 0);
 }
 
 function latestSignalTime(signal = {}) {
@@ -459,7 +560,78 @@ function latestItemEvidenceTime(item = {}) {
     const signalTime = latestSignalTime(signal);
     if (Number.isFinite(signalTime) && signalTime > 0) times.push(signalTime);
   }
+  for (const job of Array.isArray(item.relatedJobs) ? item.relatedJobs : []) {
+    const jobTime = Date.parse(job.observedAt || "");
+    if (Number.isFinite(jobTime) && jobTime > 0) times.push(jobTime);
+  }
   return times.length ? Math.max(...times) : NaN;
+}
+
+function summarizeWhatHappenedMatterState(state = null) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+  return {
+    prepareState: redactReportText(state.prepareState || ""),
+    nextStepLabel: redactReportText(state.nextStepLabel || ""),
+    attentionState: redactReportText(state.attentionState || ""),
+    blockers: positiveInteger(state.blockers, 0),
+    warnings: positiveInteger(state.warnings, 0),
+    checkedAt: toIsoIfPresent(state.checkedAt),
+  };
+}
+
+function summarizeWhatHappenedSignals(signals = []) {
+  if (!Array.isArray(signals)) return [];
+  return signals.slice(0, 3).map((signal) => ({
+    id: redactReportText(signal.id || ""),
+    category: redactReportText(signal.category || ""),
+    title: redactReportText(signal.title || ""),
+    receivedAt: toIsoIfPresent(signal.receivedAt, signal.lastSeenAt, signal.firstSeenAt),
+  }));
+}
+
+function summarizeWhatHappenedJobs(jobs = []) {
+  if (!Array.isArray(jobs)) return [];
+  return jobs.slice(0, 3).map((job) => ({
+    id: redactReportText(job.id || job.jobId || ""),
+    stage: redactReportText(job.title || ""),
+    status: redactReportText(job.status || ""),
+    observedAt: toIsoIfPresent(job.observedAt),
+    patienceRisk: normalizePatienceRisk(job.patienceRisk),
+  }));
+}
+
+function nextActionFromMatterState(state = null) {
+  if (state?.nextStepLabel && state.nextStepLabel !== "Core preparation is current") return `Check ${state.nextStepLabel}.`;
+  if (state?.prepareState === "complete" && state?.attentionState === "clear") return "No immediate matter-preparation action; verify only if the report reproduces.";
+  return "Inspect the item with current runtime evidence before changing code.";
+}
+
+function whatHappenedSummary({ item = {}, currentMatterState = null, nearbySignals = [], nearbyJobs = [], nextAction = "" } = {}) {
+  const state = currentMatterState
+    ? `matter ${currentMatterState.prepareState || "unknown"}, attention ${currentMatterState.attentionState || "unknown"}`
+    : "no current matter state";
+  const nearby = `${nearbySignals.length} nearby signal${nearbySignals.length === 1 ? "" : "s"}, ${nearbyJobs.length} nearby job${nearbyJobs.length === 1 ? "" : "s"}`;
+  const lane = item.action_lane ? `lane ${item.action_lane}` : "lane unknown";
+  return boundedReportText(`${state}; ${nearby}; ${lane}; next: ${nextAction || "inspect manually"}`, 700);
+}
+
+function formatMatterStateContext(state = {}) {
+  return redactReportText([
+    `prepare=${state.prepareState || "unknown"}`,
+    `attention=${state.attentionState || "unknown"}`,
+    state.nextStepLabel ? `next=${state.nextStepLabel}` : "",
+    `blockers=${Number(state.blockers) || 0}`,
+    `warnings=${Number(state.warnings) || 0}`,
+    state.checkedAt ? `checked=${state.checkedAt}` : "",
+  ].filter(Boolean).join("; "));
+}
+
+function formatNearbyJob(job = {}) {
+  return redactReportText([
+    job.stage || "job",
+    job.status ? `status=${job.status}` : "",
+    job.observedAt ? `at=${job.observedAt}` : "",
+  ].filter(Boolean).join(" "));
 }
 
 function normalizeReportViewFilters(filters = {}) {
@@ -601,6 +773,12 @@ function normalizeMatterName(value) {
 
 function normalizeReportText(value) {
   return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function boundedReportText(value, maxLength) {
+  const text = redactReportText(value).replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
 function stringOr(value, fallback) {
