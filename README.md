@@ -120,7 +120,7 @@ Completed release checks include:
 
 Current release docs:
 
-- [v1.0.0-beta.21 release marker](docs/releases/v1.0.0-beta.21.md)
+- [v1.0.0-beta.22 release marker](docs/releases/v1.0.0-beta.22.md)
 - [Docs map](docs/README.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
 - [Database transition handoff](docs/database-transition-handoff.md)
