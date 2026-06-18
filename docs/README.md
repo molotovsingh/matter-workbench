@@ -27,7 +27,7 @@ equally authoritative.
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
-| Current release notes | [v1.0.0-beta.20](releases/v1.0.0-beta.20.md) |
+| Current release notes | [v1.0.0-beta.21](releases/v1.0.0-beta.21.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -84,7 +84,8 @@ implementation plan.
 | [v1.0.0-beta.17](releases/v1.0.0-beta.17.md) | Beta 3 diagnostic-hardening release marker. |
 | [v1.0.0-beta.18](releases/v1.0.0-beta.18.md) | Beta 3 feedback-triage release marker. |
 | [v1.0.0-beta.19](releases/v1.0.0-beta.19.md) | Beta 3 feedback-triage audit release marker. |
-| [v1.0.0-beta.20](releases/v1.0.0-beta.20.md) | Current Beta 3 misfiled-feedback triage release marker. |
+| [v1.0.0-beta.20](releases/v1.0.0-beta.20.md) | Beta 3 misfiled-feedback triage release marker. |
+| [v1.0.0-beta.21](releases/v1.0.0-beta.21.md) | Current Beta 3 successful-slow feedback triage release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
