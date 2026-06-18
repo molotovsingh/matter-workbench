@@ -116,7 +116,9 @@ The service keeps hard runtime signals rule-owned:
 - onboarding/help-copy complaints filed as bugs route to `confusing_ux` /
   `product_decision`;
 - positive notes and operator/test smokes filed as bugs route to `operator_note`
-  / `watch`.
+  / `watch`;
+- successful-but-slow reports filed as bugs route to `operator_note` / `watch`
+  unless the tester reports an unresolved failure.
 
 ## Classifier Guardrails
 

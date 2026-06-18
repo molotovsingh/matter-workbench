@@ -158,6 +158,31 @@ test("feedback triage routes onboarding complaints filed as bugs to UX review", 
   assert.match(triage.recommended_action, /onboarding\/help copy/i);
 });
 
+test("feedback triage routes successful-but-slow reports filed as bugs to watch", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "IT was successful, though it took time",
+    detail: "IT was successful, though it took time",
+  });
+
+  assert.equal(triage.classification, "operator_note");
+  assert.equal(triage.action_lane, "watch");
+  assert.match(triage.reason, /successful operation/i);
+  assert.deepEqual(triage.missing_evidence, []);
+});
+
+test("feedback triage keeps unresolved slow reports in the evidence queue", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "bug",
+    title: "Taking lot of time",
+    detail: "Taking lot of time",
+  });
+
+  assert.equal(triage.classification, "bug");
+  assert.equal(triage.action_lane, "investigate");
+  assert.match(triage.missing_evidence.join(" "), /current deployment reproduction/i);
+});
+
 test("feedback triage routes positive and smoke notes filed as bugs to watch", () => {
   const positive = routePrivateBetaFeedbackTriage({
     category: "bug",

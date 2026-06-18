@@ -30,6 +30,7 @@ const LEGAL_QUALITY_RE = /wrong law|legal quality|incorrect legal|bad chronology
 const MISFILED_PRODUCT_REQUEST_RE = /\b(add|copy button|copy markdown|format word|pdf|box to be created|suggestion|can be offered|interface can be|provakil|mercury|jurisdiction)\b/;
 const MISFILED_RUNTIME_FAILURE_RE = /did not respond|not working|failed|failure|not uploading|not taken into account|missing|api failure|returned unsupported|asking login|not reflecting|not generated|doesn't work|does not work/;
 const MISFILED_UX_RE = /learn how it works.*(?:doesn't|does not|doesnt) help/;
+const SUCCESSFUL_SLOW_NOTE_RE = /(?:\b(successful|success|worked|completed)\b.*\b(took|taking|slow|lot of time)\b)|(?:\b(took|taking|slow|lot of time)\b.*\b(successful|success|worked|completed)\b)/;
 const POSITIVE_OR_TEST_NOTE_RE = /\b(app is helpful|codex feedback smoke|test message|trying to see if this works)\b/;
 
 export function routePrivateBetaFeedbackTriage(item = {}, options = {}) {
@@ -213,6 +214,17 @@ function deterministicTriage(item = {}, { currentness = "unknown" } = {}) {
       confidence: "medium",
       reason: "Tester filed an onboarding/help-copy complaint through the bug channel.",
       recommended_action: "Review onboarding/help copy before treating this as a runtime bug.",
+      missing_evidence: [],
+    };
+  }
+
+  if (category === "bug" && SUCCESSFUL_SLOW_NOTE_RE.test(text)) {
+    return {
+      classification: "operator_note",
+      action_lane: "watch",
+      confidence: "medium",
+      reason: "Tester reported a successful operation with a performance concern rather than a failed workflow.",
+      recommended_action: "Keep as beta performance context; collect timing evidence only if slow operations recur on the current deployment.",
       missing_evidence: [],
     };
   }
