@@ -387,15 +387,17 @@ function buildWhatHappenedPacket(item = {}) {
   const currentMatterState = summarizeWhatHappenedMatterState(item.currentMatterState);
   const nearbySignals = summarizeWhatHappenedSignals(item.relatedSignals);
   const nearbyJobs = summarizeWhatHappenedJobs(item.relatedJobs);
-  const nextAction = redactReportText(item.recommended_action || nextActionFromMatterState(currentMatterState));
+  const statusDisposition = statusDispositionForItem(item);
+  const nextAction = redactReportText(nextActionForItem(item, currentMatterState, statusDisposition));
   return {
     schema_version: "mothership-what-happened/v1",
     currentMatterState,
     nearbySignals,
     nearbyJobs,
+    statusDisposition,
     nextAction,
     missingEvidence: Array.isArray(item.missing_evidence) ? item.missing_evidence.slice(0, 5).map(redactReportText) : [],
-    summary: whatHappenedSummary({ item, currentMatterState, nearbySignals, nearbyJobs, nextAction }),
+    summary: whatHappenedSummary({ item, currentMatterState, nearbySignals, nearbyJobs, statusDisposition, nextAction }),
   };
 }
 
@@ -600,19 +602,76 @@ function summarizeWhatHappenedJobs(jobs = []) {
   }));
 }
 
+function nextActionForItem(item = {}, currentMatterState = null, statusDisposition = statusDispositionForItem(item)) {
+  if (statusDisposition.actionState === "closed") return statusDisposition.nextAction;
+  return item.recommended_action || nextActionFromMatterState(currentMatterState);
+}
+
+function statusDispositionForItem(item = {}) {
+  const status = typeof item.status === "string" ? item.status.trim().toLowerCase() : "";
+  if (!status) {
+    return {
+      status: "signal",
+      actionState: "active_signal",
+      nextAction: "Inspect the current signal state and latest matter context before changing code.",
+    };
+  }
+  if (status === "fixed") {
+    return {
+      status,
+      actionState: "closed",
+      nextAction: "No immediate action: this feedback is fixed. Watch for recurrence before reopening.",
+    };
+  }
+  if (status === "not_reproducible") {
+    return {
+      status,
+      actionState: "closed",
+      nextAction: "No immediate action: this feedback is not reproducible on the current evidence. Reopen only with a current reproduction or trace.",
+    };
+  }
+  if (status === "reviewed") {
+    return {
+      status,
+      actionState: "closed",
+      nextAction: "No immediate runtime action: this feedback is reviewed. Reopen only if new evidence changes the status.",
+    };
+  }
+  if (status === "parked") {
+    return {
+      status,
+      actionState: "closed",
+      nextAction: "No immediate action: this feedback is parked pending product or operator decision.",
+    };
+  }
+  if (status === "needs_evidence") {
+    return {
+      status,
+      actionState: "needs_evidence",
+      nextAction: "Collect current evidence before changing code.",
+    };
+  }
+  return {
+    status,
+    actionState: "active",
+    nextAction: "Inspect the item with current runtime evidence before changing code.",
+  };
+}
+
 function nextActionFromMatterState(state = null) {
   if (state?.nextStepLabel && state.nextStepLabel !== "Core preparation is current") return `Check ${state.nextStepLabel}.`;
   if (state?.prepareState === "complete" && state?.attentionState === "clear") return "No immediate matter-preparation action; verify only if the report reproduces.";
   return "Inspect the item with current runtime evidence before changing code.";
 }
 
-function whatHappenedSummary({ item = {}, currentMatterState = null, nearbySignals = [], nearbyJobs = [], nextAction = "" } = {}) {
+function whatHappenedSummary({ item = {}, currentMatterState = null, nearbySignals = [], nearbyJobs = [], statusDisposition = null, nextAction = "" } = {}) {
   const state = currentMatterState
     ? `matter ${currentMatterState.prepareState || "unknown"}, attention ${currentMatterState.attentionState || "unknown"}`
     : "no current matter state";
   const nearby = `${nearbySignals.length} nearby signal${nearbySignals.length === 1 ? "" : "s"}, ${nearbyJobs.length} nearby job${nearbyJobs.length === 1 ? "" : "s"}`;
   const lane = item.action_lane ? `lane ${item.action_lane}` : "lane unknown";
-  return boundedReportText(`${state}; ${nearby}; ${lane}; next: ${nextAction || "inspect manually"}`, 700);
+  const disposition = statusDisposition?.actionState ? `operator ${statusDisposition.actionState}` : "operator unknown";
+  return boundedReportText(`${state}; ${nearby}; ${lane}; ${disposition}; next: ${nextAction || "inspect manually"}`, 700);
 }
 
 function formatMatterStateContext(state = {}) {

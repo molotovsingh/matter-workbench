@@ -461,3 +461,51 @@ test("mothership report adds a bounded what-happened packet with nearby job stat
   assert.match(markdown, /Nearby jobs: Label Sources status=failed/);
   assert.doesNotMatch(markdown, /secret-token/);
 });
+
+test("mothership what-happened next action respects closed feedback status", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    feedback: [{
+      installation_id: "matter-workbench-do-beta-1",
+      feedback_id: "feedback_closed_slow",
+      classification: "bug",
+      status: "not_reproducible",
+      received_at: "2026-06-13T10:00:00.000Z",
+      payload: {
+        status: "not_reproducible",
+        tryingToDo: "Run preparation",
+        happenedInstead: "Taking lot of time",
+        context: { activeMatterName: "Pipeline Matter" },
+      },
+    }],
+    heartbeats: [{
+      installation_id: "matter-workbench-do-beta-1",
+      heartbeat_id: "heartbeat_pipeline_clear",
+      captured_at: "2026-06-13T10:05:00.000Z",
+      received_at: "2026-06-13T10:05:00.000Z",
+      payload: {
+        id: "heartbeat_pipeline_clear",
+        activeSessions: 0,
+        matterHealth: [{
+          matter: "Pipeline Matter",
+          prepareState: "complete",
+          nextStepLabel: "Core preparation is current",
+          attentionState: "clear",
+          blockers: 0,
+          warnings: 0,
+          checkedAt: "2026-06-13T10:05:00.000Z",
+        }],
+      },
+    }],
+  }, { generatedAt: "2026-06-13T10:06:00.000Z" });
+
+  const feedback = report.items.find((item) => item.id === "feedback_closed_slow");
+  assert.equal(feedback.status, "not_reproducible");
+  assert.equal(feedback.action_lane, "investigate");
+  assert.equal(feedback.whatHappened.statusDisposition.actionState, "closed");
+  assert.match(feedback.whatHappened.nextAction, /No immediate action/);
+  assert.match(feedback.whatHappened.nextAction, /not reproducible/);
+  assert.doesNotMatch(feedback.whatHappened.nextAction, /Reproduce/i);
+  assert.match(feedback.whatHappened.summary, /operator closed/);
+  assert.match(renderMothershipReportMarkdown(report), /No immediate action: this feedback is not reproducible/);
+});
