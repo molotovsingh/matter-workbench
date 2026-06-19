@@ -374,6 +374,11 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "Fix Matter",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            if (hasRuntimeDbDoctorFixPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const result = await runtimeDbStorageService.fixDoctorIssues(matter, fixIds);
+              return runtimeDbWorkflowResponse(result, matter);
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -560,6 +565,11 @@ function hasRuntimeDbRerunAdvicePath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbDoctorScanPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.readDoctorScan === "function";
+}
+
+function hasRuntimeDbDoctorFixPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.fixDoctorIssues === "function";
 }
 
 function hasRuntimeDbListOfDatesLabelRefreshPath(matterStore, runtimeDbStorageService) {

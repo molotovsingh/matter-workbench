@@ -1552,6 +1552,76 @@ test("runtime DB postgres storage mode reads rerun advice and doctor scan throug
   }
 });
 
+test("runtime DB postgres storage mode runs doctor fix from DB-native custody", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-doctor-fix");
+  const runtimeMatter = runtimeDbMatter({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "DB Direct Doctor Fix Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Doctor Fix Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async fixDoctorIssues(matter, fixIds) {
+        calls.push(["fix", matter.name, matter.matterName, fixIds]);
+        return {
+          operationResult: {
+            applied: [{ id: "legacy-layout", ok: true, log: ["fixed"], backupDir: ".doctor-backups/test" }],
+            failed: [],
+            remaining: [],
+          },
+          persisted: [
+            { relativePath: "00_Inbox/Intake 01 - Initial/File Register.csv", objectRole: "matter_artifact" },
+            { relativePath: "matter.json", objectRole: "matter_artifact" },
+          ],
+          deleted: [
+            { relativePath: "00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv" },
+          ],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native doctor fix");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/doctor/fix", {
+      matterName: "Legal Caption",
+      fixIds: ["legacy-layout"],
+    });
+
+    assert.equal(result.matterRoot, "postgres:DB Direct Doctor Fix Matter");
+    assert.equal(result.applied[0].id, "legacy-layout");
+    assert.deepEqual(result.remaining, []);
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "00_Inbox/Intake 01 - Initial/File Register.csv",
+      "matter.json",
+    ]);
+    assert.deepEqual(calls, [["fix", "DB Direct Doctor Fix Matter", "Legal Caption", ["legacy-layout"]]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs doctor fix through materialized DB write service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-doctor-fix");
   const runtimeMatter = runtimeDbMatter({

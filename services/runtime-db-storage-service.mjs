@@ -57,6 +57,7 @@ import {
   summarizeMaterializedDeletionRows,
   summarizeMaterializedRows,
 } from "./runtime-db-materialized-persistence-sql.mjs";
+import { runRuntimeDbDoctorFix } from "./runtime-db-doctor-fix.mjs";
 import { runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
 import { runRuntimeDbExtract } from "./runtime-db-extract-service.mjs";
@@ -604,6 +605,41 @@ export function createRuntimeDbStorageService({
     });
   }
 
+  async function fixDoctorIssues(matter, fixIds = [], options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const result = runRuntimeDbDoctorFix({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+      fixIds,
+      generatedAt: options.generatedAt,
+    });
+    const filesToPersist = result.files.map((file) => {
+      const bytes = Buffer.from(file.bytes || "");
+      return {
+        relativePath: file.relativePath,
+        bytes,
+        sha256: sha256Bytes(bytes),
+        sizeBytes: bytes.length,
+        objectRole: runtimeArtifactRoleForPath(file.relativePath),
+        mimeType: runtimeArtifactMimeTypeForPath(file.relativePath),
+      };
+    });
+    const persisted = filesToPersist.length
+      ? persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: filesToPersist })
+      : [];
+    const deleted = result.deleted.length
+      ? persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: result.deleted })
+      : [];
+    return {
+      operationResult: result.operationResult,
+      persisted,
+      deleted,
+    };
+  }
+
   async function readMatterAttention(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -774,6 +810,7 @@ export function createRuntimeDbStorageService({
     createMatterFromUploadedFiles,
     getRawFile,
     initializeMatter,
+    fixDoctorIssues,
     readDoctorScan,
     readMatterAttention,
     readMatterJson,

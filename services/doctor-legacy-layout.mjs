@@ -161,7 +161,7 @@ export function buildLegacyDescription(evidence) {
   return lines.join(" ");
 }
 
-function rewriteCsvText(originalText, dirRenameMap) {
+export function rewriteLegacyCsvText(originalText, dirRenameMap) {
   const lines = originalText.split(/\r?\n/);
   const trailingNewline = originalText.endsWith("\n");
   if (!lines.length) return originalText;
@@ -327,7 +327,7 @@ export async function fixLegacyLayout(matterRoot, evidence) {
   }
 
   for (const [csvPath, originalText] of newCsvLocations.entries()) {
-    await writeFileAtomic(csvPath, rewriteCsvText(originalText, dirRenameMap));
+    await writeFileAtomic(csvPath, rewriteLegacyCsvText(originalText, dirRenameMap));
     log.push(`Rewrote ${path.relative(matterRoot, csvPath)}`);
   }
 

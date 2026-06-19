@@ -1543,6 +1543,74 @@ test("runtime DB storage service scans legacy layout directly from DB payload cu
   assert.match(scan.issues[0].description, /Load_01_Initial/);
 });
 
+test("runtime DB storage service fixes legacy layout directly from DB payload custody", async () => {
+  const matterJson = JSON.stringify({
+    matter_name: "Legal Caption",
+    phase_1_intake: {
+      load_id: "INTAKE-01",
+      load_dir: "00_Inbox/Load_01_Initial",
+      raw_source_dir: "00_Inbox/Load_01_Initial/raw_source_files",
+      arranged_dir: "00_Inbox/Load_01_Initial/arranged_files",
+      normalization_log: "00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv",
+      duplicate_files: 0,
+    },
+  }, null, 2);
+  const fileRegister = [
+    "raw_file_id,load_id,preserved_path,arranged_path,source_sha256",
+    "FILE-0001,INTAKE-01,00_Inbox/Load_01_Initial/raw_source_files/agreement.pdf,00_Inbox/Load_01_Initial/arranged_files/documents_pdf/agreement.pdf,sha-source",
+  ].join("\n");
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", matterJson.length, true),
+          storageRow("DB Matter/00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv", "matter_artifact", "text/csv", fileRegister.length, true),
+          storageRow("DB Matter/00_Inbox/Load_01_Initial/raw_source_files/agreement.pdf", "source_original", "application/pdf", 8, true),
+          storageRow("DB Matter/00_Inbox/Load_01_Initial/arranged_files/documents_pdf/agreement.pdf", "source_working_copy", "application/pdf", 8, true),
+        ],
+      },
+      payloadRow("DB Matter/00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv", fileRegister, "text/csv"),
+      payloadRow("DB Matter/matter.json", matterJson, "application/json"),
+      payloadRow("DB Matter/00_Inbox/Load_01_Initial/arranged_files/documents_pdf/agreement.pdf", "%PDF new", "application/pdf"),
+      payloadRow("DB Matter/00_Inbox/Load_01_Initial/raw_source_files/agreement.pdf", "%PDF raw", "application/pdf"),
+      {},
+      {},
+    ]),
+  });
+
+  const result = await service.fixDoctorIssues(matter, ["legacy-layout"], {
+    generatedAt: "2026-06-19T09:00:00.000Z",
+  });
+
+  assert.equal(result.operationResult.applied.length, 1);
+  assert.equal(result.operationResult.applied[0].backupDir, ".doctor-backups/2026-06-19T09-00-00-000Z");
+  assert.deepEqual(result.operationResult.failed, []);
+  assert.deepEqual(result.operationResult.remaining, []);
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [
+    ".doctor-backups/2026-06-19T09-00-00-000Z/matter.json",
+    ".doctor-backups/2026-06-19T09-00-00-000Z/Load_01_Initial__Inbox_Normalization_Log.csv",
+    "00_Inbox/Intake 01 - Initial/By Type/PDFs/agreement.pdf",
+    "00_Inbox/Intake 01 - Initial/Originals/agreement.pdf",
+    "00_Inbox/Intake 01 - Initial/File Register.csv",
+    "matter.json",
+  ]);
+  assert.deepEqual(result.deleted.map((item) => item.relativePath), [
+    "00_Inbox/Load_01_Initial/arranged_files/documents_pdf/agreement.pdf",
+    "00_Inbox/Load_01_Initial/raw_source_files/agreement.pdf",
+    "00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv",
+  ]);
+  const persistSql = calls.at(-2).input;
+  assert.match(persistSql, /00_Inbox\/Intake 01 - Initial\/File Register\.csv/);
+  assert.match(persistSql, /00_Inbox\/Intake 01 - Initial\/By Type\/PDFs\/agreement\.pdf/);
+  const deleteSql = calls.at(-1).input;
+  assert.match(deleteSql, /deleted_pending/);
+  assert.match(deleteSql, /00_Inbox\/Load_01_Initial\/Inbox_Normalization_Log\.csv/);
+});
+
 test("runtime DB storage service builds matter context packets directly from DB payload custody", async () => {
   const matterJson = JSON.stringify({
     matter_name: "Legal Caption",
