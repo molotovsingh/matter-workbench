@@ -200,6 +200,13 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "Refresh List of Dates Labels",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            if (hasRuntimeDbListOfDatesLabelRefreshPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const result = await runtimeDbStorageService.refreshListOfDatesSourceLabels(matter, {
+                dryRun: Boolean(body.dryRun),
+              });
+              return runtimeDbWorkflowResponse(result, matter);
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -470,6 +477,11 @@ function hasRuntimeDbRerunAdvicePath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbDoctorScanPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.readDoctorScan === "function";
+}
+
+function hasRuntimeDbListOfDatesLabelRefreshPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.refreshListOfDatesSourceLabels === "function";
 }
 
 async function runTrackedWorkflow({

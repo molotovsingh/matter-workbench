@@ -794,6 +794,67 @@ test("runtime DB postgres storage mode runs list-of-dates label refresh through 
   }
 });
 
+test("runtime DB postgres storage mode refreshes List of Dates labels through DB-native storage service", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-lod-refresh");
+  const runtimeMatter = runtimeDbMatter({
+    id: "65656565-6565-4565-8565-656565656565",
+    name: "DB Direct Refresh Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Refresh Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async refreshListOfDatesSourceLabels(matter, options) {
+        calls.push(["db-refresh", matter.name, matter.matterName, Boolean(options.dryRun)]);
+        return {
+          operationResult: {
+            refreshMode: "label_refresh",
+            counts: { refreshedEntries: 1 },
+            outputPaths: { json: "10_Library/List of Dates.json" },
+          },
+          persisted: [{ relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" }],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native label refresh");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/create-listofdates/refresh-labels", {
+      matterName: "Legal Caption",
+    });
+
+    assert.equal(result.refreshMode, "label_refresh");
+    assert.equal(result.matterRoot, "postgres:DB Direct Refresh Matter");
+    assert.deepEqual(result.dbPersistence.persisted, [
+      { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
+    ]);
+    assert.deepEqual(calls, [["db-refresh", "DB Direct Refresh Matter", "Legal Caption", false]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode reads matter context through materialized DB read service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-context");
   const runtimeMatter = runtimeDbMatter({

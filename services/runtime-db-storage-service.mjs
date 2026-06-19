@@ -11,6 +11,7 @@ import { Readable } from "node:stream";
 import path from "node:path";
 import process from "node:process";
 
+import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
   WORKSPACE_PREVIEW_LIMITS,
@@ -364,6 +365,62 @@ export function createRuntimeDbStorageService({
     return stage?.rerunAdvice || null;
   }
 
+  async function refreshListOfDatesSourceLabels(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const matterJson = readRuntimeDbJsonPayload({
+      matter: normalizedMatter,
+      relativePath: "matter.json",
+      label: "matter.json",
+      readPayloadRow,
+      missingMessage: "matter.json is missing from DB payload custody. Run /matter-init first.",
+      missingCode: "runtime_db.listofdates_refresh.matter_missing",
+    });
+    const listJson = readRuntimeDbJsonPayload({
+      matter: normalizedMatter,
+      relativePath: "10_Library/List of Dates.json",
+      label: "List of Dates",
+      readPayloadRow,
+      missingMessage: "List of Dates artifact is missing from DB payload custody. Run /create_listofdates first.",
+      missingCode: "runtime_db.listofdates_refresh.list_missing",
+    });
+    const sourceIndex = readRuntimeDbJsonPayload({
+      matter: normalizedMatter,
+      relativePath: "10_Library/Source Index.json",
+      label: "Source Index",
+      readPayloadRow,
+      missingMessage: "Source Index artifact is missing from DB payload custody. Run /describe_sources first.",
+      missingCode: "runtime_db.listofdates_refresh.source_index_missing",
+    });
+    const { response, files } = buildListOfDatesSourceLabelRefresh({
+      matterRoot: `postgres:${normalizedMatter.name}`,
+      matterJson,
+      listJson,
+      sourceIndex,
+      dryRun: Boolean(options.dryRun),
+      generatedAt: options.generatedAt,
+    });
+    const filesToPersist = files.map((file) => {
+      const bytes = Buffer.from(file.text || "", "utf8");
+      const sha256 = sha256Bytes(bytes);
+      return {
+        relativePath: file.relativePath,
+        bytes,
+        sha256,
+        sizeBytes: bytes.length,
+        objectRole: runtimeArtifactRoleForPath(file.relativePath),
+        mimeType: runtimeArtifactMimeTypeForPath(file.relativePath),
+      };
+    });
+    const persisted = options.dryRun
+      ? []
+      : persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: filesToPersist });
+    return {
+      operationResult: response,
+      persisted,
+    };
+  }
+
   async function readDoctorScan(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -542,6 +599,7 @@ export function createRuntimeDbStorageService({
     getRawFile,
     readDoctorScan,
     readMatterAttention,
+    refreshListOfDatesSourceLabels,
     readMatterContextPacket,
     readMatterStatus,
     readPrepareMatterPlan,
@@ -575,6 +633,30 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
 function runtimeDbStoragePsqlMaxBuffer() {
   const configured = Number(process.env.MWB_RUNTIME_DB_STORAGE_PSQL_MAX_BUFFER_BYTES);
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
+}
+
+function readRuntimeDbJsonPayload({
+  matter,
+  relativePath,
+  label,
+  readPayloadRow,
+  missingMessage,
+  missingCode,
+} = {}) {
+  let payload;
+  try {
+    payload = readPayloadRow({ matter, relativePath });
+  } catch (error) {
+    if (error?.statusCode === 404) {
+      throw makeHttpError(missingMessage || `${label} is missing from DB payload custody.`, 404, missingCode || "runtime_db.json_payload.missing");
+    }
+    throw error;
+  }
+  try {
+    return JSON.parse(payload.bytes.toString("utf8"));
+  } catch (error) {
+    throw makeHttpError(`${label} payload is invalid JSON: ${error.message}`, 400, "runtime_db.json_payload.invalid_json");
+  }
 }
 
 function normalizeWorkflowSkill(value = "") {

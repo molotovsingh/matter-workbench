@@ -1144,6 +1144,91 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service refreshes List of Dates labels directly in DB custody", async () => {
+  const matterJson = {
+    matter_name: "Legal Caption",
+    client_name: "Client A",
+  };
+  const listJson = {
+    schema_version: "list-of-dates/v1",
+    engine_version: "create-listofdates-v1-ai",
+    source_record_count: 1,
+    source_snapshot: [{
+      file_id: "FILE-0001",
+      source_id: "FILE-0001",
+      content_hash: "hash-source",
+      document_type: "agreement",
+      document_date: "2026-04-20",
+      needs_review: false,
+      source_label: "Old label",
+      source_short_label: "Old",
+    }],
+    entries: [{
+      date_iso: "2026-04-20",
+      date_text: "20 April 2026",
+      event: "Agreement was signed.",
+      event_type: "agreement",
+      legal_relevance: "Supports the chronology.",
+      issue_tags: ["agreement"],
+      perspective: "client_favourable",
+      citation: "FILE-0001 p1.b1",
+      source_file_id: "FILE-0001",
+      source_id: "FILE-0001",
+      content_hash: "hash-source",
+      source_label: "Old label",
+      source_short_label: "Old",
+      file_id: "FILE-0001",
+      source_path: "source/agreement.pdf",
+      page: 1,
+      block_id: "p1.b1",
+      needs_review: false,
+      confidence: 0.9,
+    }],
+  };
+  const sourceIndex = {
+    schema_version: "source-index/v1",
+    sources: [{
+      file_id: "FILE-0001",
+      source_id: "FILE-0001",
+      content_hash: "hash-source",
+      display_label: "Agreement note dated 20 April 2026",
+      short_label: "Agreement note",
+      document_type: "agreement",
+      document_date: "2026-04-20",
+      needs_review: false,
+      label_status: "suggested",
+      label_revision: 2,
+    }],
+  };
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      payloadRow("DB Matter/matter.json", JSON.stringify(matterJson), "application/json"),
+      payloadRow("DB Matter/10_Library/List of Dates.json", JSON.stringify(listJson), "application/json"),
+      payloadRow("DB Matter/10_Library/Source Index.json", JSON.stringify(sourceIndex), "application/json"),
+      {},
+    ]),
+  });
+
+  const result = await service.refreshListOfDatesSourceLabels(matter, { generatedAt: "2026-06-19T00:00:00.000Z" });
+
+  assert.equal(result.operationResult.refreshMode, "label_refresh");
+  assert.equal(result.operationResult.counts.refreshedEntries, 1);
+  assert.equal(result.operationResult.entries[0].source_label, "Agreement note dated 20 April 2026");
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [
+    "10_Library/List of Dates.json",
+    "10_Library/List of Dates.csv",
+    "10_Library/List of Dates.md",
+  ]);
+  const sql = calls.at(-1).input;
+  assert.match(sql, /insert into storage_objects/i);
+  assert.match(sql, /10_Library\/List of Dates\.json/);
+  assert.match(sql, /10_Library\/List of Dates\.csv/);
+  assert.match(sql, /10_Library\/List of Dates\.md/);
+});
+
 test("runtime DB storage service scans legacy layout directly from DB payload custody", async () => {
   const matterJson = JSON.stringify({
     matter_name: "Legal Caption",

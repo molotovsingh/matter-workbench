@@ -3,13 +3,12 @@ import path from "node:path";
 import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { renderListOfDatesMarkdown } from "../create-listofdates-engine.mjs";
 import { toCsv } from "../shared/csv.mjs";
-import { toPosix } from "../shared/safe-paths.mjs";
 import {
   normalizeSourceLabelText,
   sourceLabelMetadata,
 } from "../shared/source-labels.mjs";
 
-const LIST_OF_DATES_CSV_HEADERS = [
+export const LIST_OF_DATES_CSV_HEADERS = [
   "date_iso",
   "date_text",
   "event",
@@ -44,6 +43,38 @@ export async function refreshListOfDatesSourceLabels(options = {}) {
   const outputDir = path.join(matterRoot, "10_Library");
   const listJson = await readListOfDatesArtifact(path.join(outputDir, "List of Dates.json"));
   const sourceIndex = await readSourceIndexArtifact(path.join(outputDir, "Source Index.json"));
+  const matterJson = await readMatterJson(matterRoot);
+  const { response, files } = buildListOfDatesSourceLabelRefresh({
+    matterRoot,
+    matterJson,
+    listJson,
+    sourceIndex,
+    dryRun,
+    generatedAt: options.generatedAt,
+  });
+
+  if (!dryRun) {
+    await mkdir(outputDir, { recursive: true });
+    for (const file of files) {
+      const filePath = path.join(matterRoot, ...file.relativePath.split("/"));
+      if (file.kind === "json") await writeJsonFile(filePath, file.json);
+      else await writeFileAtomic(filePath, file.text);
+    }
+  }
+
+  return response;
+}
+
+export function buildListOfDatesSourceLabelRefresh({
+  matterRoot = "",
+  matterJson = {},
+  listJson = {},
+  sourceIndex = {},
+  dryRun = false,
+  generatedAt = new Date().toISOString(),
+} = {}) {
+  validateListOfDatesArtifact(listJson);
+  validateSourceIndexArtifact(sourceIndex);
   const labelIndex = buildLabelRefreshIndex({
     snapshot: listJson.source_snapshot,
     sourceIndex,
@@ -53,34 +84,27 @@ export async function refreshListOfDatesSourceLabels(options = {}) {
     labelIndex,
   });
   const refreshedSnapshot = refreshSourceSnapshotLabels(listJson.source_snapshot, labelIndex);
-  const matterJson = await readMatterJson(matterRoot);
   const engineVersion = listJson.engine_version || "create-listofdates-v1-ai";
   const nextJson = {
     ...listJson,
-    label_refreshed_at: new Date().toISOString(),
+    label_refreshed_at: generatedAt,
     source_snapshot: refreshedSnapshot,
     entries: refresh.entries,
   };
+  const csvText = toCsv(refresh.entries, LIST_OF_DATES_CSV_HEADERS);
+  const markdownText = renderListOfDatesMarkdown(matterJson, refresh.entries, engineVersion);
   const outputPaths = {
-    directory: toPosix(path.relative(matterRoot, outputDir)),
-    json: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.json"))),
-    csv: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.csv"))),
-    markdown: toPosix(path.relative(matterRoot, path.join(outputDir, "List of Dates.md"))),
+    directory: "10_Library",
+    json: "10_Library/List of Dates.json",
+    csv: "10_Library/List of Dates.csv",
+    markdown: "10_Library/List of Dates.md",
   };
   const outputLines = [
     `> workbench.run /create_listofdates --refresh-labels${dryRun ? " (dry-run)" : ""}`,
     "[listofdates] read 10_Library/List of Dates.json",
     `[listofdates] checked ${labelIndex.size} source label record(s) without calling an AI provider`,
+    `[listofdates] refreshed ${refresh.refreshedEntries} chronology row label(s)`,
   ];
-
-  if (!dryRun) {
-    await mkdir(outputDir, { recursive: true });
-    await writeJsonFile(path.join(outputDir, "List of Dates.json"), nextJson);
-    await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(refresh.entries, LIST_OF_DATES_CSV_HEADERS));
-    await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(matterJson, refresh.entries, engineVersion));
-  }
-
-  outputLines.push(`[listofdates] refreshed ${refresh.refreshedEntries} chronology row label(s)`);
   if (refresh.refreshedSupportingSources) {
     outputLines.push(`[listofdates] refreshed ${refresh.refreshedSupportingSources} supporting source label(s)`);
   }
@@ -89,26 +113,33 @@ export async function refreshListOfDatesSourceLabels(options = {}) {
     : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
 
   return {
-    dryRun,
-    matterRoot,
-    engineVersion,
-    refreshMode: "label_refresh",
-    counts: {
-      recordsRead: listJson.source_record_count || 0,
-      blocksSent: 0,
-      blocksFiltered: 0,
-      aiRequests: 0,
-      candidateEntries: 0,
-      acceptedEntries: refresh.entries.length,
-      clusteredEntries: 0,
-      entries: refresh.entries.length,
-      rejectedEntries: 0,
-      refreshedEntries: refresh.refreshedEntries,
-      refreshedSupportingSources: refresh.refreshedSupportingSources,
+    response: {
+      dryRun,
+      matterRoot,
+      engineVersion,
+      refreshMode: "label_refresh",
+      counts: {
+        recordsRead: listJson.source_record_count || 0,
+        blocksSent: 0,
+        blocksFiltered: 0,
+        aiRequests: 0,
+        candidateEntries: 0,
+        acceptedEntries: refresh.entries.length,
+        clusteredEntries: 0,
+        entries: refresh.entries.length,
+        rejectedEntries: 0,
+        refreshedEntries: refresh.refreshedEntries,
+        refreshedSupportingSources: refresh.refreshedSupportingSources,
+      },
+      outputPaths,
+      entries: refresh.entries,
+      outputLines,
     },
-    outputPaths,
-    entries: refresh.entries,
-    outputLines,
+    files: [
+      { relativePath: outputPaths.json, kind: "json", json: nextJson, text: `${JSON.stringify(nextJson, null, 2)}\n` },
+      { relativePath: outputPaths.csv, kind: "csv", text: csvText },
+      { relativePath: outputPaths.markdown, kind: "markdown", text: markdownText },
+    ],
   };
 }
 
@@ -130,11 +161,7 @@ async function readListOfDatesArtifact(filePath) {
     wrapped.statusCode = 404;
     throw wrapped;
   }
-  if (artifact?.schema_version !== "list-of-dates/v1" || !Array.isArray(artifact.entries)) {
-    const error = new Error("List of Dates artifact is not a supported list-of-dates/v1 JSON file.");
-    error.statusCode = 400;
-    throw error;
-  }
+  validateListOfDatesArtifact(artifact);
   return artifact;
 }
 
@@ -147,12 +174,24 @@ async function readSourceIndexArtifact(filePath) {
     wrapped.statusCode = 404;
     throw wrapped;
   }
+  validateSourceIndexArtifact(artifact);
+  return artifact;
+}
+
+function validateListOfDatesArtifact(artifact) {
+  if (artifact?.schema_version !== "list-of-dates/v1" || !Array.isArray(artifact.entries)) {
+    const error = new Error("List of Dates artifact is not a supported list-of-dates/v1 JSON file.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function validateSourceIndexArtifact(artifact) {
   if (artifact?.schema_version !== "source-index/v1" || !Array.isArray(artifact.sources)) {
     const error = new Error("Source Index artifact is not a supported source-index/v1 JSON file.");
     error.statusCode = 400;
     throw error;
   }
-  return artifact;
 }
 
 async function writeJsonFile(filePath, value) {
