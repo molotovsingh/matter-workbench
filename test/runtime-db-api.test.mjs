@@ -2415,7 +2415,7 @@ test("runtime DB sample output reads DB-native context before building sample", 
 });
 
 test("runtime DB sample output provider failures are recorded as job telemetry", async () => {
-  const { appDir, mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-sample-output-fail");
+  const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sample-output-fail");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
   const server = await startRuntimeDbTestServer({
     appDir,
@@ -2426,10 +2426,11 @@ test("runtime DB sample output provider failures are recorded as job telemetry",
     },
     runtimeDbStorageService: {
       enabled: true,
-      async runMaterializedMatterRead(targetMatter, operation) {
-        const matterRoot = path.join(materializedRoot, targetMatter.name);
-        await writeExtractedTextMatter(matterRoot, targetMatter);
-        return operation({ matterRoot, matter: targetMatter });
+      async readMatterContextPacket(targetMatter) {
+        return directRuntimeDbMatterContextPacket(targetMatter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native sample output failures");
       },
     },
     skillSampleOutputProvider: async () => {

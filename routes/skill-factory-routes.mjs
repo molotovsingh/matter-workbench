@@ -80,7 +80,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           jobStatusService,
           matterName: matterNameForSampleJob(matterStore, body),
           operation: async () => {
-            const sample = hasRuntimeDbSampleOutputPath(matterStore, runtimeDbStorageService, skillSampleOutputService)
+            const sample = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
               ? await generateRuntimeDbSampleOutput({
                 matterStore,
                 runtimeDbStorageService,
@@ -135,7 +135,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           skillRouterService,
           overrideJustification: body.overlapOverrideJustification,
         });
-        if (hasRuntimeDbSkillCreationPath(matterStore, runtimeDbStorageService)) {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await createRuntimeDbSkillFromApprovedSample({
             configurableSkillsService,
             matterStore,
@@ -269,28 +269,6 @@ function hasRuntimeDbConfigurableSkillRunPath(matterStore, runtimeDbStorageServi
     && typeof runtimeDbStorageService.persistTextArtifacts === "function";
 }
 
-function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && typeof runtimeDbStorageService.runMaterializedMatterRead === "function";
-}
-
-function hasRuntimeDbSampleOutputPath(matterStore, runtimeDbStorageService, skillSampleOutputService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && (
-      typeof runtimeDbStorageService.runMaterializedMatterRead === "function"
-      || (typeof runtimeDbStorageService.readMatterContextPacket === "function"
-        && typeof skillSampleOutputService.generateSampleOutputFromPacket === "function")
-    );
-}
-
-function hasRuntimeDbSkillCreationPath(matterStore, runtimeDbStorageService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && (
-      typeof runtimeDbStorageService.runMaterializedMatterRead === "function"
-      || typeof runtimeDbStorageService.readMatterContextPacket === "function"
-    );
-}
-
 async function generateRuntimeDbSampleOutput({
   matterStore,
   runtimeDbStorageService,
@@ -299,22 +277,14 @@ async function generateRuntimeDbSampleOutput({
 }) {
   const idea = body.idea || {};
   const matter = await runtimeDbMatterForBody(matterStore, matterNameForSampleOutput(body));
-  if (typeof runtimeDbStorageService.readMatterContextPacket === "function"
-    && typeof skillSampleOutputService.generateSampleOutputFromPacket === "function") {
-    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-    return skillSampleOutputService.generateSampleOutputFromPacket({
-      idea,
-      feedback: body.feedback || "",
-      previousSample: body.previousSample || "",
-      packet,
-    });
-  }
-  return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => skillSampleOutputService.generateSampleOutput({
+  assertRuntimeDbMatterContextPacketAvailable({ runtimeDbStorageService, skillSampleOutputService });
+  const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+  return skillSampleOutputService.generateSampleOutputFromPacket({
     idea,
     feedback: body.feedback || "",
     previousSample: body.previousSample || "",
-    matterRootOverride: matterRoot,
-  }));
+    packet,
+  });
 }
 
 async function createRuntimeDbSkillFromApprovedSample({
@@ -325,20 +295,31 @@ async function createRuntimeDbSkillFromApprovedSample({
   ideaId = "",
 }) {
   const matter = await runtimeDbMatterForBody(matterStore, matterNameForIdea(idea));
-  if (typeof runtimeDbStorageService.readMatterContextPacket === "function") {
-    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-    return configurableSkillsService.createSkillFromApprovedSample({
-      ideaId,
-      matterRootOverride: `postgres:${matter.name}`,
-      matterRecordOverride: matter,
-      matterContextPacketOverride: packet,
-    });
-  }
-  return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => configurableSkillsService.createSkillFromApprovedSample({
+  assertRuntimeDbMatterContextPacketAvailable({ runtimeDbStorageService });
+  const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+  return configurableSkillsService.createSkillFromApprovedSample({
     ideaId,
-    matterRootOverride: matterRoot,
+    matterRootOverride: `postgres:${matter.name}`,
     matterRecordOverride: matter,
-  }));
+    matterContextPacketOverride: packet,
+  });
+}
+
+function assertRuntimeDbMatterContextPacketAvailable({ runtimeDbStorageService, skillSampleOutputService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function") {
+    throw makeHttpError(
+      "Matter context is not available for this skill workflow. Ask the operator to check the workspace setup.",
+      409,
+      "skill_factory.context_required",
+    );
+  }
+  if (skillSampleOutputService && typeof skillSampleOutputService.generateSampleOutputFromPacket !== "function") {
+    throw makeHttpError(
+      "Matter context is not available for this skill workflow. Ask the operator to check the workspace setup.",
+      409,
+      "skill_factory.context_required",
+    );
+  }
 }
 
 function matterNameForSampleOutput(body = {}) {
