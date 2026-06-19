@@ -283,7 +283,7 @@ test("runtime DB postgres storage mode serves workspace and files without local 
     });
     const extractBody = await extract.json();
     assert.equal(extract.status, 409);
-    assert.match(extractBody.error, /DB storage mode/i);
+    assert.equal(extractBody.code, "matter_workflow.extraction_required");
 
     assert.deepEqual(calls, [
       ["workspace", "DB Listed Matter"],
@@ -518,7 +518,7 @@ test("runtime DB postgres storage mode runs matter-init from DB-native custody",
   }
 });
 
-test("runtime DB postgres storage mode runs matter-init through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native matter-init helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-init");
   const runtimeMatter = runtimeDbMatter({
     id: "22222222-2222-4222-8222-222222222222",
@@ -568,20 +568,22 @@ test("runtime DB postgres storage mode runs matter-init through materialized DB 
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/matter-init", {
-      matterName: "Legal Caption",
-      metadata: {
+    const response = await fetch(`${baseUrl}/api/matter-init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
         matterName: "Legal Caption",
-        clientName: "Runtime Client",
-      },
+        metadata: {
+          matterName: "Legal Caption",
+          clientName: "Runtime Client",
+        },
+      }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.counts.scannedFiles, 1);
-    assert.equal(result.matterRoot, "postgres:DB Init Matter");
-    assert.deepEqual(result.dbPersistence.persisted, [
-      { relativePath: "00_Inbox/Intake 01 - Initial/File Register.csv", objectRole: "matter_artifact" },
-    ]);
-    assert.deepEqual(calls, [["write", "DB Init Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.matter_init_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -655,7 +657,7 @@ test("runtime DB postgres storage mode runs extract from DB-native custody", asy
   }
 });
 
-test("runtime DB postgres storage mode runs extract through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native extraction helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-extract");
   const runtimeMatter = runtimeDbMatter({
     id: "33333333-3333-4333-8333-333333333333",
@@ -715,19 +717,19 @@ test("runtime DB postgres storage mode runs extract through materialized DB writ
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/extract", {
-      matterName: "Legal Caption",
-      forceRefresh: true,
+    const response = await fetch(`${baseUrl}/api/extract`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matterName: "Legal Caption",
+        forceRefresh: true,
+      }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.counts.extracted, 1);
-    assert.equal(result.counts.failed, 0);
-    assert.equal(result.matterRoot, "postgres:DB Extract Matter");
-    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
-      "00_Inbox/Intake 01 - Initial/Extraction Log.csv",
-      "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json",
-    ]);
-    assert.deepEqual(calls, [["write", "DB Extract Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.extraction_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -795,7 +797,7 @@ test("runtime DB postgres storage mode runs source labels from DB-native custody
   }
 });
 
-test("runtime DB postgres storage mode runs source labels through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native source-label helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sources");
   const runtimeMatter = runtimeDbMatter({
     id: "44444444-4444-4444-8444-444444444444",
@@ -842,17 +844,16 @@ test("runtime DB postgres storage mode runs source labels through materialized D
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/describe-sources", {
-      matterName: "Legal Caption",
+    const response = await fetch(`${baseUrl}/api/describe-sources`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matterName: "Legal Caption" }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.counts.recordsRead, 1);
-    assert.equal(result.counts.descriptors, 1);
-    assert.equal(result.matterRoot, "postgres:DB Source Matter");
-    assert.deepEqual(result.dbPersistence.persisted, [
-      { relativePath: "10_Library/Source Index.json", objectRole: "matter_artifact" },
-    ]);
-    assert.deepEqual(calls, [["write", "DB Source Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.source_labels_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -1003,7 +1004,7 @@ test("runtime DB postgres storage mode runs two-pass create-listofdates from DB-
   }
 });
 
-test("runtime DB postgres storage mode runs create-listofdates through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native List of Dates helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-lod");
   const runtimeMatter = runtimeDbMatter({
     id: "55555555-5555-4555-8555-555555555555",
@@ -1062,24 +1063,22 @@ test("runtime DB postgres storage mode runs create-listofdates through materiali
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/create-listofdates", {
-      matterName: "Legal Caption",
+    const response = await fetch(`${baseUrl}/api/create-listofdates`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matterName: "Legal Caption" }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.counts.recordsRead, 1);
-    assert.equal(result.counts.entries, 1);
-    assert.equal(result.matterRoot, "postgres:DB Chronology Matter");
-    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
-      "10_Library/List of Dates.json",
-      "10_Library/List of Dates.md",
-    ]);
-    assert.deepEqual(calls, [["write", "DB Chronology Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.list_of_dates_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
 });
 
-test("runtime DB postgres storage mode runs list-of-dates label refresh through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native List of Dates label-refresh helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-lod-refresh");
   const runtimeMatter = runtimeDbMatter({
     id: "66666666-6666-4666-8666-666666666666",
@@ -1124,18 +1123,16 @@ test("runtime DB postgres storage mode runs list-of-dates label refresh through 
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/create-listofdates/refresh-labels", {
-      matterName: "Legal Caption",
+    const response = await fetch(`${baseUrl}/api/create-listofdates/refresh-labels`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matterName: "Legal Caption" }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.refreshMode, "label_refresh");
-    assert.equal(result.counts.refreshedEntries, 1);
-    assert.equal(result.matterRoot, "postgres:DB Refresh Matter");
-    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
-      "10_Library/List of Dates.json",
-      "10_Library/List of Dates.md",
-    ]);
-    assert.deepEqual(calls, [["write", "DB Refresh Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.label_refresh_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -1202,7 +1199,7 @@ test("runtime DB postgres storage mode refreshes List of Dates labels through DB
   }
 });
 
-test("runtime DB postgres storage mode reads matter context through materialized DB read service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native matter context helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-context");
   const runtimeMatter = runtimeDbMatter({
     id: "77777777-7777-4777-8777-777777777777",
@@ -1240,29 +1237,22 @@ test("runtime DB postgres storage mode reads matter context through materialized
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const context = await getJson(baseUrl, "/api/matter-context?matter=Legal%20Caption");
-    assert.equal(context.schema_version, "matter-context-preview/v1");
-    assert.equal(context.matterRoot, "postgres:DB Context Matter");
-    assert.equal(context.matterName, "Legal Caption");
-    assert.equal(context.counts.file_registers, 1);
-    assert.equal(context.counts.evidence_blocks_included, 1);
+    const contextResponse = await fetch(`${baseUrl}/api/matter-context?matter=Legal%20Caption`);
+    const contextPayload = await contextResponse.json();
+    assert.equal(contextResponse.status, 409);
+    assert.equal(contextPayload.code, "matter_workflow.context_required");
 
-    const search = await getJson(baseUrl, "/api/matter-context/search?matter=Legal%20Caption&q=agreement");
-    assert.equal(search.schema_version, "matter-context-search/v1");
-    assert.equal(search.matterRoot, "postgres:DB Context Matter");
-    assert.equal(search.matterName, "Legal Caption");
-    assert.equal(search.counts.matches, 1);
-    assert.match(search.results[0].snippet, /Agreement was signed/);
-    assert.deepEqual(calls, [
-      ["read", "DB Context Matter", "Legal Caption"],
-      ["read", "DB Context Matter", "Legal Caption"],
-    ]);
+    const searchResponse = await fetch(`${baseUrl}/api/matter-context/search?matter=Legal%20Caption&q=agreement`);
+    const searchPayload = await searchResponse.json();
+    assert.equal(searchResponse.status, 409);
+    assert.equal(searchPayload.code, "matter_workflow.context_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
 });
 
-test("runtime DB postgres storage mode answers copilot from materialized DB matter context", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native copilot context helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-copilot");
   const runtimeMatter = runtimeDbMatter({
     id: "88888888-8888-4888-8888-888888888888",
@@ -1315,20 +1305,19 @@ test("runtime DB postgres storage mode answers copilot from materialized DB matt
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const answer = await postJson(baseUrl, "/api/matter-copilot/answer", {
-      matterName: "Legal Caption",
-      question: "When was the agreement signed?",
+    const response = await fetch(`${baseUrl}/api/matter-copilot/answer`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matterName: "Legal Caption",
+        question: "When was the agreement signed?",
+      }),
     });
+    const payload = await response.json();
 
-    assert.equal(answer.schema_version, "matter-copilot-answer/v1");
-    assert.equal(answer.matterRoot, "postgres:DB Copilot Matter");
-    assert.equal(answer.matterName, "Legal Caption");
-    assert.equal(answer.answer_status, "answered");
-    assert.equal(answer.sources[0].raw_citation, "FILE-0001 p1.b1");
-    assert.deepEqual(calls, [
-      ["read", "DB Copilot Matter", "Legal Caption"],
-      ["provider", "When was the agreement signed?", 1],
-    ]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.context_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -1568,7 +1557,7 @@ test("runtime DB postgres storage mode reads rerun advice from DB-native status 
   }
 });
 
-test("runtime DB postgres storage mode reads rerun advice and doctor scan through materialized DB read service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native status and doctor scan helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-read-tools");
   const runtimeMatter = runtimeDbMatter({
     id: "99999999-9999-4999-8999-999999999999",
@@ -1606,21 +1595,20 @@ test("runtime DB postgres storage mode reads rerun advice and doctor scan throug
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const advice = await getJson(baseUrl, "/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates");
-    assert.equal(typeof advice.state, "string");
-    assert.equal(advice.matterRoot, "postgres:DB Read Tools Matter");
-    assert.equal(advice.matterName, "Legal Caption");
+    const adviceResponse = await fetch(`${baseUrl}/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates`);
+    const advicePayload = await adviceResponse.json();
+    assert.equal(adviceResponse.status, 409);
+    assert.equal(advicePayload.code, "matter_workflow.status_required");
 
-    const scan = await postJson(baseUrl, "/api/doctor/scan", {
-      matterName: "Legal Caption",
+    const scanResponse = await fetch(`${baseUrl}/api/doctor/scan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matterName: "Legal Caption" }),
     });
-    assert.deepEqual(scan.issues, []);
-    assert.equal(scan.matterRoot, "postgres:DB Read Tools Matter");
-    assert.equal(scan.matterName, "Legal Caption");
-    assert.deepEqual(calls, [
-      ["read", "DB Read Tools Matter", "Legal Caption"],
-      ["read", "DB Read Tools Matter", "Legal Caption"],
-    ]);
+    const scanPayload = await scanResponse.json();
+    assert.equal(scanResponse.status, 409);
+    assert.equal(scanPayload.code, "matter_workflow.doctor_scan_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
@@ -1696,7 +1684,7 @@ test("runtime DB postgres storage mode runs doctor fix from DB-native custody", 
   }
 });
 
-test("runtime DB postgres storage mode runs doctor fix through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native doctor fix helpers", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-doctor-fix");
   const runtimeMatter = runtimeDbMatter({
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -1738,16 +1726,19 @@ test("runtime DB postgres storage mode runs doctor fix through materialized DB w
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/doctor/fix", {
-      matterName: "Legal Caption",
-      fixIds: ["legacy-layout"],
+    const response = await fetch(`${baseUrl}/api/doctor/fix`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matterName: "Legal Caption",
+        fixIds: ["legacy-layout"],
+      }),
     });
+    const payload = await response.json();
 
-    assert.deepEqual(result.applied, []);
-    assert.deepEqual(result.failed, []);
-    assert.deepEqual(result.remaining, []);
-    assert.deepEqual(result.dbPersistence.persisted, []);
-    assert.deepEqual(calls, [["write", "DB Doctor Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.doctor_fix_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }

@@ -4,15 +4,71 @@ import test from "node:test";
 
 const matterWorkflowRoutesPath = new URL("../routes/matter-workflow-routes.mjs", import.meta.url);
 
-test("runtime DB matter story route stays DB-native", async () => {
+async function readRouteSource(startMarker, endMarker) {
   const source = await readFile(matterWorkflowRoutesPath, "utf8");
-  const routeStart = source.indexOf('exactRoute("POST", "/api/matter-story"');
-  const nextRouteStart = source.indexOf('exactRoute("POST", "/api/doctor/scan"', routeStart);
+  const routeStart = source.indexOf(startMarker);
+  const nextRouteStart = source.indexOf(endMarker, routeStart);
 
   assert.notEqual(routeStart, -1);
   assert.notEqual(nextRouteStart, -1);
 
-  const routeSource = source.slice(routeStart, nextRouteStart);
+  return source.slice(routeStart, nextRouteStart);
+}
+
+test("runtime DB setup and analysis write routes stay DB-native", async () => {
+  const initSource = await readRouteSource(
+    'exactRoute("POST", "/api/matter-init"',
+    'exactRoute("POST", "/api/extract"',
+  );
+  const extractSource = await readRouteSource(
+    'exactRoute("POST", "/api/extract"',
+    'exactRoute("POST", "/api/describe-sources"',
+  );
+  const labelsSource = await readRouteSource(
+    'exactRoute("POST", "/api/describe-sources"',
+    'exactRoute("POST", "/api/create-listofdates"',
+  );
+  const listSource = await readRouteSource(
+    'exactRoute("POST", "/api/create-listofdates"',
+    'exactRoute("POST", "/api/create-listofdates/refresh-labels"',
+  );
+  const refreshSource = await readRouteSource(
+    'exactRoute("POST", "/api/create-listofdates/refresh-labels"',
+    'exactRoute("POST", "/api/matter-story"',
+  );
+
+  assert.match(initSource, /assertRuntimeDbMatterInitAvailable/);
+  assert.match(initSource, /initializeMatter/);
+  assert.doesNotMatch(initSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(initSource, /runMaterializedMatterWrite/);
+
+  assert.match(extractSource, /assertRuntimeDbExtractAvailable/);
+  assert.match(extractSource, /extractDocuments/);
+  assert.doesNotMatch(extractSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(extractSource, /runMaterializedMatterWrite/);
+
+  assert.match(labelsSource, /assertRuntimeDbSourceDescriptorsAvailable/);
+  assert.match(labelsSource, /describeSources/);
+  assert.doesNotMatch(labelsSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(labelsSource, /runMaterializedMatterWrite/);
+
+  assert.match(listSource, /assertRuntimeDbCreateListOfDatesAvailable/);
+  assert.match(listSource, /createListOfDates/);
+  assert.doesNotMatch(listSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(listSource, /runMaterializedMatterWrite/);
+
+  assert.match(refreshSource, /assertRuntimeDbListOfDatesLabelRefreshAvailable/);
+  assert.match(refreshSource, /refreshListOfDatesSourceLabels/);
+  assert.doesNotMatch(refreshSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(refreshSource, /runMaterializedMatterWrite/);
+});
+
+test("runtime DB matter story route stays DB-native", async () => {
+  const routeSource = await readRouteSource(
+    'exactRoute("POST", "/api/matter-story"',
+    'exactRoute("POST", "/api/doctor/scan"',
+  );
+
   assert.match(routeSource, /assertRuntimeDbMatterStoryAvailable/);
   assert.match(routeSource, /readMatterContextPacket/);
   assert.match(routeSource, /readMatterJson/);
@@ -21,4 +77,64 @@ test("runtime DB matter story route stays DB-native", async () => {
   assert.doesNotMatch(routeSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(routeSource, /runMaterializedMatterWrite/);
   assert.doesNotMatch(routeSource, /matterRootOverride: matterRoot/);
+});
+
+test("runtime DB doctor read and fix routes stay DB-native", async () => {
+  const scanSource = await readRouteSource(
+    'exactRoute("POST", "/api/doctor/scan"',
+    'exactRoute("POST", "/api/doctor/fix"',
+  );
+  const fixSource = await readRouteSource(
+    'exactRoute("POST", "/api/doctor/fix"',
+    'exactRoute("GET", "/api/matter-status"',
+  );
+
+  assert.match(scanSource, /assertRuntimeDbDoctorScanAvailable/);
+  assert.match(scanSource, /readDoctorScan/);
+  assert.doesNotMatch(scanSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(scanSource, /runMaterializedMatterRead/);
+
+  assert.match(fixSource, /assertRuntimeDbDoctorFixAvailable/);
+  assert.match(fixSource, /fixDoctorIssues/);
+  assert.doesNotMatch(fixSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(fixSource, /runMaterializedMatterWrite/);
+});
+
+test("runtime DB matter context and rerun advice read routes stay DB-native", async () => {
+  const searchSource = await readRouteSource(
+    'exactRoute("GET", "/api/matter-context/search"',
+    'exactRoute("GET", "/api/matter-context"',
+  );
+  const contextSource = await readRouteSource(
+    'exactRoute("GET", "/api/matter-context"',
+    'exactRoute("POST", "/api/matter-copilot/answer"',
+  );
+  const copilotSource = await readRouteSource(
+    'exactRoute("POST", "/api/matter-copilot/answer"',
+    'exactRoute("GET", "/api/rerun-advice"',
+  );
+  const adviceSource = await readRouteSource(
+    'exactRoute("GET", "/api/rerun-advice"',
+    "    ],\n  });\n}",
+  );
+
+  assert.match(searchSource, /assertRuntimeDbContextReadAvailable/);
+  assert.match(searchSource, /readMatterContextPacket/);
+  assert.doesNotMatch(searchSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(searchSource, /runMaterializedMatterRead/);
+
+  assert.match(contextSource, /assertRuntimeDbContextReadAvailable/);
+  assert.match(contextSource, /readMatterContextPacket/);
+  assert.doesNotMatch(contextSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(contextSource, /runMaterializedMatterRead/);
+
+  assert.match(copilotSource, /assertRuntimeDbCopilotContextAvailable/);
+  assert.match(copilotSource, /answerQuestionFromPacket/);
+  assert.doesNotMatch(copilotSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(copilotSource, /runMaterializedMatterRead/);
+
+  assert.match(adviceSource, /assertRuntimeDbRerunAdviceAvailable/);
+  assert.match(adviceSource, /readRerunAdvice/);
+  assert.doesNotMatch(adviceSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(adviceSource, /runMaterializedMatterRead/);
 });
