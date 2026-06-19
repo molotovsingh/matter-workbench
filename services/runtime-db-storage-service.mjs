@@ -1,11 +1,5 @@
 import { spawnSync } from "node:child_process";
 import { Buffer } from "node:buffer";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-} from "node:fs/promises";
 import os from "node:os";
 import { Readable } from "node:stream";
 import path from "node:path";
@@ -45,12 +39,7 @@ import {
   runtimePrepareMatterPlanFromStatus,
   runtimeWorkspaceFilePaths,
 } from "./runtime-db-preparation-read-model.mjs";
-import {
-  listRuntimeMatterFiles,
-  materializeRuntimeWorkspacePayloads,
-  sha256Bytes,
-  synthesizeMissingFileRegisters,
-} from "./runtime-db-materialized-workspace.mjs";
+import { sha256Bytes } from "./runtime-db-materialized-workspace.mjs";
 import {
   buildMaterializedDeletionPersistenceSql,
   buildMaterializedFilePersistenceSql,
@@ -680,70 +669,6 @@ export function createRuntimeDbStorageService({
     return emptyAttention(normalizedMatter);
   }
 
-  async function runMaterializedMatterWrite(matter, operation) {
-    ensureEnabled();
-    if (typeof operation !== "function") throw makeHttpError("Runtime DB write operation is required", 500, "runtime_db.materialized_write.operation_required");
-    const normalizedMatter = normalizeMatter(matter);
-    const workspace = readWorkspaceForMaterialization(normalizedMatter);
-    const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
-    const matterRoot = path.join(workDir, normalizedMatter.name);
-    const initialHashes = new Map();
-    try {
-      await mkdir(matterRoot, { recursive: true });
-      const materializedPaths = await materializeRuntimeWorkspacePayloads({
-        matterRoot,
-        matter: normalizedMatter,
-        workspace,
-        readPayloadRow,
-      });
-      for (const relativePath of materializedPaths) {
-        const bytes = await readFile(path.join(matterRoot, ...relativePath.split("/")));
-        initialHashes.set(relativePath, sha256Bytes(bytes));
-      }
-      await synthesizeMissingFileRegisters({
-        matterRoot,
-        workspace,
-        normalizeRelativePath: normalizeMatterRelativePath,
-      });
-      const operationResult = await operation({ matterRoot, matter: normalizedMatter });
-      const files = await listRuntimeMatterFiles(matterRoot);
-      const currentPaths = new Set(files.map((file) => file.relativePath));
-      const changedFiles = [];
-      for (const file of files) {
-        const bytes = await readFile(path.join(matterRoot, ...file.relativePath.split("/")));
-        const sha256 = sha256Bytes(bytes);
-        if (initialHashes.get(file.relativePath) === sha256) continue;
-        changedFiles.push({
-          relativePath: file.relativePath,
-          bytes,
-          sha256,
-          sizeBytes: bytes.length,
-          objectRole: runtimeArtifactRoleForPath(file.relativePath),
-          mimeType: runtimeArtifactMimeTypeForPath(file.relativePath),
-        });
-      }
-      const persisted = changedFiles.length
-        ? persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: changedFiles })
-        : [];
-      const deletedFiles = [...initialHashes.keys()]
-        .filter((relativePath) => !currentPaths.has(relativePath))
-        .map((relativePath) => ({
-          relativePath,
-          objectKey: `${normalizedMatter.name}/${relativePath}`,
-        }));
-      const deleted = deletedFiles.length
-        ? persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: deletedFiles })
-        : [];
-      return {
-        operationResult,
-        persisted,
-        deleted,
-      };
-    } finally {
-      await rm(workDir, { recursive: true, force: true });
-    }
-  }
-
   async function readWorkspacePayloadFiles(matter) {
     const normalizedMatter = normalizeMatter(matter);
     const workspace = readWorkspaceForMaterialization(normalizedMatter);
@@ -756,32 +681,6 @@ export function createRuntimeDbStorageService({
       });
     }
     return rows;
-  }
-
-  async function runMaterializedMatterRead(matter, operation) {
-    ensureEnabled();
-    if (typeof operation !== "function") throw makeHttpError("Runtime DB read operation is required", 500, "runtime_db.materialized_read.operation_required");
-    const normalizedMatter = normalizeMatter(matter);
-    const workspace = readWorkspaceForMaterialization(normalizedMatter);
-    const workDir = await mkdtemp(path.join(tempRoot || os.tmpdir(), "mwb-runtime-db-"));
-    const matterRoot = path.join(workDir, normalizedMatter.name);
-    try {
-      await mkdir(matterRoot, { recursive: true });
-      await materializeRuntimeWorkspacePayloads({
-        matterRoot,
-        matter: normalizedMatter,
-        workspace,
-        readPayloadRow,
-      });
-      await synthesizeMissingFileRegisters({
-        matterRoot,
-        workspace,
-        normalizeRelativePath: normalizeMatterRelativePath,
-      });
-      return await operation({ matterRoot, matter: normalizedMatter });
-    } finally {
-      await rm(workDir, { recursive: true, force: true });
-    }
   }
 
   function readPayloadRow({ matter, relativePath }) {
@@ -850,8 +749,6 @@ export function createRuntimeDbStorageService({
     persistTextArtifacts,
     readFilePreview,
     readWorkspace,
-    runMaterializedMatterRead,
-    runMaterializedMatterWrite,
   };
 }
 

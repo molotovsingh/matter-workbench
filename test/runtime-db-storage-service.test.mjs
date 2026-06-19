@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { mkdir, mkdtemp, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -412,277 +412,34 @@ test("runtime DB storage service reads latest advisory snapshot from Postgres", 
   assert.equal(attention.items[0].title, "OCR text needs review");
 });
 
-test("runtime DB storage service materializes DB payloads and persists workflow artifacts", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-"));
-  const calls = [];
+
+test("runtime DB storage service does not expose materialized workspace bridges", () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-        ],
-      },
-      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
-      {},
-    ]),
+    spawn: jsonSpawn([], { matter, objects: [] }),
   });
 
-  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    const matterJson = await readFile(path.join(matterRoot, "matter.json"), "utf8");
-    assert.match(matterJson, /Legal Caption/);
-    await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
-    await writeFile(path.join(matterRoot, "10_Library", "New Artifact.md"), "# New Artifact\n");
-    return { ok: true };
-  });
-
-  assert.deepEqual(result.operationResult, { ok: true });
-  assert.deepEqual(result.persisted.map((item) => item.relativePath), ["10_Library/New Artifact.md"]);
-  const persistSql = calls.at(-1).input;
-  assertTransactionWrapped(persistSql);
-  assert.match(persistSql, /insert into storage_objects/i);
-  assert.match(persistSql, /insert into storage_object_payloads/i);
-  assert.match(persistSql, /insert into matter_artifacts/i);
-  assert.match(persistSql, /storage_object_id/i);
-  assert.match(persistSql, /DB Matter\/10_Library\/New Artifact\.md/);
-  assert.match(persistSql, /matter_artifact/);
-  assert.doesNotMatch(persistSql, /secret/);
+  assert.equal(Object.hasOwn(service, "runMaterializedMatterWrite"), false);
+  assert.equal(Object.hasOwn(service, "runMaterializedMatterRead"), false);
 });
 
-test("runtime DB storage service synthesizes a missing file register from DB custody before write operations", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-register-"));
-  const calls = [];
-  const intakeDir = "00_Inbox/Intake 01 - Initial";
-  const sourcePath = `${intakeDir}/Source Files/KKT 10.pdf`;
+test("runtime DB storage service reads synthesized matter.json metadata directly from DB custody", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-          storageRow(`DB Matter/${sourcePath}`, "source_working_copy", "application/pdf", 5201011, true, {
-            fileId: "FILE-0001",
-            originalName: "KKT 10.pdf",
-            sha256: "3d3b57112347ad8388808a7129673a321c3deeef5ac9968c3ae230735dcaeb5e",
-          }),
-        ],
-      },
-      payloadRow(`DB Matter/${sourcePath}`, "%PDF-1.7", "application/pdf"),
-      payloadRow("DB Matter/matter.json", JSON.stringify({
-        matter_name: "Legal Caption",
-        intakes: [{
-          intake_id: "INTAKE-01",
-          intake_dir: intakeDir,
-          label: "Initial",
-          received_date: "2026-06-11",
-        }],
-      }), "application/json"),
-      {},
-    ]),
+    spawn: jsonSpawn([], {}),
   });
 
-  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    const register = await readFile(path.join(matterRoot, intakeDir, "File Register.csv"), "utf8");
-    assert.match(register, /FILE-0001/);
-    assert.match(register, /PDFs/);
-    assert.match(register, /KKT 10\.pdf/);
-    assert.match(register, new RegExp(sourcePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    return { sawRegister: true };
+  assert.deepEqual(await service.readMatterJson(matter), {
+    matter_name: "Legal Caption",
+    client_name: "Client A",
+    opposite_party: "Other Side",
+    matter_type: "Consumer",
+    jurisdiction: "India",
+    brief_description: "",
+    intakes: [],
   });
-
-  assert.deepEqual(result.operationResult, { sawRegister: true });
-  assert.deepEqual(result.persisted.map((item) => item.relativePath), [`${intakeDir}/File Register.csv`]);
-  const persistSql = calls.at(-1).input;
-  assert.match(persistSql, /DB Matter\/00_Inbox\/Intake 01 - Initial\/File Register\.csv/);
-  assert.match(persistSql, /matter_artifact/);
-  assert.doesNotMatch(persistSql, /secret/);
-});
-
-test("runtime DB storage service synthesizes duplicate source rows from DB custody", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-duplicate-register-"));
-  const calls = [];
-  const intakeDir = "00_Inbox/Intake 01 - Initial";
-  const firstSourcePath = `${intakeDir}/Source Files/notice-a.txt`;
-  const duplicateSourcePath = `${intakeDir}/Source Files/notice-b.txt`;
-  const duplicateHash = "3d3b57112347ad8388808a7129673a321c3deeef5ac9968c3ae230735dcaeb5e";
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-          storageRow(`DB Matter/${firstSourcePath}`, "source_working_copy", "text/plain", 37, true, {
-            fileId: "FILE-0001",
-            originalName: "notice-a.txt",
-            sha256: duplicateHash,
-          }),
-          storageRow(`DB Matter/${duplicateSourcePath}`, "source_working_copy", "text/plain", 37, true, {
-            fileId: "FILE-0002",
-            originalName: "notice-b.txt",
-            sha256: duplicateHash,
-            duplicate_of: "FILE-0001",
-          }),
-        ],
-      },
-      payloadRow(`DB Matter/${firstSourcePath}`, "Same notice served on 1 January 2026.", "text/plain"),
-      payloadRow(`DB Matter/${duplicateSourcePath}`, "Same notice served on 1 January 2026.", "text/plain"),
-      payloadRow("DB Matter/matter.json", JSON.stringify({
-        matter_name: "Legal Caption",
-        intakes: [{
-          intake_id: "INTAKE-01",
-          intake_dir: intakeDir,
-          label: "Initial",
-          received_date: "2026-06-11",
-        }],
-      }), "application/json"),
-      {},
-    ]),
-  });
-
-  await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    const register = await readFile(path.join(matterRoot, intakeDir, "File Register.csv"), "utf8");
-    assert.match(register, /FILE-0002/);
-    assert.match(register, /FILE-0001/);
-    assert.match(register, /exact-duplicate/);
-    return { sawRegister: true };
-  });
-
-  const persistSql = calls.at(-1).input;
-  assert.match(persistSql, /DB Matter\/00_Inbox\/Intake 01 - Initial\/File Register\.csv/);
-  assert.doesNotMatch(persistSql, /secret/);
-});
-
-test("runtime DB storage service tombstones materialized artifacts deleted by a workflow", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-delete-"));
-  const calls = [];
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-          storageRow("DB Matter/10_Library/Old Artifact.md", "matter_artifact", "text/markdown", 16, true),
-        ],
-      },
-      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
-      payloadRow("DB Matter/10_Library/Old Artifact.md", "# Old Artifact\n"),
-      {},
-    ]),
-  });
-
-  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    await unlink(path.join(matterRoot, "10_Library", "Old Artifact.md"));
-    return { removed: true };
-  });
-
-  assert.deepEqual(result.operationResult, { removed: true });
-  assert.deepEqual(result.deleted.map((item) => item.relativePath), ["10_Library/Old Artifact.md"]);
-  const tombstoneSql = calls.at(-1).input;
-  assertTransactionWrapped(tombstoneSql);
-  assert.match(tombstoneSql, /update storage_objects/i);
-  assert.match(tombstoneSql, /state\s*=\s*'deleted_pending'/i);
-  assert.match(tombstoneSql, /deleted_at\s*=\s*now\(\)/i);
-  assert.match(tombstoneSql, /DB Matter\/10_Library\/Old Artifact\.md/);
-  assert.match(tombstoneSql, /update extraction_records\nset superseded_at = now\(\)/i);
-  assert.match(tombstoneSql, /update source_descriptors\nset superseded_at = now\(\), updated_at = now\(\)/i);
-  assert.equal((tombstoneSql.match(/superseded_at is null/gi) || []).length, 2);
-  assert.doesNotMatch(tombstoneSql, /insert into storage_object_payloads/i);
-  assert.doesNotMatch(tombstoneSql, /secret/);
-});
-
-test("runtime DB storage service records materialized extraction payloads", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-extract-"));
-  const calls = [];
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-        ],
-      },
-      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
-      {},
-    ]),
-  });
-
-  const result = await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    await mkdir(path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "_extracted"), { recursive: true });
-    await writeFile(
-      path.join(matterRoot, "00_Inbox", "Intake 01 - Initial", "_extracted", "FILE-0001.json"),
-      JSON.stringify({ file_id: "FILE-0001", status: "extracted", engine: "mistral-ocr", pages: [{ page: 1, text: "ok" }] }),
-    );
-    return { ok: true };
-  });
-
-  assert.deepEqual(result.persisted.map((item) => item.relativePath), ["00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json"]);
-  const persistSql = calls.at(-1).input;
-  assert.match(persistSql, /insert into storage_objects/i);
-  assert.match(persistSql, /insert into extraction_records/i);
-  assert.match(persistSql, /FILE-0001/);
-  assert.match(persistSql, /storage_object_id/i);
-  assert.doesNotMatch(persistSql, /secret/);
-});
-
-test("runtime DB storage service records materialized source descriptors", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-source-descriptors-"));
-  const calls = [];
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-        ],
-      },
-      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
-      {},
-    ]),
-  });
-
-  await service.runMaterializedMatterWrite(matter, async ({ matterRoot }) => {
-    await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
-    await writeFile(
-      path.join(matterRoot, "10_Library", "Source Index.json"),
-      JSON.stringify({
-        schema_version: "source-index/v1",
-        sources: [{
-          file_id: "FILE-0001",
-          source_label: "Agreement dated 1 June 2014",
-          label_status: "suggested",
-          document_type: "agreement",
-          document_date: "2014-06-01",
-          needs_review: false,
-        }],
-      }),
-    );
-    return { ok: true };
-  });
-
-  const persistSql = calls.at(-1).input;
-  assert.match(persistSql, /insert into matter_artifacts/i);
-  assert.match(persistSql, /insert into source_descriptors/i);
-  assert.match(persistSql, /Agreement dated 1 June 2014/);
-  assert.match(persistSql, /FILE-0001/);
-  assert.doesNotMatch(persistSql, /secret/);
 });
 
 test("runtime DB storage service creates matter upload custody rows with payload bytes", async () => {
@@ -802,25 +559,6 @@ test("runtime DB storage service exposes stable runtime upload error codes", asy
     (error) => error.statusCode === 404
       && error.code === "runtime_db.upload.matter_not_found"
       && /DB Matter/.test(error.message),
-  );
-});
-
-test("runtime DB storage service exposes stable materialized operation guard codes", async () => {
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    spawn: jsonSpawn([], { matter, objects: [] }),
-  });
-
-  await assert.rejects(
-    () => service.runMaterializedMatterWrite(matter, null),
-    (error) => error.statusCode === 500
-      && error.code === "runtime_db.materialized_write.operation_required",
-  );
-  await assert.rejects(
-    () => service.runMaterializedMatterRead(matter, null),
-    (error) => error.statusCode === 500
-      && error.code === "runtime_db.materialized_read.operation_required",
   );
 });
 
@@ -1066,82 +804,6 @@ test("runtime DB storage service checks upload overlap from document hashes", as
   assert.match(sql, /deleted_pending/i);
   assert.doesNotMatch(sql, /File Register/i);
   assert.doesNotMatch(sql, /secret/);
-});
-
-test("runtime DB storage service materializes DB payloads for read-only operations without persisting", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-read-"));
-  const calls = [];
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-        ],
-      },
-      payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption" }), "application/json"),
-    ]),
-  });
-
-  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
-    const matterJson = await readFile(path.join(matterRoot, "matter.json"), "utf8");
-    return JSON.parse(matterJson);
-  });
-
-  assert.deepEqual(result, { matterName: "Legal Caption" });
-  assert.equal(calls.length, 2);
-  assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
-});
-
-test("runtime DB storage service keeps materialized read files alive until async operation finishes", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-read-async-"));
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence([], [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 8, true),
-        ],
-      },
-      payloadRow("DB Matter/10_Library/List of Dates.md", "# Dates\n"),
-    ]),
-  });
-
-  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    return readFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "utf8");
-  });
-
-  assert.equal(result, "# Dates\n");
-});
-
-test("runtime DB storage service rejects DB object keys that escape the matter root", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-path-escape-"));
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence([], [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/../escaped.txt", "matter_artifact", "text/plain", 7, true),
-        ],
-      },
-      payloadRow("DB Matter/../escaped.txt", "escaped", "text/plain"),
-    ]),
-  });
-
-  await assert.rejects(
-    () => service.runMaterializedMatterRead(matter, async () => ({ ok: true })),
-    /invalid path|outside the matter root/i,
-  );
 });
 
 test("runtime DB storage service initializes matter artifacts directly from DB custody", async () => {
@@ -1768,44 +1430,6 @@ test("runtime DB storage service builds matter context packets directly from DB 
   assert.equal(packet.library_artifacts[0].kind, "source_index");
   assert.equal(calls.length, 6);
   assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /mwb-runtime-db-/);
-});
-
-test("runtime DB storage service synthesizes matter.json when DB storage has no matter artifact", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-materialize-synthetic-matter-"));
-  const calls = [];
-  const service = createRuntimeDbStorageService({
-    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
-    tenantId,
-    tempRoot: tmp,
-    spawn: jsonSpawnSequence(calls, [
-      {
-        matter,
-        objects: [
-          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 15, true),
-        ],
-      },
-      payloadRow("DB Matter/10_Library/List of Dates.md", "# Dates\n"),
-    ]),
-  });
-
-  const result = await service.runMaterializedMatterRead(matter, async ({ matterRoot }) => {
-    const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
-    const listOfDates = await readFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "utf8");
-    return { matterJson, listOfDates };
-  });
-
-  assert.deepEqual(result.matterJson, {
-    matter_name: "Legal Caption",
-    client_name: "Client A",
-    opposite_party: "Other Side",
-    matter_type: "Consumer",
-    jurisdiction: "India",
-    brief_description: "",
-    intakes: [],
-  });
-  assert.equal(result.listOfDates, "# Dates\n");
-  assert.equal(calls.length, 2);
-  assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /insert into storage_objects/i);
 });
 
 function storageRow(objectKey, objectRole, mimeType, sizeBytes, hasPayload, extras = {}) {
