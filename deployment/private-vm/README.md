@@ -260,8 +260,10 @@ The ops pack writes:
   candidate.
 
 Use the ops pack when you need a quick picture of service health, current
-deployment, rollback candidate, disk/memory posture, and recent service logs.
-It does not back up the database and it does not perform rollback by itself.
+deployment, rollback candidate, user-facing readiness, disk/memory posture, and
+recent service logs. The service check also probes `/api/user-readiness` and
+flags restricted technical-language leaks in tester-facing readiness copy. It
+does not back up the database and it does not perform rollback by itself.
 Review `rollback-plan.sh` before running it. When private-beta auth is enabled,
 the generated rollback script does not store credentials; export
 `MWB_PRIVATE_BETA_USERNAME` and `MWB_PRIVATE_BETA_PASSWORD` in the shell before

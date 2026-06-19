@@ -113,7 +113,68 @@ test("private VM service check verifies root, matters, workspace, and preview", 
   assert.equal(report.matterCount, 1);
   assert.equal(report.targetMatter, "Atlas");
   assert.equal(report.filePreviewReadable, true);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
+  assert.equal(calls.includes("http://vm:4191/api/user-readiness"), true);
+});
+
+test("private VM service check captures sanitized user readiness", async () => {
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/user-readiness") {
+      return jsonResponse({
+        schema_version: "user-readiness/v1",
+        status: "ready",
+        checks: [
+          { id: "secure_session", status: "ready", message: "Signed in securely." },
+          { id: "assistant_readiness", status: "ready", message: "Assistant is ready." },
+        ],
+      });
+    }
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
+    if (parsed.pathname === "/api/switch-matter") return jsonResponse({ tree: { children: [{ kind: "file", path: "note.txt", previewable: true, previewKind: "text" }] } });
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "note" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+  const rendered = renderPrivateVmServiceCheck(report).join("\n");
+
+  assert.equal(report.passed, true);
+  assert.equal(report.userReadinessAvailable, true);
+  assert.equal(report.userReadinessStatus, "ready");
+  assert.equal(report.userReadinessSchema, "user-readiness/v1");
+  assert.equal(report.userReadinessChecks, 2);
+  assert.equal(report.userReadinessAssistant, "ready: Assistant is ready.");
+  assert.equal(report.userReadinessLanguageLeak, false);
+  assert.match(rendered, /user_readiness_available: yes/);
+  assert.match(rendered, /user_readiness_schema: user-readiness\/v1/);
+  assert.match(rendered, /user_readiness_language_leak: no/);
+});
+
+test("private VM service check fails on user readiness technical language leaks", async () => {
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/user-readiness") {
+      return jsonResponse({
+        schema_version: "user-readiness/v1",
+        status: "degraded",
+        checks: [{ id: "assistant_readiness", status: "attention", message: "OpenAI quota reached." }],
+      });
+    }
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
+    if (parsed.pathname === "/api/switch-matter") return jsonResponse({ tree: { children: [{ kind: "file", path: "note.txt", previewable: true, previewKind: "text" }] } });
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "note" });
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, false);
+  assert.equal(report.userReadinessLanguageLeak, true);
+  assert.match(report.warning, /restricted technical language/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /user_readiness_language_leak: yes/);
 });
 
 test("private VM service check restores the previously active matter after probing another matter", async () => {

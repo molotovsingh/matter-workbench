@@ -145,6 +145,8 @@ export function renderPrivateVmOpsPackResult(result = {}) {
     `current_commit: ${result.deployment?.currentCommit || ""}`,
     `rollback_candidate: ${result.deployment?.rollbackCandidate || ""}`,
     `service_check: ${result.serviceCheck?.ok ? "ok" : "failed"}`,
+    `user_readiness: ${result.serviceCheck?.userReadinessAvailable ? result.serviceCheck.userReadinessStatus || "available" : "unavailable"}`,
+    `user_readiness_language_leak: ${result.serviceCheck?.userReadinessLanguageLeak ? "yes" : "no"}`,
     `logs: ${result.logs?.ok ? "ok" : "failed"}`,
     `disk_available_bytes: ${result.disk?.availableBytes || 0}`,
   ];
@@ -245,6 +247,13 @@ async function inspectService({ baseUrl, authUsername, authPassword, serviceChec
       matterCount: report.matterCount || 0,
       targetMatter: report.targetMatter || "",
       filePreviewReadable: Boolean(report.filePreviewReadable),
+      userReadinessAvailable: Boolean(report.userReadinessAvailable),
+      userReadinessStatus: report.userReadinessStatus || "",
+      userReadinessSchema: report.userReadinessSchema || "",
+      userReadinessChecks: report.userReadinessChecks || 0,
+      userReadinessAssistant: report.userReadinessAssistant || "",
+      userReadinessLanguageLeak: Boolean(report.userReadinessLanguageLeak),
+      userReadinessError: report.userReadinessError || "",
       error: report.passed ? "" : redactLine(report.error || "private VM service check failed"),
     };
   } catch (error) {
@@ -363,6 +372,8 @@ function renderOpsPackMarkdown(evidence = {}) {
     `- Service check: ${evidence.serviceCheck?.ok ? "ok" : "failed"}`,
     `- Runtime DB enabled: ${evidence.serviceCheck?.runtimeDbEnabled ? "yes" : "no"}`,
     `- Matters visible: ${evidence.serviceCheck?.matterCount || 0}`,
+    `- User readiness: ${evidence.serviceCheck?.userReadinessAvailable ? evidence.serviceCheck.userReadinessStatus || "available" : "unavailable"}`,
+    `- User readiness language leak: ${evidence.serviceCheck?.userReadinessLanguageLeak ? "yes" : "no"}`,
     `- Disk available bytes: ${evidence.disk?.availableBytes || 0}`,
     `- Memory free bytes: ${evidence.memory?.freeBytes || 0}`,
     "",

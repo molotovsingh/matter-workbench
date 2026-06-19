@@ -37,6 +37,12 @@ test("private VM ops pack writes service health, deployment state, logs, and rol
         matterCount: 15,
         targetMatter: "Bharat Nagpal Vs Gionee India",
         filePreviewReadable: true,
+        userReadinessAvailable: true,
+        userReadinessStatus: "ready",
+        userReadinessSchema: "user-readiness/v1",
+        userReadinessChecks: 5,
+        userReadinessAssistant: "ready: Assistant is ready.",
+        userReadinessLanguageLeak: false,
       };
     },
     commandRunner: async (command, args) => {
@@ -66,6 +72,9 @@ test("private VM ops pack writes service health, deployment state, logs, and rol
   assert.equal(result.deployment.currentCommit, "5eb89a8");
   assert.equal(result.deployment.rollbackCandidate, "938fca5");
   assert.equal(result.serviceCheck.ok, true);
+  assert.equal(result.serviceCheck.userReadinessStatus, "ready");
+  assert.equal(result.serviceCheck.userReadinessSchema, "user-readiness/v1");
+  assert.equal(result.serviceCheck.userReadinessLanguageLeak, false);
   assert.equal(result.logs.ok, true);
   assert.equal(result.disk.availableBytes, 200 * 4096);
   assert.equal(existsSync(result.files.json), true);
@@ -76,6 +85,7 @@ test("private VM ops pack writes service health, deployment state, logs, and rol
   assert.equal(evidence.schemaVersion, "private-vm-ops-pack/v1");
   assert.equal(evidence.deployment.currentCommit, "5eb89a8");
   assert.equal(evidence.deployment.rollbackCandidate, "938fca5");
+  assert.equal(evidence.serviceCheck.userReadinessStatus, "ready");
   assert.match(evidence.rollback.commands.join("\n"), /ln -sfn .*938fca5.*current/);
   assert.doesNotMatch(JSON.stringify(evidence), /operator:secret/);
   assert.match(JSON.stringify(evidence), /operator:\*\*\*/);
@@ -94,6 +104,8 @@ test("private VM ops pack writes service health, deployment state, logs, and rol
   const rendered = renderPrivateVmOpsPackResult(result).join("\n");
   assert.match(rendered, /Matter Workbench private VM ops pack/);
   assert.match(rendered, /success: yes/);
+  assert.match(rendered, /user_readiness: ready/);
+  assert.match(rendered, /user_readiness_language_leak: no/);
   assert.match(rendered, /rollback_candidate: 938fca5/);
 });
 
