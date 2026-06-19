@@ -8,6 +8,7 @@ import ts from "typescript";
 
 const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
 const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLabels.ts", import.meta.url);
+const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 const reactRunReportPath = new URL("../react-ui/src/lib/configurableSkillRunReport.ts", import.meta.url);
 const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 
@@ -20,10 +21,14 @@ async function importReactRunReportModule() {
     const tempDir = await mkdtemp(path.join(tmpdir(), "mwb-react-run-report-"));
     const secretFile = path.join(tempDir, "secretRedaction.mjs");
     const presentationFile = path.join(tempDir, "presentationLabels.mjs");
+    const workspaceLabelsFile = path.join(tempDir, "workspaceLabels.mjs");
     const runReportFile = path.join(tempDir, "configurableSkillRunReport.mjs");
 
     await writeFile(secretFile, transpile(await readFile(reactSecretRedactionPath, "utf8")));
-    await writeFile(presentationFile, transpile(await readFile(reactPresentationLabelsPath, "utf8")));
+    await writeFile(workspaceLabelsFile, transpile(await readFile(reactWorkspaceLabelsPath, "utf8")));
+    const presentationSource = (await readFile(reactPresentationLabelsPath, "utf8"))
+      .replace("'./workspaceLabels'", "'./workspaceLabels.mjs'");
+    await writeFile(presentationFile, transpile(presentationSource));
     const source = (await readFile(reactRunReportPath, "utf8"))
       .replace("'./secretRedaction'", "'./secretRedaction.mjs'")
       .replace("'./presentationLabels'", "'./presentationLabels.mjs'");

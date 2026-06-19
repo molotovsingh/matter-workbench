@@ -9,7 +9,7 @@ export function redactSensitiveText(value = "") {
       (_match, prefix, quote, key, separator) => `${prefix}${quote}${key}${quote}${separator}${REDACTED_SECRET}`,
     )
     .replace(/\b(OPENAI_API_KEY|OPENROUTER_API_KEY|MISTRAL_API_KEY)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/gi, `$1=${REDACTED_SECRET}`)
-    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/g, `$1=${REDACTED_SECRET}`)
+    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)\s*=\s*("[^"]*"|'[^']*'|[^\s]+)/gi, `$1=${REDACTED_SECRET}`)
     .replace(/\b(postgres(?:ql)?):\/\/([^:@/\s]+):([^@/\s]+)@/gi, "$1://$2:***@")
     .replace(/\bBearer\s+["']?[^"'\s]+["']?/gi, `Bearer ${REDACTED_SECRET}`)
     .replace(/\b(mwb_ing_)[A-Za-z0-9_-]+/gi, `$1${REDACTED_SECRET}`)

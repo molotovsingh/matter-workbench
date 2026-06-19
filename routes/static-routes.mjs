@@ -10,9 +10,14 @@ const contentTypes = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".mjs", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".map", "application/json; charset=utf-8"],
   [".png", "image/png"],
   [".jpg", "image/jpeg"],
   [".jpeg", "image/jpeg"],
+  [".svg", "image/svg+xml"],
+  [".webp", "image/webp"],
+  [".ico", "image/x-icon"],
+  [".woff2", "font/woff2"],
 ]);
 
 export function resolveStaticPath(appDir, urlPath) {
@@ -33,9 +38,9 @@ export function resolveStaticPath(appDir, urlPath) {
     const reactRelativePath = cleanPath === "/react" || cleanPath === "/react/"
       ? "index.html"
       : cleanPath.replace(/^\/react\/+/, "");
-    const reactPath = path.resolve(reactRoot, reactRelativePath);
-    if (!isInsideRoot(reactRoot, reactPath)) return null;
-    return reactPath;
+    const requestedReactPath = path.resolve(reactRoot, reactRelativePath);
+    if (!isInsideRoot(reactRoot, requestedReactPath)) return null;
+    return path.extname(reactRelativePath) ? requestedReactPath : path.join(reactRoot, "index.html");
   }
 
   return null;
@@ -56,7 +61,7 @@ export async function serveStatic({ appDir, request, response }) {
     response.writeHead(200, {
       "content-type": contentTypes.get(extension) || "application/octet-stream",
       "content-length": fileStat.size,
-      "cache-control": "no-store",
+      "cache-control": cacheControlForStaticPath(appDir, filePath),
     });
     await pipeline(createReadStream(filePath), response);
   } catch {
@@ -68,4 +73,11 @@ export async function serveStatic({ appDir, request, response }) {
     }
   }
   return true;
+}
+
+function cacheControlForStaticPath(appDir, filePath) {
+  const reactRoot = path.resolve(appDir, "react-dist");
+  const relativePath = path.relative(reactRoot, filePath).replace(/\\/g, "/");
+  if (relativePath.startsWith("assets/")) return "public, max-age=31536000, immutable";
+  return "no-cache";
 }

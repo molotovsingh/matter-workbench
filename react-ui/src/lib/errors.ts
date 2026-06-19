@@ -1,13 +1,15 @@
+import { redactSensitiveText } from './secretRedaction';
+
 interface ErrorMessageOptions {
   includeCode?: boolean;
 }
 
 export function getErrorMessage(error: unknown, options: ErrorMessageOptions = {}): string {
-  const message = baseErrorMessage(error);
+  const message = redactSensitiveText(baseErrorMessage(error));
   if (!options.includeCode) return message;
   const code = diagnosticErrorCode(error);
   if (!code || message.includes(code)) return message;
-  return `${message} (code: ${code})`;
+  return redactSensitiveText(`${message} (code: ${code})`);
 }
 
 function baseErrorMessage(error: unknown): string {

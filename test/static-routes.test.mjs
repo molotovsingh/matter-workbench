@@ -16,6 +16,7 @@ test("static route containment rejects traversal and prefix sibling paths", () =
     resolveStaticPath(appDir, "/react/assets/index.js"),
     path.join(appDir, "react-dist", "assets", "index.js"),
   );
+  assert.equal(resolveStaticPath(appDir, "/react/matters/demo"), path.join(appDir, "react-dist", "index.html"));
   assert.equal(resolveStaticPath(appDir, "/index.html"), null);
   assert.equal(resolveStaticPath(appDir, "/app.js"), null);
   assert.equal(resolveStaticPath(appDir, "/styles.css"), null);
@@ -41,7 +42,7 @@ test("static route ignores legacy shell opt-in and serves React at root", () => 
   assert.equal(resolveStaticPath(appDir, "/styles.css", { uiShell: "react" }), null);
 });
 
-test("static route streams React files with no-store headers", async () => {
+test("static route streams React shell with no-cache headers", async () => {
   const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-static-"));
   try {
     await mkdir(path.join(appDir, "react-dist"), { recursive: true });
@@ -58,8 +59,31 @@ test("static route streams React files with no-store headers", async () => {
     assert.equal(handled, true);
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
-    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.headers["cache-control"], "no-cache");
     assert.equal(response.bodyText(), "<h1>React</h1>");
+  } finally {
+    await rm(appDir, { recursive: true, force: true });
+  }
+});
+
+test("static route streams React hashed assets with immutable cache and modern content types", async () => {
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-static-"));
+  try {
+    await mkdir(path.join(appDir, "react-dist", "assets"), { recursive: true });
+    await writeFile(path.join(appDir, "react-dist", "assets", "font.woff2"), "font");
+    const response = new CaptureResponse();
+
+    const handled = await serveStatic({
+      appDir,
+      request: { url: "/react/assets/font.woff2" },
+      response,
+    });
+
+    assert.equal(handled, true);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers["content-type"], "font/woff2");
+    assert.equal(response.headers["cache-control"], "public, max-age=31536000, immutable");
+    assert.equal(response.bodyText(), "font");
   } finally {
     await rm(appDir, { recursive: true, force: true });
   }
@@ -82,7 +106,7 @@ test("static route streams React shell by default", async () => {
     assert.equal(handled, true);
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers["content-type"], "text/html; charset=utf-8");
-    assert.equal(response.headers["cache-control"], "no-store");
+    assert.equal(response.headers["cache-control"], "no-cache");
     assert.equal(response.bodyText(), "<h1>React</h1>");
   } finally {
     await rm(appDir, { recursive: true, force: true });

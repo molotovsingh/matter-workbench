@@ -1,4 +1,5 @@
 import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage } from '../../../shared/user-facing-ai-language-policy.js';
+import { redactSensitiveText } from './secretRedaction';
 import type { MatterCopilotAnswer } from '../types';
 
 export function parseAskCommand(input: string): string | null {
@@ -76,21 +77,27 @@ function fallbackForStatus(status: string): string {
   return 'The current matter record does not contain enough support for a reliable answer.';
 }
 
+const LAWYER_VISIBLE_ANSWER_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\b[Tt]he packet supports that\b/g, 'The record indicates that'],
+  [/\b[Tt]he packet supports\b/g, 'The record indicates'],
+  [/\b[Tt]he supplied packet supports that\b/g, 'The record indicates that'],
+  [/\b[Tt]he supplied packet supports\b/g, 'The record indicates'],
+  [/\b[Tt]he bounded matter context supports that\b/g, 'The record indicates that'],
+  [/\b[Tt]he bounded matter context supports\b/g, 'The record indicates'],
+  [/\b[Tt]he context packet supports that\b/g, 'The record indicates that'],
+  [/\b[Tt]he context packet supports\b/g, 'The record indicates'],
+  [/\bfrom the packet\b/g, 'from the record'],
+  [/\bin the packet\b/g, 'in the record'],
+  [/\bsupplied packet\b/g, 'current record'],
+  [/\bbounded matter context\b/g, 'current matter record'],
+  [/\bcontext packet\b/g, 'matter record'],
+];
+
 function lawyerVisibleAnswerText(value: unknown): string {
-  return normalizeText(value)
-    .replace(/\b[Tt]he packet supports that\b/g, 'The record indicates that')
-    .replace(/\b[Tt]he packet supports\b/g, 'The record indicates')
-    .replace(/\b[Tt]he supplied packet supports that\b/g, 'The record indicates that')
-    .replace(/\b[Tt]he supplied packet supports\b/g, 'The record indicates')
-    .replace(/\b[Tt]he bounded matter context supports that\b/g, 'The record indicates that')
-    .replace(/\b[Tt]he bounded matter context supports\b/g, 'The record indicates')
-    .replace(/\b[Tt]he context packet supports that\b/g, 'The record indicates that')
-    .replace(/\b[Tt]he context packet supports\b/g, 'The record indicates')
-    .replace(/\bfrom the packet\b/g, 'from the record')
-    .replace(/\bin the packet\b/g, 'in the record')
-    .replace(/\bsupplied packet\b/g, 'current record')
-    .replace(/\bbounded matter context\b/g, 'current matter record')
-    .replace(/\bcontext packet\b/g, 'matter record');
+  return LAWYER_VISIBLE_ANSWER_REPLACEMENTS.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    normalizeText(value),
+  );
 }
 
 function visibleWarnings(values: unknown[]): string[] {
@@ -128,5 +135,5 @@ function lawyerVisibleWarning(value: unknown): string {
 }
 
 function normalizeText(value: unknown): string {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return redactSensitiveText(String(value || '')).replace(/\s+/g, ' ').trim();
 }

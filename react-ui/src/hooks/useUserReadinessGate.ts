@@ -25,7 +25,6 @@ const AUTO_OPEN_AFTER_MS = 8_000;
 const SUCCESS_SETTLE_MS = 900;
 const ERROR_SETTLE_MS = 1_200;
 const PROGRESS_TICK_MS = 500;
-const SECONDS_PER_STEP = 2;
 
 export function initialReadinessGateState(): ReadinessGateState {
   return {
@@ -85,8 +84,7 @@ export function useUserReadinessGate({
       setReadinessGate((current) => {
         if (current.dismissed || current.phase !== 'checking') return current;
         const elapsedSeconds = elapsedSecondsSince(startedAt);
-        const currentStep = Math.min(total, Math.max(1, Math.floor(elapsedSeconds / SECONDS_PER_STEP) + 1));
-        return { ...current, elapsedSeconds, currentStep };
+        return { ...current, elapsedSeconds };
       });
     }, PROGRESS_TICK_MS);
 

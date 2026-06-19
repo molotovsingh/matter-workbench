@@ -6,6 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 
 const errorsPath = new URL("../react-ui/src/lib/errors.ts", import.meta.url);
+const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
 const workspaceTreePath = new URL("../react-ui/src/components/workspace/WorkspaceTree.tsx", import.meta.url);
 
 test("React error formatter keeps diagnostic codes opt-in", async () => {
@@ -18,6 +19,14 @@ test("React error formatter keeps diagnostic codes opt-in", async () => {
     getErrorMessage(error, { includeCode: true }),
     "File not found (code: runtime_db.read.file_not_found)",
   );
+});
+
+test("React error formatter redacts secrets before rendering", async () => {
+  const { getErrorMessage } = await importReactErrors();
+  const error = new Error("provider failed OPENROUTER_API_KEY=sk-react-secret");
+
+  assert.equal(getErrorMessage(error), "provider failed OPENROUTER_API_KEY=[redacted-secret]");
+  assert.doesNotMatch(getErrorMessage(error), /sk-react-secret/);
 });
 
 test("React error formatter falls back to diagnostic code and rejects unsafe codes", async () => {
@@ -45,6 +54,7 @@ test("Workspace file preview exposes diagnostic codes only in the operator error
 });
 
 async function importReactErrors() {
+  const secretRedactionUrl = await transpiledDataUrl(reactSecretRedactionPath);
   const source = await readFile(errorsPath, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -52,7 +62,7 @@ async function importReactErrors() {
       target: ts.ScriptTarget.ES2022,
       importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
     },
-  }).outputText;
+  }).outputText.replace("from './secretRedaction';", `from '${secretRedactionUrl}';`);
   const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-react-errors-"));
   const modulePath = path.join(dir, "errors.mjs");
   await writeFile(modulePath, compiled);
@@ -61,4 +71,15 @@ async function importReactErrors() {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function transpiledDataUrl(fileUrl) {
+  const source = await readFile(fileUrl, "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  return `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
 }

@@ -5,21 +5,36 @@ import ts from "typescript";
 import { containsUserFacingRestrictedAiLanguage, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE } from "../shared/user-facing-ai-language-policy.js";
 
 const matterCopilotAnswerPath = new URL("../react-ui/src/lib/matterCopilotAnswer.ts", import.meta.url);
+const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
 const userFacingPolicyUrl = new URL("../shared/user-facing-ai-language-policy.js", import.meta.url).href;
 
 async function loadMatterCopilotAnswerModule() {
+  const secretRedactionUrl = await transpiledDataUrl(reactSecretRedactionPath);
   const source = await readFile(matterCopilotAnswerPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2020,
       target: ts.ScriptTarget.ES2020,
     },
-  }).outputText.replace(
-    /from ['"]\.\.\/\.\.\/\.\.\/shared\/user-facing-ai-language-policy\.js['"];/,
-    `from '${userFacingPolicyUrl}';`,
-  );
+  }).outputText
+    .replace(
+      /from ['"]\.\.\/\.\.\/\.\.\/shared\/user-facing-ai-language-policy\.js['"];/,
+      `from '${userFacingPolicyUrl}';`,
+    )
+    .replace("from './secretRedaction';", `from '${secretRedactionUrl}';`);
   const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
   return await import(moduleUrl);
+}
+
+async function transpiledDataUrl(fileUrl) {
+  const source = await readFile(fileUrl, "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  return `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
 }
 
 test("React matter copilot answer renders legal record language instead of packet jargon", async () => {
@@ -54,6 +69,23 @@ test("React matter copilot answer renders legal record language instead of packe
   });
   assert.match(renderedWithoutQualityWarning, /Only part of the matter record was included in this quick answer/);
   assert.doesNotMatch(renderedWithoutQualityWarning, /evidence block/i);
+});
+
+test("React matter copilot answer redacts secrets echoed in answer text", async () => {
+  const { formatMatterCopilotAnswer } = await loadMatterCopilotAnswerModule();
+
+  const rendered = formatMatterCopilotAnswer({
+    question: "what happened?",
+    answer_status: "answered",
+    answer_markdown: "The record indicates a provider error with OPENAI_API_KEY=sk-answer-secret.",
+    sources: [{ source_label: "Source with token=sk-source-secret" }],
+    warnings: ["Operator note secret=sk-warning-secret"],
+  });
+
+  assert.match(rendered, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.match(rendered, /token=\[redacted-secret\]/);
+  assert.match(rendered, /secret=\[redacted-secret\]/);
+  assert.doesNotMatch(rendered, /sk-answer-secret|sk-source-secret|sk-warning-secret/);
 });
 
 test("React matter copilot answer hides unsupported citation internals from lawyers", async () => {

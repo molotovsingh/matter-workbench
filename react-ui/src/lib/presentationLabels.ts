@@ -1,10 +1,4 @@
-const LANE_LABELS: Record<string, string> = {
-  '00_Inbox': 'Case Record',
-  '10_Library': 'Source Record',
-  '20_Workshop': 'Case Analysis',
-  '30_Drafts': 'Drafts',
-  '40_Dispatch': 'Ready to Send',
-};
+import { workspaceLaneLabel } from './workspaceLabels';
 
 const KNOWN_ARTIFACT_LABELS: Array<[RegExp, string]> = [
   [/^matter\.json$/i, 'Matter details'],
@@ -24,7 +18,7 @@ export function humanizeArtifactPath(path = ''): string {
   if (known) return known[1];
 
   const parts = normalized.split('/').filter(Boolean);
-  const lane = parts[0] ? LANE_LABELS[parts[0]] : '';
+  const lane = parts[0] ? workspaceLaneLabel(parts[0]) : '';
   const fileName = parts[parts.length - 1] || normalized;
   const readableName = humanizeFileName(fileName);
 

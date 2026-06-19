@@ -61,8 +61,10 @@ import type {
   WorkspaceApiNode,
   WorkspaceApiResponse,
 } from '../types';
+import { redactSensitiveText } from '../lib/secretRedaction';
+import { workspaceLaneLabel } from '../lib/workspaceLabels';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   statusCode: number;
   code?: string;
   authRequired: boolean;
@@ -75,7 +77,7 @@ class ApiError extends Error {
   }
 }
 
-interface ApiErrorDiagnostic {
+export interface ApiErrorDiagnostic {
   statusCode: number;
   code?: string;
   statusText?: string;
@@ -173,15 +175,15 @@ function formatApiErrorMessage(payload: unknown, res: Response, url: string): st
   if (typeof payload === 'string' && payload.trim()) {
     const text = payload.trim();
     if (isRawInfrastructureErrorBody(text)) return formatHttpFallbackMessage(res, url);
-    return text;
+    return redactSensitiveText(text);
   }
 
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
     const errorText = payloadMessageText(record.error);
-    if (errorText && !isRawInfrastructureErrorBody(errorText)) return errorText;
+    if (errorText && !isRawInfrastructureErrorBody(errorText)) return redactSensitiveText(errorText);
     const messageText = payloadMessageText(record.message);
-    if (messageText && !isRawInfrastructureErrorBody(messageText)) return messageText;
+    if (messageText && !isRawInfrastructureErrorBody(messageText)) return redactSensitiveText(messageText);
     if ((errorText && isRawInfrastructureErrorBody(errorText)) || (messageText && isRawInfrastructureErrorBody(messageText))) {
       return formatHttpFallbackMessage(res, url);
     }
@@ -206,7 +208,7 @@ function formatHttpFallbackMessage(res: Response, url: string): string {
   if (res.status >= 500) {
     return `The server could not complete this request (${status}). Please retry in a minute.`;
   }
-  return `${url} returned ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
+  return `The server rejected this request (${status}). Please check the form and try again.`;
 }
 
 function apiErrorCode(payload: unknown, res: Response, url: string): string | undefined {
@@ -259,9 +261,11 @@ function errorBodyKind(payload: unknown): ApiErrorDiagnostic['bodyKind'] {
 function urlPathForDiagnostic(url: string): string {
   try {
     const parsed = new URL(url, 'http://matter-workbench.local');
-    return `${parsed.pathname}${parsed.search}`.slice(0, 220);
+    const queryKeys = Array.from(new Set(parsed.searchParams.keys()));
+    const queryText = queryKeys.map((key) => `${encodeURIComponent(key)}=[redacted]`).join('&');
+    return `${parsed.pathname}${queryText ? `?${queryText}` : ''}`.slice(0, 220);
   } catch {
-    return String(url || '').slice(0, 220);
+    return redactSensitiveText(String(url || '')).replace(/\?.*$/, '?[redacted]').slice(0, 220);
   }
 }
 
@@ -273,14 +277,6 @@ function withQuery(path: string, query: Record<string, string | undefined | null
   const text = params.toString();
   return text ? `${path}?${text}` : path;
 }
-
-const LANE_LABELS: Record<string, string> = {
-  '00_Inbox': 'Original Documents',
-  '10_Library': 'Source Record',
-  '20_Workshop': 'Case Analysis',
-  '30_Drafts': 'Drafts',
-  '40_Dispatch': 'Ready to Send',
-};
 
 const TECHNICAL_PREFIXES = ['01_Admin', '02_Extracts', '99_'];
 
@@ -301,7 +297,7 @@ export interface AdaptedFile {
 function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
   const isDir = node.kind === 'directory';
   const ext = isDir ? undefined : node.name.split('.').pop()?.toLowerCase();
-  const laneLabel = depth === 0 && isDir ? LANE_LABELS[node.name] : undefined;
+  const laneLabel = depth === 0 && isDir ? workspaceLaneLabel(node.name) : undefined;
   const isTechnical = depth === 0 && TECHNICAL_PREFIXES.some((p) => node.name.startsWith(p));
   return {
     name: laneLabel || node.name,

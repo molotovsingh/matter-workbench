@@ -23,12 +23,14 @@ test("React app shows a neutral post-login readiness gate", async () => {
   assert.match(app, /authStatus\.authenticated && !readinessGate\.dismissed/);
   assert.match(app, /readiness-session-banner/);
   assert.match(gate, /Preparing your workspace/);
-  assert.match(gate, /Checking \{currentStep\} of \{total\}/);
+  assert.match(gate, /Checking workspace readiness/);
+  assert.doesNotMatch(gate, /Checking \{currentStep\} of \{total\}/);
   assert.match(hook, /Secure session/);
   assert.match(hook, /Workspace access/);
   assert.match(hook, /Matter library/);
   assert.match(hook, /Document services/);
   assert.match(hook, /Assistant readiness/);
+  assert.doesNotMatch(hook, /SECONDS_PER_STEP/);
   assert.doesNotMatch(app, /OpenRouter|OpenAI|GPT|quota|billing|credits/);
   assert.equal(containsUserFacingRestrictedAiLanguage(`${gate}\n${hook}`), false);
 });

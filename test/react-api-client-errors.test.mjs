@@ -6,6 +6,8 @@ import test from "node:test";
 import ts from "typescript";
 
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
+const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
+const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 
 test("React API client hides raw HTML gateway errors from preparation stages", async () => {
   const { api } = await importReactApiClient();
@@ -86,6 +88,32 @@ test("React API client still preserves plain text API errors", async () => {
     await assert.rejects(
       () => api.runMatterInit({ matterName: "Demo Matter" }),
       (error) => error.statusCode === 409 && error.message === "Matter already exists",
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("React API client redacts fallback URLs and payload secrets", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async (url) => {
+    assert.match(String(url), /matter=Smith\+v\+Jones/);
+    return new Response("", {
+      status: 404,
+      statusText: "Not Found",
+    });
+  });
+
+  try {
+    await assert.rejects(
+      () => api.getFile("10_Library/List of Dates.md", "Smith v Jones"),
+      (error) => {
+        assert.equal(error.statusCode, 404);
+        assert.equal(error.message, "The server rejected this request (404 Not Found). Please check the form and try again.");
+        assert.doesNotMatch(error.message, /Smith|List of Dates|\/api\/file/);
+        assert.equal(error.diagnostic.urlPath, "/api/file?path=[redacted]&matter=[redacted]");
+        return true;
+      },
     );
   } finally {
     restoreFetch();
@@ -174,6 +202,44 @@ test("React API client prefers a clean JSON message over a contaminated error fi
   }
 });
 
+test("React API client redacts structured API error messages", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => new Response(JSON.stringify({
+    error: "provider rejected OPENAI_API_KEY=sk-client-secret",
+    code: "provider.rejected",
+  }), {
+    status: 502,
+    statusText: "Bad Gateway",
+    headers: { "content-type": "application/json" },
+  }));
+
+  try {
+    await assert.rejects(
+      () => api.planSkillIdeaInterview({ userRequest: "new skill", activeMatter: null, skillIdea: { mode: "new_skill" } }),
+      (error) => {
+        assert.equal(error.message, "provider rejected OPENAI_API_KEY=[redacted-secret]");
+        assert.doesNotMatch(error.message, /sk-client-secret/);
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("React API client uses shared workspace lane labels", async () => {
+  const { adaptTree } = await importReactApiClient();
+  const tree = adaptTree({
+    kind: "directory",
+    name: "Demo Matter",
+    path: "",
+    children: [{ kind: "directory", name: "00_Inbox", path: "00_Inbox", children: [] }],
+  });
+
+  assert.equal(tree.children[0].name, "Case Record");
+  assert.equal(tree.children[0].canonical, "00_Inbox");
+});
+
 test("React API client reports malformed success responses as API errors", async () => {
   const { api } = await importReactApiClient();
   const restoreFetch = mockFetch(async () => new Response("<html><head><title>Welcome</title></head><body>not json</body></html>", {
@@ -207,6 +273,8 @@ test("React API client reports malformed success responses as API errors", async
 });
 
 async function importReactApiClient() {
+  const secretRedactionUrl = await transpiledDataUrl(reactSecretRedactionPath);
+  const workspaceLabelsUrl = await transpiledDataUrl(reactWorkspaceLabelsPath);
   const source = await readFile(apiClientPath, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -214,7 +282,9 @@ async function importReactApiClient() {
       target: ts.ScriptTarget.ES2022,
       importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
     },
-  }).outputText;
+  }).outputText
+    .replace("from '../lib/secretRedaction';", `from '${secretRedactionUrl}';`)
+    .replace("from '../lib/workspaceLabels';", `from '${workspaceLabelsUrl}';`);
   const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-react-api-client-"));
   const modulePath = path.join(dir, "client.mjs");
   await writeFile(modulePath, compiled);
@@ -223,6 +293,17 @@ async function importReactApiClient() {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function transpiledDataUrl(fileUrl) {
+  const source = await readFile(fileUrl, "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  return `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
 }
 
 function mockFetch(fetchImpl) {
