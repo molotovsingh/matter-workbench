@@ -16,7 +16,7 @@ import {
   SOURCE_INDEX_OUTPUT_SCHEMA,
   validateAndSortDescriptors,
 } from "./source-descriptors-validation.mjs";
-import { makeHttpError, toPosix } from "./shared/safe-paths.mjs";
+import { makeHttpError } from "./shared/safe-paths.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
@@ -35,17 +35,38 @@ export async function runSourceDescriptors(options = {}) {
     : (process.env.MATTER_ROOT ? path.resolve(process.env.MATTER_ROOT) : null);
   if (!matterRoot) throw new Error("MATTER_ROOT is not set. Pass options.matterRoot or set the env var.");
 
-  const providerSetup = resolveSourceDescriptorProvider(options);
-  const provider = providerSetup.provider;
-
   const dryRun = Boolean(options.dryRun);
   const matterJson = await readMatterJson(matterRoot);
   const intakes = getIntakes(matterJson);
   if (!intakes.length) throw new Error("No intakes recorded in matter.json. Run /matter-init first.");
 
   const records = await readExtractionRecords(matterRoot, intakes);
+  const result = await buildSourceDescriptorsFromRecords({
+    ...options,
+    matterRoot,
+    matterJson,
+    records,
+    dryRun,
+  });
+
+  if (!dryRun) {
+    const outputJson = path.join(matterRoot, ...result.outputPaths.json.split("/"));
+    await mkdir(path.dirname(outputJson), { recursive: true });
+    await writeFileAtomic(outputJson, `${JSON.stringify(result.artifact, null, 2)}\n`);
+  }
+
+  return result;
+}
+
+export async function buildSourceDescriptorsFromRecords(options = {}) {
+  const matterRoot = options.matterRoot || "";
+  const matterJson = options.matterJson || {};
+  const records = Array.isArray(options.records) ? options.records : [];
   if (!records.length) throw new Error("No extraction records found. Run /extract before creating a source index.");
 
+  const providerSetup = resolveSourceDescriptorProvider(options);
+  const provider = providerSetup.provider;
+  const dryRun = Boolean(options.dryRun);
   const sourcePackets = buildSourcePackets(records);
   if (!sourcePackets.length) throw new Error("Extraction records contain no source packets to describe.");
 
@@ -98,13 +119,7 @@ export async function runSourceDescriptors(options = {}) {
     source_record_count: records.length,
     sources: descriptors,
   };
-
-  const outputDir = path.join(matterRoot, MATTER_LIBRARY_DIR);
-  const outputJson = path.join(outputDir, SOURCE_INDEX_FILENAME);
-  if (!dryRun) {
-    await mkdir(outputDir, { recursive: true });
-    await writeFileAtomic(outputJson, `${JSON.stringify(artifact, null, 2)}\n`);
-  }
+  const outputJson = `${MATTER_LIBRARY_DIR}/${SOURCE_INDEX_FILENAME}`;
 
   return {
     dryRun,
@@ -116,8 +131,8 @@ export async function runSourceDescriptors(options = {}) {
       descriptors: descriptors.length,
     },
     outputPaths: {
-      directory: toPosix(path.relative(matterRoot, outputDir)),
-      json: toPosix(path.relative(matterRoot, outputJson)),
+      directory: MATTER_LIBRARY_DIR,
+      json: outputJson,
     },
     aiRun,
     sourcePackets,
@@ -131,7 +146,7 @@ export async function runSourceDescriptors(options = {}) {
       reviewMessages.length ? `[source-index] ${reviewMessages.length} source descriptor batch(es) need lawyer review` : "",
       dryRun
         ? `[source-index] dry run only. Re-run with apply to write ${SOURCE_INDEX_FILENAME}.`
-        : `[source-index] wrote ${toPosix(path.relative(matterRoot, outputJson))}`,
+        : `[source-index] wrote ${outputJson}`,
     ].filter(Boolean),
   };
 }

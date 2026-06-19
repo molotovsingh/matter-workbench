@@ -1144,6 +1144,78 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service describes sources directly from DB custody", async () => {
+  const extractionRecord = {
+    schema_version: "extraction-record/v1",
+    file_id: "FILE-0001",
+    sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt",
+    engine: "text-extract@test",
+    page_count: 1,
+    warnings: [],
+    pages: [{
+      page: 1,
+      confidence_avg: 0.98,
+      needs_review: false,
+      blocks: [{ id: "p1.b1", type: "paragraph", text: "The agreement was signed on 20 April 2026." }],
+    }],
+  };
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 80, true),
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json", "extraction_payload", "application/json", 500, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matter_name: "Legal Caption", client_name: "Client A" }), "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json", JSON.stringify(extractionRecord), "application/json"),
+      {},
+    ]),
+  });
+
+  const result = await service.describeSources(matter, {
+    generatedAt: "2026-06-19T00:00:00.000Z",
+    sourceDescriptorProvider: async ({ sources }) => ({
+      sources: sources.map((source) => ({
+        file_id: source.file_id,
+        sha256: source.sha256,
+        source_path: source.source_path,
+        display_label: "Agreement note dated 20 April 2026",
+        short_label: "Agreement note",
+        document_type: "agreement",
+        document_date: "2026-04-20",
+        date_basis: "body_text",
+        parties: {
+          from: "",
+          to: [],
+          cc: [],
+          author: "",
+          court: "",
+          judge: "",
+          issuing_party: "Runtime Client",
+          recipient_party: "Other Side",
+          deponent: "",
+          signatory: "Runtime Client",
+        },
+        confidence: 0.9,
+        needs_review: false,
+        evidence: [{ citation: source.blocks[0].citation, reason: "The source text states the agreement date." }],
+        warnings: [],
+      })),
+    }),
+  });
+
+  assert.equal(result.operationResult.matterRoot, "postgres:DB Matter");
+  assert.equal(result.operationResult.artifact.sources[0].display_label, "Agreement note dated 20 April 2026");
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), ["10_Library/Source Index.json"]);
+  assert.match(calls.at(-1).input, /10_Library\/Source Index\.json/);
+});
+
 test("runtime DB storage service reads and persists matter.json directly in DB custody", async () => {
   const calls = [];
   const service = createRuntimeDbStorageService({

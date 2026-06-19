@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  buildSourceDescriptorsFromRecords,
   buildSourcePackets,
   runSourceDescriptors,
   validateAndSortDescriptors,
@@ -59,6 +60,34 @@ async function makeMatterRoot() {
   }
   return root;
 }
+
+test("source descriptors engine builds source-index/v1 from DB-native extraction records", async () => {
+  const records = extractionRecords().slice(0, 1);
+  const result = await buildSourceDescriptorsFromRecords({
+    matterRoot: "postgres:DB Matter",
+    matterJson: {
+      matter_name: "Mehta vs Skyline",
+      client_name: "Mehta",
+      opposite_party: "Skyline",
+      matter_type: "Civil",
+      jurisdiction: "India",
+      brief_description: "Source index DB-native test matter",
+    },
+    records,
+    generatedAt: "2026-04-28T10:00:00.000Z",
+    provider: async ({ matter, sources }) => {
+      assert.equal(matter.matter_name, "Mehta vs Skyline");
+      assert.deepEqual(sources.map((source) => source.file_id), ["FILE-0001"]);
+      return { sources: validDescriptors(sources) };
+    },
+  });
+
+  assert.equal(result.matterRoot, "postgres:DB Matter");
+  assert.equal(result.outputPaths.json, "10_Library/Source Index.json");
+  assert.equal(result.artifact.source_record_count, 1);
+  assert.equal(result.artifact.sources[0].file_id, "FILE-0001");
+  assert.match(result.outputLines.at(-1), /wrote 10_Library\/Source Index\.json/);
+});
 
 test("source descriptors engine writes source-index/v1 with fake provider descriptors", async () => {
   const root = await makeMatterRoot();

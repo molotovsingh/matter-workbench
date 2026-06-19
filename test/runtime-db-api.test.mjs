@@ -593,6 +593,68 @@ test("runtime DB postgres storage mode runs extract through materialized DB writ
   }
 });
 
+test("runtime DB postgres storage mode runs source labels from DB-native custody", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-sources");
+  const runtimeMatter = runtimeDbMatter({
+    id: "44444444-4444-4444-8444-444444444444",
+    name: "DB Direct Source Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    sourceDescriptorProvider: async () => ({ sources: [] }),
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Source Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async describeSources(matter, options) {
+        calls.push(["describe", matter.name, matter.matterName, Boolean(options.sourceDescriptorProvider)]);
+        return {
+          operationResult: {
+            counts: { recordsRead: 1, sourcePackets: 1, descriptors: 1 },
+            outputPaths: { json: "10_Library/Source Index.json" },
+          },
+          persisted: [{ relativePath: "10_Library/Source Index.json", objectRole: "matter_artifact" }],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native source labels");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/describe-sources", {
+      matterName: "Legal Caption",
+    });
+
+    assert.equal(result.counts.recordsRead, 1);
+    assert.equal(result.counts.descriptors, 1);
+    assert.equal(result.matterRoot, "postgres:DB Direct Source Matter");
+    assert.deepEqual(result.dbPersistence.persisted, [
+      { relativePath: "10_Library/Source Index.json", objectRole: "matter_artifact" },
+    ]);
+    assert.deepEqual(calls, [["describe", "DB Direct Source Matter", "Legal Caption", true]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs source labels through materialized DB write service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sources");
   const runtimeMatter = runtimeDbMatter({

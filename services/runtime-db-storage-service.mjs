@@ -12,6 +12,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
+import { buildSourceDescriptorsFromRecords } from "../source-descriptors-engine.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
   WORKSPACE_PREVIEW_LIMITS,
@@ -428,6 +429,35 @@ export function createRuntimeDbStorageService({
     }]);
   }
 
+  async function describeSources(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const matterJson = await readMatterJson(normalizedMatter);
+    const records = readRuntimeDbExtractionRecords({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+    });
+    const response = await buildSourceDescriptorsFromRecords({
+      ...options,
+      matterRoot: `postgres:${normalizedMatter.name}`,
+      matterJson,
+      records,
+      dryRun: Boolean(options.dryRun),
+    });
+    const persisted = options.dryRun
+      ? []
+      : await persistTextArtifacts(normalizedMatter, [{
+        relativePath: response.outputPaths.json,
+        text: `${JSON.stringify(response.artifact, null, 2)}\n`,
+      }]);
+    return {
+      operationResult: response,
+      persisted,
+    };
+  }
+
   async function refreshListOfDatesSourceLabels(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -658,6 +688,7 @@ export function createRuntimeDbStorageService({
     addUploadedFilesToMatter,
     artifactExists,
     checkUploadedFileOverlap,
+    describeSources,
     enabled,
     createMatterFromUploadedFiles,
     getRawFile,
@@ -781,6 +812,23 @@ function runtimeMatterJsonForStorage(matter = {}) {
     brief_description: stringValue(matter.briefDescription),
     intakes: [],
   };
+}
+
+function readRuntimeDbExtractionRecords({ matter, workspace, readPayloadRow } = {}) {
+  const records = [];
+  const paths = runtimeWorkspaceFilePaths(workspace.tree || workspace.root || {});
+  for (const item of paths) {
+    const relativePath = item.path || "";
+    if (!/(^|\/)\_extracted\/FILE-\d+\.json$/i.test(relativePath)) continue;
+    try {
+      const payload = readPayloadRow({ matter, relativePath });
+      const record = JSON.parse(payload.bytes.toString("utf8"));
+      if (record?.schema_version === "extraction-record/v1" && record.file_id) records.push(record);
+    } catch {
+      // /doctor owns invalid extraction-record reporting; source descriptions skip bad records.
+    }
+  }
+  return records.sort((left, right) => String(left.file_id || "").localeCompare(String(right.file_id || "")));
 }
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {

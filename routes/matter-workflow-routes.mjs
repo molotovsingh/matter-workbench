@@ -116,6 +116,16 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterName: matterNameForBody(matterStore, body),
           operation: async ({ job } = {}) => {
             const onProgress = sourceLabelJobProgressReporter(jobStatusService, job);
+            if (hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const result = await runtimeDbStorageService.describeSources(matter, {
+                dryRun: Boolean(body.dryRun),
+                env: services.env || {},
+                sourceDescriptorProvider: services.sourceDescriptorProvider,
+                onProgress,
+              });
+              return runtimeDbWorkflowResponse(result, matter);
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -521,6 +531,11 @@ function hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService) {
     && typeof runtimeDbStorageService.artifactExists === "function"
     && typeof runtimeDbStorageService.persistTextArtifacts === "function"
     && typeof runtimeDbStorageService.persistMatterJson === "function";
+}
+
+function hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.describeSources === "function";
 }
 
 async function runTrackedWorkflow({
