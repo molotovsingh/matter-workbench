@@ -183,6 +183,27 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           label: body.slash || "Custom skill",
           matterName: matterNameForSkillRun(matterStore, body.matterName),
           operation: async () => {
+            if (hasRuntimeDbConfigurableSkillRunPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
+              const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+              const result = await configurableSkillsService.runSkill({
+                slash: body.slash,
+                overwrite: Boolean(body.overwrite),
+                matterName: matter.name,
+                matterRootOverride: `postgres:${matter.name}`,
+                matterRecordOverride: matter,
+                matterContextPacketOverride: packet,
+                artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+                artifactWriter: ({ outputPaths, markdown, metadata, runId }) => runtimeDbStorageService.persistTextArtifacts(matter, [
+                  { relativePath: outputPaths.markdown, text: `${String(markdown || "")}\n` },
+                  { relativePath: outputPaths.json, text: `${JSON.stringify({ ...metadata, runId, markdown: String(markdown || "") }, null, 2)}\n` },
+                ]),
+              });
+              const { artifactPersistence, ...responsePayload } = result;
+              return artifactPersistence
+                ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
+                : responsePayload;
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
               const result = await runtimeDbStorageService.runMaterializedMatterWrite(matter, ({ matterRoot }) => configurableSkillsService.runSkill({
@@ -239,6 +260,13 @@ async function scopedSkillRuns({ matterStore, runs }) {
 function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.runMaterializedMatterWrite === "function";
+}
+
+function hasRuntimeDbConfigurableSkillRunPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.readMatterContextPacket === "function"
+    && typeof runtimeDbStorageService.artifactExists === "function"
+    && typeof runtimeDbStorageService.persistTextArtifacts === "function";
 }
 
 function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {

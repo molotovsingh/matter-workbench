@@ -365,6 +365,42 @@ export function createRuntimeDbStorageService({
     return stage?.rerunAdvice || null;
   }
 
+  async function artifactExists(matter, relativePath) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    try {
+      readPayloadRow({ matter: normalizedMatter, relativePath: normalizeMatterRelativePath(relativePath) });
+      return true;
+    } catch (error) {
+      if (error?.statusCode === 404) return false;
+      if (error?.statusCode === 409) return true;
+      throw error;
+    }
+  }
+
+  async function persistTextArtifacts(matter, files = []) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const normalizedFiles = files.map((file) => {
+      const relativePath = normalizeMatterRelativePath(file.relativePath);
+      const bytes = Buffer.isBuffer(file.bytes)
+        ? file.bytes
+        : Buffer.from(String(file.text || ""), "utf8");
+      const sha256 = file.sha256 || sha256Bytes(bytes);
+      return {
+        relativePath,
+        bytes,
+        sha256,
+        sizeBytes: bytes.length,
+        objectRole: file.objectRole || runtimeArtifactRoleForPath(relativePath),
+        mimeType: file.mimeType || runtimeArtifactMimeTypeForPath(relativePath),
+      };
+    });
+    return normalizedFiles.length
+      ? persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter: normalizedMatter, files: normalizedFiles })
+      : [];
+  }
+
   async function refreshListOfDatesSourceLabels(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -593,6 +629,7 @@ export function createRuntimeDbStorageService({
 
   return {
     addUploadedFilesToMatter,
+    artifactExists,
     checkUploadedFileOverlap,
     enabled,
     createMatterFromUploadedFiles,
@@ -604,6 +641,7 @@ export function createRuntimeDbStorageService({
     readMatterStatus,
     readPrepareMatterPlan,
     readRerunAdvice,
+    persistTextArtifacts,
     readFilePreview,
     readWorkspace,
     runMaterializedMatterRead,

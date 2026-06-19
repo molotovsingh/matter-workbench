@@ -138,6 +138,9 @@ export function createConfigurableSkillsService({
     matterName = "",
     matterRootOverride = "",
     matterRecordOverride = null,
+    matterContextPacketOverride = null,
+    artifactExistsOverride = null,
+    artifactWriter = null,
   } = {}) {
     const normalizedSlash = normalizeSlash(slash);
     const store = await readStore();
@@ -145,7 +148,10 @@ export function createConfigurableSkillsService({
     const matterContext = await matterContextForRun({ matterName, matterRootOverride, matterRecordOverride });
     const matterRoot = matterContext.matterRoot;
     const { outputPaths, filePaths } = resolveConfigurableSkillRunArtifacts({ matterRoot, skill });
-    if (!overwrite && await exists(filePaths.markdown)) {
+    const artifactExists = typeof artifactExistsOverride === "function"
+      ? await artifactExistsOverride(outputPaths.markdown)
+      : await exists(filePaths.markdown);
+    if (!overwrite && artifactExists) {
       return {
         schema_version: "configurable-skill-run/v1",
         state: "requires_overwrite",
@@ -190,7 +196,7 @@ export function createConfigurableSkillsService({
       startedAt: timestamp,
     });
     try {
-      const packet = await buildConfigurableSkillMatterContextPacket(matterRoot);
+      const packet = matterContextPacketOverride || await buildConfigurableSkillMatterContextPacket(matterRoot);
       const matterSummary = matterSummaryForRun(packet.matter, matterRoot);
       const warnings = Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [];
       const markdown = boundedOutputMarkdown(await provider({
@@ -207,12 +213,14 @@ export function createConfigurableSkillsService({
         aiRun,
         warnings,
       };
-      await writeConfigurableSkillRunArtifacts({
-        filePaths,
-        markdown,
-        metadata,
-        runId: runRecord.id,
-      });
+      const artifactPersistence = typeof artifactWriter === "function"
+        ? await artifactWriter({ filePaths, outputPaths, markdown, metadata, runId: runRecord.id })
+        : await writeConfigurableSkillRunArtifacts({
+          filePaths,
+          markdown,
+          metadata,
+          runId: runRecord.id,
+        });
       runRecord = await runLedger.updateRun(runRecord.id, {
         status: "succeeded",
         ...matterSummary,
@@ -232,6 +240,7 @@ export function createConfigurableSkillsService({
         outputPaths,
         runId: runRecord.id,
         runRecord,
+        ...(artifactPersistence ? { artifactPersistence } : {}),
       };
     } catch (error) {
       await preservePrimaryRunFailure(runLedger, runRecord.id, error);

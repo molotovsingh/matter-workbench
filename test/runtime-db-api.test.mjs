@@ -1336,6 +1336,114 @@ test("runtime DB postgres storage mode runs doctor fix through materialized DB w
   }
 });
 
+test("runtime DB postgres storage mode runs configurable skills from DB-native context", async () => {
+  const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-custom-skill");
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  const configurableSkillRunsPath = path.join(appDir, "configurable-skill-runs.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify({
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_story",
+      slash: "/the_story",
+      title: "The Story",
+      description: "Tell the matter story for internal lawyer review.",
+      status: "active",
+      version: 1,
+      familyId: "skill_story",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/The Story.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Tell the story from the matter record.",
+        citationPolicy: "Use raw FILE citations.",
+      },
+      modelPolicy: {
+        task: "configurable_skill_run",
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
+      validation: { status: "passed", messages: [], validatedAt: "2026-06-06T00:00:00.000Z" },
+      createdAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    }],
+  }, null, 2)}\n`);
+  const runtimeMatter = runtimeDbMatter({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "DB Direct Skill Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath,
+    configurableSkillRunProvider: async ({ matterContext }) => {
+      calls.push(["provider", matterContext.evidence_blocks[0].citation]);
+      return "# The Story\n\nRuntime Client signed the agreement. (FILE-0001 p1.b1)\n";
+    },
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Skill Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(matter) {
+        calls.push(["packet", matter.name, matter.matterName]);
+        return directRuntimeDbMatterContextPacket(matter);
+      },
+      async artifactExists(matter, relativePath) {
+        calls.push(["exists", matter.name, relativePath]);
+        return false;
+      },
+      async persistTextArtifacts(matter, files) {
+        calls.push(["persist", matter.name, files.map((file) => file.relativePath)]);
+        return files.map((file) => ({ relativePath: file.relativePath, objectRole: "matter_artifact" }));
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native configurable skill run");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/configurable-skills/run", {
+      slash: "/the_story",
+      matterName: "Legal Caption",
+    });
+
+    assert.equal(result.state, "written");
+    assert.equal(result.runRecord.matterRoot, "postgres:DB Direct Skill Matter");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "20_Workshop/The Story.md",
+      "20_Workshop/The Story.json",
+    ]);
+    assert.deepEqual(calls, [
+      ["packet", "DB Direct Skill Matter", "Legal Caption"],
+      ["exists", "DB Direct Skill Matter", "20_Workshop/The Story.md"],
+      ["provider", "FILE-0001 p1.b1"],
+      ["persist", "DB Direct Skill Matter", ["20_Workshop/The Story.md", "20_Workshop/The Story.json"]],
+    ]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs configurable skills through materialized DB write service", async () => {
   const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-custom-skill");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
