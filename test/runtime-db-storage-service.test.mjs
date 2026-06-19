@@ -1144,6 +1144,52 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service extracts documents directly from DB custody", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 80, true),
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/File Register.csv", "matter_artifact", "text/csv", 120, true),
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt", "source_working_copy", "text/plain", 82, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        client_name: "Client A",
+        intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+      }), "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/File Register.csv", [
+        "file_id,intake_id,source_path,original_path,working_copy_path,category,original_name,sha256,size_bytes,duplicate_of,status",
+        "FILE-0001,INTAKE-01,source/facts.txt,,00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt,Text Notes,facts.txt,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,82,,unique",
+        "",
+      ].join("\n"), "text/csv"),
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt", "Agreement signed on 20 April 2026.\n\nNotice followed on 1 May 2026.", "text/plain"),
+      {},
+      {},
+    ]),
+  });
+
+  const result = await service.extractDocuments(matter, { forceRefresh: true });
+
+  assert.equal(result.operationResult.matterRoot, "postgres:DB Matter");
+  assert.equal(result.operationResult.counts.extracted, 1);
+  assert.equal(result.operationResult.counts.failed, 0);
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [
+    "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json",
+    "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.txt",
+    "00_Inbox/Intake 01 - Initial/Extraction Log.csv",
+  ]);
+  const sql = calls.at(-1).input;
+  assert.match(sql, /_extracted\/FILE-0001\.json/);
+  assert.match(sql, /_extracted\/FILE-0001\.txt/);
+  assert.match(sql, /Extraction Log\.csv/);
+});
+
 test("runtime DB storage service describes sources directly from DB custody", async () => {
   const extractionRecord = {
     schema_version: "extraction-record/v1",

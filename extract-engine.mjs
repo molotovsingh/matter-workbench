@@ -20,9 +20,10 @@ import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ENGINE_VERSION = "extract-v1-deterministic";
+export const EXTRACT_ENGINE_VERSION = "extract-v1-deterministic";
+const ENGINE_VERSION = EXTRACT_ENGINE_VERSION;
 
-function pickExtractor(row) {
+export function pickExtractor(row) {
   const lowerName = (row.original_name || "").toLowerCase();
   const ext = lowerName.includes(".") ? lowerName.slice(lowerName.lastIndexOf(".")) : "";
   if (ext === ".rtf") {
@@ -79,7 +80,7 @@ async function readJsonIfExists(filePath) {
   }
 }
 
-function canUseCachedExtraction(cached, row, route, options) {
+export function canUseCachedExtraction(cached, row, route, options) {
   if (options.forceRefresh) return false;
   if (!cached || cached.sha256 !== row.sha256) return false;
   if (route.fingerprint === PDF_ENGINE_FINGERPRINT && typeof options.ocrProvider === "function") {
@@ -91,7 +92,7 @@ function canUseCachedExtraction(cached, row, route, options) {
   return true;
 }
 
-function resolveOcrProvider(options) {
+export function resolveOcrProvider(options) {
   if (Object.hasOwn(options, "ocrProvider")) return options.ocrProvider;
   const env = options.env || process.env;
   if (!env.MISTRAL_API_KEY) return null;
@@ -126,7 +127,7 @@ export async function runExtract(options = {}) {
     });
   }
   if (!intakes.length) {
-    return emptyResult(dryRun, matterRoot, "no intakes recorded in matter.json");
+    return emptyExtractResult(dryRun, matterRoot, "no intakes recorded in matter.json");
   }
 
   const targetIntakes = intakeFilter
@@ -414,7 +415,7 @@ function parsePositiveInteger(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function emptyResult(dryRun, matterRoot, reason) {
+export function emptyExtractResult(dryRun, matterRoot, reason) {
   return {
     dryRun,
     matterRoot,

@@ -59,6 +59,7 @@ import {
 } from "./runtime-db-materialized-persistence-sql.mjs";
 import { runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
+import { runRuntimeDbExtract } from "./runtime-db-extract-service.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import {
   buildAdvisorySnapshotSql,
@@ -460,6 +461,22 @@ export function createRuntimeDbStorageService({
     };
   }
 
+  async function extractDocuments(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const matterJson = await readMatterJson(normalizedMatter);
+    return runRuntimeDbExtract({
+      matter: normalizedMatter,
+      workspace,
+      matterJson,
+      readPayloadRow,
+      persistTextArtifacts,
+      tempRoot,
+      options,
+    });
+  }
+
   async function createListOfDates(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -731,6 +748,7 @@ export function createRuntimeDbStorageService({
     createListOfDates,
     describeSources,
     enabled,
+    extractDocuments,
     createMatterFromUploadedFiles,
     getRawFile,
     readDoctorScan,

@@ -515,6 +515,74 @@ test("runtime DB postgres storage mode runs matter-init through materialized DB 
   }
 });
 
+test("runtime DB postgres storage mode runs extract from DB-native custody", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-extract");
+  const runtimeMatter = runtimeDbMatter({
+    id: "33333333-3333-4333-8333-333333333333",
+    name: "DB Direct Extract Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Extract Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async extractDocuments(matter, options) {
+        calls.push(["extract", matter.name, matter.matterName, options.forceRefresh]);
+        return {
+          operationResult: {
+            counts: { extracted: 1, failed: 0 },
+            perIntake: [{ intake_id: "INTAKE-01", extracted: 1, cached: 0, skipped: 0, failed: 0 }],
+          },
+          persisted: [
+            { relativePath: "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json", objectRole: "extraction_payload" },
+            { relativePath: "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.txt", objectRole: "other" },
+            { relativePath: "00_Inbox/Intake 01 - Initial/Extraction Log.csv", objectRole: "matter_artifact" },
+          ],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native extract");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/extract", {
+      matterName: "Legal Caption",
+      forceRefresh: true,
+    });
+
+    assert.equal(result.counts.extracted, 1);
+    assert.equal(result.counts.failed, 0);
+    assert.equal(result.matterRoot, "postgres:DB Direct Extract Matter");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json",
+      "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.txt",
+      "00_Inbox/Intake 01 - Initial/Extraction Log.csv",
+    ]);
+    assert.deepEqual(calls, [["extract", "DB Direct Extract Matter", "Legal Caption", true]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs extract through materialized DB write service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-extract");
   const runtimeMatter = runtimeDbMatter({

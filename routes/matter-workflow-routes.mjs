@@ -79,6 +79,18 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "Extract Documents",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            if (hasRuntimeDbExtractPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const result = await runtimeDbStorageService.extractDocuments(matter, {
+                dryRun: Boolean(body.dryRun),
+                forceRefresh: Boolean(body.forceRefresh),
+                intakeFilter: typeof body.intakeId === "string" && body.intakeId.trim()
+                  ? body.intakeId.trim()
+                  : null,
+                env: services.env || {},
+              });
+              return runtimeDbWorkflowResponse(result, matter);
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -555,6 +567,11 @@ function hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.describeSources === "function";
+}
+
+function hasRuntimeDbExtractPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.extractDocuments === "function";
 }
 
 function hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService) {
