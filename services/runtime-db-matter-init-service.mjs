@@ -13,7 +13,7 @@ import {
 } from "../shared/matter-contract.mjs";
 import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
-import { sha256Bytes } from "./runtime-db-materialized-workspace.mjs";
+import { sha256Bytes } from "./runtime-db-bytes.mjs";
 
 export function buildRuntimeDbMatterInit({
   matter = {},

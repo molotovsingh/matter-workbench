@@ -39,7 +39,7 @@ import {
   runtimePrepareMatterPlanFromStatus,
   runtimeWorkspaceFilePaths,
 } from "./runtime-db-preparation-read-model.mjs";
-import { sha256Bytes } from "./runtime-db-materialized-workspace.mjs";
+import { sha256Bytes } from "./runtime-db-bytes.mjs";
 import {
   buildMaterializedDeletionPersistenceSql,
   buildMaterializedFilePersistenceSql,
