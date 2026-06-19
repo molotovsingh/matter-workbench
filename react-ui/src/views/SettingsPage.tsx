@@ -62,7 +62,7 @@ export default function SettingsPage() {
 
     const [configResult, aiResult, skillsResult, systemHealthResult] = await Promise.allSettled([
       api.getConfig(),
-      api.getAiSettings(),
+      canReviewSystemHealth ? api.getAiSettings() : Promise.resolve(null),
       api.getSkills(),
       canReviewSystemHealth ? api.getSystemHealth() : Promise.resolve(null),
     ]);
@@ -79,7 +79,7 @@ export default function SettingsPage() {
       setMattersHomeError(getErrorMessage(configResult.reason));
     }
 
-    if (aiResult.status === 'fulfilled') {
+    if (aiResult.status === 'fulfilled' && aiResult.value) {
       const nextSettings = aiResult.value;
       setSettings(nextSettings);
       if (nextSettings.provider) setFormProvider(nextSettings.provider);
@@ -87,8 +87,10 @@ export default function SettingsPage() {
       const task = findCopilotTask(nextSettings);
       if (task?.provider) setCopilotProvider(task.provider);
       if (task?.model) setCopilotModel(task.model);
-    } else {
+    } else if (aiResult.status === 'rejected') {
       setAiLoadError(getErrorMessage(aiResult.reason));
+    } else {
+      setSettings(null);
     }
 
     if (skillsResult.status === 'fulfilled') {
@@ -297,7 +299,9 @@ export default function SettingsPage() {
   }
 
   const systemHealthNeedsAttention = systemHealth?.status === 'warning' || systemHealth?.status === 'error';
-  const overallReady = !systemHealthNeedsAttention && (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false);
+  const overallReady = canReviewSystemHealth
+    ? !systemHealthNeedsAttention && (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false)
+    : !mattersHomeError && !skillsError;
   const copilotTask = findCopilotTask(settings);
   const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
     ? copilotPresetValue(copilotProvider, copilotModel)
@@ -310,7 +314,7 @@ export default function SettingsPage() {
       <div className="settings-hero">
         <div>
           <h1>Settings</h1>
-          <p>Matter folder, AI connection, and advanced routing.</p>
+          <p>{canReviewSystemHealth ? 'Matter folder, system health, and advanced routing.' : 'Matter storage and workspace preferences.'}</p>
         </div>
         <div className={`settings-ready-status${overallReady ? ' ready' : ' error'}`}>
           <span className="settings-ready-dot" />
@@ -564,8 +568,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ─── AI Configuration ──────────────────────── */}
-      <div className="settings-section">
+      {canReviewSystemHealth && (
+        <>
+          {/* ─── AI Configuration ──────────────────────── */}
+          <div className="settings-section">
         <h2>AI Configuration</h2>
         <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
           The AI connection used by governed workbench tasks. Advanced routing details are shown below.
@@ -795,6 +801,9 @@ export default function SettingsPage() {
             </div>
           </details>
         </div>
+      )}
+
+        </>
       )}
 
       {/* ─── Skill Registry ──────────────────────────── */}

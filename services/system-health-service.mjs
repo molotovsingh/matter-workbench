@@ -157,6 +157,27 @@ export function createSystemHealthService({
       recommendation: notReady.length ? "Configure missing provider keys/models in Settings before supervised beta work." : "",
     }));
 
+    const startupCopilotCheck = settings?.startupChecks?.copilot;
+    if (startupCopilotCheck) {
+      checks.push(check({
+        id: "provider.copilot_startup_check",
+        category: "provider",
+        label: "Matter Copilot startup check",
+        status: startupCopilotCheck.ok ? "ok" : "warning",
+        message: startupCopilotCheck.ok
+          ? `Matter Copilot model check passed for ${startupCopilotCheck.provider || "unknown"} / ${startupCopilotCheck.model || "unknown"}.`
+          : `Matter Copilot model check failed for ${startupCopilotCheck.provider || "unknown"} / ${startupCopilotCheck.model || "unknown"}: ${safeMessage(startupCopilotCheck.error)}`,
+        evidence: [{
+          provider: startupCopilotCheck.provider || "",
+          model: startupCopilotCheck.model || "",
+          checkedAt: startupCopilotCheck.checkedAt || "",
+          latencyMs: startupCopilotCheck.latencyMs || 0,
+          code: startupCopilotCheck.code || "",
+        }],
+        recommendation: startupCopilotCheck.ok ? "" : "Fix the Copilot key/model route before tester sessions that rely on Copilot.",
+      }));
+    }
+
     const failClosedProblems = tasks.filter((task) => task.fallback === "fail_closed" && !task.ready);
     checks.push(check({
       id: "provider.fail_closed_routes",

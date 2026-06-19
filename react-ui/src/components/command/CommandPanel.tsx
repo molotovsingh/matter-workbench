@@ -126,6 +126,7 @@ export default function CommandPanel({
   const canSubmitFeedback = Boolean(feedbackDraft) && !feedbackSubmitting;
 
   useEffect(() => {
+    if (!canManageCopilotSettings) return undefined;
     let cancelled = false;
     api.getAiSettings().then((settings) => {
       if (cancelled) return;
@@ -134,12 +135,12 @@ export default function CommandPanel({
       if (task?.model) setCopilotModel(task.model);
     }).catch((error) => {
       if (cancelled) return;
-      appendTerminal([`[copilot] model switch unavailable: ${getErrorMessage(error)}`]);
+      appendTerminal([`[assistant] settings unavailable: ${getErrorMessage(error)}`]);
     });
     return () => {
       cancelled = true;
     };
-  }, [appendTerminal]);
+  }, [appendTerminal, canManageCopilotSettings]);
 
   const loadCommandSuggestions = useCallback(async () => {
     const seq = suggestionsLoadSeqRef.current + 1;
@@ -284,7 +285,7 @@ export default function CommandPanel({
     setCopilotModel(preset.model);
     setCopilotSwitching(true);
     setCopilotSwitchStatus(`Testing ${preset.shortLabel}…`);
-    appendTerminal([`[copilot] testing ${preset.provider} / ${preset.model}`]);
+    appendTerminal([`[assistant] testing ${preset.shortLabel}`]);
 
     try {
       const settings = await api.saveAiSettings({
@@ -295,12 +296,12 @@ export default function CommandPanel({
       setCopilotProvider(task?.provider || preset.provider);
       setCopilotModel(task?.model || preset.model);
       setCopilotSwitchStatus(`Using ${copilotShortLabel(task?.provider || preset.provider, task?.model || preset.model)}`);
-      appendTerminal([`[copilot] model saved: ${preset.shortLabel}`]);
+      appendTerminal([`[assistant] setting saved: ${preset.shortLabel}`]);
     } catch (error) {
       setCopilotProvider(previousProvider);
       setCopilotModel(previousModel);
       setCopilotSwitchStatus(`Switch failed. Still using ${copilotShortLabel(previousProvider, previousModel)}.`);
-      appendTerminal([`[copilot] model switch failed: ${getErrorMessage(error)}`]);
+      appendTerminal([`[assistant] setting change failed: ${getErrorMessage(error)}`]);
     } finally {
       setCopilotSwitching(false);
     }
@@ -329,7 +330,9 @@ export default function CommandPanel({
           runtimeMode: state.config?.runtimeStorageMode || 'filesystem',
           viewport: viewportLabel(),
           recentActivity: activityRows.map((row) => `${row.time} ${row.message}`),
-          providerRoutes: [{ task: 'copilot_answer', provider: copilotProvider, model: copilotModel }],
+          providerRoutes: canManageCopilotSettings
+            ? [{ task: 'copilot_answer', provider: copilotProvider, model: copilotModel }]
+            : [],
           visibleError: feedbackHappenedInstead,
         },
       });
@@ -468,28 +471,30 @@ export default function CommandPanel({
           >
             New task
           </button>
-          <label className="copilot-model-switch">
-            <span>Copilot</span>
-            <select
-              aria-label="Copilot strength"
-              value={copilotSelectValue}
-              onChange={(event) => { void handleCopilotModelChange(event.target.value); }}
-              disabled={!canManageCopilotSettings || copilotSwitching}
-            >
-              {!copilotPreset && (
-                <option value="">{copilotShortLabel(copilotProvider, copilotModel)}</option>
-              )}
-              {COPILOT_MODEL_PRESETS.map((preset) => (
-                <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
-                  {preset.shortLabel}
-                </option>
-              ))}
-            </select>
-          </label>
+          {canManageCopilotSettings && (
+            <label className="copilot-model-switch">
+              <span>Copilot</span>
+              <select
+                aria-label="Copilot strength"
+                value={copilotSelectValue}
+                onChange={(event) => { void handleCopilotModelChange(event.target.value); }}
+                disabled={copilotSwitching}
+              >
+                {!copilotPreset && (
+                  <option value="">{copilotShortLabel(copilotProvider, copilotModel)}</option>
+                )}
+                {COPILOT_MODEL_PRESETS.map((preset) => (
+                  <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
+                    {preset.shortLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
 
-      {copilotSwitchStatus && (
+      {canManageCopilotSettings && copilotSwitchStatus && (
         <div className="copilot-model-status" style={{ order: 1 }}>
           {copilotSwitchStatus}
         </div>

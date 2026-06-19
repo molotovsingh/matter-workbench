@@ -7,7 +7,8 @@ import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
-import { safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
+import { isPrivateBetaScopedUser, safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
+import { presentMatterCopilotAnswerForScopedUser } from "./user-facing-presenters.mjs";
 
 export async function handleMatterWorkflowApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -372,7 +373,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
         const body = await readRequestJson(request);
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
-          sendJson(response, 200, await runRuntimeDbMaterializedRead({
+          const answer = await runRuntimeDbMaterializedRead({
             matterStore,
             runtimeDbStorageService,
             body,
@@ -380,15 +381,17 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               root: matterRoot,
               question: body.question,
             }),
-          }));
+          });
+          sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(answer));
           return;
         }
         assertFilesystemWorkflowAvailable(matterStore, "Matter copilot");
         const root = await matterRootForBody(matterStore, body);
-        sendJson(response, 200, await matterCopilotService.answerQuestion({
+        const answer = await matterCopilotService.answerQuestion({
           root,
           question: body.question,
-        }));
+        });
+        sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(answer));
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
@@ -532,6 +535,10 @@ function runtimeDbReadResponse(result, matter = {}) {
     matterRoot: result.matterRoot || matter.matterPath || `postgres:${matter.name || ""}`,
     matterName: result.matterName || matter.matterName || matter.name || "",
   };
+}
+
+function presentMatterCopilotAnswerForCurrentUser(answer = {}) {
+  return isPrivateBetaScopedUser() ? presentMatterCopilotAnswerForScopedUser(answer) : answer;
 }
 
 function assertFilesystemWorkflowAvailable(matterStore, label) {

@@ -6,9 +6,9 @@ export interface CopilotModelPreset {
 }
 
 export const COPILOT_MODEL_PRESETS: CopilotModelPreset[] = [
-  { label: 'Low', shortLabel: 'Low', provider: 'openrouter', model: 'openai/gpt-4.1' },
-  { label: 'Medium', shortLabel: 'Medium', provider: 'openai-direct', model: 'gpt-5.4-mini' },
-  { label: 'High', shortLabel: 'High', provider: 'openai-direct', model: 'gpt-5.4' },
+  { label: 'Low', shortLabel: 'Low', provider: 'openrouter', model: 'openai/gpt-4o-mini' },
+  { label: 'Medium', shortLabel: 'Medium', provider: 'openrouter', model: 'openai/gpt-5.4-mini' },
+  { label: 'High', shortLabel: 'High', provider: 'openrouter', model: 'openai/gpt-5.4' },
 ];
 
 export function copilotPresetValue(provider?: string, model?: string) {

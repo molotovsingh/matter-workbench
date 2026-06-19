@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { runStartupAiChecks } from "../services/startup-ai-check-service.mjs";
 import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,6 +58,9 @@ export async function startRuntimeServer({
   await new Promise((resolve) => app.server.listen(args.port, args.host, resolve));
   const address = app.server.address();
   log(`Matter Workbench runtime server listening on http://${args.host}:${address.port}/`);
+  void runStartupAiChecks({ aiSettingsService: app.services.aiSettingsService, log }).catch((error) => {
+    log(`Matter Copilot startup check: failed - ${redactRuntimeServerLine(error.message)}`);
+  });
 
   const close = () => {
     app.server.close(() => process.exit(0));

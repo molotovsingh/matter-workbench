@@ -5,6 +5,7 @@ import ActivityBar from './components/layout/ActivityBar';
 import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
 import CommandPanel from './components/command/CommandPanel';
+import PrivateBetaReadinessGate from './components/auth/PrivateBetaReadinessGate';
 import { api, setAuthRequiredHandler } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
@@ -21,6 +22,8 @@ import { localAssistantReply } from './lib/assistantSmallTalk';
 import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
 import { useLatestValue } from './hooks/useLatestValue';
 import { humanizeArtifactPath } from './lib/presentationLabels';
+import { canSeeOperatorSurface } from './lib/lawyerMode';
+import { useUserReadinessGate } from './hooks/useUserReadinessGate';
 import type { ActiveView, AuthUser } from './types';
 
 interface PendingConfigurableOverwrite {
@@ -44,14 +47,20 @@ function AppShell() {
   const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const preparationRunSeqRef = useRef(0);
+  const { readinessGate, resetReadinessGate } = useUserReadinessGate({
+    authenticated: Boolean(authStatus?.authenticated),
+    appendTerminal,
+  });
   const setActiveView = useCallback((view: ActiveView) => {
     dispatch({ type: 'SET_VIEW', payload: view });
   }, [dispatch]);
   const handleAuthRequired = useCallback(() => {
     setAuthError('Please sign in again.');
     setAuthStatus({ enabled: true, authenticated: false, user: null });
+    resetReadinessGate();
     dispatch({ type: 'SET_CONFIG', payload: { authUser: null, authEnabled: true } });
-  }, [dispatch]);
+  }, [dispatch, resetReadinessGate]);
+  const canSeeOperatorDetails = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   useEffect(() => {
     setAuthRequiredHandler(handleAuthRequired);
@@ -167,21 +176,23 @@ function AppShell() {
     if (!cleanQuestion) return;
     if (!matterName) {
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before asking a matter question.' });
-      appendTerminal(['[copilot] no active matter']);
+      appendTerminal(['[assistant] no active matter']);
       return;
     }
     if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the current matter record…' });
-    appendTerminal(['[copilot] answering from current matter record']);
+    appendTerminal(['[assistant] answering from current matter record']);
     try {
       const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName });
       if (activeMatterNameRef.current !== matterName) return;
       dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotAnswer(answer) });
       appendTerminal([
-        `[copilot] ${answer.answer_status} — ${(answer.sources || []).length} validated source(s)`,
-        answer.ai_run?.provider && answer.ai_run?.model
-          ? `[copilot] ${answer.ai_run.provider} / ${answer.ai_run.model}`
-          : '[copilot] provider metadata unavailable',
+        `[assistant] ${answer.answer_status} — ${(answer.sources || []).length} validated source(s)`,
+        ...(canSeeOperatorDetails
+          ? [answer.ai_run?.provider && answer.ai_run?.model
+            ? `[assistant] route: ${answer.ai_run.provider} / ${answer.ai_run.model}`
+            : '[assistant] route metadata unavailable']
+          : []),
       ]);
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
@@ -191,7 +202,7 @@ function AppShell() {
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal]);
+  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
 
   const openMatterFinder = useCallback(async () => {
     if (state.activeMatter) {
@@ -238,6 +249,7 @@ function AppShell() {
     setPendingConfigurableOverwrite(null);
   }, [state.activeMatter?.name]);
 
+
   // Bootstrap: load config and matter list once on app start.
   useEffect(() => {
     if (!authStatus?.authenticated) return undefined;
@@ -271,24 +283,26 @@ function AppShell() {
     setAuthError('');
     try {
       const status = await api.login({ username, password });
+      resetReadinessGate();
       setAuthStatus(status);
       dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed in']);
     } catch (e) {
       setAuthError(getErrorMessage(e));
     }
-  }, [appendTerminal, dispatch]);
+  }, [appendTerminal, dispatch, resetReadinessGate]);
 
   const handleLogout = useCallback(async () => {
     try {
       const status = await api.logout();
+      resetReadinessGate();
       setAuthStatus(status);
       dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed out']);
     } catch (e) {
       setAuthError(getErrorMessage(e));
     }
-  }, [appendTerminal, dispatch]);
+  }, [appendTerminal, dispatch, resetReadinessGate]);
 
   const runConfigurableSkillFromCommand = useCallback(async ({
     slash,
@@ -440,7 +454,7 @@ function AppShell() {
           dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(result) || `Run ${result.matched_skill}` });
         }
       } else if (result.decision === 'transient_copilot') {
-        appendTerminal(['[cmd] routed to copilot answer']);
+        appendTerminal(['[cmd] routed to assistant answer']);
         await answerMatterQuestion(cmd, { matterName, manageRunning: false });
       } else if (result.suggested_next_action) {
         dispatch({ type: 'SET_COMMAND_COPY', payload: formatIntentDiscoveryGuidance(result) });
@@ -510,10 +524,23 @@ function AppShell() {
     return <PrivateBetaLogin error={authError} onLogin={handleLogin} />;
   }
 
+  if (authStatus.authenticated && !readinessGate.dismissed) {
+    return <PrivateBetaReadinessGate gate={readinessGate} />;
+  }
+
   const isHomeModeClass = !state.activeMatter ? 'home-mode' : '';
+  const readinessAttentionMessage = readinessGate.checks.find((check) => check.status === 'attention')?.message || readinessGate.message;
+  const readinessBanner = readinessGate.dismissed && ['degraded', 'error', 'timeout'].includes(readinessGate.phase)
+    ? readinessAttentionMessage
+    : '';
 
   return (
     <div className={`app-shell ${isHomeModeClass}`}>
+      {readinessBanner && (
+        <div className="readiness-session-banner" role="status">
+          {readinessBanner}
+        </div>
+      )}
       <ActivityBar />
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}

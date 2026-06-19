@@ -34,6 +34,8 @@ import { createRuntimeDbSkillSamplesService } from "./services/runtime-db-skill-
 import { createSkillIdeasService } from "./services/skill-ideas-service.mjs";
 import { createSkillFactoryHealthService } from "./services/skill-factory-health-service.mjs";
 import { createSystemHealthService } from "./services/system-health-service.mjs";
+import { runStartupAiChecks } from "./services/startup-ai-check-service.mjs";
+import { createUserReadinessService } from "./services/user-readiness-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
@@ -300,6 +302,12 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaObservabilityService,
     runtimeDbStorageService,
   });
+  const userReadinessService = options.userReadinessService || createUserReadinessService({
+    aiSettingsService,
+    configService,
+    matterStore,
+    runtimeDbStorageService,
+  });
   const services = {
     aiProvider: options.aiProvider || null,
     aiSettingsService,
@@ -333,6 +341,7 @@ export async function createWorkbenchServer(options = {}) {
     skillSamplesService,
     skillSampleOutputService,
     systemHealthService,
+    userReadinessService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,
     uploadService,
     workspaceService,
@@ -632,5 +641,8 @@ if (process.argv[1] === __filename) {
       : mattersHome
         ? "Matter root: none — pick or create a matter in the sidebar."
         : `Matter root: not configured. Open http://${app.host}:${app.port}/ to set matters home on first run.`);
+    void runStartupAiChecks({ aiSettingsService: app.services.aiSettingsService }).catch((error) => {
+      console.log(`Matter Copilot startup check: failed - ${error.message}`);
+    });
   });
 }

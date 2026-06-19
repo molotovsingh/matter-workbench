@@ -14,13 +14,15 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.match(source, /COPILOT_MODEL_PRESETS/);
   assert.match(models, /label: 'Low'/);
   assert.match(models, /shortLabel: 'Low'/);
-  assert.match(models, /provider: 'openrouter', model: 'openai\/gpt-4\.1'/);
+  assert.match(models, /provider: 'openrouter', model: 'openai\/gpt-4o-mini'/);
   assert.match(models, /label: 'Medium'/);
   assert.match(models, /shortLabel: 'Medium'/);
-  assert.match(models, /provider: 'openai-direct', model: 'gpt-5\.4-mini'/);
+  assert.match(models, /provider: 'openrouter', model: 'openai\/gpt-5\.4-mini'/);
   assert.match(models, /label: 'High'/);
   assert.match(models, /shortLabel: 'High'/);
-  assert.match(models, /provider: 'openai-direct', model: 'gpt-5\.4'/);
+  assert.match(models, /provider: 'openrouter', model: 'openai\/gpt-5\.4'/);
+  assert.doesNotMatch(models, /\{[^\n]*provider: 'openai-direct'/);
+  assert.doesNotMatch(models, /google\/gemini/);
   assert.doesNotMatch(models, /label: 'GPT-4\.1'/);
   assert.doesNotMatch(models, /shortLabel: '4\.1'/);
   assert.doesNotMatch(models, /label: 'Gemini 2\.5 Pro'/);
@@ -31,8 +33,10 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.match(source, /Skills and List of Dates keep their governed routes/);
 });
 
-test("tester-facing Copilot strength is read-only", async () => {
+test("tester-facing Copilot strength is hidden from non-operators", async () => {
   const source = await readFile(commandPanelPath, "utf8");
   assert.match(source, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
-  assert.match(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
+  assert.match(source, /canManageCopilotSettings && \(/);
+  assert.match(source, /if \(!canManageCopilotSettings\) return undefined/);
+  assert.doesNotMatch(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
 });

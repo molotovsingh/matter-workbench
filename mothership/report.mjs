@@ -498,6 +498,7 @@ function latestEvidenceTime(metricSummary = {}, heartbeatSummary = {}) {
 
 function classifyCurrentness(item = {}, latestRuntimeEvidenceAt = null, currentMatterState = null) {
   if (isResolvedByMatterState(item, currentMatterState)) return "resolved_by_latest_matter_state";
+  if (isConfirmedByMatterState(item, currentMatterState)) return "current";
   const itemTime = latestItemEvidenceTime(item);
   if (!Number.isFinite(itemTime) || !Number.isFinite(latestRuntimeEvidenceAt)) return "unknown";
   if (latestRuntimeEvidenceAt - itemTime >= 10 * 60 * 1000) return "needs_live_recheck";
@@ -535,15 +536,23 @@ function matterStateKey(installationId = "", matterName = "") {
 }
 
 function isResolvedByMatterState(item = {}, currentMatterState = null) {
-  if (!currentMatterState || !item.matterName) return false;
-  if (!isPreparationPipelineIssue(item)) return false;
-  const itemTime = latestItemEvidenceTime(item);
-  const checkedTime = Date.parse(currentMatterState.checkedAt || "");
-  if (!Number.isFinite(itemTime) || !Number.isFinite(checkedTime) || checkedTime <= itemTime) return false;
+  if (!isPreparationMatterStateEvidence(item, currentMatterState)) return false;
   return currentMatterState.prepareState === "complete"
     && currentMatterState.attentionState === "clear"
     && (Number(currentMatterState.blockers) || 0) === 0
     && (Number(currentMatterState.warnings) || 0) === 0;
+}
+
+function isConfirmedByMatterState(item = {}, currentMatterState = null) {
+  return isPreparationMatterStateEvidence(item, currentMatterState);
+}
+
+function isPreparationMatterStateEvidence(item = {}, currentMatterState = null) {
+  if (!currentMatterState || !item.matterName) return false;
+  if (!isPreparationPipelineIssue(item)) return false;
+  const itemTime = latestItemEvidenceTime(item);
+  const checkedTime = Date.parse(currentMatterState.checkedAt || "");
+  return Number.isFinite(itemTime) && Number.isFinite(checkedTime) && checkedTime >= itemTime;
 }
 
 function isPreparationPipelineIssue(item = {}) {

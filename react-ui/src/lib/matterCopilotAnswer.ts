@@ -25,11 +25,7 @@ export function formatMatterCopilotAnswer(answer: MatterCopilotAnswer): string {
     parts.push(`Limits: ${warnings.join(' ')}`);
   }
 
-  if (answer.ai_run?.provider && answer.ai_run?.model) {
-    parts.push(`Mode: chat-only answer from the current matter record (${answer.ai_run.provider} / ${answer.ai_run.model}).`);
-  } else {
-    parts.push('Mode: chat-only answer from the current matter record.');
-  }
+  parts.push('Mode: chat-only answer from the current matter record.');
 
   if (status === 'not_found') {
     return `I could not answer that from the current matter record.\n\n${parts.join('\n\n')}`;
@@ -51,11 +47,14 @@ export function formatMatterCopilotError(message: string): string {
       'Run preparation again, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
     ].join('\n\n');
   }
+  if (/\b(openai|openrouter|gpt|llm|api key|provider|model|quota|billing|credit|insufficient funds)\b/i.test(normalized)) {
+    return 'Assistant is temporarily unavailable. You can continue using the workspace.';
+  }
   return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
 }
 
 export function formatMatterCopilotTerminalError(message: string): string {
-  return `[copilot] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
+  return `[assistant] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
 }
 
 function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {

@@ -67,6 +67,26 @@ export interface SystemHealthReport {
   recommendations?: string[];
 }
 
+export interface UserReadinessCheck {
+  id: 'secure_session' | 'workspace_access' | 'matter_library' | 'document_services' | 'assistant_readiness' | string;
+  label: string;
+  status: 'ready' | 'checking' | 'attention' | string;
+  message?: string;
+}
+
+export interface UserReadinessReport {
+  schema_version?: 'user-readiness/v1' | string;
+  generatedAt: string;
+  status: 'ready' | 'degraded' | string;
+  summary?: {
+    total?: number;
+    ready?: number;
+    attention?: number;
+  };
+  checks: UserReadinessCheck[];
+  userMessage?: string;
+}
+
 export interface AppConfig {
   mattersHome?: string;
   defaultMattersHome?: string;
@@ -614,6 +634,17 @@ export interface AiTask {
   note?: string;
 }
 
+export interface AiStartupCheck {
+  ok: boolean;
+  checkedAt?: string;
+  latencyMs?: number;
+  provider?: string;
+  model?: string;
+  error?: string;
+  code?: string;
+  statusCode?: number;
+}
+
 export interface AiSettings {
   provider: string | null;
   model?: string;
@@ -621,6 +652,9 @@ export interface AiSettings {
   maxOutputTokens?: number;
   envPath?: string;
   aiTasks?: AiTask[];
+  startupChecks?: {
+    copilot?: AiStartupCheck;
+  };
 }
 
 export interface AiSettingsSaveRequest {

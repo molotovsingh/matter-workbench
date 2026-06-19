@@ -244,6 +244,16 @@ function deterministicTriage(item = {}, { currentness = "unknown" } = {}) {
 }
 
 function criticalSignalTriage(text, { currentness }) {
+  if (currentness === "needs_live_recheck") {
+    return {
+      classification: "critical_signal",
+      action_lane: "investigate",
+      confidence: "high",
+      reason: "Critical signal is older than newer runtime evidence and needs a current recheck before code changes.",
+      recommended_action: "Recheck current runtime evidence for this signal, then restore fix_now only if the failure still reproduces.",
+      missing_evidence: ["current signal recurrence, failed job, heartbeat, or matter-health evidence"],
+    };
+  }
   if (PREPARATION_PIPELINE_RE.test(text)) {
     if (currentness === "resolved_by_latest_matter_state") {
       return {

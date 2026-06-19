@@ -26,6 +26,17 @@ test("system health reports configuration and provider posture without provider 
           { task: "copilot_answer", label: "Matter Copilot", provider: "openrouter", model: "openai/gpt-4.1", ready: true, fallback: "fail_closed" },
           { task: "source_description", label: "Source Labels", provider: "openrouter", model: "openai/gpt-4.1", ready: false, fallback: "fail_closed", note: "OPENROUTER_API_KEY missing" },
         ],
+        startupChecks: {
+          copilot: {
+            ok: false,
+            provider: "openrouter",
+            model: "openai/gpt-5.4",
+            checkedAt: "2026-06-16T11:59:00.000Z",
+            latencyMs: 42,
+            error: "model unavailable token=super-secret",
+            code: "provider.error",
+          },
+        },
       }),
       testConnection: () => {
         providerProbeCalled = true;
@@ -48,7 +59,11 @@ test("system health reports configuration and provider posture without provider 
   assert.equal(report.checks.find((item) => item.id === "config.matters_home_readable").status, "ok");
   assert.equal(report.checks.find((item) => item.id === "provider.routes_ready").status, "warning");
   assert.match(report.checks.find((item) => item.id === "provider.routes_ready").message, /need setup/i);
-  assert.doesNotMatch(JSON.stringify(report), /sk-redacted-test/);
+  const copilotStartupCheck = report.checks.find((item) => item.id === "provider.copilot_startup_check");
+  assert.equal(copilotStartupCheck.status, "warning");
+  assert.match(copilotStartupCheck.message, /openai\/gpt-5\.4/);
+  assert.match(copilotStartupCheck.message, /token=\[redacted-secret\]/);
+  assert.doesNotMatch(JSON.stringify(report), /sk-redacted-test|super-secret/);
 });
 
 test("system health treats missing matters home as a system error outside runtime DB mode", async () => {

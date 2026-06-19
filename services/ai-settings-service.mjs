@@ -16,6 +16,7 @@ import {
   DEFAULT_OPENROUTER_ENDPOINT,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
+import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
 
 const OPENAI_KEY_PATTERN = /^sk-[A-Za-z0-9_-]+$/;
 const COPILOT_PROVIDER_ENV_KEY = "COPILOT_ANSWER_PROVIDER";
@@ -68,6 +69,7 @@ export function createAiSettingsService({
   fetchImpl = fetch,
 } = {}) {
   const root = path.resolve(appDir || process.cwd());
+  let latestCopilotCheck = null;
 
   function readSettings() {
     return {
@@ -77,6 +79,7 @@ export function createAiSettingsService({
       maxOutputTokens: parsePositiveInteger(env.OPENAI_MAX_OUTPUT_TOKENS) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
       envPath: path.join(root, ".env"),
       aiTasks: readAiTaskStatuses(),
+      startupChecks: latestCopilotCheck ? { copilot: latestCopilotCheck } : {},
     };
   }
 
@@ -100,6 +103,42 @@ export function createAiSettingsService({
     await upsertLocalEnv({ appDir: root, values });
     Object.assign(env, values);
     return readSettings();
+  }
+
+  async function checkCopilotModel({ provider = "", model = "" } = {}) {
+    const policy = resolveModelPolicy(AI_TASKS.COPILOT_ANSWER, { env });
+    const resolvedProvider = provider || policy.provider;
+    const resolvedModel = model || policy.model;
+    const candidateEnv = {
+      ...env,
+      [COPILOT_PROVIDER_ENV_KEY]: resolvedProvider,
+      ...(resolvedProvider === AI_PROVIDERS.OPENROUTER
+        ? { [OPENROUTER_COPILOT_MODEL_ENV_KEY]: resolvedModel }
+        : { [OPENAI_COPILOT_MODEL_ENV_KEY]: resolvedModel }),
+    };
+    const started = Date.now();
+    try {
+      await pingCopilotSettings({ env: candidateEnv });
+      latestCopilotCheck = {
+        ok: true,
+        checkedAt: new Date().toISOString(),
+        latencyMs: Date.now() - started,
+        provider: resolvedProvider,
+        model: resolvedModel,
+      };
+    } catch (error) {
+      latestCopilotCheck = {
+        ok: false,
+        checkedAt: new Date().toISOString(),
+        latencyMs: Date.now() - started,
+        provider: resolvedProvider,
+        model: resolvedModel,
+        error: redactSensitiveText(error?.message || "Matter Copilot model check failed"),
+        code: error?.code || "provider.error",
+        statusCode: error?.statusCode || 503,
+      };
+    }
+    return latestCopilotCheck;
   }
 
   async function testConnection() {
@@ -140,6 +179,7 @@ export function createAiSettingsService({
   }
 
   return {
+    checkCopilotModel,
     readSettings,
     saveSettings,
     testConnection,
@@ -260,7 +300,7 @@ export function createAiSettingsService({
         messages: [
           { role: "user", content: "Return JSON matching the schema with ok set to true." },
         ],
-        temperature: 0,
+        ...openRouterTemperatureParams(model, 0),
         max_tokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
         provider: {
           require_parameters: true,

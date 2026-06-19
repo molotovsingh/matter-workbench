@@ -1,5 +1,6 @@
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS } from "../shared/model-policy.mjs";
+import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
 import {
   fetchProviderJsonWithTimeout,
   parseOpenAiJsonOutput,
@@ -82,7 +83,7 @@ function createOpenRouterMatterCopilotProvider({
         { role: "system", content: COPILOT_ANSWER_SYSTEM_PROMPT },
         { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext })) },
       ],
-      temperature: 0,
+      ...openRouterTemperatureParams(model, 0),
       max_tokens: maxOutputTokens,
       provider: {
         require_parameters: requireParameters,

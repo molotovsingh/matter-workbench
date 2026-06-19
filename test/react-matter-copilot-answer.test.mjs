@@ -78,9 +78,26 @@ test("React matter copilot terminal errors do not expose unsupported citation in
 
   const rendered = formatMatterCopilotTerminalError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
 
-  assert.match(rendered, /\[copilot\] failed:/);
+  assert.match(rendered, /\[assistant\] failed:/);
   assert.match(rendered, /could not verify the sources/i);
   assert.doesNotMatch(rendered, /unsupported citation|FILE-0008|p1\.b2/i);
+});
+
+test("React matter copilot errors collapse provider and billing language", async () => {
+  const source = await readFile(matterCopilotAnswerPath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
+  const { formatMatterCopilotError } = await import(moduleUrl);
+
+  const rendered = formatMatterCopilotError("OpenRouter quota exceeded for model openai/gpt-5.4");
+
+  assert.equal(rendered, "Assistant is temporarily unavailable. You can continue using the workspace.");
+  assert.doesNotMatch(rendered, /OpenRouter|OpenAI|gpt|quota|billing|model/i);
 });
 
 test("React App routes copilot failures through the terminal-safe formatter", async () => {

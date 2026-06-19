@@ -101,15 +101,26 @@ test("mothership report routes live beta signals into action lanes", () => {
           currentStageStatus: "failed",
           patienceRisk: "high",
         }],
-        matterHealth: [{
-          matter: "Example Matter",
-          prepareState: "complete",
-          nextStepLabel: "Core preparation is current",
-          attentionState: "clear",
-          blockers: 0,
-          warnings: 0,
-          checkedAt: "2026-06-13T00:00:00.000Z",
-        }],
+        matterHealth: [
+          {
+            matter: "Pipeline Matter",
+            prepareState: "stale",
+            nextStepLabel: "Extract Documents",
+            attentionState: "warning",
+            blockers: 1,
+            warnings: 0,
+            checkedAt: "2026-06-13T00:00:00.000Z",
+          },
+          {
+            matter: "Example Matter",
+            prepareState: "complete",
+            nextStepLabel: "Core preparation is current",
+            attentionState: "clear",
+            blockers: 0,
+            warnings: 0,
+            checkedAt: "2026-06-13T00:00:00.000Z",
+          },
+        ],
         counters: { failedJobs: 1 },
       },
     }],
@@ -138,6 +149,7 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.match(renderMothershipReportMarkdown(report), /last seen 2026-06-13T00:00:00\.000Z/);
 
   const missingExtraction = report.items.find((item) => item.id === "signal_extract_missing");
+  assert.equal(missingExtraction.currentness, "current");
   assert.equal(missingExtraction.action_lane, "fix_now");
   assert.match(missingExtraction.recommended_action, /preparation/i);
 
@@ -278,6 +290,44 @@ test("mothership report downgrades stale preparation failures when latest matter
   assert.equal(item.action_lane, "watch");
   assert.match(item.recommended_action, /No code action/);
   assert.equal(item.currentMatterState.prepareState, "complete");
+});
+
+test("mothership report routes stale critical signals to live recheck", () => {
+  const report = buildMothershipReport({
+    sinceDays: 1,
+    signals: [{
+      installation_id: "matter-workbench-do-beta-1",
+      signal_id: "signal_old_runtime_error",
+      severity: "error",
+      source: "api_status",
+      received_at: "2026-06-13T10:00:00.000Z",
+      payload: {
+        title: "Workspace API failed",
+        details: { errorMessage: "Unhandled server error while loading the workspace." },
+      },
+    }],
+    heartbeats: [{
+      installation_id: "matter-workbench-do-beta-1",
+      heartbeat_id: "heartbeat_after_error",
+      captured_at: "2026-06-13T10:30:00.000Z",
+      received_at: "2026-06-13T10:30:00.000Z",
+      payload: {
+        id: "heartbeat_after_error",
+        activeSessions: 0,
+        matterHealth: [],
+      },
+    }],
+  }, { generatedAt: "2026-06-13T10:31:00.000Z" });
+
+  assert.equal(report.summary.actionLanes.fix_now, 0);
+  assert.equal(report.summary.actionLanes.investigate, 1);
+  const item = report.items.find((entry) => entry.id === "signal_old_runtime_error");
+  assert.equal(item.currentness, "needs_live_recheck");
+  assert.equal(item.action_lane, "investigate");
+  assert.match(item.recommended_action, /Recheck current runtime evidence/i);
+  assert.match(item.reason, /newer runtime evidence/i);
+  assert.match(item.whatHappened.nextAction, /Recheck current runtime evidence/i);
+  assert.match(renderMothershipReportMarkdown(report), /Currentness: needs_live_recheck/);
 });
 
 test("mothership report links nearby same-matter signals to feedback triage", () => {

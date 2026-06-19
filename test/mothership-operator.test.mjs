@@ -192,7 +192,7 @@ test("mothership report prioritizes actionable evidence and redacts secrets", ()
     ],
     signals: [
       signalRow({ signal_id: "warning", severity: "warning", occurrence_count: 7, title: "OCR warning" }),
-      signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret", installation_id: "token=super-secret" }),
+      signalRow({ signal_id: "error", severity: "error", occurrence_count: 1, title: "Job failed token=super-secret", installation_id: "token=super-secret", received_at: "2026-06-10T10:55:00.000Z" }),
     ],
     feedback: [
       feedbackRow({ feedback_id: "feature", classification: "feature_request", tryingToDo: "Add a dashboard" }),

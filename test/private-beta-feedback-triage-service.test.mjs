@@ -49,6 +49,22 @@ test("feedback triage lets high-confidence classifier clarify a misfiled feature
   assert.doesNotMatch(triage.recommended_action, /bug/i);
 });
 
+test("feedback triage sends stale critical signals to live recheck", () => {
+  const triage = routePrivateBetaFeedbackTriage({
+    category: "critical_signal",
+    title: "Runtime API failed",
+    detail: "Unhandled server error while loading the workspace.",
+    currentness: "needs_live_recheck",
+  });
+
+  assert.equal(triage.triage_source, "deterministic");
+  assert.equal(triage.classification, "critical_signal");
+  assert.equal(triage.action_lane, "investigate");
+  assert.match(triage.reason, /newer runtime evidence/i);
+  assert.match(triage.recommended_action, /Recheck current runtime evidence/i);
+  assert.match(triage.missing_evidence.join(" "), /current signal recurrence/i);
+});
+
 test("feedback triage treats cannot-find chronology feedback as UX unless hard evidence exists", () => {
   const ux = routePrivateBetaFeedbackTriage({
     category: "confusing_ux",

@@ -199,6 +199,98 @@ test("AI settings save Matter Copilot routing without changing global AI default
   assert.equal(bodies[0].response_format.type, "json_schema");
 });
 
+test("AI settings omits OpenRouter temperature for GPT-5 Copilot checks", async () => {
+  const bodies = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      bodies.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ok: true }) } }] }));
+    });
+  });
+
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  const env = { OPENROUTER_API_KEY: "sk-or-v1-test" };
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+      fetchImpl: fetchJsonOnce,
+    });
+    await service.saveSettings({
+      copilotProvider: "openrouter",
+      copilotModel: "openai/gpt-5.4",
+    });
+  } finally {
+    await closeTestServer(server);
+  }
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].model, "openai/gpt-5.4");
+  assert.equal(Object.hasOwn(bodies[0], "temperature"), false);
+  assert.equal(bodies[0].provider.require_parameters, true);
+});
+
+test("AI settings startup Copilot check records live status without persisting settings", async () => {
+  const bodies = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      bodies.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ok: true }) } }] }));
+    });
+  });
+
+  const appDir = await mkdtemp(path.join(os.tmpdir(), "matter-ai-settings-"));
+  await writeFile(path.join(appDir, ".env"), [
+    "OPENROUTER_API_KEY=sk-or-v1-test",
+    "COPILOT_ANSWER_PROVIDER=openrouter",
+    "OPENROUTER_COPILOT_ANSWER_MODEL=openai/gpt-5.4",
+    "",
+  ].join("\n"));
+  const env = {
+    OPENROUTER_API_KEY: "sk-or-v1-test",
+    COPILOT_ANSWER_PROVIDER: "openrouter",
+    OPENROUTER_COPILOT_ANSWER_MODEL: "openai/gpt-5.4",
+  };
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  let result;
+  try {
+    const service = createAiSettingsService({
+      appDir,
+      env,
+      openRouterEndpoint: `http://${address.address}:${address.port}/chat/completions`,
+      fetchImpl: fetchJsonOnce,
+    });
+    result = await service.checkCopilotModel();
+    const settings = service.readSettings();
+    assert.deepEqual(settings.startupChecks.copilot, result);
+  } finally {
+    await closeTestServer(server);
+  }
+
+  assert.equal(result.ok, true);
+  assert.equal(result.provider, "openrouter");
+  assert.equal(result.model, "openai/gpt-5.4");
+  assert.equal(Object.hasOwn(bodies[0], "temperature"), false);
+  const text = await readFile(path.join(appDir, ".env"), "utf8");
+  assert.match(text, /OPENROUTER_COPILOT_ANSWER_MODEL=openai\/gpt-5\.4/);
+});
+
 test("AI settings do not persist Matter Copilot switch when model ping fails", async () => {
   const server = createServer((request, response) => {
     request.resume();

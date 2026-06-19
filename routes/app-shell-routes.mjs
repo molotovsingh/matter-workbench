@@ -15,6 +15,7 @@ import {
   filterWorkspaceTreeForOperatorVisibility,
   isOperatorOnlyWorkspacePath,
 } from "../services/workspace-path-policy.mjs";
+import { presentAiSettingsForScopedUser } from "./user-facing-presenters.mjs";
 
 export async function handleAppShellApiRequest({ request, requestUrl, response, services }) {
   const {
@@ -29,6 +30,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     privateBetaSignalService,
     runtimeDbStorageService,
     systemHealthService,
+    userReadinessService,
     uploadService,
     workspaceService,
   } = services;
@@ -41,8 +43,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       exactRoute("GET", "/api/ai-settings", async () => {
         const settings = aiSettingsService.readSettings();
         if (isPrivateBetaScopedUser()) {
-          const { envPath: _envPath, ...testerSettings } = settings;
-          sendJson(response, 200, testerSettings);
+          sendJson(response, 200, presentAiSettingsForScopedUser(settings));
           return;
         }
         sendJson(response, 200, settings);
@@ -171,6 +172,11 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           return;
         }
         sendJson(response, 200, await systemHealthService.readSystemHealth());
+      }),
+      exactRoute("GET", "/api/user-readiness", async () => {
+        sendJson(response, 200, await userReadinessService.readReadiness({
+          forceAssistantRefresh: /^(1|true|yes)$/i.test(requestUrl.searchParams.get("refresh") || ""),
+        }));
       }),
       exactRoute("GET", "/api/config", async () => {
         const activeMatterName = matterStore.activeMatterNameWithinHome();

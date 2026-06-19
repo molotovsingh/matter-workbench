@@ -57,6 +57,7 @@ import type {
   SkillRegistry,
   SkillRun,
   SystemHealthReport,
+  UserReadinessReport,
   WorkspaceApiNode,
   WorkspaceApiResponse,
 } from '../types';
@@ -344,6 +345,7 @@ export const api = {
   // ─── Config ──────────────────────────────
   getConfig: () => getJson<AppConfig>('/api/config'),
   getSystemHealth: () => getJson<SystemHealthReport>('/api/system-health'),
+  getUserReadiness: () => getJson<UserReadinessReport>('/api/user-readiness'),
   setConfig: (body: { mattersHome: string }) => postJson('/api/config', body),
 
   // ─── Matters ─────────────────────────────

@@ -119,6 +119,79 @@ test("GET /api/system-health returns 403 for authenticated non-operator beta use
   }
 });
 
+test("GET /api/user-readiness is available to authenticated testers with sanitized copy", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-user-readiness-api-auth-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const usersFile = path.join(tmp, "users.json");
+  await mkdir(appDir, { recursive: true });
+  await mkdir(mattersHome, { recursive: true });
+  await writeFile(
+    usersFile,
+    `${JSON.stringify({
+      schemaVersion: "private-beta-users/v1",
+      users: [
+        {
+          username: "tester-one",
+          role: "tester",
+          passwordHash: hashPrivateBetaPassword("secret", { salt: "user-readiness-auth", iterations: 1_000 }),
+        },
+      ],
+    }, null, 2)}\n`,
+    "utf8",
+  );
+  let calls = 0;
+  const server = await startTestServer({
+    appDir,
+    env: {
+      MATTERS_HOME: mattersHome,
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "",
+      MWB_PRIVATE_BETA_PASSWORD: "",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [],
+      findMatterFolder: async () => null,
+    },
+    userReadinessService: {
+      readReadiness: async () => {
+        calls += 1;
+        return {
+          schema_version: "user-readiness/v1",
+          generatedAt: "2026-06-18T12:00:00.000Z",
+          status: "degraded",
+          summary: { total: 5, ready: 4, attention: 1 },
+          checks: [
+            { id: "assistant_readiness", label: "Assistant readiness", status: "attention", message: "Assistant is temporarily unavailable. You can continue using the workspace." },
+          ],
+          userMessage: "Some services need attention. You can continue using the workspace.",
+        };
+      },
+    },
+  });
+  try {
+    const login = await fetch(`${server.baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester-one", password: "secret" }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+
+    const response = await fetch(`${server.baseUrl}/api/user-readiness`, { headers: { cookie } });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.schema_version, "user-readiness/v1");
+    assert.equal(payload.checks[0].label, "Assistant readiness");
+    assert.doesNotMatch(JSON.stringify(payload), /openai|openrouter|gpt|llm|api key|quota|billing|credit/i);
+    assert.equal(calls, 1);
+  } finally {
+    await server.close();
+  }
+});
+
 test("app shell wires read-only system health route behind operator visibility", async () => {
   const source = await readFile(routesPath, "utf8");
 
@@ -126,13 +199,16 @@ test("app shell wires read-only system health route behind operator visibility",
   assert.match(source, /exactRoute\("GET", "\/api\/system-health"/);
   assert.match(source, /isPrivateBetaSuperuserOrLocal\(\)/);
   assert.match(source, /systemHealthService\.readSystemHealth\(\)/);
+  assert.match(source, /exactRoute\("GET", "\/api\/user-readiness"/);
+  assert.match(source, /userReadinessService\.readReadiness/);
   assert.doesNotMatch(source, /systemHealthService\.(write|save|update|run|mutate|create)/);
 });
 
-test("server constructs system health service with existing diagnostics dependencies", async () => {
+test("server constructs system and user readiness services with existing diagnostics dependencies", async () => {
   const source = await readFile(serverPath, "utf8");
 
   assert.match(source, /createSystemHealthService/);
+  assert.match(source, /createUserReadinessService/);
   assert.match(source, /aiSettingsService/);
   assert.match(source, /commandInteractionLogService/);
   assert.match(source, /jobStatusService/);

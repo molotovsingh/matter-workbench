@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createMatterCopilotService } from "../services/matter-copilot-service.mjs";
+import { createDefaultMatterCopilotProvider } from "../services/matter-copilot-providers.mjs";
 import { toCsv } from "../shared/csv.mjs";
 
 const HASH_ONE = "1".repeat(64);
@@ -206,6 +207,43 @@ test("matter copilot validates citations from omitted List of Dates entries", as
   const answer = await service.answerQuestion({ question: "what later event matters?" });
 
   assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b121"]);
+});
+
+test("matter copilot OpenRouter provider omits temperature for GPT-5 models", async () => {
+  let requestBody = null;
+  const provider = createDefaultMatterCopilotProvider({
+    providerConfig: {
+      provider: "openrouter",
+      endpoint: "https://openrouter.example.test/chat/completions",
+      model: "openai/gpt-5.4",
+      maxOutputTokens: 64,
+      timeoutMs: 1000,
+    },
+    env: { OPENROUTER_API_KEY: "sk-or-v1-test" },
+    fetchImpl: async (_url, options = {}) => {
+      requestBody = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: JSON.stringify({ ok: true }) } }] }),
+      };
+    },
+  });
+
+  const result = await provider({
+    question: "what happened?",
+    matterContext: { schema_version: "matter-context-packet/v1" },
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ok"],
+      properties: { ok: { type: "boolean" } },
+    },
+  });
+
+  assert.deepEqual(result, { ok: true });
+  assert.equal(requestBody.model, "openai/gpt-5.4");
+  assert.equal(Object.hasOwn(requestBody, "temperature"), false);
+  assert.equal(requestBody.provider.require_parameters, true);
 });
 
 test("matter copilot emits stable validation and configuration codes", async () => {

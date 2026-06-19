@@ -24,6 +24,45 @@ simple surface, rigorous spine
 This is not a slogan for making the app less capable. It is a rule for deciding
 where complexity belongs.
 
+## Geometric And Algebraic Thinking
+
+Great Matter Workbench work comes from a productive tension between two kinds
+of engineering judgment.
+
+**Geometric thinking** asks about shape:
+
+- Where does this responsibility live?
+- What touches what?
+- Which surface owns the user flow?
+- Is this module becoming a gravity well?
+- Does the UI feel like one clear place, or does it jump between surfaces?
+
+**Algebraic thinking** asks about rules:
+
+- What invariant must always hold?
+- What input should produce the same output across storage modes?
+- What status must imply what next action?
+- What contract proves this behavior?
+- Which tests would catch a quiet fork in the rule?
+
+The shorthand is:
+
+```text
+geometry gives the architecture a sane shape
+algebra gives the shape enforceable rules
+```
+
+If we use only geometry, we get attractive diagrams and strong instincts but
+weak guarantees. If we use only algebra, we get correct small pieces that can
+still feel fragmented, over-engineered, or confusing to users.
+
+The best work keeps both:
+
+- design the boundary so the app feels natural;
+- name the rule so it can be tested;
+- keep the lawyer-facing surface calm;
+- keep the engineering spine provable.
+
 ## Why This Exists
 
 Matter Workbench is doing legal work in a messy setting: scanned files,

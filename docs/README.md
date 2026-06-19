@@ -12,6 +12,7 @@ equally authoritative.
 | --- | --- |
 | Durable product and engineering North Star | [Matter Workbench North Star Design Philosophy](design-philosophy.md) |
 | Current codebase map and lifecycle | [Codebase Diagram](codebase-diagram.md) |
+| Current engineering risk radar | [Matter Workbench Engineering Risk Radar](engineering-risk-radar.md) |
 | Fast local/private beta start | [Quickstart](../QUICKSTART.md) |
 | Plain-language project explanation | [FOR_AKSINGH.md](../FOR_AKSINGH.md) |
 | Archived root technical README | [Engineering README Archive](engineering-readme-archive.md) |
