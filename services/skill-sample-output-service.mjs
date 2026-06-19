@@ -45,10 +45,22 @@ export function createSkillSampleOutputService({
   } = {}) {
     const root = String(matterRootOverride || "").trim() || matterStore.getMatterRoot?.();
     if (!root) throw makeHttpError("Pick a test matter before generating sample output.", 409, "skill_sample_output.matter_required");
+    const packet = await buildMatterContextPacket(root, SAMPLE_CONTEXT_LIMITS);
+    return generateSampleOutputFromPacket({ idea, feedback, previousSample, packet });
+  }
+
+  async function generateSampleOutputFromPacket({
+    idea = {},
+    feedback = "",
+    previousSample = "",
+    packet,
+  } = {}) {
+    if (!packet || typeof packet !== "object") {
+      throw makeHttpError("Matter context is not available for sample output.", 409, "skill_sample_output.context_required");
+    }
     const normalizedIdea = normalizeIdeaForSample(idea);
     const normalizedFeedback = boundedText(feedback, MAX_FEEDBACK_LENGTH, "feedback");
     const normalizedPreviousSample = boundedText(previousSample, MAX_PREVIOUS_SAMPLE_LENGTH, "previous sample");
-    const packet = await buildMatterContextPacket(root, SAMPLE_CONTEXT_LIMITS);
     const policy = resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
     if (!providerConfig.model) throw makeHttpError("Skill sample output model is not configured.", 409, "skill_sample_output.model_not_configured");
@@ -86,7 +98,7 @@ export function createSkillSampleOutputService({
     };
   }
 
-  return { generateSampleOutput };
+  return { generateSampleOutput, generateSampleOutputFromPacket };
 }
 
 function summarizeMatterContextForSample(packet) {

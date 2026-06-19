@@ -1557,8 +1557,8 @@ test("runtime DB postgres storage mode reads skill ideas and samples from runtim
   }
 });
 
-test("runtime DB sample output materializes matter context before building sample", async () => {
-  const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-sample-output");
+test("runtime DB sample output reads DB-native context before building sample", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-sample-output");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
   const calls = [];
   const providerCalls = [];
@@ -1594,11 +1594,12 @@ test("runtime DB sample output materializes matter context before building sampl
           tree: { name: targetMatter.name, kind: "directory", path: "", children: [] },
         };
       },
-      async runMaterializedMatterRead(targetMatter, operation) {
-        calls.push(["materialized-read", targetMatter.name]);
-        const matterRoot = path.join(materializedRoot, targetMatter.name);
-        await writeExtractedTextMatter(matterRoot, targetMatter);
-        return operation({ matterRoot, matter: targetMatter });
+      async readMatterContextPacket(targetMatter) {
+        calls.push(["packet", targetMatter.name]);
+        return directRuntimeDbMatterContextPacket(targetMatter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native sample output");
       },
     },
     skillSampleOutputProvider: async (payload) => {
@@ -1635,7 +1636,7 @@ test("runtime DB sample output materializes matter context before building sampl
     assert.equal(providerCalls[0].matterContext.evidence_blocks[0].citation, "FILE-0001 p1.b1");
     assert.deepEqual(calls, [
       ["workspace", matter.name],
-      ["materialized-read", matter.name],
+      ["packet", matter.name],
     ]);
   } finally {
     app.server.close();

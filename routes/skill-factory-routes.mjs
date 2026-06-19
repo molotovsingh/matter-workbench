@@ -80,7 +80,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           jobStatusService,
           matterName: matterNameForSampleJob(matterStore, body),
           operation: async () => {
-            const sample = hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)
+            const sample = hasRuntimeDbSampleOutputPath(matterStore, runtimeDbStorageService, skillSampleOutputService)
               ? await generateRuntimeDbSampleOutput({
                 matterStore,
                 runtimeDbStorageService,
@@ -246,6 +246,15 @@ function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {
     && typeof runtimeDbStorageService.runMaterializedMatterRead === "function";
 }
 
+function hasRuntimeDbSampleOutputPath(matterStore, runtimeDbStorageService, skillSampleOutputService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && (
+      typeof runtimeDbStorageService.runMaterializedMatterRead === "function"
+      || (typeof runtimeDbStorageService.readMatterContextPacket === "function"
+        && typeof skillSampleOutputService.generateSampleOutputFromPacket === "function")
+    );
+}
+
 async function generateRuntimeDbSampleOutput({
   matterStore,
   runtimeDbStorageService,
@@ -254,6 +263,16 @@ async function generateRuntimeDbSampleOutput({
 }) {
   const idea = body.idea || {};
   const matter = await runtimeDbMatterForBody(matterStore, matterNameForSampleOutput(body));
+  if (typeof runtimeDbStorageService.readMatterContextPacket === "function"
+    && typeof skillSampleOutputService.generateSampleOutputFromPacket === "function") {
+    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+    return skillSampleOutputService.generateSampleOutputFromPacket({
+      idea,
+      feedback: body.feedback || "",
+      previousSample: body.previousSample || "",
+      packet,
+    });
+  }
   return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => skillSampleOutputService.generateSampleOutput({
     idea,
     feedback: body.feedback || "",
