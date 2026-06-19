@@ -287,8 +287,9 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "The Story",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
-            if (hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService)) {
+            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body);
+              assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService });
               const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
               const matterJson = await runtimeDbStorageService.readMatterJson(matter);
               const result = await matterStoryService.runDisputeStory({
@@ -316,19 +317,6 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               return persisted.length
                 ? { ...responsePayload, dbPersistence: { persisted } }
                 : responsePayload;
-            }
-            if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
-              return runRuntimeDbMaterializedWorkflow({
-                matterStore,
-                runtimeDbStorageService,
-                body,
-                runner: ({ matterRoot, matter }) => matterStoryService.runDisputeStory({
-                  matterName: matter.name,
-                  overwrite: Boolean(body.overwrite),
-                  matterRootOverride: matterRoot,
-                  matterRecordOverride: matter,
-                }),
-              });
             }
             assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
             return matterStoryService.runDisputeStory({
@@ -575,13 +563,14 @@ function hasRuntimeDbListOfDatesLabelRefreshPath(matterStore, runtimeDbStorageSe
     && typeof runtimeDbStorageService.refreshListOfDatesSourceLabels === "function";
 }
 
-function hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && typeof runtimeDbStorageService.readMatterContextPacket === "function"
-    && typeof runtimeDbStorageService.readMatterJson === "function"
-    && typeof runtimeDbStorageService.artifactExists === "function"
-    && typeof runtimeDbStorageService.persistTextArtifacts === "function"
-    && typeof runtimeDbStorageService.persistMatterJson === "function";
+function assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function"
+    || typeof runtimeDbStorageService?.readMatterJson !== "function"
+    || typeof runtimeDbStorageService?.artifactExists !== "function"
+    || typeof runtimeDbStorageService?.persistTextArtifacts !== "function"
+    || typeof runtimeDbStorageService?.persistMatterJson !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
+  }
 }
 
 function hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService) {
@@ -729,6 +718,13 @@ function assertFilesystemWorkflowAvailable(matterStore, label) {
   const error = new Error(`${label} cannot run in DB storage mode because the runtime DB materialization adapter is not available. Check runtime DB storage service wiring or run this workflow in filesystem mode.`);
   error.statusCode = 409;
   throw error;
+}
+
+function makeRuntimeWorkflowUnavailableError(code = "matter_workflow.context_required") {
+  const error = new Error("Matter context is not available for this workflow. Ask the operator to check the workspace setup.");
+  error.statusCode = 409;
+  error.code = code;
+  return error;
 }
 
 function runtimeDbWorkflowResponse(result = {}, matter = {}) {

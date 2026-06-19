@@ -2093,7 +2093,7 @@ test("runtime DB postgres storage mode runs matter story from DB-native custody"
   }
 });
 
-test("runtime DB postgres storage mode runs matter story through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native matter story helpers", async () => {
   const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-matter-story");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
   await writeFile(configurableSkillsPath, `${JSON.stringify({
@@ -2180,15 +2180,19 @@ test("runtime DB postgres storage mode runs matter story through materialized DB
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/matter-story", {
-      matterName: "Legal Caption",
-      overwrite: true,
+    const response = await fetch(`${baseUrl}/api/matter-story`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        matterName: "Legal Caption",
+        overwrite: true,
+      }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.state, "updated");
-    assert.equal(result.description, "The dispute is about unpaid runtime invoices.");
-    assert.equal(result.runRecord.matterRoot, "postgres:DB Story Matter");
-    assert.deepEqual(calls, [["write", "DB Story Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "matter_workflow.context_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }
