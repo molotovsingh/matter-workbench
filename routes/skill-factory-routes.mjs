@@ -135,7 +135,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           skillRouterService,
           overrideJustification: body.overlapOverrideJustification,
         });
-        if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
+        if (hasRuntimeDbSkillCreationPath(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await createRuntimeDbSkillFromApprovedSample({
             configurableSkillsService,
             matterStore,
@@ -255,6 +255,14 @@ function hasRuntimeDbSampleOutputPath(matterStore, runtimeDbStorageService, skil
     );
 }
 
+function hasRuntimeDbSkillCreationPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && (
+      typeof runtimeDbStorageService.runMaterializedMatterRead === "function"
+      || typeof runtimeDbStorageService.readMatterContextPacket === "function"
+    );
+}
+
 async function generateRuntimeDbSampleOutput({
   matterStore,
   runtimeDbStorageService,
@@ -289,6 +297,15 @@ async function createRuntimeDbSkillFromApprovedSample({
   ideaId = "",
 }) {
   const matter = await runtimeDbMatterForBody(matterStore, matterNameForIdea(idea));
+  if (typeof runtimeDbStorageService.readMatterContextPacket === "function") {
+    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+    return configurableSkillsService.createSkillFromApprovedSample({
+      ideaId,
+      matterRootOverride: `postgres:${matter.name}`,
+      matterRecordOverride: matter,
+      matterContextPacketOverride: packet,
+    });
+  }
   return runtimeDbStorageService.runMaterializedMatterRead(matter, ({ matterRoot }) => configurableSkillsService.createSkillFromApprovedSample({
     ideaId,
     matterRootOverride: matterRoot,

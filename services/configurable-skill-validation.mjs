@@ -10,6 +10,7 @@ export async function validateDraftSkill({
   matterStore,
   matterRootOverride = "",
   matterRecordOverride = null,
+  matterContextPacketOverride = null,
   runProvider,
   providerConfig,
 }) {
@@ -25,13 +26,12 @@ export async function validateDraftSkill({
   }
   if (!messages.length) {
     try {
-      const matterRoot = resolveSampleMatterRoot({
+      const packet = matterContextPacketOverride || await buildConfigurableSkillMatterContextPacket(resolveSampleMatterRoot({
         sample,
         matterStore,
         matterRootOverride,
         matterRecordOverride,
-      });
-      const packet = await buildConfigurableSkillMatterContextPacket(matterRoot);
+      }));
       const validationMarkdown = boundedOutputMarkdown(await runProvider({
         skill: draft,
         matterContext: summarizeMatterContext(packet),

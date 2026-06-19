@@ -100,6 +100,7 @@ export function createConfigurableSkillsService({
     ideaId,
     matterRootOverride = "",
     matterRecordOverride = null,
+    matterContextPacketOverride = null,
   } = {}) {
     const idea = await skillIdeasService.getIdea(ideaId);
     const sample = await skillSamplesService.getApprovedCurrentSample({
@@ -119,6 +120,7 @@ export function createConfigurableSkillsService({
         endpoint,
         matterRootOverride,
         matterRecordOverride,
+        matterContextPacketOverride,
         now,
         idFactory,
       });

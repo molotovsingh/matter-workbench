@@ -33,6 +33,7 @@ export async function createSkillFromApprovedSampleInStore({
   endpoint,
   matterRootOverride = "",
   matterRecordOverride = null,
+  matterContextPacketOverride = null,
   now = () => new Date(),
   idFactory,
 } = {}) {
@@ -100,6 +101,7 @@ export async function createSkillFromApprovedSampleInStore({
     matterStore,
     matterRootOverride,
     matterRecordOverride,
+    matterContextPacketOverride,
     runProvider: validationRunProvider,
     providerConfig: runProviderConfig,
   });

@@ -1701,8 +1701,8 @@ test("runtime DB sample output provider failures are recorded as job telemetry",
   }
 });
 
-test("runtime DB skill creation validates approved samples through materialized matter context without matters home", async () => {
-  const { mattersHome, materializedRoot } = await runtimeDbTestPaths("runtime-db-api-create-skill");
+test("runtime DB skill creation validates approved samples through DB-native context without matters home", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-create-skill");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
   const calls = [];
   const store = { schema_version: "configurable-skills/v1", skills: [] };
@@ -1745,11 +1745,12 @@ test("runtime DB skill creation validates approved samples through materialized 
     },
     runtimeDbStorageService: {
       enabled: true,
-      async runMaterializedMatterRead(targetMatter, operation) {
-        calls.push(["materialized-read", targetMatter.name]);
-        const matterRoot = path.join(materializedRoot, targetMatter.name);
-        await writeExtractedTextMatter(matterRoot, targetMatter);
-        return operation({ matterRoot, matter: targetMatter });
+      async readMatterContextPacket(targetMatter) {
+        calls.push(["packet", targetMatter.name]);
+        return directRuntimeDbMatterContextPacket(targetMatter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native skill creation validation");
       },
     },
     skillIdeasService: {
@@ -1817,7 +1818,7 @@ test("runtime DB skill creation validates approved samples through materialized 
 
     assert.equal(created.skill.status, "active");
     assert.equal(created.skill.slash, "/issue_discovery");
-    assert.deepEqual(calls, [["materialized-read", matter.name]]);
+    assert.deepEqual(calls, [["packet", matter.name]]);
   } finally {
     app.server.close();
   }
