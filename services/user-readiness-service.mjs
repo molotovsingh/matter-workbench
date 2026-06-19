@@ -1,3 +1,5 @@
+import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE } from "../shared/user-facing-ai-language-policy.js";
+
 export const USER_READINESS_SCHEMA_VERSION = "user-readiness/v1";
 
 const DEFAULT_ASSISTANT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -110,7 +112,7 @@ export function createUserReadinessService({
     if (check?.ok) {
       return readyCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", "Assistant is ready.");
     }
-    return attentionCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", "Assistant is temporarily unavailable. You can continue using the workspace.");
+    return attentionCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
   }
 
   async function readCachedOrLiveAssistantCheck({ forceRefresh, generatedAt }) {

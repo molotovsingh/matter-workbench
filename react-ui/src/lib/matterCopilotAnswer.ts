@@ -1,3 +1,4 @@
+import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage } from '../../../shared/user-facing-ai-language-policy.js';
 import type { MatterCopilotAnswer } from '../types';
 
 export function parseAskCommand(input: string): string | null {
@@ -47,8 +48,8 @@ export function formatMatterCopilotError(message: string): string {
       'Run preparation again, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
     ].join('\n\n');
   }
-  if (/\b(openai|openrouter|gpt|llm|api key|provider|model|quota|billing|credit|insufficient funds)\b/i.test(normalized)) {
-    return 'Assistant is temporarily unavailable. You can continue using the workspace.';
+  if (containsUserFacingRestrictedAiLanguage(normalized)) {
+    return USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE;
   }
   return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
 }

@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { createWorkbenchServer } from "../server.mjs";
 import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
+import { containsUserFacingRestrictedAiLanguage, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE } from "../shared/user-facing-ai-language-policy.js";
 
 const routesPath = new URL("../routes/app-shell-routes.mjs", import.meta.url);
 const serverPath = new URL("../server.mjs", import.meta.url);
@@ -164,7 +165,7 @@ test("GET /api/user-readiness is available to authenticated testers with sanitiz
           status: "degraded",
           summary: { total: 5, ready: 4, attention: 1 },
           checks: [
-            { id: "assistant_readiness", label: "Assistant readiness", status: "attention", message: "Assistant is temporarily unavailable. You can continue using the workspace." },
+            { id: "assistant_readiness", label: "Assistant readiness", status: "attention", message: USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE },
           ],
           userMessage: "Some services need attention. You can continue using the workspace.",
         };
@@ -185,7 +186,7 @@ test("GET /api/user-readiness is available to authenticated testers with sanitiz
     const payload = await response.json();
     assert.equal(payload.schema_version, "user-readiness/v1");
     assert.equal(payload.checks[0].label, "Assistant readiness");
-    assert.doesNotMatch(JSON.stringify(payload), /openai|openrouter|gpt|llm|api key|quota|billing|credit/i);
+    assert.equal(containsUserFacingRestrictedAiLanguage(payload), false);
     assert.equal(calls, 1);
   } finally {
     await server.close();

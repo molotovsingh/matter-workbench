@@ -5,12 +5,7 @@ import {
   createUserReadinessService,
   USER_READINESS_SCHEMA_VERSION,
 } from "../services/user-readiness-service.mjs";
-
-const SAFE_TEXT_PATTERN = /openai|openrouter|gpt|llm|api key|quota|billing|credit|model|provider/i;
-
-function serialized(value) {
-  return JSON.stringify(value);
-}
+import { containsUserFacingRestrictedAiLanguage, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE } from "../shared/user-facing-ai-language-policy.js";
 
 test("user readiness reports sanitized service labels and messages", async () => {
   const report = await createUserReadinessService({
@@ -38,7 +33,7 @@ test("user readiness reports sanitized service labels and messages", async () =>
   assert.equal(report.summary.ready, 5);
   assert.equal(report.checks.at(-1).label, "Assistant readiness");
   assert.equal(report.checks.at(-1).message, "Assistant is ready.");
-  assert.doesNotMatch(serialized(report), SAFE_TEXT_PATTERN);
+  assert.equal(containsUserFacingRestrictedAiLanguage(report), false);
 });
 
 test("user readiness collapses assistant backend failures to neutral copy", async () => {
@@ -65,8 +60,8 @@ test("user readiness collapses assistant backend failures to neutral copy", asyn
   assert.equal(report.status, "degraded");
   const assistant = report.checks.find((check) => check.id === "assistant_readiness");
   assert.equal(assistant.status, "attention");
-  assert.equal(assistant.message, "Assistant is temporarily unavailable. You can continue using the workspace.");
-  assert.doesNotMatch(serialized(report), SAFE_TEXT_PATTERN);
+  assert.equal(assistant.message, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
+  assert.equal(containsUserFacingRestrictedAiLanguage(report), false);
 });
 
 test("user readiness reuses fresh startup assistant check without another live ping", async () => {
@@ -100,5 +95,5 @@ test("user readiness reuses fresh startup assistant check without another live p
   const report = await service.readReadiness();
   assert.equal(report.status, "ready");
   assert.equal(liveChecks, 0);
-  assert.doesNotMatch(serialized(report), SAFE_TEXT_PATTERN);
+  assert.equal(containsUserFacingRestrictedAiLanguage(report), false);
 });

@@ -5,8 +5,7 @@ import {
   presentAiSettingsForScopedUser,
   presentMatterCopilotAnswerForScopedUser,
 } from "../routes/user-facing-presenters.mjs";
-
-const TECHNICAL_COPY = /openai|openrouter|gpt|api key|quota|billing|credit/i;
+import { containsUserFacingRestrictedAiLanguage } from "../shared/user-facing-ai-language-policy.js";
 
 test("user-facing AI settings presenter removes route details", () => {
   const presented = presentAiSettingsForScopedUser({
@@ -39,7 +38,7 @@ test("user-facing AI settings presenter removes route details", () => {
   assert.equal(presented.aiTasks[0].label, "Assistant readiness");
   assert.equal(presented.aiTasks[0].note, "Temporarily unavailable");
   assert.equal(presented.startupChecks.copilot.ok, false);
-  assert.doesNotMatch(JSON.stringify(presented), TECHNICAL_COPY);
+  assert.equal(containsUserFacingRestrictedAiLanguage(presented), false);
 });
 
 test("user-facing answer presenter removes backend route metadata", () => {
@@ -52,5 +51,5 @@ test("user-facing answer presenter removes backend route metadata", () => {
 
   assert.equal(presented.answer_status, "answered");
   assert.equal(presented.ai_run, undefined);
-  assert.doesNotMatch(JSON.stringify(presented), TECHNICAL_COPY);
+  assert.equal(containsUserFacingRestrictedAiLanguage(presented), false);
 });

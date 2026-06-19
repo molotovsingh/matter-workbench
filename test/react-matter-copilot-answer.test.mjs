@@ -2,19 +2,28 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
+import { containsUserFacingRestrictedAiLanguage, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE } from "../shared/user-facing-ai-language-policy.js";
 
 const matterCopilotAnswerPath = new URL("../react-ui/src/lib/matterCopilotAnswer.ts", import.meta.url);
+const userFacingPolicyUrl = new URL("../shared/user-facing-ai-language-policy.js", import.meta.url).href;
 
-test("React matter copilot answer renders legal record language instead of packet jargon", async () => {
+async function loadMatterCopilotAnswerModule() {
   const source = await readFile(matterCopilotAnswerPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2020,
       target: ts.ScriptTarget.ES2020,
     },
-  }).outputText;
+  }).outputText.replace(
+    /from ['"]\.\.\/\.\.\/\.\.\/shared\/user-facing-ai-language-policy\.js['"];/,
+    `from '${userFacingPolicyUrl}';`,
+  );
   const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
-  const { formatMatterCopilotAnswer } = await import(moduleUrl);
+  return await import(moduleUrl);
+}
+
+test("React matter copilot answer renders legal record language instead of packet jargon", async () => {
+  const { formatMatterCopilotAnswer } = await loadMatterCopilotAnswerModule();
 
   const rendered = formatMatterCopilotAnswer({
     question: "how many flats?",
@@ -48,15 +57,7 @@ test("React matter copilot answer renders legal record language instead of packe
 });
 
 test("React matter copilot answer hides unsupported citation internals from lawyers", async () => {
-  const source = await readFile(matterCopilotAnswerPath, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2020,
-      target: ts.ScriptTarget.ES2020,
-    },
-  }).outputText;
-  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
-  const { formatMatterCopilotError } = await import(moduleUrl);
+  const { formatMatterCopilotError } = await loadMatterCopilotAnswerModule();
 
   const rendered = formatMatterCopilotError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
 
@@ -66,15 +67,7 @@ test("React matter copilot answer hides unsupported citation internals from lawy
 });
 
 test("React matter copilot terminal errors do not expose unsupported citation internals", async () => {
-  const source = await readFile(matterCopilotAnswerPath, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2020,
-      target: ts.ScriptTarget.ES2020,
-    },
-  }).outputText;
-  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
-  const { formatMatterCopilotTerminalError } = await import(moduleUrl);
+  const { formatMatterCopilotTerminalError } = await loadMatterCopilotAnswerModule();
 
   const rendered = formatMatterCopilotTerminalError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
 
@@ -84,20 +77,12 @@ test("React matter copilot terminal errors do not expose unsupported citation in
 });
 
 test("React matter copilot errors collapse provider and billing language", async () => {
-  const source = await readFile(matterCopilotAnswerPath, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2020,
-      target: ts.ScriptTarget.ES2020,
-    },
-  }).outputText;
-  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`;
-  const { formatMatterCopilotError } = await import(moduleUrl);
+  const { formatMatterCopilotError } = await loadMatterCopilotAnswerModule();
 
   const rendered = formatMatterCopilotError("OpenRouter quota exceeded for model openai/gpt-5.4");
 
-  assert.equal(rendered, "Assistant is temporarily unavailable. You can continue using the workspace.");
-  assert.doesNotMatch(rendered, /OpenRouter|OpenAI|gpt|quota|billing|model/i);
+  assert.equal(rendered, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
+  assert.equal(containsUserFacingRestrictedAiLanguage(rendered), false);
 });
 
 test("React App routes copilot failures through the terminal-safe formatter", async () => {

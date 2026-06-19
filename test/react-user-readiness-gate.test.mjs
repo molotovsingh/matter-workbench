@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { containsUserFacingRestrictedAiLanguage } from "../shared/user-facing-ai-language-policy.js";
 
 const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const readinessGatePath = new URL("../react-ui/src/components/auth/PrivateBetaReadinessGate.tsx", import.meta.url);
@@ -28,5 +29,6 @@ test("React app shows a neutral post-login readiness gate", async () => {
   assert.match(hook, /Matter library/);
   assert.match(hook, /Document services/);
   assert.match(hook, /Assistant readiness/);
-  assert.doesNotMatch(`${app}\n${gate}\n${hook}`, /OpenRouter|OpenAI|GPT|quota|billing|credits/);
+  assert.doesNotMatch(app, /OpenRouter|OpenAI|GPT|quota|billing|credits/);
+  assert.equal(containsUserFacingRestrictedAiLanguage(`${gate}\n${hook}`), false);
 });

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import process from "node:process";
+import { containsUserFacingRestrictedAiLanguage } from "../shared/user-facing-ai-language-policy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -245,8 +246,7 @@ async function probeUserReadiness(fetchImpl, baseUrl) {
     const payload = await getJson(fetchImpl, `${baseUrl}/api/user-readiness`);
     const checks = Array.isArray(payload.checks) ? payload.checks : [];
     const assistantCheck = checks.find((check) => check?.id === "assistant_readiness") || null;
-    const serialized = JSON.stringify(payload);
-    const languageLeak = /\b(openai|openrouter|gpt|llm|api\s*key|quota|billing|credits?|model|provider)\b/i.test(serialized);
+    const languageLeak = containsUserFacingRestrictedAiLanguage(payload);
     return {
       available: true,
       ok: payload.schema_version === "user-readiness/v1" && !languageLeak,
