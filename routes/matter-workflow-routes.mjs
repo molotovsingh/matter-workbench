@@ -40,6 +40,18 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "Set Up Matter",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            if (hasRuntimeDbMatterInitPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const result = await runtimeDbStorageService.initializeMatter(matter, {
+                metadata: body.metadata || {},
+                dryRun: Boolean(body.dryRun),
+                intakeId: typeof body.intakeId === "string" && body.intakeId.trim() ? body.intakeId.trim() : undefined,
+                intakeDirName: typeof body.intakeDirName === "string" && body.intakeDirName.trim() ? body.intakeDirName.trim() : undefined,
+                intakeLabel: typeof body.intakeLabel === "string" && body.intakeLabel.trim() ? body.intakeLabel.trim() : undefined,
+                receivedDate: typeof body.receivedDate === "string" && body.receivedDate.trim() ? body.receivedDate.trim() : undefined,
+              });
+              return runtimeDbWorkflowResponse(result, matter);
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -572,6 +584,11 @@ function hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService)
 function hasRuntimeDbExtractPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.extractDocuments === "function";
+}
+
+function hasRuntimeDbMatterInitPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.initializeMatter === "function";
 }
 
 function hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService) {

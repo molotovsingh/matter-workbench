@@ -60,6 +60,7 @@ import {
 import { runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
 import { runRuntimeDbExtract } from "./runtime-db-extract-service.mjs";
+import { buildRuntimeDbMatterInit } from "./runtime-db-matter-init-service.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import {
   buildAdvisorySnapshotSql,
@@ -461,6 +462,27 @@ export function createRuntimeDbStorageService({
     };
   }
 
+  async function initializeMatter(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const matterJson = await readMatterJson(normalizedMatter);
+    const result = buildRuntimeDbMatterInit({
+      matter: normalizedMatter,
+      workspace,
+      matterJson,
+      readPayloadRow,
+      options,
+    });
+    const persisted = options.dryRun || !result.files.length
+      ? []
+      : await persistTextArtifacts(normalizedMatter, result.files);
+    return {
+      operationResult: result.operationResult,
+      persisted,
+    };
+  }
+
   async function extractDocuments(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -751,6 +773,7 @@ export function createRuntimeDbStorageService({
     extractDocuments,
     createMatterFromUploadedFiles,
     getRawFile,
+    initializeMatter,
     readDoctorScan,
     readMatterAttention,
     readMatterJson,

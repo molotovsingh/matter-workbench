@@ -1144,6 +1144,45 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service initializes matter artifacts directly from DB custody", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/Source Files/facts.txt", "source_working_copy", "text/plain", 82, true),
+        ],
+      },
+      {},
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/Source Files/facts.txt", "Agreement signed on 20 April 2026.", "text/plain"),
+      {},
+    ]),
+  });
+
+  const result = await service.initializeMatter(matter, {
+    metadata: { matterName: "Legal Caption", clientName: "Client A" },
+    receivedDate: "2026-06-19",
+  });
+
+  assert.equal(result.operationResult.matterRoot, "postgres:DB Matter");
+  assert.equal(result.operationResult.counts.scannedFiles, 1);
+  assert.equal(result.operationResult.counts.uniqueFiles, 1);
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [
+    "00_Inbox/Intake 01 - Initial/Originals/facts.txt",
+    "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt",
+    "00_Inbox/Intake 01 - Initial/Intake Log.csv",
+    "00_Inbox/Intake 01 - Initial/File Register.csv",
+    "matter.json",
+  ]);
+  const sql = calls.at(-1).input;
+  assert.match(sql, /00_Inbox\/Intake 01 - Initial\/Originals\/facts\.txt/);
+  assert.match(sql, /00_Inbox\/Intake 01 - Initial\/By Type\/Text Notes\/FILE-0001__facts\.txt/);
+  assert.match(sql, /matter\.json/);
+});
+
 test("runtime DB storage service extracts documents directly from DB custody", async () => {
   const calls = [];
   const service = createRuntimeDbStorageService({

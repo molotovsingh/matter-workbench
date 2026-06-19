@@ -446,6 +446,78 @@ test("runtime DB postgres storage mode checks upload overlap from DB custody row
   }
 });
 
+test("runtime DB postgres storage mode runs matter-init from DB-native custody", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-init");
+  const runtimeMatter = runtimeDbMatter({
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "DB Direct Init Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Init Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async initializeMatter(matter, options) {
+        calls.push(["init", matter.name, matter.matterName, options.metadata.clientName]);
+        return {
+          operationResult: {
+            counts: { scannedFiles: 1, uniqueFiles: 1 },
+            intake: { intake_id: "INTAKE-01" },
+          },
+          persisted: [
+            { relativePath: "00_Inbox/Intake 01 - Initial/Originals/agreement.txt", objectRole: "source_original" },
+            { relativePath: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__agreement.txt", objectRole: "source_working_copy" },
+            { relativePath: "00_Inbox/Intake 01 - Initial/File Register.csv", objectRole: "matter_artifact" },
+            { relativePath: "matter.json", objectRole: "matter_artifact" },
+          ],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native matter-init");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/matter-init", {
+      matterName: "Legal Caption",
+      metadata: {
+        matterName: "Legal Caption",
+        clientName: "Runtime Client",
+      },
+    });
+
+    assert.equal(result.counts.scannedFiles, 1);
+    assert.equal(result.matterRoot, "postgres:DB Direct Init Matter");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "00_Inbox/Intake 01 - Initial/Originals/agreement.txt",
+      "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__agreement.txt",
+      "00_Inbox/Intake 01 - Initial/File Register.csv",
+      "matter.json",
+    ]);
+    assert.deepEqual(calls, [["init", "DB Direct Init Matter", "Legal Caption", "Runtime Client"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs matter-init through materialized DB write service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-init");
   const runtimeMatter = runtimeDbMatter({
