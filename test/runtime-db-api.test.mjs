@@ -1861,7 +1861,7 @@ test("runtime DB postgres storage mode runs configurable skills from DB-native c
   }
 });
 
-test("runtime DB postgres storage mode runs configurable skills through materialized DB write service", async () => {
+test("runtime DB postgres storage mode fails closed without DB-native configurable skill helpers", async () => {
   const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-custom-skill");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
   const configurableSkillRunsPath = path.join(appDir, "configurable-skill-runs.json");
@@ -1939,15 +1939,19 @@ test("runtime DB postgres storage mode runs configurable skills through material
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/configurable-skills/run", {
-      slash: "/the_story",
-      matterName: "Legal Caption",
+    const response = await fetch(`${baseUrl}/api/configurable-skills/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        slash: "/the_story",
+        matterName: "Legal Caption",
+      }),
     });
+    const payload = await response.json();
 
-    assert.equal(result.state, "written");
-    assert.equal(result.runRecord.matterRoot, "postgres:DB Skill Matter");
-    assert.equal(result.runRecord.receipt.receiptState, "completed");
-    assert.deepEqual(calls, [["write", "DB Skill Matter", "Legal Caption"]]);
+    assert.equal(response.status, 409);
+    assert.equal(payload.code, "skill_factory.context_required");
+    assert.deepEqual(calls, []);
   } finally {
     app.server.close();
   }

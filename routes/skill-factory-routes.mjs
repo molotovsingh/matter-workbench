@@ -183,8 +183,9 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
           label: body.slash || "Custom skill",
           matterName: matterNameForSkillRun(matterStore, body.matterName),
           operation: async () => {
-            if (hasRuntimeDbConfigurableSkillRunPath(matterStore, runtimeDbStorageService)) {
+            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
+              assertRuntimeDbConfigurableSkillRunAvailable({ runtimeDbStorageService });
               const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
               const result = await configurableSkillsService.runSkill({
                 slash: body.slash,
@@ -203,17 +204,6 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
               return artifactPersistence
                 ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
                 : responsePayload;
-            }
-            if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body.matterName);
-              const result = await runtimeDbStorageService.runMaterializedMatterWrite(matter, ({ matterRoot }) => configurableSkillsService.runSkill({
-                slash: body.slash,
-                overwrite: Boolean(body.overwrite),
-                matterName: matter.name,
-                matterRootOverride: matterRoot,
-                matterRecordOverride: matter,
-              }));
-              return result.operationResult;
             }
             return configurableSkillsService.runSkill({
               slash: body.slash,
@@ -257,16 +247,16 @@ async function scopedSkillRuns({ matterStore, runs }) {
   };
 }
 
-function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && typeof runtimeDbStorageService.runMaterializedMatterWrite === "function";
-}
-
-function hasRuntimeDbConfigurableSkillRunPath(matterStore, runtimeDbStorageService) {
-  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
-    && typeof runtimeDbStorageService.readMatterContextPacket === "function"
-    && typeof runtimeDbStorageService.artifactExists === "function"
-    && typeof runtimeDbStorageService.persistTextArtifacts === "function";
+function assertRuntimeDbConfigurableSkillRunAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function"
+    || typeof runtimeDbStorageService?.artifactExists !== "function"
+    || typeof runtimeDbStorageService?.persistTextArtifacts !== "function") {
+    throw makeHttpError(
+      "Matter context is not available for this skill workflow. Ask the operator to check the workspace setup.",
+      409,
+      "skill_factory.context_required",
+    );
+  }
 }
 
 async function generateRuntimeDbSampleOutput({
