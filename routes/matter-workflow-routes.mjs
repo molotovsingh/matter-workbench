@@ -252,6 +252,11 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
         const body = await readRequestJson(request);
+        if (hasRuntimeDbDoctorScanPath(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          sendJson(response, 200, runtimeDbReadResponse(await runtimeDbStorageService.readDoctorScan(matter), matter));
+          return;
+        }
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await runRuntimeDbMaterializedRead({
             matterStore,
@@ -460,6 +465,11 @@ function hasRuntimeDbContextReadPath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbRerunAdvicePath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.readRerunAdvice === "function";
+}
+
+function hasRuntimeDbDoctorScanPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.readDoctorScan === "function";
 }
 
 async function runTrackedWorkflow({

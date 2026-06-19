@@ -54,6 +54,7 @@ import {
   summarizeMaterializedDeletionRows,
   summarizeMaterializedRows,
 } from "./runtime-db-materialized-persistence-sql.mjs";
+import { runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import {
@@ -363,6 +364,17 @@ export function createRuntimeDbStorageService({
     return stage?.rerunAdvice || null;
   }
 
+  async function readDoctorScan(matter) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    return runRuntimeDbDoctorScan({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+    });
+  }
+
   async function readMatterAttention(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -528,6 +540,7 @@ export function createRuntimeDbStorageService({
     enabled,
     createMatterFromUploadedFiles,
     getRawFile,
+    readDoctorScan,
     readMatterAttention,
     readMatterContextPacket,
     readMatterStatus,

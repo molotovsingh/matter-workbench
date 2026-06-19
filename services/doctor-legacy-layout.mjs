@@ -3,7 +3,7 @@ import path from "node:path";
 import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { csvEscape, parseCsvRow } from "../shared/csv.mjs";
 
-const LEGACY_CATEGORY_RENAMES = new Map([
+export const LEGACY_CATEGORY_RENAMES = new Map([
   ["documents_pdf", "PDFs"],
   ["documents_word", "Word Documents"],
   ["spreadsheets", "Spreadsheets"],
@@ -14,7 +14,7 @@ const LEGACY_CATEGORY_RENAMES = new Map([
   ["review_required", "Needs Review"],
 ]);
 
-const LEGACY_CSV_COLUMN_RENAMES = new Map([
+export const LEGACY_CSV_COLUMN_RENAMES = new Map([
   ["raw_file_id", "file_id"],
   ["load_id", "intake_id"],
   ["preserved_path", "original_path"],
@@ -142,7 +142,7 @@ export async function detectLegacyLayout(matterRoot) {
   };
 }
 
-function buildLegacyDescription(evidence) {
+export function buildLegacyDescription(evidence) {
   const lines = [];
   if (evidence.legacyLoadDir) lines.push(`Folder "${evidence.legacyLoadDir}" to "Intake 01 - Initial".`);
   if (evidence.hasLegacyEvidenceFiles) lines.push(`Subfolder "Evidence Files" to "Source Files".`);

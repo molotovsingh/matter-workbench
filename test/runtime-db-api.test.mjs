@@ -1056,6 +1056,55 @@ test("runtime DB postgres storage mode answers copilot from DB-native packet ser
   }
 });
 
+test("runtime DB postgres storage mode scans doctor issues from DB-native service when available", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-doctor-scan");
+  const runtimeMatter = runtimeDbMatter({
+    id: "56565656-5656-4565-8565-565656565656",
+    name: "DB Direct Doctor Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Doctor Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readDoctorScan(matter) {
+        calls.push(["doctor-scan", matter.name, matter.matterName]);
+        return { issues: [{ id: "legacy-layout", severity: "warning" }] };
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native doctor scan");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const scan = await postJson(baseUrl, "/api/doctor/scan", { matterName: "Legal Caption" });
+
+    assert.equal(scan.issues[0].id, "legacy-layout");
+    assert.equal(scan.matterRoot, "postgres:DB Direct Doctor Matter");
+    assert.equal(scan.matterName, "Legal Caption");
+    assert.deepEqual(calls, [["doctor-scan", "DB Direct Doctor Matter", "Legal Caption"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode reads rerun advice from DB-native status service when available", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-rerun");
   const runtimeMatter = runtimeDbMatter({

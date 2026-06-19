@@ -1144,6 +1144,46 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service scans legacy layout directly from DB payload custody", async () => {
+  const matterJson = JSON.stringify({
+    matter_name: "Legal Caption",
+    phase_1_intake: {
+      load_id: "INTAKE-01",
+      load_dir: "00_Inbox/Load_01_Initial",
+    },
+  });
+  const fileRegister = [
+    "raw_file_id,load_id,preserved_path,arranged_path,source_sha256",
+    "FILE-0001,INTAKE-01,raw_source_files/agreement.pdf,arranged_files/documents_pdf/agreement.pdf,sha-source",
+  ].join("\n");
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", matterJson.length, true),
+          storageRow("DB Matter/00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv", "matter_artifact", "text/csv", fileRegister.length, true),
+          storageRow("DB Matter/00_Inbox/Load_01_Initial/arranged_files/documents_pdf/agreement.pdf", "source_working_copy", "application/pdf", 120, true),
+        ],
+      },
+      payloadRow("DB Matter/00_Inbox/Load_01_Initial/Inbox_Normalization_Log.csv", fileRegister, "text/csv"),
+      payloadRow("DB Matter/matter.json", matterJson, "application/json"),
+    ]),
+  });
+
+  const scan = await service.readDoctorScan(matter);
+
+  assert.equal(scan.issues.length, 1);
+  assert.equal(scan.issues[0].id, "legacy-layout");
+  assert.equal(scan.issues[0].evidence.legacyLoadDir, "Load_01_Initial");
+  assert.equal(scan.issues[0].evidence.hasLegacyNormalizationCsv, true);
+  assert.equal(scan.issues[0].evidence.hasLegacyMatterJsonKey, true);
+  assert.deepEqual(scan.issues[0].evidence.legacyCsvColumns.slice(0, 2), ["raw_file_id", "load_id"]);
+  assert.match(scan.issues[0].description, /Load_01_Initial/);
+});
+
 test("runtime DB storage service builds matter context packets directly from DB payload custody", async () => {
   const matterJson = JSON.stringify({
     matter_name: "Legal Caption",
