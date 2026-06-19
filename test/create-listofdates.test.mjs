@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
+  buildCreateListOfDatesFromRecords,
   runCreateListOfDates,
   createOpenAiProvider,
   createOpenRouterProvider,
@@ -38,12 +39,43 @@ import {
   metadata,
   prepareExtractedMatter,
   readExtractionRecord,
+  readFileRegister,
   receiptDiscrepancyPaymentEntry,
   receiptPaymentEntry,
   sourceIndexSource,
   writeSource,
   writeSourceIndex,
 } from "../test-support/listofdates-fixtures.mjs";
+
+test("create-listofdates builds chronology artifacts from DB-native extraction inputs", async () => {
+  const root = await prepareExtractedMatter();
+  const matterJson = JSON.parse(await readFile(path.join(root, "matter.json"), "utf8"));
+  const record = await readExtractionRecord(root);
+  const fileIndex = new Map((await readFileRegister(root)).map((row) => [row.file_id, row]));
+
+  const result = await buildCreateListOfDatesFromRecords({
+    matterRoot: "postgres:DB Matter",
+    matterJson,
+    records: [record],
+    fileIndex,
+    generatedAt: "2026-06-19T00:00:00.000Z",
+    aiProvider: async ({ chunk }) => ({
+      entries: [listOfDatesEntry({ citation: chunk[0].citation })],
+    }),
+  });
+
+  assert.equal(result.matterRoot, "postgres:DB Matter");
+  assert.equal(result.counts.recordsRead, 1);
+  assert.equal(result.outputPaths.json, "10_Library/List of Dates.json");
+  assert.deepEqual(result.artifactFiles.map((file) => file.relativePath), [
+    "10_Library/List of Dates.json",
+    "10_Library/List of Dates.csv",
+    "10_Library/List of Dates.md",
+  ]);
+  assert.equal(result.artifact.generated_at, "2026-06-19T00:00:00.000Z");
+  assert.equal(result.artifact.entries.length, 1);
+  assert.match(result.artifactFiles[2].text, /Agreement was signed/);
+});
 
 test("create-listofdates calls an AI provider and writes cited chronology outputs", async () => {
   const root = await prepareExtractedMatter();

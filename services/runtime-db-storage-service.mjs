@@ -11,6 +11,7 @@ import { Readable } from "node:stream";
 import path from "node:path";
 import process from "node:process";
 
+import { buildCreateListOfDatesFromRecords } from "../create-listofdates-engine.mjs";
 import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
 import { buildSourceDescriptorsFromRecords } from "../source-descriptors-engine.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
@@ -67,6 +68,7 @@ import {
   buildUploadOverlapSql,
   buildWorkspaceSql,
 } from "./runtime-db-storage-query-sql.mjs";
+import { parseCsv } from "../shared/csv.mjs";
 import { stringValue } from "./runtime-db-sql-format.mjs";
 import {
   buildRuntimeUploadPersistenceSql,
@@ -458,6 +460,44 @@ export function createRuntimeDbStorageService({
     };
   }
 
+  async function createListOfDates(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const matterJson = await readMatterJson(normalizedMatter);
+    const records = readRuntimeDbExtractionRecords({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+    });
+    const blocksFileIndex = readRuntimeDbFileRegisterIndex({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+    });
+    const sourceIndexArtifact = readRuntimeDbOptionalJsonPayload({
+      matter: normalizedMatter,
+      relativePath: "10_Library/Source Index.json",
+      readPayloadRow,
+    });
+    const response = await buildCreateListOfDatesFromRecords({
+      ...options,
+      matterRoot: `postgres:${normalizedMatter.name}`,
+      matterJson,
+      records,
+      fileIndex: blocksFileIndex,
+      sourceIndexArtifact,
+      dryRun: Boolean(options.dryRun),
+    });
+    const persisted = options.dryRun
+      ? []
+      : await persistTextArtifacts(normalizedMatter, response.artifactFiles);
+    return {
+      operationResult: response,
+      persisted,
+    };
+  }
+
   async function refreshListOfDatesSourceLabels(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -688,6 +728,7 @@ export function createRuntimeDbStorageService({
     addUploadedFilesToMatter,
     artifactExists,
     checkUploadedFileOverlap,
+    createListOfDates,
     describeSources,
     enabled,
     createMatterFromUploadedFiles,
@@ -829,6 +870,33 @@ function readRuntimeDbExtractionRecords({ matter, workspace, readPayloadRow } = 
     }
   }
   return records.sort((left, right) => String(left.file_id || "").localeCompare(String(right.file_id || "")));
+}
+
+function readRuntimeDbFileRegisterIndex({ matter, workspace, readPayloadRow } = {}) {
+  const index = new Map();
+  const paths = runtimeWorkspaceFilePaths(workspace.tree || workspace.root || {});
+  for (const item of paths) {
+    const relativePath = item.path || "";
+    if (!/(^|\/)File Register\.csv$/i.test(relativePath)) continue;
+    try {
+      const payload = readPayloadRow({ matter, relativePath });
+      for (const row of parseCsv(payload.bytes.toString("utf8"))) {
+        if (row.file_id) index.set(row.file_id, row);
+      }
+    } catch {
+      // Missing or invalid historical registers should not block chronology from extraction records.
+    }
+  }
+  return index;
+}
+
+function readRuntimeDbOptionalJsonPayload({ matter, relativePath, readPayloadRow } = {}) {
+  try {
+    const payload = readPayloadRow({ matter, relativePath });
+    return JSON.parse(payload.bytes.toString("utf8"));
+  } catch {
+    return null;
+  }
 }
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {

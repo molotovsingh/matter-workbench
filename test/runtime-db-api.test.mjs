@@ -718,6 +718,77 @@ test("runtime DB postgres storage mode runs source labels through materialized D
   }
 });
 
+test("runtime DB postgres storage mode runs create-listofdates from DB-native custody", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-chronology");
+  const runtimeMatter = runtimeDbMatter({
+    id: "55555555-5555-4555-8555-555555555555",
+    name: "DB Direct Chronology Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Chronology Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async createListOfDates(matter, options) {
+        calls.push(["create-list", matter.name, matter.matterName, Boolean(options.aiProvider)]);
+        return {
+          operationResult: {
+            counts: { recordsRead: 1, entries: 1 },
+            outputPaths: {
+              json: "10_Library/List of Dates.json",
+              csv: "10_Library/List of Dates.csv",
+              markdown: "10_Library/List of Dates.md",
+            },
+          },
+          persisted: [
+            { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/List of Dates.csv", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/List of Dates.md", objectRole: "matter_artifact" },
+          ],
+        };
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native List of Dates");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/create-listofdates", {
+      matterName: "Legal Caption",
+    });
+
+    assert.equal(result.counts.recordsRead, 1);
+    assert.equal(result.counts.entries, 1);
+    assert.equal(result.matterRoot, "postgres:DB Direct Chronology Matter");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "10_Library/List of Dates.json",
+      "10_Library/List of Dates.csv",
+      "10_Library/List of Dates.md",
+    ]);
+    assert.deepEqual(calls, [["create-list", "DB Direct Chronology Matter", "Legal Caption", false]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs create-listofdates through materialized DB write service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-lod");
   const runtimeMatter = runtimeDbMatter({

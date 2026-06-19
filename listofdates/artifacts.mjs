@@ -55,8 +55,7 @@ export function buildListOfDatesJson({
   };
 }
 
-export async function writeListOfDatesArtifacts({
-  matterRoot,
+export function buildListOfDatesArtifactFiles({
   matterJson,
   engineVersion,
   markdownEngineVersion = engineVersion,
@@ -65,17 +64,19 @@ export async function writeListOfDatesArtifacts({
   records,
   sourceIndex,
   entries,
-  includeCandidates = false,
   generationMode,
   candidateLedgerPath,
   pass1AiRun,
   pass2AiRun,
   validation,
-}) {
-  const outputDir = path.join(matterRoot, "10_Library");
-  const outputPaths = createListOfDatesOutputPaths(matterRoot, { includeCandidates });
-  await mkdir(outputDir, { recursive: true });
-  await writeJsonFile(path.join(outputDir, "List of Dates.json"), buildListOfDatesJson({
+} = {}) {
+  const outputPaths = {
+    directory: "10_Library",
+    json: "10_Library/List of Dates.json",
+    csv: "10_Library/List of Dates.csv",
+    markdown: "10_Library/List of Dates.md",
+  };
+  const jsonArtifact = buildListOfDatesJson({
     matterJson,
     engineVersion,
     generatedAt,
@@ -88,13 +89,30 @@ export async function writeListOfDatesArtifacts({
     pass1AiRun,
     pass2AiRun,
     validation,
-  }));
-  await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), toCsv(entries, CSV_HEADERS));
-  await writeFileAtomic(path.join(outputDir, "List of Dates.md"), renderListOfDatesMarkdown(
-    matterJson,
-    entries,
-    markdownEngineVersion,
-  ));
+  });
+  return {
+    outputPaths,
+    jsonArtifact,
+    files: [
+      { relativePath: outputPaths.json, text: `${JSON.stringify(jsonArtifact, null, 2)}\n` },
+      { relativePath: outputPaths.csv, text: toCsv(entries, CSV_HEADERS) },
+      { relativePath: outputPaths.markdown, text: renderListOfDatesMarkdown(matterJson, entries, markdownEngineVersion) },
+    ],
+  };
+}
+
+export async function writeListOfDatesArtifacts({
+  matterRoot,
+  includeCandidates = false,
+  ...artifactOptions
+}) {
+  const outputDir = path.join(matterRoot, "10_Library");
+  const outputPaths = createListOfDatesOutputPaths(matterRoot, { includeCandidates });
+  const artifactFiles = buildListOfDatesArtifactFiles(artifactOptions);
+  await mkdir(outputDir, { recursive: true });
+  await writeFileAtomic(path.join(outputDir, "List of Dates.json"), artifactFiles.files[0].text);
+  await writeFileAtomic(path.join(outputDir, "List of Dates.csv"), artifactFiles.files[1].text);
+  await writeFileAtomic(path.join(outputDir, "List of Dates.md"), artifactFiles.files[2].text);
   return outputPaths;
 }
 

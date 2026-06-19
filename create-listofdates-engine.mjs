@@ -1,27 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLocalEnv } from "./shared/local-env.mjs";
-import { AI_TASKS } from "./shared/model-policy.mjs";
-import { clusterChronologyEntries } from "./listofdates/clustering.mjs";
-import { OUTPUT_SCHEMA } from "./listofdates/contracts.mjs";
-import {
-  createListOfDatesOutputPaths,
-  writeListOfDatesArtifacts,
-} from "./listofdates/artifacts.mjs";
-import {
-  compareEntries,
-  matterSummary,
-  validateAndHydrateEntries,
-} from "./listofdates/entries.mjs";
-import {
-  DEFAULT_LIST_OF_DATES_ENGINE_VERSION,
-  renderListOfDatesMarkdown,
-} from "./listofdates/rendering.mjs";
-import { mergeAiRunMetadata } from "./listofdates/run-metadata.mjs";
-import {
-  createConfiguredListOfDatesProvider,
-  isTwoPassListOfDatesEnabled,
-} from "./listofdates/run-config.mjs";
+import { createListOfDatesOutputPaths } from "./listofdates/artifacts.mjs";
+import { DEFAULT_LIST_OF_DATES_ENGINE_VERSION } from "./listofdates/rendering.mjs";
+import { isTwoPassListOfDatesEnabled } from "./listofdates/run-config.mjs";
+import { runCreateListOfDatesOnePass } from "./listofdates/one-pass-runner.mjs";
 import { runCreateListOfDatesTwoPass } from "./listofdates/two-pass-runner.mjs";
 import {
   buildSourceBlocks,
@@ -40,6 +23,7 @@ const ENGINE_VERSION = DEFAULT_LIST_OF_DATES_ENGINE_VERSION;
 export { DEFAULT_OPENAI_MAX_OUTPUT_TOKENS, DEFAULT_OPENAI_MODEL } from "./shared/ai-defaults.mjs";
 export { createOpenAiProvider, createOpenRouterProvider } from "./listofdates/providers.mjs";
 export { renderListOfDatesMarkdown } from "./listofdates/rendering.mjs";
+export { buildCreateListOfDatesFromRecords } from "./listofdates/one-pass-runner.mjs";
 
 export async function runCreateListOfDates(options = {}) {
   const matterRoot = options.matterRoot
@@ -58,6 +42,33 @@ export async function runCreateListOfDates(options = {}) {
   const records = await readExtractionRecords(matterRoot, intakes);
   if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
 
+  const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun });
+
+  if (isTwoPassListOfDatesEnabled({ env, options })) {
+    return runCreateListOfDatesTwoPass({
+      options,
+      env,
+      matterRoot,
+      dryRun,
+      matterJson,
+      records,
+      ...inputs,
+    });
+  }
+
+  return runCreateListOfDatesOnePass({
+    options: { ...options, engineVersion: ENGINE_VERSION },
+    env,
+    matterRoot,
+    dryRun,
+    matterJson,
+    records,
+    ...inputs,
+    persistArtifacts: !dryRun,
+  });
+}
+
+async function prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun }) {
   const blocks = buildSourceBlocks(records, fileIndex);
   if (!blocks.length) throw new Error("Extraction records contain no text blocks to analyze.");
   const sourceIndex = await readSourceIndex(matterRoot, blocks);
@@ -78,97 +89,9 @@ export async function runCreateListOfDates(options = {}) {
     outputLines.push(`[listofdates] filtered ${filteredBlockCount} meta/index source block(s) before AI input`);
   }
 
-  if (isTwoPassListOfDatesEnabled({ env, options })) {
-    return runCreateListOfDatesTwoPass({
-      options,
-      env,
-      matterRoot,
-      dryRun,
-      matterJson,
-      records,
-      sourceIndex,
-      chronologyBlocks,
-      chunks,
-      filteredBlockCount,
-      outputLines,
-    });
-  }
-
-  const configured = createConfiguredListOfDatesProvider({
-    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    options,
-    env,
-    injectedProvider: options.aiProvider,
-  });
-
-  const rawEntries = [];
-  const responseAiRuns = [];
-  for (const [index, chunk] of chunks.entries()) {
-    const response = await configured.provider({
-      matter: matterSummary(matterJson),
-      chunk,
-      chunkIndex: index + 1,
-      chunkCount: chunks.length,
-      schema: OUTPUT_SCHEMA,
-    });
-    if (!response || !Array.isArray(response.entries)) {
-      const error = new Error(`AI provider returned an invalid list-of-dates payload for chunk ${index + 1}`);
-      error.statusCode = 502;
-      throw error;
-    }
-    rawEntries.push(...response.entries);
-    if (response.ai_run) responseAiRuns.push(response.ai_run);
-    outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
-  }
-
-  const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
-  const acceptedEntries = validEntries.sort(compareEntries);
-  const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
-  const aiRun = mergeAiRunMetadata(configured.baseAiRun, responseAiRuns);
-
-  const outputPaths = createListOfDatesOutputPaths(matterRoot);
-
-  if (!dryRun) {
-    await writeListOfDatesArtifacts({
-      matterRoot,
-      matterJson,
-      engineVersion: ENGINE_VERSION,
-      aiRun,
-      records,
-      sourceIndex,
-      entries,
-    });
-  }
-
-  outputLines.push(`[listofdates] accepted ${acceptedEntries.length} cited date event(s)`);
-  if (acceptedEntries.length !== entries.length) {
-    outputLines.push(`[listofdates] rendered ${entries.length} chronology row(s) after cluster classification`);
-  }
-  outputLines.push(`[listofdates] provider ${aiRun.provider}: ${aiRun.model}`);
-  outputLines.push(dryRun
-    ? "[listofdates] dry run only. Re-run with apply to write list of dates."
-    : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
-
-  return {
-    dryRun,
-    matterRoot,
-    engineVersion: ENGINE_VERSION,
-    counts: {
-      recordsRead: records.length,
-      blocksSent: chronologyBlocks.length,
-      blocksFiltered: filteredBlockCount,
-      aiRequests: chunks.length,
-      candidateEntries: rawEntries.length,
-      acceptedEntries: acceptedEntries.length,
-      clusteredEntries: acceptedEntries.length - entries.length,
-      entries: entries.length,
-      rejectedEntries: rawEntries.length - acceptedEntries.length,
-    },
-    outputPaths,
-    aiRun,
-    entries,
-    outputLines,
-  };
+  // Keep the root engine visibly tied to the artifact contract after decomposition.
+  createListOfDatesOutputPaths(matterRoot);
+  return { sourceIndex, chronologyBlocks, chunks, filteredBlockCount, outputLines };
 }
 
 if (process.argv[1] === __filename) {

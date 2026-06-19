@@ -1,4 +1,5 @@
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
+import { isTwoPassListOfDatesEnabled } from "../listofdates/run-config.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
@@ -161,10 +162,29 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "Create List of Dates",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            const env = services.env || {};
+            if (hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService)
+              && !isTwoPassListOfDatesEnabled({ env, options: body })) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+              const options = {
+                dryRun: Boolean(body.dryRun),
+                aiProvider: services.aiProvider,
+                env,
+              };
+              if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
+                options.apiKey = env.OPENAI_API_KEY;
+                options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
+              }
+              return runtimeDbWorkflowResponse(
+                await runtimeDbStorageService.createListOfDates(matter, options),
+                matter,
+              );
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
-              const env = services.env || {};
               const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
               return runRuntimeDbMaterializedWorkflow({
+
                 matterStore,
                 runtimeDbStorageService,
                 body,
@@ -185,7 +205,6 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
             }
             assertFilesystemWorkflowAvailable(matterStore, "Create List of Dates");
             const root = await matterRootForBody(matterStore, body);
-            const env = services.env || {};
             const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
             const options = {
               matterRoot: root,
@@ -536,6 +555,11 @@ function hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbSourceDescriptorsPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.describeSources === "function";
+}
+
+function hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.createListOfDates === "function";
 }
 
 async function runTrackedWorkflow({

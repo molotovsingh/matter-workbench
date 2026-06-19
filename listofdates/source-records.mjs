@@ -133,6 +133,10 @@ export async function readSourceIndex(matterRoot, blocks) {
   } catch {
     return new Map();
   }
+  return sourceIndexFromArtifact(artifact, blocks);
+}
+
+export function sourceIndexFromArtifact(artifact, blocks = []) {
   if (artifact?.schema_version !== "source-index/v1" || !Array.isArray(artifact.sources)) return new Map();
 
   const blockByFileId = new Map(blocks.map((block) => [block.file_id, block]));
