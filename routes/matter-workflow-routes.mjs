@@ -1,5 +1,4 @@
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
-import { isTwoPassListOfDatesEnabled } from "../listofdates/run-config.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
@@ -187,8 +186,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
             const env = services.env || {};
-            if (hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService)
-              && !isTwoPassListOfDatesEnabled({ env, options: body })) {
+            if (hasRuntimeDbCreateListOfDatesPath(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body);
               const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
               const options = {

@@ -12,6 +12,8 @@ import path from "node:path";
 import process from "node:process";
 
 import { buildCreateListOfDatesFromRecords } from "../create-listofdates-engine.mjs";
+import { buildCreateListOfDatesTwoPassFromRecords } from "../listofdates/two-pass-runner.mjs";
+import { isTwoPassListOfDatesEnabled } from "../listofdates/run-config.mjs";
 import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
 import { buildSourceDescriptorsFromRecords } from "../source-descriptors-engine.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
@@ -520,6 +522,31 @@ export function createRuntimeDbStorageService({
       relativePath: "10_Library/Source Index.json",
       readPayloadRow,
     });
+    if (isTwoPassListOfDatesEnabled({ env: options.env || process.env, options })) {
+      const persistedByPath = new Map();
+      const persistGeneratedFiles = async (files = []) => {
+        if (options.dryRun || !files.length) return [];
+        const rows = await persistTextArtifacts(normalizedMatter, files);
+        for (const row of rows) persistedByPath.set(row.relativePath, row);
+        return rows;
+      };
+      const response = await buildCreateListOfDatesTwoPassFromRecords({
+        ...options,
+        matterRoot: `postgres:${normalizedMatter.name}`,
+        matterJson,
+        records,
+        fileIndex: blocksFileIndex,
+        sourceIndexArtifact,
+        dryRun: Boolean(options.dryRun),
+        candidateLedgerWriter: (file) => persistGeneratedFiles([file]),
+        artifactWriter: ({ files }) => persistGeneratedFiles(files),
+      });
+      return {
+        operationResult: response,
+        persisted: [...persistedByPath.values()],
+      };
+    }
+
     const response = await buildCreateListOfDatesFromRecords({
       ...options,
       matterRoot: `postgres:${normalizedMatter.name}`,

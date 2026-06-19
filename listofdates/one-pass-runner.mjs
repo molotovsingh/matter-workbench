@@ -15,6 +15,26 @@ import {
 } from "./source-records.mjs";
 
 export async function buildCreateListOfDatesFromRecords(options = {}) {
+  const prepared = prepareCreateListOfDatesInputsFromRecords(options);
+  const { matterRoot, dryRun, env, matterJson, records } = prepared;
+
+  return runCreateListOfDatesOnePass({
+    options,
+    env,
+    matterRoot,
+    dryRun,
+    matterJson,
+    records,
+    sourceIndex: prepared.sourceIndex,
+    chronologyBlocks: prepared.chronologyBlocks,
+    chunks: prepared.chunks,
+    filteredBlockCount: prepared.filteredBlockCount,
+    outputLines: prepared.outputLines,
+    persistArtifacts: false,
+  });
+}
+
+export function prepareCreateListOfDatesInputsFromRecords(options = {}) {
   const matterRoot = options.matterRoot || "";
   const dryRun = Boolean(options.dryRun);
   const env = options.env || process.env;
@@ -45,11 +65,10 @@ export async function buildCreateListOfDatesFromRecords(options = {}) {
     outputLines.push(`[listofdates] filtered ${filteredBlockCount} meta/index source block(s) before AI input`);
   }
 
-  return runCreateListOfDatesOnePass({
-    options,
-    env,
+  return {
     matterRoot,
     dryRun,
+    env,
     matterJson,
     records,
     sourceIndex,
@@ -57,8 +76,7 @@ export async function buildCreateListOfDatesFromRecords(options = {}) {
     chunks,
     filteredBlockCount,
     outputLines,
-    persistArtifacts: false,
-  });
+  };
 }
 
 export async function runCreateListOfDatesOnePass({

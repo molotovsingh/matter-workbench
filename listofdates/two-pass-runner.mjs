@@ -5,6 +5,7 @@ import {
   OUTPUT_SCHEMA,
 } from "./contracts.mjs";
 import {
+  buildListOfDatesArtifactFiles,
   createListOfDatesOutputPaths,
   writeCandidateLedger,
   writeListOfDatesArtifacts,
@@ -28,6 +29,28 @@ import {
   twoPassAiRunMetadata,
 } from "./run-metadata.mjs";
 import { createConfiguredListOfDatesProvider } from "./run-config.mjs";
+import { prepareCreateListOfDatesInputsFromRecords } from "./one-pass-runner.mjs";
+
+export async function buildCreateListOfDatesTwoPassFromRecords(options = {}) {
+  const prepared = prepareCreateListOfDatesInputsFromRecords(options);
+  const { matterRoot, dryRun, env, matterJson, records } = prepared;
+  return runCreateListOfDatesTwoPass({
+    options,
+    env,
+    matterRoot,
+    dryRun,
+    matterJson,
+    records,
+    sourceIndex: prepared.sourceIndex,
+    chronologyBlocks: prepared.chronologyBlocks,
+    chunks: prepared.chunks,
+    filteredBlockCount: prepared.filteredBlockCount,
+    outputLines: prepared.outputLines,
+    persistArtifacts: false,
+    candidateLedgerWriter: options.candidateLedgerWriter,
+    artifactWriter: options.artifactWriter,
+  });
+}
 
 export async function runCreateListOfDatesTwoPass({
   options,
@@ -41,6 +64,9 @@ export async function runCreateListOfDatesTwoPass({
   chunks,
   filteredBlockCount,
   outputLines,
+  persistArtifacts = !dryRun,
+  candidateLedgerWriter,
+  artifactWriter,
 }) {
   const pass1 = createConfiguredListOfDatesProvider({
     task: AI_TASKS.CREATE_LISTOFDATES_PASS1,
@@ -102,7 +128,13 @@ export async function runCreateListOfDatesTwoPass({
   });
 
   if (!dryRun) {
-    await writeCandidateLedger(matterRoot, candidateLedger);
+    await persistCandidateLedger({
+      matterRoot,
+      outputPaths,
+      candidateLedger,
+      persistArtifacts,
+      candidateLedgerWriter,
+    });
   }
 
   try {
@@ -132,28 +164,51 @@ export async function runCreateListOfDatesTwoPass({
       final_entry_count: entries.length,
     };
 
+    const validation = {
+      candidate_count: candidates.length,
+      accepted_entries: acceptedEntries.length,
+      final_entries: entries.length,
+      clustered_entries: acceptedEntries.length - entries.length,
+    };
+    const artifactFiles = buildListOfDatesArtifactFiles({
+      matterJson,
+      engineVersion: TWO_PASS_ENGINE_VERSION,
+      markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
+      generatedAt: options.generatedAt,
+      generationMode: "two_pass",
+      candidateLedgerPath: outputPaths.candidates,
+      aiRun,
+      pass1AiRun,
+      pass2AiRun,
+      records,
+      sourceIndex,
+      validation,
+      entries,
+    });
+    const candidateLedgerFile = candidateLedgerArtifactFile(outputPaths.candidates, candidateLedger);
+
     if (!dryRun) {
-      await writeListOfDatesArtifacts({
-        matterRoot,
-        matterJson,
-        engineVersion: TWO_PASS_ENGINE_VERSION,
-        markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
-        generationMode: "two_pass",
-        candidateLedgerPath: outputPaths.candidates,
-        aiRun,
-        pass1AiRun,
-        pass2AiRun,
-        records,
-        sourceIndex,
-        validation: {
-          candidate_count: candidates.length,
-          accepted_entries: acceptedEntries.length,
-          final_entries: entries.length,
-          clustered_entries: acceptedEntries.length - entries.length,
-        },
-        entries,
-      });
-      await writeCandidateLedger(matterRoot, candidateLedger);
+      if (typeof artifactWriter === "function") {
+        await artifactWriter({ files: [...artifactFiles.files, candidateLedgerFile] });
+      } else if (persistArtifacts) {
+        await writeListOfDatesArtifacts({
+          matterRoot,
+          matterJson,
+          engineVersion: TWO_PASS_ENGINE_VERSION,
+          markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
+          generatedAt: options.generatedAt,
+          generationMode: "two_pass",
+          candidateLedgerPath: outputPaths.candidates,
+          aiRun,
+          pass1AiRun,
+          pass2AiRun,
+          records,
+          sourceIndex,
+          validation,
+          entries,
+        });
+        await writeCandidateLedger(matterRoot, candidateLedger);
+      }
     }
 
     outputLines.push(`[listofdates] pass 1 accepted ${candidates.length} candidate(s) into ${outputPaths.candidates}`);
@@ -190,17 +245,46 @@ export async function runCreateListOfDatesTwoPass({
       pass2AiRun,
       aiRun,
       entries,
+      artifact: artifactFiles.jsonArtifact,
+      artifactFiles: [...artifactFiles.files, candidateLedgerFile],
       outputLines,
     };
   } catch (error) {
     if (!dryRun && candidateLedger?.candidates?.length) {
-      await writeCandidateLedger(matterRoot, {
-        ...candidateLedger,
-        status: "failed",
-        finished_at: new Date().toISOString(),
-        error_message: error.message,
+      await persistCandidateLedger({
+        matterRoot,
+        outputPaths,
+        candidateLedger: {
+          ...candidateLedger,
+          status: "failed",
+          finished_at: new Date().toISOString(),
+          error_message: error.message,
+        },
+        persistArtifacts,
+        candidateLedgerWriter,
       });
     }
     throw error;
   }
+}
+
+async function persistCandidateLedger({
+  matterRoot,
+  outputPaths,
+  candidateLedger,
+  persistArtifacts,
+  candidateLedgerWriter,
+}) {
+  if (typeof candidateLedgerWriter === "function") {
+    await candidateLedgerWriter(candidateLedgerArtifactFile(outputPaths.candidates, candidateLedger));
+    return;
+  }
+  if (persistArtifacts) await writeCandidateLedger(matterRoot, candidateLedger);
+}
+
+function candidateLedgerArtifactFile(relativePath, candidateLedger) {
+  return {
+    relativePath,
+    text: `${JSON.stringify(candidateLedger, null, 2)}\n`,
+  };
 }

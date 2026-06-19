@@ -1371,6 +1371,95 @@ test("runtime DB storage service creates List of Dates directly from DB custody"
   assert.match(calls.at(-1).input, /10_Library\/List of Dates\.md/);
 });
 
+test("runtime DB storage service creates two-pass List of Dates directly from DB custody", async () => {
+  const extractionRecord = {
+    schema_version: "extraction-record/v1",
+    file_id: "FILE-0001",
+    sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt",
+    engine: "text-extract@test",
+    page_count: 1,
+    warnings: [],
+    pages: [{
+      page: 1,
+      confidence_avg: 0.98,
+      needs_review: false,
+      blocks: [{ id: "p1.b1", type: "paragraph", text: "The agreement was signed on 20 April 2026." }],
+    }],
+  };
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 80, true),
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/File Register.csv", "matter_artifact", "text/csv", 120, true),
+          storageRow("DB Matter/00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json", "extraction_payload", "application/json", 500, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({ matter_name: "Legal Caption", client_name: "Client A" }), "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json", JSON.stringify(extractionRecord), "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01 - Initial/File Register.csv", [
+        "file_id,intake_id,source_path,original_path,working_copy_path,category,original_name,sha256,size_bytes,duplicate_of,status",
+        "FILE-0001,INTAKE-01,source/facts.txt,,00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt,Text Notes,facts.txt,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,42,,unique",
+        "",
+      ].join("\n"), "text/csv"),
+      {},
+      {},
+      {},
+    ]),
+  });
+
+  const result = await service.createListOfDates(matter, {
+    twoPass: true,
+    generatedAt: "2026-06-19T00:00:00.000Z",
+    pass1Provider: async ({ chunk }) => ({
+      candidates: [{
+        date_iso: "2026-04-20",
+        date_text: "20 April 2026",
+        event_candidate: "The agreement was signed.",
+        legal_materiality: "Supports the contract chronology.",
+        citation: chunk[0].citation,
+        source_excerpt: chunk[0].text,
+        candidate_type: "agreement",
+        party_posture: "helps_client",
+        confidence: 0.9,
+      }],
+    }),
+    pass2Provider: async ({ candidates }) => ({
+      entries: [{
+        date_iso: "2026-04-20",
+        date_text: "20 April 2026",
+        event: "The agreement was signed.",
+        event_type: "agreement",
+        legal_relevance: "Supports the contract chronology.",
+        issue_tags: ["agreement"],
+        perspective: "client_favourable",
+        citation: candidates[0].citation,
+        needs_review: false,
+        confidence: 0.9,
+      }],
+    }),
+  });
+
+  assert.equal(result.operationResult.generationMode, "two_pass");
+  assert.equal(result.operationResult.counts.acceptedCandidates, 1);
+  assert.equal(result.operationResult.counts.entries, 1);
+  assert.deepEqual(result.persisted.map((item) => item.relativePath), [
+    "10_Library/List of Dates Candidates.json",
+    "10_Library/List of Dates.json",
+    "10_Library/List of Dates.csv",
+    "10_Library/List of Dates.md",
+  ]);
+  assert.match(calls.at(-2).input, /10_Library\/List of Dates Candidates\.json/);
+  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.json/);
+  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.csv/);
+  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.md/);
+});
+
 test("runtime DB storage service reads and persists matter.json directly in DB custody", async () => {
   const calls = [];
   const service = createRuntimeDbStorageService({
