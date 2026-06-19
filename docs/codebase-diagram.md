@@ -7,7 +7,7 @@ the local Node server or workflow engines, the engines use shared contracts and
 provider policies, and the result is written back as durable matter artifacts.
 In ordinary local mode those artifacts live on disk. In explicit runtime DB
 storage mode, Postgres owns matter identity, payload custody, read surfaces, and
-materialized workflow writes.
+DB-native workflow writes.
 
 ## Maintenance Rule
 

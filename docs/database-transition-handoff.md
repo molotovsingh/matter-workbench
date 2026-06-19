@@ -1,6 +1,6 @@
 # Database Transition Handoff
 
-Status: accepted runtime DB storage/write-bridge slice; hosted DB worker path pending
+Status: accepted runtime DB storage/DB-native workflow slice; hosted DB worker path pending
 
 This note is for a developer/operator taking over the database transition
 track. It now describes two different things that must not be blurred:
@@ -10,12 +10,12 @@ track. It now describes two different things that must not be blurred:
 - the new explicit runtime DB storage mode, which can serve matter selection,
   uploads, workspace trees, file previews, file downloads, matter status,
   preparation plans, advisory snapshots, skill-factory state, custom-skill run
-  receipts, and materialized workflow outputs from Postgres custody.
+  receipts, and DB-native workflow outputs from Postgres custody.
 
-Legal-engine writes are now DB-runtime backed through a temporary materialized
-folder bridge. They are not yet DB-worker-native: long-running work still runs
-inside the foreground local app, and hosted claim/heartbeat/recovery remains a
-future worker slice.
+Legal-engine writes are now DB-runtime backed through narrow custody helpers.
+They are not yet DB-worker-native: long-running work still runs inside the
+foreground local app, and hosted claim/heartbeat/recovery remains a future
+worker slice.
 
 ## Current Boundary
 
@@ -43,10 +43,11 @@ Without those flags, the local beta remains filesystem-backed.
 - Uploads in runtime DB storage mode write source payloads, storage custody,
   document identity, blob rows, and import history into Postgres without
   creating a live matter folder.
-- Materialized preparation/workflow routes reconstruct a temporary matter
-  folder from Postgres payload rows, run the existing engine, and persist new or
-  changed outputs back into Postgres. The temporary folder is scratch, not the
-  source of truth.
+- Preparation/workflow routes use DB-native custody helpers for setup,
+  extraction, source labels, List of Dates, label refresh, doctor scan/fix,
+  matter context, matter story, and custom-skill execution. They fail closed
+  when a required helper is missing instead of rebuilding a temporary full
+  matter folder.
 - Custom skill ideas, generated samples, custom skill definitions/versions,
   custom skill run receipts, and command interaction history are DB-owned in
   runtime DB storage mode.
@@ -55,7 +56,7 @@ Without those flags, the local beta remains filesystem-backed.
   LEVEL SECURITY` is only meaningful for a normal runtime role; do not point
   `MWB_DATABASE_URL` at a superuser connection.
 - Runtime DB write adapters now wrap logical writes in one transaction. This
-  covers DB-backed uploads/add-files, materialized workflow output persistence,
+  covers DB-backed uploads/add-files, DB-native workflow output persistence,
   configurable skill definitions, skill ideas, skill samples, custom-skill run
   receipts, and command interaction audit rows. A statement failure should now
   roll back the logical write instead of leaving a half-written matter or
@@ -64,9 +65,9 @@ Without those flags, the local beta remains filesystem-backed.
   upload path exists. They are no longer the live read source in runtime DB
   storage mode, but they are still needed to populate that mode.
 - Existing legal engines are not SQL-native and are not hosted worker-backed.
-  Do not present the bridge as a production background-job system; it is a
-  controlled local/private runtime adapter that keeps Postgres as file custody
-  truth.
+  Do not present the foreground runtime helpers as a production background-job
+  system; they are controlled local/private adapters that keep Postgres as file
+  custody truth.
 - Do not treat this as a hosted multi-user cutover until auth/session
   middleware, object-storage policy, background workers, rollback, and backup
   behavior are explicitly approved for that environment.
