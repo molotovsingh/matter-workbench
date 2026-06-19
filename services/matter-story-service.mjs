@@ -31,6 +31,12 @@ export function createMatterStoryService({
     overwrite = false,
     matterRootOverride = "",
     matterRecordOverride = null,
+    matterContextPacketOverride = null,
+    artifactExistsOverride = null,
+    artifactWriter = null,
+    matterJsonOverride = null,
+    matterJsonWriter = null,
+    storyMarkdownReader = null,
   } = {}) {
     const matterRoot = await matterRootForName({ matterName, matterRootOverride });
     if (!await hasActiveDisputeStorySkill()) {
@@ -49,15 +55,20 @@ export function createMatterStoryService({
     };
     if (matterRootOverride) skillRunRequest.matterRootOverride = matterRootOverride;
     if (matterRecordOverride) skillRunRequest.matterRecordOverride = matterRecordOverride;
+    if (matterContextPacketOverride) skillRunRequest.matterContextPacketOverride = matterContextPacketOverride;
+    if (artifactExistsOverride) skillRunRequest.artifactExistsOverride = artifactExistsOverride;
+    if (artifactWriter) skillRunRequest.artifactWriter = artifactWriter;
     const skillRun = await configurableSkillsService.runSkill(skillRunRequest);
     const artifactPath = skillRun.outputPaths?.markdown || skillRun.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE;
     const markdown = typeof skillRun.markdown === "string" && skillRun.markdown.trim()
       ? skillRun.markdown
-      : await readStoryMarkdown(matterRoot, artifactPath);
-    const update = await updateBriefDescriptionFromStory({
+      : await readStoryMarkdownForStory({ matterRoot, artifactPath, storyMarkdownReader });
+    const { update, matterJsonPersistence } = await updateBriefDescriptionForStory({
       matterRoot,
       markdown,
       artifactPath,
+      matterJsonOverride,
+      matterJsonWriter,
       now,
     });
 
@@ -69,6 +80,8 @@ export function createMatterStoryService({
       skillRunState: skillRun.state,
       runId: skillRun.runId,
       runRecord: skillRun.runRecord,
+      ...(skillRun.artifactPersistence ? { artifactPersistence: skillRun.artifactPersistence } : {}),
+      ...(matterJsonPersistence ? { matterJsonPersistence } : {}),
     };
   }
 
@@ -107,38 +120,65 @@ export async function updateBriefDescriptionFromStory({
   if (!matterRoot) throw new Error("matterRoot is required");
   const matterJsonPath = path.join(matterRoot, "matter.json");
   const matterJson = await readMatterJson(matterRoot);
+  const { result, nextMatterJson } = buildBriefDescriptionMatterJsonUpdate({
+    matterJson,
+    markdown,
+    artifactPath,
+    overwrite,
+    now,
+  });
+  if (nextMatterJson) {
+    await writeFileAtomic(matterJsonPath, `${JSON.stringify(nextMatterJson, null, 2)}\n`);
+  }
+  return result;
+}
+
+export function buildBriefDescriptionMatterJsonUpdate({
+  matterJson = {},
+  markdown = "",
+  artifactPath = DISPUTE_STORY_OUTPUT_RELATIVE,
+  overwrite = false,
+  now = () => new Date(),
+} = {}) {
   const currentDescription = String(matterJson.brief_description || "").trim();
   if (currentDescription && !overwrite) {
     return {
-      state: "skipped_nonblank",
-      description: currentDescription,
-      reason: "Matter description already exists.",
+      result: {
+        state: "skipped_nonblank",
+        description: currentDescription,
+        reason: "Matter description already exists.",
+      },
+      nextMatterJson: null,
     };
   }
 
   const description = extractBriefDescriptionFromStoryMarkdown(markdown);
   if (!description) {
     return {
-      state: "skipped_empty_story",
-      description: "",
-      reason: "The Story output did not contain a usable dispute description.",
+      result: {
+        state: "skipped_empty_story",
+        description: "",
+        reason: "The Story output did not contain a usable dispute description.",
+      },
+      nextMatterJson: null,
     };
   }
 
-  const nextMatterJson = {
-    ...matterJson,
-    brief_description: description,
-    brief_description_source: {
-      type: "custom_skill",
-      slash: DISPUTE_STORY_SKILL_SLASH,
-      artifact: artifactPath,
-      updated_at: now().toISOString(),
-    },
-  };
-  await writeFileAtomic(matterJsonPath, `${JSON.stringify(nextMatterJson, null, 2)}\n`);
   return {
-    state: "updated",
-    description,
+    result: {
+      state: "updated",
+      description,
+    },
+    nextMatterJson: {
+      ...matterJson,
+      brief_description: description,
+      brief_description_source: {
+        type: "custom_skill",
+        slash: DISPUTE_STORY_SKILL_SLASH,
+        artifact: artifactPath,
+        updated_at: now().toISOString(),
+      },
+    },
   };
 }
 
@@ -209,6 +249,48 @@ function truncateDescription(text) {
   const sliced = text.slice(0, MAX_BRIEF_DESCRIPTION_CHARS);
   const boundary = Math.max(sliced.lastIndexOf(". "), sliced.lastIndexOf("\n\n"), sliced.lastIndexOf(" "));
   return `${sliced.slice(0, boundary > 600 ? boundary + 1 : MAX_BRIEF_DESCRIPTION_CHARS).trim()}…`;
+}
+
+async function updateBriefDescriptionForStory({
+  matterRoot,
+  markdown,
+  artifactPath,
+  matterJsonOverride,
+  matterJsonWriter,
+  now,
+} = {}) {
+  if (matterJsonOverride || typeof matterJsonWriter === "function") {
+    const { result, nextMatterJson } = buildBriefDescriptionMatterJsonUpdate({
+      matterJson: matterJsonOverride || {},
+      markdown,
+      artifactPath,
+      now,
+    });
+    const matterJsonPersistence = nextMatterJson && typeof matterJsonWriter === "function"
+      ? await matterJsonWriter({ matterJson: nextMatterJson, result, artifactPath })
+      : null;
+    return { update: result, matterJsonPersistence };
+  }
+  return {
+    update: await updateBriefDescriptionFromStory({
+      matterRoot,
+      markdown,
+      artifactPath,
+      now,
+    }),
+    matterJsonPersistence: null,
+  };
+}
+
+async function readStoryMarkdownForStory({ matterRoot, artifactPath, storyMarkdownReader } = {}) {
+  if (typeof storyMarkdownReader === "function") {
+    try {
+      return await storyMarkdownReader(artifactPath);
+    } catch {
+      return "";
+    }
+  }
+  return readStoryMarkdown(matterRoot, artifactPath);
 }
 
 async function readStoryMarkdown(matterRoot, artifactPath) {

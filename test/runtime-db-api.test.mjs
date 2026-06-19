@@ -1536,6 +1536,142 @@ test("runtime DB postgres storage mode runs configurable skills through material
   }
 });
 
+test("runtime DB postgres storage mode runs matter story from DB-native custody", async () => {
+  const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-matter-story");
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify({
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_story",
+      slash: "/the_story",
+      title: "The Story",
+      description: "Tell the matter story for internal lawyer review.",
+      status: "active",
+      version: 1,
+      familyId: "skill_story",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/The Story.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Tell the story from the matter record.",
+        citationPolicy: "Use raw FILE citations.",
+      },
+      modelPolicy: {
+        task: "configurable_skill_run",
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
+      validation: { status: "passed", messages: [], validatedAt: "2026-06-06T00:00:00.000Z" },
+      createdAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    }],
+  }, null, 2)}\n`);
+  const runtimeMatter = runtimeDbMatter({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    name: "DB Direct Story Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const persistedMatterJson = [];
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath: path.join(appDir, "configurable-skill-runs.json"),
+    configurableSkillRunProvider: async ({ matterContext }) => {
+      calls.push(["provider", matterContext.evidence_blocks[0].citation]);
+      return [
+        "# The Story",
+        "",
+        "The dispute is about unpaid runtime story invoices.",
+        "",
+        "## Internal audit/source handles",
+        "",
+        "- FILE-0001 p1.b1",
+        "",
+      ].join("\n");
+    },
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Story Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(matter) {
+        calls.push(["packet", matter.name, matter.matterName]);
+        return directRuntimeDbMatterContextPacket(matter);
+      },
+      async readMatterJson(matter) {
+        calls.push(["matter-json", matter.name]);
+        return {
+          matter_name: matter.matterName,
+          client_name: matter.clientName,
+          intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+        };
+      },
+      async artifactExists(matter, relativePath) {
+        calls.push(["exists", matter.name, relativePath]);
+        return false;
+      },
+      async persistTextArtifacts(matter, files) {
+        calls.push(["persist-artifacts", matter.name, files.map((file) => file.relativePath)]);
+        return files.map((file) => ({ relativePath: file.relativePath, objectRole: "matter_artifact" }));
+      },
+      async persistMatterJson(matter, matterJson) {
+        calls.push(["persist-matter-json", matter.name, matterJson.brief_description]);
+        persistedMatterJson.push(matterJson);
+        return [{ relativePath: "matter.json", objectRole: "matter_artifact" }];
+      },
+      async runMaterializedMatterWrite() {
+        throw new Error("materialized write should not be used for DB-native matter story");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const result = await postJson(baseUrl, "/api/matter-story", {
+      matterName: "Legal Caption",
+      overwrite: true,
+    });
+
+    assert.equal(result.state, "updated");
+    assert.equal(result.description, "The dispute is about unpaid runtime story invoices.");
+    assert.equal(result.runRecord.matterRoot, "postgres:DB Direct Story Matter");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "20_Workshop/The Story.md",
+      "20_Workshop/The Story.json",
+      "matter.json",
+    ]);
+    assert.equal(persistedMatterJson[0].brief_description, "The dispute is about unpaid runtime story invoices.");
+    assert.deepEqual(persistedMatterJson[0].intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
+    assert.deepEqual(calls, [
+      ["packet", "DB Direct Story Matter", "Legal Caption"],
+      ["matter-json", "DB Direct Story Matter"],
+      ["exists", "DB Direct Story Matter", "20_Workshop/The Story.md"],
+      ["provider", "FILE-0001 p1.b1"],
+      ["persist-artifacts", "DB Direct Story Matter", ["20_Workshop/The Story.md", "20_Workshop/The Story.json"]],
+      ["persist-matter-json", "DB Direct Story Matter", "The dispute is about unpaid runtime story invoices."],
+    ]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode runs matter story through materialized DB write service", async () => {
   const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-matter-story");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");

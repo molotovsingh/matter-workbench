@@ -1144,6 +1144,53 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
   );
 });
 
+test("runtime DB storage service reads and persists matter.json directly in DB custody", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+      }), "application/json"),
+      {},
+    ]),
+  });
+
+  const matterJson = await service.readMatterJson(matter);
+  const persisted = await service.persistMatterJson(matter, {
+    ...matterJson,
+    brief_description: "Runtime story description.",
+  });
+
+  assert.equal(matterJson.matter_name, "Legal Caption");
+  assert.deepEqual(matterJson.intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
+  assert.deepEqual(persisted.map((item) => item.relativePath), ["matter.json"]);
+  assert.match(calls.at(-1).input, /insert into storage_objects/i);
+  assert.match(calls.at(-1).input, /matter\.json/);
+});
+
+test("runtime DB storage service synthesizes matter.json metadata when DB custody has no matter artifact", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawn([], {}),
+  });
+
+  const matterJson = await service.readMatterJson(matter);
+
+  assert.deepEqual(matterJson, {
+    matter_name: "Legal Caption",
+    client_name: "Client A",
+    opposite_party: "Other Side",
+    matter_type: "Consumer",
+    jurisdiction: "India",
+    brief_description: "",
+    intakes: [],
+  });
+});
+
 test("runtime DB storage service refreshes List of Dates labels directly in DB custody", async () => {
   const matterJson = {
     matter_name: "Legal Caption",

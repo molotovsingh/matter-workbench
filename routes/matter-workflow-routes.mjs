@@ -236,6 +236,36 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           label: "The Story",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
+            if (hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+              const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+              const result = await matterStoryService.runDisputeStory({
+                matterName: matter.name,
+                overwrite: Boolean(body.overwrite),
+                matterRootOverride: `postgres:${matter.name}`,
+                matterRecordOverride: matter,
+                matterContextPacketOverride: packet,
+                artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+                artifactWriter: ({ outputPaths, markdown, metadata, runId }) => runtimeDbStorageService.persistTextArtifacts(matter, [
+                  { relativePath: outputPaths.markdown, text: `${String(markdown || "")}\n` },
+                  { relativePath: outputPaths.json, text: `${JSON.stringify({ ...metadata, runId, markdown: String(markdown || "") }, null, 2)}\n` },
+                ]),
+                matterJsonOverride: matterJson,
+                matterJsonWriter: ({ matterJson: nextMatterJson }) => runtimeDbStorageService.persistMatterJson(matter, nextMatterJson),
+                storyMarkdownReader: typeof runtimeDbStorageService.readFilePreview === "function"
+                  ? async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content
+                  : null,
+              });
+              const { artifactPersistence, matterJsonPersistence, ...responsePayload } = result;
+              const persisted = [
+                ...(Array.isArray(artifactPersistence) ? artifactPersistence : []),
+                ...(Array.isArray(matterJsonPersistence) ? matterJsonPersistence : []),
+              ];
+              return persisted.length
+                ? { ...responsePayload, dbPersistence: { persisted } }
+                : responsePayload;
+            }
             if (hasRuntimeDbWritePath(matterStore, runtimeDbStorageService)) {
               return runRuntimeDbMaterializedWorkflow({
                 matterStore,
@@ -482,6 +512,15 @@ function hasRuntimeDbDoctorScanPath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbListOfDatesLabelRefreshPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.refreshListOfDatesSourceLabels === "function";
+}
+
+function hasRuntimeDbMatterStoryPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.readMatterContextPacket === "function"
+    && typeof runtimeDbStorageService.readMatterJson === "function"
+    && typeof runtimeDbStorageService.artifactExists === "function"
+    && typeof runtimeDbStorageService.persistTextArtifacts === "function"
+    && typeof runtimeDbStorageService.persistMatterJson === "function";
 }
 
 async function runTrackedWorkflow({

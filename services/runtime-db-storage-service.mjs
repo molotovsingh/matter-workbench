@@ -401,6 +401,33 @@ export function createRuntimeDbStorageService({
       : [];
   }
 
+  async function readMatterJson(matter) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    try {
+      return readRuntimeDbJsonPayload({
+        matter: normalizedMatter,
+        relativePath: "matter.json",
+        label: "matter.json",
+        readPayloadRow,
+        missingMessage: "matter.json is missing from DB payload custody.",
+        missingCode: "runtime_db.matter_json.missing",
+      });
+    } catch (error) {
+      if (error?.statusCode === 404) return runtimeMatterJsonForStorage(normalizedMatter);
+      throw error;
+    }
+  }
+
+  async function persistMatterJson(matter, matterJson = {}) {
+    return persistTextArtifacts(matter, [{
+      relativePath: "matter.json",
+      text: `${JSON.stringify(matterJson, null, 2)}\n`,
+      objectRole: "matter_artifact",
+      mimeType: "application/json",
+    }]);
+  }
+
   async function refreshListOfDatesSourceLabels(matter, options = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -636,11 +663,13 @@ export function createRuntimeDbStorageService({
     getRawFile,
     readDoctorScan,
     readMatterAttention,
+    readMatterJson,
     refreshListOfDatesSourceLabels,
     readMatterContextPacket,
     readMatterStatus,
     readPrepareMatterPlan,
     readRerunAdvice,
+    persistMatterJson,
     persistTextArtifacts,
     readFilePreview,
     readWorkspace,
@@ -740,6 +769,18 @@ function normalizeMatterRelativePath(value) {
 
 function runtimeDbReadError({ message, statusCode, code }) {
   return makeHttpError(message, statusCode, code);
+}
+
+function runtimeMatterJsonForStorage(matter = {}) {
+  return {
+    matter_name: stringValue(matter.matterName || matter.name),
+    client_name: stringValue(matter.clientName),
+    opposite_party: stringValue(matter.oppositeParty),
+    matter_type: stringValue(matter.matterType),
+    jurisdiction: stringValue(matter.jurisdiction),
+    brief_description: stringValue(matter.briefDescription),
+    intakes: [],
+  };
 }
 
 function persistMaterializedFiles({ databaseUrl, tenantId, spawn, matter, files }) {

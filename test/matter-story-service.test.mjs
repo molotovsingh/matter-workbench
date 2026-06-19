@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   DISPUTE_STORY_SKILL_SLASH,
+  buildBriefDescriptionMatterJsonUpdate,
   createMatterStoryService,
   extractBriefDescriptionFromStoryMarkdown,
   updateBriefDescriptionFromStory,
@@ -68,6 +69,23 @@ test("story description update does not overwrite existing lawyer description by
   const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
   assert.equal(result.state, "skipped_nonblank");
   assert.equal(matterJson.brief_description, "Lawyer-entered dispute description.");
+});
+
+test("story description update can build a DB-native matter.json payload", () => {
+  const { result, nextMatterJson } = buildBriefDescriptionMatterJsonUpdate({
+    matterJson: {
+      matter_name: "Client v Builder",
+      intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+    },
+    markdown: "# The Story\n\nThe dispute concerns delayed possession of the flat.\n\n## Sources\nFILE-0001 p1.b1",
+    artifactPath: "20_Workshop/The Story.md",
+    now: () => new Date("2026-06-19T00:00:00.000Z"),
+  });
+
+  assert.equal(result.state, "updated");
+  assert.equal(nextMatterJson.brief_description, "The dispute concerns delayed possession of the flat.");
+  assert.deepEqual(nextMatterJson.intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
+  assert.equal(nextMatterJson.brief_description_source.updated_at, "2026-06-19T00:00:00.000Z");
 });
 
 test("matter story service runs the configured story skill and writes blank intake description", async () => {
