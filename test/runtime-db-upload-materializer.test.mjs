@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,6 +10,8 @@ test("runtime upload materializer produces storage files and import items", asyn
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-upload-materializer-"));
   const uploadedFile = path.join(tmp, "notice.txt");
   await writeFile(uploadedFile, "Notice served on 1 January 2026.");
+
+  const unusedTempRoot = path.join(tmp, "unused-materialized-root");
 
   const { storageFiles, importItems } = await buildRuntimeUploadIntake({
     matter: { name: "Runtime Upload Matter" },
@@ -22,7 +24,7 @@ test("runtime upload materializer produces storage files and import items", asyn
     },
     files: [{ index: 0, tempPath: uploadedFile, filename: "notice.txt" }],
     relativePaths: ["Evidence/notice.txt"],
-    tempRoot: tmp,
+    tempRoot: unusedTempRoot,
     intakeId: "INTAKE-01",
     intakeDirName: "Intake 01 - Initial",
     intakeLabel: "Initial",
@@ -38,6 +40,7 @@ test("runtime upload materializer produces storage files and import items", asyn
   assert.ok(byPath.has("00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__notice.txt"));
   assert.equal(byPath.get("matter.json").mimeType, "application/json");
   assert.equal(byPath.get("00_Inbox/Intake 01 - Initial/File Register.csv").mimeType, "text/csv");
+  await assert.rejects(() => stat(unusedTempRoot), { code: "ENOENT" });
   assert.deepEqual(importItems, [
     {
       relativePath: "00_Inbox/Intake 01 - Initial/Source Files/Evidence/notice.txt",
