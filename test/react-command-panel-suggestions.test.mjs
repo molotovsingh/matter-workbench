@@ -3,15 +3,18 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const commandSuggestionsHookPath = new URL("../react-ui/src/hooks/useCommandSuggestions.ts", import.meta.url);
 const stylesPath = new URL("../react-ui/src/styles/global.css", import.meta.url);
 
 test("React command panel suggestions include custom skills and a larger command menu", async () => {
-  const source = await readFile(commandPanelPath, "utf8");
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+  const source = await readFile(commandSuggestionsHookPath, "utf8");
 
+  assert.match(commandPanelSource, /useCommandSuggestions/);
   assert.match(source, /api\.getConfigurableSkills\(\)/);
   assert.match(source, /const loadCommandSuggestions = useCallback/);
-  assert.match(source, /onFocus=\{\(\) => \{ void loadCommandSuggestions\(\); \}\}/);
-  assert.match(source, /onClose=\{resetCommandPanel\}/);
+  assert.match(commandPanelSource, /onFocus=\{\(\) => \{ void loadCommandSuggestions\(\); \}\}/);
+  assert.match(commandPanelSource, /onClose=\{resetCommandPanel\}/);
   assert.match(source, /status !== 'active'/);
   assert.match(source, /skill\.slash/);
   assert.match(source, /customSkill\?: boolean/);

@@ -14,41 +14,13 @@ import {
   shouldAutoStartConfigurableSkillImprovement,
   shouldStartSkillIdeaSessionFromIntent,
 } from '../../lib/skillIntentRouting';
-import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
 import { getErrorMessage } from '../../lib/errors';
 import { DEFAULT_COMMAND_COPY_TEXT } from '../../lib/commandPanelCopy';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
+import { useCommandSuggestions, looksLikeCustomSkillModification } from '../../hooks/useCommandSuggestions';
 import { useCopilotQuickSwitch } from '../../hooks/useCopilotQuickSwitch';
-import type { ConfigurableSkill } from '../../types';
 import type { SkillRouterDecision } from '../../types';
-
-interface CommandSuggestion {
-  label: string;
-  description: string;
-  command: string;
-  customSkill?: boolean;
-}
-
-const CUSTOM_SKILL_MODIFICATION_RE = /\b(improve|change|update|modify|revise|refine|adjust|tweak|rewrite|rework)\b/i;
-
-function looksLikeCustomSkillModification(input: string, suggestions: CommandSuggestion[]): boolean {
-  if (!CUSTOM_SKILL_MODIFICATION_RE.test(input)) return false;
-  const lowerInput = input.toLowerCase();
-  return suggestions.some((suggestion) => {
-    if (!suggestion.customSkill) return false;
-    const slash = suggestion.command.toLowerCase();
-    const label = suggestion.label.toLowerCase();
-    return Boolean(slash && lowerInput.includes(slash))
-      || Boolean(label && lowerInput.includes(label));
-  });
-}
-
-const STATIC_SUGGESTIONS: CommandSuggestion[] = [
-  { label: 'New skill', description: 'Design a reusable matter skill', command: 'new skill' },
-  { label: 'Find a matter', description: 'Open matter picker', command: 'find a matter' },
-  ...COMMAND_PANEL_NATIVE_SUGGESTIONS,
-];
 
 interface Props {
   onCommand: (command: string) => void;
@@ -83,87 +55,51 @@ export default function CommandPanel({
 }: Props) {
   const { state, dispatch, appendTerminal, commandPanelRef } = useApp();
   const [input, setInput] = useState('');
-  const [baseSuggestions, setBaseSuggestions] = useState<CommandSuggestion[]>(STATIC_SUGGESTIONS);
-  const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
   const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggestionsLoadSeqRef = useRef(0);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
   const activityRows = latestCompactActivityRows(state.activityLines);
+  const {
+    activeSuggestion,
+    baseSuggestions,
+    handleInputChange: updateCommandSuggestions,
+    handleKeyDown: handleSuggestionKeyDown,
+    loadCommandSuggestions,
+    pickSuggestion: closeSuggestionPicker,
+    resetSuggestions,
+    showSuggestions,
+    suggestions,
+  } = useCommandSuggestions({ appendTerminal });
   const canManageCopilotSettings = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const copilotQuickSwitch = useCopilotQuickSwitch(canManageCopilotSettings);
   const choiceLabels = pendingIntentChoice ? intentChoiceLabels(pendingIntentChoice.decision) : null;
   const primaryChoiceNeedsCopilot = pendingIntentChoice
     ? !isExistingSkillChoice(pendingIntentChoice.decision)
     : false;
-  const loadCommandSuggestions = useCallback(async () => {
-    const seq = suggestionsLoadSeqRef.current + 1;
-    suggestionsLoadSeqRef.current = seq;
-    try {
-      const result = await api.getConfigurableSkills();
-      if (suggestionsLoadSeqRef.current !== seq) return;
-      const customSuggestions = (result.skills || [])
-        .filter((skill: ConfigurableSkill) => {
-          if (skill.status !== 'active') return false;
-          return Boolean(skill.slash);
-        })
-        .map((skill) => ({
-          label: skill.title || skill.slash,
-          description: skill.description || 'Run this custom skill',
-          command: skill.slash,
-          customSkill: true,
-        }));
-      setBaseSuggestions([...STATIC_SUGGESTIONS, ...customSuggestions]);
-    } catch (error) {
-      if (suggestionsLoadSeqRef.current !== seq) return;
-      appendTerminal([`[skills] command suggestions unavailable: ${getErrorMessage(error)}`]);
-      setBaseSuggestions(STATIC_SUGGESTIONS);
-    }
-  }, [appendTerminal]);
-
-  useEffect(() => {
-    void loadCommandSuggestions();
-  }, [loadCommandSuggestions]);
-
   const resetCommandPanel = useCallback(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
     inputOverrideRef.current = null;
     setInput('');
-    setSuggestions([]);
-    setShowSuggestions(false);
-    setActiveSuggestion(-1);
+    resetSuggestions();
     setSkillIdeaInput(null);
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
-  }, [dispatch, loadCommandSuggestions]);
+  }, [dispatch, loadCommandSuggestions, resetSuggestions]);
 
   useEffect(() => {
     const idea = state.pendingSkillIdeaResume;
     if (!idea) return;
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
     inputOverrideRef.current = null;
     setInput('');
-    setSuggestions([]);
-    setShowSuggestions(false);
-    setActiveSuggestion(-1);
+    resetSuggestions();
     setPendingIntentChoice(null);
     setResumedSkillIdea(idea);
     setSkillIdeaInput(idea.text || 'new skill');
     dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: null });
-  }, [dispatch, state.pendingSkillIdeaResume]);
+  }, [dispatch, resetSuggestions, state.pendingSkillIdeaResume]);
 
   useEffect(() => {
     const activeMatterName = state.activeMatter?.name ?? null;
@@ -174,52 +110,23 @@ export default function CommandPanel({
 
   function handleInputChange(value: string) {
     setInput(value);
-    setActiveSuggestion(-1);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (!value.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    const q = value.toLowerCase();
-    const matched = baseSuggestions.filter(
-      (s) => s.label.toLowerCase().includes(q) || s.command.toLowerCase().includes(q),
-    );
-    setSuggestions(matched.slice(0, 12));
-    setShowSuggestions(matched.length > 0);
+    updateCommandSuggestions(value);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!showSuggestions) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveSuggestion((i) => Math.max(i - 1, -1));
-    } else if (e.key === 'Enter' && activeSuggestion >= 0) {
-      e.preventDefault();
-      pickSuggestion(suggestions[activeSuggestion].command);
-    } else if (e.key === 'Escape') {
-      setShowSuggestions(false);
-    }
+    handleSuggestionKeyDown(e, pickSuggestion);
   }
 
   function pickSuggestion(command: string) {
     setInput(command);
-    setShowSuggestions(false);
-    setActiveSuggestion(-1);
+    closeSuggestionPicker();
     setPendingIntentChoice(null);
   }
 
   function runExampleCommand(command: string) {
     if (state.isCommandRunning) return;
     setInput('');
-    setShowSuggestions(false);
-    setActiveSuggestion(-1);
+    resetSuggestions();
     setPendingIntentChoice(null);
     if (command === 'new skill') {
       setResumedSkillIdea(null);
@@ -280,7 +187,7 @@ export default function CommandPanel({
     const cmd = input.trim();
     if (!cmd || state.isCommandRunning) return;
     setInput('');
-    setShowSuggestions(false);
+    resetSuggestions();
     setPendingIntentChoice(null);
 
     if (inputOverrideRef.current?.(cmd)) {
@@ -334,7 +241,7 @@ export default function CommandPanel({
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
     } catch { /* fire-and-forget */ }
-  }, [input, baseSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
+  }, [input, baseSuggestions, resetSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
 
   return (
     <aside className="command-panel" aria-label="Command box">
