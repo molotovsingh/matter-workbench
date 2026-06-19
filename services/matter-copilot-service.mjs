@@ -76,8 +76,18 @@ export function createMatterCopilotService({
     question = "",
   } = {}) {
     if (!root) throw makeHttpError("Pick a matter before asking a matter question.", 409, "matter_copilot.matter_required");
-    const normalizedQuestion = normalizeQuestion(question);
     const packet = await buildMatterContextPacket(root, COPILOT_CONTEXT_LIMITS);
+    return answerQuestionFromPacket({ packet, question });
+  }
+
+  async function answerQuestionFromPacket({
+    packet,
+    question = "",
+  } = {}) {
+    const normalizedQuestion = normalizeQuestion(question);
+    if (!packet || typeof packet !== "object") {
+      throw makeHttpError("Matter context is not available for this question.", 409, "matter_copilot.context_required");
+    }
     const policy = resolveModelPolicy(AI_TASKS.COPILOT_ANSWER, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
     if (!providerConfig.model) throw makeHttpError("Matter copilot answer model is not configured.", 409, "matter_copilot.model_not_configured");
@@ -102,7 +112,7 @@ export function createMatterCopilotService({
     });
   }
 
-  return { answerQuestion };
+  return { answerQuestion, answerQuestionFromPacket };
 }
 
 function summarizeMatterContextForCopilot(packet) {

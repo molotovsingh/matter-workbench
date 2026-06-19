@@ -258,6 +258,14 @@ test("runtime DB storage service derives matter status and preparation plan from
   const plan = await service.readPrepareMatterPlan(matter);
   assert.equal(plan.schema_version, "prepare-matter-plan/v1");
   assert.equal(plan.nextStep.state, "complete");
+
+  const advice = await service.readRerunAdvice("describe-sources", matter);
+  assert.equal(advice.skill, "/describe_sources");
+  assert.equal(advice.state, "current");
+  await assert.rejects(
+    () => service.readRerunAdvice("/unknown", matter),
+    (error) => error.statusCode === 400 && error.code === "rerun_advice.unsupported_skill",
+  );
   assert.equal(plan.stages.every((stage) => stage.state === "current"), true);
 });
 
@@ -1134,6 +1142,76 @@ test("runtime DB storage service rejects DB object keys that escape the matter r
     () => service.runMaterializedMatterRead(matter, async () => ({ ok: true })),
     /invalid path|outside the matter root/i,
   );
+});
+
+test("runtime DB storage service builds matter context packets directly from DB payload custody", async () => {
+  const matterJson = JSON.stringify({
+    matter_name: "Legal Caption",
+    client_name: "Client A",
+    opposite_party: "Other Side",
+    matter_type: "Consumer",
+    jurisdiction: "India",
+    intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01" }],
+  });
+  const fileRegister = [
+    "file_id,intake_id,source_path,original_path,working_copy_path,category,original_name,sha256,size_bytes,duplicate_of,status",
+    "FILE-0001,INTAKE-01,00_Inbox/Intake 01/Source Files/agreement.pdf,00_Inbox/Intake 01/Originals/agreement.pdf,00_Inbox/Intake 01/Source Files/agreement.pdf,pdf,agreement.pdf,sha-source,120,,unique",
+  ].join("\n");
+  const sourceIndex = JSON.stringify({
+    schema_version: "source-index/v1",
+    sources: [{
+      file_id: "FILE-0001",
+      sha256: "sha-source",
+      source_path: "00_Inbox/Intake 01/Source Files/agreement.pdf",
+      display_label: "Agreement dated 1 Jan",
+      short_label: "Agreement",
+    }],
+  });
+  const extractionRecord = JSON.stringify({
+    schema_version: "extraction-record/v1",
+    file_id: "FILE-0001",
+    sha256: "sha-source",
+    source_path: "00_Inbox/Intake 01/Source Files/agreement.pdf",
+    engine: "test-extract",
+    pages: [{
+      page: 1,
+      confidence_avg: 0.98,
+      blocks: [{ id: "p1.b1", type: "text", text: "The agreement requires payment on 1 January." }],
+    }],
+  });
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/matter.json", "matter_metadata", "application/json", matterJson.length, true),
+          storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", fileRegister.length, true),
+          storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", extractionRecord.length, true),
+          storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", sourceIndex.length, true),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", matterJson, "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01/File Register.csv", fileRegister, "text/csv"),
+      payloadRow("DB Matter/10_Library/Source Index.json", sourceIndex, "application/json"),
+      payloadRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", extractionRecord, "application/json"),
+      payloadRow("DB Matter/10_Library/Source Index.json", sourceIndex, "application/json"),
+    ]),
+  });
+
+  const packet = await service.readMatterContextPacket(matter, { generatedAt: "2026-06-19T00:00:00.000Z" });
+
+  assert.equal(packet.schema_version, "matter-context-packet/v1");
+  assert.equal(packet.matter.folder_name, "DB Matter");
+  assert.equal(packet.matter.matter_name, "Legal Caption");
+  assert.equal(packet.sources[0].source_label, "Agreement dated 1 Jan");
+  assert.equal(packet.evidence_blocks[0].citation, "FILE-0001 p1.b1");
+  assert.match(packet.evidence_blocks[0].text, /requires payment/);
+  assert.equal(packet.library_artifacts[0].kind, "source_index");
+  assert.equal(calls.length, 6);
+  assert.doesNotMatch(calls.map((call) => call.input || "").join("\n"), /mwb-runtime-db-/);
 });
 
 test("runtime DB storage service synthesizes matter.json when DB storage has no matter artifact", async () => {

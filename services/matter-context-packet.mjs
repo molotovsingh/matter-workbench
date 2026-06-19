@@ -29,16 +29,43 @@ export async function buildMatterContextPacket(matterRoot, options = {}) {
     sourceDescriptors,
     records,
   } = await readMatterContextSources(root, warnings);
-  const metadata = normalizeMatterMetadata(matterJson, path.basename(root));
+  const libraryArtifacts = await readLibraryArtifactSummaries(root, limits, warnings);
+
+  return buildMatterContextPacketFromParts({
+    folderName: path.basename(root),
+    matterJson,
+    fileRegisters,
+    registerByFileId,
+    sourceDescriptors,
+    records,
+    libraryArtifacts,
+    limits,
+    warnings,
+    generatedAt,
+  });
+}
+
+export function buildMatterContextPacketFromParts({
+  folderName = "",
+  matterJson = {},
+  fileRegisters = [],
+  registerByFileId = new Map(),
+  sourceDescriptors = new Map(),
+  records = [],
+  libraryArtifacts = [],
+  limits = normalizeLimits({}),
+  warnings = [],
+  generatedAt = new Date().toISOString(),
+} = {}) {
+  const metadata = normalizeMatterMetadata(matterJson, folderName);
   const sources = buildSources(records, registerByFileId, sourceDescriptors, limits, warnings);
   const evidenceBlocks = buildEvidenceBlocks(sources, limits, warnings);
-  const libraryArtifacts = await readLibraryArtifactSummaries(root, limits, warnings);
 
   return {
     schema_version: MATTER_CONTEXT_PACKET_SCHEMA_VERSION,
     generated_at: generatedAt,
     matter: {
-      folder_name: path.basename(root),
+      folder_name: folderName,
       matter_name: metadata.matterName,
       client_name: metadata.clientName,
       opposite_party: metadata.oppositeParty,
@@ -67,6 +94,10 @@ export async function buildMatterContextPacket(matterRoot, options = {}) {
     },
     warnings,
   };
+}
+
+export function normalizeMatterContextPacketLimits(options) {
+  return normalizeLimits(options);
 }
 
 function normalizeLimits(options) {

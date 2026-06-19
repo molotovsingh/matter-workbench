@@ -54,6 +54,7 @@ import {
   summarizeMaterializedDeletionRows,
   summarizeMaterializedRows,
 } from "./runtime-db-materialized-persistence-sql.mjs";
+import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
 import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
 import {
   buildAdvisorySnapshotSql,
@@ -338,6 +339,30 @@ export function createRuntimeDbStorageService({
     return runtimePrepareMatterPlanFromStatus({ matter: normalizedMatter, dbMatter: state.dbMatter, status });
   }
 
+  async function readMatterContextPacket(matter, options = {}) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    return buildRuntimeDbMatterContextPacket({
+      matter: normalizedMatter,
+      workspace,
+      readPayloadRow,
+      options,
+    });
+  }
+
+  async function readRerunAdvice(skill, matter) {
+    ensureEnabled();
+    const normalizedSkill = normalizeWorkflowSkill(skill);
+    if (!["/describe_sources", "/create_listofdates"].includes(normalizedSkill)) {
+      throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400, "rerun_advice.unsupported_skill");
+    }
+    const normalizedMatter = normalizeMatter(matter);
+    const status = matterStatusFromState(normalizedMatter, readWorkspaceState(normalizedMatter));
+    const stage = status.stages.find((item) => item.slash === normalizedSkill);
+    return stage?.rerunAdvice || null;
+  }
+
   async function readMatterAttention(matter) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -504,8 +529,10 @@ export function createRuntimeDbStorageService({
     createMatterFromUploadedFiles,
     getRawFile,
     readMatterAttention,
+    readMatterContextPacket,
     readMatterStatus,
     readPrepareMatterPlan,
+    readRerunAdvice,
     readFilePreview,
     readWorkspace,
     runMaterializedMatterRead,
@@ -535,6 +562,13 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
 function runtimeDbStoragePsqlMaxBuffer() {
   const configured = Number(process.env.MWB_RUNTIME_DB_STORAGE_PSQL_MAX_BUFFER_BYTES);
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
+}
+
+function normalizeWorkflowSkill(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const withSlash = text.startsWith("/") ? text : `/${text}`;
+  return withSlash.replace(/-/g, "_");
 }
 
 function normalizeMatterRelativePath(value) {

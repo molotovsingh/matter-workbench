@@ -2,6 +2,7 @@ import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
+import { searchMatterContextPacket, summarizeMatterContextPacket } from "../services/matter-context-service.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
@@ -337,6 +338,13 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan(root));
       }),
       exactRoute("GET", "/api/matter-context/search", async () => {
+        if (hasRuntimeDbContextReadPath(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+          const result = searchMatterContextPacket(packet, requestUrl.searchParams.get("q") || "");
+          sendJson(response, 200, runtimeDbReadResponse(result, matter));
+          return;
+        }
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await runRuntimeDbMaterializedRead({
             matterStore,
@@ -357,6 +365,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }));
       }),
       exactRoute("GET", "/api/matter-context", async () => {
+        if (hasRuntimeDbContextReadPath(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+          sendJson(response, 200, runtimeDbReadResponse(summarizeMatterContextPacket(packet), matter));
+          return;
+        }
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await runRuntimeDbMaterializedRead({
             matterStore,
@@ -372,6 +386,17 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
         const body = await readRequestJson(request);
+        if (hasRuntimeDbContextReadPath(matterStore, runtimeDbStorageService)
+          && typeof matterCopilotService.answerQuestionFromPacket === "function") {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+          const answer = await matterCopilotService.answerQuestionFromPacket({
+            packet,
+            question: body.question,
+          });
+          sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(runtimeDbReadResponse(answer, matter)));
+          return;
+        }
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
           const answer = await runRuntimeDbMaterializedRead({
             matterStore,
@@ -394,6 +419,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(answer));
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
+        if (hasRuntimeDbRerunAdvicePath(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          const advice = await runtimeDbStorageService.readRerunAdvice(requestUrl.searchParams.get("skill") || "", matter);
+          sendJson(response, 200, runtimeDbReadResponse(advice, matter));
+          return;
+        }
         if (hasRuntimeDbReadPath(matterStore, runtimeDbStorageService)) {
           sendJson(response, 200, await runRuntimeDbMaterializedRead({
             matterStore,
@@ -419,6 +450,16 @@ function hasRuntimeDbWritePath(matterStore, runtimeDbStorageService) {
 function hasRuntimeDbReadPath(matterStore, runtimeDbStorageService) {
   return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
     && typeof runtimeDbStorageService.runMaterializedMatterRead === "function";
+}
+
+function hasRuntimeDbContextReadPath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.readMatterContextPacket === "function";
+}
+
+function hasRuntimeDbRerunAdvicePath(matterStore, runtimeDbStorageService) {
+  return usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+    && typeof runtimeDbStorageService.readRerunAdvice === "function";
 }
 
 async function runTrackedWorkflow({

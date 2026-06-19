@@ -926,6 +926,191 @@ test("runtime DB postgres storage mode answers copilot from materialized DB matt
   }
 });
 
+test("runtime DB postgres storage mode reads matter context from DB-native packet service when available", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-context");
+  const runtimeMatter = runtimeDbMatter({
+    id: "89898989-8989-4989-8989-898989898989",
+    name: "DB Direct Context Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Context Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(matter) {
+        calls.push(["packet", matter.name, matter.matterName]);
+        return directRuntimeDbMatterContextPacket(matter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native matter context");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const context = await getJson(baseUrl, "/api/matter-context?matter=Legal%20Caption");
+    assert.equal(context.schema_version, "matter-context-preview/v1");
+    assert.equal(context.matterRoot, "postgres:DB Direct Context Matter");
+    assert.equal(context.matterName, "Legal Caption");
+    assert.equal(context.counts.evidence_blocks_included, 1);
+
+    const search = await getJson(baseUrl, "/api/matter-context/search?matter=Legal%20Caption&q=agreement");
+    assert.equal(search.schema_version, "matter-context-search/v1");
+    assert.equal(search.matterRoot, "postgres:DB Direct Context Matter");
+    assert.equal(search.counts.matches, 1);
+    assert.match(search.results[0].snippet, /Agreement was signed/);
+    assert.deepEqual(calls, [
+      ["packet", "DB Direct Context Matter", "Legal Caption"],
+      ["packet", "DB Direct Context Matter", "Legal Caption"],
+    ]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode answers copilot from DB-native packet service when available", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-copilot");
+  const runtimeMatter = runtimeDbMatter({
+    id: "78787878-7878-4787-8787-787878787878",
+    name: "DB Direct Copilot Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome, OPENAI_API_KEY: "sk-test" },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Copilot Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    matterCopilotProvider: async ({ question, matterContext }) => {
+      calls.push(["provider", question, matterContext.evidence_blocks.length]);
+      return {
+        answer_status: "answered",
+        answer_markdown: "The DB-native packet says the agreement was signed on 20 April 2026.",
+        confidence: 0.82,
+        sources: [{
+          raw_citation: "FILE-0001 p1.b1",
+          source_label: "Agreement note",
+          snippet: "Agreement was signed on 20 April 2026.",
+        }],
+        warnings: [],
+      };
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(matter) {
+        calls.push(["packet", matter.name, matter.matterName]);
+        return directRuntimeDbMatterContextPacket(matter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native copilot context");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+
+    const answer = await postJson(baseUrl, "/api/matter-copilot/answer", {
+      matterName: "Legal Caption",
+      question: "When was the agreement signed?",
+    });
+
+    assert.equal(answer.schema_version, "matter-copilot-answer/v1");
+    assert.equal(answer.matterRoot, "postgres:DB Direct Copilot Matter");
+    assert.equal(answer.matterName, "Legal Caption");
+    assert.equal(answer.answer_status, "answered");
+    assert.deepEqual(calls, [
+      ["packet", "DB Direct Copilot Matter", "Legal Caption"],
+      ["provider", "When was the agreement signed?", 1],
+    ]);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("runtime DB postgres storage mode reads rerun advice from DB-native status service when available", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-direct-rerun");
+  const runtimeMatter = runtimeDbMatter({
+    id: "67676767-6767-4767-8767-676767676767",
+    name: "DB Direct Advice Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const app = await createWorkbenchServer({
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Direct Advice Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readRerunAdvice(skill, matter) {
+        calls.push(["advice", skill, matter.name, matter.matterName]);
+        return {
+          skill: "/create_listofdates",
+          label: "list of dates",
+          state: "current",
+          shouldConfirm: true,
+          artifactPath: "10_Library/List of Dates.md",
+        };
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native rerun advice");
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const advice = await getJson(baseUrl, "/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates");
+
+    assert.equal(advice.state, "current");
+    assert.equal(advice.matterRoot, "postgres:DB Direct Advice Matter");
+    assert.equal(advice.matterName, "Legal Caption");
+    assert.deepEqual(calls, [["advice", "/create_listofdates", "DB Direct Advice Matter", "Legal Caption"]]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode reads rerun advice and doctor scan through materialized DB read service", async () => {
   const { tmp, mattersHome } = await runtimeDbTestPaths("runtime-db-api-read-tools");
   const runtimeMatter = runtimeDbMatter({
@@ -1819,6 +2004,79 @@ test("runtime DB postgres storage mode writes command interactions through runti
     app.server.close();
   }
 });
+
+function directRuntimeDbMatterContextPacket(matter) {
+  return {
+    schema_version: "matter-context-packet/v1",
+    generated_at: "2026-04-28T10:00:00.000Z",
+    matter: {
+      folder_name: matter.name,
+      matter_name: matter.matterName,
+      client_name: matter.clientName,
+      opposite_party: "",
+      matter_type: "",
+      jurisdiction: "",
+      brief_description: "",
+    },
+    file_registers: [{
+      intake_id: "INTAKE-01",
+      intake_dir: "00_Inbox/Intake 01 - Initial",
+      path: "00_Inbox/Intake 01 - Initial/File Register.csv",
+      rows: [{ file_id: "FILE-0001" }],
+    }],
+    sources: [{
+      source_id: "FILE-0001",
+      content_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      file_id: "FILE-0001",
+      sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt",
+      original_name: "facts.txt",
+      category: "Text Notes",
+      intake_id: "INTAKE-01",
+      intake_dir: "00_Inbox/Intake 01 - Initial",
+      extraction_record_path: "00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json",
+      extraction_engine: "runtime-db-direct@test",
+      page_count: 1,
+      source_label: "Agreement note",
+      source_short_label: "Agreement note",
+      document_type: "agreement",
+      document_date: "2026-04-20",
+      needs_review: false,
+      warnings: [],
+      sample_citations: ["FILE-0001 p1.b1"],
+    }],
+    evidence_blocks: [{
+      citation: "FILE-0001 p1.b1",
+      source_id: "FILE-0001",
+      content_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      file_id: "FILE-0001",
+      page: 1,
+      block_id: "p1.b1",
+      block_type: "paragraph",
+      text: "Agreement was signed on 20 April 2026 by Runtime Client and the opposite party.",
+      confidence: 0.98,
+      needs_review: false,
+      source_label: "Agreement note",
+      source_short_label: "Agreement note",
+      source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt",
+      extraction_engine: "runtime-db-direct@test",
+    }],
+    library_artifacts: [{
+      path: "10_Library/Source Index.json",
+      kind: "source_index",
+      summary: "1 source descriptor(s)",
+      schema_version: "source-index/v1",
+      source_count: 1,
+    }],
+    limits: {
+      included_sources: 1,
+      omitted_sources: 0,
+      included_blocks: 1,
+      omitted_blocks: 0,
+    },
+    warnings: [],
+  };
+}
 
 async function writeExtractedTextMatter(matterRoot, matter) {
   const intakeDir = path.join(matterRoot, "00_Inbox", "Intake 01 - Initial");
