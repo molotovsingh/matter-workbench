@@ -102,7 +102,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Current Beta 3 State
 
-Beta 3 is deployed and release-closeout checked.
+Beta 3 is closed, deployment verified, rollback known, and post-release
+hardening continues separately.
 
 Completed release checks include:
 
@@ -120,7 +121,7 @@ Completed release checks include:
 
 Current release docs:
 
-- [v1.0.0-beta.23 release marker](docs/releases/v1.0.0-beta.23.md)
+- [v1.0.0-beta.24 release marker](docs/releases/v1.0.0-beta.24.md)
 - [Docs map](docs/README.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
 - [Database transition handoff](docs/database-transition-handoff.md)

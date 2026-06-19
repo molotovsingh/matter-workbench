@@ -28,7 +28,7 @@ equally authoritative.
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
-| Current release notes | [v1.0.0-beta.23](releases/v1.0.0-beta.23.md) |
+| Current release notes | [v1.0.0-beta.24](releases/v1.0.0-beta.24.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -88,7 +88,8 @@ implementation plan.
 | [v1.0.0-beta.20](releases/v1.0.0-beta.20.md) | Beta 3 misfiled-feedback triage release marker. |
 | [v1.0.0-beta.21](releases/v1.0.0-beta.21.md) | Beta 3 successful-slow feedback triage release marker. |
 | [v1.0.0-beta.22](releases/v1.0.0-beta.22.md) | Beta 3 operator feedback context release marker. |
-| [v1.0.0-beta.23](releases/v1.0.0-beta.23.md) | Current Beta 3 operator feedback status-disposition release marker. |
+| [v1.0.0-beta.23](releases/v1.0.0-beta.23.md) | Beta 3 operator feedback status-disposition release marker. |
+| [v1.0.0-beta.24](releases/v1.0.0-beta.24.md) | Current Beta 3 closure release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |

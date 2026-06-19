@@ -12,7 +12,7 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   const doc = await readFile(handoffDocPath, "utf8");
 
   assert.match(doc, /# Database Transition Handoff/);
-  assert.match(doc, /runtime DB storage\/write-bridge slice/i);
+  assert.match(doc, /runtime DB storage\/DB-native workflow slice/i);
   assert.match(doc, /hosted DB worker path pending/i);
   assert.match(doc, /npm run db:migrate/);
   assert.match(doc, /npm run db:shadow:hydrate/);
@@ -66,7 +66,7 @@ test("database transition handoff doc records the runtime DB storage boundary wi
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*postgres_unavailable_user_behavior/i);
   assert.match(doc, /Accepted Postgres-Unavailable Local Runtime Policy[\s\S]*not a hosted outage/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*foreground/i);
-  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*materialized DB\s+bridge/i);
+  assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*DB-native custody\s+helpers/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*future hosted-worker ingredients/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*worker_process_owner_and_recovery/i);
   assert.match(doc, /Accepted Local Foreground Worker Policy[\s\S]*not a hosted worker supervisor/i);

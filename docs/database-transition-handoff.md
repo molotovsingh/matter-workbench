@@ -453,16 +453,16 @@ separate outage, degraded-mode, and rollback design.
 
 The local beta also has an accepted worker policy: long-running preparation is a
 foreground local app action, not a database-claimed worker process. Runtime DB
-storage mode can now run those foreground actions through the materialized DB
-bridge, but the shadow DB's `processing_jobs` and `job_outbox` rows are still
+storage mode can now run those foreground actions through DB-native custody
+helpers, but the shadow DB's `processing_jobs` and `job_outbox` rows are still
 future hosted-worker ingredients. The current product runtime does not consume
 those queues.
 
 This closes the `worker_process_owner_and_recovery` blocker for the
 local/private foreground runtime. It is not a hosted worker supervisor decision.
 Because extraction, source labels, List of Dates, copilot/context, and custom
-skill execution now have a DB-backed foreground bridge, the remaining hosted
-question is process ownership, restart policy, dead-worker recovery, and
+skill execution now have DB-native foreground custody helpers, the remaining
+hosted question is process ownership, restart policy, dead-worker recovery, and
 operator visibility for non-foreground execution.
 
 ## Accepted Local Matter Import Policy
