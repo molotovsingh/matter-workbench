@@ -92,7 +92,7 @@ export async function runIntakeReliabilityPack({
         "test/runtime-db-storage-service.test.mjs",
         "npm run db:runtime:write-smoke",
       ],
-      summary: "Runtime DB storage mode already covers upload, add-files, extraction, preparation, workspace reads, raw-file reads, and materialized write persistence through dedicated tests and the runtime write smoke.",
+      summary: "Runtime DB storage mode already covers upload, add-files, extraction, preparation, workspace reads, raw-file reads, and DB-native workflow persistence through dedicated tests and the runtime write smoke.",
     },
   };
   result.files = await writePackEvidence({ result, packDir });

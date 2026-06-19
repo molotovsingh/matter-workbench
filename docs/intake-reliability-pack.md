@@ -75,7 +75,7 @@ storage mode is covered by:
 - `npm run db:runtime:write-smoke`
 
 That is where upload, add-files, extraction, preparation, workspace reads, raw
-file reads, and materialized write persistence are proved for DB custody.
+file reads, and DB-native workflow persistence are proved for DB custody.
 
 ## What This Does Not Solve
 

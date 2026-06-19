@@ -5,11 +5,11 @@ This folder is the database track for the local-to-hosted transition.
 The React local beta now has an explicit runtime DB mode for live matter
 storage. In `MWB_RUNTIME_DB_STORAGE=postgres`, Postgres owns matter selection,
 uploads, workspace/file reads, file payload custody, matter status,
-prepare/advisory reads, materialized workflow outputs, custom skill
-ideas/samples/definitions/runs, and command interaction history. Existing legal
-engines still execute through temporary materialized folders, but those folders
-are scratch workspaces; changed files and receipts are persisted back into
-Postgres. Hosted background workers remain a separate future slice.
+prepare/advisory reads, DB-native workflow outputs, custom skill
+ideas/samples/definitions/runs, and command interaction history. The private
+runtime routes now fail closed when a required DB-native workflow helper is not
+wired instead of falling back to temporary full-matter folders. Hosted
+background workers remain a separate future slice.
 
 For the operator/developer handoff sequence, read
 [Database Transition Handoff](../docs/database-transition-handoff.md).
@@ -481,6 +481,6 @@ Expected storage-slice behavior: `/api/matters`, matter switching,
 `/api/workspace`, file previews, raw file delivery, matter status,
 `/api/prepare-matter`, and `/api/matter-attention` use Postgres. Preparation,
 extraction, source labels, List of Dates generation, copilot/context, doctor
-fixes, and skill execution now use the local/private materialized DB write
-bridge when runtime DB storage mode is enabled. Hosted DB-claimed workers are
-still pending; do not describe the bridge as a hosted worker supervisor.
+fixes, matter story, and skill execution now use DB-native custody helpers when
+runtime DB storage mode is enabled. Hosted DB-claimed workers are still pending;
+do not describe the runtime route helpers as a hosted worker supervisor.

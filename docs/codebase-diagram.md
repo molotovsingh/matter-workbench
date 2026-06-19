@@ -369,6 +369,5 @@ MWB_RUNTIME_DATABASE_URL=<normal runtime role>
 In that mode, Postgres is the source for matter listing/switching, workspace
 trees, file previews, raw file payloads, status, prepare/advisory reads, skill
 factory state, custom-skill run receipts, command interaction history, uploads,
-and foreground materialized workflow writes. Existing legal engines still run
-through temporary materialized folders; hosted DB-claimed workers remain future
-work.
+and foreground DB-native workflow writes. Runtime routes fail closed if required
+DB custody helpers are missing; hosted DB-claimed workers remain future work.
