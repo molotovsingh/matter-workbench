@@ -13,6 +13,8 @@ const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLab
 const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 const reactActivityLogPath = new URL("../react-ui/src/lib/activityLog.ts", import.meta.url);
 const reactCommandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const reactCopilotQuickSwitchPath = new URL("../react-ui/src/components/command/CopilotQuickSwitch.tsx", import.meta.url);
+const reactCopilotQuickSwitchHookPath = new URL("../react-ui/src/hooks/useCopilotQuickSwitch.ts", import.meta.url);
 const reactMainContentPath = new URL("../react-ui/src/components/layout/MainContent.tsx", import.meta.url);
 const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 
@@ -94,13 +96,15 @@ test("React shell keeps activity in the command panel and Activity page only", a
 });
 
 test("React command panel exposes the tested model switcher only to operators", async () => {
-  const source = await readFile(reactCommandPanelPath, "utf8");
+  const commandPanelSource = await readFile(reactCommandPanelPath, "utf8");
+  const switchSource = await readFile(reactCopilotQuickSwitchPath, "utf8");
+  const hookSource = await readFile(reactCopilotQuickSwitchHookPath, "utf8");
 
-  assert.match(source, /canManageCopilotSettings && \(/);
-  assert.match(source, /aria-label="Copilot strength"/);
-  assert.match(source, /COPILOT_MODEL_PRESETS/);
-  assert.match(source, /api\.saveAiSettings\(\{\s*copilotProvider/s);
-  assert.match(source, /Testing \$\{preset\.shortLabel\}/);
-  assert.match(source, /Switch failed\. Still using/);
-  assert.doesNotMatch(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
+  assert.match(commandPanelSource, /canManageCopilotSettings && <CopilotQuickSwitch/);
+  assert.match(switchSource, /aria-label="Copilot strength"/);
+  assert.match(switchSource, /COPILOT_MODEL_PRESETS/);
+  assert.match(hookSource, /api\.saveAiSettings\(\{\s*copilotProvider/s);
+  assert.match(hookSource, /Testing \$\{nextPreset\.shortLabel\}/);
+  assert.match(hookSource, /Switch failed\. Still using/);
+  assert.doesNotMatch(switchSource, /disabled=\{!canManageCopilotSettings \|\| switching\}/);
 });

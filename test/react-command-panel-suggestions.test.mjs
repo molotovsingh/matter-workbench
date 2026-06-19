@@ -91,7 +91,7 @@ test("React command panel exposes New task and resets transient assistant state"
 test("React command quick actions clear stale skill sessions before native commands", async () => {
   const source = await readFile(commandPanelPath, "utf8");
   const functionStart = source.indexOf("function runExampleCommand(command: string)");
-  const functionEnd = source.indexOf("async function handleCopilotModelChange", functionStart);
+  const functionEnd = source.indexOf("async function answerPendingIntentOnce", functionStart);
   const runExampleCommandSource = source.slice(functionStart, functionEnd);
 
   assert.notEqual(functionStart, -1);

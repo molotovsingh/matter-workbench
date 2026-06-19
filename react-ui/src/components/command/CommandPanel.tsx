@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
+import CopilotQuickSwitch from './CopilotQuickSwitch';
+import PrivateBetaFeedbackPanel from './PrivateBetaFeedbackPanel';
 import SkillIdeaSession from './SkillIdeaSession';
 import { latestCompactActivityRows } from '../../lib/activityLog';
 import { parseSkillIdeaText } from '../../lib/skillIdeaInput';
@@ -15,16 +17,10 @@ import {
 import { COMMAND_PANEL_NATIVE_SUGGESTIONS } from '../../lib/nativeCommands';
 import { getErrorMessage } from '../../lib/errors';
 import { DEFAULT_COMMAND_COPY_TEXT } from '../../lib/commandPanelCopy';
-import {
-  COPILOT_MODEL_PRESETS,
-  copilotPresetValue,
-  copilotShortLabel,
-  findCopilotPreset,
-} from '../../lib/copilotModels';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
-import { buildPrivateBetaFeedbackDraft } from '../../lib/privateBetaFeedback';
-import type { ConfigurableSkill, PrivateBetaFeedbackChoice } from '../../types';
+import { useCopilotQuickSwitch } from '../../hooks/useCopilotQuickSwitch';
+import type { ConfigurableSkill } from '../../types';
 import type { SkillRouterDecision } from '../../types';
 
 interface CommandSuggestion {
@@ -94,54 +90,17 @@ export default function CommandPanel({
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
   const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
-  const [copilotProvider, setCopilotProvider] = useState('openrouter');
-  const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
-  const [copilotSwitching, setCopilotSwitching] = useState(false);
-  const [copilotSwitchStatus, setCopilotSwitchStatus] = useState('');
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackChoice, setFeedbackChoice] = useState<PrivateBetaFeedbackChoice | ''>('');
-  const [feedbackTryingToDo, setFeedbackTryingToDo] = useState('');
-  const [feedbackHappenedInstead, setFeedbackHappenedInstead] = useState('');
-  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState('');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsLoadSeqRef = useRef(0);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
   const activityRows = latestCompactActivityRows(state.activityLines);
   const canManageCopilotSettings = canSeeOperatorSurface(state.authEnabled, state.authUser);
-  const copilotPreset = findCopilotPreset(copilotProvider, copilotModel);
-  const copilotSelectValue = copilotPreset
-    ? copilotPresetValue(copilotProvider, copilotModel)
-    : '';
+  const copilotQuickSwitch = useCopilotQuickSwitch(canManageCopilotSettings);
   const choiceLabels = pendingIntentChoice ? intentChoiceLabels(pendingIntentChoice.decision) : null;
   const primaryChoiceNeedsCopilot = pendingIntentChoice
     ? !isExistingSkillChoice(pendingIntentChoice.decision)
     : false;
-  const feedbackDraft = buildPrivateBetaFeedbackDraft({
-    choice: feedbackChoice,
-    tryingToDo: feedbackTryingToDo,
-    happenedInstead: feedbackHappenedInstead,
-  });
-  const canSubmitFeedback = Boolean(feedbackDraft) && !feedbackSubmitting;
-
-  useEffect(() => {
-    if (!canManageCopilotSettings) return undefined;
-    let cancelled = false;
-    api.getAiSettings().then((settings) => {
-      if (cancelled) return;
-      const task = settings.aiTasks?.find((row) => row.task === 'copilot_answer');
-      if (task?.provider) setCopilotProvider(task.provider);
-      if (task?.model) setCopilotModel(task.model);
-    }).catch((error) => {
-      if (cancelled) return;
-      appendTerminal([`[assistant] settings unavailable: ${getErrorMessage(error)}`]);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [appendTerminal, canManageCopilotSettings]);
-
   const loadCommandSuggestions = useCallback(async () => {
     const seq = suggestionsLoadSeqRef.current + 1;
     suggestionsLoadSeqRef.current = seq;
@@ -184,7 +143,6 @@ export default function CommandPanel({
     setSkillIdeaInput(null);
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
-    setCopilotSwitchStatus('');
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
   }, [dispatch, loadCommandSuggestions]);
@@ -271,83 +229,6 @@ export default function CommandPanel({
     setSkillIdeaInput(null);
     onCommand(command);
     void api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
-  }
-
-  async function handleCopilotModelChange(value: string) {
-    if (!canManageCopilotSettings) return;
-    const preset = COPILOT_MODEL_PRESETS.find((candidate) => copilotPresetValue(candidate.provider, candidate.model) === value);
-    if (!preset || copilotSwitching) return;
-    if (preset.provider === copilotProvider && preset.model === copilotModel) return;
-
-    const previousProvider = copilotProvider;
-    const previousModel = copilotModel;
-    setCopilotProvider(preset.provider);
-    setCopilotModel(preset.model);
-    setCopilotSwitching(true);
-    setCopilotSwitchStatus(`Testing ${preset.shortLabel}…`);
-    appendTerminal([`[assistant] testing ${preset.shortLabel}`]);
-
-    try {
-      const settings = await api.saveAiSettings({
-        copilotProvider: preset.provider,
-        copilotModel: preset.model,
-      });
-      const task = settings.aiTasks?.find((row) => row.task === 'copilot_answer');
-      setCopilotProvider(task?.provider || preset.provider);
-      setCopilotModel(task?.model || preset.model);
-      setCopilotSwitchStatus(`Using ${copilotShortLabel(task?.provider || preset.provider, task?.model || preset.model)}`);
-      appendTerminal([`[assistant] setting saved: ${preset.shortLabel}`]);
-    } catch (error) {
-      setCopilotProvider(previousProvider);
-      setCopilotModel(previousModel);
-      setCopilotSwitchStatus(`Switch failed. Still using ${copilotShortLabel(previousProvider, previousModel)}.`);
-      appendTerminal([`[assistant] setting change failed: ${getErrorMessage(error)}`]);
-    } finally {
-      setCopilotSwitching(false);
-    }
-  }
-
-  async function handleSubmitFeedback(e: React.FormEvent) {
-    e.preventDefault();
-    const draft = buildPrivateBetaFeedbackDraft({
-      choice: feedbackChoice,
-      tryingToDo: feedbackTryingToDo,
-      happenedInstead: feedbackHappenedInstead,
-    });
-    if (!draft || feedbackSubmitting) return;
-    setFeedbackSubmitting(true);
-    setFeedbackMessage('');
-    try {
-      await api.submitPrivateBetaFeedback({
-        ...draft,
-        matterName: state.activeMatter?.name,
-        context: {
-          screen: state.activeTab,
-          currentView: state.activeView,
-          route: typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '',
-          activeMatterName: state.activeMatter?.name,
-          activeMatterFolder: state.activeMatter?.folderName,
-          runtimeMode: state.config?.runtimeStorageMode || 'filesystem',
-          viewport: viewportLabel(),
-          recentActivity: activityRows.map((row) => `${row.time} ${row.message}`),
-          providerRoutes: canManageCopilotSettings
-            ? [{ task: 'copilot_answer', provider: copilotProvider, model: copilotModel }]
-            : [],
-          visibleError: feedbackHappenedInstead,
-        },
-      });
-      setFeedbackChoice('');
-      setFeedbackTryingToDo('');
-      setFeedbackHappenedInstead('');
-      setFeedbackMessage('');
-      setFeedbackOpen(false);
-      appendTerminal(['[feedback] saved private beta feedback']);
-    } catch (error) {
-      setFeedbackMessage(`Could not save feedback: ${getErrorMessage(error)}`);
-      appendTerminal([`[feedback] save failed: ${getErrorMessage(error)}`]);
-    } finally {
-      setFeedbackSubmitting(false);
-    }
   }
 
   async function answerPendingIntentOnce() {
@@ -471,32 +352,13 @@ export default function CommandPanel({
           >
             New task
           </button>
-          {canManageCopilotSettings && (
-            <label className="copilot-model-switch">
-              <span>Copilot</span>
-              <select
-                aria-label="Copilot strength"
-                value={copilotSelectValue}
-                onChange={(event) => { void handleCopilotModelChange(event.target.value); }}
-                disabled={copilotSwitching}
-              >
-                {!copilotPreset && (
-                  <option value="">{copilotShortLabel(copilotProvider, copilotModel)}</option>
-                )}
-                {COPILOT_MODEL_PRESETS.map((preset) => (
-                  <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
-                    {preset.shortLabel}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          {canManageCopilotSettings && <CopilotQuickSwitch switcher={copilotQuickSwitch} />}
         </div>
       </div>
 
-      {canManageCopilotSettings && copilotSwitchStatus && (
+      {canManageCopilotSettings && copilotQuickSwitch.status && (
         <div className="copilot-model-status" style={{ order: 1 }}>
-          {copilotSwitchStatus}
+          {copilotQuickSwitch.status}
         </div>
       )}
 
@@ -650,94 +512,12 @@ export default function CommandPanel({
         Source-backed answers are one question at a time and do not remember earlier chat. Skill work may use paid AI.
       </p>
 
-      <div className="beta-feedback-entry" style={{ order: 10 }}>
-        {!feedbackOpen ? (
-          <button
-            type="button"
-            className="secondary beta-feedback-open"
-            onClick={() => {
-              setFeedbackOpen(true);
-              setFeedbackMessage('');
-            }}
-          >
-            Have a problem? Tell us what happened
-          </button>
-        ) : (
-          <form className="beta-feedback-form" onSubmit={handleSubmitFeedback}>
-            <div className="beta-feedback-header">
-              <strong>Tell us what happened</strong>
-              <button
-                type="button"
-                className="skill-idea-close"
-                aria-label="Close feedback"
-                onClick={() => {
-                  setFeedbackOpen(false);
-                  setFeedbackMessage('');
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div className="beta-feedback-choice-grid" role="group" aria-label="What happened">
-              <span>Optional: pick the closest type.</span>
-              {[
-                ['did_not_work', 'Something did not work'],
-                ['confused', 'I got confused'],
-                ['want_something', 'I want a new feature'],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={feedbackChoice === value ? 'active' : ''}
-                  onClick={() => setFeedbackChoice(value as PrivateBetaFeedbackChoice)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <label className="beta-feedback-label">
-              <span>What happened? One sentence is enough.</span>
-              <textarea
-                value={feedbackHappenedInstead}
-                onChange={(event) => setFeedbackHappenedInstead(event.target.value)}
-                rows={3}
-              />
-            </label>
-            <label className="beta-feedback-label">
-              <span>What were you trying to do? Optional.</span>
-              <textarea
-                value={feedbackTryingToDo}
-                onChange={(event) => setFeedbackTryingToDo(event.target.value)}
-                rows={3}
-              />
-            </label>
-            <div className="beta-feedback-actions">
-              <button type="submit" disabled={!canSubmitFeedback}>
-                {feedbackSubmitting ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setFeedbackOpen(false);
-                  setFeedbackMessage('');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-            {feedbackMessage && <p className="beta-feedback-message">{feedbackMessage}</p>}
-          </form>
-        )}
-      </div>
+      <PrivateBetaFeedbackPanel
+        order={10}
+        providerRoutes={canManageCopilotSettings
+          ? [{ task: 'copilot_answer', provider: copilotQuickSwitch.provider, model: copilotQuickSwitch.model }]
+          : []}
+      />
     </aside>
   );
-}
-
-function viewportLabel() {
-  if (typeof window === 'undefined') return '';
-  const width = window.innerWidth || 0;
-  if (width <= 700) return 'narrow';
-  if (width <= 1100) return 'medium';
-  return 'desktop';
 }

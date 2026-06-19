@@ -3,13 +3,16 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const feedbackPanelPath = new URL("../react-ui/src/components/command/PrivateBetaFeedbackPanel.tsx", import.meta.url);
 const activityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 const typesPath = new URL("../react-ui/src/types/index.ts", import.meta.url);
 
 test("React command panel exposes child-simple private beta feedback intake", async () => {
-  const source = await readFile(commandPanelPath, "utf8");
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+  const source = await readFile(feedbackPanelPath, "utf8");
 
+  assert.match(commandPanelSource, /PrivateBetaFeedbackPanel/);
   assert.match(source, /Have a problem\? Tell us what happened/);
   assert.match(source, /Something did not work/);
   assert.match(source, /I got confused/);
@@ -28,7 +31,7 @@ test("React command panel exposes child-simple private beta feedback intake", as
 test("React command panel keeps feedback after the source-backed answer note", async () => {
   const source = await readFile(commandPanelPath, "utf8");
   const sourceBackedNoteIndex = source.indexOf('Source-backed answers are one question at a time');
-  const feedbackEntryIndex = source.indexOf('className="beta-feedback-entry"');
+  const feedbackEntryIndex = source.indexOf('<PrivateBetaFeedbackPanel');
 
   assert.notEqual(sourceBackedNoteIndex, -1);
   assert.notEqual(feedbackEntryIndex, -1);

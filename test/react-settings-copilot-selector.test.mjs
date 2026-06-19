@@ -6,6 +6,7 @@ const settingsPagePath = new URL("../react-ui/src/views/SettingsPage.tsx", impor
 const copilotSettingsPanelPath = new URL("../react-ui/src/components/settings/CopilotSettingsPanel.tsx", import.meta.url);
 const copilotModelsPath = new URL("../react-ui/src/lib/copilotModels.ts", import.meta.url);
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const copilotQuickSwitchHookPath = new URL("../react-ui/src/hooks/useCopilotQuickSwitch.ts", import.meta.url);
 
 test("React Settings exposes Matter Copilot as a task-scoped model selector", async () => {
   const settingsSource = await readFile(settingsPagePath, "utf8");
@@ -38,8 +39,9 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
 
 test("tester-facing Copilot strength is hidden from non-operators", async () => {
   const source = await readFile(commandPanelPath, "utf8");
+  const hookSource = await readFile(copilotQuickSwitchHookPath, "utf8");
   assert.match(source, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
-  assert.match(source, /canManageCopilotSettings && \(/);
-  assert.match(source, /if \(!canManageCopilotSettings\) return undefined/);
+  assert.match(source, /canManageCopilotSettings && <CopilotQuickSwitch/);
+  assert.match(hookSource, /if \(!canManageCopilotSettings\) return undefined/);
   assert.doesNotMatch(source, /disabled=\{!canManageCopilotSettings \|\| copilotSwitching\}/);
 });
