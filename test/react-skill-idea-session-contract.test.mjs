@@ -4,6 +4,7 @@ import test from "node:test";
 
 const skillIdeaSessionPath = new URL("../react-ui/src/components/command/SkillIdeaSession.tsx", import.meta.url);
 const skillIdeaSessionMachinePath = new URL("../react-ui/src/hooks/useSkillIdeaSessionMachine.ts", import.meta.url);
+const skillIdeaSessionMachineStatePath = new URL("../react-ui/src/lib/skillIdeaSessionMachine.ts", import.meta.url);
 const skillIdeaSessionActionsPath = new URL("../react-ui/src/lib/skillIdeaSessionActions.ts", import.meta.url);
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 
@@ -18,11 +19,12 @@ test("React skill idea session gates ready-for-review on backend readiness", asy
 
 test("React skill idea session keeps samples tied to the saved design brief and matter", async () => {
   const source = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const machineStateSource = await readFile(skillIdeaSessionMachineStatePath, "utf8");
   const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
 
-  assert.match(source, /answersDirtySinceSave: boolean/);
-  assert.match(source, /answersDirtySinceSave: editingSavedIdea \|\| s\.answersDirtySinceSave/);
-  assert.match(source, /markSkillIdeaSampleStale\(s\.sample\)/);
+  assert.match(machineStateSource, /answersDirtySinceSave: boolean/);
+  assert.match(machineStateSource, /answersDirtySinceSave: editingSavedIdea \|\| state\.answersDirtySinceSave/);
+  assert.match(machineStateSource, /markSkillIdeaSampleStale\(state\.sample\)/);
   assert.match(source, /if \(!savedIdea \|\| !savedIdeaId \|\| session\.answersDirtySinceSave\) \{/);
   assert.match(source, /saving updated idea before sample/);
   assert.match(source, /Save updates and generate a fresh sample before creating the skill\./);
@@ -66,6 +68,7 @@ test("React empty new-skill interviews synthesize save text and ask for the core
 
 test("React blank new-skill sessions show a kickoff question while planner continues in background", async () => {
   const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const machineStateSource = await readFile(skillIdeaSessionMachineStatePath, "utf8");
   const sessionSource = await readFile(new URL("../react-ui/src/lib/skillIdeaSession.ts", import.meta.url), "utf8");
 
   assert.match(sessionSource, /export const SKILL_IDEA_KICKOFF_QUESTIONS/);
@@ -73,8 +76,8 @@ test("React blank new-skill sessions show a kickoff question while planner conti
   assert.match(sessionSource, /review limitation risk for a consumer complaint/);
   assert.match(sessionSource, /draft a client update email from the latest matter record/);
   assert.match(machineSource, /const startsWithBlankIdea = !ideaText\.trim\(\)/);
-  assert.match(machineSource, /phase: startsFromSavedIdea \? 'saved' : startsWithBlankIdea \? 'interviewing' : 'planning'/);
-  assert.match(machineSource, /questions: startsWithBlankIdea \? \[\.\.\.SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION\] : \[\]/);
+  assert.match(machineStateSource, /phase: startsFromSavedIdea \? 'saved' : startsWithBlankIdea \? 'interviewing' : 'planning'/);
+  assert.match(machineStateSource, /questions: startsWithBlankIdea \? \[\.\.\.SKILL_IDEA_KICKOFF_QUESTIONS, SKILL_IDEA_NAME_QUESTION\] : \[\]/);
   assert.match(sessionSource, /appendSkillNameQuestion\(questions, fallbackIdeaText, designBrief\)/);
   assert.match(machineSource, /if \(Object\.keys\(s\.answers\)\.length > 0\) \{/);
   assert.match(machineSource, /return \{[\s\S]*planner: result\.planner,[\s\S]*\}/);
@@ -83,6 +86,7 @@ test("React blank new-skill sessions show a kickoff question while planner conti
 test("React saved skill ideas resume without replanning and can route to matter selection", async () => {
   const componentSource = await readFile(skillIdeaSessionPath, "utf8");
   const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const machineStateSource = await readFile(skillIdeaSessionMachineStatePath, "utf8");
   const appContextSource = await readFile(new URL("../react-ui/src/store/AppContext.tsx", import.meta.url), "utf8");
   const typesSource = await readFile(new URL("../react-ui/src/types/index.ts", import.meta.url), "utf8");
 
@@ -92,8 +96,8 @@ test("React saved skill ideas resume without replanning and can route to matter 
   assert.match(componentSource, /hasMatter\) \{[\s\S]*handleGenerateSample/);
   assert.match(componentSource, /handlePickMatterForSample/);
   assert.match(machineSource, /startsFromSavedIdea/);
-  assert.match(machineSource, /phase: startsFromSavedIdea \? 'saved'/);
-  assert.match(machineSource, /savedIdeaId: initialIdea\?\.id \|\| null/);
+  assert.match(machineStateSource, /phase: startsFromSavedIdea \? 'saved'/);
+  assert.match(machineStateSource, /savedIdeaId: initialIdea\?\.id \|\| null/);
   assert.match(machineSource, /if \(startsFromSavedIdea\) \{/);
   assert.match(machineSource, /function handlePickMatterForSample\(\)/);
   assert.match(machineSource, /Pick a matter to test this saved skill idea, then continue it from Skills\./);
@@ -127,6 +131,21 @@ test("React skill idea session keeps planner diagnostics out of the lawyer-facin
   assert.doesNotMatch(source, /configured provider/);
   assert.doesNotMatch(source, /session\.riskFlags/);
   assert.match(machineSource, /formatSkillIdeaPlannerTerminalLine/);
+});
+
+test("React skill idea machine uses typed transitions and async sequence guards", async () => {
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
+  const machineStateSource = await readFile(skillIdeaSessionMachineStatePath, "utf8");
+
+  assert.match(machineStateSource, /export type SkillIdeaSessionTransition/);
+  assert.match(machineStateSource, /export function reduceSkillIdeaSessionState/);
+  assert.match(machineSource, /applyTransition\(\{ type: 'answer_question', answer \}\)/);
+  assert.match(machineSource, /const asyncOperationRef = useRef/);
+  assert.match(machineSource, /const operation = beginAsyncOperation\('plan'\)/);
+  assert.match(machineSource, /const operation = beginAsyncOperation\('save'\)/);
+  assert.match(machineSource, /const operation = beginAsyncOperation\('sample'\)/);
+  assert.match(machineSource, /const operation = beginAsyncOperation\('create'\)/);
+  assert.match(machineSource, /if \(!operation\.isCurrent\(\)\) return;/);
 });
 
 test("React skill idea machine delegates persistence details to session actions", async () => {
