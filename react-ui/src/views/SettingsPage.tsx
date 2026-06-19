@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
 import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
 import { canSeeOperatorSurface } from '../lib/lawyerMode';
+import { findCopilotTask } from '../lib/aiSettingsTasks';
+import { SystemHealthPanel, systemHealthNeedsAttention } from '../components/settings/SystemHealthPanel';
+import { BetaAccessPanel } from '../components/settings/BetaAccessPanel';
+import { CopilotSettingsPanel } from '../components/settings/CopilotSettingsPanel';
 import type { AiSettings, PrivateBetaUser, Skill, SystemHealthReport } from '../types';
-
-function findCopilotTask(settings: AiSettings | null) {
-  return settings?.aiTasks?.find((task) => task.task === 'copilot_answer') || null;
-}
 
 export default function SettingsPage() {
   const { state, dispatch, appendTerminal } = useApp();
@@ -134,8 +135,8 @@ export default function SettingsPage() {
     };
   }, [loadSettingsData]);
 
-  async function handleSaveMattersHome(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveMattersHome(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!mattersHomeEdit.trim()) return;
     setMattersHomeSaving(true);
     setMattersHomeError('');
@@ -152,8 +153,8 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleSaveAi(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveAi(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setSaving(true);
     setAiSaveError('');
     try {
@@ -183,14 +184,14 @@ export default function SettingsPage() {
   }
 
   function handleCopilotPresetChange(value: string) {
-    const preset = COPILOT_MODEL_PRESETS.find((p) => copilotPresetValue(p.provider, p.model) === value);
+    const preset = COPILOT_MODEL_PRESETS.find((item) => copilotPresetValue(item.provider, item.model) === value);
     if (!preset) return;
     setCopilotProvider(preset.provider);
     setCopilotModel(preset.model);
   }
 
-  async function handleSaveCopilot(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveCopilot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setCopilotSaving(true);
     setCopilotSaveError('');
     try {
@@ -241,8 +242,8 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleCreateTester(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreateTester(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const username = newTesterEmail.trim();
     if (!username) return;
     setBetaActionBusy(`create:${username}`);
@@ -298,15 +299,9 @@ export default function SettingsPage() {
     }
   }
 
-  const systemHealthNeedsAttention = systemHealth?.status === 'warning' || systemHealth?.status === 'error';
   const overallReady = canReviewSystemHealth
-    ? !systemHealthNeedsAttention && (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every(t => t.ready) ?? false)
+    ? !systemHealthNeedsAttention(systemHealth) && (settings?.apiKeyConfigured ?? false) && (settings?.aiTasks?.every((task) => task.ready) ?? false)
     : !mattersHomeError && !skillsError;
-  const copilotTask = findCopilotTask(settings);
-  const copilotPreset = COPILOT_MODEL_PRESETS.some((p) => p.provider === copilotProvider && p.model === copilotModel)
-    ? copilotPresetValue(copilotProvider, copilotModel)
-    : '';
-  const currentCopilotPreset = findCopilotPreset(copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
   const isRuntimeDbWorkspace = runtimeStorageMode === 'postgres';
 
   return (
@@ -337,67 +332,11 @@ export default function SettingsPage() {
       )}
 
       {canReviewSystemHealth && (
-        <div className="settings-section">
-          <h2>System Health</h2>
-          <div className="settings-card" style={{ display: 'grid', gap: 12 }}>
-            {systemHealth ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <div>
-                    <strong>{systemHealthNeedsAttention ? 'System health needs attention' : 'All systems ready'}</strong>
-                    <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                      {systemHealth.summary?.checks ?? systemHealth.checks.length} read-only checks · {systemHealth.runtime?.storageMode || runtimeStorageMode} storage
-                    </div>
-                  </div>
-                  <span className={`provider-status ${systemHealth.status === 'ok' ? 'ready' : 'needs-setup'}`}>
-                    {systemHealth.status === 'ok' ? 'Ready' : systemHealth.status === 'error' ? 'Errors' : 'Warnings'}
-                  </span>
-                </div>
-                {systemHealth.recommendations && systemHealth.recommendations.length > 0 && (
-                  <ul className="skill-idea-sample-warnings" style={{ margin: 0 }}>
-                    {systemHealth.recommendations.map((item) => <li key={item}>{item}</li>)}
-                  </ul>
-                )}
-                <details>
-                  <summary style={{ cursor: 'pointer' }}>Technical health checks</summary>
-                  <div className="table-scroll" style={{ marginTop: 12 }}>
-                    <table className="extract-table">
-                      <thead>
-                        <tr>
-                          <th>Check</th>
-                          <th>Area</th>
-                          <th>Status</th>
-                          <th>Message</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {systemHealth.checks.map((check) => (
-                          <tr key={check.id}>
-                            <td>{check.label}</td>
-                            <td>{check.category}</td>
-                            <td>
-                              <span className={`provider-status ${check.status === 'ok' ? 'ready' : 'needs-setup'}`}>
-                                {check.status}
-                              </span>
-                            </td>
-                            <td>{check.message}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </>
-            ) : (
-              <div>
-                <strong>System health unavailable</strong>
-                <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
-                  {systemHealthError || 'Loading read-only system checks…'}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        <SystemHealthPanel
+          systemHealth={systemHealth}
+          systemHealthError={systemHealthError}
+          runtimeStorageMode={runtimeStorageMode}
+        />
       )}
 
       {/* ─── Matters Home ──────────────────────────── */}
@@ -419,7 +358,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={mattersHomeEdit}
-                  onChange={(e) => setMattersHomeEdit(e.target.value)}
+                  onChange={(event) => setMattersHomeEdit(event.target.value)}
                   placeholder="/path/to/matters"
                   required
                   className="settings-input"
@@ -451,359 +390,51 @@ export default function SettingsPage() {
       </div>
 
       {isSuperuser && (
-        <div className="settings-section">
-          <h2>Beta access</h2>
-          <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-            Add or remove access for private beta testers. Temporary passwords are shown once after add or reset.
-          </p>
-          <div className="settings-card" style={{ display: 'grid', gap: 16 }}>
-            <form onSubmit={handleCreateTester} style={{ display: 'grid', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 10, alignItems: 'end' }}>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Tester email</span>
-                  <input
-                    type="email"
-                    value={newTesterEmail}
-                    onChange={(e) => setNewTesterEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="settings-input"
-                    required
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Display name</span>
-                  <input
-                    type="text"
-                    value={newTesterName}
-                    onChange={(e) => setNewTesterName(e.target.value)}
-                    placeholder="Optional"
-                    className="settings-input"
-                  />
-                </label>
-                <button type="submit" disabled={Boolean(betaActionBusy)}>
-                  {betaActionBusy.startsWith('create:') ? 'Adding…' : 'Add tester'}
-                </button>
-              </div>
-            </form>
-
-            {temporaryPasswordNotice && (
-              <div className="form-info" style={{ userSelect: 'text' }}>
-                {temporaryPasswordNotice}
-              </div>
-            )}
-            {betaUsersError && <div className="form-warning">{betaUsersError}</div>}
-
-            <div className="table-scroll">
-              <table className="extract-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {betaUsers.map((user) => {
-                    const isBusy = betaActionBusy.endsWith(`:${user.username}`);
-                    const isProtectedSuperuser = user.role === 'superuser' && !user.disabled;
-                    return (
-                      <tr key={user.username}>
-                        <td>
-                          <strong>{user.displayName || user.username}</strong>
-                          {user.displayName && <div className="muted" style={{ fontSize: 12 }}>{user.username}</div>}
-                        </td>
-                        <td>{user.role}</td>
-                        <td>
-                          <span className={`provider-status ${user.disabled ? 'needs-setup' : 'ready'}`}>
-                            {user.disabled ? 'Access removed' : 'Active'}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="form-actions" style={{ marginTop: 0 }}>
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => { void handleResetTesterPassword(user.username); }}
-                              disabled={Boolean(betaActionBusy) || user.disabled}
-                            >
-                              {isBusy && betaActionBusy.startsWith('reset:') ? 'Resetting…' : 'Reset password'}
-                            </button>
-                            {user.disabled ? (
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => { void handleSetTesterDisabled(user.username, false); }}
-                                disabled={Boolean(betaActionBusy)}
-                              >
-                                {isBusy && betaActionBusy.startsWith('enable:') ? 'Restoring…' : 'Restore access'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => { void handleSetTesterDisabled(user.username, true); }}
-                                disabled={Boolean(betaActionBusy) || isProtectedSuperuser}
-                                title={isProtectedSuperuser ? 'The active superuser account cannot be removed here.' : undefined}
-                              >
-                                {isBusy && betaActionBusy.startsWith('disable:') ? 'Removing…' : 'Remove access'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {!betaUsers.length && (
-                    <tr>
-                      <td colSpan={4} className="muted">
-                        {betaUsersLoading ? 'Loading beta testers…' : 'No beta testers configured.'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <BetaAccessPanel
+          users={betaUsers}
+          error={betaUsersError}
+          loading={betaUsersLoading}
+          actionBusy={betaActionBusy}
+          newTesterEmail={newTesterEmail}
+          newTesterName={newTesterName}
+          temporaryPasswordNotice={temporaryPasswordNotice}
+          onNewTesterEmailChange={setNewTesterEmail}
+          onNewTesterNameChange={setNewTesterName}
+          onCreateTester={handleCreateTester}
+          onResetTesterPassword={(username) => { void handleResetTesterPassword(username); }}
+          onSetTesterDisabled={(username, disabled) => { void handleSetTesterDisabled(username, disabled); }}
+        />
       )}
 
       {canReviewSystemHealth && (
-        <>
-          {/* ─── AI Configuration ──────────────────────── */}
-          <div className="settings-section">
-        <h2>AI Configuration</h2>
-        <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-          The AI connection used by governed workbench tasks. Advanced routing details are shown below.
-        </p>
-        {aiLoadError && <div className="form-warning" style={{ marginBottom: 14 }}>Could not load AI settings: {aiLoadError}</div>}
-
-        {settings && (
-          <div className="settings-card" style={{ marginBottom: 14 }}>
-            <form onSubmit={handleSaveCopilot} style={{ display: 'grid', gap: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <div>
-                  <strong>Matter Copilot</strong>
-                  <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                    Source-backed chat answers only. Skills and List of Dates keep their governed routes.
-                  </div>
-                  <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 5 }}>
-                    Current: {currentCopilotPreset?.label || 'Custom'}
-                  </div>
-                  <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 3 }}>
-                    Route: {copilotTask?.provider || copilotProvider} / <code>{copilotTask?.model || copilotModel}</code>
-                  </div>
-                </div>
-                <span className={`provider-status ${copilotTask?.ready ? 'ready' : 'needs-setup'}`}>
-                  {copilotTask?.ready ? 'Ready' : 'Needs setup'}
-                </span>
-              </div>
-
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Copilot strength</span>
-                <select
-                  value={copilotPreset}
-                  onChange={(e) => handleCopilotPresetChange(e.target.value)}
-                  className="settings-input"
-                >
-                  {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
-                  {COPILOT_MODEL_PRESETS.map((preset) => (
-                    <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Provider</span>
-                  <input type="text" value={copilotProvider} readOnly className="settings-input" />
-                </label>
-                <label style={{ display: 'grid', gap: 4 }}>
-                  <span className="settings-label">Model id</span>
-                  <input type="text" value={copilotModel} readOnly className="settings-input" />
-                </label>
-              </div>
-
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">
-                  {copilotProvider === 'openrouter' ? 'OpenRouter API key' : 'OpenAI API key'}
-                </span>
-                <input
-                  type="password"
-                  value={copilotApiKey}
-                  onChange={(e) => setCopilotApiKey(e.target.value)}
-                  placeholder="Leave blank to keep existing key"
-                  className="settings-input"
-                />
-              </label>
-
-              {copilotTask?.note && !copilotTask.ready && (
-                <div className="form-warning">{copilotTask.note}</div>
-              )}
-              {copilotSaveError && <div className="form-warning">{copilotSaveError}</div>}
-
-              <div className="form-actions">
-                <button type="submit" disabled={copilotSaving}>
-                  {copilotSaving ? 'Testing setting…' : 'Test and save Copilot setting'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {settings && !editing && (
-          <div className="settings-card" style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div>
-                <strong>{settings.apiKeyConfigured ? 'AI connection configured' : 'AI connection not configured'}</strong>
-                <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                  {settings.apiKeyConfigured ? 'Ready for workbench tasks' : 'Add an API key before running AI tasks'}
-                </div>
-              </div>
-              <span className={`provider-status ${settings.apiKeyConfigured ? 'ready' : 'needs-setup'}`}>
-                {settings.apiKeyConfigured ? 'Ready' : 'Needs setup'}
-              </span>
-            </div>
-            <details style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer' }}>Technical connection details</summary>
-              <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
-                <span>Provider: {settings.provider ?? 'Not configured'}</span>
-                {settings.model && <span>Model: <code>{settings.model}</code></span>}
-                <span>API key: {settings.apiKeyConfigured ? 'Configured' : 'Missing'}</span>
-                {settings.envPath && <span>Settings file: <code>{settings.envPath}</code></span>}
-              </div>
-            </details>
-            <div style={{ marginTop: 12 }}>
-              <button className="run-skill-button secondary" type="button" onClick={() => setEditing(true)}>
-                Edit
-              </button>
-            </div>
-          </div>
-        )}
-
-        {(!settings || editing) && (
-          <div className="settings-card">
-            <form onSubmit={handleSaveAi} style={{ display: 'grid', gap: 14 }}>
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Provider</span>
-                <select
-                  value={formProvider}
-                  onChange={(e) => setFormProvider(e.target.value)}
-                  className="settings-input"
-                >
-                  <option value="openrouter">OpenRouter</option>
-                  <option value="openai-direct">OpenAI direct</option>
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">API Key</span>
-                <input
-                  type="password"
-                  value={formApiKey}
-                  onChange={(e) => setFormApiKey(e.target.value)}
-                  placeholder={editing ? '(leave blank to keep existing)' : 'sk-…'}
-                  className="settings-input"
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Model</span>
-                <input
-                  type="text"
-                  value={formModel}
-                  onChange={(e) => setFormModel(e.target.value)}
-                  placeholder="e.g. gpt-5.4-mini"
-                  className="settings-input"
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 4 }}>
-                <span className="settings-label">Max output tokens</span>
-                <input
-                  type="number"
-                  value={formMaxTokens}
-                  onChange={(e) => setFormMaxTokens(e.target.value)}
-                  placeholder="3000"
-                  className="settings-input"
-                />
-              </label>
-
-              {testResult && (
-                <div className={testResult.ok ? 'form-info' : 'form-warning'}>
-                  {testResult.ok
-                    ? `Connection successful${testResult.model ? ` · ${testResult.model}` : ''}${testResult.latency ? ` · ${testResult.latency}ms` : ''}`
-                    : testResult.error}
-                </div>
-              )}
-
-              {aiSaveError && <div className="form-warning">{aiSaveError}</div>}
-
-              <div className="form-actions">
-                <button type="submit" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save AI settings'}
-                </button>
-                <button type="button" className="secondary" onClick={handleTest} disabled={testing}>
-                  {testing ? 'Testing…' : 'Test connection'}
-                </button>
-                {editing && (
-                  <button type="button" className="secondary" onClick={() => setEditing(false)}>
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
-
-      {/* ─── Advanced AI Routing ───────────────────── */}
-      {settings?.aiTasks && settings.aiTasks.length > 0 && (
-        <div className="settings-section">
-          <details>
-            <summary style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ margin: 0 }}>Advanced AI Routing</h2>
-              <span className={`provider-status ${settings.aiTasks!.every(t => t.ready) ? 'ready' : 'needs-setup'}`}>
-                {settings.aiTasks!.every(t => t.ready) ? 'All ready' : 'Needs setup'}
-              </span>
-            </summary>
-            <div className="table-scroll" style={{ marginTop: 14 }}>
-              <table className="extract-table">
-                <thead>
-                  <tr>
-                    <th>Task</th>
-                    <th>Provider</th>
-                    <th>Model</th>
-                    <th>Tokens</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {settings.aiTasks!.map((t) => (
-                    <tr key={t.task}>
-                      <td>{t.label || t.task}</td>
-                      <td>
-                        <span className={`provider-pill ${t.provider || 'unknown'}`}>
-                          {t.provider || 'unknown'}
-                        </span>
-                      </td>
-                      <td>{t.model ? <code>{t.model}</code> : <span className="muted">Not configured</span>}</td>
-                      <td>{t.maxOutputTokens ?? '—'}</td>
-                      <td>
-                        <span className={`provider-status ${t.ready ? 'ready' : 'needs-setup'}`}>
-                          {t.ready ? 'Ready' : 'Needs setup'}
-                        </span>
-                        {t.note && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>{t.note}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        </div>
-      )}
-
-        </>
+        <CopilotSettingsPanel
+          settings={settings}
+          editing={editing}
+          formProvider={formProvider}
+          formApiKey={formApiKey}
+          formModel={formModel}
+          formMaxTokens={formMaxTokens}
+          testResult={testResult}
+          aiLoadError={aiLoadError}
+          aiSaveError={aiSaveError}
+          saving={saving}
+          testing={testing}
+          copilotProvider={copilotProvider}
+          copilotModel={copilotModel}
+          copilotApiKey={copilotApiKey}
+          copilotSaving={copilotSaving}
+          copilotSaveError={copilotSaveError}
+          onEditingChange={setEditing}
+          onFormProviderChange={setFormProvider}
+          onFormApiKeyChange={setFormApiKey}
+          onFormModelChange={setFormModel}
+          onFormMaxTokensChange={setFormMaxTokens}
+          onCopilotPresetChange={handleCopilotPresetChange}
+          onCopilotApiKeyChange={setCopilotApiKey}
+          onSaveCopilot={handleSaveCopilot}
+          onSaveAi={handleSaveAi}
+          onTest={() => { void handleTest(); }}
+        />
       )}
 
       {/* ─── Skill Registry ──────────────────────────── */}
@@ -829,19 +460,19 @@ export default function SettingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {skills.map((s) => (
-                    <tr key={s.slash}>
+                  {skills.map((skill) => (
+                    <tr key={skill.slash}>
                       <td>
-                        <strong>{s.display?.action || s.title || cleanCommandLabel(s.slash)}</strong>
-                        {s.slash && (
+                        <strong>{skill.display?.action || skill.title || cleanCommandLabel(skill.slash)}</strong>
+                        {skill.slash && (
                           <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-                            <code>{s.slash}</code>
+                            <code>{skill.slash}</code>
                           </div>
                         )}
                       </td>
-                      <td>{s.category || '—'}</td>
-                      <td>{s.mode || '—'}</td>
-                      <td>{s.purpose || '—'}</td>
+                      <td>{skill.category || '—'}</td>
+                      <td>{skill.mode || '—'}</td>
+                      <td>{skill.purpose || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

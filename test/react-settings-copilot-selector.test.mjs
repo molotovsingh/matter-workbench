@@ -3,11 +3,14 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const settingsPagePath = new URL("../react-ui/src/views/SettingsPage.tsx", import.meta.url);
+const copilotSettingsPanelPath = new URL("../react-ui/src/components/settings/CopilotSettingsPanel.tsx", import.meta.url);
 const copilotModelsPath = new URL("../react-ui/src/lib/copilotModels.ts", import.meta.url);
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 
 test("React Settings exposes Matter Copilot as a task-scoped model selector", async () => {
-  const source = await readFile(settingsPagePath, "utf8");
+  const settingsSource = await readFile(settingsPagePath, "utf8");
+  const panelSource = await readFile(copilotSettingsPanelPath, "utf8");
+  const source = `${settingsSource}\n${panelSource}`;
   const models = await readFile(copilotModelsPath, "utf8");
 
   assert.match(source, /Matter Copilot/);
