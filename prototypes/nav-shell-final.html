@@ -34,7 +34,7 @@
 
     .shell {
       display: grid;
-      grid-template-columns: 272px minmax(600px, 1fr) 308px;
+      grid-template-columns: 260px minmax(640px, 1fr) 348px;
       min-height: 100vh;
       width: 100%;
     }
@@ -202,7 +202,7 @@
     }
 
     .main-content { overflow: auto; padding: 34px 36px 70px; }
-    .matter-hero { margin-bottom: 16px; max-width: 780px; }
+    .matter-hero { margin-bottom: 16px; max-width: 920px; }
     .section-label {
       color: var(--muted);
       font-size: 11px;
@@ -238,7 +238,7 @@
       border-radius: 7px;
       box-shadow: var(--shadow);
       margin-top: 18px;
-      max-width: 760px;
+      max-width: 920px;
       padding: 18px;
     }
     .story-card.scrollable-story { max-height: 390px; overflow: hidden; }
@@ -278,6 +278,7 @@
       padding: 18px 14px;
     }
     .assistant-top { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 17px; }
+    .assistant-top .btn { white-space: nowrap; }
     .assistant-pane h2 { font-family: Georgia, "Times New Roman", serif; font-size: 25px; line-height: 1; margin: 4px 0 8px; }
     .assistant-pane p { color: #3d4659; font-size: 13px; line-height: 1.45; margin: 0; }
     .assistant-guardrail {
@@ -302,7 +303,7 @@
     .activity-mini { background: #f6f0e7; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; padding: 10px; }
 
     @media (max-width: 1200px) {
-      .shell { grid-template-columns: 252px minmax(420px, 1fr); }
+      .shell { grid-template-columns: 248px minmax(420px, 1fr); }
       .assistant-pane { display: none; }
       .main-content { padding-left: 28px; padding-right: 28px; }
     }
@@ -335,7 +336,6 @@
           <div class="rail-record-row"><span class="record-icon">■</span><span>Case Analysis</span><span class="record-count">2</span></div>
           <div class="rail-record-row"><span class="record-icon">□</span><span>Drafts</span><span class="record-count">0</span></div>
           <div class="rail-record-row"><span class="record-icon">□</span><span>Ready to Send</span><span class="record-count">0</span></div>
-          <div class="rail-record-row"><span class="record-icon">□</span><span>matter.json</span><span class="record-count">3KB</span></div>
         </div>
       </section>
 
@@ -348,7 +348,7 @@
         <button class="rail-link" title="Open settings"><span class="icon">⚙</span><span>Settings</span></button>
       </nav>
 
-      <div class="rail-footer">Final-candidate visual prototype. Matter record is in the black zone; app navigation sits below.</div>
+      <div class="rail-footer">Final-candidate visual prototype. Matter record is in the black zone.</div>
     </aside>
 
     <section class="workspace">

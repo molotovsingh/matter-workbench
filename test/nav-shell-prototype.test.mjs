@@ -31,6 +31,7 @@ test("final navigation shell candidate keeps global nav, matter record, and assi
   assert.match(html, /Matter record is in the black zone/);
   assert.match(html, /Show technical: operator only/);
   assert.match(html, /Show technical files and logs — operator only/);
+  assert.doesNotMatch(html, /matter\.json/);
   assert.match(html, /Prepare matter/);
   assert.match(html, /Write Matter Story/);
   assert.match(html, /Scrollable Matter Story/);
