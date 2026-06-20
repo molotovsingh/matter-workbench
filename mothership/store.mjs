@@ -268,46 +268,100 @@ export function createMothershipStore({
     return { database: result.rows?.[0]?.ok === 1 ? "ready" : "unavailable" };
   }
 
-  async function queryReport({ sinceDays = 30 } = {}) {
+  async function queryReport({ sinceDays = 30, installationId } = {}) {
     const days = positiveInteger(sinceDays, 30);
+    const filter = installationId
+      ? { clause: "and installation_id = $2", values: [days, requireIdentifier(installationId, "installationId")] }
+      : { clause: "", values: [days] };
     const [feedback, signals, metrics, heartbeats] = await Promise.all([
       database.query(
         `select installation_id, feedback_id, classification, status, matter_name,
                 occurred_at, received_at, payload
          from mothership_feedback_events
-         where received_at >= now() - ($1::integer * interval '1 day')
+         where received_at >= now() - ($1::integer * interval '1 day') ${filter.clause}
          order by received_at desc`,
-        [days],
+        filter.values,
       ),
       database.query(
         `select installation_id, signal_id, source, severity, fingerprint, matter_name,
                 occurrence_count, first_seen_at, last_seen_at, received_at, payload
          from mothership_signal_events
-         where received_at >= now() - ($1::integer * interval '1 day')
+         where received_at >= now() - ($1::integer * interval '1 day') ${filter.clause}
          order by received_at desc`,
-        [days],
+        filter.values,
       ),
       database.query(
         `select installation_id, snapshot_id, captured_at, received_at, payload
          from mothership_metric_snapshots
-         where received_at >= now() - ($1::integer * interval '1 day')
+         where received_at >= now() - ($1::integer * interval '1 day') ${filter.clause}
          order by received_at desc`,
-        [days],
+        filter.values,
       ),
       database.query(
         `select installation_id, heartbeat_id, captured_at, received_at, payload
          from mothership_heartbeat_events
-         where received_at >= now() - ($1::integer * interval '1 day')
+         where received_at >= now() - ($1::integer * interval '1 day') ${filter.clause}
          order by received_at desc`,
-        [days],
+        filter.values,
       ),
     ]);
     return {
       sinceDays: days,
+      ...(installationId ? { installationId: filter.values[1] } : {}),
       feedback: feedback.rows || [],
       signals: signals.rows || [],
       metrics: metrics.rows || [],
       heartbeats: heartbeats.rows || [],
+    };
+  }
+
+  async function listInstallations({ sinceDays = 30 } = {}) {
+    const days = positiveInteger(sinceDays, 30);
+    const result = await database.query(
+      `select i.installation_id,
+              i.label,
+              i.status,
+              i.created_at,
+              i.updated_at,
+              i.revoked_at,
+              hb.latest_heartbeat_received_at,
+              coalesce(sig.recent_signal_count, 0) as recent_signal_count,
+              coalesce(fb.recent_feedback_count, 0) as recent_feedback_count
+         from mothership_installations i
+         left join (
+           select installation_id, max(received_at) as latest_heartbeat_received_at
+           from mothership_heartbeat_events
+           group by installation_id
+         ) hb on hb.installation_id = i.installation_id
+         left join (
+           select installation_id, count(*)::integer as recent_signal_count
+           from mothership_signal_events
+           where received_at >= now() - ($1::integer * interval '1 day')
+           group by installation_id
+         ) sig on sig.installation_id = i.installation_id
+         left join (
+           select installation_id, count(*)::integer as recent_feedback_count
+           from mothership_feedback_events
+           where received_at >= now() - ($1::integer * interval '1 day')
+           group by installation_id
+         ) fb on fb.installation_id = i.installation_id
+         order by i.created_at desc`,
+      [days],
+    );
+    const rows = result.rows || [];
+    return {
+      sinceDays: days,
+      installations: rows.map((row) => ({
+        installationId: String(row.installation_id || ""),
+        label: String(row.label || ""),
+        status: String(row.status || ""),
+        createdAt: toIso(row.created_at),
+        updatedAt: toIso(row.updated_at),
+        revokedAt: toIso(row.revoked_at),
+        latestHeartbeatReceivedAt: toIso(row.latest_heartbeat_received_at),
+        recentSignalCount: positiveInteger(row.recent_signal_count, 0),
+        recentFeedbackCount: positiveInteger(row.recent_feedback_count, 0),
+      })),
     };
   }
 
@@ -323,6 +377,7 @@ export function createMothershipStore({
     pruneExpired,
     health,
     queryReport,
+    listInstallations,
   };
 }
 
@@ -398,6 +453,13 @@ function positiveInteger(value, fallback) {
 function isoNow(now) {
   const value = now();
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function toIso(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function httpError(message, statusCode) {

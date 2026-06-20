@@ -318,6 +318,144 @@ test("store revokes installations and prunes expired payloads", async () => {
   assert.equal(calls.filter((call) => /delete from mothership_(feedback|signal|heartbeat)_events|delete from mothership_metric_snapshots/i.test(call.text)).length, 4);
 });
 
+test("store queryReport filters by installationId when provided", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/from mothership_feedback_events/i.test(text)) {
+        return { rowCount: 1, rows: [{ installation_id: "firm-beta-01", feedback_id: "fb_1", classification: "bug", status: "new", occurred_at: null, received_at: null, payload: {} }] };
+      }
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  const report = await store.queryReport({ sinceDays: 7, installationId: "firm-beta-01" });
+
+  const filtered = calls.filter((call) => /and installation_id = \$2/i.test(call.text));
+  assert.equal(filtered.length, 4);
+  for (const call of filtered) {
+    assert.deepEqual(call.values, [7, "firm-beta-01"]);
+  }
+  assert.equal(report.installationId, "firm-beta-01");
+  assert.equal(report.sinceDays, 7);
+  assert.equal(report.feedback.length, 1);
+  assert.equal(report.feedback[0].installation_id, "firm-beta-01");
+});
+
+test("store queryReport without installationId preserves the original single-parameter shape", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery() {
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  const report = await store.queryReport({ sinceDays: 30 });
+
+  assert.equal("installationId" in report, false);
+  for (const call of calls) {
+    assert.doesNotMatch(call.text, /installation_id = \$2/i);
+    assert.equal(call.values.length, 1);
+  }
+});
+
+test("store queryReport rejects an invalid installationId filter", async () => {
+  const database = fakeDatabase({ onQuery: () => ({ rowCount: 0, rows: [] }) });
+  const store = createMothershipStore({ database });
+
+  await assert.rejects(
+    () => store.queryReport({ installationId: "bad id!" }),
+    (error) => error.statusCode === 400 && /installationId is invalid/i.test(error.message),
+  );
+});
+
+test("store listInstallations maps fleet rows with heartbeat age and recent counts", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/from mothership_installations i/i.test(text)) {
+        return {
+          rowCount: 2,
+          rows: [
+            {
+              installation_id: "firm-beta-01",
+              label: "Firm beta one",
+              status: "active",
+              created_at: new Date("2026-05-01T00:00:00.000Z"),
+              updated_at: new Date("2026-06-10T00:00:00.000Z"),
+              revoked_at: null,
+              latest_heartbeat_received_at: new Date("2026-06-20T09:00:00.000Z"),
+              recent_signal_count: 3,
+              recent_feedback_count: 2,
+            },
+            {
+              installation_id: "firm-beta-02",
+              label: "Firm beta two",
+              status: "revoked",
+              created_at: new Date("2026-04-01T00:00:00.000Z"),
+              updated_at: new Date("2026-06-01T00:00:00.000Z"),
+              revoked_at: new Date("2026-06-01T00:00:00.000Z"),
+              latest_heartbeat_received_at: null,
+              recent_signal_count: 0,
+              recent_feedback_count: 0,
+            },
+          ],
+        };
+      }
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  const result = await store.listInstallations({ sinceDays: 30 });
+
+  const fleetQuery = calls.find((call) => /from mothership_installations i/i.test(call.text));
+  assert.ok(fleetQuery);
+  assert.match(fleetQuery.text, /left join \(.*max\(received_at\).*mothership_heartbeat_events/is);
+  assert.match(fleetQuery.text, /count\(\*\).*mothership_signal_events/is);
+  assert.match(fleetQuery.text, /count\(\*\).*mothership_feedback_events/is);
+  assert.match(fleetQuery.text, /order by i\.created_at desc/is);
+  assert.deepEqual(fleetQuery.values, [30]);
+
+  assert.equal(result.sinceDays, 30);
+  assert.equal(result.installations.length, 2);
+  assert.deepEqual(result.installations[0], {
+    installationId: "firm-beta-01",
+    label: "Firm beta one",
+    status: "active",
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-06-10T00:00:00.000Z",
+    revokedAt: null,
+    latestHeartbeatReceivedAt: "2026-06-20T09:00:00.000Z",
+    recentSignalCount: 3,
+    recentFeedbackCount: 2,
+  });
+  assert.equal(result.installations[1].latestHeartbeatReceivedAt, null);
+  assert.equal(result.installations[1].revokedAt, "2026-06-01T00:00:00.000Z");
+  assert.equal(result.installations[1].recentSignalCount, 0);
+});
+
+test("store listInstallations defaults to a 30-day window and returns an empty list", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  const result = await store.listInstallations();
+
+  assert.equal(result.sinceDays, 30);
+  assert.deepEqual(result.installations, []);
+  assert.deepEqual(calls[0].values, [30]);
+});
+
 function fakeDatabase({ onQuery }) {
   return {
     query: async (text, values = []) => onQuery(text, values),

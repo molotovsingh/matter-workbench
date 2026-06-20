@@ -1,4 +1,8 @@
+import path from "node:path";
+import fs from "node:fs";
+
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { isInsideRoot } from "../shared/safe-paths.mjs";
 
 export async function readJsonBody(request, { maxBodyBytes = 256 * 1024 } = {}) {
   const declared = Number(request.headers["content-length"] || 0);
@@ -43,4 +47,112 @@ export function httpError(message, statusCode = 500) {
 
 export function redactErrorText(value) {
   return redactSensitiveText(String(value || "Unexpected mothership error")).slice(0, 500);
+}
+
+export function parseCookies(cookieHeader = "") {
+  const cookies = {};
+  for (const part of String(cookieHeader || "").split(";")) {
+    const [rawName, ...rawValue] = part.split("=");
+    const name = rawName.trim();
+    if (!name) continue;
+    cookies[name] = decodeURIComponent(rawValue.join("=") || "");
+  }
+  return cookies;
+}
+
+export function readCookie(request, name) {
+  const cookies = parseCookies(request.headers?.cookie || "");
+  return cookies[name] || "";
+}
+
+export function serializeCookie(name, value, { maxAgeSeconds, secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${cookiePath}`];
+  if (httpOnly) parts.push("HttpOnly");
+  if (sameSite) parts.push(`SameSite=${sameSite}`);
+  if (Number.isFinite(maxAgeSeconds)) parts.push(`Max-Age=${maxAgeSeconds}`);
+  if (secure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+export function clearCookie(name, { secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
+  const parts = [`${name}=`, `Path=${cookiePath}`];
+  if (httpOnly) parts.push("HttpOnly");
+  if (sameSite) parts.push(`SameSite=${sameSite}`);
+  parts.push("Max-Age=0");
+  if (secure) parts.push("Secure");
+  return parts.join("; ");
+}
+
+const STATIC_CONTENT_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".map": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+};
+
+export async function serveStaticAsset({ assetRoot, requestUrl, response, readFile, fallbackToIndex = true }) {
+  const root = path.resolve(assetRoot);
+  const read = readFile || ((filePath) => fs.promises.readFile(filePath));
+
+  const safePath = resolveStaticPath(root, requestUrl, fallbackToIndex);
+  if (!safePath) return false;
+
+  const ext = path.extname(safePath).toLowerCase();
+  const contentType = STATIC_CONTENT_TYPES[ext] || "application/octet-stream";
+  try {
+    const body = await read(safePath);
+    response.writeHead(200, {
+      "Content-Type": contentType,
+      "Content-Length": Buffer.byteLength(body),
+      "Cache-Control": ext === ".html" ? "no-store" : "public, max-age=3600",
+    });
+    response.end(body);
+    return true;
+  } catch {
+    if (!fallbackToIndex) return false;
+    return serveIndex(root, response, read);
+  }
+}
+
+function resolveStaticPath(root, requestUrl, fallbackToIndex) {
+  let rawPath = "/";
+  if (requestUrl && typeof requestUrl.pathname === "string") {
+    rawPath = decodeURIComponent(requestUrl.pathname || "/");
+  } else {
+    try {
+      rawPath = decodeURIComponent(new URL(requestUrl?.url || "/", "http://localhost").pathname || "/");
+    } catch {
+      rawPath = "/";
+    }
+  }
+  if (rawPath === "/" || rawPath === "") return fallbackToIndex ? path.join(root, "index.html") : null;
+  const relativePath = rawPath.replace(/^\/+/, "");
+  const resolved = path.resolve(root, relativePath);
+  if (!isInsideRoot(root, resolved)) return null;
+  return resolved;
+}
+
+function serveIndex(root, response, read) {
+  const indexPath = path.join(root, "index.html");
+  return read(indexPath)
+    .then((body) => {
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Length": Buffer.byteLength(body),
+        "Cache-Control": "no-store",
+      });
+      response.end(body);
+      return true;
+    })
+    .catch(() => false);
 }

@@ -2613,6 +2613,90 @@ lawyer's polling request wait on network I/O. The broader lesson is familiar:
 when three services copy the same boundary code, the bug is not in any one
 copy. The boundary wants a name, a module, and one regression test per caller.
 
+### The mothership operator console
+
+The next step was to give the mothership a real operator console. This is not
+the same thing as adding another page to the lawyer-facing Workbench app. The
+Workbench remains the legal workspace. The mothership console is the control
+room above it: a separate web UI served by the mothership service itself, backed
+by the mothership database, and intended for the person running the beta.
+
+The console answers the questions that were previously scattered across CLI
+commands and report files:
+
+- which installations are alive, stale, or revoked?
+- which firms or testers are producing feedback?
+- which warnings are isolated noise, and which are becoming repeated signals?
+- what needs a fix now, what needs investigation, what is a product decision,
+  and what can be watched?
+
+That is why the frontend lives under `mothership/console/` instead of
+`react-ui/`. It has its own Vite + React + TypeScript entrypoint, but it uses
+the same general toolchain as the main app. The backend changes are similarly
+contained: `mothership/server.mjs` now serves `/api/*` read/action routes and
+static console assets, `mothership/store.mjs` exposes fleet and
+installation-filtered queries, `mothership/console-auth.mjs` owns operator
+login, and `mothership/http.mjs` contains the small HTTP helpers for cookies and
+static files.
+
+Think of it as adding a window to the warehouse, not rearranging the desks in
+the law office. The Workbench sends feedback, signals, metrics, and heartbeats
+as before. The console reads the central receipt book and lets the operator
+triage it. That separation matters because the operator dashboard should not be
+able to accidentally change the lawyer workflow. Its write actions are narrow:
+change feedback triage status, or revoke an installation's ingestion path.
+
+Authentication is intentionally simple for V1: one operator login, one full
+fleet view, PBKDF2 password hash in the environment, and an HTTP-only session
+cookie. There is no firm-owner role yet. That is a deliberate tradeoff. A
+firm-scoped role needs a durable installation-to-organization relationship and
+different authorization semantics. Adding a fake role now would create more
+confidence than safety. Good engineers do not add roles because the UI wants a
+dropdown; they add roles when the data model can enforce the boundary.
+
+Two security bugs were found before merge-readiness and are worth remembering.
+The first was a username timing oracle. A tempting login check is:
+
+```js
+usernameMatches && verifyPassword(password)
+```
+
+That reads naturally, but it leaks work. If the username is wrong, PBKDF2 never
+runs; if the username is right and the password is wrong, PBKDF2 does run. An
+attacker can measure the difference. The fixed version always runs the password
+hash check, then combines the two boolean results. The error message is also the
+same for wrong username and wrong password.
+
+The second bug was a brute-force throttle bypass. If a login throttle keys on
+`X-Forwarded-For`, a client can rotate that header and appear to be a new
+address on every attempt unless a trusted reverse proxy has already normalized
+the request. The console now keys the throttle on `socket.remoteAddress`. Behind
+the current loopback/private-VM setup, that is the honest network peer. If we
+later put the console behind a public proxy, proxy trust should be configured at
+the edge, not improvised in the login function.
+
+The merge-readiness pass found one more ordinary UI bug: fleet triage form state
+was keyed only by feedback id. Feedback ids are local facts from installations,
+so two installations can plausibly send the same id. The visible list key used
+`installationId:feedbackId`, but the note/status draft state used only
+`feedbackId`. That could make a status draft or note bleed from one firm's row
+into another. The fix was to use the same composite key for React state. This is
+a small example of a large rule: if identity is composite in the data model, it
+must stay composite in the UI state too.
+
+Operationally, there is one sharp switch: when `MOTHERSHIP_CONSOLE=required`,
+the console read/action API requires the operator session. When auth is not
+enabled, the local development API is open by design. That is useful for demos
+and tests, but production must use the VM environment file with
+`MOTHERSHIP_CONSOLE=required`, a real `MOTHERSHIP_CONSOLE_PASSWORD_HASH`, and
+an HTTPS public URL when the cookie should be `Secure`.
+
+The useful lesson is that dashboards are not harmless just because they are
+"internal." A dashboard can become the most privileged product surface in the
+system. It sees every tester, every installation, every repeated warning, and it
+can revoke ingestion. Treating it as its own app, with its own auth boundary and
+its own tests, is the boring choice. Boring is exactly what we want here.
+
 ### Shared settings, stored paths, and truthful release labels
 
 Three small-looking review findings exposed the same engineering rule: values

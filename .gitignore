@@ -1,6 +1,8 @@
 node_modules/
 react-dist/
 react-ui/node_modules/
+mothership/console/dist/
+mothership/console/node_modules/
 .DS_Store
 .env
 .env.*

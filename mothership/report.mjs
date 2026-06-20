@@ -182,6 +182,7 @@ function signalReportItem(row = {}) {
   const occurrenceCount = positiveInteger(row.occurrence_count ?? payload.occurrenceCount, 1);
   return {
     id: String(row.signal_id || payload.id || "signal"),
+    kind: "signal",
     category: critical ? "critical_signal" : "warning_signal",
     severity,
     priority: critical ? 0 : 1,
@@ -208,6 +209,7 @@ function feedbackReportItem(row = {}) {
   const operatorTriage = safeObject(payload.operatorTriage);
   return {
     id: String(row.feedback_id || payload.id || "feedback"),
+    kind: "feedback",
     category: classification,
     severity: severityForFeedbackCategory(classification),
     status: normalizeFeedbackStatus(row.status || payload.status),
@@ -217,6 +219,7 @@ function feedbackReportItem(row = {}) {
     triageStatusHistoryCount: Array.isArray(payload.operatorTriageHistory) ? payload.operatorTriageHistory.length : 0,
     priority: priorityForFeedbackCategory(classification),
     installationId: String(row.installation_id || ""),
+    user: redactReportText(payload.context?.username || payload.context?.user || ""),
     matterName: String(row.matter_name || payload.context?.activeMatterName || ""),
     occurrenceCount: 1,
     receivedAt: toIso(row.received_at || payload.createdAt),
