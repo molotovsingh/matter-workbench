@@ -261,7 +261,9 @@ export async function runPreparationStage(
     }
     return api.runCreateListOfDates(body);
   }
-  if (stage.slash === '/the_story') return api.runMatterStory({ ...body, overwrite: options.forceStoryRegeneration === true });
+  if (stage.slash === '/the_story') {
+    return api.runMatterStory({ ...body, overwrite: options.forceStoryRegeneration === true || stage.state === 'stale' });
+  }
   throw new Error(`No React runner is wired for preparation stage ${stage.slash || stage.label}`);
 }
 

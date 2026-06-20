@@ -593,6 +593,16 @@ export interface MatterAttention {
   items: AttentionItem[];
 }
 
+export interface MatterDescriptionSource {
+  type?: string;
+  author?: string;
+  slash?: string;
+  artifact?: string;
+  basedOn?: string;
+  basisArtifact?: string;
+  updatedAt?: string;
+}
+
 export interface MatterMetadata {
   clientName?: string;
   matterName?: string;
@@ -600,6 +610,8 @@ export interface MatterMetadata {
   matterType?: string;
   jurisdiction?: string;
   briefDescription?: string;
+  originalIntakeNote?: string;
+  briefDescriptionSource?: MatterDescriptionSource | null;
 }
 
 export interface CommandSuggestion {

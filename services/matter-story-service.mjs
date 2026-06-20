@@ -4,8 +4,12 @@ import { writeFileAtomic } from "../shared/atomic-file.mjs";
 
 export const DISPUTE_STORY_SKILL_SLASH = "/the_story";
 export const DISPUTE_STORY_OUTPUT_RELATIVE = "20_Workshop/The Story.md";
+export const DISPUTE_STORY_BASIS_RELATIVE = "10_Library/List of Dates.md";
+export const MATTER_WORKBENCH_AUTHOR = "MW";
+export const MATTER_WORKBENCH_STORY_SOURCE_TYPE = "matter_workbench_story";
 const MATTER_STORY_SCHEMA_VERSION = "matter-story/v1";
-const MAX_BRIEF_DESCRIPTION_CHARS = 1200;
+const MAX_BRIEF_DESCRIPTION_CHARS = 1800;
+const FILE_TIME_TOLERANCE_MS = 1;
 
 export function createMatterStoryService({
   matterStore,
@@ -17,12 +21,24 @@ export function createMatterStoryService({
 
   async function readDisputeStoryStatus(root = matterStore.ensureMatterRoot()) {
     const matterJson = await readMatterJson(root);
+    const storyStat = await fileStatIfFile(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE));
+    const listOfDatesStat = await newestFileStat([
+      path.join(root, DISPUTE_STORY_BASIS_RELATIVE),
+      path.join(root, "10_Library/List of Dates.json"),
+    ]);
+    const briefDescriptionSource = matterJson.brief_description_source || null;
     return {
       schema_version: MATTER_STORY_SCHEMA_VERSION,
       hasActiveSkill: await hasActiveDisputeStorySkill(),
-      storyMarkdownPresent: await fileExists(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE)),
+      storyMarkdownPresent: Boolean(storyStat),
+      storyStale: Boolean(storyStat && listOfDatesStat && listOfDatesStat.mtimeMs > storyStat.mtimeMs + FILE_TIME_TOLERANCE_MS),
       briefDescriptionPresent: Boolean(String(matterJson.brief_description || "").trim()),
+      briefDescriptionManagedByMatterWorkbench: isMatterWorkbenchStorySource(briefDescriptionSource),
+      originalIntakeNotePresent: Boolean(String(matterJson.original_intake_note || "").trim()),
       artifactPath: DISPUTE_STORY_OUTPUT_RELATIVE,
+      storyUpdatedAt: storyStat ? storyStat.mtime.toISOString() : "",
+      listOfDatesUpdatedAt: listOfDatesStat ? listOfDatesStat.mtime.toISOString() : "",
+      briefDescriptionSource,
     };
   }
 
@@ -69,6 +85,7 @@ export function createMatterStoryService({
       artifactPath,
       matterJsonOverride,
       matterJsonWriter,
+      overwrite,
       now,
     });
 
@@ -141,12 +158,17 @@ export function buildBriefDescriptionMatterJsonUpdate({
   now = () => new Date(),
 } = {}) {
   const currentDescription = String(matterJson.brief_description || "").trim();
-  if (currentDescription && !overwrite) {
+  const currentSource = matterJson.brief_description_source || null;
+  const currentIsMatterWorkbenchStory = isMatterWorkbenchStorySource(currentSource);
+  if (currentDescription && currentIsMatterWorkbenchStory && !overwrite) {
     return {
       result: {
-        state: "skipped_nonblank",
+        state: "skipped_current_mw_story",
         description: currentDescription,
-        reason: "Matter description already exists.",
+        reason: "Matter Workbench story is already current.",
+        author: MATTER_WORKBENCH_AUTHOR,
+        basedOn: "Current List of Dates",
+        source: normalizeMatterWorkbenchStorySource(currentSource, { artifactPath, now }),
       },
       nextMatterJson: null,
     };
@@ -164,28 +186,73 @@ export function buildBriefDescriptionMatterJsonUpdate({
     };
   }
 
+  const originalIntakeNote = preservedOriginalIntakeNote({ matterJson, currentDescription, currentIsMatterWorkbenchStory, description });
+  const source = matterWorkbenchStorySource({ artifactPath, now });
+  const nextMatterJson = {
+    ...matterJson,
+    brief_description: description,
+    brief_description_source: source,
+  };
+  if (originalIntakeNote) nextMatterJson.original_intake_note = originalIntakeNote;
+
   return {
     result: {
       state: "updated",
       description,
+      author: MATTER_WORKBENCH_AUTHOR,
+      basedOn: "Current List of Dates",
+      originalIntakeNote,
+      source,
     },
-    nextMatterJson: {
-      ...matterJson,
-      brief_description: description,
-      brief_description_source: {
-        type: "custom_skill",
-        slash: DISPUTE_STORY_SKILL_SLASH,
-        artifact: artifactPath,
-        updated_at: now().toISOString(),
-      },
-    },
+    nextMatterJson,
   };
+}
+
+export function matterWorkbenchStorySource({ artifactPath = DISPUTE_STORY_OUTPUT_RELATIVE, now = () => new Date() } = {}) {
+  return {
+    type: MATTER_WORKBENCH_STORY_SOURCE_TYPE,
+    author: MATTER_WORKBENCH_AUTHOR,
+    slash: DISPUTE_STORY_SKILL_SLASH,
+    artifact: artifactPath,
+    based_on: "Current List of Dates",
+    basis_artifact: DISPUTE_STORY_BASIS_RELATIVE,
+    updated_at: now().toISOString(),
+  };
+}
+
+export function isMatterWorkbenchStorySource(source = {}) {
+  if (!source || typeof source !== "object") return false;
+  const author = String(source.author || "").trim().toUpperCase();
+  const type = String(source.type || "").trim();
+  const slash = String(source.slash || "").trim();
+  return author === MATTER_WORKBENCH_AUTHOR
+    || type === MATTER_WORKBENCH_STORY_SOURCE_TYPE
+    || (slash === DISPUTE_STORY_SKILL_SLASH && (type === "custom_skill" || type === "matter_workbench"));
+}
+
+function normalizeMatterWorkbenchStorySource(source, { artifactPath, now } = {}) {
+  return isMatterWorkbenchStorySource(source)
+    ? {
+        ...matterWorkbenchStorySource({ artifactPath: source.artifact || artifactPath, now }),
+        ...source,
+        author: MATTER_WORKBENCH_AUTHOR,
+      }
+    : matterWorkbenchStorySource({ artifactPath, now });
+}
+
+function preservedOriginalIntakeNote({ matterJson = {}, currentDescription = "", currentIsMatterWorkbenchStory = false, description = "" } = {}) {
+  const existing = String(matterJson.original_intake_note || "").trim();
+  if (existing) return existing;
+  if (!currentDescription || currentIsMatterWorkbenchStory) return "";
+  if (currentDescription === description) return "";
+  return currentDescription;
 }
 
 export function extractBriefDescriptionFromStoryMarkdown(markdown = "") {
   const lines = String(markdown || "").split(/\r?\n/);
   const paragraphs = [];
   let current = [];
+  let currentHeading = "";
   let stoppedAtNonStorySection = false;
 
   for (const rawLine of lines) {
@@ -199,7 +266,13 @@ export function extractBriefDescriptionFromStoryMarkdown(markdown = "") {
       stoppedAtNonStorySection = true;
       break;
     }
-    if (line.startsWith("#")) continue;
+    if (line.startsWith("#")) {
+      const heading = normalizeHeading(line);
+      if (!heading || isTopStoryHeading(heading)) continue;
+      flushCurrent();
+      currentHeading = heading;
+      continue;
+    }
     if (isTechnicalStoryLine(line)) continue;
     current.push(stripMarkdown(line));
   }
@@ -208,21 +281,33 @@ export function extractBriefDescriptionFromStoryMarkdown(markdown = "") {
 
   return truncateDescription(
     paragraphs
-      .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+      .map((paragraph) => paragraph.replace(/[ \t]+/g, " ").trim())
       .filter(Boolean)
       .join("\n\n"),
   );
 
   function flushCurrent() {
     if (!current.length) return;
-    paragraphs.push(current.join(" "));
+    const body = current.join(" ").trim();
+    paragraphs.push(currentHeading ? `${currentHeading}\n${body}` : body);
     current = [];
+    currentHeading = "";
   }
 }
 
 function isStopSectionHeading(line) {
   if (!line.startsWith("#")) return false;
-  return /\b(sources?|citations?|limits?|limitations?|gaps?|notes?|audit|metadata)\b/i.test(line);
+  const heading = normalizeHeading(line).toLowerCase();
+  return /^(sources?|citations?|source support|source handles|internal audit.*|audit|metadata|run receipt|technical notes?|provider details?)$/.test(heading)
+    || /^(limits?|limitations?)$/.test(heading);
+}
+
+function normalizeHeading(line) {
+  return stripMarkdown(String(line || "").replace(/^#+\s*/, "")).replace(/:$/, "").trim();
+}
+
+function isTopStoryHeading(heading) {
+  return /^(the story|matter story|dispute story)$/i.test(heading);
 }
 
 function isTechnicalStoryLine(line) {
@@ -230,7 +315,7 @@ function isTechnicalStoryLine(line) {
   if (/^\|.*\|$/.test(line)) return true;
   if (/^[-:| ]+$/.test(line)) return true;
   if (/\bFILE-\d{4,}\b/i.test(line)) return true;
-  if (/^(sources?|citations?|limits?|limitations?|mode|ai run|generated by|warnings?)\s*:/i.test(line)) return true;
+  if (/^(sources?|citations?|limits?|limitations?|mode|ai run|generated by|author|based on|updated|warnings?)\s*:/i.test(line)) return true;
   return false;
 }
 
@@ -257,6 +342,7 @@ async function updateBriefDescriptionForStory({
   artifactPath,
   matterJsonOverride,
   matterJsonWriter,
+  overwrite = false,
   now,
 } = {}) {
   if (matterJsonOverride || typeof matterJsonWriter === "function") {
@@ -264,6 +350,7 @@ async function updateBriefDescriptionForStory({
       matterJson: matterJsonOverride || {},
       markdown,
       artifactPath,
+      overwrite,
       now,
     });
     const matterJsonPersistence = nextMatterJson && typeof matterJsonWriter === "function"
@@ -276,6 +363,7 @@ async function updateBriefDescriptionForStory({
       matterRoot,
       markdown,
       artifactPath,
+      overwrite,
       now,
     }),
     matterJsonPersistence: null,
@@ -309,11 +397,18 @@ async function readMatterJson(matterRoot) {
   }
 }
 
-async function fileExists(filePath) {
+async function fileStatIfFile(filePath) {
   try {
     const fileStat = await stat(filePath);
-    return fileStat.isFile();
+    return fileStat.isFile() ? fileStat : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function newestFileStat(filePaths = []) {
+  const stats = (await Promise.all(filePaths.map(fileStatIfFile))).filter(Boolean);
+  return stats.reduce((newest, fileStat) => (
+    !newest || fileStat.mtimeMs > newest.mtimeMs ? fileStat : newest
+  ), null);
 }

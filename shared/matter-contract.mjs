@@ -119,6 +119,21 @@ export function normalizeMatterMetadata(rawMatter = {}, fallbackName = "") {
     matterType: rawMatter.matter_type || "",
     jurisdiction: rawMatter.jurisdiction || "",
     briefDescription: rawMatter.brief_description || "",
+    originalIntakeNote: rawMatter.original_intake_note || "",
+    briefDescriptionSource: normalizeBriefDescriptionSource(rawMatter.brief_description_source),
+  };
+}
+
+function normalizeBriefDescriptionSource(source = {}) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+  return {
+    type: typeof source.type === "string" ? source.type : "",
+    author: typeof source.author === "string" ? source.author : "",
+    slash: typeof source.slash === "string" ? source.slash : "",
+    artifact: typeof source.artifact === "string" ? source.artifact : "",
+    basedOn: typeof source.based_on === "string" ? source.based_on : typeof source.basedOn === "string" ? source.basedOn : "",
+    basisArtifact: typeof source.basis_artifact === "string" ? source.basis_artifact : typeof source.basisArtifact === "string" ? source.basisArtifact : "",
+    updatedAt: typeof source.updated_at === "string" ? source.updated_at : typeof source.updatedAt === "string" ? source.updatedAt : "",
   };
 }
 

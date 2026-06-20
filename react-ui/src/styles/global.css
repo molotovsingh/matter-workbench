@@ -713,6 +713,19 @@ strong { font-weight: 600; }
 .matter-overview-hero { max-width: 780px; margin: 0 0 24px; }
 .matter-overview-hero h1 { margin: 0 0 6px; font-family: var(--display-font); font-size: 30px; font-weight: 500; letter-spacing: 0; line-height: 1.18; }
 .matter-overview-hero p { margin: 0; color: var(--muted); font-size: var(--font-size-ui); }
+.matter-story-card { max-width: 780px; margin: 0 0 20px; padding: 18px; border-radius: 5px; background: var(--panel); border: 1px solid var(--border); }
+.matter-story-card.original-note { background: var(--subtle-bg); }
+.matter-story-heading { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
+.matter-story-heading h2 { margin: 2px 0 0; }
+.matter-story-kicker { color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.11em; margin: 0; text-transform: uppercase; }
+.matter-story-provenance { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.matter-story-provenance span { border: 1px solid var(--border); border-radius: 999px; background: var(--chip-bg); color: var(--muted-strong); font-size: 12px; padding: 4px 8px; }
+.matter-story-body { display: grid; gap: 12px; }
+.matter-story-section h3 { color: var(--muted); font-size: var(--font-size-xs); letter-spacing: 0.09em; margin: 0 0 4px; text-transform: uppercase; }
+.matter-story-body p { color: var(--muted-strong); line-height: 1.6; margin: 0; }
+.matter-original-note { border-top: 1px solid var(--border-subtle); margin-top: 14px; padding-top: 10px; }
+.matter-original-note summary { color: var(--muted); cursor: pointer; font-size: var(--font-size-sm); font-weight: 700; }
+.matter-original-note .matter-story-body { margin-top: 8px; }
 .matter-info-card { max-width: 780px; margin: 0 0 32px; display: grid; grid-template-columns: 164px minmax(0,1fr); overflow: hidden; border-radius: 5px; background: var(--panel); border: 1px solid var(--border); font-size: var(--font-size-ui); }
 .matter-info-card dt { border-bottom: 1px solid var(--border-subtle); background: var(--subtle-bg); color: var(--muted); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.09em; margin: 0; padding: 11px 16px; text-transform: uppercase; }
 .matter-info-card dd { border-bottom: 1px solid var(--border-subtle); margin: 0; min-width: 0; overflow-wrap: anywhere; padding: 11px 16px; color: var(--text); }

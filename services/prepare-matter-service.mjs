@@ -281,21 +281,29 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
       reason: "Create the List of Dates before writing the dispute story.",
     };
   }
-  if (storyStatus.briefDescriptionPresent) {
+  if (storyStatus.storyStale) {
     return {
       ...base,
-      state: "current",
-      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
-      reason: "The intake dispute description is already filled.",
+      state: "stale",
+      action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+      reason: "The List of Dates changed after The Story was written. Refresh the Matter Workbench story.",
     };
   }
-  if (storyStatus.storyMarkdownPresent) {
+  if (storyStatus.storyMarkdownPresent && !storyStatus.briefDescriptionManagedByMatterWorkbench) {
     return {
       ...base,
       paidProviderCall: false,
       state: "ready_to_run",
       action: PREPARATION_STAGE_ACTIONS.RUN,
-      reason: "The Story exists; update the intake dispute description from it.",
+      reason: "The Story exists; update the Matter Workbench story on the matter overview.",
+    };
+  }
+  if (storyStatus.storyMarkdownPresent && storyStatus.briefDescriptionManagedByMatterWorkbench) {
+    return {
+      ...base,
+      state: "current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: "The Matter Workbench story is current.",
     };
   }
   return {

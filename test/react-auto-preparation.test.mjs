@@ -47,6 +47,7 @@ test("React automatic preparation runner includes List of Dates, story, and labe
   assert.match(runner, /id: 'dispute-story', label: 'Writing dispute story'/);
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
   assert.match(runner, /api\.runMatterStory\(/);
+  assert.match(runner, /overwrite: options\.forceStoryRegeneration === true \|\| stage\.state === 'stale'/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
   assert.match(runner, /api\.recordPreparationRunTelemetry\(/);
   assert.match(runner, /action: 'start'/);
@@ -57,6 +58,17 @@ test("React automatic preparation runner includes List of Dates, story, and labe
   assert.match(runner, /LABEL_REFRESH_NEEDED/);
   assert.match(prepareMatter, /runPreparationStage\(matchedStage, matterName\)/);
   assert.match(prepareMatter, /runAutomaticPreparation\(\{/);
+});
+
+test("React matter overview renders Matter Workbench story before original intake note", async () => {
+  const overview = await readFile(overviewPath, "utf8");
+
+  assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
+  assert.match(overview, /Matter Workbench story/);
+  assert.match(overview, /Author: MW/);
+  assert.match(overview, /Based on: \{source\?\.basedOn \|\| 'Current List of Dates'\}/);
+  assert.match(overview, /Original intake note/);
+  assert.match(overview, /isMwStorySource/);
 });
 
 test("React matter overview can force a full preparation rerun", async () => {

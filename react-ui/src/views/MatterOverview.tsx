@@ -15,6 +15,7 @@ import type {
   AttentionItem,
   AttentionSummary,
   PreparationRunStatus,
+  MatterMetadata,
 } from '../types';
 
 interface Props {
@@ -43,6 +44,8 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
         </p>
       </section>
 
+      <MatterStoryCard meta={meta} />
+
       <dl className="matter-info-card">
         <dt>Client</dt>
         <dd>{meta.clientName?.trim() || '—'}</dd>
@@ -54,12 +57,6 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
         <dd>{meta.matterType?.trim() || '—'}</dd>
         <dt>Jurisdiction</dt>
         <dd>{meta.jurisdiction?.trim() || '—'}</dd>
-        {meta.briefDescription?.trim() && (
-          <>
-            <dt>Description</dt>
-            <dd>{meta.briefDescription}</dd>
-          </>
-        )}
       </dl>
 
       {missingFields.length > 0 && (
@@ -91,6 +88,90 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
       <AttentionCard matterName={matter.name} refreshKey={preparationRefreshKey} preparationRun={preparationRun} />
     </div>
   );
+}
+
+function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
+  const story = (meta.briefDescription || '').trim();
+  const originalNote = (meta.originalIntakeNote || '').trim();
+  const source = meta.briefDescriptionSource || null;
+  const isMatterWorkbenchStory = isMwStorySource(source);
+
+  if (!story && !originalNote) return null;
+
+  if (!isMatterWorkbenchStory) {
+    return (
+      <section className="matter-story-card original-note">
+        <div className="matter-story-heading">
+          <div>
+            <p className="matter-story-kicker">Original intake note</p>
+            <h2>Description</h2>
+          </div>
+        </div>
+        <StoryText text={story || originalNote} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="matter-story-card">
+      <div className="matter-story-heading">
+        <div>
+          <p className="matter-story-kicker">Matter Story</p>
+          <h2>Matter Workbench story</h2>
+        </div>
+        <div className="matter-story-provenance" aria-label="Matter story provenance">
+          <span>Author: MW</span>
+          <span>Based on: {source?.basedOn || 'Current List of Dates'}</span>
+        </div>
+      </div>
+      <StoryText text={story} />
+      {originalNote && (
+        <details className="matter-original-note">
+          <summary>Original intake note</summary>
+          <StoryText text={originalNote} />
+        </details>
+      )}
+    </section>
+  );
+}
+
+function StoryText({ text }: { text: string }) {
+  const blocks = storyTextBlocks(text);
+  return (
+    <div className="matter-story-body">
+      {blocks.map((block, index) => (
+        <section key={`${block.heading || 'paragraph'}-${index}`} className={block.heading ? 'matter-story-section' : 'matter-story-paragraph'}>
+          {block.heading && <h3>{block.heading}</h3>}
+          {block.body.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function storyTextBlocks(text: string): Array<{ heading: string; body: string[] }> {
+  return text
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const lines = block.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+      if (lines.length > 1 && isStorySectionHeading(lines[0])) {
+        return { heading: lines[0], body: [lines.slice(1).join(' ')] };
+      }
+      return { heading: '', body: [lines.join(' ')] };
+    });
+}
+
+function isStorySectionHeading(line: string): boolean {
+  return /^(At a glance|What this matter is about|Key dispute|Procedural posture|Main risks and missing facts)$/i.test(line.trim());
+}
+
+function isMwStorySource(source: MatterMetadata['briefDescriptionSource']): boolean {
+  if (!source) return false;
+  return (source.author || '').trim().toUpperCase() === 'MW'
+    || source.type === 'matter_workbench_story'
+    || source.slash === '/the_story';
 }
 
 // ─── Pipeline card ────────────────────────────────────────

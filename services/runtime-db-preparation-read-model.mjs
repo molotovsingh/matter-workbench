@@ -1,6 +1,11 @@
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import { missingMetadataLabels, prepareStageDefinition, warningsForPlan } from "../shared/preparation-stages.mjs";
+import {
+  DISPUTE_STORY_BASIS_RELATIVE,
+  DISPUTE_STORY_OUTPUT_RELATIVE,
+  isMatterWorkbenchStorySource,
+} from "./matter-story-service.mjs";
 import { validatedRelativePathFromRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 
 export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tree } = {}) {
@@ -48,14 +53,17 @@ export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tr
   };
 }
 
-export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, status } = {}) {
+export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, status, workspaceFiles = [], disputeStory = null } = {}) {
   const missingMetadata = missingMetadataLabels(dbMatter);
   const stageBySlash = new Map(status.stages.map((stage) => [stage.slash, stage]));
   const setup = prepareStage("/matter-init", stageBySlash.get("/matter-init"));
   const extraction = prepareStage("/extract", stageBySlash.get("/extract"), setup);
   const sourceLabels = prepareStage("/describe_sources", stageBySlash.get("/describe_sources"), extraction);
   const listOfDates = prepareStage("/create_listofdates", stageBySlash.get("/create_listofdates"), sourceLabels);
-  const stages = [setup, extraction, sourceLabels, listOfDates];
+  const disputeStoryStage = disputeStory?.hasActiveSkill
+    ? runtimeDisputeStoryStage({ storyStatus: runtimeDisputeStoryStatus({ workspaceFiles, matterJson: disputeStory.matterJson || {} }), listOfDatesStage: listOfDates })
+    : null;
+  const stages = [setup, extraction, sourceLabels, listOfDates, disputeStoryStage].filter(Boolean);
   const nextStep = stages.find((stage) => stage.action !== PREPARATION_STAGE_ACTIONS.SKIP_CURRENT);
   return {
     schema_version: "prepare-matter-plan/v1",
@@ -70,6 +78,7 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
     stages,
     downstream: {
       listOfDates,
+      ...(disputeStoryStage ? { disputeStory: disputeStoryStage } : {}),
     },
     nextStep: nextStep
       ? {
@@ -86,7 +95,80 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
           stage: "",
           slash: "",
         },
-    warnings: warningsForPlan({ missingMetadata, stages, listOfDates }),
+    warnings: warningsForPlan({ missingMetadata, stages, listOfDates, disputeStory: disputeStoryStage }),
+  };
+}
+
+function runtimeDisputeStoryStatus({ workspaceFiles = [], matterJson = {} } = {}) {
+  const byPath = new Map((workspaceFiles || []).map((item) => [item.path, item]));
+  const story = byPath.get(DISPUTE_STORY_OUTPUT_RELATIVE) || null;
+  const listOfDates = newestWorkspaceFile([
+    byPath.get(DISPUTE_STORY_BASIS_RELATIVE),
+    byPath.get("10_Library/List of Dates.json"),
+  ].filter(Boolean));
+  return {
+    storyMarkdownPresent: Boolean(story),
+    storyStale: Boolean(story && listOfDates && (Date.parse(listOfDates.updatedAt || "") || 0) > (Date.parse(story.updatedAt || "") || 0) + 1),
+    briefDescriptionPresent: Boolean(String(matterJson.brief_description || "").trim()),
+    briefDescriptionManagedByMatterWorkbench: isMatterWorkbenchStorySource(matterJson.brief_description_source),
+    artifactPath: DISPUTE_STORY_OUTPUT_RELATIVE,
+  };
+}
+
+function newestWorkspaceFile(files = []) {
+  return files.reduce((newest, file) => (
+    !newest || (Date.parse(file.updatedAt || "") || 0) > (Date.parse(newest.updatedAt || "") || 0) ? file : newest
+  ), null);
+}
+
+function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
+  const definition = prepareStageDefinition("/the_story");
+  const base = {
+    id: definition.id,
+    slash: definition.slash,
+    label: definition.label,
+    description: definition.description,
+    paidProviderCall: definition.paidProviderCall,
+    artifacts: storyStatus.storyMarkdownPresent ? [storyStatus.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE] : [],
+  };
+  if (listOfDatesStage.state !== "current") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: "Create the List of Dates before writing the dispute story.",
+    };
+  }
+  if (storyStatus.storyStale) {
+    return {
+      ...base,
+      state: "stale",
+      action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+      reason: "The List of Dates changed after The Story was written. Refresh the Matter Workbench story.",
+    };
+  }
+  if (storyStatus.storyMarkdownPresent && !storyStatus.briefDescriptionManagedByMatterWorkbench) {
+    return {
+      ...base,
+      paidProviderCall: false,
+      state: "ready_to_run",
+      action: PREPARATION_STAGE_ACTIONS.RUN,
+      reason: "The Story exists; update the Matter Workbench story on the matter overview.",
+    };
+  }
+  if (storyStatus.storyMarkdownPresent && storyStatus.briefDescriptionManagedByMatterWorkbench) {
+    return {
+      ...base,
+      state: "current",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: "The Matter Workbench story is current.",
+    };
+  }
+  return {
+    ...base,
+    state: "missing",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+    reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
   };
 }
 

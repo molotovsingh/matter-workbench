@@ -50,6 +50,41 @@ test("runtime DB storage service builds workspace tree from storage payload meta
   assert.doesNotMatch(JSON.stringify(calls), /secret/);
 });
 
+test("runtime DB storage service projects Matter Workbench story metadata into workspace", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [
+      {
+        matter,
+        objects: [storageRow("DB Matter/20_Workshop/The Story.md", "matter_artifact", "text/markdown", 30, true)],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        client_name: "Client A",
+        opposite_party: "Other Side",
+        matter_type: "Consumer",
+        jurisdiction: "India",
+        brief_description: "Matter Workbench story.",
+        original_intake_note: "Initial intake note.",
+        brief_description_source: {
+          author: "MW",
+          type: "matter_workbench_story",
+          based_on: "Current List of Dates",
+          basis_artifact: "10_Library/List of Dates.md",
+        },
+      }), "application/json"),
+    ]),
+  });
+
+  const workspace = await service.readWorkspace(matter);
+  assert.equal(workspace.metadata.briefDescription, "Matter Workbench story.");
+  assert.equal(workspace.metadata.originalIntakeNote, "Initial intake note.");
+  assert.equal(workspace.metadata.briefDescriptionSource.author, "MW");
+  assert.equal(workspace.metadata.briefDescriptionSource.basedOn, "Current List of Dates");
+  assert.equal(workspace.metadata.briefDescriptionSource.basisArtifact, "10_Library/List of Dates.md");
+});
+
 test("runtime DB storage service gives psql enough buffer for DB-backed payloads", async () => {
   const calls = [];
   const service = createRuntimeDbStorageService({
@@ -267,6 +302,50 @@ test("runtime DB storage service derives matter status and preparation plan from
     (error) => error.statusCode === 400 && error.code === "rerun_advice.unsupported_skill",
   );
   assert.equal(plan.stages.every((stage) => stage.state === "current"), true);
+});
+
+test("runtime DB storage service can include Matter Story after current List of Dates", async () => {
+  const calls = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true),
+          storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true, {
+            updatedAt: "2026-06-20T09:00:00.000Z",
+          }),
+          storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
+            updatedAt: "2026-06-20T09:30:00.000Z",
+          }),
+          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+            updatedAt: "2026-06-20T11:00:00.000Z",
+          }),
+          storageRow("DB Matter/20_Workshop/The Story.md", "matter_artifact", "text/markdown", 30, true, {
+            updatedAt: "2026-06-20T10:00:00.000Z",
+          }),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        client_name: "Client A",
+        opposite_party: "Other Side",
+        matter_type: "Consumer",
+        jurisdiction: "India",
+        brief_description: "Existing MW story.",
+        brief_description_source: { author: "MW", type: "matter_workbench_story" },
+      }), "application/json"),
+    ]),
+  });
+
+  const plan = await service.readPrepareMatterPlan(matter, { includeDisputeStory: true });
+  const storyStage = plan.stages.find((stage) => stage.slash === "/the_story");
+  assert.equal(storyStage.state, "stale");
+  assert.equal(storyStage.action, "confirm_paid_run");
+  assert.equal(plan.nextStep.slash, "/the_story");
+  assert.equal(plan.downstream.disputeStory.artifacts[0], "20_Workshop/The Story.md");
 });
 
 test("runtime DB storage service marks source labels stale when extraction payloads are newer", async () => {

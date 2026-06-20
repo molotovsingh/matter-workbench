@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -37,6 +37,31 @@ test("story description extraction keeps the lawyer-facing story and removes sou
   assert.doesNotMatch(description, /Limits/i);
 });
 
+test("story description extraction preserves useful story sections and keeps risks at the end", () => {
+  const description = extractBriefDescriptionFromStoryMarkdown([
+    "# Matter Story",
+    "",
+    "## At a glance",
+    "This is a landlord-tenant possession dispute.",
+    "",
+    "## What this matter is about",
+    "The client says the tenancy was terminated but possession was not returned.",
+    "",
+    "## Main risks and missing facts",
+    "The record does not yet show proof of service for the notice.",
+    "",
+    "## Internal audit/source handles",
+    "- FILE-0001 p1.b1",
+  ].join("\n"));
+
+  assert.equal(description, [
+    "At a glance\nThis is a landlord-tenant possession dispute.",
+    "What this matter is about\nThe client says the tenancy was terminated but possession was not returned.",
+    "Main risks and missing facts\nThe record does not yet show proof of service for the notice.",
+  ].join("\n\n"));
+  assert.doesNotMatch(description, /FILE-0001/);
+});
+
 test("story description update fills blank matter description", async () => {
   const matterRoot = await mkdtemp(path.join(os.tmpdir(), "matter-story-blank-"));
   await writeFile(path.join(matterRoot, "matter.json"), `${JSON.stringify({
@@ -54,21 +79,66 @@ test("story description update fills blank matter description", async () => {
   assert.equal(matterJson.brief_description, "The dispute concerns delayed possession and unpaid contractual relief.");
 });
 
-test("story description update does not overwrite existing lawyer description by default", async () => {
+test("story description update overwrites intake description and preserves it as original note", async () => {
   const matterRoot = await mkdtemp(path.join(os.tmpdir(), "matter-story-existing-"));
   await writeFile(path.join(matterRoot, "matter.json"), `${JSON.stringify({
     matter_name: "Client v Builder",
-    brief_description: "Lawyer-entered dispute description.",
+    brief_description: "Initial intake description.",
   }, null, 2)}\n`);
 
   const result = await updateBriefDescriptionFromStory({
     matterRoot,
-    markdown: "Replacement generated story.",
+    markdown: "Replacement Matter Workbench story.",
   });
 
   const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
-  assert.equal(result.state, "skipped_nonblank");
-  assert.equal(matterJson.brief_description, "Lawyer-entered dispute description.");
+  assert.equal(result.state, "updated");
+  assert.equal(matterJson.brief_description, "Replacement Matter Workbench story.");
+  assert.equal(matterJson.original_intake_note, "Initial intake description.");
+  assert.equal(matterJson.brief_description_source.author, "MW");
+  assert.equal(matterJson.brief_description_source.based_on, "Current List of Dates");
+});
+
+test("story status marks Matter Workbench story stale when List of Dates changed later", async () => {
+  const matterRoot = await mkdtemp(path.join(os.tmpdir(), "matter-story-stale-"));
+  await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
+  await mkdir(path.join(matterRoot, "20_Workshop"), { recursive: true });
+  await writeFile(path.join(matterRoot, "matter.json"), `${JSON.stringify({
+    matter_name: "Client v Builder",
+    brief_description: "Existing Matter Workbench story.",
+    brief_description_source: { author: "MW", type: "matter_workbench_story" },
+  }, null, 2)}\n`);
+  await writeFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(matterRoot, "20_Workshop", "The Story.md"), "# The Story\n");
+  await utimes(path.join(matterRoot, "20_Workshop", "The Story.md"), new Date("2026-06-20T09:00:00.000Z"), new Date("2026-06-20T09:00:00.000Z"));
+  await utimes(path.join(matterRoot, "10_Library", "List of Dates.md"), new Date("2026-06-20T10:00:00.000Z"), new Date("2026-06-20T10:00:00.000Z"));
+
+  const service = createMatterStoryService({
+    matterStore: { ensureMatterRoot: () => matterRoot },
+    configurableSkillsService: {
+      listSkills: async () => ({ skills: [{ slash: DISPUTE_STORY_SKILL_SLASH, status: "active" }] }),
+    },
+  });
+
+  const status = await service.readDisputeStoryStatus(matterRoot);
+  assert.equal(status.storyMarkdownPresent, true);
+  assert.equal(status.storyStale, true);
+  assert.equal(status.briefDescriptionManagedByMatterWorkbench, true);
+});
+
+test("story description update skips current Matter Workbench story unless refresh is requested", () => {
+  const { result, nextMatterJson } = buildBriefDescriptionMatterJsonUpdate({
+    matterJson: {
+      matter_name: "Client v Builder",
+      brief_description: "Existing Matter Workbench story.",
+      brief_description_source: { author: "MW", type: "matter_workbench_story" },
+    },
+    markdown: "Replacement story.",
+  });
+
+  assert.equal(result.state, "skipped_current_mw_story");
+  assert.equal(result.author, "MW");
+  assert.equal(nextMatterJson, null);
 });
 
 test("story description update can build a DB-native matter.json payload", () => {
@@ -85,6 +155,8 @@ test("story description update can build a DB-native matter.json payload", () =>
   assert.equal(result.state, "updated");
   assert.equal(nextMatterJson.brief_description, "The dispute concerns delayed possession of the flat.");
   assert.deepEqual(nextMatterJson.intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
+  assert.equal(nextMatterJson.brief_description_source.author, "MW");
+  assert.equal(nextMatterJson.brief_description_source.basis_artifact, "10_Library/List of Dates.md");
   assert.equal(nextMatterJson.brief_description_source.updated_at, "2026-06-19T00:00:00.000Z");
 });
 

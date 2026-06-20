@@ -329,7 +329,10 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       exactRoute("GET", "/api/prepare-matter", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl, { allowMissingActive: true });
-          sendJson(response, 200, await runtimeDbStorageService.readPrepareMatterPlan(matter));
+          const includeDisputeStory = matterStoryService?.hasActiveDisputeStorySkill
+            ? await matterStoryService.hasActiveDisputeStorySkill()
+            : false;
+          sendJson(response, 200, await runtimeDbStorageService.readPrepareMatterPlan(matter, { includeDisputeStory }));
           return;
         }
         const root = await matterRootForQuery(matterStore, requestUrl, { allowMissingActive: true });

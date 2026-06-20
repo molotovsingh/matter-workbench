@@ -202,7 +202,50 @@ test("prepare matter plan places dispute story after current List of Dates when 
   assert.match(plan.nextStep.message, /dispute story/i);
 });
 
-test("prepare matter plan treats existing matter description as completed dispute story", async () => {
+test("prepare matter plan refreshes dispute story when List of Dates changed after it", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-story-stale-test-"));
+  const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
+  const libraryDir = path.join(root, "10_Library");
+  await mkdir(extractedDir, { recursive: true });
+  await mkdir(libraryDir, { recursive: true });
+  await writeFile(path.join(root, "matter.json"), JSON.stringify({
+    matter_name: "Client v Opponent",
+    client_name: "Client",
+    opposite_party: "Opponent",
+    matter_type: "Civil",
+    jurisdiction: "India",
+    brief_description: "Existing Matter Workbench story.",
+    brief_description_source: { author: "MW", type: "matter_workbench_story" },
+  }));
+  await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
+  await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
+  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({ schema_version: "list-of-dates/v1", entries: [] }));
+  await mkdir(path.join(root, "20_Workshop"), { recursive: true });
+  await writeFile(path.join(root, "20_Workshop", "The Story.md"), "# The Story\n");
+
+  const plan = await createPrepareMatterService({
+    matterStore: createStore(root),
+    matterStatusService: createMatterStatusService({ matterStore: createStore(root) }),
+    matterStoryService: {
+      readDisputeStoryStatus: async () => ({
+        hasActiveSkill: true,
+        storyMarkdownPresent: true,
+        storyStale: true,
+        briefDescriptionManagedByMatterWorkbench: true,
+        artifactPath: "20_Workshop/The Story.md",
+      }),
+    },
+  }).readPrepareMatterPlan(root);
+
+  const storyStage = plan.stages.find((stage) => stage.slash === "/the_story");
+  assert.equal(storyStage.state, "stale");
+  assert.equal(storyStage.action, "confirm_paid_run");
+  assert.equal(plan.nextStep.slash, "/the_story");
+});
+
+test("prepare matter plan does not treat a raw intake description as completed dispute story", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-story-current-test-"));
   const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
   const libraryDir = path.join(root, "10_Library");
@@ -232,9 +275,10 @@ test("prepare matter plan treats existing matter description as completed disput
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
     ["/create_listofdates", "skip_current"],
-    ["/the_story", "skip_current"],
+    ["/the_story", "confirm_paid_run"],
   ]);
-  assert.equal(plan.nextStep.state, "complete");
+  assert.equal(plan.nextStep.slash, "/the_story");
+  assert.match(plan.nextStep.message, /dispute story/i);
 });
 
 test("prepare matter plan blocks when required metadata is missing", async () => {

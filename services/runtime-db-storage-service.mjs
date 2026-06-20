@@ -86,9 +86,12 @@ export function createRuntimeDbStorageService({
   const enabled = Boolean(databaseUrl && tenantId);
 
   async function readWorkspace(matter) {
-    const workspace = readWorkspaceForMaterialization(matter);
+    const normalizedMatter = normalizeMatter(matter);
+    const workspace = readWorkspaceForMaterialization(normalizedMatter);
+    const matterJson = await readMatterJson(normalizedMatter);
     return {
       ...workspace,
+      metadata: runtimeWorkspaceMetadataFromMatterJson(workspace.metadata, matterJson),
       tree: publicRuntimeWorkspaceTree(workspace.tree),
     };
   }
@@ -331,11 +334,18 @@ export function createRuntimeDbStorageService({
     return runtimeMatterStatusFromWorkspaceState({ matter: normalizedMatter, objects, tree });
   }
 
-  async function readPrepareMatterPlan(matter) {
+  async function readPrepareMatterPlan(matter, options = {}) {
     const normalizedMatter = normalizeMatter(matter);
     const state = readWorkspaceState(normalizedMatter);
     const status = matterStatusFromState(normalizedMatter, state);
-    return runtimePrepareMatterPlanFromStatus({ matter: normalizedMatter, dbMatter: state.dbMatter, status });
+    const matterJson = options.includeDisputeStory ? await readMatterJson(normalizedMatter) : null;
+    return runtimePrepareMatterPlanFromStatus({
+      matter: normalizedMatter,
+      dbMatter: runtimeWorkspaceMetadataFromMatterJson(state.dbMatter, matterJson || {}),
+      status,
+      workspaceFiles: runtimeWorkspaceFilePaths(state.tree.root),
+      disputeStory: options.includeDisputeStory ? { hasActiveSkill: true, matterJson } : null,
+    });
   }
 
   async function readMatterContextPacket(matter, options = {}) {
@@ -854,6 +864,33 @@ function runtimeMatterJsonForStorage(matter = {}) {
     jurisdiction: stringValue(matter.jurisdiction),
     brief_description: stringValue(matter.briefDescription),
     intakes: [],
+  };
+}
+
+function runtimeWorkspaceMetadataFromMatterJson(metadata = {}, matterJson = {}) {
+  return {
+    ...metadata,
+    matterName: stringValue(matterJson.matter_name) || metadata.matterName || metadata.name || "",
+    clientName: stringValue(matterJson.client_name) || metadata.clientName || "",
+    oppositeParty: stringValue(matterJson.opposite_party) || metadata.oppositeParty || "",
+    matterType: stringValue(matterJson.matter_type) || metadata.matterType || "",
+    jurisdiction: stringValue(matterJson.jurisdiction) || metadata.jurisdiction || "",
+    briefDescription: stringValue(matterJson.brief_description) || metadata.briefDescription || "",
+    originalIntakeNote: stringValue(matterJson.original_intake_note) || metadata.originalIntakeNote || "",
+    briefDescriptionSource: normalizeRuntimeBriefDescriptionSource(matterJson.brief_description_source || metadata.briefDescriptionSource),
+  };
+}
+
+function normalizeRuntimeBriefDescriptionSource(source = {}) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+  return {
+    type: stringValue(source.type),
+    author: stringValue(source.author),
+    slash: stringValue(source.slash),
+    artifact: stringValue(source.artifact),
+    basedOn: stringValue(source.based_on || source.basedOn),
+    basisArtifact: stringValue(source.basis_artifact || source.basisArtifact),
+    updatedAt: stringValue(source.updated_at || source.updatedAt),
   };
 }
 

@@ -225,6 +225,8 @@ export function createMatterStore({
         oppositeParty: state.activeMatterRecord.oppositeParty || "",
         jurisdiction: state.activeMatterRecord.jurisdiction || "",
         briefDescription: state.activeMatterRecord.briefDescription || "",
+        originalIntakeNote: state.activeMatterRecord.originalIntakeNote || "",
+        briefDescriptionSource: state.activeMatterRecord.briefDescriptionSource || null,
       };
     }
     try {
@@ -236,6 +238,8 @@ export function createMatterStore({
         oppositeParty: raw.opposite_party || "",
         jurisdiction: raw.jurisdiction || "",
         briefDescription: raw.brief_description || "",
+        originalIntakeNote: raw.original_intake_note || "",
+        briefDescriptionSource: raw.brief_description_source || null,
       };
     } catch {
       return {};
