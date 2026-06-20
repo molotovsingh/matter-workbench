@@ -160,6 +160,53 @@ test("story description update can build a DB-native matter.json payload", () =>
   assert.equal(nextMatterJson.brief_description_source.updated_at, "2026-06-19T00:00:00.000Z");
 });
 
+test("matter story service runs native Story when no configured Story skill exists", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-story-native-"));
+  const matterRoot = path.join(tmp, "Native Story Matter");
+  await mkdir(matterRoot, { recursive: true });
+  await writeFile(path.join(matterRoot, "matter.json"), `${JSON.stringify({
+    matter_name: "Native Story Matter",
+    brief_description: "",
+  }, null, 2)}\n`);
+
+  const calls = [];
+  const service = createMatterStoryService({
+    matterStore: {
+      ensureMatterRoot: () => matterRoot,
+      resolveExistingMatter: async (name) => ({ name, matterPath: matterRoot }),
+    },
+    configurableSkillsService: {
+      listSkills: async () => ({ skills: [] }),
+    },
+    nativeRunProvider: async ({ skill, matterContext }) => {
+      calls.push({ skill, matterContext });
+      return "# The Story\n\nThe dispute concerns delayed payment under the supply contract.\n\n## Internal source handles\nFILE-0001 p1.b1";
+    },
+  });
+
+  const result = await service.runDisputeStory({
+    matterName: "Native Story Matter",
+    overwrite: true,
+    matterContextPacketOverride: {
+      matter: { matter_name: "Native Story Matter" },
+      sources: [],
+      evidence_blocks: [],
+      library_artifacts: [{ kind: "list_of_dates", path: "10_Library/List of Dates.json", entries: [] }],
+      warnings: [],
+    },
+  });
+  const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+  const markdown = await readFile(path.join(matterRoot, "20_Workshop", "The Story.md"), "utf8");
+
+  assert.equal(result.state, "updated");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].skill.slash, DISPUTE_STORY_SKILL_SLASH);
+  assert.equal(calls[0].matterContext.library_artifacts[0].path, "10_Library/List of Dates.json");
+  assert.match(markdown, /delayed payment/);
+  assert.equal(matterJson.brief_description, "The dispute concerns delayed payment under the supply contract.");
+  assert.equal(matterJson.brief_description_source.author, "MW");
+});
+
 test("matter story service runs the configured story skill and writes blank intake description", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-story-service-"));
   const matterRoot = path.join(tmp, "Story Matter");

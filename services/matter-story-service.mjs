@@ -1,6 +1,13 @@
-import { readFile, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { writeFileAtomic } from "../shared/atomic-file.mjs";
+import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
+import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
+import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
+import { createDefaultRunProvider } from "./configurable-skill-providers.mjs";
 
 export const DISPUTE_STORY_SKILL_SLASH = "/the_story";
 export const DISPUTE_STORY_OUTPUT_RELATIVE = "20_Workshop/The Story.md";
@@ -9,11 +16,38 @@ export const MATTER_WORKBENCH_AUTHOR = "MW";
 export const MATTER_WORKBENCH_STORY_SOURCE_TYPE = "matter_workbench_story";
 const MATTER_STORY_SCHEMA_VERSION = "matter-story/v1";
 const MAX_BRIEF_DESCRIPTION_CHARS = 1800;
+const MAX_NATIVE_STORY_MARKDOWN_CHARS = 24_000;
 const FILE_TIME_TOLERANCE_MS = 1;
+const DISPUTE_STORY_JSON_RELATIVE = "20_Workshop/The Story.json";
+
+const NATIVE_DISPUTE_STORY_SKILL = Object.freeze({
+  id: "builtin_the_story",
+  title: "The Story",
+  slash: DISPUTE_STORY_SKILL_SLASH,
+  description: "Write a short Matter Workbench story for the matter overview from the current List of Dates.",
+  outputArtifact: DISPUTE_STORY_OUTPUT_RELATIVE,
+  sourceBacked: "required",
+  promptConfig: Object.freeze({
+    prompt: [
+      "Write a concise Matter Workbench story for the selected matter.",
+      "Use the current List of Dates as the primary spine and do not introduce new facts that are not supported by the supplied matter context.",
+      "Source Index and matter metadata may clarify names, roles, labels, and procedural context only.",
+      "Structure the Markdown in this order: At a glance; What this matter is about; Key dispute; Procedural posture; Main risks and missing facts.",
+      "Use plain legal-workbench language for a lawyer reviewing the matter internally.",
+      "Do not call the output final, approved, court-ready, or ready to send.",
+      "End with a short Internal source handles section containing any raw FILE-NNNN citations used for audit.",
+    ].join("\n"),
+    citationPolicy: "Use readable source labels in the prose. Keep raw FILE-NNNN pX.bY handles only in an Internal source handles section.",
+  }),
+});
 
 export function createMatterStoryService({
   matterStore,
   configurableSkillsService,
+  nativeRunProvider = null,
+  env = process.env,
+  fetchImpl = fetch,
+  endpoint,
   now = () => new Date(),
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
@@ -55,26 +89,16 @@ export function createMatterStoryService({
     storyMarkdownReader = null,
   } = {}) {
     const matterRoot = await matterRootForName({ matterName, matterRootOverride });
-    if (!await hasActiveDisputeStorySkill()) {
-      return {
-        schema_version: MATTER_STORY_SCHEMA_VERSION,
-        state: "skipped_missing_skill",
-        slash: DISPUTE_STORY_SKILL_SLASH,
-        artifactPath: DISPUTE_STORY_OUTPUT_RELATIVE,
-      };
-    }
-
-    const skillRunRequest = {
-      slash: DISPUTE_STORY_SKILL_SLASH,
-      overwrite,
+    const skillRun = await runConfiguredOrNativeStorySkill({
       matterName,
-    };
-    if (matterRootOverride) skillRunRequest.matterRootOverride = matterRootOverride;
-    if (matterRecordOverride) skillRunRequest.matterRecordOverride = matterRecordOverride;
-    if (matterContextPacketOverride) skillRunRequest.matterContextPacketOverride = matterContextPacketOverride;
-    if (artifactExistsOverride) skillRunRequest.artifactExistsOverride = artifactExistsOverride;
-    if (artifactWriter) skillRunRequest.artifactWriter = artifactWriter;
-    const skillRun = await configurableSkillsService.runSkill(skillRunRequest);
+      matterRoot,
+      overwrite,
+      matterRootOverride,
+      matterRecordOverride,
+      matterContextPacketOverride,
+      artifactExistsOverride,
+      artifactWriter,
+    });
     const artifactPath = skillRun.outputPaths?.markdown || skillRun.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE;
     const markdown = typeof skillRun.markdown === "string" && skillRun.markdown.trim()
       ? skillRun.markdown
@@ -103,12 +127,124 @@ export function createMatterStoryService({
   }
 
   async function hasActiveDisputeStorySkill() {
+    return true;
+  }
+
+  async function hasConfiguredDisputeStorySkill() {
     const payload = await configurableSkillsService.listSkills();
     return Array.isArray(payload?.skills)
       && payload.skills.some((skill) => (
         skill?.slash === DISPUTE_STORY_SKILL_SLASH
         && (skill.status || "active") === "active"
       ));
+  }
+
+  async function runConfiguredOrNativeStorySkill({
+    matterName,
+    matterRoot,
+    overwrite,
+    matterRootOverride,
+    matterRecordOverride,
+    matterContextPacketOverride,
+    artifactExistsOverride,
+    artifactWriter,
+  }) {
+    if (await hasConfiguredDisputeStorySkill()) {
+      const skillRunRequest = {
+        slash: DISPUTE_STORY_SKILL_SLASH,
+        overwrite,
+        matterName,
+      };
+      if (matterRootOverride) skillRunRequest.matterRootOverride = matterRootOverride;
+      if (matterRecordOverride) skillRunRequest.matterRecordOverride = matterRecordOverride;
+      if (matterContextPacketOverride) skillRunRequest.matterContextPacketOverride = matterContextPacketOverride;
+      if (artifactExistsOverride) skillRunRequest.artifactExistsOverride = artifactExistsOverride;
+      if (artifactWriter) skillRunRequest.artifactWriter = artifactWriter;
+      return configurableSkillsService.runSkill(skillRunRequest);
+    }
+
+    return runNativeDisputeStorySkill({
+      matterRoot,
+      matterName,
+      overwrite,
+      matterContextPacketOverride,
+      artifactExistsOverride,
+      artifactWriter,
+    });
+  }
+
+  async function runNativeDisputeStorySkill({
+    matterRoot,
+    matterName,
+    overwrite,
+    matterContextPacketOverride,
+    artifactExistsOverride,
+    artifactWriter,
+  }) {
+    const outputPaths = {
+      markdown: DISPUTE_STORY_OUTPUT_RELATIVE,
+      json: DISPUTE_STORY_JSON_RELATIVE,
+    };
+    const artifactExists = typeof artifactExistsOverride === "function"
+      ? await artifactExistsOverride(outputPaths.markdown)
+      : Boolean(await fileStatIfFile(resolveRelativeInside(matterRoot, outputPaths.markdown)));
+    if (artifactExists && !overwrite) {
+      return {
+        schema_version: "configurable-skill-run/v1",
+        state: "requires_overwrite",
+        skill: nativeStoryPublicSkill(),
+        artifactPath: outputPaths.markdown,
+        outputPaths,
+      };
+    }
+
+    const packet = matterContextPacketOverride || await buildNativeStoryMatterContextPacket(matterRoot);
+    const matterContext = summarizeMatterContext(packet);
+    assertMatterStoryHasListOfDates(matterContext);
+    const policy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+    const providerConfig = resolveProviderConfig(policy, { endpoint });
+    if (!providerConfig.model) {
+      throw makeHttpError(
+        "Matter Story is not configured.",
+        409,
+        "matter_story.model_not_configured",
+      );
+    }
+    const provider = nativeRunProvider || createDefaultRunProvider({ providerConfig, env, fetchImpl });
+    const aiRun = {
+      provider: providerConfig.provider,
+      model: providerConfig.model,
+      task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+      policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
+    };
+    const runId = `matter_story_${randomUUID()}`;
+    const markdown = boundedNativeStoryMarkdown(await provider({
+      skill: NATIVE_DISPUTE_STORY_SKILL,
+      matterContext,
+      providerConfig,
+    }));
+    const metadata = {
+      schema_version: "matter-story-run/v1",
+      skill: nativeStoryPublicSkill(),
+      matter: packet.matter || {},
+      outputPath: outputPaths.markdown,
+      generatedAt: now().toISOString(),
+      aiRun,
+      warnings: Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [],
+    };
+    const artifactPersistence = typeof artifactWriter === "function"
+      ? await artifactWriter({ outputPaths, markdown, metadata, runId })
+      : await writeNativeStoryArtifacts({ matterRoot, outputPaths, markdown, metadata, runId });
+
+    return {
+      ...metadata,
+      state: "written",
+      markdown,
+      outputPaths,
+      artifactPath: outputPaths.markdown,
+      runId,
+      ...(artifactPersistence ? { artifactPersistence } : {}),
+    };
   }
 
   async function matterRootForName({ matterName: rawMatterName = "", matterRootOverride = "" } = {}) {
@@ -125,6 +261,69 @@ export function createMatterStoryService({
     readDisputeStoryStatus,
     runDisputeStory,
   };
+}
+
+async function buildNativeStoryMatterContextPacket(matterRoot) {
+  if (String(matterRoot || "").startsWith("postgres:")) {
+    throw makeHttpError(
+      "Matter context is not available for the Matter Story workflow. Ask the operator to check the workspace setup.",
+      409,
+      "matter_story.context_required",
+    );
+  }
+  return buildConfigurableSkillMatterContextPacket(matterRoot);
+}
+
+function assertMatterStoryHasListOfDates(matterContext = {}) {
+  const artifacts = Array.isArray(matterContext.library_artifacts) ? matterContext.library_artifacts : [];
+  const hasListOfDates = artifacts.some((artifact) => (
+    artifact?.kind === "list_of_dates"
+    || artifact?.kind === "list_of_dates_markdown"
+    || /10_Library\/List of Dates\.(md|json)$/i.test(String(artifact?.path || ""))
+  ));
+  if (hasListOfDates) return;
+  throw makeHttpError(
+    "Create the List of Dates before writing the Matter Story.",
+    409,
+    "matter_story.list_of_dates_required",
+  );
+}
+
+function nativeStoryPublicSkill() {
+  return {
+    id: NATIVE_DISPUTE_STORY_SKILL.id,
+    slash: NATIVE_DISPUTE_STORY_SKILL.slash,
+    title: NATIVE_DISPUTE_STORY_SKILL.title,
+    description: NATIVE_DISPUTE_STORY_SKILL.description,
+    outputArtifact: NATIVE_DISPUTE_STORY_SKILL.outputArtifact,
+    sourceBacked: NATIVE_DISPUTE_STORY_SKILL.sourceBacked,
+    configurable: false,
+  };
+}
+
+function boundedNativeStoryMarkdown(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    throw makeHttpError(
+      "Matter Story returned an empty result.",
+      502,
+      "matter_story.empty_output",
+    );
+  }
+  if (text.length <= MAX_NATIVE_STORY_MARKDOWN_CHARS) return text;
+  return `${text.slice(0, MAX_NATIVE_STORY_MARKDOWN_CHARS).trimEnd()}\n\n_Trimmed for length._`;
+}
+
+async function writeNativeStoryArtifacts({ matterRoot, outputPaths, markdown, metadata, runId }) {
+  const markdownPath = resolveRelativeInside(matterRoot, outputPaths.markdown);
+  const jsonPath = resolveRelativeInside(matterRoot, outputPaths.json);
+  await mkdir(path.dirname(markdownPath), { recursive: true });
+  await writeFileAtomic(markdownPath, `${markdown}\n`);
+  await writeFileAtomic(jsonPath, `${JSON.stringify({ ...metadata, runId, markdown }, null, 2)}\n`);
+  return [
+    { relativePath: outputPaths.markdown },
+    { relativePath: outputPaths.json },
+  ];
 }
 
 export async function updateBriefDescriptionFromStory({
