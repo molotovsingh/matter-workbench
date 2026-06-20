@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Matter Workbench nav shell prototype</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #687085;
+      --paper: #fffdfa;
+      --wash: #f7f4ee;
+      --panel: #fffaf2;
+      --line: #ded7ca;
+      --line-strong: #cfc5b4;
+      --black: #171a15;
+      --black-2: #20241d;
+      --black-muted: #9da493;
+      --accent: #5b6f45;
+      --accent-soft: #e8eddf;
+      --gold: #b99045;
+      --shadow: 0 18px 48px rgba(32, 24, 12, 0.08);
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #ece7dc; color: var(--ink); }
+    button { font: inherit; }
+
+    .prototype-banner {
+      align-items: center;
+      background: #fff6d8;
+      border-bottom: 1px solid #e3cf8f;
+      color: #604516;
+      display: flex;
+      font-size: 13px;
+      gap: 16px;
+      justify-content: space-between;
+      padding: 10px 14px;
+    }
+    .prototype-banner strong { color: #352407; }
+    .variant-picker { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+    .variant-picker button {
+      background: rgba(255,255,255,0.65);
+      border: 1px solid #d2b964;
+      border-radius: 999px;
+      color: #493303;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
+    .variant-picker button.active { background: #493303; color: #fff7dc; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 188px 270px minmax(540px, 1fr) 310px;
+      min-height: calc(100vh - 45px);
+      width: 100%;
+    }
+
+    .black-rail {
+      background: var(--black);
+      color: #f6f1e4;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 28px 14px 16px;
+    }
+    .brand { margin-bottom: 14px; }
+    .brand strong {
+      display: block;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 21px;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+    .brand span {
+      color: var(--black-muted);
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.24em;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+    .rail-section-title {
+      color: var(--black-muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      margin: 10px 0 6px;
+      text-transform: uppercase;
+    }
+    .rail-link,
+    .rail-matter-card {
+      align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
+      border-left: 2px solid transparent;
+      color: #dbd8cb;
+      cursor: pointer;
+      display: flex;
+      gap: 9px;
+      min-height: 38px;
+      padding: 8px 10px;
+      text-align: left;
+      width: 100%;
+    }
+    .rail-link:hover,
+    .rail-link.active {
+      background: rgba(255,255,255,0.06);
+      border-left-color: #d1b15f;
+      color: #fff8e7;
+    }
+    .rail-link .icon { color: var(--black-muted); width: 16px; }
+    .rail-matter-card {
+      align-items: flex-start;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-left: 2px solid var(--accent);
+      cursor: default;
+      display: grid;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .rail-matter-card small { color: var(--black-muted); font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .rail-matter-card strong { color: #fff8e7; font-size: 13px; line-height: 1.35; }
+    .rail-bottom { margin-top: auto; color: var(--black-muted); font-size: 11px; line-height: 1.45; }
+
+    .file-pane {
+      background: var(--wash);
+      border-right: 1px solid var(--line-strong);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px 12px;
+    }
+    .pane-kicker { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase; }
+    .pane-title { color: var(--ink); font-size: 15px; font-weight: 800; margin-top: 4px; }
+    .file-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 16px; }
+    .file-actions button,
+    .top-actions button,
+    .matter-actions button,
+    .assistant-actions button {
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 30px;
+      padding: 6px 10px;
+    }
+    .file-actions button.primary,
+    .matter-actions button.primary,
+    .top-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .folder-list { border-top: 1px solid var(--line); padding-top: 12px; }
+    .folder {
+      align-items: center;
+      border-left: 2px solid transparent;
+      display: flex;
+      gap: 9px;
+      min-height: 32px;
+      padding: 6px 8px;
+    }
+    .folder.active { background: #eee7dc; border-left-color: var(--accent); }
+    .folder .folder-icon { color: #b29357; }
+    .folder small { color: var(--muted); margin-left: auto; }
+
+    .workspace {
+      background: var(--paper);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+    .topbar {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      min-height: 52px;
+      padding: 8px 18px;
+    }
+    .top-context { min-width: 0; }
+    .top-context small { color: var(--muted); display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .top-context strong { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .top-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .main-content { overflow: auto; padding: 34px 36px 60px; }
+    .matter-hero { align-items: flex-start; display: flex; gap: 24px; justify-content: space-between; margin-bottom: 18px; }
+    .matter-hero h1 { font-family: Georgia, "Times New Roman", serif; font-size: 36px; line-height: 1.05; margin: 0 0 8px; }
+    .matter-hero p { color: var(--muted); margin: 0; }
+    .matter-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; max-width: 360px; }
+    .story-card, .metadata-card, .prep-card {
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      box-shadow: var(--shadow);
+      margin-top: 18px;
+      max-width: 760px;
+      padding: 18px;
+    }
+    .story-heading { align-items: center; display: flex; justify-content: space-between; gap: 16px; }
+    .story-heading small,
+    .section-label { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+    .story-heading h2 { font-size: 18px; margin: 3px 0 0; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .pill { background: #faf7ef; border: 1px solid var(--line-strong); border-radius: 999px; color: #384157; font-size: 12px; padding: 5px 8px; }
+    .story-section { margin-top: 14px; }
+    .story-section h3 { color: #697085; font-size: 11px; font-weight: 800; letter-spacing: 0.13em; margin: 0 0 6px; text-transform: uppercase; }
+    .story-section p { color: #303b50; font-size: 14px; line-height: 1.65; margin: 0; }
+    .metadata-grid { display: grid; grid-template-columns: 170px 1fr; margin-top: 12px; }
+    .metadata-grid div { border-top: 1px solid var(--line); padding: 10px 12px; }
+    .metadata-grid div:nth-child(odd) { background: #f6f0e7; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .assistant-pane {
+      background: #fbf8f1;
+      border-left: 1px solid var(--line-strong);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px 14px;
+    }
+    .assistant-pane h2 { font-family: Georgia, "Times New Roman", serif; font-size: 25px; line-height: 1; margin: 4px 0 8px; }
+    .assistant-pane p { color: #3d4659; font-size: 13px; line-height: 1.45; margin: 0; }
+    .assistant-actions { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 18px; }
+    .ask-box { margin-top: auto; }
+    .ask-box label { color: var(--muted); display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 7px; text-transform: uppercase; }
+    .ask-row { display: grid; grid-template-columns: 1fr 34px; gap: 6px; }
+    .ask-row input { background: var(--paper); border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink); font: inherit; padding: 9px 10px; width: 100%; }
+    .ask-row button { background: var(--black); border: 0; border-radius: 4px; color: #fff; cursor: pointer; }
+    .activity-mini { background: #f6f0e7; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; padding: 10px; }
+
+    body[data-variant="black-global"] .top-actions .global-only { display: none; }
+    body[data-variant="black-global"] .black-global-only { display: block; }
+    body:not([data-variant="black-global"]) .black-global-only { display: none; }
+
+    body[data-variant="slim"] .shell { grid-template-columns: 76px 280px minmax(540px, 1fr) 310px; }
+    body[data-variant="slim"] .black-rail { align-items: center; padding-left: 10px; padding-right: 10px; }
+    body[data-variant="slim"] .brand strong { font-size: 18px; text-align: center; }
+    body[data-variant="slim"] .brand span,
+    body[data-variant="slim"] .rail-section-title,
+    body[data-variant="slim"] .rail-link span:not(.icon),
+    body[data-variant="slim"] .rail-matter-card,
+    body[data-variant="slim"] .rail-bottom { display: none; }
+    body[data-variant="slim"] .rail-link { justify-content: center; padding: 8px; }
+    body[data-variant="slim"] .rail-link .icon { width: auto; }
+
+    @media (max-width: 1200px) {
+      .shell { grid-template-columns: 168px 250px minmax(420px, 1fr); }
+      .assistant-pane { display: none; }
+    }
+  </style>
+</head>
+<body data-variant="app-anchor">
+  <div class="prototype-banner">
+    <div><strong>Navigation shell prototype.</strong> Visual test only — buttons do not change real matters.</div>
+    <div class="variant-picker" aria-label="Prototype variants">
+      <button type="button" class="active" data-variant="app-anchor">A: black app anchor</button>
+      <button type="button" data-variant="black-global">B: black global nav</button>
+      <button type="button" data-variant="slim">C: slim black spine</button>
+    </div>
+  </div>
+
+  <div class="shell">
+    <aside class="black-rail">
+      <div class="brand"><strong>Matter</strong><span>Workbench</span></div>
+
+      <div class="rail-section-title black-global-only">App</div>
+      <button class="rail-link black-global-only"><span class="icon">⌕</span><span>Find matter</span></button>
+      <button class="rail-link black-global-only"><span class="icon">＋</span><span>New matter</span></button>
+      <button class="rail-link black-global-only"><span class="icon">✦</span><span>Skills</span></button>
+      <button class="rail-link black-global-only"><span class="icon">◔</span><span>Activity</span></button>
+      <button class="rail-link black-global-only"><span class="icon">⚙</span><span>Settings</span></button>
+
+      <div class="rail-section-title">Matter</div>
+      <button class="rail-link active"><span class="icon">⌂</span><span>Matter Home</span></button>
+      <div class="rail-matter-card">
+        <small>Active matter</small>
+        <strong>Taori vs Roma Builder</strong>
+      </div>
+
+      <div class="rail-section-title">Workbench</div>
+      <button class="rail-link"><span class="icon">✦</span><span>Skills</span></button>
+      <button class="rail-link"><span class="icon">◔</span><span>Activity</span></button>
+      <button class="rail-link"><span class="icon">⚙</span><span>Settings</span></button>
+
+      <div class="rail-bottom">Black rail retained as a visual anchor. Compare whether it should carry app-global navigation or stay quiet.</div>
+    </aside>
+
+    <aside class="file-pane">
+      <div class="pane-kicker">Matter record</div>
+      <div class="pane-title">Files and work products</div>
+      <div class="file-actions">
+        <button class="primary">+ Add files</button>
+        <button>Refresh</button>
+        <button>Show technical</button>
+      </div>
+      <div class="folder-list">
+        <div class="folder active"><span class="folder-icon">■</span><span>Case Record</span><small>24</small></div>
+        <div class="folder"><span class="folder-icon">■</span><span>Source Record</span><small>4</small></div>
+        <div class="folder"><span class="folder-icon">■</span><span>Case Analysis</span><small>2</small></div>
+        <div class="folder"><span class="folder-icon">□</span><span>Drafts</span><small>0</small></div>
+        <div class="folder"><span class="folder-icon">□</span><span>Ready to Send</span><small>0</small></div>
+        <div class="folder"><span class="folder-icon">□</span><span>matter.json</span><small>3KB</small></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="top-context">
+          <small>App global</small>
+          <strong>Matter Workbench · Active matter: Taori vs Roma Builder</strong>
+        </div>
+        <div class="top-actions">
+          <button class="global-only">Find matter</button>
+          <button class="global-only primary">New matter</button>
+          <button class="global-only">Skills</button>
+          <button class="global-only">Activity</button>
+          <button class="global-only">Settings</button>
+          <button>Sign out</button>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div class="matter-hero">
+          <div>
+            <div class="section-label">Matter Home</div>
+            <h1>Taori vs Roma Builder</h1>
+            <p>42 files and 6 folders loaded from the matter record.</p>
+          </div>
+          <div class="matter-actions" aria-label="Matter actions">
+            <button class="primary">Prepare matter</button>
+            <button>Write Matter Story</button>
+            <button>Create List of Dates</button>
+            <button>Add files</button>
+          </div>
+        </div>
+
+        <article class="story-card">
+          <div class="story-heading">
+            <div><small>Matter Story</small><h2>Matter Workbench story</h2></div>
+            <div class="pill-row"><span class="pill">Author: MW</span><span class="pill">Based on: Current List of Dates</span></div>
+          </div>
+          <section class="story-section"><h3>At a glance</h3><p>This matter concerns delayed possession and registration of Flat No. 1202, with disputes about payments, handover obligations, and responsibility for delay.</p></section>
+          <section class="story-section"><h3>What this matter is about</h3><p>The complainants say the builder took substantial payments but did not complete the conveyance and possession process. The respondent says further dues and charges remain unresolved.</p></section>
+          <section class="story-section"><h3>Main risks and missing facts</h3><p>Key risks include payment proof, possession status, and how the forum treats contractual dues against delay. Missing facts include complete payment reconciliation and final correspondence.</p></section>
+        </article>
+
+        <section class="metadata-card">
+          <div class="section-label">Matter details</div>
+          <div class="metadata-grid">
+            <div>Client</div><div>KK Taori</div>
+            <div>Opposite party</div><div>Roma Builder</div>
+            <div>Matter type</div><div>Consumer Court</div>
+            <div>Jurisdiction</div><div>Consumer Dispute</div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <aside class="assistant-pane">
+      <div class="assistant-actions"><button>New task</button><button>High</button></div>
+      <div class="section-label">Matter Assistant</div>
+      <h2>What do you need?</h2>
+      <p>Ask about the active matter, run a matter action, or create a reusable skill.</p>
+      <div class="ask-box">
+        <label>Ask or run</label>
+        <div class="ask-row"><input value="Ask about Taori vs Roma Builder…" aria-label="Ask" readonly /><button>→</button></div>
+        <div class="activity-mini"><strong>Recent activity</strong><br />16:17 switched to matter<br />16:18 Matter Story refreshed</div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll('[data-variant]'));
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        document.body.dataset.variant = button.dataset.variant;
+        buttons.forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+      });
+    });
+  </script>
+</body>
+</html>

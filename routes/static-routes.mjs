@@ -29,6 +29,13 @@ export function resolveStaticPath(appDir, urlPath) {
   }
 
   const reactRoot = path.resolve(appDir, "react-dist");
+  const prototypeRoot = path.resolve(appDir, "prototypes");
+
+  if (cleanPath === "/prototype/nav-shell" || cleanPath === "/prototype/nav-shell/") {
+    const prototypePath = path.resolve(prototypeRoot, "nav-shell.html");
+    if (!isInsideRoot(prototypeRoot, prototypePath)) return null;
+    return prototypePath;
+  }
 
   if (cleanPath === "/") {
     return path.join(reactRoot, "index.html");
