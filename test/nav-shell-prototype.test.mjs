@@ -9,11 +9,11 @@ test("navigation shell prototype is clearly separated from production UI", async
 
   assert.match(html, /Navigation shell prototype/);
   assert.match(html, /Visual test only/);
-  assert.match(html, /A: black app anchor/);
-  assert.match(html, /B: black global nav/);
+  assert.match(html, /A: recommended black rail/);
+  assert.match(html, /B: quiet black anchor/);
   assert.match(html, /C: slim black spine/);
   assert.match(html, /Matter record/);
   assert.match(html, /Matter Home/);
-  assert.match(html, /App global/);
+  assert.match(html, /app-global navigation plus the active matter anchor/);
   assert.doesNotMatch(html, /OpenAI|OpenRouter|GPT|API key|billing|quota/i);
 });

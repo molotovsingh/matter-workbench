@@ -230,9 +230,20 @@
     .ask-row button { background: var(--black); border: 0; border-radius: 4px; color: #fff; cursor: pointer; }
     .activity-mini { background: #f6f0e7; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; padding: 10px; }
 
+    body[data-variant="recommended"] .topbar { min-height: 44px; }
+    body[data-variant="recommended"] .top-context small { letter-spacing: 0.16em; }
+    body[data-variant="recommended"] .matter-hero { display: block; }
+    body[data-variant="recommended"] .matter-actions { justify-content: flex-start; margin-top: 14px; max-width: none; }
+    body[data-variant="recommended"] .rail-duplicate { display: none; }
+    body[data-variant="recommended"] .rail-matter-card { cursor: pointer; }
+    body[data-variant="recommended"] .rail-matter-card:hover { background: rgba(255,255,255,0.09); }
+    body[data-variant="recommended"] .rail-bottom { color: #8f9788; }
+
+    body[data-variant="recommended"] .top-actions .global-only,
     body[data-variant="black-global"] .top-actions .global-only { display: none; }
+    body[data-variant="recommended"] .black-global-only,
     body[data-variant="black-global"] .black-global-only { display: block; }
-    body:not([data-variant="black-global"]) .black-global-only { display: none; }
+    body:not([data-variant="recommended"]):not([data-variant="black-global"]) .black-global-only { display: none; }
 
     body[data-variant="slim"] .shell { grid-template-columns: 76px 280px minmax(540px, 1fr) 310px; }
     body[data-variant="slim"] .black-rail { align-items: center; padding-left: 10px; padding-right: 10px; }
@@ -251,12 +262,12 @@
     }
   </style>
 </head>
-<body data-variant="app-anchor">
+<body data-variant="recommended">
   <div class="prototype-banner">
     <div><strong>Navigation shell prototype.</strong> Visual test only — buttons do not change real matters.</div>
     <div class="variant-picker" aria-label="Prototype variants">
-      <button type="button" class="active" data-variant="app-anchor">A: black app anchor</button>
-      <button type="button" data-variant="black-global">B: black global nav</button>
+      <button type="button" class="active" data-variant="recommended">A: recommended black rail</button>
+      <button type="button" data-variant="app-anchor">B: quiet black anchor</button>
       <button type="button" data-variant="slim">C: slim black spine</button>
     </div>
   </div>
@@ -273,18 +284,18 @@
       <button class="rail-link black-global-only"><span class="icon">⚙</span><span>Settings</span></button>
 
       <div class="rail-section-title">Matter</div>
-      <button class="rail-link active"><span class="icon">⌂</span><span>Matter Home</span></button>
       <div class="rail-matter-card">
-        <small>Active matter</small>
+        <small>Active matter · Matter Home</small>
         <strong>Taori vs Roma Builder</strong>
       </div>
+      <button class="rail-link active rail-duplicate"><span class="icon">⌂</span><span>Matter Home</span></button>
 
-      <div class="rail-section-title">Workbench</div>
-      <button class="rail-link"><span class="icon">✦</span><span>Skills</span></button>
-      <button class="rail-link"><span class="icon">◔</span><span>Activity</span></button>
-      <button class="rail-link"><span class="icon">⚙</span><span>Settings</span></button>
+      <div class="rail-section-title rail-duplicate">Workbench</div>
+      <button class="rail-link rail-duplicate"><span class="icon">✦</span><span>Skills</span></button>
+      <button class="rail-link rail-duplicate"><span class="icon">◔</span><span>Activity</span></button>
+      <button class="rail-link rail-duplicate"><span class="icon">⚙</span><span>Settings</span></button>
 
-      <div class="rail-bottom">Black rail retained as a visual anchor. Compare whether it should carry app-global navigation or stay quiet.</div>
+      <div class="rail-bottom">Recommended: black rail carries app-global navigation plus the active matter anchor. The top bar stays quiet.</div>
     </aside>
 
     <aside class="file-pane">
@@ -308,8 +319,8 @@
     <section class="workspace">
       <header class="topbar">
         <div class="top-context">
-          <small>App global</small>
-          <strong>Matter Workbench · Active matter: Taori vs Roma Builder</strong>
+          <small>Matter Workbench</small>
+          <strong>Private beta workspace · Active matter: Taori vs Roma Builder</strong>
         </div>
         <div class="top-actions">
           <button class="global-only">Find matter</button>
