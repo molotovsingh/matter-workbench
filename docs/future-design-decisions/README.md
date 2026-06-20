@@ -1,13 +1,13 @@
 # Future Design Decisions
 
-Date: 2026-05-19
+Date: 2026-06-20
 Status: Current decision ledger
 
 This folder holds parked product decisions, SME requirement capture, current local contracts, and implementation-contract drafts for Matter Workbench.
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 29 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 30 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -40,6 +40,7 @@ This README tracks the 29 decision documents in this folder. The README itself i
 | [Hosted Beta Database Architecture](hosted-beta-database-architecture.md) | Implementation contract draft | High, but not first local polish | Hosted implementation begins | Keep as one broad contract for now. Split only when implementation starts. Enforce the stop rule before hosted legal engines move to workers. |
 | [Native Skill Implementation Contract](native-skill-implementation-contract.md) | Implementation contract draft | High | Native skill UI/contract work resumes | Promote repeated source-label, staleness, visibility, and dispatch rules into canonical contracts before broad implementation. |
 | [Native Skill Library Strategy](native-skill-library-strategy.md) | Working product note | High | Planning next native skill beyond current spine | Convert into an execution table: skill, lawyer question, inputs, outputs, source-backed fields, deterministic/model-heavy parts, cost risk, custom-skill demand replaced, status. |
+| [Court-Facing Drafts Workbench](court-facing-drafts-workbench.md) | SME requirement capture / post-Beta-3 planning note | High | Drafting module planning resumes, a first filing family is selected, or matrix discovery begins | Do not code yet. Choose one MVP filing family, run preset matrix discovery from reliable sources, then define the template registry row, required-section schema, review checklist, and Ready to Send artifact plan. Keep real-time matrix discovery parked far future. |
 | [Document Index / Source Inventory](native-skill-document-index-source-inventory.md) | SME requirement capture | High | Source Labels / Document Index work resumes | Resolve SME questions, then turn accepted requirements into source-record schema and review workflow contract. |
 | [Chronology / List of Dates](native-skill-chronology-list-of-dates.md) | SME requirement capture started | High | List of Dates family, court-facing mode, or drafting handoff work resumes | Confirm output shape and court-facing export boundaries; align implementation with canonical source identity and staleness contracts. |
 | [Matter Metadata and Client Interview](matter-metadata-client-interview.md) | SME requirement capture | Medium-High | New Matter flow or metadata review work resumes | Define minimum stage/role choices and metadata review behavior after documents are ingested. |
