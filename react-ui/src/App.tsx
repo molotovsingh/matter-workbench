@@ -21,6 +21,7 @@ import { formatIntentDiscoveryGuidance } from './lib/skillIntentRouting';
 import { localAssistantReply } from './lib/assistantSmallTalk';
 import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
 import { useLatestValue } from './hooks/useLatestValue';
+import { filePreviewTitle, loadTextFilePreview } from './lib/filePreview';
 import { humanizeArtifactPath } from './lib/presentationLabels';
 import { canSeeOperatorSurface } from './lib/lawyerMode';
 import { useUserReadinessGate } from './hooks/useUserReadinessGate';
@@ -385,6 +386,53 @@ function AppShell() {
     }
   }, [activeMatterNameRef, appendTerminal, dispatch, pendingConfigurableOverwrite, state.isCommandRunning]);
 
+  const runMatterStoryFromCommand = useCallback(async (
+    matterNameInput?: string | null,
+    { manageCommandRunning = true }: { manageCommandRunning?: boolean } = {},
+  ) => {
+    const matterName = String(matterNameInput || state.activeMatter?.name || '').trim();
+    if (!matterName) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before writing the Matter Story.' });
+      return;
+    }
+
+    if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Writing Matter Story…' });
+    appendTerminal([`[story] writing Matter Story for "${matterName}"`]);
+
+    try {
+      const result = await api.runMatterStory({ matterName, overwrite: true });
+      if (activeMatterNameRef.current !== matterName) return;
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after Matter Story',
+      });
+      if (activeMatterNameRef.current !== matterName) return;
+
+      const storyPath = result.artifactPath || '20_Workshop/The Story.md';
+      try {
+        const preview = await loadTextFilePreview(storyPath, (filePath) => api.getFile(filePath, matterName));
+        if (activeMatterNameRef.current !== matterName) return;
+        dispatch({ type: 'SET_ACTIVE_FILE', payload: storyPath });
+        dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(storyPath) });
+        dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
+        dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+      } catch {
+        if (activeMatterNameRef.current !== matterName) return;
+      }
+
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Matter Story is ready.' });
+      appendTerminal([`[story] ready: ${storyPath}`]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
+      const message = getErrorMessage(e);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Matter Story could not be written: ${message}` });
+      appendTerminal([`[story] failed: ${message}`]);
+    } finally {
+      if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace, state.activeMatter?.name]);
+
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
     const localReply = localAssistantReply(cmd, Boolean(state.activeMatter));
@@ -405,6 +453,10 @@ function AppShell() {
     const nativeResolution = resolveNativeCommand(lower);
 
     if (nativeResolution) {
+      if (nativeResolution.command === '/the_story') {
+        await runMatterStoryFromCommand(state.activeMatter?.name ?? null);
+        return;
+      }
       const commandLabel = cleanCommandLabel(nativeResolution.command);
       const terminalLine = nativeResolution.command === lower
         ? `[cmd] ${commandLabel}`
@@ -436,6 +488,10 @@ function AppShell() {
       if (result.decision === 'run_existing_skill' && result.matched_skill) {
         const matchedResolution = resolveNativeCommand(result.matched_skill);
         if (matchedResolution) {
+          if (matchedResolution.command === '/the_story') {
+            await runMatterStoryFromCommand(matterName, { manageCommandRunning: false });
+            return;
+          }
           setActiveView(matchedResolution.view);
           dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(matchedResolution.command) });
         } else if (result.matched_skill_card?.configurable) {
@@ -467,7 +523,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter, state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand]);
+  }, [state.activeMatter, state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
 
   function handleSlashSkill(command: string) {
     handleCommand(command);

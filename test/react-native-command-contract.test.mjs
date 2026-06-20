@@ -46,3 +46,12 @@ test("React app shell uses the shared skill-idea input classifier", async () => 
   assert.doesNotMatch(appSource, /includes\(['"]create a skill['"]\)/);
   assert.doesNotMatch(appSource, /includes\(['"]new skill['"]\)/);
 });
+
+test("React app shell runs The Story directly instead of hiding it behind preparation", async () => {
+  const appSource = await readFile(reactAppPath, "utf8");
+
+  assert.match(appSource, /runMatterStoryFromCommand/);
+  assert.match(appSource, /nativeResolution\.command === ['"]\/the_story['"]/);
+  assert.match(appSource, /api\.runMatterStory\(\{ matterName, overwrite: true \}\)/);
+  assert.match(appSource, /20_Workshop\/The Story\.md/);
+});

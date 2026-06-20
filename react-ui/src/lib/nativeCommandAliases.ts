@@ -14,6 +14,9 @@ export const NATIVE_COMMAND_ALIASES = [
   ['list of dates', '/create_listofdates'],
   ['create list of dates', '/create_listofdates'],
   ['chronology', '/create_listofdates'],
+  ['the story', '/the_story'],
+  ['matter story', '/the_story'],
+  ['write matter story', '/the_story'],
   ['doctor', '/doctor'],
   ['check matter health', '/doctor'],
 ] as const;

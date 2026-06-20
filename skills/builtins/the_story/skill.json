@@ -1,0 +1,39 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "the_story",
+  "slash": "/the_story",
+  "title": "The Story",
+  "display": {
+    "action": "Write Matter Story",
+    "artifact": "Matter Story",
+    "running": "Writing Matter Story",
+    "complete": "Matter Story ready",
+    "pill": "Uses AI"
+  },
+  "category": "Analyze",
+  "product_surface": "native_legal",
+  "purpose": "Write a short Matter Workbench story for the matter overview from the current List of Dates.",
+  "mode": "AI",
+  "matter_required": true,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": true,
+  "inputs": [
+    "10_Library/List of Dates.md",
+    "10_Library/List of Dates.json"
+  ],
+  "outputs": [
+    "20_Workshop/The Story.md",
+    "20_Workshop/The Story.json",
+    "matter.json.brief_description"
+  ],
+  "upstream": [
+    "/create_listofdates"
+  ],
+  "downstream": [],
+  "default_lane": "20_Workshop",
+  "runner_key": "/the_story",
+  "version": 1
+}

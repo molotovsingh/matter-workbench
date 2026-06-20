@@ -6,12 +6,14 @@ export const BUILTIN_SKILL_COMMANDS = Object.freeze([
   "/context_preview",
   "/context_search",
   "/create_listofdates",
+  "/the_story",
   "/doctor",
 ]);
 
 export const PROVIDER_BACKED_BUILTIN_SKILL_COMMANDS = Object.freeze([
   "/describe_sources",
   "/create_listofdates",
+  "/the_story",
 ]);
 
 export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
@@ -44,6 +46,10 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
     description: "Create the lawyer-facing list of dates. Paid AI actions ask first.",
   },
   {
+    command: "/the_story",
+    description: "Write the Matter Story from the current List of Dates. Paid AI actions ask first.",
+  },
+  {
     command: "/doctor",
     description: "Check known matter workspace issues.",
   },
@@ -65,6 +71,9 @@ export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
   ["list of dates", "/create_listofdates"],
   ["create list of dates", "/create_listofdates"],
   ["chronology", "/create_listofdates"],
+  ["the story", "/the_story"],
+  ["matter story", "/the_story"],
+  ["write matter story", "/the_story"],
   ["doctor", "/doctor"],
   ["check matter health", "/doctor"],
 ]);

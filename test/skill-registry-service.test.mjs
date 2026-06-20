@@ -14,20 +14,15 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(registry.schema_version, "skill-registry/v1");
   assert.deepEqual(registry.skills.map((skill) => skill.slash), EXPECTED_SLASHES);
   assert.deepEqual(registry.skills.map((skill) => skill.runner_key), EXPECTED_SLASHES);
-  assert.deepEqual(registry.skills.map((skill) => skill.schema_version), [
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-    "built-in-skill/v1",
-  ]);
+  assert.deepEqual(
+    registry.skills.map((skill) => skill.schema_version),
+    EXPECTED_SLASHES.map(() => "built-in-skill/v1"),
+  );
 
   const prepareMatter = registry.skills.find((skill) => skill.slash === "/prepare_matter");
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
   const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
+  const matterStory = registry.skills.find((skill) => skill.slash === "/the_story");
   assert.equal(prepareMatter.category, "Prepare");
   assert.equal(prepareMatter.product_surface, "readiness");
   assert.equal(prepareMatter.paid_provider_call, true);
@@ -62,6 +57,17 @@ test("skill registry reads all built-in skill stubs", async () => {
     "10_Library/List of Dates.md",
     "10_Library/List of Dates.csv",
     "10_Library/List of Dates.json",
+  ]);
+  assert.equal(matterStory.category, "Analyze");
+  assert.equal(matterStory.product_surface, "native_legal");
+  assert.equal(matterStory.display.action, "Write Matter Story");
+  assert.equal(matterStory.display.artifact, "Matter Story");
+  assert.equal(matterStory.default_lane, "20_Workshop");
+  assert.deepEqual(matterStory.upstream, ["/create_listofdates"]);
+  assert.deepEqual(matterStory.outputs, [
+    "20_Workshop/The Story.md",
+    "20_Workshop/The Story.json",
+    "matter.json.brief_description",
   ]);
 });
 

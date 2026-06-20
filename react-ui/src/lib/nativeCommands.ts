@@ -82,6 +82,16 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     overviewPlacement: 'secondary',
   },
   {
+    command: '/the_story',
+    label: 'Write Matter Story',
+    description: 'Write the Matter Story from the current List of Dates',
+    view: 'home',
+    pill: 'Uses AI',
+    showInSidebar: true,
+    showInCommandPanel: true,
+    overviewPlacement: 'primary',
+  },
+  {
     command: '/doctor',
     label: 'Check matter health',
     description: 'Run local diagnostics',
