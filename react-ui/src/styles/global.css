@@ -306,29 +306,6 @@ strong { font-weight: 600; }
 .matters-list button.active { border-left-color: var(--accent); background: var(--accent-soft); }
 .matters-list .matters-empty { color: var(--muted); padding: 7px 10px; font-style: italic; font-size: 12px; }
 
-/* ─── Slash / matter actions ────────────────────────────── */
-.slash-section { margin: 0 0 16px; }
-.matter-actions-section { border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px; }
-.matter-actions-summary {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  cursor: pointer; list-style: none; user-select: none;
-}
-.matter-actions-summary::-webkit-details-marker { display: none; }
-.matter-actions-summary::before { content: "▸"; color: var(--muted); font-size: 11px; line-height: 1; transform: translateY(-1px); }
-.matter-actions-section[open] .matter-actions-summary::before { content: "▾"; }
-.matter-actions-summary .tree-heading { flex: 1; }
-.matter-actions-count { color: var(--muted); font-size: var(--font-size-xs); }
-.matter-actions-list { margin-top: 8px; }
-
-.slash-skill {
-  width: 100%; margin-top: 10px; border: 0; border-left: 2px solid var(--accent);
-  background: var(--input-bg); color: var(--text); padding: 8px 10px;
-  text-align: left; cursor: pointer; display: grid; gap: 2px;
-}
-.slash-skill.active { background: var(--accent-soft); }
-.slash-label { font-weight: 600; }
-.slash-command { color: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--font-size-xs); }
-
 /* ─── File tree ─────────────────────────────────────────── */
 .tree-root, .tree-root ul { margin: 10px 0 0; padding-left: 0; }
 .tree-root ul { border-left: 1px solid var(--border-subtle); margin: 2px 0 2px 11px; padding-left: 12px; }

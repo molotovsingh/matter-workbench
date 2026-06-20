@@ -3,20 +3,18 @@ import WorkspaceTree from '../workspace/WorkspaceTree';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
-import { SIDEBAR_NATIVE_COMMANDS } from '../../lib/nativeCommands';
 
 interface Props {
   onNewMatter: () => void;
   onAddFiles: () => void;
-  onSlashSkill: (command: string) => void;
 }
 
-export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props) {
+export default function Sidebar({ onNewMatter, onAddFiles }: Props) {
   const { state, clearActiveMatter, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const { activeTab, activeMatter } = state;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
-  let title = 'Home';
+  let title = activeMatter ? 'Matter Home' : 'Home';
   if (activeTab === 'skills') title = 'Skills';
   else if (activeTab === 'activity') title = showOperatorChrome ? 'Activity' : 'Recent work';
   else if (activeTab === 'settings') title = 'Settings';
@@ -54,26 +52,6 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
 
       {activeMatter && (
         <>
-          <details className="slash-section matter-actions-section">
-            <summary className="matter-actions-summary">
-              <span className="tree-heading">Matter Actions</span>
-              <span className="matter-actions-count">{SIDEBAR_NATIVE_COMMANDS.length} actions</span>
-            </summary>
-            <div className="matter-actions-list">
-              {SIDEBAR_NATIVE_COMMANDS.map((s) => (
-                <button
-                  key={s.command}
-                  className="slash-skill"
-                  type="button"
-                  data-skill={s.command}
-                  onClick={() => onSlashSkill(s.command)}
-                >
-                  <span className="slash-label">{s.label}</span>
-                </button>
-              ))}
-            </div>
-          </details>
-
           <WorkspaceTree onRefresh={handleRefresh} onAddFiles={onAddFiles} />
 
           <div style={{ marginTop: 16 }}>
@@ -83,7 +61,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onSlashSkill }: Props
               onClick={handleClearMatter}
               style={{ fontSize: 12, color: 'var(--muted)' }}
             >
-              ← Go home
+              ← All matters
             </button>
           </div>
         </>

@@ -1,6 +1,4 @@
 import { useApp } from '../../store/AppContext';
-import { api } from '../../api/client';
-import { getErrorMessage } from '../../lib/errors';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import type { ActiveTab } from '../../types';
 
@@ -12,20 +10,16 @@ const TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?: st
 ];
 
 export default function ActivityBar() {
-  const { state, dispatch, clearActiveMatter, appendTerminal } = useApp();
+  const { state, dispatch } = useApp();
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const visibleTabs = TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
 
-  async function handleTabClick(tabId: ActiveTab) {
-    if (tabId === 'home' && state.activeMatter) {
-      try {
-        await api.clearActiveMatter();
-      } catch (e) {
-        appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(e)}`]);
-      }
-      clearActiveMatter();
-    }
+  function handleTabClick(tabId: ActiveTab) {
     dispatch({ type: 'SET_TAB', payload: tabId });
+    if (tabId === 'home') {
+      dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: state.activeMatter?.name || 'Home' });
+    }
   }
 
   return (
@@ -33,21 +27,23 @@ export default function ActivityBar() {
       <button
         className="activity-logo"
         type="button"
-        aria-label="Go to Matter Workbench home"
-        onClick={() => { void handleTabClick('home'); }}
+        aria-label={state.activeMatter ? 'Go to Matter Home' : 'Go to Matter Workbench home'}
+        onClick={() => { handleTabClick('home'); }}
       >
         <strong>Matter</strong>
         <span>Workbench</span>
       </button>
       {visibleTabs.map((tab) => {
-        const label = showOperatorChrome ? tab.label : (tab.lawyerLabel || tab.label);
+        const label = tab.id === 'home' && state.activeMatter
+          ? 'Matter Home'
+          : showOperatorChrome ? tab.label : (tab.lawyerLabel || tab.label);
         return (
         <button
           key={tab.id}
           className={`activity-item${state.activeTab === tab.id ? ' active' : ''}`}
           type="button"
           title={label}
-          onClick={() => { void handleTabClick(tab.id); }}
+          onClick={() => { handleTabClick(tab.id); }}
         >
           <span className="activity-icon" aria-hidden="true">{tab.icon}</span>
           <span className="activity-label">{label}</span>

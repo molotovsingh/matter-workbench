@@ -525,10 +525,6 @@ function AppShell() {
     }
   }, [state.activeMatter, state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
 
-  function handleSlashSkill(command: string) {
-    handleCommand(command);
-  }
-
   function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
     activeMatterNameRef.current = name;
     dispatch({ type: 'SET_RESUME_MATTER', payload: name });
@@ -601,7 +597,6 @@ function AppShell() {
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}
         onAddFiles={() => setActiveView('add-files')}
-        onSlashSkill={handleSlashSkill}
       />
       <MainContent
         onNewMatter={() => setActiveView('new-matter')}
