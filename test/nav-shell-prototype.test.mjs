@@ -27,9 +27,12 @@ test("final navigation shell candidate keeps global nav, matter record, and assi
   assert.match(html, /Find matter/);
   assert.match(html, /New matter/);
   assert.match(html, /aria-label="Active matter"/);
-  assert.match(html, /Matter Record/);
+  assert.match(html, /Matter record is in the black zone/);
+  assert.match(html, /Show technical: operator only/);
   assert.match(html, /Prepare matter/);
   assert.match(html, /Write Matter Story/);
+  assert.match(html, /Scrollable Matter Story/);
+  assert.match(html, /story-body-scroll/);
   assert.match(html, /aria-label="Matter assistant"/);
   assert.doesNotMatch(html, /OpenAI|OpenRouter|GPT|API key|billing|quota/i);
 });
