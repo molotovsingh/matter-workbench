@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Matter Workbench final navigation candidate</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --text-soft: #384158;
+      --muted: #687085;
+      --paper: #fffdfa;
+      --wash: #f4f0e8;
+      --panel: #fffaf2;
+      --line: #ded7ca;
+      --line-strong: #cfc5b4;
+      --black: #151811;
+      --black-panel: #20241d;
+      --black-muted: #9da493;
+      --accent: #5b6f45;
+      --accent-hover: #4c6039;
+      --accent-soft: #e9eedf;
+      --gold: #b99045;
+      --danger: #7a3e2d;
+      --shadow: 0 18px 48px rgba(32, 24, 12, 0.075);
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body { margin: 0; background: #ece7dc; color: var(--ink); }
+    button { font: inherit; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 172px 268px minmax(560px, 1fr) 308px;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    .black-rail {
+      background: var(--black);
+      color: #f6f1e4;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 12px 18px;
+    }
+
+    .brand { margin: 0 0 32px; padding: 0 2px; }
+    .brand strong {
+      display: block;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 21px;
+      letter-spacing: 0.01em;
+      line-height: 1;
+    }
+    .brand span {
+      color: var(--black-muted);
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.24em;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .rail-block { margin-bottom: 24px; }
+    .rail-title {
+      color: var(--black-muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      margin: 0 0 9px;
+      padding: 0 2px;
+      text-transform: uppercase;
+    }
+    .rail-link,
+    .active-matter-card {
+      border-radius: 0;
+      color: #ddd9cb;
+      display: flex;
+      text-align: left;
+      width: 100%;
+    }
+    .rail-link {
+      align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
+      border-left: 2px solid transparent;
+      cursor: pointer;
+      gap: 9px;
+      min-height: 38px;
+      padding: 8px 8px;
+    }
+    .rail-link:hover,
+    .rail-link.active {
+      background: rgba(255,255,255,0.06);
+      border-left-color: #d1b15f;
+      color: #fff8e7;
+    }
+    .rail-link .icon { color: var(--black-muted); flex: 0 0 16px; text-align: center; }
+
+    .active-matter-card {
+      background: rgba(255,255,255,0.065);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-left: 2px solid var(--accent);
+      cursor: pointer;
+      display: grid;
+      gap: 5px;
+      padding: 9px 9px 10px;
+    }
+    .active-matter-card:hover { background: rgba(255,255,255,0.095); }
+    .active-matter-card small {
+      color: var(--black-muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .active-matter-card strong { color: #fff8e7; font-size: 13px; line-height: 1.3; }
+    .rail-footer { color: var(--black-muted); font-size: 11px; line-height: 1.45; margin-top: auto; padding: 0 2px; }
+
+    .record-pane {
+      background: var(--wash);
+      border-right: 1px solid var(--line-strong);
+      min-width: 0;
+      padding: 18px 12px;
+    }
+    .record-title {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin: 0 0 13px;
+      text-transform: uppercase;
+    }
+    .record-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 17px; }
+    .btn {
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 30px;
+      padding: 6px 10px;
+    }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .record-list { border-top: 1px solid var(--line); padding-top: 11px; }
+    .record-row {
+      align-items: center;
+      border-left: 2px solid transparent;
+      color: var(--ink);
+      display: flex;
+      gap: 9px;
+      min-height: 32px;
+      padding: 6px 8px;
+    }
+    .record-row.active { background: #ebe4d8; border-left-color: var(--accent); }
+    .record-icon { color: #b29357; flex: 0 0 14px; }
+    .record-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    .workspace {
+      background: var(--paper);
+      display: grid;
+      grid-template-rows: 42px 1fr;
+      min-width: 0;
+    }
+    .topbar {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 18px;
+    }
+    .topbar-left { min-width: 0; }
+    .topbar-kicker {
+      color: var(--muted);
+      display: block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+    .topbar-title {
+      color: #263047;
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .prototype-pill {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 11px;
+      padding: 4px 8px;
+    }
+
+    .main-content { overflow: auto; padding: 34px 36px 70px; }
+    .matter-hero { margin-bottom: 16px; max-width: 780px; }
+    .section-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .matter-hero h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 36px;
+      line-height: 1.05;
+      margin: 5px 0 8px;
+    }
+    .matter-hero p { color: var(--muted); font-size: 14px; margin: 0; }
+    .matter-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+
+    .story-card,
+    .metadata-card,
+    .prep-card {
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      box-shadow: var(--shadow);
+      margin-top: 18px;
+      max-width: 760px;
+      padding: 18px;
+    }
+    .story-heading { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
+    .story-heading h2 { font-size: 18px; margin: 3px 0 0; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    .pill {
+      background: #faf7ef;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: #384157;
+      font-size: 12px;
+      padding: 5px 8px;
+    }
+    .story-section { margin-top: 14px; }
+    .story-section h3 { color: #697085; font-size: 11px; font-weight: 800; letter-spacing: 0.13em; margin: 0 0 6px; text-transform: uppercase; }
+    .story-section p { color: #303b50; font-size: 14px; line-height: 1.65; margin: 0; }
+    .metadata-grid { display: grid; grid-template-columns: 170px 1fr; margin-top: 12px; }
+    .metadata-grid div { border-top: 1px solid var(--line); padding: 10px 12px; }
+    .metadata-grid div:nth-child(odd) { background: #f6f0e7; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .assistant-pane {
+      background: #fbf8f1;
+      border-left: 1px solid var(--line-strong);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px 14px;
+    }
+    .assistant-top { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 17px; }
+    .assistant-pane h2 { font-family: Georgia, "Times New Roman", serif; font-size: 25px; line-height: 1; margin: 4px 0 8px; }
+    .assistant-pane p { color: #3d4659; font-size: 13px; line-height: 1.45; margin: 0; }
+    .ask-box { margin-top: auto; }
+    .ask-box label { color: var(--muted); display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 7px; text-transform: uppercase; }
+    .ask-row { display: grid; grid-template-columns: 1fr 34px; gap: 6px; }
+    .ask-row input { background: var(--paper); border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink); font: inherit; padding: 9px 10px; width: 100%; }
+    .ask-row button { background: var(--black); border: 0; border-radius: 4px; color: #fff; cursor: pointer; }
+    .activity-mini { background: #f6f0e7; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; padding: 10px; }
+
+    @media (max-width: 1200px) {
+      .shell { grid-template-columns: 160px 248px minmax(420px, 1fr); }
+      .assistant-pane { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="black-rail">
+      <div class="brand"><strong>Matter</strong><span>Workbench</span></div>
+
+      <nav class="rail-block" aria-label="App navigation">
+        <div class="rail-title">App</div>
+        <button class="rail-link"><span class="icon">⌕</span><span>Find matter</span></button>
+        <button class="rail-link"><span class="icon">＋</span><span>New matter</span></button>
+        <button class="rail-link"><span class="icon">✦</span><span>Skills</span></button>
+        <button class="rail-link"><span class="icon">◔</span><span>Activity</span></button>
+        <button class="rail-link"><span class="icon">⚙</span><span>Settings</span></button>
+      </nav>
+
+      <section class="rail-block" aria-label="Active matter">
+        <div class="rail-title">Active matter</div>
+        <button class="active-matter-card" type="button">
+          <small>Matter Home</small>
+          <strong>Taori vs Roma Builder</strong>
+        </button>
+      </section>
+
+      <div class="rail-footer">Final-candidate visual prototype. This page does not change real matters.</div>
+    </aside>
+
+    <aside class="record-pane" aria-label="Matter record">
+      <h2 class="record-title">Matter Record</h2>
+      <div class="record-actions">
+        <button class="btn primary">+ Add files</button>
+        <button class="btn">Refresh</button>
+        <button class="btn">Show technical</button>
+      </div>
+      <div class="record-list">
+        <div class="record-row active"><span class="record-icon">■</span><span>Case Record</span><span class="record-count">24</span></div>
+        <div class="record-row"><span class="record-icon">■</span><span>Source Record</span><span class="record-count">4</span></div>
+        <div class="record-row"><span class="record-icon">■</span><span>Case Analysis</span><span class="record-count">2</span></div>
+        <div class="record-row"><span class="record-icon">□</span><span>Drafts</span><span class="record-count">0</span></div>
+        <div class="record-row"><span class="record-icon">□</span><span>Ready to Send</span><span class="record-count">0</span></div>
+        <div class="record-row"><span class="record-icon">□</span><span>matter.json</span><span class="record-count">3KB</span></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="topbar-kicker">Matter Workbench</span>
+          <span class="topbar-title">Private beta workspace · Active matter: Taori vs Roma Builder</span>
+        </div>
+        <span class="prototype-pill">Prototype</span>
+      </header>
+
+      <main class="main-content">
+        <section class="matter-hero">
+          <div class="section-label">Matter Home</div>
+          <h1>Taori vs Roma Builder</h1>
+          <p>42 files and 6 folders loaded from the matter record.</p>
+          <div class="matter-actions" aria-label="Matter actions">
+            <button class="btn primary">Prepare matter</button>
+            <button class="btn">Write Matter Story</button>
+            <button class="btn">Create List of Dates</button>
+          </div>
+        </section>
+
+        <article class="story-card">
+          <div class="story-heading">
+            <div><div class="section-label">Matter Story</div><h2>Matter Workbench story</h2></div>
+            <div class="pill-row"><span class="pill">Author: MW</span><span class="pill">Based on: Current List of Dates</span></div>
+          </div>
+          <section class="story-section"><h3>At a glance</h3><p>This matter concerns delayed possession and registration of Flat No. 1202, with disputes about payments, handover obligations, and responsibility for delay.</p></section>
+          <section class="story-section"><h3>What this matter is about</h3><p>The complainants say the builder took substantial payments but did not complete the conveyance and possession process. The respondent says further dues and charges remain unresolved.</p></section>
+          <section class="story-section"><h3>Main risks and missing facts</h3><p>Key risks include payment proof, possession status, and how the forum treats contractual dues against delay. Missing facts include complete payment reconciliation and final correspondence.</p></section>
+        </article>
+
+        <section class="metadata-card">
+          <div class="section-label">Matter details</div>
+          <div class="metadata-grid">
+            <div>Client</div><div>KK Taori</div>
+            <div>Opposite party</div><div>Roma Builder</div>
+            <div>Matter type</div><div>Consumer Court</div>
+            <div>Jurisdiction</div><div>Consumer Dispute</div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <aside class="assistant-pane" aria-label="Matter assistant">
+      <div class="assistant-top"><button class="btn">New task</button><button class="btn">High</button></div>
+      <div class="section-label">Matter Assistant</div>
+      <h2>What do you need?</h2>
+      <p>Ask about the active matter, run a matter action, or create a reusable skill.</p>
+      <div class="ask-box">
+        <label>Ask or run</label>
+        <div class="ask-row"><input value="Ask about Taori vs Roma Builder…" aria-label="Ask" readonly /><button>→</button></div>
+        <div class="activity-mini"><strong>Recent activity</strong><br />16:17 switched to matter<br />16:18 Matter Story refreshed</div>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
