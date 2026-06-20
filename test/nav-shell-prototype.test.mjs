@@ -24,11 +24,13 @@ test("final navigation shell candidate keeps global nav, matter record, and assi
 
   assert.match(html, /Final-candidate visual prototype/);
   assert.match(html, /aria-label="App navigation"/);
-  assert.match(html, /Find matter/);
+  assert.match(html, /All matters/);
+  assert.match(html, /See all matters or open another matter/);
   assert.match(html, /New matter/);
   assert.match(html, /aria-label="Active matter"/);
   assert.match(html, /Matter record is in the black zone/);
   assert.match(html, /Show technical: operator only/);
+  assert.match(html, /Show technical files and logs — operator only/);
   assert.match(html, /Prepare matter/);
   assert.match(html, /Write Matter Story/);
   assert.match(html, /Scrollable Matter Story/);
