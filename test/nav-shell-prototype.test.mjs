@@ -36,5 +36,8 @@ test("final navigation shell candidate keeps global nav, matter record, and assi
   assert.match(html, /Scrollable Matter Story/);
   assert.match(html, /story-body-scroll/);
   assert.match(html, /aria-label="Matter assistant"/);
+  assert.match(html, /Transition guardrail/);
+  assert.match(html, /Current Matter Assistant behavior stays/);
+  assert.match(html, /ask box, command routing, active matter context, recent activity, and new task reset/);
   assert.doesNotMatch(html, /OpenAI|OpenRouter|GPT|API key|billing|quota/i);
 });
