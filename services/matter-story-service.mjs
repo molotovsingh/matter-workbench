@@ -15,7 +15,7 @@ export const DISPUTE_STORY_BASIS_RELATIVE = "10_Library/List of Dates.md";
 export const MATTER_WORKBENCH_AUTHOR = "MW";
 export const MATTER_WORKBENCH_STORY_SOURCE_TYPE = "matter_workbench_story";
 const MATTER_STORY_SCHEMA_VERSION = "matter-story/v1";
-const MAX_BRIEF_DESCRIPTION_CHARS = 1800;
+const MAX_BRIEF_DESCRIPTION_CHARS = 5000;
 const MAX_NATIVE_STORY_MARKDOWN_CHARS = 24_000;
 const FILE_TIME_TOLERANCE_MS = 1;
 const DISPUTE_STORY_JSON_RELATIVE = "20_Workshop/The Story.json";
@@ -32,7 +32,8 @@ const NATIVE_DISPUTE_STORY_SKILL = Object.freeze({
       "Write a concise Matter Workbench story for the selected matter.",
       "Use the current List of Dates as the primary spine and do not introduce new facts that are not supported by the supplied matter context.",
       "Source Index and matter metadata may clarify names, roles, labels, and procedural context only.",
-      "Structure the Markdown in this order: At a glance; What this matter is about; Key dispute; Procedural posture; Main risks and missing facts.",
+      "Structure the Markdown in exactly this order: At a glance; What this matter is about; Key dispute; Procedural posture; Main risks and missing facts.",
+      "Each section should be one short paragraph with no more than two sentences, so the full story remains readable on the matter overview.",
       "Use plain legal-workbench language for a lawyer reviewing the matter internally.",
       "Do not call the output final, approved, court-ready, or ready to send.",
       "End with a short Internal source handles section containing any raw FILE-NNNN citations used for audit.",

@@ -141,6 +141,29 @@ test("story description update skips current Matter Workbench story unless refre
   assert.equal(nextMatterJson, null);
 });
 
+test("story description keeps all five overview sections including risks", () => {
+  const section = (heading, body) => `${heading}\n${body}`;
+  const markdown = [
+    "# The Story",
+    section("At a glance", "This is the initial overview of the criminal matter and parties. It identifies the incident, broad allegation, and current charge position."),
+    section("What this matter is about", "This matter concerns the death following a parking-related altercation and the prosecution case arising from that incident. The defence position will turn on intent, causation, and the medical sequence."),
+    section("Key dispute", "The central dispute is whether the conduct amounts to murder or a lesser offence. The parties also contest whether later medical complications broke or weakened the causal chain."),
+    section("Procedural posture", "The FIR was registered after the incident and the case later moved to a more serious charge. The matter remains for lawyer review against the current List of Dates."),
+    section("Main risks and missing facts", "The key risks are witness reliability, medical causation, CCTV interpretation, and proof of intention. Missing facts include the complete medical record, full CCTV chain, and any independent witness version."),
+    "## Internal source handles",
+    "FILE-0001 p1.b1",
+  ].join("\n\n");
+
+  const description = extractBriefDescriptionFromStoryMarkdown(markdown);
+
+  assert.match(description, /At a glance/);
+  assert.match(description, /What this matter is about/);
+  assert.match(description, /Key dispute/);
+  assert.match(description, /Procedural posture/);
+  assert.match(description, /Main risks and missing facts/);
+  assert.doesNotMatch(description, /FILE-0001/);
+});
+
 test("story description update can build a DB-native matter.json payload", () => {
   const { result, nextMatterJson } = buildBriefDescriptionMatterJsonUpdate({
     matterJson: {
