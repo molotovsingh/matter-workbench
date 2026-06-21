@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -147,6 +148,36 @@ test("private beta auth reloads operator-managed tester account files on login",
     role: "tester",
     displayName: "Tester Two",
   });
+});
+
+test("private beta auth verifies a password hash even when file-backed username is unknown", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("tester-secret", { salt: "salt-timing", iterations: 1_000 }),
+    },
+  ]);
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+  });
+
+  const originalPbkdf2Sync = crypto.pbkdf2Sync;
+  let pbkdf2Calls = 0;
+  crypto.pbkdf2Sync = (...args) => {
+    pbkdf2Calls += 1;
+    return originalPbkdf2Sync(...args);
+  };
+  try {
+    const login = service.login({ username: "missing-user", password: "guess" });
+    assert.equal(login.statusCode, 401);
+    assert.equal(pbkdf2Calls, 1);
+  } finally {
+    crypto.pbkdf2Sync = originalPbkdf2Sync;
+  }
 });
 
 test("private beta auth fails closed without throwing when a reloaded account file is malformed", async () => {
@@ -432,6 +463,57 @@ test("private beta auth throttles repeated failed login attempts per client", ()
   currentNow = 7_000;
   const afterWindow = service.login({ username: "operator", password: "secret" }, { clientKey: "198.51.100.7" });
   assert.equal(afterWindow.statusCode, 200);
+});
+
+test("private beta auth throttle key ignores spoofed X-Forwarded-For headers", () => {
+  let currentNow = 1_000;
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+      MWB_PRIVATE_BETA_LOGIN_MAX_ATTEMPTS: "2",
+      MWB_PRIVATE_BETA_LOGIN_WINDOW_SECONDS: "5",
+    },
+    tokenBytes: () => Buffer.from("55555555555555555555555555555555"),
+    now: () => currentNow,
+  });
+  const request = (forwarded) => ({
+    headers: { "x-forwarded-for": forwarded },
+    socket: { remoteAddress: "198.51.100.7" },
+  });
+
+  assert.equal(service.login({ username: "operator", password: "bad" }, { request: request("1.1.1.1") }).statusCode, 401);
+  assert.equal(service.login({ username: "operator", password: "bad" }, { request: request("2.2.2.2") }).statusCode, 401);
+  const throttled = service.login({ username: "operator", password: "secret" }, { request: request("3.3.3.3") });
+  assert.equal(throttled.statusCode, 429);
+
+  currentNow = 7_000;
+  assert.equal(service.login({ username: "operator", password: "secret" }, { request: request("4.4.4.4") }).statusCode, 200);
+});
+
+test("private beta legacy env auth evaluates username and password checks before rejecting", () => {
+  const service = createPrivateBetaAuthService({
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERNAME: "operator",
+      MWB_PRIVATE_BETA_PASSWORD: "secret",
+    },
+  });
+
+  const originalTimingSafeEqual = crypto.timingSafeEqual;
+  let timingSafeEqualCalls = 0;
+  crypto.timingSafeEqual = (...args) => {
+    timingSafeEqualCalls += 1;
+    return originalTimingSafeEqual(...args);
+  };
+  try {
+    const login = service.login({ username: "wrong-operator", password: "wrong-secret" });
+    assert.equal(login.statusCode, 401);
+    assert.equal(timingSafeEqualCalls, 2);
+  } finally {
+    crypto.timingSafeEqual = originalTimingSafeEqual;
+  }
 });
 
 test("private beta auth expires old sessions", () => {

@@ -12,6 +12,7 @@ const PRIVATE_BETA_SESSIONS_SCHEMA_VERSION = "private-beta-sessions/v1";
 const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
 const DEFAULT_PASSWORD_HASH_ITERATIONS = 210_000;
 const PASSWORD_HASH_BYTES = 32;
+const DUMMY_PRIVATE_BETA_PASSWORD_HASH = makeDummyPrivateBetaPasswordHash();
 
 export function createPrivateBetaAuthService({
   env = process.env,
@@ -351,10 +352,11 @@ function loadPrivateBetaCredentialSource(env) {
     return {
       kind: "file",
       authenticate(username, password) {
-        const account = readPrivateBetaUsersFile(usersFile)
-          .find((candidate) => secureEqual(candidate.username, username));
-        if (!account || account.disabled) return null;
-        if (!verifyPrivateBetaPassword(password, account.passwordHash)) return null;
+        const accounts = readPrivateBetaUsersFile(usersFile);
+        const account = accounts.find((candidate) => secureEqual(candidate.username, username));
+        const fallbackHash = accounts.find((candidate) => candidate.passwordHash)?.passwordHash || DUMMY_PRIVATE_BETA_PASSWORD_HASH;
+        const passwordOk = verifyPrivateBetaPassword(password, account?.passwordHash || fallbackHash);
+        if (!account || account.disabled || !passwordOk) return null;
         return account;
       },
       refreshSessionUser(user) {
@@ -376,9 +378,9 @@ function loadPrivateBetaCredentialSource(env) {
   return {
     kind: "legacy-env",
     authenticate(submittedUsername, submittedPassword) {
-      if (!secureEqual(String(submittedUsername), username) || !secureEqual(String(submittedPassword), password)) {
-        return null;
-      }
+      const usernameMatch = secureEqual(String(submittedUsername), username);
+      const passwordMatch = secureEqual(String(submittedPassword), password);
+      if (!usernameMatch || !passwordMatch) return null;
       return { username, role: null };
     },
     refreshSessionUser(user) {
@@ -544,9 +546,14 @@ function shouldUseSecureCookie(env = {}) {
 function loginClientKey(options = {}) {
   if (typeof options.clientKey === "string" && options.clientKey.trim()) return options.clientKey.trim();
   const request = options.request || {};
-  const forwarded = String(request.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
-  if (forwarded) return forwarded;
   return String(request.socket?.remoteAddress || "local").trim() || "local";
+}
+
+function makeDummyPrivateBetaPasswordHash() {
+  return hashPrivateBetaPassword("mwb-private-beta-dummy-password", {
+    salt: "mwb-private-beta-dummy-salt",
+    iterations: DEFAULT_PASSWORD_HASH_ITERATIONS,
+  });
 }
 
 function expandHomePath(filePath) {
