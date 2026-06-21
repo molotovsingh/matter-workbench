@@ -115,7 +115,7 @@ export default function App() {
   }
 
   if (auth.enabled && !auth.authenticated) {
-    return <LoginView onLoggedIn={handleLoggedIn} initialError={dataError} />;
+    return <LoginView onLoggedIn={handleLoggedIn} initialError={dataError} authMode={auth.authMode} />;
   }
 
   const navItems: { key: ViewKey; label: string }[] = [

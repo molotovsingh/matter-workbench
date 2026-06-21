@@ -35,7 +35,7 @@ test("console auth is disabled when MOTHERSHIP_CONSOLE is not set", () => {
   const service = createConsoleAuthService({ env: {} });
   assert.equal(service.requireAuth(), false);
   assert.equal(service.isAuthenticated(cookieRequest()), true);
-  assert.deepEqual(service.status(cookieRequest()), { enabled: false, authenticated: true, user: null });
+  assert.deepEqual(service.status(cookieRequest()), { enabled: false, authenticated: true, authMode: "disabled", user: null });
 });
 
 test("console auth requires username and a valid password hash when enabled", () => {
@@ -172,4 +172,104 @@ test("secure cookie flag follows https public URL", () => {
   const result = service.login({ username: "aks_hemanth", password: "correct-horse-battery" }, { clientKey: "test" });
   assert.match(result.setCookie, /; Secure/);
   assert.equal(service.secureCookie, true);
+});
+
+test("email-code auth requires allowed emails and sender configuration", () => {
+  assert.throws(
+    () => createConsoleAuthService({ env: { MOTHERSHIP_CONSOLE: "required", MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code" } }),
+    /ALLOWED_EMAILS/i,
+  );
+  assert.throws(
+    () => createConsoleAuthService({
+      env: {
+        MOTHERSHIP_CONSOLE: "required",
+        MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code",
+        MOTHERSHIP_CONSOLE_ALLOWED_EMAILS: "aks@example.test",
+      },
+    }),
+    /EMAIL_PROVIDER|EMAIL_API_KEY|RESEND/i,
+  );
+});
+
+test("email-code auth sends a one-time code and authenticates as the email actor", async () => {
+  const sent = [];
+  const service = createConsoleAuthService({
+    env: {
+      MOTHERSHIP_CONSOLE: "required",
+      MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code",
+      MOTHERSHIP_CONSOLE_ALLOWED_EMAILS: "aks@example.test,hemanth@example.test",
+      MOTHERSHIP_CONSOLE_SESSION_TTL_SECONDS: "3600",
+    },
+    now: () => FIXED_NOW_MS,
+    tokenBytes: () => Buffer.from("0123456789abcdef0123456789abcdef", "utf8"),
+    codeGenerator: () => "123456",
+    emailSender: { sendConsoleCode: async (payload) => { sent.push(payload); } },
+  });
+
+  assert.equal(service.authMode, "email_code");
+  assert.deepEqual(service.status(cookieRequest()), { enabled: true, authenticated: false, authMode: "email_code", user: null });
+
+  const request = await service.requestCode({ email: "AKS@example.test" }, { clientKey: "email-code" });
+  assert.equal(request.statusCode, 200);
+  assert.match(request.payload.message, /If this email is allowed/i);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].email, "aks@example.test");
+  assert.equal(sent[0].code, "123456");
+
+  const verify = service.verifyCode({ email: "aks@example.test", code: "123456" }, { clientKey: "email-code" });
+  assert.equal(verify.ok, true);
+  assert.equal(verify.payload.user.username, "aks@example.test");
+  assert.equal(verify.payload.user.role, "operator");
+  assert.match(verify.setCookie, /mwb_mothership_console_session=/);
+
+  const token = verify.setCookie.match(/mwb_mothership_console_session=([^;]+)/)[1];
+  assert.equal(service.sessionUser(cookieRequest(`mwb_mothership_console_session=${token}`)).username, "aks@example.test");
+});
+
+test("email-code auth gives generic request responses for unknown emails", async () => {
+  const sent = [];
+  const service = createConsoleAuthService({
+    env: {
+      MOTHERSHIP_CONSOLE: "required",
+      MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code",
+      MOTHERSHIP_CONSOLE_ALLOWED_EMAILS: "aks@example.test",
+    },
+    tokenBytes: () => Buffer.from("0123456789abcdef0123456789abcdef", "utf8"),
+    codeGenerator: () => "123456",
+    emailSender: { sendConsoleCode: async (payload) => { sent.push(payload); } },
+  });
+
+  const request = await service.requestCode({ email: "unknown@example.test" }, { clientKey: "unknown" });
+  assert.equal(request.statusCode, 200);
+  assert.match(request.payload.message, /If this email is allowed/i);
+  assert.equal(sent.length, 0);
+
+  const verify = service.verifyCode({ email: "unknown@example.test", code: "123456" }, { clientKey: "unknown" });
+  assert.equal(verify.statusCode, 401);
+  assert.match(verify.payload.error, /Invalid or expired code/);
+});
+
+test("email-code auth rejects expired or reused codes", async () => {
+  let nowMs = FIXED_NOW_MS;
+  const service = createConsoleAuthService({
+    env: {
+      MOTHERSHIP_CONSOLE: "required",
+      MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code",
+      MOTHERSHIP_CONSOLE_ALLOWED_EMAILS: "aks@example.test",
+      MOTHERSHIP_CONSOLE_CODE_TTL_SECONDS: "1",
+    },
+    now: () => nowMs,
+    tokenBytes: () => Buffer.from("0123456789abcdef0123456789abcdef", "utf8"),
+    codeGenerator: () => "123456",
+    emailSender: { sendConsoleCode: async () => {} },
+  });
+
+  await service.requestCode({ email: "aks@example.test" }, { clientKey: "expired" });
+  nowMs += 2000;
+  assert.equal(service.verifyCode({ email: "aks@example.test", code: "123456" }, { clientKey: "expired" }).statusCode, 401);
+
+  nowMs = FIXED_NOW_MS;
+  await service.requestCode({ email: "aks@example.test" }, { clientKey: "reuse" });
+  assert.equal(service.verifyCode({ email: "aks@example.test", code: "123456" }, { clientKey: "reuse" }).statusCode, 200);
+  assert.equal(service.verifyCode({ email: "aks@example.test", code: "123456" }, { clientKey: "reuse" }).statusCode, 401);
 });

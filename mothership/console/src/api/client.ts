@@ -49,6 +49,32 @@ export async function login(username: string, password: string): Promise<{ ok: b
   return { ok: true, status: response.status };
 }
 
+export async function requestLoginCode(email: string): Promise<{ ok: boolean; status: number; message?: string; error?: string }> {
+  const response = await fetch('/api/auth/request-code', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    credentials: 'same-origin',
+    body: JSON.stringify({ email }),
+  });
+  const body = await parseJson<{ message?: string; error?: string }>(response);
+  if (!response.ok) return { ok: false, status: response.status, error: body.error };
+  return { ok: true, status: response.status, message: body.message };
+}
+
+export async function verifyLoginCode(email: string, code: string): Promise<{ ok: boolean; status: number; error?: string }> {
+  const response = await fetch('/api/auth/verify-code', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    credentials: 'same-origin',
+    body: JSON.stringify({ email, code }),
+  });
+  if (!response.ok) {
+    const body = await parseJson<{ error?: string }>(response);
+    return { ok: false, status: response.status, error: body.error };
+  }
+  return { ok: true, status: response.status };
+}
+
 export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
 }

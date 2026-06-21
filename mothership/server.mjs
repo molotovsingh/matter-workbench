@@ -103,22 +103,43 @@ async function routeConsoleApi({ request, url, response, store, consoleAuth, max
 
   if (url.pathname === "/api/auth/status") {
     if (request.method !== "GET") throw httpError("Method not allowed", 405);
-    sendJson(response, 200, consoleAuth ? consoleAuth.status(request) : { enabled: false, authenticated: true, user: null });
+    sendJson(response, 200, consoleAuth ? consoleAuth.status(request) : { enabled: false, authenticated: true, authMode: "disabled", user: null });
     return true;
   }
 
   if (url.pathname === "/api/auth/login") {
     if (request.method !== "POST") throw httpError("Method not allowed", 405);
     if (!consoleAuth) {
-      sendJson(response, 200, { enabled: false, authenticated: true, user: { username: "operator", role: "operator" } });
+      sendJson(response, 200, { enabled: false, authenticated: true, authMode: "disabled", user: { username: "operator", role: "operator" } });
       return true;
     }
     const body = await readJsonBody(request, { maxBodyBytes: Math.min(maxBodyBytes, 16 * 1024) });
     const result = consoleAuth.login(body, { request });
-    const headers = { "Content-Type": "application/json; charset=utf-8" };
-    if (result.setCookie) headers["set-cookie"] = result.setCookie;
-    response.writeHead(result.statusCode, headers);
-    response.end(`${JSON.stringify(result.payload)}\n`);
+    sendAuthResult(response, result);
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/request-code") {
+    if (request.method !== "POST") throw httpError("Method not allowed", 405);
+    if (!consoleAuth) {
+      sendJson(response, 200, { ok: true, message: "Console auth is disabled." });
+      return true;
+    }
+    const body = await readJsonBody(request, { maxBodyBytes: Math.min(maxBodyBytes, 16 * 1024) });
+    const result = await consoleAuth.requestCode(body, { request });
+    sendJson(response, result.statusCode, result.payload);
+    return true;
+  }
+
+  if (url.pathname === "/api/auth/verify-code") {
+    if (request.method !== "POST") throw httpError("Method not allowed", 405);
+    if (!consoleAuth) {
+      sendJson(response, 200, { enabled: false, authenticated: true, authMode: "disabled", user: { username: "operator", role: "operator" } });
+      return true;
+    }
+    const body = await readJsonBody(request, { maxBodyBytes: Math.min(maxBodyBytes, 16 * 1024) });
+    const result = consoleAuth.verifyCode(body, { request });
+    sendAuthResult(response, result);
     return true;
   }
 
@@ -203,6 +224,13 @@ async function routeConsoleApi({ request, url, response, store, consoleAuth, max
 
   if (url.pathname.startsWith(CONSOLE_API_PREFIX)) throw httpError("Not found", 404);
   return false;
+}
+
+function sendAuthResult(response, result) {
+  const headers = { "Content-Type": "application/json; charset=utf-8" };
+  if (result.setCookie) headers["set-cookie"] = result.setCookie;
+  response.writeHead(result.statusCode, headers);
+  response.end(`${JSON.stringify(result.payload)}\n`);
 }
 
 function requireConsoleAuth(consoleAuth, request) {

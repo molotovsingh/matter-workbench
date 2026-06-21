@@ -396,3 +396,42 @@ async function postJson(baseUrl, pathname, body, token) {
   });
   return { response, body: await response.json() };
 }
+
+test("console email-code login endpoints authenticate allowed emails", async () => {
+  const sent = [];
+  const auth = createConsoleAuthService({
+    env: {
+      MOTHERSHIP_CONSOLE: "required",
+      MOTHERSHIP_CONSOLE_AUTH_MODE: "email_code",
+      MOTHERSHIP_CONSOLE_ALLOWED_EMAILS: "aks@example.test,hemanth@example.test",
+      MOTHERSHIP_CONSOLE_SESSION_TTL_SECONDS: "3600",
+    },
+    now: () => FIXED_NOW,
+    tokenBytes: () => Buffer.from("0123456789abcdef0123456789abcdef", "utf8"),
+    codeGenerator: () => "222333",
+    emailSender: { sendConsoleCode: async (payload) => { sent.push(payload); } },
+  });
+  const app = await startServer({ store: createFakeStore(), auth });
+  try {
+    const status = await fetch(`${app.baseUrl}/api/auth/status`);
+    const statusBody = await status.json();
+    assert.equal(statusBody.authMode, "email_code");
+    assert.equal(statusBody.authenticated, false);
+
+    const requestCode = await postJson(app.baseUrl, "/api/auth/request-code", { email: "AKS@example.test" });
+    assert.equal(requestCode.response.status, 200);
+    assert.match(requestCode.body.message, /If this email is allowed/i);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].email, "aks@example.test");
+
+    const verify = await postJson(app.baseUrl, "/api/auth/verify-code", { email: "aks@example.test", code: "222333" });
+    assert.equal(verify.response.status, 200);
+    assert.equal(verify.body.user.username, "aks@example.test");
+    const cookie = verify.response.headers.get("set-cookie");
+
+    const installations = await authedGet(app.baseUrl, "/api/installations", cookie);
+    assert.equal(installations.response.status, 200);
+  } finally {
+    await app.close();
+  }
+});

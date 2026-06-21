@@ -1,6 +1,7 @@
 export interface AuthStatus {
   enabled: boolean;
   authenticated: boolean;
+  authMode?: 'disabled' | 'password' | 'email_code';
   user: { username: string; role: string; displayName?: string } | null;
 }
 
