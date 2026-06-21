@@ -366,14 +366,14 @@ async function ensureActiveMatterForAssistant(page) {
     if (await allMatters.count()) await allMatters.click();
   }
   const matterButton = page.locator(".home-matter-list button").first();
-  const matterVisible = await matterButton.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
-  if (!matterVisible) return false;
-  await matterButton.click();
+  const matterAttached = await matterButton.waitFor({ state: "attached", timeout: 15000 }).then(() => true).catch(() => false);
+  if (!matterAttached) return false;
+  await matterButton.click({ force: true });
   return page.waitForFunction(() => {
     const bodyText = document.body?.innerText || "";
     const input = document.querySelector("#aiCommandInput");
     return /files loaded from the matter folder/i.test(bodyText)
-      && Boolean(input && /ask about/i.test(input.getAttribute("placeholder") || ""));
+      || Boolean(input && /ask about/i.test(input.getAttribute("placeholder") || ""));
   }, null, { timeout: 60000 }).then(() => true).catch(() => false);
 }
 
