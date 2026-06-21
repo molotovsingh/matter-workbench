@@ -262,6 +262,7 @@ test("package exposes mothership operator commands", async () => {
   assert.equal(pkg.scripts["mothership:serve"], "node scripts/start-mothership-server.mjs");
   assert.equal(pkg.scripts["mothership:operator"], "node scripts/mothership-operator.mjs");
   assert.equal(pkg.scripts["mothership:report"], "node scripts/mothership-operator.mjs report");
+  assert.equal(pkg.scripts["mothership:console-check"], "node scripts/mothership-console-check.mjs");
 });
 
 function signalRow(overrides = {}) {

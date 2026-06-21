@@ -245,6 +245,7 @@ export function buildPrivateVmRsyncDeployPlan({
           + "if curl -fsS http://127.0.0.1:4192/health >/dev/null 2>&1; then mothership_ready=1; break; fi; "
           + "sleep 1; done; "
           + "test \"$mothership_ready\" = 1; "
+          + "npm run mothership:console-check --silent -- --base-url http://127.0.0.1:4192; "
           + "else printf '%s\\n' 'mothership env absent; skipping mothership activation'; fi",
       ],
     },

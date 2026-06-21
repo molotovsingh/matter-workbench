@@ -249,6 +249,11 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.match(mothershipActivation.command.join(" "), /systemctl --user is-active 'matter-workbench-mothership\.service'/);
   assert.match(mothershipActivation.command.join(" "), /http:\/\/127\.0\.0\.1:4192\/health/);
   assert.match(mothershipActivation.command.join(" "), /health >\/dev\/null 2>&1/);
+  assert.match(mothershipActivation.command.join(" "), /npm run mothership:console-check --silent -- --base-url http:\/\/127\.0\.0\.1:4192/);
+  assert.ok(
+    mothershipActivation.command.at(-1).indexOf("health >/dev/null")
+      < mothershipActivation.command.at(-1).indexOf("mothership:console-check"),
+  );
   assert.match(mothershipActivation.command.join(" "), /mothership env absent; skipping mothership activation/i);
 
   assert.equal(plan.steps.some((step) => step.id === "service_check"), true);
