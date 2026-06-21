@@ -6,411 +6,659 @@
   <title>Matter Workbench final navigation candidate</title>
   <style>
     :root {
-      --ink: #172033;
-      --text-soft: #384158;
-      --muted: #687085;
-      --paper: #fffdfa;
-      --wash: #f4f0e8;
-      --panel: #fffaf2;
-      --line: #ded7ca;
-      --line-strong: #cfc5b4;
-      --black: #151811;
-      --black-panel: #20241d;
-      --black-panel-2: #242820;
-      --black-muted: #9da493;
-      --black-line: rgba(255,255,255,0.09);
-      --accent: #5b6f45;
-      --accent-hover: #4c6039;
-      --gold: #b99045;
-      --shadow: 0 18px 48px rgba(32, 24, 12, 0.075);
+      --c-sidebar: #151922;
+      --c-sidebar-hover: #1e2433;
+      --c-sidebar-active: #252d3f;
+      --c-sidebar-text: #8b95a8;
+      --c-sidebar-text-active: #e2e8f0;
+      --c-bg: #f1f3f7;
+      --c-surface: #ffffff;
+      --c-accent: #2b6f6a;
+      --c-accent-light: #e6f2f1;
+      --c-accent-hover: #1e5652;
+      --c-gold: #c9a84c;
+      --c-gold-bg: #fbf6ea;
+      --c-text: #1a1f2e;
+      --c-text-secondary: #5a6478;
+      --c-text-tertiary: #8b95a8;
+      --c-border: #e2e6ee;
+      --c-border-light: #eef0f5;
+      --c-assistant-bg: #fafbfd;
+      --font-display: Georgia, "Times New Roman", serif;
+      --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color-scheme: light;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     * { box-sizing: border-box; }
-    html, body { min-height: 100%; }
-    body { margin: 0; background: #ece7dc; color: var(--ink); }
-    button { font: inherit; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.55;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
 
     .shell {
       display: grid;
-      grid-template-columns: 260px minmax(640px, 1fr) 348px;
-      min-height: 100vh;
+      grid-template-columns: 220px minmax(620px, 1fr) 320px;
+      height: 100vh;
+      min-width: 0;
       width: 100%;
     }
 
-    .black-rail {
-      background: var(--black);
-      color: #f6f1e4;
+    /* Sidebar */
+    .sidebar {
+      background: var(--c-sidebar);
+      border-right: 1px solid rgba(255,255,255,0.04);
+      color: var(--c-sidebar-text);
       display: flex;
       flex-direction: column;
       min-width: 0;
-      padding: 26px 14px 16px;
+      overflow: hidden;
     }
-
-    .brand { margin: 0 0 24px; padding: 0 2px; }
-    .brand strong {
+    .sidebar-brand {
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 20px 20px 16px;
+    }
+    .sidebar-brand strong {
+      color: #fff;
       display: block;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 21px;
-      letter-spacing: 0.01em;
-      line-height: 1;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
     }
-    .brand span {
-      color: var(--black-muted);
+    .sidebar-brand span {
+      color: var(--c-gold);
       display: block;
       font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.24em;
-      margin-top: 4px;
-      text-transform: uppercase;
-    }
-
-    .rail-block { margin-bottom: 22px; }
-    .rail-title {
-      color: var(--black-muted);
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      margin: 0 0 9px;
-      padding: 0 2px;
-      text-transform: uppercase;
-    }
-
-    .active-matter-card {
-      background: rgba(255,255,255,0.065);
-      border: 1px solid var(--black-line);
-      border-left: 2px solid var(--accent);
-      color: #ddd9cb;
-      cursor: pointer;
-      display: grid;
-      gap: 5px;
-      padding: 9px 9px 10px;
-      text-align: left;
-      width: 100%;
-    }
-    .active-matter-card:hover { background: rgba(255,255,255,0.095); }
-    .active-matter-card small,
-    .operator-note {
-      color: var(--black-muted);
-      font-size: 10px;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: 0.12em;
+      margin-top: 2px;
       text-transform: uppercase;
     }
-    .active-matter-card strong { color: #fff8e7; font-size: 13px; line-height: 1.3; }
-
-    .rail-record-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 11px; }
-    .rail-btn {
-      background: var(--black-panel);
-      border: 1px solid var(--black-line);
-      color: #efe8da;
+    .sidebar-section { padding: 16px 12px 8px; }
+    .sidebar-label {
+      color: var(--c-sidebar-text);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 0 8px 8px;
+      text-transform: uppercase;
+    }
+    .active-matter-card {
+      background: var(--c-accent);
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
       cursor: pointer;
-      min-height: 29px;
-      padding: 6px 8px;
+      display: block;
+      margin: 0 12px 8px;
+      padding: 10px 12px;
+      text-align: left;
+      width: calc(100% - 24px);
     }
-    .rail-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .rail-btn.operator-only { border-style: dashed; color: #c9c1ad; }
-    .operator-note { display: block; margin: -4px 0 10px; }
+    .active-matter-card:hover { background: var(--c-accent-hover); }
+    .active-matter-card small {
+      display: block;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      margin-bottom: 3px;
+      opacity: 0.72;
+      text-transform: uppercase;
+    }
+    .active-matter-card strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
 
-    .rail-record-list {
-      border-top: 1px solid var(--black-line);
-      max-height: 284px;
-      overflow: auto;
-      padding-top: 9px;
-      scrollbar-color: #59624f transparent;
+    .record-actions {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: 1fr 1fr;
+      margin: 0 12px 8px;
     }
-    .rail-record-row {
+    .record-action {
       align-items: center;
-      border-left: 2px solid transparent;
-      color: #ded9ca;
-      display: flex;
-      gap: 9px;
-      min-height: 31px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 5px;
+      color: var(--c-sidebar-text-active);
+      cursor: pointer;
+      display: inline-flex;
+      gap: 6px;
+      justify-content: center;
+      min-height: 30px;
       padding: 6px 8px;
+      white-space: nowrap;
     }
-    .rail-record-row.active {
-      background: rgba(255,255,255,0.065);
-      border-left-color: var(--gold);
-      color: #fff8e7;
-    }
-    .record-icon { color: #bda060; flex: 0 0 14px; }
-    .record-count { color: var(--black-muted); font-size: 12px; margin-left: auto; }
-
-    .rail-link {
+    .record-action.primary { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+    .record-action:hover { background: var(--c-sidebar-hover); }
+    .record-action.primary:hover { background: var(--c-accent-hover); }
+    .technical-toggle {
       align-items: center;
       background: transparent;
-      border: 1px solid transparent;
-      border-left: 2px solid transparent;
-      color: #ddd9cb;
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: 5px;
+      color: var(--c-sidebar-text);
       cursor: pointer;
       display: flex;
-      gap: 9px;
-      min-height: 36px;
-      padding: 8px 8px;
+      gap: 8px;
+      margin: 4px 12px 3px;
+      min-height: 29px;
+      padding: 6px 10px;
+      width: calc(100% - 24px);
+    }
+    .technical-toggle:hover { background: var(--c-sidebar-hover); color: var(--c-sidebar-text-active); }
+    .operator-note {
+      color: var(--c-sidebar-text);
+      display: block;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      margin: 0 20px 7px;
+      opacity: 0.72;
+      text-transform: uppercase;
+    }
+    .nav-item {
+      align-items: center;
+      background: transparent;
+      border: 0;
+      border-radius: 5px;
+      color: var(--c-sidebar-text);
+      cursor: pointer;
+      display: flex;
+      font-size: 13px;
+      font-weight: 500;
+      gap: 10px;
+      margin: 1px 12px;
+      min-height: 32px;
+      padding: 7px 12px;
       text-align: left;
-      width: 100%;
+      transition: background 0.15s, color 0.15s;
+      width: calc(100% - 24px);
     }
-    .rail-link:hover,
-    .rail-link.active {
-      background: rgba(255,255,255,0.06);
-      border-left-color: #d1b15f;
-      color: #fff8e7;
+    .nav-item:hover { background: var(--c-sidebar-hover); color: var(--c-sidebar-text-active); }
+    .nav-item.active { background: var(--c-sidebar-active); color: var(--c-sidebar-text-active); }
+    .nav-icon { color: currentColor; display: inline-flex; flex: 0 0 15px; justify-content: center; opacity: 0.88; }
+    .count {
+      color: var(--c-sidebar-text);
+      font-size: 11px;
+      font-weight: 400;
+      margin-left: auto;
+      min-width: 20px;
+      opacity: 0.7;
+      text-align: right;
     }
-    .rail-link .icon { color: var(--black-muted); flex: 0 0 16px; text-align: center; }
+    .nav-item.active .count { color: var(--c-gold); opacity: 1; }
+    .sidebar-divider { background: rgba(255,255,255,0.06); height: 1px; margin: 8px 20px 4px; }
+    .sidebar-spacer { flex: 1; min-height: 16px; }
 
+    /* Main */
     .workspace {
-      background: var(--paper);
-      display: grid;
-      grid-template-rows: 42px 1fr;
+      background: var(--c-bg);
+      display: flex;
+      flex-direction: column;
       min-width: 0;
+      overflow: hidden;
     }
     .topbar {
       align-items: center;
-      border-bottom: 1px solid var(--line);
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      color: var(--c-text-secondary);
       display: flex;
-      justify-content: space-between;
-      padding: 7px 18px;
-    }
-    .topbar-left { min-width: 0; }
-    .topbar-kicker {
-      color: var(--muted);
-      display: block;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      line-height: 1.1;
-      text-transform: uppercase;
-    }
-    .topbar-title {
-      color: #263047;
-      display: block;
       font-size: 12px;
+      justify-content: space-between;
+      min-height: 42px;
+      padding: 10px 32px;
+      z-index: 10;
+    }
+    .topbar-path { align-items: center; display: flex; gap: 6px; min-width: 0; }
+    .topbar-path span { color: var(--c-text-tertiary); }
+    .topbar-path strong { color: var(--c-text); font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prototype-badge {
+      align-items: center;
+      background: var(--c-gold-bg);
+      border: 1px solid #e8d9a0;
+      border-radius: 999px;
+      color: #8b6d1f;
+      display: inline-flex;
+      font-size: 11px;
       font-weight: 700;
-      line-height: 1.3;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      gap: 4px;
+      padding: 3px 10px;
       white-space: nowrap;
     }
-    .prototype-pill {
-      border: 1px solid var(--line-strong);
-      border-radius: 999px;
-      color: var(--muted);
-      font-size: 11px;
-      padding: 4px 8px;
-    }
-
-    .main-content { overflow: auto; padding: 34px 36px 70px; }
-    .matter-hero { margin-bottom: 16px; max-width: 1040px; }
-    .section-label {
-      color: var(--muted);
+    .main-scroll { flex: 1; min-height: 0; overflow: auto; }
+    .main-content { max-width: 1040px; padding: 28px 32px 40px; }
+    .page-header { margin-bottom: 18px; }
+    .eyebrow {
+      color: var(--c-accent);
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
       text-transform: uppercase;
     }
-    .matter-hero h1 {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 36px;
-      line-height: 1.05;
-      margin: 5px 0 8px;
+    .page-title {
+      color: var(--c-text);
+      font-family: var(--font-display);
+      font-size: 31px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin: 0 0 6px;
     }
-    .matter-hero p { color: var(--muted); font-size: 14px; margin: 0; }
-    .matter-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
-
+    .page-meta { color: var(--c-text-tertiary); font-size: 13px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .btn {
-      background: var(--paper);
-      border: 1px solid var(--line-strong);
-      border-radius: 4px;
-      color: var(--ink);
+      align-items: center;
+      border: 0;
+      border-radius: 6px;
       cursor: pointer;
-      min-height: 30px;
-      padding: 6px 10px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 600;
+      gap: 6px;
+      min-height: 34px;
+      padding: 8px 16px;
+      transition: background 0.15s, border-color 0.15s;
     }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn.primary { background: var(--c-accent); color: #fff; }
+    .btn.primary:hover { background: var(--c-accent-hover); }
+    .btn.secondary { background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text); }
+    .btn.secondary:hover { background: var(--c-bg); border-color: #ccd0d9; }
+    .file-summary {
+      align-items: center;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      color: var(--c-text-tertiary);
+      display: flex;
+      font-size: 12px;
+      gap: 8px;
+      margin-bottom: 22px;
+      padding: 10px 14px;
+    }
+    .file-summary strong { color: var(--c-text-secondary); font-weight: 700; }
+    .tabs { border-bottom: 1px solid var(--c-border); display: flex; gap: 0; margin-bottom: 24px; }
+    .tab {
+      border-bottom: 2px solid transparent;
+      color: var(--c-text-tertiary);
+      cursor: default;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: -1px;
+      padding: 10px 16px;
+    }
+    .tab.active { border-bottom-color: var(--c-accent); color: var(--c-accent); }
 
     .story-card,
-    .metadata-card {
-      background: var(--panel);
-      border: 1px solid var(--line-strong);
-      border-radius: 7px;
-      box-shadow: var(--shadow);
-      margin-top: 18px;
-      max-width: 1040px;
-      padding: 18px;
+    .details-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
     }
-    .story-card.scrollable-story { max-height: 390px; overflow: hidden; }
-    .story-heading { align-items: center; display: flex; gap: 16px; justify-content: space-between; }
-    .story-heading h2 { font-size: 18px; margin: 3px 0 0; }
+    .story-header {
+      align-items: center;
+      background: linear-gradient(135deg, #f7f9fc 0%, #fafbfd 100%);
+      border-bottom: 1px solid var(--c-border-light);
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      padding: 16px 20px;
+    }
+    .story-title { align-items: center; display: flex; gap: 10px; min-width: 0; }
+    .story-icon {
+      align-items: center;
+      background: var(--c-accent-light);
+      border-radius: 6px;
+      color: var(--c-accent);
+      display: inline-flex;
+      height: 32px;
+      justify-content: center;
+      width: 32px;
+    }
+    .story-title h2 { font-family: var(--font-display); font-size: 17px; font-weight: 700; line-height: 1.2; margin: 0; }
+    .story-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .story-tag {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border-light);
+      border-radius: 4px;
+      color: var(--c-text-tertiary);
+      font-size: 11px;
+      padding: 3px 10px;
+      white-space: nowrap;
+    }
     .story-body-scroll {
-      margin-top: 12px;
-      max-height: 278px;
+      max-height: 360px;
       overflow: auto;
-      padding-right: 8px;
-      scrollbar-color: #b8aa91 transparent;
+      scrollbar-color: #b8c0cf transparent;
     }
-    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-    .pill {
-      background: #faf7ef;
-      border: 1px solid var(--line-strong);
-      border-radius: 999px;
-      color: #384157;
+    .story-section {
+      align-items: flex-start;
+      border-bottom: 1px solid var(--c-border-light);
+      display: flex;
+      gap: 20px;
+      padding: 16px 20px;
+    }
+    .story-section:last-child { border-bottom: 0; }
+    .story-section h3 {
+      color: var(--c-accent);
+      flex: 0 0 128px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.55;
+      margin: 2px 0 0;
+      text-transform: uppercase;
+    }
+    .story-section p { color: var(--c-text-secondary); flex: 1; font-size: 13.5px; line-height: 1.65; margin: 0; }
+    .story-footer {
+      background: var(--c-bg);
+      color: var(--c-text-tertiary);
+      font-size: 11px;
+      font-style: italic;
+      padding: 10px 20px;
+    }
+    .details-header { border-bottom: 1px solid var(--c-border-light); padding: 14px 20px; }
+    .details-header h2 {
+      color: var(--c-text-tertiary);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .details-row { align-items: center; border-bottom: 1px solid var(--c-border-light); display: flex; padding: 12px 20px; }
+    .details-row:last-child { border-bottom: 0; }
+    .details-label {
+      color: var(--c-text-tertiary);
+      flex: 0 0 150px;
       font-size: 12px;
-      padding: 5px 8px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
-    .story-section { margin-top: 14px; }
-    .story-section:first-child { margin-top: 0; }
-    .story-section h3 { color: #697085; font-size: 11px; font-weight: 800; letter-spacing: 0.13em; margin: 0 0 6px; text-transform: uppercase; }
-    .story-section p { color: #303b50; font-size: 14px; line-height: 1.65; margin: 0; }
-    .story-footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; margin-top: 12px; padding-top: 9px; }
-    .metadata-grid { display: grid; grid-template-columns: 170px 1fr; margin-top: 12px; }
-    .metadata-grid div { border-top: 1px solid var(--line); padding: 10px 12px; }
-    .metadata-grid div:nth-child(odd) { background: #f6f0e7; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .details-value { color: var(--c-text); font-size: 14px; font-weight: 600; }
 
-    .assistant-pane {
-      background: #fbf8f1;
-      border-left: 1px solid var(--line-strong);
+    /* Assistant */
+    .assistant {
+      background: var(--c-assistant-bg);
+      border-left: 1px solid var(--c-border);
       display: flex;
       flex-direction: column;
       min-width: 0;
-      padding: 18px 14px;
+      overflow: hidden;
     }
-    .assistant-top { align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 17px; }
-    .assistant-top .btn { white-space: nowrap; }
-    .assistant-pane h2 { font-family: Georgia, "Times New Roman", serif; font-size: 25px; line-height: 1; margin: 4px 0 8px; }
-    .assistant-pane p { color: #3d4659; font-size: 13px; line-height: 1.45; margin: 0; }
-    .assistant-guardrail {
-      background: #f6f0e7;
-      border: 1px solid var(--line);
-      border-left: 3px solid var(--accent);
-      border-radius: 6px;
-      color: #3d4659;
-      display: grid;
-      gap: 5px;
+    .assistant-header {
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      padding: 20px 20px 16px;
+    }
+    .assistant-eyebrow {
+      align-items: center;
+      color: var(--c-accent);
+      display: flex;
+      font-size: 10px;
+      font-weight: 800;
+      gap: 6px;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .assistant-header h2 {
+      color: var(--c-text);
+      font-family: var(--font-display);
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0 0 4px;
+    }
+    .assistant-header p { color: var(--c-text-tertiary); font-size: 12.5px; line-height: 1.5; margin: 0; }
+    .assistant-actions { border-bottom: 1px solid var(--c-border-light); display: flex; gap: 6px; padding: 12px 20px; }
+    .task-btn {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 5px;
+      color: var(--c-text);
+      cursor: pointer;
       font-size: 12px;
-      line-height: 1.45;
-      margin-top: 14px;
-      padding: 10px 11px;
+      font-weight: 600;
+      padding: 6px 12px;
     }
-    .assistant-guardrail strong { color: var(--ink); }
-    .ask-box { margin-top: auto; }
-    .ask-box label { color: var(--muted); display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 7px; text-transform: uppercase; }
-    .ask-row { display: grid; grid-template-columns: 1fr 34px; gap: 6px; }
-    .ask-row input { background: var(--paper); border: 1px solid var(--line-strong); border-radius: 4px; color: var(--ink); font: inherit; padding: 9px 10px; width: 100%; }
-    .ask-row button { background: var(--black); border: 0; border-radius: 4px; color: #fff; cursor: pointer; }
-    .activity-mini { background: #f6f0e7; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 10px; padding: 10px; }
+    .task-btn.primary { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+    .assistant-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px; }
+    .guardrail {
+      background: var(--c-gold-bg);
+      border: 1px solid #e8d9a0;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+    }
+    .guardrail-title {
+      align-items: center;
+      color: #8b6d1f;
+      display: flex;
+      font-size: 11px;
+      font-weight: 800;
+      gap: 5px;
+      margin-bottom: 4px;
+    }
+    .guardrail-text { color: #9b7d30; font-size: 11.5px; line-height: 1.5; }
+    .activity h3 {
+      color: var(--c-text-tertiary);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin: 0 0 10px;
+      text-transform: uppercase;
+    }
+    .activity-item { align-items: flex-start; display: flex; gap: 10px; margin-bottom: 10px; }
+    .activity-dot { background: var(--c-border); border-radius: 50%; flex: 0 0 auto; height: 6px; margin-top: 7px; width: 6px; }
+    .activity-text { color: var(--c-text-secondary); font-size: 12px; line-height: 1.4; }
+    .activity-time { color: var(--c-text-tertiary); font-size: 10px; margin-top: 1px; }
+    .assistant-input { background: var(--c-surface); border-top: 1px solid var(--c-border); padding: 16px 20px; }
+    .assistant-input-label {
+      color: var(--c-text-tertiary);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .input-row { display: flex; gap: 8px; }
+    .input-field {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      color: var(--c-text);
+      flex: 1;
+      font-size: 13px;
+      min-width: 0;
+      outline: none;
+      padding: 9px 14px;
+    }
+    .send-btn {
+      align-items: center;
+      background: var(--c-accent);
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      flex: 0 0 36px;
+      height: 36px;
+      justify-content: center;
+      width: 36px;
+    }
 
     @media (max-width: 1200px) {
-      .shell { grid-template-columns: 248px minmax(420px, 1fr); }
-      .assistant-pane { display: none; }
-      .main-content { padding-left: 28px; padding-right: 28px; }
+      .shell { grid-template-columns: 220px minmax(0,1fr); }
+      .assistant { display: none; }
+      .main-content { max-width: 100%; }
+    }
+    @media (max-width: 760px) {
+      .shell { grid-template-columns: 64px minmax(0,1fr); }
+      .sidebar-brand strong, .sidebar-brand span, .sidebar-label, .active-matter-card strong, .active-matter-card small, .nav-item span:not(.nav-icon), .count, .record-actions, .technical-toggle, .operator-note { display: none; }
+      .sidebar-brand { padding-left: 14px; padding-right: 14px; }
+      .active-matter-card { height: 34px; margin-left: 14px; margin-right: 14px; padding: 0; width: 36px; }
+      .nav-item { justify-content: center; margin-left: 14px; margin-right: 14px; padding: 7px; width: 36px; }
+      .topbar { padding: 10px 18px; }
+      .main-content { padding: 24px 18px 34px; }
+      .story-header, .story-section, .details-row { flex-direction: column; gap: 8px; }
+      .story-section h3, .details-label { flex-basis: auto; }
     }
   </style>
 </head>
 <body>
   <div class="shell">
-    <aside class="black-rail">
-      <div class="brand"><strong>Matter</strong><span>Workbench</span></div>
+    <aside class="sidebar">
+      <div class="sidebar-brand"><strong>Matter</strong><span>Workbench</span></div>
 
-      <section class="rail-block" aria-label="Active matter">
-        <div class="rail-title">Active matter</div>
+      <section class="sidebar-section" aria-label="Active matter">
+        <div class="sidebar-label">Active Matter</div>
         <button class="active-matter-card" type="button" title="Return to this matter’s overview">
           <small>Matter Home</small>
           <strong>Taori vs Roma Builder</strong>
         </button>
       </section>
 
-      <section class="rail-block" aria-label="Matter record">
-        <div class="rail-title">Matter record</div>
-        <div class="rail-record-actions">
-          <button class="rail-btn primary" title="Add documents to this matter">+ Add files</button>
-          <button class="rail-btn" title="Refresh the matter record">Refresh</button>
-          <button class="rail-btn operator-only" title="Show technical files and logs — operator only">Show technical</button>
+      <section class="sidebar-section" aria-label="Matter record">
+        <div class="sidebar-label">Matter Record</div>
+        <div class="record-actions" aria-label="Matter record actions">
+          <button class="record-action primary" type="button" title="Add documents to this matter"><span aria-hidden="true">＋</span>Add files</button>
+          <button class="record-action" type="button" title="Refresh the matter record"><span aria-hidden="true">↻</span>Refresh</button>
         </div>
+        <button class="technical-toggle" type="button" title="Show technical files and logs — operator only">
+          <span aria-hidden="true">☐</span><span>Show technical</span>
+        </button>
         <span class="operator-note">Show technical: operator only</span>
-        <div class="rail-record-list">
-          <div class="rail-record-row active"><span class="record-icon">■</span><span>Case Record</span><span class="record-count">24</span></div>
-          <div class="rail-record-row"><span class="record-icon">■</span><span>Source Record</span><span class="record-count">4</span></div>
-          <div class="rail-record-row"><span class="record-icon">■</span><span>Case Analysis</span><span class="record-count">2</span></div>
-          <div class="rail-record-row"><span class="record-icon">□</span><span>Drafts</span><span class="record-count">0</span></div>
-          <div class="rail-record-row"><span class="record-icon">□</span><span>Ready to Send</span><span class="record-count">0</span></div>
-        </div>
+        <button class="nav-item active" type="button"><span class="nav-icon" aria-hidden="true">▣</span><span>Case Record</span><span class="count">24</span></button>
+        <button class="nav-item" type="button"><span class="nav-icon" aria-hidden="true">□</span><span>Source Record</span><span class="count">4</span></button>
+        <button class="nav-item" type="button"><span class="nav-icon" aria-hidden="true">▥</span><span>Case Analysis</span><span class="count">2</span></button>
+        <button class="nav-item" type="button"><span class="nav-icon" aria-hidden="true">✎</span><span>Drafts</span><span class="count">0</span></button>
+        <button class="nav-item" type="button"><span class="nav-icon" aria-hidden="true">➤</span><span>Ready to Send</span><span class="count">0</span></button>
       </section>
 
-      <nav class="rail-block" aria-label="App navigation">
-        <div class="rail-title">App</div>
-        <button class="rail-link" title="See all matters or open another matter"><span class="icon">⌕</span><span>All matters</span></button>
-        <button class="rail-link" title="Start a new matter"><span class="icon">＋</span><span>New matter</span></button>
-        <button class="rail-link" title="Open reusable skills"><span class="icon">✦</span><span>Skills</span></button>
-        <button class="rail-link" title="Review recent work"><span class="icon">◔</span><span>Activity</span></button>
-        <button class="rail-link" title="Open settings"><span class="icon">⚙</span><span>Settings</span></button>
-      </nav>
+      <div class="sidebar-divider"></div>
 
+      <nav class="sidebar-section" aria-label="App navigation">
+        <div class="sidebar-label">App</div>
+        <button class="nav-item" type="button" title="See all matters or open another matter"><span class="nav-icon" aria-hidden="true">⌗</span><span>All matters</span></button>
+        <button class="nav-item" type="button" title="Start a new matter"><span class="nav-icon" aria-hidden="true">＋</span><span>New matter</span></button>
+        <button class="nav-item" type="button" title="Open reusable skills"><span class="nav-icon" aria-hidden="true">✦</span><span>Skills</span></button>
+        <button class="nav-item" type="button" title="Review recent work"><span class="nav-icon" aria-hidden="true">⌁</span><span>Activity</span></button>
+        <button class="nav-item" type="button" title="Open settings"><span class="nav-icon" aria-hidden="true">⚙</span><span>Settings</span></button>
+      </nav>
+      <div class="sidebar-spacer"></div>
     </aside>
 
     <section class="workspace">
       <header class="topbar">
-        <div class="topbar-left">
-          <span class="topbar-kicker">Matter Workbench</span>
-          <span class="topbar-title">Private beta workspace · Active matter: Taori vs Roma Builder</span>
+        <div class="topbar-path">
+          <span>Matter Workbench</span><span aria-hidden="true">›</span><strong>Taori vs Roma Builder</strong>
         </div>
-        <span class="prototype-pill">Prototype</span>
+        <span class="prototype-badge"><span aria-hidden="true">✦</span>Prototype</span>
       </header>
 
-      <main class="main-content">
-        <section class="matter-hero">
-          <div class="section-label">Matter Home</div>
-          <h1>Taori vs Roma Builder</h1>
-          <p>42 files and 6 folders loaded from the matter record.</p>
-          <div class="matter-actions" aria-label="Matter actions">
-            <button class="btn primary" title="Run the preparation steps for this matter">Prepare matter</button>
-            <button class="btn" title="Refresh the matter overview story from the List of Dates">Write Matter Story</button>
-            <button class="btn" title="Create or refresh the chronology for lawyer review">Create List of Dates</button>
-          </div>
-        </section>
+      <main class="main-scroll">
+        <div class="main-content">
+          <section class="page-header">
+            <div class="eyebrow">Matter Home</div>
+            <h1 class="page-title">Taori vs Roma Builder</h1>
+            <div class="page-meta">42 files and 6 folders loaded from the matter record</div>
+          </section>
 
-        <article class="story-card scrollable-story">
-          <div class="story-heading">
-            <div><div class="section-label">Matter Story</div><h2>Matter Workbench story</h2></div>
-            <div class="pill-row"><span class="pill">Author: MW</span><span class="pill">Based on: Current List of Dates</span></div>
+          <div class="actions" aria-label="Matter actions">
+            <button class="btn primary" type="button"><span aria-hidden="true">✦</span>Prepare matter</button>
+            <button class="btn secondary" type="button">Write Matter Story</button>
+            <button class="btn secondary" type="button">Create List of Dates</button>
           </div>
-          <div class="story-body-scroll" aria-label="Scrollable Matter Story">
-            <section class="story-section"><h3>At a glance</h3><p>This matter concerns delayed possession and registration of Flat No. 1202, with disputes about payments, handover obligations, and responsibility for delay.</p></section>
-            <section class="story-section"><h3>What this matter is about</h3><p>The complainants say the builder took substantial payments but did not complete the conveyance and possession process. The respondent says further dues and charges remain unresolved.</p></section>
-            <section class="story-section"><h3>Key dispute</h3><p>The central dispute is whether delay and non-registration were caused by the builder's failure to complete obligations or by the complainants' alleged non-payment of certain dues.</p></section>
-            <section class="story-section"><h3>Procedural posture</h3><p>The matter is before the consumer forum with pleadings, correspondence, and payment-related documents forming the current record. The next review should test the chronology against the forum relief sought.</p></section>
-            <section class="story-section"><h3>Main risks and missing facts</h3><p>Key risks include payment proof, possession status, and how the forum treats contractual dues against delay. Missing facts include complete payment reconciliation and final correspondence.</p></section>
-            <section class="story-section"><h3>Additional complexity example</h3><p>More complex matters can produce longer narrative sections, so this card scrolls while keeping the matter header and actions stable above it.</p></section>
-          </div>
-          <div class="story-footer">Scrollable card. Full story can later open as the durable Matter Story document.</div>
-        </article>
 
-        <section class="metadata-card">
-          <div class="section-label">Matter details</div>
-          <div class="metadata-grid">
-            <div>Client</div><div>KK Taori</div>
-            <div>Opposite party</div><div>Roma Builder</div>
-            <div>Matter type</div><div>Consumer Court</div>
-            <div>Jurisdiction</div><div>Consumer Dispute</div>
+          <div class="file-summary" aria-label="Matter record summary">
+            <span aria-hidden="true">▣</span>
+            <span><strong>42 files</strong> and <strong>6 folders</strong> loaded. Use the Matter Record in the black rail to add files, refresh, or switch record groups.</span>
           </div>
-        </section>
+
+          <div class="tabs" aria-label="Matter Home sections">
+            <div class="tab active">Matter Story</div>
+            <div class="tab">Details</div>
+            <div class="tab">Timeline</div>
+          </div>
+
+          <article class="story-card">
+            <div class="story-header">
+              <div class="story-title">
+                <span class="story-icon" aria-hidden="true">□</span>
+                <h2>Matter Workbench Story</h2>
+              </div>
+              <div class="story-tags">
+                <span class="story-tag">Author: MW</span>
+                <span class="story-tag">Based on: Current List of Dates</span>
+              </div>
+            </div>
+            <div class="story-body-scroll" aria-label="Scrollable Matter Story">
+              <section class="story-section"><h3>At a Glance</h3><p>This matter concerns delayed possession and registration of Flat No. 1202, with disputes about payments, handover obligations, and responsibility for delay.</p></section>
+              <section class="story-section"><h3>What This Matter Is About</h3><p>The complainants say the builder took substantial payments but did not complete the conveyance and possession process. The respondent says further dues and charges remain unresolved.</p></section>
+              <section class="story-section"><h3>Key Dispute</h3><p>The central dispute is whether delay and non-registration were caused by the builder's failure to complete obligations or by the complainants' alleged non-payment of certain dues.</p></section>
+              <section class="story-section"><h3>Procedural Posture</h3><p>The matter is before the consumer forum with pleadings, correspondence, and payment-related documents forming the current record. The next review should test the chronology against the forum relief sought.</p></section>
+              <section class="story-section"><h3>Main Risks and Missing Facts</h3><p>Key risks include payment proof, possession status, and how the forum treats contractual dues against delay. Missing facts include complete payment reconciliation and final correspondence.</p></section>
+              <section class="story-section"><h3>Additional Complexity Example</h3><p>More complex matters can produce longer narrative sections, so this card scrolls while keeping the matter header and actions stable above it.</p></section>
+            </div>
+            <div class="story-footer">Scrollable card. Full story can later open as the durable Matter Story document.</div>
+          </article>
+
+          <section class="details-card">
+            <div class="details-header"><h2>Matter Details</h2></div>
+            <div class="details-row"><div class="details-label">Client</div><div class="details-value">KK Taori</div></div>
+            <div class="details-row"><div class="details-label">Opposite Party</div><div class="details-value">Roma Builder</div></div>
+            <div class="details-row"><div class="details-label">Matter Type</div><div class="details-value">Consumer Court</div></div>
+            <div class="details-row"><div class="details-label">Jurisdiction</div><div class="details-value">Consumer Dispute</div></div>
+          </section>
+        </div>
       </main>
     </section>
 
-    <aside class="assistant-pane" aria-label="Matter assistant">
-      <div class="assistant-top"><button class="btn" title="Start a fresh assistant task">New task</button><button class="btn" title="Assistant quality level">High</button></div>
-      <div class="section-label">Matter Assistant</div>
-      <h2>What do you need?</h2>
-      <p>Ask about the active matter, run a matter action, or create a reusable skill.</p>
-      <div class="assistant-guardrail" role="note">
-        <strong>Transition guardrail</strong>
-        <span>Current Matter Assistant behavior stays: ask box, command routing, active matter context, recent activity, and new task reset.</span>
+    <aside class="assistant" aria-label="Matter assistant">
+      <div class="assistant-header">
+        <div class="assistant-eyebrow"><span aria-hidden="true">✦</span>Matter Assistant</div>
+        <h2>What do you need?</h2>
+        <p>Ask about the active matter, run a matter action, or create a reusable skill.</p>
       </div>
-      <div class="ask-box">
-        <label>Ask or run</label>
-        <div class="ask-row"><input value="Ask about Taori vs Roma Builder…" aria-label="Ask" readonly /><button>→</button></div>
-        <div class="activity-mini"><strong>Recent activity</strong><br />16:17 switched to matter<br />16:18 Matter Story refreshed</div>
+      <div class="assistant-actions">
+        <button class="task-btn primary" type="button">New task</button>
+        <button class="task-btn" type="button">High</button>
+      </div>
+      <div class="assistant-body">
+        <div class="guardrail" role="note">
+          <div class="guardrail-title"><span aria-hidden="true">⚠</span>Transition guardrail</div>
+          <div class="guardrail-text">Current Matter Assistant behavior stays: ask box, command routing, active matter context, recent activity, and new task reset.</div>
+        </div>
+        <div class="activity">
+          <h3>Recent activity</h3>
+          <div class="activity-item"><span class="activity-dot" aria-hidden="true"></span><div><div class="activity-text">Switched to matter</div><div class="activity-time">16:17</div></div></div>
+          <div class="activity-item"><span class="activity-dot" aria-hidden="true"></span><div><div class="activity-text">Matter Story refreshed</div><div class="activity-time">16:18</div></div></div>
+        </div>
+      </div>
+      <div class="assistant-input">
+        <div class="assistant-input-label">Ask or Run</div>
+        <div class="input-row">
+          <input class="input-field" aria-label="Ask" placeholder="Ask about Taori vs Roma Builder…" readonly />
+          <button class="send-btn" type="button" aria-label="Run">→</button>
+        </div>
       </div>
     </aside>
   </div>
