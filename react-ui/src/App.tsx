@@ -168,7 +168,7 @@ function AppShell() {
   const answerMatterQuestion = useCallback(async (
     question: string,
     {
-      matterName = state.activeMatter?.name ?? null,
+      matterName = state.activeMatter?.name ?? state.resumeMatterName ?? null,
       manageRunning = true,
     }: { matterName?: string | null; manageRunning?: boolean } = {},
   ) => {
@@ -202,7 +202,7 @@ function AppShell() {
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
 
   const openMatterFinder = useCallback(async () => {
     if (state.activeMatter) {
@@ -478,7 +478,7 @@ function AppShell() {
     }
 
     // Fall back to intent check
-    const matterName = state.activeMatter?.name ?? null;
+    const matterName = state.activeMatter?.name ?? state.resumeMatterName ?? null;
     dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     appendTerminal([`[cmd] "${cmd}"`]);
     try {
@@ -522,7 +522,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter, state.activeMatter?.name, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
+  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
 
   function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
     activeMatterNameRef.current = name;

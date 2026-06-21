@@ -6,7 +6,7 @@ const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const appContextPath = new URL("../react-ui/src/store/AppContext.tsx", import.meta.url);
 const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
 
-test("React matter changes clear matter-scoped preview state", async () => {
+test("React matter changes clear matter-scoped preview state and stale resume matter", async () => {
   const source = await readFile(appContextPath, "utf8");
 
   assert.match(source, /RESET_MATTER_TRANSIENT_VIEW/);
@@ -16,12 +16,20 @@ test("React matter changes clear matter-scoped preview state", async () => {
   );
   assert.match(
     source,
-    /const clearActiveMatter = useCallback[\s\S]*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
+    /const clearActiveMatter = useCallback[\s\S]*dispatch\(\{ type: 'SET_RESUME_MATTER', payload: null \}\);[\s\S]*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
   );
   assert.match(
     source,
-    /const switchActiveMatter = useCallback[\s\S]*setActiveMatter\(activeMatter\);\s*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
+    /const switchActiveMatter = useCallback[\s\S]*dispatch\(\{ type: 'SET_RESUME_MATTER', payload: name \}\);[\s\S]*setActiveMatter\(activeMatter\);\s*dispatch\(\{ type: 'RESET_MATTER_TRANSIENT_VIEW' \}\);/,
   );
+});
+
+test("React Matter Assistant falls back to resumed matter during post-login matter restore", async () => {
+  const source = await readFile(appPath, "utf8");
+
+  assert.match(source, /matterName = state\.activeMatter\?\.name \?\? state\.resumeMatterName \?\? null/);
+  assert.match(source, /const matterName = state\.activeMatter\?\.name \?\? state\.resumeMatterName \?\? null/);
+  assert.match(source, /state\.resumeMatterName/);
 });
 
 test("React single rail Home keeps the active matter and returns to Matter Home", async () => {

@@ -202,6 +202,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeMatterNameRef.current = matter?.name ?? null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: matter });
     if (matter) {
+      dispatch({ type: 'SET_RESUME_MATTER', payload: matter.name });
       dispatch({ type: 'SET_TITLE', payload: matter.name });
       dispatch({ type: 'SET_BREADCRUMBS', payload: matter.name });
       dispatch({ type: 'SET_STATUS_BAR', payload: matter.name });
@@ -211,6 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearActiveMatter = useCallback(() => {
     activeMatterNameRef.current = null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: null });
+    dispatch({ type: 'SET_RESUME_MATTER', payload: null });
     dispatch({ type: 'SET_PREPARATION_RUN', payload: null });
     dispatch({ type: 'SET_TITLE', payload: 'No matter selected' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
@@ -243,6 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (matterSwitchSeqRef.current !== switchSeq) {
         throw new MatterSwitchSupersededError(name);
       }
+      dispatch({ type: 'SET_RESUME_MATTER', payload: name });
       if (startMessage !== false) appendTerminal([startMessage]);
       try {
         const workspace = await api.switchMatter(name);

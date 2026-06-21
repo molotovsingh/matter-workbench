@@ -183,6 +183,7 @@ export async function runRenderedUiChecks({
     checks.push(await homeStartStateCheck(page));
     checks.push(await bodyIncludesCheck(page, "feedback_entry_visible", ["Have a problem? Tell us what happened"], "Feedback entry is visible in the command rail."));
     checks.push(await copilotTierCheck(page));
+    checks.push(await matterAssistantSubmitCheck(page));
     checks.push(await feedbackEndpointCheck(page));
     screenshots.push(await takeScreenshot(page, screenshotDir, "home_desktop", "home-desktop.png"));
 
@@ -286,6 +287,91 @@ async function copilotTierCheck(page) {
     passed: missing.length === 0,
     detail: missing.length ? `Missing Copilot tier option(s): ${missing.join(", ")}` : `Copilot tiers available: ${labels.join(", ")}.`,
   };
+}
+
+async function matterAssistantSubmitCheck(page) {
+  let capturedBody = null;
+  const routePattern = "**/api/matter-copilot/answer";
+  const routeHandler = async (route) => {
+    const request = route.request();
+    try {
+      capturedBody = JSON.parse(request.postData() || "{}");
+    } catch {
+      capturedBody = {};
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json; charset=utf-8",
+      body: JSON.stringify({
+        schema_version: "matter-copilot-answer/v1",
+        answered_at: new Date().toISOString(),
+        question: capturedBody?.question || "What is this matter about?",
+        answer_status: "answered",
+        answer_markdown: "This is a UI wiring smoke answer from the current matter record.",
+        confidence: 0.9,
+        sources: [{ source_label: "UI smoke source", raw_citation: "FILE-0001 p1.b1", snippet: "UI smoke source." }],
+        warnings: [],
+        ai_run: { provider: "ui-smoke", model: "stub", task: "copilot_answer" },
+      }),
+    });
+  };
+
+  await page.route(routePattern, routeHandler);
+  try {
+    const activeMatterReady = await ensureActiveMatterForAssistant(page);
+    if (!activeMatterReady) {
+      return { key: "matter_assistant_submit", passed: false, detail: "Could not open an active matter for the assistant smoke." };
+    }
+    await page.waitForSelector("#aiCommandInput", { timeout: 60000 });
+    const placeholderReady = await page.waitForFunction(() => {
+      const input = document.querySelector("#aiCommandInput");
+      return Boolean(input && /ask about/i.test(input.getAttribute("placeholder") || ""));
+    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (!placeholderReady) {
+      return { key: "matter_assistant_submit", passed: false, detail: "Assistant input did not enter active-matter mode." };
+    }
+    await page.locator("#aiCommandInput").fill("ask What is this matter about?");
+    const disabled = await page.locator("#aiCommandSubmit").isDisabled().catch(() => true);
+    if (disabled) {
+      return { key: "matter_assistant_submit", passed: false, detail: "Assistant submit button stayed disabled after entering a question." };
+    }
+    await page.locator("#aiCommandSubmit").click();
+    const answerVisible = await page.waitForFunction(() => {
+      const body = document.body?.innerText || "";
+      return body.includes("UI wiring smoke answer") && body.includes("Mode: chat-only answer");
+    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const hasMatterName = typeof capturedBody?.matterName === "string" && capturedBody.matterName.trim().length > 0;
+    const hasQuestion = typeof capturedBody?.question === "string" && /what is this matter about/i.test(capturedBody.question);
+    return {
+      key: "matter_assistant_submit",
+      passed: Boolean(answerVisible && hasMatterName && hasQuestion),
+      detail: answerVisible && hasMatterName && hasQuestion
+        ? `Assistant submitted with active matter: ${capturedBody.matterName}.`
+        : `Assistant submit failed: answerVisible=${answerVisible}, hasMatterName=${hasMatterName}, hasQuestion=${hasQuestion}.`,
+    };
+  } finally {
+    await page.unroute(routePattern, routeHandler).catch(() => {});
+  }
+}
+
+async function ensureActiveMatterForAssistant(page) {
+  const body = await page.locator("body").innerText({ timeout: 60000 }).catch(() => "");
+  if (/files loaded from the matter folder/i.test(body)) return true;
+
+  const allMatters = page.getByRole("button", { name: /All matters|Find an existing matter/i }).first();
+  if (await allMatters.count()) {
+    await allMatters.click();
+    await page.waitForTimeout(500);
+  }
+  const matterButton = page.locator(".home-matter-list button").first();
+  if (!(await matterButton.count())) return false;
+  await matterButton.click();
+  return page.waitForFunction(() => {
+    const bodyText = document.body?.innerText || "";
+    const input = document.querySelector("#aiCommandInput");
+    return /files loaded from the matter folder/i.test(bodyText)
+      && Boolean(input && /ask about/i.test(input.getAttribute("placeholder") || ""));
+  }, null, { timeout: 60000 }).then(() => true).catch(() => false);
 }
 
 async function feedbackEndpointCheck(page) {
