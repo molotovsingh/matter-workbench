@@ -13,7 +13,7 @@ const FIXED_NOW = Date.parse("2026-06-20T12:00:00.000Z");
 function authEnv(overrides = {}) {
   return {
     MOTHERSHIP_CONSOLE: "required",
-    MOTHERSHIP_CONSOLE_USERNAME: "aks",
+    MOTHERSHIP_CONSOLE_USERNAME: "aks_hemanth",
     MOTHERSHIP_CONSOLE_PASSWORD_HASH: OPERATOR_HASH,
     MOTHERSHIP_CONSOLE_SESSION_TTL_SECONDS: "3600",
     ...overrides,
@@ -45,7 +45,7 @@ test("console login then read installations and report round-trip", async () => 
   const store = createFakeStore();
   const app = await startServer({ store, auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     assert.equal(session.response.status, 200);
     assert.equal(session.body.authenticated, true);
     const cookie = session.response.headers.get("set-cookie");
@@ -74,7 +74,7 @@ test("console feedback status action wires to the store with operator actor", as
   const store = createFakeStore();
   const app = await startServer({ store, auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
 
     const result = await authedPost(app.baseUrl, "/api/feedback/firm-beta-01/feedback_001/status", cookie, {
@@ -91,7 +91,7 @@ test("console feedback status action wires to the store with operator actor", as
     assert.equal(triageCall.installationId, "firm-beta-01");
     assert.equal(triageCall.feedbackId, "feedback_001");
     assert.equal(triageCall.status, "needs_evidence");
-    assert.equal(triageCall.actor, "aks");
+    assert.equal(triageCall.actor, "aks_hemanth");
   } finally {
     await app.close();
   }
@@ -101,7 +101,7 @@ test("report filter with an invalid severity returns 400 not 500", async () => {
   const store = createFakeStore();
   const app = await startServer({ store, auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
 
     const result = await authedGet(app.baseUrl, "/api/report?severity=bogus", cookie);
@@ -116,7 +116,7 @@ test("report filter with a valid severity returns 200", async () => {
   const store = createFakeStore();
   const app = await startServer({ store, auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
 
     const result = await authedGet(app.baseUrl, "/api/report?severity=error", cookie);
@@ -131,7 +131,7 @@ test("console revoke installation action returns 404 when the store reports no c
   const store = createFakeStore({ revokeReturned: false });
   const app = await startServer({ store, auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
 
     const result = await authedPost(app.baseUrl, "/api/installations/ghost-install/revoke", cookie, {});
@@ -145,7 +145,7 @@ test("console revoke installation action returns 404 when the store reports no c
 test("console logout clears the session and subsequent reads are unauthorized", async () => {
   const app = await startServer({ store: createFakeStore(), auth: makeAuth() });
   try {
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
 
     const logout = await fetch(`${app.baseUrl}/api/auth/logout`, {
@@ -195,12 +195,12 @@ test("console status endpoint reports authenticated state", async () => {
     assert.equal(beforeBody.enabled, true);
     assert.equal(beforeBody.authenticated, false);
 
-    const session = await login(app.baseUrl, "aks", "operator-secret");
+    const session = await login(app.baseUrl, "aks_hemanth", "operator-secret");
     const cookie = session.response.headers.get("set-cookie");
     const after = await fetch(`${app.baseUrl}/api/auth/status`, { headers: { Cookie: cookie } });
     const afterBody = await after.json();
     assert.equal(afterBody.authenticated, true);
-    assert.equal(afterBody.user.username, "aks");
+    assert.equal(afterBody.user.username, "aks_hemanth");
   } finally {
     await app.close();
   }
@@ -209,7 +209,7 @@ test("console status endpoint reports authenticated state", async () => {
 test("login with the wrong password is rejected", async () => {
   const app = await startServer({ store: createFakeStore(), auth: makeAuth() });
   try {
-    const result = await login(app.baseUrl, "aks", "wrong-password");
+    const result = await login(app.baseUrl, "aks_hemanth", "wrong-password");
     assert.equal(result.response.status, 401);
     assert.match(result.body.error, /invalid username or password/i);
   } finally {

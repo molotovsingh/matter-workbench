@@ -196,7 +196,7 @@ async function main() {
   const auth = createConsoleAuthService({
     env: {
       MOTHERSHIP_CONSOLE: "required",
-      MOTHERSHIP_CONSOLE_USERNAME: "aks",
+      MOTHERSHIP_CONSOLE_USERNAME: "aks_hemanth",
       MOTHERSHIP_CONSOLE_PASSWORD_HASH: OPERATOR_PASSWORD_HASH,
       MOTHERSHIP_CONSOLE_SESSION_TTL_SECONDS: "28800",
     },
@@ -210,7 +210,7 @@ async function main() {
   console.log("");
   console.log("  Mothership Console — DEMO MODE");
   console.log(`  URL:      http://${host}:${port}/`);
-  console.log("  Username: aks");
+  console.log("  Username: aks_hemanth");
   console.log("  Password: demo");
   console.log("  Press Ctrl+C to stop");
   console.log("");
