@@ -358,13 +358,16 @@ async function ensureActiveMatterForAssistant(page) {
   const body = await page.locator("body").innerText({ timeout: 60000 }).catch(() => "");
   if (/files loaded from the matter folder/i.test(body)) return true;
 
-  const allMatters = page.getByRole("button", { name: /All matters|Find an existing matter/i }).first();
-  if (await allMatters.count()) {
-    await allMatters.click();
-    await page.waitForTimeout(500);
+  const findExisting = page.locator("button.home-start-action").filter({ hasText: /Find an existing matter/i }).first();
+  if (await findExisting.count()) {
+    await findExisting.click();
+  } else {
+    const allMatters = page.getByRole("button", { name: /All matters|Find an existing matter/i }).first();
+    if (await allMatters.count()) await allMatters.click();
   }
   const matterButton = page.locator(".home-matter-list button").first();
-  if (!(await matterButton.count())) return false;
+  const matterVisible = await matterButton.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
+  if (!matterVisible) return false;
   await matterButton.click();
   return page.waitForFunction(() => {
     const bodyText = document.body?.innerText || "";
