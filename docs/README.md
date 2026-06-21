@@ -28,6 +28,7 @@ equally authoritative.
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
+| Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
 | Current release notes | [v1.0.0-beta.24](releases/v1.0.0-beta.24.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
@@ -111,6 +112,8 @@ or old product names.
 
 ## Maintenance Rules
 
+- Keep `main` as the current integration/deployment line; see
+  [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md).
 - Add new current contracts under `docs/contracts/` when a repeated rule becomes
   implementation authority.
 - Add new future decisions to

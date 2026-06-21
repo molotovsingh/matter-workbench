@@ -4,7 +4,7 @@
 
 It is built for the first hard part of legal work: taking PDFs, emails, scans, spreadsheets, pleadings, notices, orders, and client material, then producing an auditable record with document labels, extracted text, a source index, matter context, and a lawyer-review-ready chronology.
 
-> Status: **Beta 3 private-cloud beta is code-complete, deployed, migration `019_credit_ledger` is applied and recorded, and deployed smoke has passed.**
+> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, migration `019_credit_ledger` is applied and recorded, and deployed smoke/hardening checks have passed.**
 >
 > Access: **Private beta only.** This is not a public self-serve legal advice product; trusted testers use supervised accounts and lawyer review remains mandatory.
 
@@ -119,10 +119,11 @@ Completed release checks include:
 - browser UI hardening pass with zero console errors;
 - runtime and mothership service checks.
 
-Current release docs:
+Current release and repo-state docs:
 
 - [v1.0.0-beta.24 release marker](docs/releases/v1.0.0-beta.24.md)
 - [Docs map](docs/README.md)
+- [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
 - [Database transition handoff](docs/database-transition-handoff.md)
 
