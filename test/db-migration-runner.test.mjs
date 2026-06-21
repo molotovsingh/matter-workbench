@@ -9,7 +9,7 @@ const doctorPath = new URL("../scripts/db-doctor.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const readmePath = new URL("../README.md", import.meta.url);
 const dbReadmePath = new URL("../db/README.md", import.meta.url);
-const transitionDocPath = new URL("../docs/future-design-decisions/done/react-only-cutover-database-transition.md", import.meta.url);
+const transitionDocPath = new URL("../docs/future-design-decisions/react-only-cutover-database-transition.md", import.meta.url);
 
 test("database migration runner discovers numbered SQL migrations", async () => {
   const {
