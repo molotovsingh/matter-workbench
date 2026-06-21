@@ -22,13 +22,14 @@ test("navigation shell prototype is clearly separated from production UI", async
 test("final navigation shell candidate keeps global nav, matter record, and assistant separated", async () => {
   const html = await readFile(finalPrototypePath, "utf8");
 
-  assert.match(html, /Final-candidate visual prototype/);
+  assert.match(html, /Matter Workbench final navigation candidate/);
   assert.match(html, /aria-label="App navigation"/);
   assert.match(html, /All matters/);
   assert.match(html, /See all matters or open another matter/);
   assert.match(html, /New matter/);
   assert.match(html, /aria-label="Active matter"/);
-  assert.match(html, /Matter record is in the black zone/);
+  assert.match(html, /aria-label="Matter record"/);
+  assert.doesNotMatch(html, /rail-footer/);
   assert.match(html, /Show technical: operator only/);
   assert.match(html, /Show technical files and logs — operator only/);
   assert.doesNotMatch(html, /matter\.json/);
