@@ -7,7 +7,7 @@ import test from "node:test";
 import ts from "typescript";
 
 const lawyerModePath = new URL("../react-ui/src/lib/lawyerMode.ts", import.meta.url);
-const activityBarPath = new URL("../react-ui/src/components/layout/ActivityBar.tsx", import.meta.url);
+const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
 const titleBarPath = new URL("../react-ui/src/components/layout/TitleBar.tsx", import.meta.url);
 const workspaceTreePath = new URL("../react-ui/src/components/workspace/WorkspaceTree.tsx", import.meta.url);
 
@@ -66,13 +66,14 @@ test("React lawyer mode helper filters generated internals but keeps client evid
 });
 
 test("React chrome gates technical controls with lawyer mode helpers", async () => {
-  const activityBar = await readFile(activityBarPath, "utf8");
+  const sidebar = await readFile(sidebarPath, "utf8");
   const titleBar = await readFile(titleBarPath, "utf8");
   const workspaceTree = await readFile(workspaceTreePath, "utf8");
 
-  assert.match(activityBar, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
-  assert.match(activityBar, /Recent work/);
-  assert.match(activityBar, /tab\.operatorOnly/);
+  assert.match(sidebar, /canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
+  assert.match(sidebar, /Recent work/);
+  assert.match(sidebar, /tab\.operatorOnly/);
+  assert.match(sidebar, /Show technical: operator only/);
 
   assert.match(titleBar, /const showOperatorChrome = canSeeOperatorSurface\(state\.authEnabled, state\.authUser\)/);
   assert.match(titleBar, /showOperatorChrome && \(\s*<span className="workspace-mode">/);

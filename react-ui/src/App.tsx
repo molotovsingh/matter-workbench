@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
-import ActivityBar from './components/layout/ActivityBar';
 import Sidebar from './components/layout/Sidebar';
 import MainContent from './components/layout/MainContent';
 import CommandPanel from './components/command/CommandPanel';
@@ -593,10 +592,10 @@ function AppShell() {
           {readinessBanner}
         </div>
       )}
-      <ActivityBar />
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}
         onAddFiles={() => setActiveView('add-files')}
+        onViewAllMatters={() => { void openMatterFinder(); }}
       />
       <MainContent
         onNewMatter={() => setActiveView('new-matter')}

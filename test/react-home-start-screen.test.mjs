@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
-const activityBarPath = new URL("../react-ui/src/components/layout/ActivityBar.tsx", import.meta.url);
 const homeLandingPath = new URL("../react-ui/src/views/HomeLanding.tsx", import.meta.url);
 const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
 const stylesPath = new URL("../react-ui/src/styles/global.css", import.meta.url);
@@ -37,12 +36,12 @@ test("React Home renders a simple personalized Start screen when no matter is ac
 });
 
 test("React app logo goes to Matter Home when a matter is active", async () => {
-  const activityBar = await readFile(activityBarPath, "utf8");
+  const sidebar = await readFile(sidebarPath, "utf8");
 
-  assert.match(activityBar, /Go to Matter Home/);
-  assert.match(activityBar, /Go to Matter Workbench home/);
-  assert.match(activityBar, /handleTabClick\('home'\)/);
-  assert.match(activityBar, /RESET_MATTER_TRANSIENT_VIEW/);
-  assert.doesNotMatch(activityBar, /api\.clearActiveMatter\(\)/);
-  assert.doesNotMatch(activityBar, /clearActiveMatter\(\)/);
+  assert.match(sidebar, /Go to Matter Home/);
+  assert.match(sidebar, /Go to Matter Workbench home/);
+  assert.match(sidebar, /returnToMatterHome/);
+  assert.match(sidebar, /RESET_MATTER_TRANSIENT_VIEW/);
+  assert.doesNotMatch(sidebar, /api\.clearActiveMatter\(\)/);
+  assert.doesNotMatch(sidebar, /clearActiveMatter\(\)/);
 });

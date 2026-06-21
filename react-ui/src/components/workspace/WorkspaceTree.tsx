@@ -111,9 +111,10 @@ function formatSize(bytes: number) {
 interface Props {
   onRefresh: () => void;
   onAddFiles: () => void;
+  showActions?: boolean;
 }
 
-export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
+export default function WorkspaceTree({ onRefresh, onAddFiles, showActions = true }: Props) {
   const { state, dispatch } = useApp();
   const workspace = state.activeMatter?.workspace;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
@@ -130,24 +131,26 @@ export default function WorkspaceTree({ onRefresh, onAddFiles }: Props) {
     <div id="matterFilesSection" className="tree-section">
       <div className="tree-heading-row">
         <div className="tree-heading">Matter files</div>
-        <div className="tree-actions">
-          <button className="tree-refresh" type="button" onClick={onAddFiles}>
-            + Add Files
-          </button>
-          {showOperatorChrome && (
-            <button
-              className={`tree-refresh${state.showTechnicalFiles ? ' active' : ''}`}
-              type="button"
-              aria-pressed={state.showTechnicalFiles}
-              onClick={() => dispatch({ type: 'SET_SHOW_TECHNICAL', payload: !state.showTechnicalFiles })}
-            >
-              {state.showTechnicalFiles ? 'Hide technical' : 'Show technical'}
+        {showActions && (
+          <div className="tree-actions">
+            <button className="tree-refresh" type="button" onClick={onAddFiles}>
+              + Add Files
             </button>
-          )}
-          <button className="tree-refresh" type="button" onClick={onRefresh}>
-            Refresh
-          </button>
-        </div>
+            {showOperatorChrome && (
+              <button
+                className={`tree-refresh${state.showTechnicalFiles ? ' active' : ''}`}
+                type="button"
+                aria-pressed={state.showTechnicalFiles}
+                onClick={() => dispatch({ type: 'SET_SHOW_TECHNICAL', payload: !state.showTechnicalFiles })}
+              >
+                {state.showTechnicalFiles ? 'Hide technical' : 'Show technical'}
+              </button>
+            )}
+            <button className="tree-refresh" type="button" onClick={onRefresh}>
+              Refresh
+            </button>
+          </div>
+        )}
       </div>
       <ul className="tree-root">
         {children.length === 0 ? (

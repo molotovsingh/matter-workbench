@@ -1,7 +1,7 @@
 # Navigation Shell Transition
 
 Date: 2026-06-21
-Status: Implementation contract draft; prototype accepted for review, not production implementation permission
+Status: First production shell slice landed; Matter Assistant remains protected
 Priority: High for beta polish
 
 ## Context
@@ -18,7 +18,7 @@ Latest reviewed prototype commit:
 95a170d Tighten final nav prototype from morning review
 ```
 
-This document records the product decision and the guardrails for a later production slice. It is not permission to implement production UI by itself.
+This document records the product decision and the guardrails for the production shell transition. The first production shell/layout slice has landed; further changes still need to preserve the guardrails below.
 
 ## Accepted Prototype Direction
 
@@ -136,16 +136,17 @@ Minimum behavior:
 
 ## Production Slice Boundary
 
-The first implementation slice should be a shell/layout refactor only.
+The first implementation slice is a shell/layout refactor only.
 
-Allowed:
+Landed:
 
-- move black rail layout into production React shell;
-- move Matter Record controls into the left rail;
-- rename Find matter to All matters;
-- widen/rebalance center workspace width;
-- make Matter Story card scrollable;
-- keep existing file tree/action handlers by reusing current components where possible.
+- moved black rail layout into the production React shell;
+- moved Matter Record controls into the left rail;
+- renamed Find matter to All matters;
+- widened/rebalanced center workspace width;
+- made Matter Story card scrollable;
+- reused existing file tree/action handlers;
+- preserved existing Matter Assistant component behavior.
 
 Not allowed in the first slice:
 
@@ -159,7 +160,7 @@ Not allowed in the first slice:
 
 ## Required Tests Before Production Merge
 
-Add or update tests that prove:
+Current tests prove:
 
 1. Activity/brand click returns to Matter Home without clearing active matter.
 2. **All matters** opens the matter browser / clear-current-matter path intentionally.
