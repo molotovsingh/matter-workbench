@@ -197,6 +197,12 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
 
   const installAndBuild = plan.steps.find((step) => step.id === "install_and_build");
   assert.ok(installAndBuild);
+  assert.match(installAndBuild.command.join(" "), /npm run ui:build --silent/);
+  assert.match(installAndBuild.command.join(" "), /npm run console:build --silent/);
+  assert.ok(
+    installAndBuild.command.at(-1).indexOf("npm run ui:build --silent")
+      < installAndBuild.command.at(-1).indexOf("npm run console:build --silent"),
+  );
   assert.match(
     installAndBuild.command.join(" "),
     /cp deployment\/private-vm\/matter-workbench-mothership\.service \"\$HOME\/\.config\/systemd\/user\/\"/,

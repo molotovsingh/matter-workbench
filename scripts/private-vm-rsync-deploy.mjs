@@ -171,7 +171,7 @@ export function buildPrivateVmRsyncDeployPlan({
     },
     {
       id: "install_and_build",
-      title: "Install dependencies and build React before activation",
+      title: "Install dependencies and build React plus mothership console before activation",
       command: [
         "ssh",
         remote,
@@ -180,6 +180,7 @@ export function buildPrivateVmRsyncDeployPlan({
           `cd ${shellQuote(appDir)}`,
           "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --silent",
           "npm run ui:build --silent",
+          "npm run console:build --silent",
           "mkdir -p \"$HOME/.config/systemd/user\"",
           "cp deployment/private-vm/matter-workbench-runtime.service \"$HOME/.config/systemd/user/\"",
           "cp deployment/private-vm/matter-workbench-mothership.service \"$HOME/.config/systemd/user/\"",
