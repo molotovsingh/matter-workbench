@@ -141,11 +141,12 @@ test("secret redaction helper covers connection strings, ingestion tokens, and g
     "MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=fixture-sync-token",
     "login failed password: fixture-pass",
     "retry with token=fixture-token",
+    '{"password":"quoted-pass","token":"quoted-token","secret":"quoted-secret"}',
   ].join("\n");
 
   const redacted = redactSensitiveText(text);
 
-  assert.doesNotMatch(redacted, /fixture-pass|fixture-ingestion-token|fixture-sync-token|fixture-token/);
+  assert.doesNotMatch(redacted, /fixture-pass|fixture-ingestion-token|fixture-sync-token|fixture-token|quoted-pass|quoted-token|quoted-secret/);
   assert.match(redacted, /postgres:\/\/operator:\*\*\*@db\.internal:5432\/mothership/);
   assert.match(redacted, /postgresql:\/\/operator:\*\*\*@db\.internal:5432\/db/);
   assert.match(redacted, new RegExp(`mwb_ing_${escapeRegExp(REDACTED_SECRET)}`));

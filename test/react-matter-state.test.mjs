@@ -5,6 +5,7 @@ import test from "node:test";
 const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const appContextPath = new URL("../react-ui/src/store/AppContext.tsx", import.meta.url);
 const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
+const globalCssPath = new URL("../react-ui/src/styles/global.css", import.meta.url);
 
 test("React matter changes clear matter-scoped preview state and stale resume matter", async () => {
   const source = await readFile(appContextPath, "utf8");
@@ -52,12 +53,14 @@ test("React sidebar brand returns to Matter Home without clearing the matter", a
 });
 
 test("React sidebar is the single nav rail with Matter Record and All matters", async () => {
-  const [app, source] = await Promise.all([
+  const [app, source, css] = await Promise.all([
     readFile(appPath, "utf8"),
     readFile(sidebarPath, "utf8"),
+    readFile(globalCssPath, "utf8"),
   ]);
 
   assert.doesNotMatch(app, /<ActivityBar/);
+  assert.doesNotMatch(css, /activity-(bar|logo|item|icon|label|spacer)/);
   assert.doesNotMatch(source, /<MatterPicker/);
   assert.match(source, /Start from the Home screen/);
   assert.match(source, /aria-label="Matter record"/);

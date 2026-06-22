@@ -135,6 +135,24 @@
   --nav-active-border: #b8a46d;
   --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.35);
   --display-font: Georgia, "Times New Roman", serif;
+  --c-sidebar: var(--nav-bg);
+  --c-sidebar-hover: var(--nav-active-bg);
+  --c-sidebar-active: #2d3028;
+  --c-sidebar-text: var(--nav-muted);
+  --c-sidebar-text-active: var(--nav-text);
+  --c-bg: var(--bg);
+  --c-surface: var(--panel);
+  --c-accent: #3f8f87;
+  --c-accent-light: #173430;
+  --c-accent-hover: #52a59c;
+  --c-gold: var(--accent-gold);
+  --c-gold-bg: #2a2410;
+  --c-text: var(--text);
+  --c-text-secondary: var(--muted-strong);
+  --c-text-tertiary: var(--muted);
+  --c-border: var(--border);
+  --c-border-light: var(--border-subtle);
+  --c-assistant-bg: var(--command-bg);
 }
 
 * { box-sizing: border-box; }
@@ -155,6 +173,15 @@ button { font: inherit; }
 input, textarea, select { font: inherit; }
 strong { font-weight: 600; }
 
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
 .muted { color: var(--muted); }
 
 /* ─── App shell ─────────────────────────────────────────── */
@@ -166,76 +193,6 @@ strong { font-weight: 600; }
 .app-shell.home-mode { grid-template-columns: 212px 0 minmax(0, 1fr); }
 .app-shell.home-mode .sidebar { display: none; }
 .app-shell.home-mode .bottom-panel { display: none; }
-
-/* ─── Activity bar ──────────────────────────────────────── */
-.activity-bar {
-  grid-column: 1;
-  background: var(--nav-bg);
-  border-right: 1px solid rgba(255,255,255,0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 28px 18px 16px;
-}
-
-.activity-logo {
-  background: transparent;
-  border: 0;
-  color: var(--nav-text);
-  cursor: pointer;
-  display: grid;
-  gap: 3px;
-  font-family: var(--display-font);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
-  margin: 4px 6px 34px;
-  padding: 0;
-  text-align: left;
-}
-
-.activity-logo:hover,
-.activity-logo:focus-visible {
-  color: var(--nav-text);
-}
-
-.activity-logo span {
-  color: var(--nav-muted);
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.activity-spacer { flex: 1; }
-
-.activity-item {
-  width: 100%;
-  min-height: 38px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--nav-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--font-size-ui);
-  padding: 0 8px;
-  text-align: left;
-  transition: background 120ms ease, color 120ms ease;
-}
-
-.activity-icon { width: 18px; color: inherit; flex: 0 0 18px; font-size: 15px; line-height: 1; text-align: center; }
-.activity-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.activity-item.active,
-.activity-item:hover {
-  background: var(--nav-active-bg);
-  border-color: transparent;
-  border-left-color: var(--nav-active-border);
-  color: var(--nav-text);
-}
 
 /* ─── Sidebar ───────────────────────────────────────────── */
 .sidebar {
@@ -1001,13 +958,6 @@ code { color: var(--code-text); }
 /* ─── Responsive ────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .app-shell { grid-template-columns: 48px minmax(220px,280px) 1fr; }
-  .activity-bar { align-items: center; gap: 8px; padding: 18px 6px 12px; }
-  .activity-logo { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 2px 0 24px; font-size: 0; }
-  .activity-logo strong::first-letter { color: var(--nav-text); font-family: var(--display-font); font-size: 20px; line-height: 1; }
-  .activity-logo span,
-  .activity-label { display: none; }
-  .activity-item { justify-content: center; min-height: 36px; width: 36px; padding: 0; }
-  .activity-icon { width: 18px; flex-basis: 18px; }
   .editor-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) auto; }
   .command-panel { border-left: 0; border-top: 1px solid var(--border); max-height: min(420px,48vh); }
   .matter-info-card { grid-template-columns: 1fr; }

@@ -14,7 +14,7 @@ export function redactSensitiveText(value = ''): string {
     .replace(/\b(postgres(?:ql)?):\/\/([^:@/\s]+):([^@/\s]+)@/gi, '$1://$2:***@')
     .replace(/\bBearer\s+["']?[^"'\s]+["']?/gi, `Bearer ${REDACTED_SECRET}`)
     .replace(/\b(mwb_ing_)[A-Za-z0-9_-]+/gi, `$1${REDACTED_SECRET}`)
-    .replace(/\b(password|token|secret)\s*[:=]\s*([^\s"'`]+)/gi, `$1=${REDACTED_SECRET}`)
+    .replace(/(^|[^\w])(["']?)(password|token|secret)\2\s*[:=]\s*("[^"]*"|'[^']*'|[^\s"'`,}]+)/gi, `$1$2$3$2=${REDACTED_SECRET}`)
     .replace(/\bAIza[0-9A-Za-z_-]{10,}\b/g, REDACTED_SECRET)
     .replace(/\bsk-[A-Za-z0-9_-]+/g, REDACTED_SECRET);
 }

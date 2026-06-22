@@ -32,11 +32,12 @@ test("React secret redaction mirrors shared sensitive-text policy", async () => 
     "MWB_PRIVATE_BETA_FEEDBACK_SYNC_TOKEN=fixture-sync-token",
     "my_secret=lowercase-fixture-secret",
     "login failed password: fixture-pass token=fixture-token",
+    '{"password":"quoted-pass","token":"quoted-token","secret":"quoted-secret"}',
     "Gemini rejected google key AIzaSyFixtureGoogleKeyValue",
   ];
 
   for (const input of inputs) {
     assert.equal(redactReactSensitiveText(input), redactSharedSensitiveText(input), input);
-    assert.doesNotMatch(redactReactSensitiveText(input), /sk-[A-Za-z0-9_-]+|AIza[0-9A-Za-z_-]+/);
+    assert.doesNotMatch(redactReactSensitiveText(input), /sk-[A-Za-z0-9_-]+|AIza[0-9A-Za-z_-]+|fixture-pass|fixture-token|quoted-pass|quoted-token|quoted-secret/);
   }
 });
