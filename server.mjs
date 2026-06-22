@@ -376,9 +376,10 @@ export async function createWorkbenchServer(options = {}) {
         response.end("Method not allowed");
       });
     } catch (error) {
-      sendJson(response, error.statusCode || 500, {
-        error: error.message,
-        code: safeErrorCode(error.code),
+      const statusCode = error.statusCode || 500;
+      sendJson(response, statusCode, {
+        error: error.statusCode ? error.message : "Internal server error",
+        code: safeErrorCode(error.code) || "",
         stack: env.NODE_ENV === "development" ? error.stack : undefined,
       });
     } finally {

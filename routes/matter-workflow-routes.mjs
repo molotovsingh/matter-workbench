@@ -8,7 +8,15 @@ import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
-import { isPrivateBetaScopedUser, safeCaptureBetaSignal, usesRuntimeDbStorage } from "./route-utils.mjs";
+import {
+  isPrivateBetaScopedUser,
+  matterRootForBody,
+  matterRootForQuery,
+  runtimeDbMatterForBody,
+  runtimeDbMatterForQuery,
+  safeCaptureBetaSignal,
+  usesRuntimeDbStorage,
+} from "./route-utils.mjs";
 import { presentMatterCopilotAnswerForScopedUser } from "./user-facing-presenters.mjs";
 
 export async function handleMatterWorkflowApiRequest({ request, requestUrl, response, services }) {
@@ -594,43 +602,4 @@ function runtimeDbWorkflowResponse(result = {}, matter = {}) {
     persisted: Array.isArray(result.persisted) ? result.persisted : [],
   };
   return operationResult;
-}
-
-async function runtimeDbMatterForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
-  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
-  if (matterName) return matterStore.resolveExistingMatter(matterName);
-  const activeMatter = matterStore.getActiveMatterRecord?.();
-  if (activeMatter) return activeMatter;
-  if (allowMissingActive) {
-    matterStore.getMatterRoot?.();
-  } else {
-    matterStore.ensureMatterRoot();
-  }
-  return matterStore.getActiveMatterRecord?.();
-}
-
-async function runtimeDbMatterForBody(matterStore, body = {}) {
-  const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
-  if (matterName) return matterStore.resolveExistingMatter(matterName);
-  const activeMatter = matterStore.getActiveMatterRecord?.();
-  if (activeMatter) return activeMatter;
-  matterStore.ensureMatterRoot();
-  return matterStore.getActiveMatterRecord?.();
-}
-
-async function matterRootForBody(matterStore, body = {}) {
-  const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
-  if (!matterName) return matterStore.ensureMatterRoot();
-  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
-  return matterPath;
-}
-
-async function matterRootForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
-  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
-  if (!matterName) {
-    if (allowMissingActive) return matterStore.getMatterRoot?.() || null;
-    return matterStore.ensureMatterRoot();
-  }
-  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
-  return matterPath;
 }

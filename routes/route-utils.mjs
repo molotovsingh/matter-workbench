@@ -49,6 +49,45 @@ export function filterByVisibleMatterNames(items, visibleNames, {
   });
 }
 
+export async function runtimeDbMatterForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (matterName) return matterStore.resolveExistingMatter(matterName);
+  const activeMatter = matterStore.getActiveMatterRecord?.();
+  if (activeMatter) return activeMatter;
+  if (allowMissingActive) {
+    matterStore.getMatterRoot?.();
+  } else {
+    matterStore.ensureMatterRoot();
+  }
+  return matterStore.getActiveMatterRecord?.();
+}
+
+export async function matterRootForQuery(matterStore, requestUrl, { allowMissingActive = false } = {}) {
+  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
+  if (!matterName) {
+    if (allowMissingActive) return matterStore.getMatterRoot?.() || null;
+    return matterStore.ensureMatterRoot();
+  }
+  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+  return matterPath;
+}
+
+export async function runtimeDbMatterForBody(matterStore, body = {}) {
+  const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
+  if (matterName) return matterStore.resolveExistingMatter(matterName);
+  const activeMatter = matterStore.getActiveMatterRecord?.();
+  if (activeMatter) return activeMatter;
+  matterStore.ensureMatterRoot();
+  return matterStore.getActiveMatterRecord?.();
+}
+
+export async function matterRootForBody(matterStore, body = {}) {
+  const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
+  if (!matterName) return matterStore.ensureMatterRoot();
+  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
+  return matterPath;
+}
+
 function nestedStringValue(item, fieldPath) {
   let current = item;
   for (const segment of String(fieldPath || "").split(".")) {

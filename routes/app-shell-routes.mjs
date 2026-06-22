@@ -7,6 +7,8 @@ import {
   filterByVisibleMatterNames,
   isPrivateBetaScopedUser,
   isPrivateBetaSuperuserOrLocal,
+  matterRootForQuery,
+  runtimeDbMatterForQuery,
   safeCaptureBetaSignal,
   usesRuntimeDbStorage,
   visibleMatterNameSet,
@@ -614,20 +616,4 @@ function emptySignalSyncResult() {
     failed: 0,
     skipped: 0,
   };
-}
-
-async function runtimeDbMatterForQuery(matterStore, requestUrl) {
-  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
-  if (matterName) return matterStore.resolveExistingMatter(matterName);
-  const activeMatter = matterStore.getActiveMatterRecord?.();
-  if (activeMatter) return activeMatter;
-  matterStore.ensureMatterRoot();
-  return matterStore.getActiveMatterRecord?.();
-}
-
-async function matterRootForQuery(matterStore, requestUrl) {
-  const matterName = requestUrl.searchParams.get("matter")?.trim() || "";
-  if (!matterName) return matterStore.ensureMatterRoot();
-  const { matterPath } = await matterStore.resolveExistingMatter(matterName);
-  return matterPath;
 }

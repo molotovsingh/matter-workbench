@@ -120,6 +120,33 @@ test("GET /api/system-health returns 403 for authenticated non-operator beta use
   }
 });
 
+test("server catch-all does not expose raw internal error messages", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-system-health-api-internal-error-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(appDir, { recursive: true });
+  await mkdir(mattersHome, { recursive: true });
+  const server = await startTestServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    systemHealthService: {
+      readSystemHealth: async () => {
+        throw new Error("database password=top-secret unreachable");
+      },
+    },
+  });
+  try {
+    const response = await fetch(`${server.baseUrl}/api/system-health`);
+    assert.equal(response.status, 500);
+    const payload = await response.json();
+    assert.equal(payload.error, "Internal server error");
+    assert.equal(payload.code, "");
+    assert.doesNotMatch(JSON.stringify(payload), /top-secret|password/i);
+  } finally {
+    await server.close();
+  }
+});
+
 test("GET /api/user-readiness is available to authenticated testers with sanitized copy", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-user-readiness-api-auth-"));
   const appDir = path.join(tmp, "app");
