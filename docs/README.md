@@ -24,6 +24,7 @@ equally authoritative.
 | Private beta bug-fix loop | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) |
 | Beta testing workflow | [Beta Testing List of Dates](beta-testing-list-of-dates.md) |
 | Database transition handoff | [Database Transition Handoff](database-transition-handoff.md) |
+| Database transition scorecard | [Database Transition Scorecard](database-transition-scorecard.md) |
 | Runtime DB cutover rehearsal | [Runtime DB Cutover Rehearsal](runtime-db-cutover-rehearsal.md) |
 | Private VM runtime rehearsal | [Private VM Runtime Deployment Rehearsal](private-vm-runtime-deployment-rehearsal.md) |
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |

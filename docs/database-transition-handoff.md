@@ -259,13 +259,17 @@ In this mode Postgres is the runtime source for:
 - custom skill creation state and custom skill run receipts;
 - command interaction history.
 
-The write routes above are DB-backed through materialization, not direct SQL
-engines. The server reconstructs a temporary matter folder from DB payloads,
-runs the existing engine, then persists changed files back into Postgres as
-storage objects, payloads, artifacts, extraction records, source descriptors,
-run receipts, and audit events where applicable. This prevents the app from
-pretending a Postgres pseudo-root such as `postgres:<matter>` is a normal matter
-folder while still letting the local beta use the mature engines.
+The write routes above are DB-backed through narrow custody helpers, not direct
+SQL-native legal engines. Some engine adapters still use service-scoped
+temporary workdirs where the mature engine expects files, then persist changed
+files back into Postgres as storage objects, payloads, artifacts, extraction
+records, source descriptors, run receipts, and audit events where applicable.
+Those adapters may create a temporary matter folder from DB payloads as an
+engine compatibility detail, but that folder is not the runtime source of truth.
+The old generic full-matter materialized route bridge is no longer part of the
+active route/service surface. This prevents the app from pretending a Postgres
+pseudo-root such as `postgres:<matter>` is a normal matter folder while still
+letting the local beta use mature engines safely.
 
 On the local VM, the storage runtime smoke passed against the hydrated database:
 15 active DB matters were visible, the app switched to a DB-listed matter, the
@@ -315,7 +319,7 @@ counts: {"documents":1,"matterCount":1,"payloadRows":2,"payloadBytes":514,"impor
 
 This is the first live Postgres write proof for runtime DB mode. It is still not
 proof of hosted background-worker recovery; the legal engines still run inside
-the foreground local app and persist results through the materialized bridge.
+the foreground local app and persist results through runtime DB custody helpers.
 
 The payload hydration that fed this smoke inserted 512
 `storage_object_payloads` rows. The dry-run reported 70 missing local payload
