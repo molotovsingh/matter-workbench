@@ -227,6 +227,7 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
         return { ok: response.ok, status: response.status, payload };
       }, expectedMatterText);
       await page.reload({ waitUntil: "networkidle", timeout: 60000 });
+      await waitForReactShell(page);
       const activeMatterName = await page.evaluate(async () => {
         const response = await fetch("/api/matters");
         if (!response.ok) return "";
@@ -273,10 +274,18 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
       });
     }
 
-    await clickNav(page, ["Activity", "Recent work"]);
-    checks.push({ key: "activity_receipts_visible", passed: await waitForHeading(page, "Activity"), detail: "Activity page opened." });
-    await clickNav(page, "Settings");
-    checks.push({ key: "settings_visible", passed: await waitForHeading(page, "Settings"), detail: "Settings page opened." });
+    const activityNav = await clickAppNav(page, ["Activity", "Recent work"]);
+    checks.push({
+      key: "activity_receipts_visible",
+      passed: Boolean(activityNav.clicked && await waitForHeading(page, "Activity")),
+      detail: activityNav.clicked ? "Activity page opened." : activityNav.detail,
+    });
+    const settingsNav = await clickAppNav(page, "Settings");
+    checks.push({
+      key: "settings_visible",
+      passed: Boolean(settingsNav.clicked && await waitForHeading(page, "Settings")),
+      detail: settingsNav.clicked ? "Settings page opened." : settingsNav.detail,
+    });
   } finally {
     await browser.close();
   }
@@ -304,23 +313,28 @@ export function resolveChromiumExecutable(env = process.env) {
   return candidates.find((candidate) => existsSync(candidate)) || "";
 }
 
-async function clickNav(page, labels) {
+export async function clickAppNav(page, labels) {
+  await waitForReactShell(page);
+  const appNav = page.locator('nav[aria-label="App navigation"]');
   for (const text of Array.isArray(labels) ? labels : [labels]) {
-    const candidate = page.getByRole("button", { name: new RegExp(`\\b${escapeRegExp(text)}\\b`, "i") });
+    const candidate = appNav.getByRole("button", { name: new RegExp(`\\b${escapeRegExp(text)}\\b`, "i") });
     if (await candidate.count()) {
       await candidate.first().click();
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await page.waitForTimeout(150);
-      return;
-    }
-    const fallback = page.locator(`text=${text}`).first();
-    if (await fallback.count()) {
-      await fallback.click();
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(150);
-      return;
+      return { clicked: true, label: text };
     }
   }
+  return {
+    clicked: false,
+    label: "",
+    detail: `App navigation item not found: ${(Array.isArray(labels) ? labels : [labels]).join(" or ")}`,
+  };
+}
+
+async function waitForReactShell(page) {
+  await page.waitForSelector('[aria-label="Workspace navigation"]', { timeout: 60000 });
+  await page.waitForSelector('nav[aria-label="App navigation"] button', { timeout: 60000 });
 }
 
 async function textVisible(page, text) {

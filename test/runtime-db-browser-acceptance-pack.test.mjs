@@ -137,6 +137,43 @@ test("runtime DB browser acceptance pack fails closed when browser checks are un
   assert.match(report.browser.checks[0].detail, /Playwright/);
 });
 
+test("runtime DB browser acceptance uses mounted app navigation instead of silent global text clicks", async () => {
+  const { clickAppNav } = await import(packPath.href);
+  const calls = [];
+  const clicked = [];
+  const buttonLocator = {
+    count: async () => 1,
+    first: () => ({
+      click: async () => { clicked.push("activity"); },
+    }),
+  };
+  const navLocator = {
+    getByRole: (_role, options) => {
+      calls.push(["nav-role", String(options?.name)]);
+      return buttonLocator;
+    },
+  };
+  const page = {
+    waitForSelector: async (selector) => { calls.push(["wait", selector]); },
+    locator: (selector) => {
+      calls.push(["locator", selector]);
+      assert.equal(selector, 'nav[aria-label="App navigation"]');
+      return navLocator;
+    },
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+  };
+
+  const result = await clickAppNav(page, ["Activity", "Recent work"]);
+
+  assert.equal(result.clicked, true);
+  assert.equal(result.label, "Activity");
+  assert.deepEqual(clicked, ["activity"]);
+  assert.deepEqual(calls[0], ["wait", '[aria-label="Workspace navigation"]']);
+  assert.deepEqual(calls[1], ["wait", 'nav[aria-label="App navigation"] button']);
+  assert.deepEqual(calls[2], ["locator", 'nav[aria-label="App navigation"]']);
+});
+
 test("package and docs expose the runtime DB browser acceptance pack", async () => {
   const pkg = JSON.parse(await readFile(packagePath, "utf8"));
   assert.equal(pkg.scripts["db:runtime:browser-accept"], "node scripts/runtime-db-browser-acceptance-pack.mjs");
