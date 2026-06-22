@@ -113,6 +113,9 @@ and `.env*`.
 Before mutating the release directory, it checks the VM has `rsync`, `node`,
 `npm`, user-level `systemd`, a readable
 `$HOME/.config/matter-workbench/runtime.env`, and a writable deployment root.
+It also refuses to clean a release directory that is already the target of the
+`current` symlink; deploy a new commit or move `current` first instead of
+reusing the active release path.
 Only then does it build React, apply runtime database migrations when
 `MWB_RUNTIME_DB=postgres` or `MWB_RUNTIME_DB_STORAGE=postgres`, switch the
 `current` symlink, restart the user-level service, and run the VM-local service

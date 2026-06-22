@@ -119,8 +119,10 @@ export function buildPrivateVmRsyncDeployPlan({
   if (!deploymentRoot) deploymentRoot = defaultRemoteDeploymentRoot(user);
 
   const remote = user ? `${user}@${host}` : host;
-  const releaseDir = `${deploymentRoot.replace(/\/+$/, "")}/${commit}`;
+  const deploymentRootBase = deploymentRoot.replace(/\/+$/, "");
+  const releaseDir = `${deploymentRootBase}/${commit}`;
   const appDir = `${releaseDir}/app`;
+  const currentLink = `${deploymentRootBase}/current`;
   const stampedReleaseDate = normalizeReleaseDate(releaseDate) || new Date().toISOString().slice(0, 10);
   const remoteAppTarget = `${remote}:${appDir}/`;
   const steps = [
@@ -145,8 +147,8 @@ export function buildPrivateVmRsyncDeployPlan({
     },
     {
       id: "prepare_release_dir",
-      title: "Create a clean release app directory on the VM",
-      command: ["ssh", remote, `rm -rf ${shellQuote(appDir)} && mkdir -p ${shellQuote(appDir)}`],
+      title: "Create a clean release app directory on the VM after confirming it is not active",
+      command: ["ssh", remote, buildPrepareReleaseDirCommand({ releaseDir, appDir, currentLink })],
     },
     {
       id: "rsync_source",
@@ -212,7 +214,7 @@ export function buildPrivateVmRsyncDeployPlan({
         remote,
         [
           "set -e",
-          `ln -sfn ${shellQuote(releaseDir)} ${shellQuote(`${deploymentRoot.replace(/\/+$/, "")}/current`)}`,
+          `ln -sfn ${shellQuote(releaseDir)} ${shellQuote(currentLink)}`,
           [
             "systemctl --user set-environment",
             `MWB_RELEASE_COMMIT=${shellQuote(commit)}`,
@@ -222,7 +224,7 @@ export function buildPrivateVmRsyncDeployPlan({
           ].join(" "),
           `systemctl --user restart ${shellQuote(serviceName)}`,
           `systemctl --user is-active ${shellQuote(serviceName)}`,
-          `readlink -f ${shellQuote(`${deploymentRoot.replace(/\/+$/, "")}/current`)}`,
+          `readlink -f ${shellQuote(currentLink)}`,
         ].join(" && "),
       ],
     },
@@ -459,6 +461,21 @@ function defaultRemoteDeploymentRoot(user) {
   if (remoteUser === "root") return "/root/matter-workbench-deployments";
   if (remoteUser) return `/home/${remoteUser}/matter-workbench-deployments`;
   throw new Error("deployment root is required when the remote user is not specified.");
+}
+
+function buildPrepareReleaseDirCommand({ releaseDir, appDir, currentLink }) {
+  return [
+    "set -e",
+    `mkdir -p ${shellQuote(releaseDir)}`,
+    `current_target="$(readlink -f ${shellQuote(currentLink)} 2>/dev/null || true)"`,
+    `release_target="$(readlink -f ${shellQuote(releaseDir)})"`,
+    "if [ -n \"$current_target\" ] && [ \"$current_target\" = \"$release_target\" ]; then "
+      + "printf '%s\\n' 'Refusing to replace active release directory; deploy a new commit or move current first.' >&2; "
+      + "exit 70; "
+      + "fi",
+    `rm -rf ${shellQuote(appDir)}`,
+    `mkdir -p ${shellQuote(appDir)}`,
+  ].join(" && ");
 }
 
 function shellQuote(value) {

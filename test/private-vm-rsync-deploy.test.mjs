@@ -260,6 +260,29 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.equal(plan.steps.some((step) => step.id === "ui_hardening"), true);
 });
 
+test("private VM rsync deploy refuses to clean the active release directory", async () => {
+  const { buildPrivateVmRsyncDeployPlan } = await import(deployPath.href);
+
+  const plan = buildPrivateVmRsyncDeployPlan({
+    host: "172.16.37.128",
+    user: "aks",
+    deploymentRoot: "/home/aks/matter-workbench-deployments",
+    commit: "abc1234",
+    sourceDir: "/Users/aksingh/matter-workbench",
+  });
+
+  const prepare = plan.steps.find((step) => step.id === "prepare_release_dir");
+  assert.ok(prepare);
+  const command = prepare.command.join(" ");
+  assert.match(command, /readlink -f '\/home\/aks\/matter-workbench-deployments\/current'/);
+  assert.match(command, /readlink -f '\/home\/aks\/matter-workbench-deployments\/abc1234'/);
+  assert.match(command, /Refusing to replace active release/);
+  assert.ok(
+    command.indexOf("readlink -f '/home/aks/matter-workbench-deployments/current'")
+      < command.indexOf("rm -rf '/home/aks/matter-workbench-deployments/abc1234/app'"),
+  );
+});
+
 test("private VM rsync deploy aborts before mutation when preflight fails", async () => {
   const { runPrivateVmRsyncDeploy } = await import(deployPath.href);
   const executed = [];
