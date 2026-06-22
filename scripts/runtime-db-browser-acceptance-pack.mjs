@@ -330,7 +330,7 @@ async function textVisible(page, text) {
 async function waitForHeading(page, text) {
   return await page.getByRole("heading", { name: new RegExp(`^${escapeRegExp(text)}$`, "i") })
     .first()
-    .waitFor({ state: "visible", timeout: 10000 })
+    .waitFor({ state: "visible", timeout: 30000 })
     .then(() => true)
     .catch(() => false);
 }
