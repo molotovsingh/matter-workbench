@@ -274,9 +274,9 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
     }
 
     await clickNav(page, ["Activity", "Recent work"]);
-    checks.push({ key: "activity_receipts_visible", passed: await headingVisible(page, "Activity"), detail: "Activity page opened." });
+    checks.push({ key: "activity_receipts_visible", passed: await waitForHeading(page, "Activity"), detail: "Activity page opened." });
     await clickNav(page, "Settings");
-    checks.push({ key: "settings_visible", passed: await headingVisible(page, "Settings"), detail: "Settings page opened." });
+    checks.push({ key: "settings_visible", passed: await waitForHeading(page, "Settings"), detail: "Settings page opened." });
   } finally {
     await browser.close();
   }
@@ -327,8 +327,12 @@ async function textVisible(page, text) {
   return await page.locator(`text=${text}`).first().isVisible().catch(() => false);
 }
 
-async function headingVisible(page, text) {
-  return await page.getByRole("heading", { name: new RegExp(`^${escapeRegExp(text)}$`, "i") }).first().isVisible().catch(() => false);
+async function waitForHeading(page, text) {
+  return await page.getByRole("heading", { name: new RegExp(`^${escapeRegExp(text)}$`, "i") })
+    .first()
+    .waitFor({ state: "visible", timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 function firstPreviewableFilePath(treeOrNodes = []) {
