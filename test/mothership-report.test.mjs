@@ -95,7 +95,7 @@ test("mothership report routes live beta signals into action lanes", () => {
         id: "heartbeat_001",
         activeSessions: 1,
         journeys: [{
-          user: "shivangi@lawzeus.com",
+          user: "shivangi token=journey-secret",
           matter: "Gionee",
           currentStage: "extract_documents",
           currentStageStatus: "failed",
@@ -144,8 +144,10 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.equal(report.summary.latestHeartbeatAgeMinutes, 0);
   assert.equal(report.summary.silentInstallations, 0);
   assert.equal(report.heartbeats.latestByInstallation[0].installationId, "matter-workbench-do-beta-1");
+  assert.equal(report.heartbeats.latestByInstallation[0].journeys[0].user, "shivangi token=[redacted-secret]");
   assert.equal(report.heartbeats.latestByInstallation[0].journeys[0].currentStage, "extract_documents");
   assert.equal(report.heartbeats.latestByInstallation[0].highestPatienceRisk, "high");
+  assert.doesNotMatch(JSON.stringify(report), /journey-secret/);
   assert.match(renderMothershipReportMarkdown(report), /last seen 2026-06-13T00:00:00\.000Z/);
 
   const missingExtraction = report.items.find((item) => item.id === "signal_extract_missing");

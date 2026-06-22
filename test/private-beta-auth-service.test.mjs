@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -241,6 +242,44 @@ test("private beta auth invalidates existing sessions when a file-backed account
     authenticated: false,
     user: null,
   });
+});
+
+test("private beta auth reuses unchanged file-backed account data on session checks", async () => {
+  const usersFile = await writeUsersFile([
+    {
+      username: "tester-one",
+      role: "tester",
+      passwordHash: hashPrivateBetaPassword("secret", { salt: "salt-cache-session", iterations: 1_000 }),
+    },
+  ]);
+
+  const originalReadFileSync = fs.readFileSync;
+  let usersFileReads = 0;
+  fs.readFileSync = (...args) => {
+    if (path.resolve(String(args[0])) === usersFile) usersFileReads += 1;
+    return originalReadFileSync.apply(fs, args);
+  };
+  try {
+    const service = createPrivateBetaAuthService({
+      env: {
+        MWB_PRIVATE_BETA_AUTH: "required",
+        MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+      },
+      tokenBytes: () => Buffer.from("cacacacacacacacacacacacacacacaca"),
+      now: () => 1_000,
+    });
+    const login = service.login({ username: "tester-one", password: "secret" });
+    assert.equal(login.statusCode, 200);
+    const request = { headers: { cookie: login.setCookie.split(";")[0] } };
+
+    assert.equal(service.isAuthenticated(request), true);
+    assert.equal(service.isAuthenticated(request), true);
+    assert.equal(service.status(request).authenticated, true);
+
+    assert.equal(usersFileReads, 1);
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+  }
 });
 
 test("private beta auth preserves file-backed sessions across service restarts", async () => {

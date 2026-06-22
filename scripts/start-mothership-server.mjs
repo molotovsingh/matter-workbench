@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { createMothershipServer } from "../mothership/server.mjs";
 import { createMothershipStore, createPostgresMothershipDatabase } from "../mothership/store.mjs";
-import { createConsoleAuthService } from "../mothership/console-auth.mjs";
+import { createConsoleAuthService, isConsoleAuthEnabled } from "../mothership/console-auth.mjs";
 import { loadMothershipScriptEnv } from "./mothership-env.mjs";
 
 export async function startMothershipServer({ env = process.env, log = console } = {}) {
@@ -16,7 +16,7 @@ export async function startMothershipServer({ env = process.env, log = console }
   const database = await createPostgresMothershipDatabase({ connectionString: env.MOTHERSHIP_DATABASE_URL });
   const store = createMothershipStore({ database });
 
-  const consoleAuth = isConsoleEnabled(env) ? createConsoleAuthService({ env }) : null;
+  const consoleAuth = isConsoleAuthEnabled(env) ? createConsoleAuthService({ env }) : null;
   const consoleAssetRoot = resolveConsoleAssetRoot(env);
 
   const app = createMothershipServer({ store, consoleAuth, consoleAssetRoot, log });
@@ -38,10 +38,6 @@ export async function startMothershipServer({ env = process.env, log = console }
   process.once("SIGTERM", close);
   process.once("SIGINT", close);
   return { ...app, database, host, port };
-}
-
-function isConsoleEnabled(env) {
-  return ["required", "true", "1", "yes", "on"].includes(String(env.MOTHERSHIP_CONSOLE || env.MOTHERSHIP_CONSOLE_AUTH || "").trim().toLowerCase());
 }
 
 function resolveConsoleAssetRoot(env) {

@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 
+import { clearCookie, parseCookies, serializeCookie } from "../shared/auth-primitives.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { isInsideRoot } from "../shared/safe-paths.mjs";
 
@@ -49,38 +50,11 @@ export function redactErrorText(value) {
   return redactSensitiveText(String(value || "Unexpected mothership error")).slice(0, 500);
 }
 
-export function parseCookies(cookieHeader = "") {
-  const cookies = {};
-  for (const part of String(cookieHeader || "").split(";")) {
-    const [rawName, ...rawValue] = part.split("=");
-    const name = rawName.trim();
-    if (!name) continue;
-    cookies[name] = decodeURIComponent(rawValue.join("=") || "");
-  }
-  return cookies;
-}
+export { clearCookie, parseCookies, serializeCookie } from "../shared/auth-primitives.mjs";
 
 export function readCookie(request, name) {
   const cookies = parseCookies(request.headers?.cookie || "");
   return cookies[name] || "";
-}
-
-export function serializeCookie(name, value, { maxAgeSeconds, secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
-  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${cookiePath}`];
-  if (httpOnly) parts.push("HttpOnly");
-  if (sameSite) parts.push(`SameSite=${sameSite}`);
-  if (Number.isFinite(maxAgeSeconds)) parts.push(`Max-Age=${maxAgeSeconds}`);
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
-}
-
-export function clearCookie(name, { secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
-  const parts = [`${name}=`, `Path=${cookiePath}`];
-  if (httpOnly) parts.push("HttpOnly");
-  if (sameSite) parts.push(`SameSite=${sameSite}`);
-  parts.push("Max-Age=0");
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
 }
 
 const STATIC_CONTENT_TYPES = {

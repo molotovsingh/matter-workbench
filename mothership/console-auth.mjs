@@ -1,8 +1,19 @@
 import crypto from "node:crypto";
 
+import {
+  clearCookie,
+  hashPassword,
+  hashSessionToken,
+  parseCookies,
+  parsePasswordHash,
+  secureBufferEqual,
+  secureEqual,
+  serializeCookie,
+  shouldUseSecureCookie as shouldUseSecureCookiePrimitive,
+  verifyPasswordHash,
+} from "../shared/auth-primitives.mjs";
 import { createConsoleEmailSender } from "./console-email.mjs";
 
-const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
 const DEFAULT_TTL_SECONDS = 8 * 60 * 60;
 const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;
 const DEFAULT_LOGIN_WINDOW_SECONDS = 5 * 60;
@@ -18,6 +29,7 @@ export function createConsoleAuthService({
   tokenBytes = (length) => crypto.randomBytes(length),
   codeGenerator = () => generateNumericCode(),
   emailSender,
+  onEmailSendError = () => {},
 } = {}) {
   const enabled = isConsoleAuthEnabled(env);
   const authMode = enabled ? consoleAuthMode(env) : "disabled";
@@ -91,7 +103,7 @@ export function createConsoleAuthService({
       };
     }
     const clientKey = loginClientKey(options);
-    const throttle = throttleState(loginFailures, clientKey, loginWindowMs, loginMaxAttempts);
+    const throttle = throttleState(loginFailures, clientKey, loginWindowMs, loginMaxAttempts, now());
     if (throttle.blocked) {
       return {
         ok: false,
@@ -104,7 +116,7 @@ export function createConsoleAuthService({
     const passwordMatch = verifyPassword(String(password), operatorPasswordHash);
     const matched = usernameMatch && passwordMatch;
     if (!matched) {
-      recordFailure(loginFailures, clientKey, loginWindowMs);
+      recordFailure(loginFailures, clientKey, loginWindowMs, now());
       return {
         ok: false,
         statusCode: 401,
@@ -123,11 +135,11 @@ export function createConsoleAuthService({
     }
     const normalizedEmail = normalizeEmail(email);
     const sendKey = `send:${loginClientKey(options)}:${normalizedEmail || "blank"}`;
-    const throttle = throttleState(codeSendRecords, sendKey, codeSendWindowMs, 1);
+    const throttle = throttleState(codeSendRecords, sendKey, codeSendWindowMs, 1, now());
     if (throttle.blocked) {
       return { ok: false, statusCode: 429, payload: { error: "Too many code requests. Try again shortly." } };
     }
-    recordFailure(codeSendRecords, sendKey, codeSendWindowMs);
+    const sendThrottleRecord = recordFailure(codeSendRecords, sendKey, codeSendWindowMs, now());
 
     if (!allowedEmails.has(normalizedEmail)) {
       return { ok: true, statusCode: 200, payload: { ok: true, message: EMAIL_CODE_GENERIC_MESSAGE } };
@@ -135,15 +147,22 @@ export function createConsoleAuthService({
 
     const code = String(codeGenerator()).replace(/\D/g, "").slice(0, 6).padStart(6, "0");
     const expiresAt = now() + codeTtlSeconds * 1000;
+    const codeHash = hashEmailCode({ email: normalizedEmail, code, pepper: codePepper });
     pendingCodes.set(normalizedEmail, {
-      codeHash: hashEmailCode({ email: normalizedEmail, code, pepper: codePepper }),
+      codeHash,
       expiresAt,
       attempts: 0,
     });
-    await resolvedEmailSender.sendConsoleCode({
+    const sendPromise = resolvedEmailSender.sendConsoleCode({
       email: normalizedEmail,
       code,
       expiresInMinutes: Math.max(1, Math.ceil(codeTtlSeconds / 60)),
+    });
+    Promise.resolve(sendPromise).catch((error) => {
+      if (codeSendRecords.get(sendKey) === sendThrottleRecord) codeSendRecords.delete(sendKey);
+      const pending = pendingCodes.get(normalizedEmail);
+      if (pending?.codeHash === codeHash) pendingCodes.delete(normalizedEmail);
+      onEmailSendError(error);
     });
     return { ok: true, statusCode: 200, payload: { ok: true, message: EMAIL_CODE_GENERIC_MESSAGE } };
   }
@@ -155,7 +174,7 @@ export function createConsoleAuthService({
     }
     const normalizedEmail = normalizeEmail(email);
     const clientKey = `verify:${loginClientKey(options)}:${normalizedEmail || "blank"}`;
-    const throttle = throttleState(loginFailures, clientKey, loginWindowMs, loginMaxAttempts);
+    const throttle = throttleState(loginFailures, clientKey, loginWindowMs, loginMaxAttempts, now());
     if (throttle.blocked) {
       return { ok: false, statusCode: 429, payload: { error: "Too many verification attempts. Try again later." }, setCookie: "" };
     }
@@ -173,7 +192,7 @@ export function createConsoleAuthService({
 
     if (!valid) {
       if (pending) pending.attempts += 1;
-      recordFailure(loginFailures, clientKey, loginWindowMs);
+      recordFailure(loginFailures, clientKey, loginWindowMs, now());
       return { ok: false, statusCode: 401, payload: { error: "Invalid or expired code" }, setCookie: "" };
     }
 
@@ -235,50 +254,25 @@ export function createConsoleAuthService({
 }
 
 export function hashConsolePassword(password, { iterations = 210_000, saltBytes = 16, hashBytes = 32 } = {}) {
-  const salt = crypto.randomBytes(saltBytes);
-  const hash = crypto.pbkdf2Sync(String(password), salt, iterations, hashBytes, "sha256");
-  return [PASSWORD_HASH_ALGORITHM, iterations, salt.toString("base64url"), hash.toString("base64url")].join("$");
+  return hashPassword(password, { iterations, saltBytes, hashBytes });
 }
 
 export function verifyPassword(password, encodedHash) {
-  const parsed = parsePasswordHash(encodedHash);
-  if (!parsed) return false;
-  const candidate = crypto.pbkdf2Sync(String(password), parsed.salt, parsed.iterations, parsed.hash.length, "sha256");
-  return secureBufferEqual(candidate, parsed.hash);
+  return verifyPasswordHash(password, encodedHash);
 }
 
-export function parsePasswordHash(encodedHash) {
-  const [algorithm, iterationsText, saltText, hashText] = String(encodedHash || "").split("$");
-  if (algorithm !== PASSWORD_HASH_ALGORITHM || !iterationsText || !saltText || !hashText) return null;
-  const iterations = Number(iterationsText);
-  if (!Number.isInteger(iterations) || iterations <= 0) return null;
-  try {
-    const salt = Buffer.from(saltText, "base64url");
-    const hash = Buffer.from(hashText, "base64url");
-    if (!salt.length || !hash.length) return null;
-    return { iterations, salt, hash };
-  } catch {
-    return null;
-  }
-}
+export { parsePasswordHash } from "../shared/auth-primitives.mjs";
 
-function isConsoleAuthEnabled(env) {
+export function isConsoleAuthEnabled(env) {
   const mode = String(env.MOTHERSHIP_CONSOLE || env.MOTHERSHIP_CONSOLE_AUTH || "").trim().toLowerCase();
-  return ["required", "true", "1", "yes", "on"].includes(mode);
+  if (["open", "disabled", "false", "0", "no", "off"].includes(mode)) return false;
+  return true;
 }
 
 function consoleAuthMode(env) {
   const mode = String(env.MOTHERSHIP_CONSOLE_AUTH_MODE || "password").trim().toLowerCase().replace(/-/g, "_");
   if (["password", "email_code"].includes(mode)) return mode;
   throw new Error(`Unsupported MOTHERSHIP_CONSOLE_AUTH_MODE: ${mode}`);
-}
-
-function shouldUseSecureCookie(env) {
-  const explicit = String(env.MOTHERSHIP_CONSOLE_COOKIE_SECURE || "").trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(explicit)) return true;
-  if (["0", "false", "no", "off"].includes(explicit)) return false;
-  const publicUrl = String(env.MOTHERSHIP_CONSOLE_PUBLIC_URL || "").trim();
-  return /^https:\/\//i.test(publicUrl);
 }
 
 function parseAllowedEmails(value = "") {
@@ -298,10 +292,6 @@ function newSessionToken(tokenBytes) {
   return `mwb_console_${tokenBytes(32).toString("base64url")}`;
 }
 
-function hashSessionToken(token) {
-  return crypto.createHash("sha256").update(String(token)).digest("hex");
-}
-
 function hashEmailCode({ email, code, pepper }) {
   return crypto.createHash("sha256").update(`${pepper}:${email}:${code}`).digest("hex");
 }
@@ -316,47 +306,23 @@ function loginClientKey(options = {}) {
   return String(request.socket?.remoteAddress || "local").trim() || "local";
 }
 
-function throttleState(records, clientKey, windowMs, maxAttempts) {
-  const currentTime = Date.now();
+function throttleState(records, clientKey, windowMs, maxAttempts, currentTime) {
   const record = records.get(clientKey);
   if (!record || record.resetAt <= currentTime) return { blocked: false, count: 0 };
   if (record.count >= maxAttempts) return { blocked: true, count: record.count };
   return { blocked: false, count: record.count };
 }
 
-function recordFailure(records, clientKey, windowMs) {
-  const currentTime = Date.now();
+function recordFailure(records, clientKey, windowMs, currentTime) {
   const record = records.get(clientKey);
   if (!record || record.resetAt <= currentTime) {
-    records.set(clientKey, { count: 1, resetAt: currentTime + windowMs });
-    return;
+    const next = { count: 1, resetAt: currentTime + windowMs };
+    records.set(clientKey, next);
+    return next;
   }
   record.count += 1;
   record.resetAt = currentTime + windowMs;
-}
-
-function secureEqual(left, right) {
-  const leftBuffer = Buffer.from(String(left));
-  const rightBuffer = Buffer.from(String(right));
-  if (leftBuffer.length !== rightBuffer.length) {
-    crypto.timingSafeEqual(
-      crypto.createHash("sha256").update(leftBuffer).digest(),
-      crypto.createHash("sha256").update(rightBuffer).digest(),
-    );
-    return false;
-  }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function secureBufferEqual(leftBuffer, rightBuffer) {
-  if (leftBuffer.length !== rightBuffer.length) {
-    crypto.timingSafeEqual(
-      crypto.createHash("sha256").update(leftBuffer).digest(),
-      crypto.createHash("sha256").update(rightBuffer).digest(),
-    );
-    return false;
-  }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  return record;
 }
 
 function positiveInt(value, fallback) {
@@ -364,31 +330,9 @@ function positiveInt(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseCookies(cookieHeader = "") {
-  const cookies = {};
-  for (const part of String(cookieHeader || "").split(";")) {
-    const [rawName, ...rawValue] = part.split("=");
-    const name = rawName.trim();
-    if (!name) continue;
-    cookies[name] = decodeURIComponent(rawValue.join("=") || "");
-  }
-  return cookies;
-}
-
-function serializeCookie(name, value, { maxAgeSeconds, secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
-  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${cookiePath}`];
-  if (httpOnly) parts.push("HttpOnly");
-  if (sameSite) parts.push(`SameSite=${sameSite}`);
-  if (Number.isFinite(maxAgeSeconds)) parts.push(`Max-Age=${maxAgeSeconds}`);
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
-}
-
-function clearCookie(name, { secure = false, httpOnly = true, sameSite = "Strict", path: cookiePath = "/" } = {}) {
-  const parts = [`${name}=`, `Path=${cookiePath}`];
-  if (httpOnly) parts.push("HttpOnly");
-  if (sameSite) parts.push(`SameSite=${sameSite}`);
-  parts.push("Max-Age=0");
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
+function shouldUseSecureCookie(env) {
+  return shouldUseSecureCookiePrimitive(env, {
+    explicitVar: "MOTHERSHIP_CONSOLE_COOKIE_SECURE",
+    publicUrlVars: ["MOTHERSHIP_CONSOLE_PUBLIC_URL"],
+  });
 }

@@ -3,13 +3,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  clearCookie,
+  hashPassword,
+  hashSessionToken,
+  parseCookies,
+  parsePasswordHash,
+  secureEqual,
+  serializeCookie,
+  shouldUseSecureCookie as shouldUseSecureCookiePrimitive,
+  verifyPasswordHash,
+} from "../shared/auth-primitives.mjs";
+
 const SESSION_COOKIE = "mwb_private_beta_session";
 const DEFAULT_TTL_SECONDS = 8 * 60 * 60;
 const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;
 const DEFAULT_LOGIN_WINDOW_SECONDS = 5 * 60;
 const PRIVATE_BETA_USERS_SCHEMA_VERSION = "private-beta-users/v1";
 const PRIVATE_BETA_SESSIONS_SCHEMA_VERSION = "private-beta-sessions/v1";
-const PASSWORD_HASH_ALGORITHM = "pbkdf2-sha256";
 const DEFAULT_PASSWORD_HASH_ITERATIONS = 210_000;
 const PASSWORD_HASH_BYTES = 32;
 const DUMMY_PRIVATE_BETA_PASSWORD_HASH = makeDummyPrivateBetaPasswordHash();
@@ -217,28 +228,15 @@ export function hashPrivateBetaPassword(password, {
   salt = crypto.randomBytes(16),
   iterations = DEFAULT_PASSWORD_HASH_ITERATIONS,
 } = {}) {
-  const saltBuffer = Buffer.isBuffer(salt) ? salt : Buffer.from(String(salt));
-  const iterationCount = positiveInt(iterations, DEFAULT_PASSWORD_HASH_ITERATIONS);
-  const hash = crypto.pbkdf2Sync(String(password), saltBuffer, iterationCount, PASSWORD_HASH_BYTES, "sha256");
-  return [
-    PASSWORD_HASH_ALGORITHM,
-    String(iterationCount),
-    saltBuffer.toString("base64url"),
-    hash.toString("base64url"),
-  ].join("$");
+  return hashPassword(password, {
+    salt,
+    iterations: positiveInt(iterations, DEFAULT_PASSWORD_HASH_ITERATIONS),
+    hashBytes: PASSWORD_HASH_BYTES,
+  });
 }
 
 export function verifyPrivateBetaPassword(password, encodedHash) {
-  const parsed = parsePasswordHash(encodedHash);
-  if (!parsed) return false;
-  const candidate = crypto.pbkdf2Sync(
-    String(password),
-    parsed.salt,
-    parsed.iterations,
-    parsed.hash.length,
-    "sha256",
-  );
-  return secureBufferEqual(candidate, parsed.hash);
+  return verifyPasswordHash(password, encodedHash);
 }
 
 export function readPrivateBetaUsersFile(usersFile) {
@@ -348,24 +346,7 @@ function normalizeSessionUser(rawUser) {
 function loadPrivateBetaCredentialSource(env) {
   const usersFile = String(env.MWB_PRIVATE_BETA_USERS_FILE || "").trim();
   if (usersFile) {
-    readPrivateBetaUsersFile(usersFile);
-    return {
-      kind: "file",
-      authenticate(username, password) {
-        const accounts = readPrivateBetaUsersFile(usersFile);
-        const account = accounts.find((candidate) => secureEqual(candidate.username, username));
-        const fallbackHash = accounts.find((candidate) => candidate.passwordHash)?.passwordHash || DUMMY_PRIVATE_BETA_PASSWORD_HASH;
-        const passwordOk = verifyPrivateBetaPassword(password, account?.passwordHash || fallbackHash);
-        if (!account || account.disabled || !passwordOk) return null;
-        return account;
-      },
-      refreshSessionUser(user) {
-        const account = readPrivateBetaUsersFile(usersFile)
-          .find((candidate) => secureEqual(candidate.username, user?.username || ""));
-        if (!account || account.disabled) return null;
-        return publicUserForAccount(account);
-      },
-    };
+    return createFileBackedCredentialSource(usersFile);
   }
 
   const username = String(env.MWB_PRIVATE_BETA_USERNAME || "").trim();
@@ -388,6 +369,46 @@ function loadPrivateBetaCredentialSource(env) {
       return { username };
     },
   };
+}
+
+function createFileBackedCredentialSource(usersFile) {
+  const expandedPath = expandHomePath(usersFile);
+  let cachedKey = "";
+  let cachedAccounts = null;
+
+  function readAccounts() {
+    const key = privateBetaUsersFileCacheKey(expandedPath);
+    if (cachedAccounts && cachedKey === key) return cachedAccounts;
+    const accounts = readPrivateBetaUsersFile(expandedPath);
+    cachedKey = key;
+    cachedAccounts = accounts;
+    return accounts;
+  }
+
+  readAccounts();
+
+  return {
+    kind: "file",
+    authenticate(username, password) {
+      const accounts = readAccounts();
+      const account = accounts.find((candidate) => secureEqual(candidate.username, username));
+      const fallbackHash = accounts.find((candidate) => candidate.passwordHash)?.passwordHash || DUMMY_PRIVATE_BETA_PASSWORD_HASH;
+      const passwordOk = verifyPrivateBetaPassword(password, account?.passwordHash || fallbackHash);
+      if (!account || account.disabled || !passwordOk) return null;
+      return account;
+    },
+    refreshSessionUser(user) {
+      const account = readAccounts()
+        .find((candidate) => secureEqual(candidate.username, user?.username || ""));
+      if (!account || account.disabled) return null;
+      return publicUserForAccount(account);
+    },
+  };
+}
+
+function privateBetaUsersFileCacheKey(filePath) {
+  const stats = fs.statSync(filePath, { bigint: true });
+  return `${stats.mtimeNs}:${stats.size}`;
 }
 
 function normalizePrivateBetaUser(rawUser, index) {
@@ -423,59 +444,14 @@ function publicUserForAccount(account) {
   return user;
 }
 
-function parsePasswordHash(encodedHash) {
-  const [algorithm, iterationsText, saltText, hashText] = String(encodedHash || "").split("$");
-  if (algorithm !== PASSWORD_HASH_ALGORITHM || !iterationsText || !saltText || !hashText) return null;
-  const iterations = Number(iterationsText);
-  if (!Number.isInteger(iterations) || iterations <= 0) return null;
-  try {
-    const salt = Buffer.from(saltText, "base64url");
-    const hash = Buffer.from(hashText, "base64url");
-    if (!salt.length || !hash.length) return null;
-    return { iterations, salt, hash };
-  } catch {
-    return null;
-  }
-}
-
-export function parseCookies(cookieHeader = "") {
-  const cookies = {};
-  for (const part of String(cookieHeader || "").split(";")) {
-    const [rawName, ...rawValue] = part.split("=");
-    const name = rawName.trim();
-    if (!name) continue;
-    const value = rawValue.join("=");
-    cookies[name] = decodeURIComponent(value || "");
-  }
-  return cookies;
-}
+export { parseCookies } from "../shared/auth-primitives.mjs";
 
 function serializeSessionCookie(token, ttlSeconds, { secure = false } = {}) {
-  const parts = [
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    `Max-Age=${ttlSeconds}`,
-  ];
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
+  return serializeCookie(SESSION_COOKIE, token, { maxAgeSeconds: ttlSeconds, secure });
 }
 
 function clearSessionCookie({ secure = false } = {}) {
-  const parts = [
-    `${SESSION_COOKIE}=`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    "Max-Age=0",
-  ];
-  if (secure) parts.push("Secure");
-  return parts.join("; ");
-}
-
-function hashSessionToken(token) {
-  return crypto.createHash("sha256").update(String(token)).digest("hex");
+  return clearCookie(SESSION_COOKIE, { secure });
 }
 
 function resolvePrivateBetaSessionsFile(env = {}) {
@@ -506,41 +482,16 @@ function writeFileAtomicSync(filePath, contents) {
   }
 }
 
-function secureEqual(left, right) {
-  const leftBuffer = Buffer.from(String(left));
-  const rightBuffer = Buffer.from(String(right));
-  if (leftBuffer.length !== rightBuffer.length) {
-    crypto.timingSafeEqual(
-      crypto.createHash("sha256").update(leftBuffer).digest(),
-      crypto.createHash("sha256").update(rightBuffer).digest(),
-    );
-    return false;
-  }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function secureBufferEqual(leftBuffer, rightBuffer) {
-  if (leftBuffer.length !== rightBuffer.length) {
-    crypto.timingSafeEqual(
-      crypto.createHash("sha256").update(leftBuffer).digest(),
-      crypto.createHash("sha256").update(rightBuffer).digest(),
-    );
-    return false;
-  }
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
-}
-
 function positiveInt(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function shouldUseSecureCookie(env = {}) {
-  const explicit = String(env.MWB_PRIVATE_BETA_COOKIE_SECURE || "").trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(explicit)) return true;
-  if (["0", "false", "no", "off"].includes(explicit)) return false;
-  const publicUrl = String(env.MWB_PRIVATE_BETA_PUBLIC_URL || env.MWB_PUBLIC_URL || "").trim();
-  return /^https:\/\//i.test(publicUrl);
+  return shouldUseSecureCookiePrimitive(env, {
+    explicitVar: "MWB_PRIVATE_BETA_COOKIE_SECURE",
+    publicUrlVars: ["MWB_PRIVATE_BETA_PUBLIC_URL", "MWB_PUBLIC_URL"],
+  });
 }
 
 function loginClientKey(options = {}) {

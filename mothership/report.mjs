@@ -288,7 +288,7 @@ function metricSnapshot(row = {}) {
 function heartbeatSnapshot(row = {}) {
   const payload = parsePayload(row.payload);
   const journeys = Array.isArray(payload.journeys) ? payload.journeys.slice(0, 20).map((journey) => ({
-    user: String(journey.user || ""),
+    user: redactReportText(journey.user || ""),
     matter: String(journey.matter || ""),
     screen: String(journey.screen || ""),
     route: String(journey.route || ""),

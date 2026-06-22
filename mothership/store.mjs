@@ -1,6 +1,7 @@
 import process from "node:process";
 
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { httpError } from "./http.mjs";
 import { generateIngestionToken, hashIngestionToken } from "./tokens.mjs";
 
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
@@ -460,10 +461,4 @@ function toIso(value) {
   if (value instanceof Date) return value.toISOString();
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-}
-
-function httpError(message, statusCode) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
 }

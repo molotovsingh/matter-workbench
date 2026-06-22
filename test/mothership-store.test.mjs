@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 
 import { createMothershipStore } from "../mothership/store.mjs";
 import { generateIngestionToken, hashIngestionToken } from "../mothership/tokens.mjs";
@@ -454,6 +455,13 @@ test("store listInstallations defaults to a 30-day window and returns an empty l
   assert.equal(result.sinceDays, 30);
   assert.deepEqual(result.installations, []);
   assert.deepEqual(calls[0].values, [30]);
+});
+
+test("store uses the shared mothership httpError helper instead of a local unredacted twin", async () => {
+  const source = await readFile(new URL("../mothership/store.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /import \{ httpError \} from "\.\/http\.mjs";/);
+  assert.doesNotMatch(source, /function\s+httpError\s*\(/);
 });
 
 function fakeDatabase({ onQuery }) {
