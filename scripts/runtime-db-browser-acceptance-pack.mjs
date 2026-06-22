@@ -206,20 +206,36 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
 
     if (matterRows.length) {
       const target = matterRows[0];
-      await page.evaluate(async (name) => {
-        await fetch("/api/switch-matter", {
+      const expectedMatterText = target.matterName || target.name;
+      const switchResult = await page.evaluate(async (name) => {
+        const response = await fetch("/api/switch-matter", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ name }),
         });
-      }, target.name || target.matterName);
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+        return { ok: response.ok, status: response.status, payload };
+      }, expectedMatterText);
       await page.reload({ waitUntil: "networkidle", timeout: 60000 });
-      const bodyText = await page.locator("body").innerText({ timeout: 60000 });
-      const expectedMatterText = target.matterName || target.name;
+      const activeMatterName = await page.evaluate(async () => {
+        const response = await fetch("/api/matters");
+        if (!response.ok) return "";
+        const payload = await response.json();
+        return payload.active || payload.activeMatter || "";
+      }).catch(() => "");
+      const activeMatterVisible = await textVisible(page, expectedMatterText);
       checks.push({
         key: "home_and_matter_navigation",
-        passed: bodyText.includes(expectedMatterText),
-        detail: `Selected ${expectedMatterText}.`,
+        passed: Boolean(
+          switchResult?.ok
+          && (activeMatterName === expectedMatterText || activeMatterVisible)
+        ),
+        detail: `Selected ${expectedMatterText}; active matter ${activeMatterName || "not reported"}.`,
       });
 
       const workspace = await page.evaluate(async () => {
@@ -252,10 +268,10 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
       });
     }
 
-    await clickNav(page, "Activity");
-    checks.push({ key: "activity_receipts_visible", passed: await textVisible(page, "Activity"), detail: "Activity page opened." });
+    await clickNav(page, ["Activity", "Recent work"]);
+    checks.push({ key: "activity_receipts_visible", passed: await headingVisible(page, "Activity"), detail: "Activity page opened." });
     await clickNav(page, "Settings");
-    checks.push({ key: "settings_visible", passed: await textVisible(page, "Settings"), detail: "Settings page opened." });
+    checks.push({ key: "settings_visible", passed: await headingVisible(page, "Settings"), detail: "Settings page opened." });
   } finally {
     await browser.close();
   }
@@ -283,22 +299,31 @@ export function resolveChromiumExecutable(env = process.env) {
   return candidates.find((candidate) => existsSync(candidate)) || "";
 }
 
-async function clickNav(page, text) {
-  const candidate = page.getByRole("button", { name: new RegExp(`^${escapeRegExp(text)}$`, "i") });
-  if (await candidate.count()) {
-    await candidate.first().click();
-    await page.waitForTimeout(150);
-    return;
-  }
-  const fallback = page.locator(`text=${text}`).first();
-  if (await fallback.count()) {
-    await fallback.click();
-    await page.waitForTimeout(150);
+async function clickNav(page, labels) {
+  for (const text of Array.isArray(labels) ? labels : [labels]) {
+    const candidate = page.getByRole("button", { name: new RegExp(`\\b${escapeRegExp(text)}\\b`, "i") });
+    if (await candidate.count()) {
+      await candidate.first().click();
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(150);
+      return;
+    }
+    const fallback = page.locator(`text=${text}`).first();
+    if (await fallback.count()) {
+      await fallback.click();
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(150);
+      return;
+    }
   }
 }
 
 async function textVisible(page, text) {
   return await page.locator(`text=${text}`).first().isVisible().catch(() => false);
+}
+
+async function headingVisible(page, text) {
+  return await page.getByRole("heading", { name: new RegExp(`^${escapeRegExp(text)}$`, "i") }).first().isVisible().catch(() => false);
 }
 
 function firstPreviewableFilePath(treeOrNodes = []) {
