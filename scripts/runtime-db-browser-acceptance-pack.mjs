@@ -183,7 +183,12 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
         await page.locator('input[autocomplete="current-password"]').fill(credentials.password);
         await page.locator('button[type="submit"]').click();
         await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
-        await page.waitForSelector("text=Matter Workbench", { timeout: 60000 });
+        await page.waitForFunction(
+          () => !document.body.innerText.includes("Sign in to Matter Workbench"),
+          null,
+          { timeout: 60000 },
+        );
+        await page.waitForSelector('[aria-label="Workspace navigation"]', { timeout: 60000 });
         checks.push({ key: "private_beta_login", passed: true, detail: "Signed in through the React login screen." });
       }
     } else {
