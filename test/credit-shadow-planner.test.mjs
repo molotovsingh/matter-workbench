@@ -108,6 +108,29 @@ test("shadow credit planner does not debit started or unclassified runs", () => 
   assert.equal(plan.warnings.length, 2);
 });
 
+test("shadow credit planner does not debit unknown provider run statuses", () => {
+  const plan = buildShadowCreditPlan({
+    providerRunPlan: {
+      tenant,
+      providerRuns: [
+        providerRun({
+          id: "00000000-0000-5000-8000-000000000106",
+          status: "provider_retrying",
+          task: "source_backed_analysis",
+          taskClass: "native_source_skill",
+        }),
+      ],
+    },
+  });
+
+  assert.equal(plan.providerRunCredits[0].status, "unknown");
+  assert.equal(plan.providerRunCredits[0].requiresPolicyDecision, true);
+  assert.equal(plan.creditLedgerEvents.length, 0);
+  assert.equal(plan.totals.shadowCredits, 0);
+  assert.equal(plan.totals.policyReviewRuns, 1);
+  assert.match(plan.warnings[0], /unknown status/i);
+});
+
 test("shadow credit report renders grouped credits without legal work product", () => {
   const plan = buildShadowCreditPlan({
     providerRunPlan: {

@@ -97,6 +97,7 @@ export function buildMatterAddFilesAllocationSql({
   actor,
 }) {
   const uploadKeyPattern = `^runtime-db-upload:${matter.id}:([0-9]+)$`;
+  const intakeObjectKeyPattern = "00_Inbox/Intake ([0-9]+)([^0-9]|$)";
   const displayLabelSql = `coalesce(nullif(${sqlString(label)}, ''), 'Intake ' || lpad(a.next_intake_number::text, 2, '0'))`;
   return wrapRuntimeDbWriteTransaction([
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
@@ -111,7 +112,7 @@ export function buildMatterAddFilesAllocationSql({
     "  for update",
     "), object_state as (",
     "  select",
-    "    coalesce(max(nullif(substring(so.object_key from 'Intake ([0-9]+)'), '')::int), 0) as max_intake_number",
+    `    coalesce(max(nullif(substring(so.object_key from ${sqlString(intakeObjectKeyPattern)}), '')::int), 0) as max_intake_number`,
     "  from storage_objects so",
     "  where so.tenant_id = current_app_tenant_id()",
     `    and so.matter_id = ${sqlUuid(matter.id)}`,

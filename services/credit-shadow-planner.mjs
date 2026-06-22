@@ -128,7 +128,7 @@ function creditRowFromProviderRun({ tenantId, accountId, providerRun = {}, costE
   const credits = policy.billable ? policy.plannedCredits : 0;
   const actualProviderCost = numberOrNull(costEvent?.amount ?? providerRun.costAmount ?? providerRun.cost_amount);
   const costConfidence = normalizeText(costEvent?.confidence || providerRun.costConfidence || providerRun.cost_confidence || "unknown") || "unknown";
-  const needsPolicyDecision = policy.requiresPolicyDecision || status === "failed";
+  const needsPolicyDecision = policy.requiresPolicyDecision || status === "failed" || status === "unknown";
   const ledgerEvents = [];
   let warning = "";
 
@@ -147,6 +147,8 @@ function creditRowFromProviderRun({ tenantId, accountId, providerRun = {}, costE
     warning = `No shadow debit for failed provider run ${providerRun.id || "unknown"} (${policy.sku}); failure charge policy is pending.`;
   } else if (credits > 0 && ["started", "cancelled"].includes(status)) {
     warning = `No shadow debit for ${status} provider run ${providerRun.id || "unknown"} (${policy.sku}).`;
+  } else if (credits > 0 && status === "unknown") {
+    warning = `No shadow debit for provider run ${providerRun.id || "unknown"} with unknown status (${policy.sku}).`;
   } else if (policy.requiresPolicyDecision) {
     warning = `Credit policy could not classify provider run ${providerRun.id || "unknown"}.`;
   }
@@ -288,7 +290,7 @@ function normalizeStatus(value) {
   const status = normalizeText(value).toLowerCase();
   if (["succeeded", "failed", "cancelled", "started"].includes(status)) return status;
   if (status === "running") return "started";
-  return "succeeded";
+  return "unknown";
 }
 
 function sumNullable(values) {

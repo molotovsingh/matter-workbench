@@ -33,11 +33,11 @@ import {
   buildRuntimeWorkspaceTree,
   normalizeRuntimeWorkspaceObjectRow,
   publicRuntimeWorkspaceTree,
+  runtimeWorkspaceFilePaths,
 } from "./runtime-db-workspace-read-model.mjs";
 import {
   runtimeMatterStatusFromWorkspaceState,
   runtimePrepareMatterPlanFromStatus,
-  runtimeWorkspaceFilePaths,
 } from "./runtime-db-preparation-read-model.mjs";
 import { sha256Bytes } from "./runtime-db-bytes.mjs";
 import {
@@ -84,6 +84,7 @@ export function createRuntimeDbStorageService({
   tempRoot = os.tmpdir(),
 } = {}) {
   const enabled = Boolean(databaseUrl && tenantId);
+  const matterWriteQueues = new Map();
 
   async function readWorkspace(matter) {
     const normalizedMatter = normalizeMatter(matter);
@@ -245,67 +246,69 @@ export function createRuntimeDbStorageService({
     if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400, "runtime_db.upload.matter_id_required");
     const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "adding files" });
 
-    const actor = runtimeDbUserFromRequestContext();
-    const allocation = queryJson({
-      databaseUrl,
-      tenantId,
-      spawn,
-      sql: buildMatterAddFilesAllocationSql({
+    return withMatterWriteQueue(normalizedMatter, async () => {
+      const actor = runtimeDbUserFromRequestContext();
+      const allocation = queryJson({
+        databaseUrl,
         tenantId,
+        spawn,
+        sql: buildMatterAddFilesAllocationSql({
+          tenantId,
+          matter: normalizedMatter,
+          expectedFileCount: files.length,
+          label,
+          receivedDate: new Date().toISOString().slice(0, 10),
+          actor,
+        }),
+      });
+      if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404, "runtime_db.upload.matter_not_found");
+      const uploadPlan = planRuntimeAddFilesUpload({
         matter: normalizedMatter,
-        expectedFileCount: files.length,
+        allocation,
         label,
-        receivedDate: new Date().toISOString().slice(0, 10),
-        actor,
-      }),
-    });
-    if (!allocation?.matter?.id) throw makeHttpError(`Matter not found in runtime database: ${normalizedMatter.name}`, 404, "runtime_db.upload.matter_not_found");
-    const uploadPlan = planRuntimeAddFilesUpload({
-      matter: normalizedMatter,
-      allocation,
-      label,
-      files,
-      relativePaths: safeRelativePaths,
-    });
-    const dbMatter = uploadPlan.matter;
-    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
-      ...uploadPlan.buildIntakeArgs,
-      tempRoot,
-      existingFiles: await readWorkspacePayloadFiles(dbMatter),
-    });
+        files,
+        relativePaths: safeRelativePaths,
+      });
+      const dbMatter = uploadPlan.matter;
+      const { storageFiles, importItems } = await buildRuntimeUploadIntake({
+        ...uploadPlan.buildIntakeArgs,
+        tempRoot,
+        existingFiles: await readWorkspacePayloadFiles(dbMatter),
+      });
 
-    persistRuntimeUploadIntakeRecords({
-      databaseUrl,
-      tenantId,
-      spawn,
-      actor,
-      matter: dbMatter,
-      uploadPlan,
-      storageFiles,
-      importItems,
-      uploadSqls: createMatterAddFilesSql({
-        matter: dbMatter,
+      persistRuntimeUploadIntakeRecords({
+        databaseUrl,
+        tenantId,
+        spawn,
         actor,
-        intakeDbId: uploadPlan.intakeDbId,
-        intakeNumber: uploadPlan.intakeNumber,
-        uploadSessionId: uploadPlan.uploadSessionId,
-        importBatchId: uploadPlan.importBatchId,
+        matter: dbMatter,
+        uploadPlan,
+        storageFiles,
         importItems,
-        expectedFileCount: importItems.length,
-        label,
+        uploadSqls: createMatterAddFilesSql({
+          matter: dbMatter,
+          actor,
+          intakeDbId: uploadPlan.intakeDbId,
+          intakeNumber: uploadPlan.intakeNumber,
+          uploadSessionId: uploadPlan.uploadSessionId,
+          importBatchId: uploadPlan.importBatchId,
+          importItems,
+          expectedFileCount: importItems.length,
+          label,
+          receivedDate: uploadPlan.receivedDate,
+        }),
+      });
+      return {
+        intakeId: uploadPlan.intakeId,
+        intakeDirName: uploadPlan.intakeDirName,
         receivedDate: uploadPlan.receivedDate,
-      }),
+        label,
+        scanned: importItems.length,
+        unique: importItems.length,
+        duplicatesInBatch: 0,
+        duplicatesOfPrior: 0,
+      };
     });
-    return {
-      intakeId: uploadPlan.intakeId,
-      intakeDirName: uploadPlan.intakeDirName,
-      receivedDate: uploadPlan.receivedDate,
-      label,
-      scanned: importItems.length,
-      unique: importItems.length,
-      duplicatesInBatch: 0,
-      duplicatesOfPrior: 0,
-    };
   }
 
   async function checkUploadedFileOverlap(hashes = []) {
@@ -732,6 +735,20 @@ export function createRuntimeDbStorageService({
         statusCode: 503,
         code: "runtime_db.storage.not_configured",
       });
+    }
+  }
+
+  async function withMatterWriteQueue(matter, operation) {
+    const normalizedMatter = normalizeMatter(matter);
+    const key = normalizedMatter.id ? `id:${normalizedMatter.id}` : `name:${normalizedMatter.name}`;
+    if (!key) return operation();
+    const previous = matterWriteQueues.get(key) || Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    matterWriteQueues.set(key, current);
+    try {
+      return await current;
+    } finally {
+      if (matterWriteQueues.get(key) === current) matterWriteQueues.delete(key);
     }
   }
 

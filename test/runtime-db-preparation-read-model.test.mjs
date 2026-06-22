@@ -7,8 +7,8 @@ import {
 import {
   runtimeMatterStatusFromWorkspaceState,
   runtimePrepareMatterPlanFromStatus,
-  runtimeWorkspaceFilePaths,
 } from "../services/runtime-db-preparation-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "../services/runtime-db-workspace-read-model.mjs";
 
 test("runtime DB preparation read model derives status and current rerun advice from payload custody", () => {
   const matter = { name: "DB Matter", matterName: "Legal Caption" };

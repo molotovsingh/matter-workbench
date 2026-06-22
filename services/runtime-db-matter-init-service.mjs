@@ -11,7 +11,7 @@ import {
   MATTER_WORKSPACE_LANES,
   normalizeWorkingCopyName,
 } from "../shared/matter-contract.mjs";
-import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 import { sha256Bytes } from "./runtime-db-bytes.mjs";
 

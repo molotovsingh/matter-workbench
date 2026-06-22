@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -110,4 +111,11 @@ test("shared and runtime planners expose the same upload validation failures", (
         && /conflicts with/i.test(error.message),
     );
   }
+});
+
+test("runtime upload planner imports shared deterministic UUID policy", async () => {
+  const source = await readFile("services/runtime-db-upload-intake-planner.mjs", "utf8");
+  assert.match(source, /deterministicUuid[\s\S]+from "\.\/runtime-db-sql-format\.mjs"/);
+  assert.doesNotMatch(source, /function deterministicUuid\(/);
+  assert.doesNotMatch(source, /createHash/);
 });

@@ -7,7 +7,7 @@ import {
 } from "./doctor-legacy-layout.mjs";
 import { detectRuntimeDbLegacyLayout, runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
-import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 
 const DOCTOR_CSV_NAMES = new Set([
   "Inbox_Loads.csv",

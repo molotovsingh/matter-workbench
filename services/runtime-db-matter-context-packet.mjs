@@ -18,7 +18,8 @@ import {
   isExcludedMatterContextPath,
   toMatterContextPacketPath,
 } from "./matter-context-path-policy.mjs";
-import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
+import { readRuntimeDbPayloadText } from "./runtime-db-payload-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 
 const EXTRACTION_RECORD_SCHEMA_VERSION = "extraction-record/v1";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
@@ -36,7 +37,7 @@ export function buildRuntimeDbMatterContextPacket({
   const generatedAt = options.generatedAt || new Date().toISOString();
   const paths = runtimeWorkspaceFilePaths(workspace.tree || workspace.root || {});
   const pathByRelative = new Map(paths.map((item) => [item.path, item]));
-  const readText = (relativePath) => readPayloadText({ matter, relativePath, readPayloadRow, warnings });
+  const readText = (relativePath) => readRuntimeDbPayloadText({ matter, relativePath, readPayloadRow, warnings });
 
   const matterJson = readMatterJson({ matter, workspace, readText, warnings });
   const intakes = discoverIntakes({ matterJson, paths });
@@ -59,21 +60,6 @@ export function buildRuntimeDbMatterContextPacket({
     warnings,
     generatedAt,
   });
-}
-
-function readPayloadText({ matter, relativePath, readPayloadRow, warnings }) {
-  try {
-    const payload = readPayloadRow({ matter, relativePath });
-    return payload.bytes.toString("utf8");
-  } catch (error) {
-    if (error?.statusCode === 404) return null;
-    if (error?.statusCode === 409) {
-      warnings.push(`Skipped DB payload ${relativePath}: payload is not available in DB custody`);
-      return null;
-    }
-    warnings.push(`Skipped DB payload ${relativePath}: ${error.message || error}`);
-    return null;
-  }
 }
 
 function readMatterJson({ matter, workspace, readText, warnings }) {
@@ -233,7 +219,7 @@ function shouldExcludeRegisterRow(row = {}) {
   return candidates.some(isExcludedMatterContextPath);
 }
 
-function readTrustedSourceDescriptors({ readText, registerByFileId, warnings }) {
+export function readTrustedSourceDescriptors({ readText, registerByFileId, warnings }) {
   const body = readText(SOURCE_INDEX_RELATIVE);
   if (!body) return new Map();
   let artifact;

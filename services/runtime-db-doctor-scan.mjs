@@ -6,7 +6,8 @@ import {
   LEGACY_CATEGORY_RENAMES,
   LEGACY_CSV_COLUMN_RENAMES,
 } from "./doctor-legacy-layout.mjs";
-import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
+import { readRuntimeDbPayloadText } from "./runtime-db-payload-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 
 export function runRuntimeDbDoctorScan({
   matter = {},
@@ -17,7 +18,7 @@ export function runRuntimeDbDoctorScan({
   if (typeof readPayloadRow !== "function") throw new Error("runtime DB payload reader is required");
   const paths = runtimeWorkspaceFilePaths(workspace.tree || workspace.root || {});
   const warnings = [];
-  const readText = (relativePath) => readPayloadText({ matter, relativePath, readPayloadRow, warnings });
+  const readText = (relativePath) => readRuntimeDbPayloadText({ matter, relativePath, readPayloadRow, warnings });
   const legacy = detectRuntimeDbLegacyLayout({ paths, readText });
   return {
     issues: legacy ? [legacy] : [],
@@ -99,21 +100,6 @@ export function detectRuntimeDbLegacyLayout({ paths = [], readText = () => null 
     fixDescription: "Rename folders and CSVs to current names, rewrite CSV column headers and path values, migrate matter.json from phase_1_intake to intakes array.",
     evidence,
   };
-}
-
-function readPayloadText({ matter, relativePath, readPayloadRow, warnings }) {
-  try {
-    const payload = readPayloadRow({ matter, relativePath });
-    return payload.bytes.toString("utf8");
-  } catch (error) {
-    if (error?.statusCode === 404) return null;
-    if (error?.statusCode === 409) {
-      warnings.push(`Skipped DB payload ${relativePath}: payload is not available in DB custody`);
-      return null;
-    }
-    warnings.push(`Skipped DB payload ${relativePath}: ${error.message || error}`);
-    return null;
-  }
 }
 
 function isDoctorCsvCandidatePath(relativePath) {

@@ -12,7 +12,7 @@ import {
 import { parseCsv, toCsv } from "../shared/csv.mjs";
 import { EXTRACTION_LOG_HEADERS } from "../shared/matter-contract.mjs";
 import { buildExtractionOcrObservability } from "../extract-utils/ocr-policy.mjs";
-import { runtimeWorkspaceFilePaths } from "./runtime-db-preparation-read-model.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 
 export async function runRuntimeDbExtract({
   matter = {},

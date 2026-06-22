@@ -86,6 +86,30 @@ export function publicRuntimeWorkspaceTree(node) {
   };
 }
 
+export function runtimeWorkspaceFilePaths(root) {
+  const rows = [];
+  function visit(node) {
+    if (!node) return;
+    if (node.kind === "file" && node.path) {
+      rows.push({
+        path: node.path,
+        size: node.size || 0,
+        objectRole: node.objectRole || "",
+        sha256: node.sha256 || "",
+        updatedAt: node.updatedAt || "",
+        fileId: node.fileId || "",
+        originalName: node.originalName || "",
+        documentSha: node.documentSha || "",
+        documentSizeBytes: node.documentSizeBytes || 0,
+        duplicateOf: node.duplicateOf || "",
+      });
+    }
+    for (const child of node.children || []) visit(child);
+  }
+  visit(root);
+  return rows;
+}
+
 export function normalizeRuntimeWorkspaceObjectRow(row = {}) {
   return {
     objectKey: stringValue(row.objectKey || row.object_key),

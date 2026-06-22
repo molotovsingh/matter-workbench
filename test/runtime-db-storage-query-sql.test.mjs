@@ -51,6 +51,8 @@ test("runtime DB storage query SQL builds upload allocation with row lock", () =
   assert.match(sql, /mwb_runtime_role_guard/);
   assert.match(sql, /insert into users/i);
   assert.match(sql, /for update/i);
+  assert.doesNotMatch(sql, /substring\(so\.object_key from 'Intake \(\[0-9\]\+\)'\)/);
+  assert.match(sql, /substring\(so\.object_key from '00_Inbox\/Intake \(\[0-9\]\+\)/);
   assert.match(sql, /next_file_number = coalesce\(m\.next_file_number, 1\) \+ 2/i);
   assert.match(sql, /Follow-up disclosure/);
   assert.match(sql, /runtime-db-upload:/);

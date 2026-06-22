@@ -845,6 +845,76 @@ test("runtime DB storage service reserves add-files allocation under a matter ro
   assert.doesNotMatch(calls[2].input, /'multipart_upload'/i);
 });
 
+test("runtime DB storage service serializes add-files manifest merges for one matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-queued-add-upload-"));
+  const firstFile = path.join(tmp, "first.pdf");
+  const secondFile = path.join(tmp, "second.pdf");
+  await writeFile(firstFile, "%PDF-1.7 first supplemental affidavit");
+  await writeFile(secondFile, "%PDF-1.7 second supplemental affidavit");
+  const calls = [];
+  let allocationCount = 0;
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: (_command, _args, options = {}) => {
+      const input = options.input || "";
+      let kind = "other";
+      let payload = {};
+      if (/from matters[\s\S]*for update/i.test(input)) {
+        allocationCount += 1;
+        kind = `allocation-${allocationCount}`;
+        payload = {
+          matter: { ...matter, nextFileNumber: allocationCount + 2 },
+          nextIntakeNumber: allocationCount + 1,
+          fileIdStart: allocationCount + 2,
+          intakeDbId: `${allocationCount}`.padStart(8, "0") + "-2222-4222-8222-222222222222",
+          uploadSessionId: `${allocationCount}`.padStart(8, "0") + "-3333-4333-8333-333333333333",
+          receivedDate: "2026-06-08",
+        };
+      } else if (/object_rows/i.test(input)) {
+        kind = "workspace-read";
+        payload = {
+          matter,
+          objects: [
+            storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
+          ],
+        };
+      } else if (/payload_rows/i.test(input) && /matter\.json/i.test(input)) {
+        kind = "payload-read";
+        payload = payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption", intakes: [] }), "application/json");
+      } else if (/insert into storage_objects/i.test(input)) {
+        kind = "persist";
+      }
+      calls.push(kind);
+      return {
+        status: 0,
+        stdout: `${JSON.stringify(payload)}\n`,
+        stderr: "",
+      };
+    },
+  });
+
+  await Promise.all([
+    service.addUploadedFilesToMatter({
+      matter,
+      label: "First Follow Up",
+      files: [{ index: 0, tempPath: firstFile, filename: "first.pdf", bytes: 35 }],
+      relativePaths: ["supplement/first.pdf"],
+    }),
+    service.addUploadedFilesToMatter({
+      matter,
+      label: "Second Follow Up",
+      files: [{ index: 0, tempPath: secondFile, filename: "second.pdf", bytes: 36 }],
+      relativePaths: ["supplement/second.pdf"],
+    }),
+  ]);
+
+  const firstPersist = calls.indexOf("persist");
+  const secondAllocation = calls.indexOf("allocation-2");
+  assert.ok(firstPersist >= 0, "first add-files call should persist before the second starts");
+  assert.ok(secondAllocation > firstPersist, `expected second allocation after first persist; calls: ${calls.join(", ")}`);
+});
+
 test("runtime DB storage service checks upload overlap from document hashes", async () => {
   const duplicateHash = "a".repeat(64);
   const calls = [];

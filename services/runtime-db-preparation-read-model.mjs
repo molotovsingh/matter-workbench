@@ -7,6 +7,7 @@ import {
   isMatterWorkbenchStorySource,
 } from "./matter-story-service.mjs";
 import { validatedRelativePathFromRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
+import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
 
 export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tree } = {}) {
   const paths = runtimeWorkspaceFilePaths(tree.root);
@@ -170,30 +171,6 @@ function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
     reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
   };
-}
-
-export function runtimeWorkspaceFilePaths(root) {
-  const rows = [];
-  function visit(node) {
-    if (!node) return;
-    if (node.kind === "file" && node.path) {
-      rows.push({
-        path: node.path,
-        size: node.size || 0,
-        objectRole: node.objectRole || "",
-        sha256: node.sha256 || "",
-        updatedAt: node.updatedAt || "",
-        fileId: node.fileId || "",
-        originalName: node.originalName || "",
-        documentSha: node.documentSha || "",
-        documentSizeBytes: node.documentSizeBytes || 0,
-        duplicateOf: node.duplicateOf || "",
-      });
-    }
-    for (const child of node.children || []) visit(child);
-  }
-  visit(root);
-  return rows;
 }
 
 function extractedArtifacts(paths = []) {
