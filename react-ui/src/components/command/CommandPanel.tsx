@@ -16,6 +16,7 @@ import {
 } from '../../lib/skillIntentRouting';
 import { getErrorMessage } from '../../lib/errors';
 import { DEFAULT_COMMAND_COPY_TEXT } from '../../lib/commandPanelCopy';
+import { shouldSuggestResearchForAsk } from '../../lib/copilotResearchIntent';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import { useCommandSuggestions, looksLikeCustomSkillModification } from '../../hooks/useCommandSuggestions';
@@ -60,6 +61,7 @@ export default function CommandPanel({
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
   const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
+  const [pendingResearchChoice, setPendingResearchChoice] = useState<string | null>(null);
   const [commandMode, setCommandMode] = useState<CommandMode>('ask');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
@@ -90,6 +92,7 @@ export default function CommandPanel({
     setSkillIdeaInput(null);
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
+    setPendingResearchChoice(null);
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
   }, [dispatch, loadCommandSuggestions, resetSuggestions]);
@@ -101,6 +104,7 @@ export default function CommandPanel({
     setInput('');
     resetSuggestions();
     setPendingIntentChoice(null);
+    setPendingResearchChoice(null);
     setResumedSkillIdea(idea);
     setSkillIdeaInput(idea.text || 'new skill');
     dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: null });
@@ -130,6 +134,7 @@ export default function CommandPanel({
     setInput(command);
     closeSuggestionPicker();
     setPendingIntentChoice(null);
+    setPendingResearchChoice(null);
   }
 
   function runExampleCommand(command: string) {
@@ -137,6 +142,7 @@ export default function CommandPanel({
     setInput('');
     resetSuggestions();
     setPendingIntentChoice(null);
+    setPendingResearchChoice(null);
     if (command === 'new skill') {
       setResumedSkillIdea(null);
       setSkillIdeaInput(command);
@@ -191,6 +197,24 @@ export default function CommandPanel({
     setSkillIdeaInput(improveExisting ? `Improve ${matchedSkill}: ${command}` : command);
   }
 
+  async function answerPendingResearchFromRecord() {
+    if (!pendingResearchChoice || state.isCommandRunning) return;
+    const command = `/ask ${pendingResearchChoice}`;
+    setPendingResearchChoice(null);
+    appendTerminal(['[assistant] user chose matter-record answer']);
+    onCommand(command);
+    await api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
+  }
+
+  async function answerPendingResearchWithPublicSources() {
+    if (!pendingResearchChoice || state.isCommandRunning) return;
+    const command = `/research ${pendingResearchChoice}`;
+    setPendingResearchChoice(null);
+    appendTerminal(['[research] user chose public sources']);
+    onCommand(command);
+    await api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
+  }
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const cmd = input.trim();
@@ -198,8 +222,16 @@ export default function CommandPanel({
     setInput('');
     resetSuggestions();
     setPendingIntentChoice(null);
+    setPendingResearchChoice(null);
 
     if (inputOverrideRef.current?.(cmd)) {
+      return;
+    }
+
+    if (commandMode === 'ask' && canUseResearch && shouldSuggestResearchForAsk(cmd)) {
+      setPendingResearchChoice(cmd);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'This may need public legal research. Choose whether to answer from the matter record or search public sources.' });
+      appendTerminal(['[assistant] research may help; waiting for user choice']);
       return;
     }
 
@@ -259,7 +291,7 @@ export default function CommandPanel({
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
     } catch { /* fire-and-forget */ }
-  }, [input, commandMode, baseSuggestions, resetSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
+  }, [input, commandMode, canUseResearch, appendTerminal, baseSuggestions, resetSuggestions, state.isCommandRunning, state.activeMatter?.name, dispatch, onCommand, onTransientCopilotQuestion]);
 
   return (
     <aside className="command-panel" aria-label="Command box">
@@ -290,6 +322,31 @@ export default function CommandPanel({
       <p className="command-panel-copy" style={{ order: 2 }}>
         {state.commandCopyText}
       </p>
+
+      {pendingResearchChoice && (
+        <div className="intent-choice-panel research-choice-panel" style={{ order: 3 }}>
+          <div className="intent-choice-title">This may need public legal research</div>
+          <p>
+            Answer from the current matter record, or search public legal sources.
+          </p>
+          <div className="intent-choice-actions">
+            <button
+              type="button"
+              onClick={() => { void answerPendingResearchFromRecord(); }}
+              disabled={state.isCommandRunning}
+            >
+              Answer from matter record
+            </button>
+            <button
+              type="button"
+              onClick={() => { void answerPendingResearchWithPublicSources(); }}
+              disabled={state.isCommandRunning || !canUseResearch}
+            >
+              Research public sources
+            </button>
+          </div>
+        </div>
+      )}
 
       {pendingConfigurableOverwrite && (
         <div className="intent-choice-panel configurable-overwrite-panel" style={{ order: 3 }}>
