@@ -11,8 +11,10 @@ import { getErrorMessage } from './lib/errors';
 import {
   formatMatterCopilotAnswer,
   formatMatterCopilotError,
+  formatMatterCopilotResearchAnswer,
   formatMatterCopilotTerminalError,
   parseAskCommand,
+  parseResearchCommand,
 } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
@@ -198,6 +200,45 @@ function AppShell() {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       appendTerminal([formatMatterCopilotTerminalError(message)]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotError(message) });
+    } finally {
+      if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
+
+  const researchMatterQuestion = useCallback(async (
+    question: string,
+    {
+      matterName = state.activeMatter?.name ?? state.resumeMatterName ?? null,
+      manageRunning = true,
+    }: { matterName?: string | null; manageRunning?: boolean } = {},
+  ) => {
+    const cleanQuestion = question.trim();
+    if (!cleanQuestion) return;
+    if (!matterName) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before using Research.' });
+      appendTerminal(['[research] no active matter']);
+      return;
+    }
+    if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Searching public legal sources…' });
+    appendTerminal(['[research] searching public legal sources', '[research] preparing answer']);
+    try {
+      const answer = await api.researchMatterQuestion({ question: cleanQuestion, matterName });
+      if (activeMatterNameRef.current !== matterName) return;
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotResearchAnswer(answer) });
+      appendTerminal([
+        `[research] ${answer.answer_status} — ${(answer.public_sources || []).length} public source(s)`,
+        ...(canSeeOperatorDetails
+          ? [answer.ai_run?.provider && answer.ai_run?.model
+            ? `[research] route: ${answer.ai_run.provider} / ${answer.ai_run.model}`
+            : '[research] route metadata unavailable']
+          : []),
+      ]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
+      const message = getErrorMessage(e);
+      appendTerminal([`[research] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotError(message) });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
@@ -441,6 +482,12 @@ function AppShell() {
       return;
     }
 
+    const researchQuestion = parseResearchCommand(cmd);
+    if (researchQuestion) {
+      await researchMatterQuestion(researchQuestion);
+      return;
+    }
+
     const askQuestion = parseAskCommand(cmd);
     if (askQuestion) {
       await answerMatterQuestion(askQuestion);
@@ -522,7 +569,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
+  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, researchMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
 
   function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
     activeMatterNameRef.current = name;

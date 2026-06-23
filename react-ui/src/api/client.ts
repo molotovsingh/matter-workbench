@@ -27,6 +27,7 @@ import type {
   MatterContextPreview,
   MatterContextSearchResponse,
   MatterCopilotAnswer,
+  MatterCopilotResearchAnswer,
   MatterStoryRunResult,
   MatterAttention,
   MatterStatus,
@@ -415,6 +416,8 @@ export const api = {
   searchMatterContext: (query: string, matterName?: string) => getJson<MatterContextSearchResponse>(withQuery('/api/matter-context/search', { q: query, matter: matterName })),
   answerMatterQuestion: (body: { question: string; matterName?: string }) =>
     postJson<MatterCopilotAnswer>('/api/matter-copilot/answer', body),
+  researchMatterQuestion: (body: { question: string; matterName?: string }) =>
+    postJson<MatterCopilotResearchAnswer>('/api/matter-copilot/research', body),
 
   // ─── Configurable skills ─────────────────
   getConfigurableSkills: () => getJson<{ skills: ConfigurableSkill[] }>('/api/configurable-skills'),

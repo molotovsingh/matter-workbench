@@ -969,6 +969,15 @@ export interface MatterCopilotSource {
   snippet?: string;
 }
 
+export interface MatterCopilotPublicSource {
+  id?: string;
+  title?: string;
+  url?: string;
+  published_at?: string;
+  source_type?: string;
+  snippet?: string;
+}
+
 export interface MatterCopilotAnswer {
   schema_version?: string;
   matterRoot?: string;
@@ -993,6 +1002,19 @@ export interface MatterCopilotAnswer {
     tier?: string;
     policyPromptVersion?: string;
   };
+}
+
+export interface MatterCopilotResearchAnswer {
+  schema_version?: string;
+  question?: string;
+  answer_status: 'answered' | 'partial' | 'not_found' | 'blocked' | 'failed' | string;
+  answer_markdown: string;
+  matter_sources?: MatterCopilotSource[];
+  public_sources?: MatterCopilotPublicSource[];
+  warnings?: string[];
+  research?: { provider?: string; query?: string; result_count?: number; [key: string]: unknown };
+  ai_run?: { provider?: string; model?: string; task?: string; tier?: string; [key: string]: unknown };
+  matter?: { matter_name?: string; folder_name?: string; [key: string]: unknown };
 }
 
 export interface PreparationStage {

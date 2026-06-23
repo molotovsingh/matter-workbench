@@ -1,6 +1,6 @@
 import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage } from '../../../shared/user-facing-ai-language-policy.js';
 import { redactSensitiveText } from './secretRedaction';
-import type { MatterCopilotAnswer } from '../types';
+import type { MatterCopilotAnswer, MatterCopilotResearchAnswer } from '../types';
 
 export function parseAskCommand(input: string): string | null {
   const text = input.trim();
@@ -9,6 +9,16 @@ export function parseAskCommand(input: string): string | null {
   if (slash) return slash[1].trim() || null;
   const ask = text.match(/^ask\s+(.+)$/i);
   if (ask) return ask[1].trim() || null;
+  return null;
+}
+
+export function parseResearchCommand(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+  const slash = text.match(/^\/research\s+(.+)$/i);
+  if (slash) return slash[1].trim() || null;
+  const research = text.match(/^research\s+(.+)$/i);
+  if (research) return research[1].trim() || null;
   return null;
 }
 
@@ -41,6 +51,44 @@ export function formatMatterCopilotAnswer(answer: MatterCopilotAnswer): string {
   return parts.join('\n\n');
 }
 
+export function formatMatterCopilotResearchAnswer(answer: MatterCopilotResearchAnswer): string {
+  const status = answer.answer_status || 'not_found';
+  const body = lawyerVisibleAnswerText(answer.answer_markdown) || fallbackForStatus(status);
+  const parts = [`Research answer from public sources\n\n${body.replace(/^Research answer from public sources\s*/i, '').trim()}`.trim()];
+
+  const matterLabels = visibleSourceLabels({ sources: answer.matter_sources || [] } as MatterCopilotAnswer);
+  if (matterLabels.length) {
+    parts.push(`Matter sources: ${matterLabels.join('; ')}`);
+  }
+
+  const publicLabels = visiblePublicSourceLabels(answer).slice(0, 6);
+  if (publicLabels.length) {
+    parts.push(`Public sources: ${publicLabels.join('; ')}`);
+  }
+
+  const warnings = visibleWarnings(answer.warnings || []).slice(0, 2);
+  if (warnings.length) {
+    parts.push(`Limits: ${warnings.join(' ')}`);
+  }
+
+  if (!/verify authorities before relying or filing/i.test(parts.join('\n'))) {
+    parts.push('_Verify authorities before relying or filing._');
+  }
+
+  parts.push('Mode: research answer from public sources and the current matter record.');
+
+  if (status === 'not_found') {
+    return `I could not find useful public sources for that research question.\n\n${parts.join('\n\n')}`;
+  }
+  if (status === 'partial') {
+    return `Partial research answer.\n\n${parts.join('\n\n')}`;
+  }
+  if (status === 'blocked') {
+    return `I cannot safely do that as a research answer.\n\n${parts.join('\n\n')}`;
+  }
+  return parts.join('\n\n');
+}
+
 export function formatMatterCopilotError(message: string): string {
   const normalized = normalizeText(message);
   if (/unsupported citation/i.test(normalized)) {
@@ -68,6 +116,20 @@ function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {
     seen.add(label);
     labels.push(label);
     if (labels.length >= 4) break;
+  }
+  return labels;
+}
+
+function visiblePublicSourceLabels(answer: MatterCopilotResearchAnswer): string[] {
+  const labels = [];
+  const seen = new Set<string>();
+  for (const source of answer.public_sources || []) {
+    const title = normalizeText(source.title) || normalizeText(source.url) || normalizeText(source.id) || 'Public source';
+    const url = normalizeText(source.url);
+    const label = url && !title.includes(url) ? `${title} (${url})` : title;
+    if (seen.has(label)) continue;
+    seen.add(label);
+    labels.push(label);
   }
   return labels;
 }
