@@ -154,3 +154,41 @@ test("browser adapter output matches shared new-matter planner", () => {
     shared.relativePaths,
   );
 });
+
+test("browser adapter and runtime planner preserve candidate path ordering", () => {
+  const browser = planBrowserNewMatterUpload({
+    fields: {
+      name: "Atibir Industries v State Bank of India",
+      metadata: JSON.stringify({
+        matterName: "Atibir Industries v State Bank of India",
+        clientName: "Atibir Industries",
+        oppositeParty: "State Bank of India",
+      }),
+      paths: JSON.stringify(["sbi6.pdf", "sbi5.pdf", "sbi4.pdf"]),
+    },
+    files: [
+      { index: 0, filename: "sbi6.pdf", tempPath: "/tmp/upload-00000", bytes: 6 },
+      { index: 1, filename: "sbi5.pdf", tempPath: "/tmp/upload-00001", bytes: 5 },
+      { index: 2, filename: "sbi4.pdf", tempPath: "/tmp/upload-00002", bytes: 4 },
+    ],
+  });
+
+  const runtime = planNewRuntimeMatterUpload({
+    name: "Atibir Industries v State Bank of India",
+    metadata: browser.metadata,
+    files: [
+      { index: 0, filename: "sbi6.pdf", tempPath: "/tmp/upload-00000", bytes: 6 },
+      { index: 1, filename: "sbi5.pdf", tempPath: "/tmp/upload-00001", bytes: 5 },
+      { index: 2, filename: "sbi4.pdf", tempPath: "/tmp/upload-00002", bytes: 4 },
+    ],
+    relativePaths: browser.relativePaths,
+    actor: { id: "tester-user-id" },
+    now: new Date("2026-06-23T09:00:00.000Z"),
+  });
+
+  assert.deepEqual(
+    browser.batch.candidates.map((candidate) => candidate.relativePath),
+    runtime.relativePaths,
+  );
+  assert.deepEqual(runtime.buildIntakeArgs.relativePaths, runtime.relativePaths);
+});
