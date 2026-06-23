@@ -1,4 +1,5 @@
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
+import { buildCopilotWebSearchQueries } from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION = "matter-copilot-research-answer/v1";
@@ -13,14 +14,17 @@ const MAX_QUESTION_LENGTH = 1200;
 export function createCopilotWebResearchService({
   matterStore,
   env = process.env,
+  webResearchProvider = null,
+  researchAnswerProvider = null,
   webResearchAnswerProvider = null,
 } = {}) {
   const config = readCopilotWebResearchConfig(env);
+  const answerProvider = researchAnswerProvider || webResearchAnswerProvider;
 
   function readAvailability() {
     return {
       schema_version: "copilot-web-research-availability/v1",
-      enabled: Boolean(config.enabled && config.providerConfigured && webResearchAnswerProvider),
+      enabled: Boolean(config.enabled && config.providerConfigured && webResearchProvider && answerProvider),
       featureEnabled: config.enabled,
       provider: config.provider,
       providerConfigured: config.providerConfigured,
@@ -35,7 +39,7 @@ export function createCopilotWebResearchService({
   }
 
   function assertReady() {
-    assertResearchReady(config, webResearchAnswerProvider);
+    assertResearchReady(config, webResearchProvider, answerProvider);
   }
 
   async function answerResearchQuestion({
@@ -51,16 +55,35 @@ export function createCopilotWebResearchService({
 
   async function answerResearchQuestionFromPacket({ packet, question = "" } = {}) {
     const normalizedQuestion = normalizeResearchQuestion(question);
-    assertResearchReady(config, webResearchAnswerProvider);
+    assertResearchReady(config, webResearchProvider, answerProvider);
     if (!packet || typeof packet !== "object") {
       throw makeHttpError("Pick or prepare a matter before using Research.", 409, "copilot_research.context_required");
     }
-    const answer = await webResearchAnswerProvider({
+    const queries = buildCopilotWebSearchQueries(normalizedQuestion);
+    const research = await webResearchProvider({
+      query: queries[0] || normalizedQuestion,
+      queries,
       question: normalizedQuestion,
-      packet,
       config,
     });
-    return normalizeResearchAnswer({ answer, question: normalizedQuestion, config });
+    const publicSources = Array.isArray(research?.sources) ? research.sources : [];
+    if (!publicSources.length) {
+      throw makeHttpError("I could not find useful public sources. I can still answer from the matter record.", 404, "copilot_research.no_results");
+    }
+    const answer = await answerProvider({
+      question: normalizedQuestion,
+      packet,
+      publicSources,
+      searchQuery: research.query || queries[0] || normalizedQuestion,
+      config,
+    });
+    return normalizeResearchAnswer({
+      answer,
+      question: normalizedQuestion,
+      config,
+      publicSources,
+      searchQuery: research.query || queries[0] || normalizedQuestion,
+    });
   }
 
   return {
@@ -86,15 +109,12 @@ export function readCopilotWebResearchConfig(env = process.env) {
   };
 }
 
-function assertResearchReady(config, webResearchAnswerProvider) {
+function assertResearchReady(config, webResearchProvider, answerProvider) {
   if (!config.enabled) {
     throw makeHttpError("Research is not enabled for this workspace.", 409, "copilot_research.disabled");
   }
-  if (!config.providerConfigured) {
+  if (!config.providerConfigured || typeof webResearchProvider !== "function" || typeof answerProvider !== "function") {
     throw makeHttpError("Research is temporarily unavailable.", 409, "copilot_research.provider_not_configured");
-  }
-  if (typeof webResearchAnswerProvider !== "function") {
-    throw makeHttpError("Research is temporarily unavailable.", 503, "copilot_research.provider_not_configured");
   }
 }
 
@@ -104,25 +124,59 @@ function normalizeResearchQuestion(value) {
   return question;
 }
 
-function normalizeResearchAnswer({ answer, question, config }) {
+function normalizeResearchAnswer({ answer, question, config, publicSources = [], searchQuery = "" }) {
   const raw = answer && typeof answer === "object" && !Array.isArray(answer) ? answer : {};
+  const sourceValidation = validatePublicSources(raw.public_sources, publicSources);
+  const warnings = [
+    ...sourceValidation.warnings,
+    ...(Array.isArray(raw.warnings) ? raw.warnings.map((warning) => String(warning || "").trim()).filter(Boolean) : []),
+  ];
   return {
     schema_version: COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION,
     question,
     answer_status: normalizeAnswerStatus(raw.answer_status),
     answer_markdown: String(raw.answer_markdown || "").trim(),
     matter_sources: Array.isArray(raw.matter_sources) ? raw.matter_sources : [],
-    public_sources: Array.isArray(raw.public_sources) ? raw.public_sources : [],
-    warnings: Array.isArray(raw.warnings) ? raw.warnings.map((warning) => String(warning || "").trim()).filter(Boolean) : [],
+    public_sources: sourceValidation.sources,
+    warnings,
     research: {
       provider: config.provider,
-      query: String(raw.research?.query || "").trim(),
-      result_count: Number.isInteger(raw.research?.result_count) && raw.research.result_count >= 0
-        ? raw.research.result_count
-        : 0,
+      query: String(raw.research?.query || searchQuery || "").trim(),
+      result_count: sourceValidation.sources.length,
     },
     ai_run: raw.ai_run && typeof raw.ai_run === "object" ? raw.ai_run : {},
   };
+}
+
+function validatePublicSources(modelSources, publicSources) {
+  const allowed = new Map(publicSources
+    .filter((source) => source?.id)
+    .map((source) => [String(source.id), source]));
+  const requested = Array.isArray(modelSources) && modelSources.length
+    ? modelSources
+    : publicSources;
+  const sources = [];
+  const warnings = [];
+  const seen = new Set();
+  for (const source of requested) {
+    const id = String(source?.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    const validated = allowed.get(id);
+    if (!validated) {
+      warnings.push(`Dropped unsupported public source ${id}.`);
+      continue;
+    }
+    seen.add(id);
+    sources.push({
+      id: validated.id,
+      title: validated.title || "Untitled public source",
+      url: validated.url || "",
+      published_at: validated.publishedAt || validated.published_at || "",
+      source_type: validated.sourceType || validated.source_type || "other",
+      snippet: validated.snippet || "",
+    });
+  }
+  return { sources, warnings };
 }
 
 function normalizeAnswerStatus(value) {

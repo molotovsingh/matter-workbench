@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -81,6 +81,37 @@ test("config exposes research enabled only when the service is ready", async () 
     env: { COPILOT_WEB_RESEARCH_ENABLED: "1", EXA_API_KEY: "exa-test" },
     serverOptions: {
       copilotWebResearchAnswerProvider: async () => ({ answer_status: "not_found" }),
+      copilotWebResearchProvider: async () => ({ sources: [{ id: "WEB-0001", title: "IBC" }] }),
+    },
+  });
+});
+
+test("research API can return a fake research answer without writing artifacts", async () => {
+  await withServer(async ({ baseUrl, mattersHome }) => {
+    const matterRoot = path.join(mattersHome, "Research Matter");
+    await mkdir(matterRoot, { recursive: true });
+    await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({ matter_name: "Research Matter" }, null, 2));
+    const result = await postJsonRaw(baseUrl, "/api/matter-copilot/research", {
+      question: "Which NCLT sections apply?",
+      matterName: "Research Matter",
+    });
+
+    assert.equal(result.response.status, 200);
+    assert.equal(result.payload.schema_version, "matter-copilot-research-answer/v1");
+    assert.equal(result.payload.answer_status, "answered");
+    assert.deepEqual(result.payload.public_sources.map((source) => source.id), ["WEB-0001"]);
+  }, {
+    env: { COPILOT_WEB_RESEARCH_ENABLED: "1", EXA_API_KEY: "exa-test" },
+    serverOptions: {
+      copilotWebResearchAnswerProvider: async ({ publicSources }) => ({
+        answer_status: "answered",
+        answer_markdown: "Research answer from public sources\n\n_Verify authorities before relying or filing._",
+        public_sources: [{ id: publicSources[0].id }],
+      }),
+      copilotWebResearchProvider: async () => ({
+        query: "NCLT IBC",
+        sources: [{ id: "WEB-0001", title: "IBC", url: "https://example.test/ibc", sourceType: "official", snippet: "Section 60(5)." }],
+      }),
     },
   });
 });

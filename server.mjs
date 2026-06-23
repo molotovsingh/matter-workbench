@@ -106,6 +106,7 @@ export async function createWorkbenchServer(options = {}) {
   const copilotWebResearchService = options.copilotWebResearchService || createCopilotWebResearchService({
     matterStore,
     env,
+    webResearchProvider: options.copilotWebResearchProvider || null,
     webResearchAnswerProvider: options.copilotWebResearchAnswerProvider || null,
   });
   const matterContextService = createMatterContextService({ matterStore });
