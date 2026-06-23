@@ -189,6 +189,20 @@ closure and runtime browser acceptance packs still require a system
 Chrome/Chromium binary. On Debian, keep `chromium` installed or set
 `MWB_PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium` in `runtime.env`.
 
+### Upload batch limit
+
+The private VM runtime defaults `MWB_MAX_UPLOAD_BYTES` to `100663296`
+bytes, which is 96 MiB. This is a safety guard for the current DB-backed upload
+path: very large browser uploads can otherwise force the Node process to hold
+too many bytes in memory while persisting the intake, which can trigger an OOM
+restart and surface to the tester as a 502.
+
+Keep the default unless the VM size and upload architecture have been reviewed.
+If a tester hits the limit, ask them to create the matter with a smaller first
+batch and then use Add Files in batches. The long-term solution for very large
+intakes is streaming/direct object storage plus background import jobs, not a
+larger HTTP body limit.
+
 To start the user service after VM reboot before an interactive login, enable
 linger once:
 

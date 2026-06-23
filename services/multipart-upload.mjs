@@ -63,13 +63,13 @@ export function createMultipartUploadHandler({
             streamBytes += chunk.length;
             totalBytes += chunk.length;
             if (totalBytes > maxUploadBytes) {
-              const error = makeHttpError("Upload too large", 413, "upload.too_large");
+              const error = uploadTooLargeError(maxUploadBytes);
               rejectOnce(error);
               fail(error);
             }
           });
           fileStream.on("limit", () => {
-            const error = makeHttpError("Upload too large", 413, "upload.too_large");
+            const error = uploadTooLargeError(maxUploadBytes);
             rejectOnce(error);
             fail(error);
           });
@@ -106,4 +106,24 @@ export function createMultipartUploadHandler({
       request.pipe(bb);
     });
   };
+}
+
+function uploadTooLargeError(maxUploadBytes) {
+  const limit = formatBytes(maxUploadBytes);
+  const suffix = limit ? ` Keep each upload under ${limit}.` : "";
+  return makeHttpError(
+    `This upload is too large for one batch. Upload fewer files and try again.${suffix}`,
+    413,
+    "upload.too_large",
+  );
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const mib = value / (1024 * 1024);
+  if (mib >= 1) return `${Math.floor(mib)} MB`;
+  const kib = value / 1024;
+  if (kib >= 1) return `${Math.floor(kib)} KB`;
+  return `${Math.floor(value)} bytes`;
 }

@@ -7,6 +7,7 @@ import { runStartupAiChecks } from "../services/startup-ai-check-service.mjs";
 import { loadDatabaseScriptEnv } from "./db-env.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
+export const PRIVATE_VM_DEFAULT_MAX_UPLOAD_BYTES = 96 * 1024 * 1024;
 
 export function parseRuntimeServerArgs(argv = [], env = process.env) {
   const parsed = {
@@ -40,6 +41,7 @@ export function applyPrivateVmRuntimeDefaults(env = process.env) {
   if (!env.MWB_RUNTIME_DB) env.MWB_RUNTIME_DB = "postgres";
   if (!env.MWB_RUNTIME_DB_STORAGE) env.MWB_RUNTIME_DB_STORAGE = "postgres";
   if (!env.MWB_DB_RUNTIME_CUTOVER_APPROVED) env.MWB_DB_RUNTIME_CUTOVER_APPROVED = "yes";
+  if (!String(env.MWB_MAX_UPLOAD_BYTES || "").trim()) env.MWB_MAX_UPLOAD_BYTES = String(PRIVATE_VM_DEFAULT_MAX_UPLOAD_BYTES);
   return env;
 }
 
@@ -84,4 +86,3 @@ function redactRuntimeServerLine(value) {
     .replace(/postgres:\/\/([^:@/\s]+):([^@/\s]+)@/g, "postgres://$1:***@")
     .replace(/\bsecret\b/gi, "***");
 }
-

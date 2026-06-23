@@ -38,7 +38,7 @@ async function withServer(run, options = {}) {
   await mkdir(appDir, { recursive: true });
   const app = await createWorkbenchServer({
     appDir,
-    env: options.env || { MATTERS_HOME: mattersHome },
+    env: { MATTERS_HOME: mattersHome, ...(options.env || {}) },
     host: "127.0.0.1",
     maxUploadBytes: options.maxUploadBytes,
     port: 0,
@@ -626,9 +626,26 @@ test("multipart upload route returns 413 when the configured byte limit is excee
 
     const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
     assert.equal(response.status, 413);
-    assert.match(payload.error, /upload too large/i);
+    assert.match(payload.error, /too large for one batch/i);
     assert.equal(payload.code, "upload.too_large");
   }, { maxUploadBytes: 10 });
+});
+
+test("multipart upload route applies upload byte limit from environment", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const form = new FormData();
+    form.set("name", "Too Large Env Matter");
+    form.set("metadata", JSON.stringify({
+      matterName: "Too Large Env Matter",
+    }));
+    form.set("paths", JSON.stringify(["large-env.txt"]));
+    appendTextFile(form, "files", "large-env.txt", "This upload is deliberately larger than the env limit.");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
+    assert.equal(response.status, 413);
+    assert.match(payload.error, /upload fewer files/i);
+    assert.equal(payload.code, "upload.too_large");
+  }, { env: { MWB_MAX_UPLOAD_BYTES: "10" } });
 });
 
 test("multipart upload returns a stable error code when no files are attached", async () => {

@@ -41,6 +41,7 @@ import { createSkillRegistryService } from "./services/skill-registry-service.mj
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
 import { createSkillSamplesService } from "./services/skill-samples-service.mjs";
 import { createSkillSampleOutputService } from "./services/skill-sample-output-service.mjs";
+import { DEFAULT_MAX_UPLOAD_BYTES } from "./services/multipart-upload.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
 import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
@@ -112,7 +113,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     runtimeDbStorageService,
     workspaceService,
-    maxUploadBytes: options.maxUploadBytes,
+    maxUploadBytes: options.maxUploadBytes ?? configuredMaxUploadBytes(env),
   });
   const privateBetaMetricsService = options.privateBetaMetricsService || createPrivateBetaMetricsService({
     appDir,
@@ -449,6 +450,11 @@ function siblingMothershipSyncUrl(value = "", pathname = "/v1/metrics") {
   } catch {
     return "";
   }
+}
+
+export function configuredMaxUploadBytes(env = process.env) {
+  const configured = Number(env.MWB_MAX_UPLOAD_BYTES || env.MWB_UPLOAD_MAX_BYTES || "");
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_UPLOAD_BYTES;
 }
 
 function buildDeploymentMetricsContext({ env = {}, host = "", port = "", matterStore } = {}) {

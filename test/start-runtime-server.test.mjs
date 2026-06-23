@@ -41,5 +41,11 @@ test("private VM runtime server applies explicit runtime DB defaults without ove
   assert.equal(blank.MWB_RUNTIME_DB, "postgres");
   assert.equal(blank.MWB_RUNTIME_DB_STORAGE, "postgres");
   assert.equal(blank.MWB_DB_RUNTIME_CUTOVER_APPROVED, "yes");
+  assert.equal(blank.MWB_MAX_UPLOAD_BYTES, String(96 * 1024 * 1024));
 });
 
+test("private VM runtime server does not override explicit upload byte limit", () => {
+  const env = { MWB_MAX_UPLOAD_BYTES: "12345" };
+  applyPrivateVmRuntimeDefaults(env);
+  assert.equal(env.MWB_MAX_UPLOAD_BYTES, "12345");
+});
