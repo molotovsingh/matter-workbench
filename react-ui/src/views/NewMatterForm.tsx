@@ -165,6 +165,8 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     }
   }
 
+  const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);
+
   return (
     <div className="matter-intake-shell">
       <div className="matter-intake-hero">
@@ -281,7 +283,9 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
           </div>
           {files.length > 0 && (
             <div className="file-list">
-              <div className="file-list-summary">{files.length} file{files.length !== 1 ? 's' : ''} selected</div>
+              <div className="file-list-summary">
+                {files.length} file{files.length !== 1 ? 's' : ''} · {formatSize(totalSize)}
+              </div>
               {files.slice(0, 20).map((f, i) => (
                 <div key={i} className="file-list-entry">{f.relativePath}</div>
               ))}
@@ -334,4 +338,10 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       </form>
     </div>
   );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
