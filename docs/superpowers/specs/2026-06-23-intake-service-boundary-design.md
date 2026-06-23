@@ -1,10 +1,12 @@
 # Intake Service Boundary Design
 
-Status: Draft design for user review
+Status: Accepted design; Phase 1 implementation planned
 
 Date: 2026-06-23
 
 Branch: `codex/intake-service-boundary`
+
+Implementation plan: `docs/superpowers/plans/2026-06-23-intake-service-boundary.md`
 
 ## Plain-English Summary
 
