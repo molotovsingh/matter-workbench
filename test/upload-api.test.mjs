@@ -662,3 +662,10 @@ test("multipart upload returns a stable error code when no files are attached", 
     assert.equal(payload.code, "upload.no_files_attached");
   });
 });
+
+test("upload service delegates browser upload planning to intake adapter", async () => {
+  const source = await readFile("services/upload-service.mjs", "utf8");
+  assert.match(source, /planBrowserNewMatterUpload/);
+  assert.match(source, /planBrowserAddFilesUpload/);
+  assert.match(source, /from "\.\/intake\/browser-upload-adapter\.mjs"/);
+});

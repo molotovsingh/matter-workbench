@@ -26,7 +26,11 @@ after planning, but it must not fork the product contract.
 
 ## Planner Boundary
 
-`shared/upload-intake-planner.mjs` owns the shared upload-intake rules.
+`services/intake/` is the internal intake boundary for source candidates and
+browser-upload adapter behavior.
+
+`shared/upload-intake-planner.mjs` still owns the canonical deterministic upload
+planning rules used by that boundary.
 
 The planner must remain pure:
 
@@ -40,6 +44,11 @@ The planner must remain pure:
 Allowed inputs are plain values: submitted matter name, metadata, uploaded file
 array shape, browser-relative paths, intake label, allocation numbers, received
 date, and `now` where a date fallback is needed.
+
+The current browser upload path enters the boundary through
+`services/intake/browser-upload-adapter.mjs`. Future source adapters must produce
+the same candidate/batch shape before they ask storage-specific code to persist
+bytes or allocate source numbers.
 
 Storage-specific adapters may add:
 
