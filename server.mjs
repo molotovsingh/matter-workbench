@@ -109,11 +109,12 @@ export async function createWorkbenchServer(options = {}) {
     databaseUrl: runtimeDbUrl,
     tenantId: runtimeMatterIndex.tenantId || "",
   });
+  const maxUploadBytes = options.maxUploadBytes ?? configuredMaxUploadBytes(env);
   const uploadService = createUploadService({
     matterStore,
     runtimeDbStorageService,
     workspaceService,
-    maxUploadBytes: options.maxUploadBytes ?? configuredMaxUploadBytes(env),
+    maxUploadBytes,
   });
   const privateBetaMetricsService = options.privateBetaMetricsService || createPrivateBetaMetricsService({
     appDir,
@@ -324,6 +325,7 @@ export async function createWorkbenchServer(options = {}) {
     matterContextService,
     matterStatusService,
     matterStoryService,
+    maxUploadBytes,
     prepareMatterService,
     privateBetaAuthService,
     privateBetaFeedbackService,

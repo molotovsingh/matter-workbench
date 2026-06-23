@@ -56,6 +56,14 @@ async function withServer(run, options = {}) {
   }
 }
 
+test("config exposes the configured upload byte limit for browser preflight", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const config = await getJson(baseUrl, "/api/config");
+
+    assert.equal(config.maxUploadBytes, 12345);
+  }, { maxUploadBytes: 12345 });
+});
+
 test("multipart upload creates a matter and adds a follow-up intake", async () => {
   await withServer(async ({ baseUrl, mattersHome }) => {
     const createForm = new FormData();

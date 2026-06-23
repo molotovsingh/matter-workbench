@@ -94,6 +94,7 @@ export interface AppConfig {
   activeMatterName?: string;
   runtimeStorageMode?: 'filesystem' | 'postgres';
   workspaceModeLabel?: string;
+  maxUploadBytes?: number;
   release?: {
     label?: string;
     commit?: string;

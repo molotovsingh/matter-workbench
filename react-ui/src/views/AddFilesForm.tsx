@@ -11,6 +11,7 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
+import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
 
@@ -69,6 +70,11 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
     const duplicatePath = findDuplicateRelativePath(collected);
     if (duplicatePath) {
       setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
+      return;
+    }
+    const sizeCheck = assessUploadBatchSize(collected, state.config?.maxUploadBytes);
+    if (!sizeCheck.ok) {
+      setError(sizeCheck.message);
       return;
     }
     const matterName = state.activeMatter?.name;
