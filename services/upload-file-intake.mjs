@@ -1,22 +1,12 @@
 import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
-import { validateUploadInputs } from "../shared/upload-intake-planner.mjs";
 import { validateUploadRelativePath } from "../shared/upload-path-policy.mjs";
 
-export function parseUploadJsonField(fields = {}, name, fallback) {
-  if (!fields[name]) return fallback;
-  try {
-    return JSON.parse(fields[name]);
-  } catch {
-    throw makeHttpError(`Invalid ${name} JSON`, 400, "upload.invalid_json");
-  }
-}
-
-export function validateUploadPathList(fields = {}, files = [], { action = "uploading files" } = {}) {
-  const relativePaths = parseUploadJsonField(fields, "paths", []);
-  return validateUploadInputs({ files, relativePaths, action });
-}
+export {
+  parseUploadJsonField,
+  validateUploadPathList,
+} from "./intake/browser-upload-adapter.mjs";
 
 export async function writeUploadedFiles(files = [], relativePaths = [], destinationRoot, {
   escapeMessage = "Resolved destination escapes upload root",

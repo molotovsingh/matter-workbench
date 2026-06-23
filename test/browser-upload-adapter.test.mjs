@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -68,4 +69,11 @@ test("browser adapter preserves invalid JSON and no-file error codes", () => {
     (error) => error.statusCode === 400
       && error.code === "upload.no_files_attached",
   );
+});
+
+test("legacy upload-file-intake re-exports adapter parsing functions", async () => {
+  const source = await readFile("services/upload-file-intake.mjs", "utf8");
+  assert.match(source, /from "\.\/intake\/browser-upload-adapter\.mjs"/);
+  assert.match(source, /parseUploadJsonField/);
+  assert.match(source, /validateUploadPathList/);
 });
