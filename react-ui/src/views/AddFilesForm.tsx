@@ -13,7 +13,7 @@ import {
 } from '../lib/uploadFileCollection';
 import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
-import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
+import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 
 interface Props {
   onCancel: () => void;
@@ -129,6 +129,13 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       onDone({ autoPrepare: (result.intakeAdded?.unique ?? collected.length) > 0 });
     } catch (err) {
       if (activeMatterNameRef.current !== matterName) return;
+      reportUploadSubmitFailure({
+        files: collected,
+        matterName,
+        view: 'add_files',
+        action: 'add_files',
+        error: err,
+      });
       setError(getErrorMessage(err));
       appendTerminal([`[add-files] error: ${getErrorMessage(err)}`]);
     } finally {

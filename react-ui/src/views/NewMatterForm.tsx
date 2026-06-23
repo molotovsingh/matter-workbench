@@ -11,7 +11,7 @@ import {
 } from '../lib/uploadFileCollection';
 import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
-import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
+import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 import type { OverlapWarning } from '../types';
 
 interface Props {
@@ -151,6 +151,13 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       onCreated(createdName, { autoPrepare: true });
     } catch (err) {
       if (isMatterSwitchSupersededError(err)) return;
+      reportUploadSubmitFailure({
+        files,
+        matterName: cleanName,
+        view: 'new_matter',
+        action: 'create_matter',
+        error: err,
+      });
       setError(getErrorMessage(err));
       appendTerminal([`[new-matter] error: ${getErrorMessage(err)}`]);
     } finally {

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import ts from "typescript";
 
@@ -164,6 +166,42 @@ test("React upload forms report browser-only duplicate-check telemetry without l
   assert.doesNotMatch(uploadTelemetry, /relativePath|fileName|\.name\b/);
 });
 
+test("React upload forms report submit failures without leaking filenames", async () => {
+  const calls = [];
+  const { reportUploadSubmitFailure } = await importUploadTelemetry({
+    capturePrivateBetaClientSignal: async (body) => {
+      calls.push(body);
+      return { captured: 1, sent: 0, queued: 1, failed: 0, skipped: 0 };
+    },
+  });
+  const newMatter = await readFile(newMatterPath, "utf8");
+  const addFiles = await readFile(addFilesPath, "utf8");
+
+  reportUploadSubmitFailure({
+    files: [
+      { relativePath: "Evidence/sbi6.pdf", file: { name: "sbi6.pdf", size: 25 * 1024 * 1024 } },
+      { relativePath: "Evidence/sbi5.pdf", file: { name: "sbi5.pdf", size: 25 * 1024 * 1024 } },
+    ],
+    matterName: "Atibir Industries v State Bank of India",
+    view: "new_matter",
+    action: "create_matter",
+    error: { code: "upload.network_failed", message: "Failed to fetch Evidence/sbi6.pdf" },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].code, "upload.network_failed");
+  assert.equal(calls[0].stage, "upload_submit");
+  assert.equal(calls[0].severity, "error");
+  assert.equal(calls[0].category, "upload");
+  assert.equal(calls[0].fileCount, 2);
+  assert.equal(calls[0].sizeBucket, "10_100_mb");
+  assert.equal(calls[0].errorClass, "Object");
+  assert.equal(calls[0].errorMessage, "Upload submit failed before completion.");
+  assert.doesNotMatch(JSON.stringify(calls[0]), /sbi6|Evidence|Failed to fetch/);
+  assert.match(newMatter, /reportUploadSubmitFailure\(/);
+  assert.match(addFiles, /reportUploadSubmitFailure\(/);
+});
+
 test("React new-matter form switches to the server-returned matter folder after create", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
 
@@ -193,6 +231,29 @@ async function importUploadPreflight() {
     },
   }).outputText;
   return import(`data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`);
+}
+
+async function importUploadTelemetry(api) {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-upload-telemetry-"));
+  const apiModulePath = path.join(dir, "client.mjs");
+  const telemetryModulePath = path.join(dir, "uploadClientTelemetry.mjs");
+  await writeFile(apiModulePath, `export const api = globalThis.__mwbUploadTelemetryApi;`);
+  const source = await readFile(uploadTelemetryPath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+      importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
+    },
+  }).outputText.replace("from '../api/client';", `from '${apiModulePath}';`);
+  await writeFile(telemetryModulePath, transpiled);
+  globalThis.__mwbUploadTelemetryApi = api;
+  try {
+    return await import(`${telemetryModulePath}?t=${Date.now()}-${Math.random()}`);
+  } finally {
+    delete globalThis.__mwbUploadTelemetryApi;
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 function fakeFileEntry(name) {
