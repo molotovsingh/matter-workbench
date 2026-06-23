@@ -18,20 +18,24 @@ what are the NCLT options for the client to get the IRP to execute the sale deed
 Current Copilot should remain useful for matter-record questions. Research mode
 should help with legal options, sections, rules, and authorities.
 
-## Simple UX
+## Mode UX Decision
 
-Keep the lawyer-facing UI dead simple:
+Keep the lawyer-facing command surface explicit and simple:
 
 ```text
-[Ask] [Research]
+[Skill] [Ask] [Research]
 ```
 
-- **Ask** = current matter record only.
-- **Research** = current matter record plus public web/legal sources.
+| Mode | Meaning | Typical use |
+| --- | --- | --- |
+| **Skill** | Reusable workflows and governed artifact-writing paths. | Prepare matter, List of Dates, Matter Story, custom reusable skills. |
+| **Ask** | Matter-record-only Copilot. Closed-world Q&A over the current matter context. | "What does the sale agreement say?" / "Where is the payment receipt?" |
+| **Research** | Matter context plus public web/legal sources. | "What are the NCLT options to get the IRP to execute the sale deed?" |
 
-Also support a command form:
+Also support command forms:
 
 ```text
+/ask what documents mention the IRP?
 /research what are the NCLT options to get the IRP to execute the sale deed?
 ```
 
@@ -42,6 +46,32 @@ Research uses public web sources.
 ```
 
 No heavy privacy flow is needed for the current internal-firm deployment.
+
+## Ask-To-Research Escalation
+
+Ask mode must not silently browse the web. If an Ask question appears to need
+current law, public authorities, or web research, the app may offer a simple
+choice:
+
+```text
+This may need public legal research.
+
+[Answer from matter record] [Research public sources]
+```
+
+Rules:
+
+- If the user chooses **Answer from matter record**, run ordinary Ask mode.
+- If the user chooses **Research public sources**, run Research mode.
+- Do not let the model's internal reasoning silently trigger web search.
+- Do not use Research mode for every legal-sounding question; many questions are
+  answerable from the matter record only.
+
+Research answers should carry a short caveat:
+
+```text
+_Verify authorities before relying or filing._
+```
 
 ## Answer Shape
 
@@ -67,12 +97,63 @@ Possible routes:
 ## Guardrails
 
 - Research mode is explicit; normal Ask mode stays matter-record only.
+- Ask may recommend Research, but it must not silently browse.
 - Research answers are chat-only by default and do not write matter artifacts.
 - Matter sources and public sources should be visibly distinct when both are used.
 - Public-source claims should include source links/titles where available.
 - The answer should not imply that public legal research is lawyer-verified.
+- Research answer copy should say `Research answer from public sources`, not
+  `current law confirmed`.
 - If the matter record lacks key facts, Research mode should say what needs to
   be checked before filing or advising.
+- Every Research answer should end or display a short verification caveat.
+
+## Stateful Copilot / Follow-Up Decision
+
+Do not add full persistent Copilot memory in the same slice as Research mode.
+The first Research implementation should remain one-question-at-a-time.
+
+A later, safer follow-up slice may add **thread-local follow-up** only:
+
+```text
+Current answer
+  -> Follow up on this answer…
+```
+
+Thread-local follow-up may carry only:
+
+- active matter name / matter ID;
+- mode: `ask` or `research`;
+- previous user question;
+- previous assistant answer;
+- validated matter source IDs;
+- validated public source IDs, if Research mode was used.
+
+Thread-local follow-up must not:
+
+- persist global chat memory;
+- carry memory across matters;
+- remember unsupported citations;
+- write matter artifacts;
+- reuse stale public research without saying so;
+- mutate a skill, draft, or dispatch document.
+
+If the user switches matters, the follow-up must stop:
+
+```text
+This follow-up belongs to another matter. Start a new question.
+```
+
+If a research follow-up needs fresh law/source context, prefer:
+
+```text
+I should refresh public research before answering this follow-up.
+
+[Refresh research]
+```
+
+Persistent conversation memory remains a separate future product decision and
+needs its own contract before implementation.
 
 ## Implementation Sketch
 
@@ -298,43 +379,54 @@ What to verify before filing/advising
 
 ### 7. Frontend UX
 
-Keep the command panel simple.
-
-Add either:
+Keep the command panel simple and mode-led:
 
 ```text
-[Ask] [Research]
-```
-
-or a compact toggle/button near the input:
-
-```text
-Research
+[Skill] [Ask] [Research]
 ```
 
 Minimum behavior:
 
+- `Skill` keeps the existing skill/new-skill/reusable-workflow path.
 - `Ask` submits to `/api/matter-copilot/answer`.
 - `Research` submits to `/api/matter-copilot/research`.
-- `/research <question>` also works from the command input.
-- While running, show:
+- `/ask <question>` routes directly to Ask.
+- `/research <question>` routes directly to Research.
+- Explicit `/ask` and `/research` commands resolve before the skill router.
+- Freeform text may still use the existing routing path, but if the route says
+  the question likely needs public research, show a choice instead of silently
+  browsing:
+
+```text
+This may need public legal research.
+
+[Answer from matter record] [Research public sources]
+```
+
+While Research is running, show:
 
 ```text
 [research] searching public legal sources
 [research] preparing answer
 ```
 
-- Render a clear badge/header:
+Render a clear badge/header:
 
 ```text
-Research answer
+Research answer from public sources
 ```
 
-- Render source groups separately:
+Render source groups separately:
 
 ```text
 Matter sources
 Public sources
+```
+
+Render a short caveat:
+
+```text
+_Verify authorities before relying or filing._
 ```
 
 Suggested files:
@@ -491,6 +583,12 @@ copilot_research.invalid_public_source
 
 These codes can remain operator-facing. Lawyer-facing copy should stay simple.
 
+#### 9.9 Follow-up state is not part of the first Research slice
+
+Do not mix Research mode with persistent conversation memory. If any follow-up
+UI is added later, keep it thread-local and source-ID-scoped as described above.
+A persistent Copilot conversation store needs a separate accepted contract.
+
 ### 10. Tests to add
 
 Backend tests:
@@ -524,27 +622,34 @@ test/react-copilot-research-mode.test.mjs
 
 Required coverage:
 
+- `Skill`, `Ask`, and `Research` mode affordances render in the command panel;
 - Research affordance appears only when enabled/configured through app config;
 - `/research <question>` routes deterministically to the research API before skill routing;
-- Ask still routes to the matter-only API;
+- `/ask <question>` and Ask mode still route to the matter-only API;
+- Ask-to-Research escalation shows the two explicit choices and does not silently browse;
 - loading/status copy is rendered;
 - answer renderer shows Matter sources and Public sources separately;
+- answer renderer shows the verification caveat;
 - provider/API/billing language is not shown to ordinary users.
 
 ### 11. Acceptance checklist
 
 Before calling the slice ready:
 
-1. Ask mode still gives a closed-world matter-only answer.
-2. Research mode returns a sourced answer for the NCLT/IBC example.
-3. The answer lists practical options and what facts need verification.
-4. Public source URLs are visible and copyable.
-5. Matter citations, if any, remain validated by the existing citation rules.
-6. Public citations are validated against normalized `WEB-000N` source IDs.
-7. The answer says `Research answer from public sources`, not `current law confirmed`.
-8. No `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` file is written.
-9. Full test suite passes.
-10. Private VM deploy service check and UI hardening pass still pass.
+1. The command surface presents `Skill`, `Ask`, and `Research` as distinct modes.
+2. Ask mode still gives a closed-world matter-only answer.
+3. Ask may suggest Research, but does not silently browse.
+4. Research mode returns a sourced answer for the NCLT/IBC example.
+5. The answer lists practical options and what facts need verification.
+6. Public source URLs are visible and copyable.
+7. Matter citations, if any, remain validated by the existing citation rules.
+8. Public citations are validated against normalized `WEB-000N` source IDs.
+9. The answer says `Research answer from public sources`, not `current law confirmed`.
+10. The answer displays `Verify authorities before relying or filing.`
+11. No persistent Copilot memory is introduced in the first slice.
+12. No `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` file is written.
+13. Full test suite passes.
+14. Private VM deploy service check and UI hardening pass still pass.
 
 ### 12. Suggested implementation order
 
@@ -554,10 +659,11 @@ Before calling the slice ready:
 4. Add query builder and source normalization with stable `WEB-000N` IDs.
 5. Add answer synthesis service with fake provider tests and public-source ID validation.
 6. Add API route and runtime DB/filesystem context wiring.
-7. Add frontend `/research` command that bypasses skill routing.
-8. Add Research button/toggle if the command path is stable.
-9. Add browser/UI tests.
-10. Run full suite and private-VM validation.
+7. Add frontend `/research` and `/ask` command routing that bypasses skill routing.
+8. Add the `Skill | Ask | Research` command-panel mode UI.
+9. Add Ask-to-Research escalation only after explicit Research works.
+10. Add browser/UI tests.
+11. Run full suite and private-VM validation.
 
 ## Non-Goals For First Slice
 
@@ -565,4 +671,6 @@ Before calling the slice ready:
 - No court-ready advice claim.
 - No broad legal updates widget in the workspace.
 - No automatic web browsing for every Copilot question.
+- No persistent Copilot conversation memory.
+- No thread-local follow-up unless promoted as a separate later slice.
 - No database schema change required for the first slice.
