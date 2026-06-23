@@ -10,6 +10,7 @@ import {
   planNewRuntimeMatterUpload,
   planRuntimeAddFilesUpload,
 } from "../services/runtime-db-upload-intake-planner.mjs";
+import { planBrowserNewMatterUpload } from "../services/intake/browser-upload-adapter.mjs";
 
 const files = [{ index: 0, filename: "fir.pdf" }];
 
@@ -118,4 +119,38 @@ test("runtime upload planner imports shared deterministic UUID policy", async ()
   assert.match(source, /deterministicUuid[\s\S]+from "\.\/runtime-db-sql-format\.mjs"/);
   assert.doesNotMatch(source, /function deterministicUuid\(/);
   assert.doesNotMatch(source, /createHash/);
+});
+
+test("browser adapter output matches shared new-matter planner", () => {
+  const shared = planNewMatterUpload({
+    name: "State/Rajesh Mehra",
+    metadata: {
+      matterName: "State/Rajesh Mehra",
+      clientName: "Rajesh Mehra",
+      oppositeParty: "State",
+    },
+    files,
+    relativePaths: ["Evidence/FIR.pdf"],
+  });
+
+  const adapter = planBrowserNewMatterUpload({
+    fields: {
+      name: "State/Rajesh Mehra",
+      metadata: JSON.stringify({
+        matterName: "State/Rajesh Mehra",
+        clientName: "Rajesh Mehra",
+        oppositeParty: "State",
+      }),
+      paths: JSON.stringify(["Evidence/FIR.pdf"]),
+    },
+    files,
+  });
+
+  assert.equal(adapter.uploadPlan.storageName, shared.storageName);
+  assert.deepEqual(adapter.metadata, shared.metadata);
+  assert.deepEqual(adapter.relativePaths, shared.relativePaths);
+  assert.deepEqual(
+    adapter.batch.candidates.map((candidate) => candidate.relativePath),
+    shared.relativePaths,
+  );
 });

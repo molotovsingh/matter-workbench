@@ -1,19 +1,14 @@
 import { rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { runMatterInit } from "../matter-init-engine.mjs";
-import { validateIntakeLabel } from "../shared/matter-contract.mjs";
 import { matterStorageCollisionKey } from "../shared/matter-identity-policy.mjs";
-import {
-  planAddFilesIntake,
-  planNewMatterIdentity,
-  planNewMatterUpload,
-} from "../shared/upload-intake-planner.mjs";
+import { planAddFilesIntake } from "../shared/upload-intake-planner.mjs";
 import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
 import {
-  parseUploadJsonField,
-  validateUploadPathList,
-  writeUploadedFiles,
-} from "./upload-file-intake.mjs";
+  planBrowserAddFilesUpload,
+  planBrowserNewMatterUpload,
+} from "./intake/browser-upload-adapter.mjs";
+import { writeUploadedFiles } from "./upload-file-intake.mjs";
 import {
   createMultipartUploadHandler,
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -37,8 +32,8 @@ export function createUploadService({
       const useRuntimeDbStorage = matterStore.hasRuntimeDbStorageMode?.()
         && typeof runtimeDbStorageService?.createMatterFromUploadedFiles === "function";
       const mattersHome = useRuntimeDbStorage ? null : matterStore.ensureMattersHome();
-      const submittedMatterName = String(fields.name || "").trim();
-      const identityPlan = planNewMatterIdentity({ name: submittedMatterName });
+      const browserPlan = planBrowserNewMatterUpload({ fields, files });
+      const { identityPlan } = browserPlan;
       const { name, matterPath } = useRuntimeDbStorage
         ? { name: identityPlan.storageName, matterPath: null }
         : matterStore.matterPathForName(identityPlan.storageName);
@@ -49,15 +44,8 @@ export function createUploadService({
         throw makeHttpError(`A matter named "${collision.name}" already exists`, 409, "upload.matter_exists");
       }
 
-      const uploadPlan = planNewMatterUpload({
-        name: submittedMatterName,
-        metadata: parseUploadJsonField(fields, "metadata", {}),
-        files,
-        relativePaths: parseUploadJsonField(fields, "paths", []),
-        action: "creating a matter",
-      });
-      const metadata = uploadPlan.metadata;
-      const relativePaths = uploadPlan.relativePaths;
+      const metadata = browserPlan.metadata;
+      const relativePaths = browserPlan.relativePaths;
 
       if (useRuntimeDbStorage) {
         const matter = await runtimeDbStorageService.createMatterFromUploadedFiles({
@@ -96,8 +84,8 @@ export function createUploadService({
   async function addFilesToMatter(request) {
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
-      const label = validateIntakeLabel(fields.label);
-      const relativePaths = validateUploadPathList(fields, files, { action: "adding files" });
+      const browserPlan = planBrowserAddFilesUpload({ fields, files });
+      const { label, relativePaths } = browserPlan;
 
       if (matterStore.hasRuntimeDbStorageMode?.() && typeof runtimeDbStorageService?.addUploadedFilesToMatter === "function") {
         const matter = await resolveMatterRecordForFields(fields);
