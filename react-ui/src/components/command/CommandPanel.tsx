@@ -44,6 +44,8 @@ interface PendingConfigurableOverwrite {
   artifactPath?: string | null;
 }
 
+type CommandMode = 'skill' | 'ask' | 'research';
+
 export default function CommandPanel({
   onCommand,
   onTransientCopilotQuestion,
@@ -58,6 +60,7 @@ export default function CommandPanel({
   const [skillIdeaInput, setSkillIdeaInput] = useState<string | null>(null);
   const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
+  const [commandMode, setCommandMode] = useState<CommandMode>('ask');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
   const activityRows = latestCompactActivityRows(state.activityLines);
@@ -73,6 +76,7 @@ export default function CommandPanel({
     suggestions,
   } = useCommandSuggestions({ appendTerminal });
   const canManageCopilotSettings = canSeeOperatorSurface(state.authEnabled, state.authUser);
+  const canUseResearch = Boolean(state.config?.copilotWebResearchEnabled);
   const copilotQuickSwitch = useCopilotQuickSwitch(canManageCopilotSettings);
   const choiceLabels = pendingIntentChoice ? intentChoiceLabels(pendingIntentChoice.decision) : null;
   const primaryChoiceNeedsCopilot = pendingIntentChoice
@@ -82,6 +86,7 @@ export default function CommandPanel({
     inputOverrideRef.current = null;
     setInput('');
     resetSuggestions();
+    setCommandMode('ask');
     setSkillIdeaInput(null);
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
@@ -107,6 +112,10 @@ export default function CommandPanel({
     lastActiveMatterNameRef.current = activeMatterName;
     resetCommandPanel();
   }, [resetCommandPanel, state.activeMatter?.name]);
+
+  useEffect(() => {
+    if (!canUseResearch && commandMode === 'research') setCommandMode('ask');
+  }, [canUseResearch, commandMode]);
 
   function handleInputChange(value: string) {
     setInput(value);
@@ -194,6 +203,15 @@ export default function CommandPanel({
       return;
     }
 
+    const routedCommand = commandForMode(commandMode, cmd);
+    if (commandMode !== 'skill' || routedCommand !== cmd) {
+      onCommand(routedCommand);
+      try {
+        await api.logCommandInteraction({ command: routedCommand, matterName: state.activeMatter?.name });
+      } catch { /* fire-and-forget */ }
+      return;
+    }
+
     const ideaParsed = parseSkillIdeaText(cmd);
     const shouldCheckIntent = ideaParsed !== null || looksLikeCustomSkillModification(cmd, baseSuggestions);
     if (shouldCheckIntent) {
@@ -241,7 +259,7 @@ export default function CommandPanel({
     try {
       await api.logCommandInteraction({ command: cmd, matterName: state.activeMatter?.name });
     } catch { /* fire-and-forget */ }
-  }, [input, baseSuggestions, resetSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
+  }, [input, commandMode, baseSuggestions, resetSuggestions, state.isCommandRunning, state.activeMatter?.name, onCommand, onTransientCopilotQuestion]);
 
   return (
     <aside className="command-panel" aria-label="Command box">
@@ -323,6 +341,21 @@ export default function CommandPanel({
         </div>
       )}
 
+      <div className="command-mode-tabs" style={{ order: 4 }} aria-label="Command mode">
+        {(['skill', 'ask', 'research'] as CommandMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className={commandMode === mode ? 'active' : ''}
+            onClick={() => setCommandMode(mode)}
+            disabled={state.isCommandRunning || (mode === 'research' && !canUseResearch)}
+            aria-pressed={commandMode === mode}
+          >
+            {mode === 'skill' ? 'Skill' : mode === 'ask' ? 'Ask' : 'Research'}
+          </button>
+        ))}
+      </div>
+
       <div className="command-panel-examples" style={{ order: 4 }} aria-label="Command examples">
         {['new skill', 'find a matter', 'prepare matter'].map((command) => (
           <button
@@ -355,7 +388,7 @@ export default function CommandPanel({
             id="aiCommandInput"
             ref={commandPanelRef as React.RefObject<HTMLInputElement>}
             type="text"
-            placeholder={state.activeMatter ? `Ask about ${state.activeMatter.name}…` : 'Ask a question or pick a matter first'}
+            placeholder={commandPlaceholder(commandMode, state.activeMatter?.name, canUseResearch)}
             spellCheck
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
@@ -416,7 +449,7 @@ export default function CommandPanel({
       </div>
 
       <p className="command-panel-note" style={{ order: 9 }}>
-        Source-backed answers are one question at a time and do not remember earlier chat. Skill work may use paid AI.
+        Ask uses the matter record. Research uses public sources when enabled. Skill work can create governed outputs.
       </p>
 
       <PrivateBetaFeedbackPanel
@@ -427,4 +460,18 @@ export default function CommandPanel({
       />
     </aside>
   );
+}
+
+function commandForMode(mode: CommandMode, command: string): string {
+  if (/^(?:\/ask|ask|\/research|research)\b/i.test(command)) return command;
+  if (mode === 'ask') return `/ask ${command}`;
+  if (mode === 'research') return `/research ${command}`;
+  return command;
+}
+
+function commandPlaceholder(mode: CommandMode, matterName?: string, canUseResearch = false): string {
+  if (!matterName) return 'Ask a question or pick a matter first';
+  if (mode === 'skill') return 'Run a skill or describe a reusable workflow…';
+  if (mode === 'research' && canUseResearch) return `Research public sources for ${matterName}…`;
+  return `Ask about ${matterName}…`;
 }

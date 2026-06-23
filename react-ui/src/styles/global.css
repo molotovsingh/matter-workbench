@@ -438,6 +438,13 @@ textarea:focus-visible {
 .command-panel-copy::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 .command-panel-copy::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .command-panel-note { margin: 0; font-size: var(--font-size-sm); line-height: 1.4; order: 7; }
+.command-mode-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+.command-mode-tabs button {
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--muted-strong);
+  cursor: pointer; font-family: inherit; font-size: var(--font-size-sm); font-weight: 700; padding: 7px 8px;
+}
+.command-mode-tabs button.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.command-mode-tabs button:disabled { cursor: default; opacity: 0.5; }
 .command-panel-examples { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; opacity: 0.82; order: 2; transition: opacity 120ms ease; }
 .command-panel-examples button {
   border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--muted-strong);

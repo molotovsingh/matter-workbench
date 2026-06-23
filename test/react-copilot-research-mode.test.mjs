@@ -7,6 +7,16 @@ const apiPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 const answerPath = new URL("../react-ui/src/lib/matterCopilotAnswer.ts", import.meta.url);
 const typesPath = new URL("../react-ui/src/types/index.ts", import.meta.url);
 
+test("React command panel exposes Skill Ask Research modes", async () => {
+  const source = await readFile(new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /type CommandMode = 'skill' \| 'ask' \| 'research'/);
+  assert.match(source, /\[\'skill\', \'ask\', \'research\'\] as CommandMode\[\]/);
+  assert.match(source, /commandForMode\(commandMode, cmd\)/);
+  assert.match(source, /mode === 'research' && !canUseResearch/);
+  assert.match(source, /Research/);
+});
+
 test("React Copilot Research command routes directly before ask and skill routing", async () => {
   const source = await readFile(appPath, "utf8");
 
