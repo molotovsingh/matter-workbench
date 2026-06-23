@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 
 const helperPath = new URL("../react-ui/src/lib/uploadFileCollection.ts", import.meta.url);
+const uploadPreflightPath = new URL("../react-ui/src/lib/uploadBatchPreflight.ts", import.meta.url);
 const newMatterPath = new URL("../react-ui/src/views/NewMatterForm.tsx", import.meta.url);
 const addFilesPath = new URL("../react-ui/src/views/AddFilesForm.tsx", import.meta.url);
 const uploadTelemetryPath = new URL("../react-ui/src/lib/uploadClientTelemetry.ts", import.meta.url);
@@ -47,6 +48,27 @@ test("React upload file collection detects duplicate relative paths", async () =
   ]), "");
 });
 
+test("React upload preflight blocks batches over the configured byte limit", async () => {
+  const { assessUploadBatchSize } = await importUploadPreflight();
+
+  assert.deepEqual(
+    assessUploadBatchSize([
+      { relativePath: "small.pdf", file: { name: "small.pdf", size: 4 } },
+      { relativePath: "second.pdf", file: { name: "second.pdf", size: 5 } },
+    ], 10),
+    { ok: true, totalBytes: 9, maxBytes: 10, message: "" },
+  );
+
+  const blocked = assessUploadBatchSize([
+    { relativePath: "too-large.pdf", file: { name: "too-large.pdf", size: 11 } },
+  ], 10);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.totalBytes, 11);
+  assert.equal(blocked.maxBytes, 10);
+  assert.match(blocked.message, /too large for one upload/i);
+  assert.match(blocked.message, /10 B/);
+});
+
 test("React new-matter and add-files forms share folder-aware upload collection helpers", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
   const addFiles = await readFile(addFilesPath, "utf8");
@@ -86,6 +108,18 @@ test("React new-matter form presents source files as required before submit", as
   assert.match(newMatter, /disabled=\{submitting \|\| files\.length === 0\}/);
 });
 
+test("React upload forms block oversized batches before submitting FormData", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+  const addFiles = await readFile(addFilesPath, "utf8");
+
+  for (const source of [newMatter, addFiles]) {
+    assert.match(source, /assessUploadBatchSize/);
+    assert.match(source, /state\.config\?\.maxUploadBytes/);
+  }
+  assert.match(newMatter, /const sizeCheck = assessUploadBatchSize\(files, state\.config\?\.maxUploadBytes\)/);
+  assert.match(addFiles, /const sizeCheck = assessUploadBatchSize\(collected, state\.config\?\.maxUploadBytes\)/);
+});
+
 test("React new-matter form checks overlap before creating a matter", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
 
@@ -120,6 +154,17 @@ test("React new-matter form switches to the server-returned matter folder after 
 
 async function importHelper() {
   const source = await readFile(helperPath, "utf8");
+  const transpiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2020,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  return import(`data:text/javascript;charset=utf-8,${encodeURIComponent(transpiled)}`);
+}
+
+async function importUploadPreflight() {
+  const source = await readFile(uploadPreflightPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2020,

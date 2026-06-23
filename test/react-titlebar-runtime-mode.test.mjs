@@ -21,6 +21,7 @@ test("React AppConfig carries runtime storage mode and display label", async () 
 
   assert.match(body, /runtimeStorageMode\?:/);
   assert.match(body, /workspaceModeLabel\?: string/);
+  assert.match(body, /maxUploadBytes\?: number/);
   assert.match(body, /release\?:/);
   assert.match(body, /date\?: string/);
 });

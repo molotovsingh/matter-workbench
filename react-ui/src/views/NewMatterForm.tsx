@@ -9,6 +9,7 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
+import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
 import type { OverlapWarning } from '../types';
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export default function NewMatterForm({ onCancel, onCreated }: Props) {
-  const { switchActiveMatter, appendTerminal } = useApp();
+  const { state, switchActiveMatter, appendTerminal } = useApp();
   const [name, setName] = useState('');
   const [clientName, setClientName] = useState('');
   const [matterType, setMatterType] = useState('');
@@ -94,6 +95,11 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     const duplicatePath = findDuplicateRelativePath(files);
     if (duplicatePath) {
       setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
+      return;
+    }
+    const sizeCheck = assessUploadBatchSize(files, state.config?.maxUploadBytes);
+    if (!sizeCheck.ok) {
+      setError(sizeCheck.message);
       return;
     }
     setSubmitting(true);
