@@ -69,6 +69,27 @@ test("React upload preflight blocks batches over the configured byte limit", asy
   assert.match(blocked.message, /10 B/);
 });
 
+test("React upload preflight blocks oversized beta uploads even before config loads", async () => {
+  const { assessUploadBatchSize } = await importUploadPreflight();
+
+  const small = assessUploadBatchSize([
+    { relativePath: "small.pdf", file: { name: "small.pdf", size: 2 * 1024 * 1024 } },
+  ], undefined);
+
+  assert.equal(small.ok, true);
+  assert.equal(small.maxBytes, 96 * 1024 * 1024);
+
+  const blocked = assessUploadBatchSize([
+    { relativePath: "sb16.pdf", file: { name: "sb16.pdf", size: 60 * 1024 * 1024 } },
+    { relativePath: "sb15.pdf", file: { name: "sb15.pdf", size: 50 * 1024 * 1024 } },
+  ], undefined);
+
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.maxBytes, 96 * 1024 * 1024);
+  assert.match(blocked.message, /too large for one upload/i);
+  assert.match(blocked.message, /96 MB/);
+});
+
 test("React new-matter and add-files forms share folder-aware upload collection helpers", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
   const addFiles = await readFile(addFilesPath, "utf8");

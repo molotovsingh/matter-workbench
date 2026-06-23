@@ -111,8 +111,28 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 }
 
 async function postFormData<T>(url: string, formData: FormData): Promise<T> {
-  const res = await fetch(url, { method: 'POST', body: formData });
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'POST', body: formData });
+  } catch {
+    throw createUploadNetworkError(url);
+  }
   return parseJsonResponse<T>(res, url);
+}
+
+function createUploadNetworkError(url: string): ApiError {
+  const error = new ApiError(
+    'The upload could not reach the server. If these files are large, split them into smaller batches and try again.',
+    0,
+    'upload.network_failed',
+  );
+  error.diagnostic = {
+    statusCode: 0,
+    code: 'upload.network_failed',
+    urlPath: urlPathForDiagnostic(url),
+    bodyKind: 'empty',
+  };
+  return error;
 }
 
 async function parseJsonResponse<T>(res: Response, url: string): Promise<T> {

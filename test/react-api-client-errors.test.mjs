@@ -240,6 +240,36 @@ test("React API client uses shared workspace lane labels", async () => {
   assert.equal(tree.children[0].canonical, "00_Inbox");
 });
 
+test("React API client turns upload network failures into user-safe messages", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+  const formData = new FormData();
+  formData.append("name", "Demo Matter");
+
+  try {
+    await assert.rejects(
+      () => api.newMatter(formData),
+      (error) => {
+        assert.equal(error.statusCode, 0);
+        assert.equal(error.code, "upload.network_failed");
+        assert.match(error.message, /upload could not reach the server/i);
+        assert.doesNotMatch(error.message, /Failed to fetch/i);
+        assert.deepEqual(error.diagnostic, {
+          statusCode: 0,
+          code: "upload.network_failed",
+          urlPath: "/api/matters/new",
+          bodyKind: "empty",
+        });
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("React API client reports malformed success responses as API errors", async () => {
   const { api } = await importReactApiClient();
   const restoreFetch = mockFetch(async () => new Response("<html><head><title>Welcome</title></head><body>not json</body></html>", {

@@ -1,5 +1,7 @@
 import type { CollectedUploadFile } from './uploadFileCollection';
 
+export const DEFAULT_BROWSER_UPLOAD_MAX_BYTES = 96 * 1024 * 1024;
+
 export interface UploadBatchSizeAssessment {
   ok: boolean;
   totalBytes: number;
@@ -12,7 +14,10 @@ export function assessUploadBatchSize(
   maxBytes?: number | null,
 ): UploadBatchSizeAssessment {
   const totalBytes = files.reduce((sum, item) => sum + safeFileSize(item.file), 0);
-  const limit = Number(maxBytes || 0);
+  const configuredLimit = Number(maxBytes || 0);
+  const limit = Number.isFinite(configuredLimit) && configuredLimit > 0
+    ? configuredLimit
+    : DEFAULT_BROWSER_UPLOAD_MAX_BYTES;
   if (!Number.isFinite(limit) || limit <= 0 || totalBytes <= limit) {
     return { ok: true, totalBytes, maxBytes: limit > 0 ? limit : 0, message: '' };
   }
