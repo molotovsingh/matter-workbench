@@ -28,7 +28,7 @@ export const COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA = Object.freeze({
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["raw_citation"],
+        required: ["raw_citation", "source_label", "snippet"],
         properties: {
           raw_citation: { type: "string" },
           source_label: { type: "string" },
