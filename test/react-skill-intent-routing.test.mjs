@@ -174,7 +174,7 @@ test("React command panel checks backend intent before opening Skill Factory for
   assert.match(source, /isConfigurableExistingSkillChoice\(pendingIntentChoice\.decision\)/);
   assert.match(source, /onCommand\(matchedSkill\)/);
   assert.match(source, /buildPendingIntentSkill\(choiceLabels\.secondary\)/);
-  assert.match(source, /do not remember earlier chat/i);
+  assert.match(source, /Ask uses the matter record\. Research uses public sources when enabled/i);
   assert.doesNotMatch(source, /if \(ideaParsed !== null\) \{\s*setSkillIdeaInput\(cmd\);/);
 });
 

@@ -30,7 +30,7 @@ test("React command panel exposes child-simple private beta feedback intake", as
 
 test("React command panel keeps feedback after the source-backed answer note", async () => {
   const source = await readFile(commandPanelPath, "utf8");
-  const sourceBackedNoteIndex = source.indexOf('Source-backed answers are one question at a time');
+  const sourceBackedNoteIndex = source.indexOf('Ask uses the matter record. Research uses public sources when enabled.');
   const feedbackEntryIndex = source.indexOf('<PrivateBetaFeedbackPanel');
 
   assert.notEqual(sourceBackedNoteIndex, -1);
