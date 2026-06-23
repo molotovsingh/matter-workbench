@@ -567,6 +567,39 @@ test("runtime DB storage service creates matter upload custody rows with payload
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB storage service parameterizes large upload payload bytes", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-large-upload-"));
+  const uploadedFile = path.join(tmp, "large-notice.pdf");
+  await writeFile(uploadedFile, Buffer.alloc(12, 7));
+  const spawnCalls = [];
+  const pgQueries = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(spawnCalls, [{}]),
+    runtimeUploadParameterizedThresholdBytes: 1,
+    createPgClient: () => fakePgClient(pgQueries),
+  });
+
+  await service.createMatterFromUploadedFiles({
+    name: "DB Large Upload Matter",
+    metadata: { matterName: "DB Large Upload Matter" },
+    files: [{ index: 0, tempPath: uploadedFile, filename: "large-notice.pdf", bytes: 12 }],
+    relativePaths: ["large-notice.pdf"],
+  });
+
+  assert.equal(spawnCalls.length, 1);
+  assert.doesNotMatch(spawnCalls.map((call) => call.input || "").join("\n"), /decode\('/i);
+  assert.equal(pgQueries[0].text, "begin");
+  assert.equal(pgQueries.at(-1).text, "commit");
+  assert.ok(pgQueries.some((query) => /insert into storage_objects/i.test(query.text || "")));
+  const payloadQueries = pgQueries.filter((query) => /insert into storage_object_payloads/i.test(query.text || ""));
+  assert.ok(payloadQueries.length > 0);
+  assert.equal(payloadQueries.every((query) => Buffer.isBuffer(query.values?.[3])), true);
+  assert.equal(payloadQueries.some((query) => query.values?.[3].length === 12), true);
+  assert.doesNotMatch(JSON.stringify(pgQueries.map((query) => query.text)), /secret/);
+});
+
 test("runtime DB storage service creates lawyer-captioned matters under safe storage names", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-captioned-upload-"));
   const uploadedFile = path.join(tmp, "fir.txt");
@@ -1625,6 +1658,17 @@ function jsonSpawnSequence(calls, payloads) {
       stdout: `${JSON.stringify(payload)}\n`,
       stderr: "",
     };
+  };
+}
+
+function fakePgClient(queries) {
+  return {
+    connect: async () => {},
+    query: async (text, values) => {
+      queries.push({ text, values });
+      return { rows: [] };
+    },
+    end: async () => {},
   };
 }
 

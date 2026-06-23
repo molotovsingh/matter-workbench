@@ -53,7 +53,11 @@ import { runRuntimeDbDoctorScan } from "./runtime-db-doctor-scan.mjs";
 import { buildRuntimeDbMatterContextPacket } from "./runtime-db-matter-context-packet.mjs";
 import { runRuntimeDbExtract } from "./runtime-db-extract-service.mjs";
 import { buildRuntimeDbMatterInit } from "./runtime-db-matter-init-service.mjs";
-import { queryRuntimeDbJson } from "./runtime-db-query.mjs";
+import {
+  queryRuntimeDbJson,
+  redactRuntimeDbError,
+} from "./runtime-db-query.mjs";
+import { runtimeDbSafeRoleGuardSql } from "./runtime-db-sql-safety.mjs";
 import {
   buildAdvisorySnapshotSql,
   buildMatterAddFilesAllocationSql,
@@ -68,6 +72,7 @@ import {
   buildRuntimeUploadPersistenceSql,
   createMatterAddFilesSql,
   createMatterUploadSql,
+  runtimeUploadPayloadUpsertQuery,
   runtimeDbActorSqls,
 } from "./runtime-db-upload-persistence-sql.mjs";
 import { isBlockedWorkspacePath } from "./workspace-path-policy.mjs";
@@ -76,12 +81,15 @@ const {
   maxRawBytes,
 } = WORKSPACE_PREVIEW_LIMITS;
 const DEFAULT_PSQL_MAX_BUFFER_BYTES = 128 * 1024 * 1024;
+const DEFAULT_RUNTIME_UPLOAD_PARAMETERIZED_THRESHOLD_BYTES = 32 * 1024 * 1024;
 
 export function createRuntimeDbStorageService({
   databaseUrl = "",
   tenantId = "",
   spawn = spawnSync,
   tempRoot = os.tmpdir(),
+  createPgClient = defaultCreatePgClient,
+  runtimeUploadParameterizedThresholdBytes = DEFAULT_RUNTIME_UPLOAD_PARAMETERIZED_THRESHOLD_BYTES,
 } = {}) {
   const enabled = Boolean(databaseUrl && tenantId);
   const matterWriteQueues = new Map();
@@ -212,10 +220,12 @@ export function createRuntimeDbStorageService({
       tempRoot,
     });
 
-    persistRuntimeUploadIntakeRecords({
+    await persistRuntimeUploadIntakeRecords({
       databaseUrl,
       tenantId,
       spawn,
+      createPgClient,
+      parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
       actor,
       matter,
       uploadPlan,
@@ -276,10 +286,12 @@ export function createRuntimeDbStorageService({
         existingFiles: await readWorkspacePayloadFiles(dbMatter),
       });
 
-      persistRuntimeUploadIntakeRecords({
+      await persistRuntimeUploadIntakeRecords({
         databaseUrl,
         tenantId,
         spawn,
+        createPgClient,
+        parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
         actor,
         matter: dbMatter,
         uploadPlan,
@@ -980,10 +992,12 @@ function persistMaterializedDeletions({ databaseUrl, tenantId, spawn, matter, fi
   return summarizeMaterializedDeletionRows(rows);
 }
 
-function persistRuntimeUploadIntakeRecords({
+async function persistRuntimeUploadIntakeRecords({
   databaseUrl,
   tenantId,
   spawn,
+  createPgClient,
+  parameterizedThresholdBytes,
   actor,
   matter,
   uploadPlan,
@@ -996,7 +1010,28 @@ function persistRuntimeUploadIntakeRecords({
     sha256: sha256Bytes(file.bytes),
     sizeBytes: file.bytes.length,
   }));
-  const persistedRows = materializedRowsForFiles({ matter, files: filesToPersist });
+  const totalBytes = filesToPersist.reduce((sum, file) => sum + file.sizeBytes, 0);
+  const useParameterizedPayloads = totalBytes > parameterizedThresholdBytes;
+  const persistedRows = materializedRowsForFiles({
+    matter,
+    files: filesToPersist,
+    includePayloadHex: !useParameterizedPayloads,
+    includePayloadBytes: useParameterizedPayloads,
+  });
+  if (useParameterizedPayloads) {
+    await persistRuntimeUploadIntakeRecordsWithPg({
+      databaseUrl,
+      tenantId,
+      actor,
+      matter,
+      uploadPlan,
+      persistedRows,
+      importItems,
+      uploadSqls,
+      createPgClient,
+    });
+    return { persistedRows };
+  }
   const sql = buildRuntimeUploadPersistenceSql({
     tenantId,
     actor,
@@ -1008,6 +1043,56 @@ function persistRuntimeUploadIntakeRecords({
   });
   queryJson({ databaseUrl, tenantId, spawn, sql });
   return { persistedRows };
+}
+
+async function persistRuntimeUploadIntakeRecordsWithPg({
+  databaseUrl,
+  tenantId,
+  actor,
+  matter,
+  uploadPlan,
+  persistedRows,
+  importItems,
+  uploadSqls,
+  createPgClient,
+}) {
+  const client = await createPgClient(databaseUrl);
+  try {
+    await client.connect();
+    await client.query("begin");
+    await client.query(runtimeDbSafeRoleGuardSql());
+    const metadataSql = buildRuntimeUploadPersistenceSql({
+      tenantId,
+      actor,
+      matter,
+      uploadPlan,
+      importItems,
+      persistedRows,
+      uploadSqls,
+      includePayloads: false,
+      wrapTransaction: false,
+    });
+    await client.query(metadataSql);
+    for (const row of persistedRows) {
+      const { text, values } = runtimeUploadPayloadUpsertQuery({ matter, row });
+      await client.query(text, values);
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw makeHttpError(
+      `Runtime DB upload persistence failed: ${redactRuntimeDbError(error?.message || String(error))}`,
+      503,
+      "runtime_db.upload.persistence_failed",
+    );
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+async function defaultCreatePgClient(connectionString) {
+  const { Client } = await import("pg");
+  return new Client({ connectionString });
 }
 
 function emptyAttention(matter) {

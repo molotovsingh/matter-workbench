@@ -17,13 +17,19 @@ import {
   stringValue,
 } from "./runtime-db-sql-format.mjs";
 
-export function materializedRowsForFiles({ matter, files }) {
+export function materializedRowsForFiles({
+  matter,
+  files,
+  includePayloadHex = true,
+  includePayloadBytes = false,
+}) {
   const rows = [];
   for (const file of files) {
+    const bytes = Buffer.from(file.bytes);
     const objectKey = runtimeObjectKeyForMatterPath({ matter, relativePath: file.relativePath });
     const storageObjectId = deterministicUuid(`runtime-storage:${matter.id}:${objectKey}`);
     const payloadId = deterministicUuid(`runtime-storage-payload:${storageObjectId}`);
-    rows.push({
+    const row = {
       relativePath: file.relativePath,
       objectKey,
       storageObjectId,
@@ -32,8 +38,10 @@ export function materializedRowsForFiles({ matter, files }) {
       mimeType: file.mimeType,
       sizeBytes: file.sizeBytes,
       sha256: file.sha256,
-      payloadHex: Buffer.from(file.bytes).toString("hex"),
-    });
+    };
+    if (includePayloadBytes) row.bytes = bytes;
+    if (includePayloadHex) row.payloadHex = bytes.toString("hex");
+    rows.push(row);
   }
   return rows;
 }
@@ -87,7 +95,7 @@ export function summarizeMaterializedDeletionRows(rows = []) {
   return rows.map(({ relativePath, objectKey }) => ({ relativePath, objectKey }));
 }
 
-export function materializedFileUpsertSql({ matter, row }) {
+export function materializedStorageObjectUpsertSql({ matter, row }) {
   return [
     "insert into storage_objects (id, tenant_id, matter_id, object_key, bucket, storage_provider, object_role, state, mime_type, size_bytes, sha256, idempotency_key, uploaded_at, verified_at)",
     `values (${sqlUuid(row.storageObjectId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlString(row.objectKey)}, 'local-db-runtime', 'postgres', ${sqlString(row.objectRole)}, 'verified', ${sqlString(row.mimeType)}, ${sqlInteger(row.sizeBytes)}, ${sqlString(row.sha256)}, ${sqlString(`runtime-db:${row.objectKey}`)}, now(), now())`,
@@ -103,6 +111,15 @@ export function materializedFileUpsertSql({ matter, row }) {
     "  idempotency_key = excluded.idempotency_key,",
     "  uploaded_at = excluded.uploaded_at,",
     "  verified_at = excluded.verified_at;",
+  ];
+}
+
+export function materializedFileUpsertSql({ matter, row }) {
+  if (row.payloadHex === undefined) {
+    throw new Error("payloadHex is required for SQL-text materialized file persistence");
+  }
+  return [
+    ...materializedStorageObjectUpsertSql({ matter, row }),
     "insert into storage_object_payloads (id, tenant_id, matter_id, storage_object_id, payload, sha256, size_bytes, verified_at)",
     `values (${sqlUuid(row.payloadId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(row.storageObjectId)}, decode(${sqlString(row.payloadHex)}, 'hex'), ${sqlString(row.sha256)}, ${sqlInteger(row.sizeBytes)}, now())`,
     "on conflict (tenant_id, storage_object_id) do update set",
@@ -211,7 +228,10 @@ function sourceDescriptorUpsertSql({ matter, row }) {
   if (normalizeRuntimeObjectKey(row.relativePath) !== "10_Library/Source Index.json") return [];
   let artifact;
   try {
-    artifact = JSON.parse(Buffer.from(row.payloadHex || "", "hex").toString("utf8"));
+    const bytes = row.payloadHex === undefined
+      ? Buffer.from(row.bytes || Buffer.alloc(0))
+      : Buffer.from(row.payloadHex || "", "hex");
+    artifact = JSON.parse(bytes.toString("utf8"));
   } catch {
     return [];
   }

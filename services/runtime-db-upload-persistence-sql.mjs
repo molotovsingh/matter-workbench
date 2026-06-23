@@ -1,6 +1,10 @@
 import path from "node:path";
+import { Buffer } from "node:buffer";
 
-import { materializedFileUpsertSql } from "./runtime-db-materialized-persistence-sql.mjs";
+import {
+  materializedFileUpsertSql,
+  materializedStorageObjectUpsertSql,
+} from "./runtime-db-materialized-persistence-sql.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 import { wrapRuntimeDbWriteTransaction } from "./runtime-db-sql-safety.mjs";
 import {
@@ -20,12 +24,16 @@ export function buildRuntimeUploadPersistenceSql({
   importItems,
   persistedRows,
   uploadSqls,
+  includePayloads = true,
+  wrapTransaction = true,
 }) {
-  return wrapRuntimeDbWriteTransaction([
+  const lines = [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     ...runtimeDbActorSqls({ actor, tenantId }),
     ...uploadSqls,
-    ...persistedRows.flatMap((row) => materializedFileUpsertSql({ matter, row })),
+    ...persistedRows.flatMap((row) => includePayloads
+      ? materializedFileUpsertSql({ matter, row })
+      : materializedStorageObjectUpsertSql({ matter, row })),
     ...documentIdentityUpsertSqls({
       matter,
       intakeId: uploadPlan.intakeDbId,
@@ -36,7 +44,32 @@ export function buildRuntimeUploadPersistenceSql({
     ...matterImportItemUpsertSqls({ matter, importBatchId: uploadPlan.importBatchId, importItems, persistedRows }),
     "select '{}'::jsonb::text;",
     "",
-  ].join("\n"));
+  ];
+  const sql = lines.join("\n");
+  return wrapTransaction ? wrapRuntimeDbWriteTransaction(sql) : sql;
+}
+
+export function runtimeUploadPayloadUpsertQuery({ matter, row }) {
+  return {
+    text: [
+      "insert into storage_object_payloads (id, tenant_id, matter_id, storage_object_id, payload, sha256, size_bytes, verified_at)",
+      "values ($1::uuid, current_app_tenant_id(), $2::uuid, $3::uuid, $4::bytea, $5, $6::bigint, now())",
+      "on conflict (tenant_id, storage_object_id) do update set",
+      "  matter_id = excluded.matter_id,",
+      "  payload = excluded.payload,",
+      "  sha256 = excluded.sha256,",
+      "  size_bytes = excluded.size_bytes,",
+      "  verified_at = excluded.verified_at;",
+    ].join("\n"),
+    values: [
+      row.payloadId,
+      matter.id,
+      row.storageObjectId,
+      Buffer.from(row.bytes || Buffer.alloc(0)),
+      row.sha256,
+      row.sizeBytes,
+    ],
+  };
 }
 
 export function createMatterUploadSql({
