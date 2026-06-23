@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.28](releases/v1.0.0-beta.28.md) |
+| Current release notes | [v1.0.0-beta.29](releases/v1.0.0-beta.29.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -95,7 +95,8 @@ implementation plan.
 | [v1.0.0-beta.25](releases/v1.0.0-beta.25.md) | Post-Beta-3 upload and intake hardening release marker. |
 | [v1.0.0-beta.26](releases/v1.0.0-beta.26.md) | Beta 3 upload failure hardening release marker. |
 | [v1.0.0-beta.27](releases/v1.0.0-beta.27.md) | Beta 3 upload visibility hardening release marker. |
-| [v1.0.0-beta.28](releases/v1.0.0-beta.28.md) | Current Beta 3 upload batch-cap hardening release marker. |
+| [v1.0.0-beta.28](releases/v1.0.0-beta.28.md) | Beta 3 upload batch-cap hardening release marker. |
+| [v1.0.0-beta.29](releases/v1.0.0-beta.29.md) | Current Beta 3 Copilot Research mode release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
