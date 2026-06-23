@@ -51,6 +51,71 @@ test("browser file hashing degrades to unavailable when digest fails during dupl
   }
 });
 
+test("browser file hashing degrades to unavailable when file reads exceed browser limits", async () => {
+  const { hashFilesSha256IfAvailable } = await importHelper("range-failure");
+  const originalCrypto = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {
+        subtle: {
+          async digest(_algorithm, buffer) {
+            return buffer;
+          },
+        },
+      },
+    });
+
+    const result = await hashFilesSha256IfAvailable([{
+      async arrayBuffer() {
+        throw new RangeError("Cannot create a string longer than 0x1fffffe8 characters");
+      },
+    }]);
+
+    assert.equal(result, null);
+  } finally {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  }
+});
+
+test("browser file hashing skips very large selections before reading file bytes", async () => {
+  const { hashFilesSha256IfAvailable } = await importHelper("large-files");
+  const originalCrypto = globalThis.crypto;
+  let readAttempted = false;
+
+  try {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {
+        subtle: {
+          async digest() {
+            throw new Error("digest should not run for oversized browser hash precheck");
+          },
+        },
+      },
+    });
+
+    const result = await hashFilesSha256IfAvailable([{
+      size: 1024 * 1024 * 1024,
+      async arrayBuffer() {
+        readAttempted = true;
+        return new ArrayBuffer(0);
+      },
+    }]);
+
+    assert.equal(result, null);
+    assert.equal(readAttempted, false);
+  } finally {
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: originalCrypto,
+    });
+  }
+});
+
 test("browser file hashing reads selected files one at a time", async () => {
   const { hashFilesSha256IfAvailable } = await importHelper("sequential-reads");
   const originalCrypto = globalThis.crypto;

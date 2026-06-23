@@ -1,10 +1,13 @@
 export const BROWSER_HASH_UNAVAILABLE_MESSAGE = 'Browser SHA-256 hashing is unavailable';
+export const BROWSER_HASH_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
 export function canHashFileSha256(): boolean {
   return typeof globalThis.crypto?.subtle?.digest === 'function';
 }
 
-export async function hashFileSha256(file: Pick<File, 'arrayBuffer'>): Promise<string> {
+type BrowserHashFile = Pick<File, 'arrayBuffer'> & Partial<Pick<File, 'size'>>;
+
+export async function hashFileSha256(file: BrowserHashFile): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   const digestFn = subtle?.digest;
   if (typeof digestFn !== 'function') {
@@ -16,8 +19,9 @@ export async function hashFileSha256(file: Pick<File, 'arrayBuffer'>): Promise<s
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function hashFilesSha256IfAvailable(files: Array<Pick<File, 'arrayBuffer'>>): Promise<string[] | null> {
+export async function hashFilesSha256IfAvailable(files: BrowserHashFile[]): Promise<string[] | null> {
   if (!canHashFileSha256()) return null;
+  if (isTooLargeForBrowserHash(files)) return null;
 
   try {
     const hashes: string[] = [];
@@ -34,5 +38,16 @@ export async function hashFilesSha256IfAvailable(files: Array<Pick<File, 'arrayB
 function isBrowserHashingFailure(err: unknown): boolean {
   if (err instanceof Error && err.message.includes(BROWSER_HASH_UNAVAILABLE_MESSAGE)) return true;
   if (err instanceof TypeError) return true;
+  if (err instanceof RangeError) return true;
+  return false;
+}
+
+function isTooLargeForBrowserHash(files: BrowserHashFile[]): boolean {
+  let total = 0;
+  for (const file of files) {
+    if (typeof file.size !== 'number' || !Number.isFinite(file.size)) continue;
+    total += Math.max(0, file.size);
+    if (total > BROWSER_HASH_MAX_TOTAL_BYTES) return true;
+  }
   return false;
 }
