@@ -3,9 +3,13 @@ import {
   AI_TASKS,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
-import { createOpenAiSkillRouterProvider } from "./skill-router-providers.mjs";
+import { createDefaultSkillRouterProvider } from "./skill-router-providers.mjs";
 
-export { createOpenAiSkillRouterProvider } from "./skill-router-providers.mjs";
+export {
+  createDefaultSkillRouterProvider,
+  createOpenAiSkillRouterProvider,
+  createOpenRouterSkillRouterProvider,
+} from "./skill-router-providers.mjs";
 
 const DIRECT_OVERLAP_CONFIDENCE = 0.78;
 const VALID_DECISIONS = new Set([
@@ -97,6 +101,7 @@ export function createSkillRouterService({
   aiProvider,
   env = process.env,
   endpoint,
+  fetchImpl = fetch,
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
 
@@ -111,11 +116,10 @@ export function createSkillRouterService({
     const registry = await registryService.readRegistry();
     const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
     const providerConfig = resolveProviderConfig(modelPolicy, { endpoint });
-    const provider = aiProvider || createOpenAiSkillRouterProvider({
-      apiKey: env.OPENAI_API_KEY,
-      model: providerConfig.model,
-      endpoint: providerConfig.endpoint,
-      maxOutputTokens: providerConfig.maxOutputTokens,
+    const provider = aiProvider || createDefaultSkillRouterProvider({
+      providerConfig,
+      env,
+      fetchImpl,
     });
 
     const rawDecision = await provider({

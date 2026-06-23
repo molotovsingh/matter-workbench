@@ -1,6 +1,14 @@
 import { DEFAULT_OPENAI_MODEL } from "../shared/ai-defaults.mjs";
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import { DEFAULT_ROUTER_MAX_OUTPUT_TOKENS } from "../shared/model-policy.mjs";
+import {
+  AI_PROVIDERS,
+  DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+} from "../shared/model-policy.mjs";
+import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
+import {
+  fetchProviderJsonWithTimeout,
+  parseOpenRouterJsonMessage,
+} from "../shared/provider-http.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
 
 const SKILL_ROUTER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
@@ -20,6 +28,27 @@ const SKILL_ROUTER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   customSkill: true,
   sourceVisibility: false,
 });
+
+export function createDefaultSkillRouterProvider({ providerConfig, env, fetchImpl }) {
+  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
+    return createOpenRouterSkillRouterProvider({
+      apiKey: env.OPENROUTER_API_KEY,
+      endpoint: providerConfig.endpoint,
+      fetchImpl,
+      model: providerConfig.model,
+      maxOutputTokens: providerConfig.maxOutputTokens,
+      timeoutMs: providerConfig.timeoutMs,
+      requireParameters: providerConfig.requireParameters,
+      allowFallbacks: providerConfig.allowFallbacks,
+    });
+  }
+  return createOpenAiSkillRouterProvider({
+    apiKey: env.OPENAI_API_KEY,
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+  });
+}
 
 export function createOpenAiSkillRouterProvider({
   apiKey,
@@ -42,29 +71,7 @@ export function createOpenAiSkillRouterProvider({
           },
           {
             role: "user",
-            content: JSON.stringify({
-              user_request: userRequest,
-              override_justification: overrideJustification,
-              registry_principles: registry.principles || {},
-              skill_registry: registry.skills.map((skill) => ({
-                slash: skill.slash,
-                category: skill.category,
-                purpose: skill.purpose,
-                inputs: skill.inputs,
-                outputs: skill.outputs,
-                upstream: skill.upstream,
-                downstream: skill.downstream,
-                mode: skill.mode,
-                source_backed: skill.source_backed,
-                legal_setting_scope: skill.legal_setting_scope,
-                markdown_first: skill.markdown_first,
-              })),
-              transient_copilot_rule: "Use transient_copilot for one-time matter Q&A, one-off notes, document lookup, quick analysis, or temporary drafting that the user has not asked to save as a reusable skill.",
-              new_skill_rule: "Use new_skill only for a reusable workflow or future repeatable skill, not for a single matter task.",
-              modify_skill_rule: "Use modify_existing_skill when the request changes behavior, scope, output, audience, or mode of an existing skill.",
-              direct_mece_violation_rule: "same category + same goal + same input contract + same output contract",
-              user_gate_choices: ["Use or improve existing skill", "Create separate skill with reason"],
-            }),
+            content: JSON.stringify(routerUserPayload({ userRequest, overrideJustification, registry })),
           },
         ],
         text: {
@@ -78,5 +85,91 @@ export function createOpenAiSkillRouterProvider({
         },
       },
     });
+  };
+}
+
+export function createOpenRouterSkillRouterProvider({
+  apiKey,
+  endpoint,
+  fetchImpl = fetch,
+  model,
+  maxOutputTokens = DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  timeoutMs,
+  requireParameters = true,
+  allowFallbacks = false,
+} = {}) {
+  return async function openRouterSkillRouterProvider({ userRequest, overrideJustification, registry, schema } = {}) {
+    if (!apiKey) {
+      const error = new Error("OPENROUTER_API_KEY is required for skill intent routing");
+      error.statusCode = 409;
+      throw error;
+    }
+    const body = {
+      model,
+      messages: [
+        {
+          role: "system",
+          content: SKILL_ROUTER_SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: JSON.stringify(routerUserPayload({ userRequest, overrideJustification, registry })),
+        },
+      ],
+      ...openRouterTemperatureParams(model, 0),
+      max_tokens: maxOutputTokens,
+      provider: {
+        require_parameters: requireParameters,
+        allow_fallbacks: allowFallbacks,
+      },
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "skill_router_decision",
+          strict: true,
+          schema,
+        },
+      },
+    };
+
+    const payload = await fetchProviderJsonWithTimeout({
+      fetchImpl,
+      endpoint,
+      apiKey,
+      body,
+      timeoutMs,
+      extraHeaders: {
+        "http-referer": "https://github.com/molotovsingh/matter-workbench",
+        "x-title": "Matter Workbench Skill Router",
+      },
+      timeoutMessage: `OpenRouter skill router request timed out after ${timeoutMs}ms`,
+    });
+    return parseOpenRouterJsonMessage(payload, "OpenRouter skill router");
+  };
+}
+
+function routerUserPayload({ userRequest, overrideJustification, registry }) {
+  return {
+    user_request: userRequest,
+    override_justification: overrideJustification,
+    registry_principles: registry.principles || {},
+    skill_registry: registry.skills.map((skill) => ({
+      slash: skill.slash,
+      category: skill.category,
+      purpose: skill.purpose,
+      inputs: skill.inputs,
+      outputs: skill.outputs,
+      upstream: skill.upstream,
+      downstream: skill.downstream,
+      mode: skill.mode,
+      source_backed: skill.source_backed,
+      legal_setting_scope: skill.legal_setting_scope,
+      markdown_first: skill.markdown_first,
+    })),
+    transient_copilot_rule: "Use transient_copilot for one-time matter Q&A, one-off notes, document lookup, quick analysis, or temporary drafting that the user has not asked to save as a reusable skill.",
+    new_skill_rule: "Use new_skill only for a reusable workflow or future repeatable skill, not for a single matter task.",
+    modify_skill_rule: "Use modify_existing_skill when the request changes behavior, scope, output, audience, or mode of an existing skill.",
+    direct_mece_violation_rule: "same category + same goal + same input contract + same output contract",
+    user_gate_choices: ["Use or improve existing skill", "Create separate skill with reason"],
   };
 }

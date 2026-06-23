@@ -126,6 +126,73 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
   assert.equal(bodies[0].text.format.name, "skill_router_decision");
 });
 
+test("skill router uses OpenRouter when configured", async () => {
+  const bodies = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      bodies.push(JSON.parse(body));
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                decision: "transient_copilot",
+                recommended_action: "transient_copilot",
+                matched_skill: "",
+                confidence: 0.82,
+                reason: "One-time matter question.",
+                user_gate_required: false,
+                suggested_next_action: "Answer from the current matter record.",
+                mece_violation: false,
+                legal_setting: legalSetting(),
+                override_requires: [],
+              }),
+            },
+          },
+        ],
+      }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  try {
+    const service = createSkillRouterService({
+      registryService: registryService(),
+      endpoint: `http://${address.address}:${address.port}/api/v1/chat/completions`,
+      env: {
+        SKILL_ROUTER_PROVIDER: "openrouter",
+        OPENROUTER_API_KEY: "sk-or-test",
+        OPENROUTER_SKILL_ROUTER_MODEL: "openai/gpt-5.4-mini",
+        OPENROUTER_SKILL_ROUTER_MAX_OUTPUT_TOKENS: "888",
+        OPENROUTER_SKILL_ROUTER_TIMEOUT_MS: "30000",
+      },
+    });
+
+    const result = await service.checkIntent({ userRequest: "Which NCLT sections can we use here?" });
+    assert.equal(result.decision, "transient_copilot");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].model, "openai/gpt-5.4-mini");
+  assert.equal(bodies[0].max_tokens, 888);
+  assert.equal(bodies[0].messages[0].role, "system");
+  assert.match(bodies[0].messages[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.match(bodies[0].messages[0].content, /Custom skill policy/);
+  assert.match(bodies[0].messages[1].content, /transient_copilot_rule/);
+  assert.equal(bodies[0].provider.require_parameters, true);
+  assert.equal(bodies[0].provider.allow_fallbacks, false);
+  assert.equal(bodies[0].response_format.json_schema.name, "skill_router_decision");
+  assert.equal("temperature" in bodies[0], false);
+});
+
 test("one-time matter requests can route to transient copilot instead of skill factory", async () => {
   const service = createSkillRouterService({
     registryService: registryService(),

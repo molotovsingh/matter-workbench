@@ -23,6 +23,8 @@ import {
   DEFAULT_SKILL_SAMPLE_OUTPUT_MODEL,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+  DEFAULT_SKILL_ROUTER_OPENROUTER_MODEL,
+  DEFAULT_SKILL_ROUTER_OPENROUTER_TIMEOUT_MS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
   DEFAULT_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS,
@@ -56,7 +58,7 @@ test("model policy lists current AI task names", () => {
   ]);
 });
 
-test("skill router policy matches current OpenAI-direct defaults", () => {
+test("skill router policy matches current OpenAI-direct defaults and OpenRouter overrides", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_ROUTER,
@@ -65,6 +67,41 @@ test("skill router policy matches current OpenAI-direct defaults", () => {
     endpoint: DEFAULT_RESPONSES_ENDPOINT,
     model: DEFAULT_OPENAI_MODEL,
     maxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, {
+    env: {
+      SKILL_ROUTER_PROVIDER: "openrouter",
+      OPENROUTER_SKILL_ROUTER_MODEL: "openai/gpt-5.4-mini",
+      OPENROUTER_SKILL_ROUTER_MAX_OUTPUT_TOKENS: "900",
+      OPENROUTER_SKILL_ROUTER_TIMEOUT_MS: "25000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_ROUTER,
+    tier: "router",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: "openai/gpt-5.4-mini",
+    maxOutputTokens: 900,
+    timeoutMs: 25000,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, {
+    env: {
+      SKILL_ROUTER_PROVIDER: "openrouter",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_ROUTER,
+    tier: "router",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_SKILL_ROUTER_OPENROUTER_MODEL,
+    maxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SKILL_ROUTER_OPENROUTER_TIMEOUT_MS,
     fallback: "fail_closed",
   });
 });

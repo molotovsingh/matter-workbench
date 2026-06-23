@@ -33,7 +33,7 @@ As of the current implementation, the app has:
 - `source-descriptors-engine.mjs` using OpenRouter for `source_description`.
 - `services/matter-copilot-service.mjs` using `copilot_answer` policy for
   transient matter Q&A.
-- `services/skill-router-service.mjs` using OpenAI direct for skill intent routing.
+- `services/skill-router-service.mjs` using the `skill_router` policy for skill intent routing, with OpenAI direct by default and OpenRouter when configured.
 - `skills/registry.json` describing current skills, but not yet declaring model policy.
 
 The shared clients are intentionally thin. They know how to make provider requests and parse JSON. They do not decide legal risk, task complexity, privacy requirements, or fallback strategy.
@@ -197,7 +197,7 @@ The first implementation does not need all tiers. It can start with `router` and
 | `/describe_sources` | OpenRouter Chat Completions, structured JSON | `source_description` |
 | Matter Copilot | OpenRouter by default for transient answers, with pinged selector presets | `copilot_answer` |
 | `/doctor` | None | deterministic |
-| Skill router | OpenAI Responses, structured JSON | `router` |
+| Skill router | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `router` |
 
 This table shows why model routing should be central. The app already has deterministic skills and AI skills with different risk levels.
 
