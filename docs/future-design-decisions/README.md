@@ -7,7 +7,7 @@ This folder holds parked product decisions, SME requirement capture, current loc
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 33 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 34 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -48,6 +48,7 @@ This README tracks the 33 decision documents in this folder. The README itself i
 | [Matter Metadata and Client Interview](matter-metadata-client-interview.md) | SME requirement capture | Medium-High | New Matter flow or metadata review work resumes | Define minimum stage/role choices and metadata review behavior after documents are ingested. |
 | [Lawyer-Facing Terminology Contract](lawyer-terminology-contract.md) | Parked for later product decision | Medium-High near-term polish | Beta UX polish, confusing labels, or command/report copy churn | Promote a small presentation-label slice before deeper engine work: lanes, statuses, paid/local posture, known artifacts, command states. |
 | [Model-To-App Task Policy](model-to-app-task-policy.md) | Current boundary landed; broader selector policy parked | Medium | Any broader model selector, draft-amendment selector, or provider-choice expansion is proposed | Follow [Model Task Boundaries](../contracts/model-task-boundaries.md): Copilot selection is narrow; durable skills/artifacts stay on app-owned policy. |
+| [Baseten As An Alternative Provider](baseten-alternative-provider.md) | Planned feature / parked future provider | Medium | An open-weight model ties `gpt-4.1` on the citation-exactness eval, or OpenAI-direct quota/billing pressure forces a second working path for the extraction pipeline | Add behind a two-API-family provider registry so source descriptors and List of Dates can swap to open-weight on Baseten (Chat Completions family); keep generative/skill-factory on openai-direct. |
 | [Cost Estimation Framework](cost-estimation-framework.md) | Parked for later product decision | Medium | Cost confusion, hosted provider-run ledger, or paid rerun UX pressure | Start with read-only derived matter cost from existing `ai_run` metadata; avoid billing language. |
 | [Credit System](credit-system.md) | Working product note; shadow metering only | Medium | Provider-run/cost-event evidence is authoritative enough to rehearse monetisation, or credit enforcement is proposed | Keep current work shadow-only. Do not enforce balances, charge money, or expose user-facing depletion counters until shadow reports and failure/refund semantics are accepted. |
 | [Credit Metering Shadow Plan](credit-metering-shadow-plan.md) | Implementation contract draft; no enforcement | Medium | Beta 3 reviewers evaluate the isolated credit-metering branch | Use only as a review plan for static policy, no-write reports, and future credit ledger shape. Keep isolated from Beta 3 release behavior. |
