@@ -1,4 +1,5 @@
 import { validateUploadInputs } from "../../shared/upload-intake-planner.mjs";
+import { buildIntakeSizingReport } from "./intake-sizing-report.mjs";
 
 export const INTAKE_CANDIDATE_SCHEMA_VERSION = "intake-candidate/v1";
 export const INTAKE_BATCH_SCHEMA_VERSION = "intake-batch/v1";
@@ -36,6 +37,7 @@ export function browserUploadBatchFromFiles({
     action,
     candidateCount: candidates.length,
     candidates,
+    sizingReport: buildIntakeSizingReport({ candidates }),
   };
 }
 

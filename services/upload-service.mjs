@@ -46,6 +46,7 @@ export function createUploadService({
 
       const metadata = browserPlan.metadata;
       const relativePaths = browserPlan.relativePaths;
+      const intakeSizingReport = browserPlan.batch.sizingReport;
 
       if (useRuntimeDbStorage) {
         const matter = await runtimeDbStorageService.createMatterFromUploadedFiles({
@@ -53,9 +54,13 @@ export function createUploadService({
           metadata,
           files,
           relativePaths,
+          intakeSizingReport,
         });
         await matterStore.switchMatter(name);
-        return await runtimeDbStorageService.readWorkspace(matter);
+        return {
+          ...await runtimeDbStorageService.readWorkspace(matter),
+          intakeSizingReport,
+        };
       }
 
       try {
@@ -75,7 +80,10 @@ export function createUploadService({
       });
       matterStore.setMatterRoot(matterPath);
       await runMatterInit({ matterRoot: matterPath, metadata, dryRun: false });
-      return await workspaceService.readWorkspace();
+      return {
+        ...await workspaceService.readWorkspace(),
+        intakeSizingReport,
+      };
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -86,6 +94,7 @@ export function createUploadService({
     try {
       const browserPlan = planBrowserAddFilesUpload({ fields, files });
       const { label, relativePaths } = browserPlan;
+      const intakeSizingReport = browserPlan.batch.sizingReport;
 
       if (matterStore.hasRuntimeDbStorageMode?.() && typeof runtimeDbStorageService?.addUploadedFilesToMatter === "function") {
         const matter = await resolveMatterRecordForFields(fields);
@@ -94,11 +103,15 @@ export function createUploadService({
           label,
           files,
           relativePaths,
+          intakeSizingReport,
         });
         await matterStore.switchMatter(matter.name);
         return {
           ...await runtimeDbStorageService.readWorkspace(matter),
-          intakeAdded,
+          intakeAdded: {
+            ...intakeAdded,
+            sizingReport: intakeSizingReport,
+          },
         };
       }
 
@@ -148,6 +161,7 @@ export function createUploadService({
             unique: result.counts.uniqueFiles,
             duplicatesInBatch: result.counts.duplicatesInBatch,
             duplicatesOfPrior: result.counts.duplicatesOfPrior,
+            sizingReport: intakeSizingReport,
           },
         };
       });

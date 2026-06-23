@@ -68,6 +68,8 @@ test("browser upload batch wraps candidates without adding side effects", () => 
     batch.candidates.map((candidate) => candidate.relativePath),
     ["notice.pdf", "Evidence/FIR.pdf"],
   );
+  assert.equal(batch.sizingReport.schema_version, "intake-sizing-report/v1");
+  assert.equal(batch.sizingReport.recommendedPreparationMode, "immediate");
 });
 
 test("candidate contract keeps upload validation failures stable", () => {

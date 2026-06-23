@@ -83,6 +83,9 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
     assert.equal(created.folderName, "Upload Matter");
     assert.equal(created.metadata.matterName, "Upload Matter");
     assert.ok(created.fileCount > 0);
+    assert.equal(created.intakeSizingReport.schema_version, "intake-sizing-report/v1");
+    assert.equal(created.intakeSizingReport.recommendedPreparationMode, "immediate");
+    assert.equal(created.intakeSizingReport.typeMix.text, 1);
 
     const matterRoot = path.join(mattersHome, "Upload Matter");
     const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
@@ -107,6 +110,8 @@ test("multipart upload creates a matter and adds a follow-up intake", async () =
     assert.equal(updated.intakeAdded.duplicatesOfPrior, 0);
     assert.match(updated.intakeAdded.receivedDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.match(updated.intakeAdded.intakeDirName, /Follow Up/);
+    assert.equal(updated.intakeAdded.sizingReport.schema_version, "intake-sizing-report/v1");
+    assert.equal(updated.intakeAdded.sizingReport.typeMix.text, 1);
   });
 });
 
@@ -200,6 +205,7 @@ test("multipart upload creates runtime DB matter without a live matter folder", 
     assert.equal(created.inputLabel, "postgres:DB Upload Matter");
     assert.equal(created.metadata.clientName, "Runtime Client");
     assert.equal(created.fileCount, 2);
+    assert.equal(created.intakeSizingReport.schema_version, "intake-sizing-report/v1");
     assert.deepEqual(calls.map((call) => call[0]), ["create", "workspace"]);
     await assert.rejects(
       () => readFile(path.join(mattersHome, "DB Upload Matter", "matter.json"), "utf8"),
@@ -214,8 +220,8 @@ test("multipart upload creates runtime DB matter without a live matter folder", 
     },
     runtimeDbStorageService: {
       enabled: true,
-      async createMatterFromUploadedFiles({ name, metadata, files, relativePaths }) {
-        calls.push(["create", name, files.length, relativePaths]);
+      async createMatterFromUploadedFiles({ name, metadata, files, relativePaths, intakeSizingReport }) {
+        calls.push(["create", name, files.length, relativePaths, intakeSizingReport?.recommendedPreparationMode]);
         const matter = {
           id: "11111111-1111-4111-8111-111111111111",
           name,
@@ -346,6 +352,7 @@ test("multipart add-files appends to runtime DB matter without a live matter fol
     assert.equal(updated.inputLabel, "postgres:DB Existing Matter");
     assert.equal(updated.intakeAdded.intakeId, "INTAKE-02");
     assert.equal(updated.intakeAdded.unique, 1);
+    assert.equal(updated.intakeAdded.sizingReport.schema_version, "intake-sizing-report/v1");
     assert.deepEqual(calls.map((call) => call[0]), ["add", "workspace"]);
     await assert.rejects(
       () => readFile(path.join(mattersHome, "DB Existing Matter", "00_Inbox", "Intake 02 - Follow Up", "Source Files", "receipt.txt"), "utf8"),
@@ -360,8 +367,8 @@ test("multipart add-files appends to runtime DB matter without a live matter fol
     },
     runtimeDbStorageService: {
       enabled: true,
-      async addUploadedFilesToMatter({ matter, label, files, relativePaths }) {
-        calls.push(["add", matter.name, label, files.length, relativePaths]);
+      async addUploadedFilesToMatter({ matter, label, files, relativePaths, intakeSizingReport }) {
+        calls.push(["add", matter.name, label, files.length, relativePaths, intakeSizingReport?.recommendedPreparationMode]);
         return {
           intakeId: "INTAKE-02",
           intakeDirName: "Intake 02 - 2026-06-06 Follow Up",

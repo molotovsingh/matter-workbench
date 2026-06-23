@@ -50,6 +50,22 @@ The current browser upload path enters the boundary through
 the same candidate/batch shape before they ask storage-specific code to persist
 bytes or allocate source numbers.
 
+Each intake batch also carries a read-only sizing report from
+`services/intake/intake-sizing-report.mjs`. The report classifies the candidate
+set by file count, total size, largest file, and broad file-type mix, then
+recommends one preparation mode:
+
+- `immediate`;
+- `batched`;
+- `background`;
+- `needs_review_before_processing`.
+
+This report is advisory. It must not perform I/O, call providers, allocate file
+numbers, write custody rows, or silently change preparation behavior. Its first
+job is observability: help the app and operator distinguish a small upload from
+a medium, large, or risky intake before later scheduler work consumes the same
+signal.
+
 Storage-specific adapters may add:
 
 - runtime DB matter IDs, intake row IDs, upload session IDs, and import batch
@@ -169,7 +185,7 @@ This contract does not introduce:
 - balances, credit enforcement, or billing;
 - model/provider calls;
 - archive extraction policy;
-- document type classification;
+- deep document type classification beyond broad sizing-report buckets;
 - post-write duplicate-of-prior reporting;
 - broad runtime DB/storage rewrite.
 
