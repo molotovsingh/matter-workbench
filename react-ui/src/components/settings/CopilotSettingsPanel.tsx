@@ -1,5 +1,5 @@
 import type { FormEventHandler } from 'react';
-import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../../lib/copilotModels';
+import { CUSTOM_COPILOT_PRESET_VALUE, COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../../lib/copilotModels';
 import { findCopilotTask } from '../../lib/aiSettingsTasks';
 import type { AiSettings } from '../../types';
 
@@ -22,12 +22,15 @@ type CopilotSettingsPanelProps = {
   copilotApiKey: string;
   copilotSaving: boolean;
   copilotSaveError: string;
+  allowCustomCopilotModel: boolean;
   onEditingChange: (editing: boolean) => void;
   onFormProviderChange: (value: string) => void;
   onFormApiKeyChange: (value: string) => void;
   onFormModelChange: (value: string) => void;
   onFormMaxTokensChange: (value: string) => void;
   onCopilotPresetChange: (value: string) => void;
+  onCopilotProviderChange: (value: string) => void;
+  onCopilotModelChange: (value: string) => void;
   onCopilotApiKeyChange: (value: string) => void;
   onSaveCopilot: FormEventHandler<HTMLFormElement>;
   onSaveAi: FormEventHandler<HTMLFormElement>;
@@ -51,12 +54,15 @@ export function CopilotSettingsPanel({
   copilotApiKey,
   copilotSaving,
   copilotSaveError,
+  allowCustomCopilotModel,
   onEditingChange,
   onFormProviderChange,
   onFormApiKeyChange,
   onFormModelChange,
   onFormMaxTokensChange,
   onCopilotPresetChange,
+  onCopilotProviderChange,
+  onCopilotModelChange,
   onCopilotApiKeyChange,
   onSaveCopilot,
   onSaveAi,
@@ -66,6 +72,8 @@ export function CopilotSettingsPanel({
   const copilotPreset = COPILOT_MODEL_PRESETS.some((preset) => preset.provider === copilotProvider && preset.model === copilotModel)
     ? copilotPresetValue(copilotProvider, copilotModel)
     : '';
+  const copilotSelectorValue = copilotPreset || (allowCustomCopilotModel ? CUSTOM_COPILOT_PRESET_VALUE : '');
+  const customCopilotSelected = copilotSelectorValue === CUSTOM_COPILOT_PRESET_VALUE;
   const currentCopilotPreset = findCopilotPreset(copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
 
   return (
@@ -102,27 +110,54 @@ export function CopilotSettingsPanel({
               <label style={{ display: 'grid', gap: 4 }}>
                 <span className="settings-label">Copilot strength</span>
                 <select
-                  value={copilotPreset}
+                  value={copilotSelectorValue}
                   onChange={(event) => onCopilotPresetChange(event.target.value)}
                   className="settings-input"
                 >
-                  {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
+                  {!copilotPreset && !allowCustomCopilotModel && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
                   {COPILOT_MODEL_PRESETS.map((preset) => (
                     <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
                       {preset.label}
                     </option>
                   ))}
+                  {allowCustomCopilotModel && (
+                    <option value={CUSTOM_COPILOT_PRESET_VALUE}>Custom model id…</option>
+                  )}
                 </select>
               </label>
+
+              {allowCustomCopilotModel && customCopilotSelected && (
+                <div className="form-warning">
+                  Superuser override for controlled bakeoffs only. This changes transient Matter Copilot answers, not skills or durable source-backed artifacts.
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
                 <label style={{ display: 'grid', gap: 4 }}>
                   <span className="settings-label">Provider</span>
-                  <input type="text" value={copilotProvider} readOnly className="settings-input" />
+                  {allowCustomCopilotModel && customCopilotSelected ? (
+                    <select
+                      value={copilotProvider}
+                      onChange={(event) => onCopilotProviderChange(event.target.value)}
+                      className="settings-input"
+                    >
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="openai-direct">OpenAI direct</option>
+                    </select>
+                  ) : (
+                    <input type="text" value={copilotProvider} readOnly className="settings-input" />
+                  )}
                 </label>
                 <label style={{ display: 'grid', gap: 4 }}>
                   <span className="settings-label">Model id</span>
-                  <input type="text" value={copilotModel} readOnly className="settings-input" />
+                  <input
+                    type="text"
+                    value={copilotModel}
+                    onChange={(event) => onCopilotModelChange(event.target.value)}
+                    readOnly={!allowCustomCopilotModel || !customCopilotSelected}
+                    placeholder={copilotProvider === 'openrouter' ? 'e.g. openai/gpt-5.5-pro' : 'e.g. gpt-5.5-pro'}
+                    className="settings-input"
+                  />
                 </label>
               </div>
 

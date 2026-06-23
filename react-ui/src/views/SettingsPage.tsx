@@ -4,7 +4,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
-import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
+import { CUSTOM_COPILOT_PRESET_VALUE, COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
 import { canSeeOperatorSurface } from '../lib/lawyerMode';
 import { findCopilotTask } from '../lib/aiSettingsTasks';
 import { SystemHealthPanel, systemHealthNeedsAttention } from '../components/settings/SystemHealthPanel';
@@ -184,6 +184,10 @@ export default function SettingsPage() {
   }
 
   function handleCopilotPresetChange(value: string) {
+    if (value === CUSTOM_COPILOT_PRESET_VALUE) {
+      setCopilotModel('');
+      return;
+    }
     const preset = COPILOT_MODEL_PRESETS.find((item) => copilotPresetValue(item.provider, item.model) === value);
     if (!preset) return;
     setCopilotProvider(preset.provider);
@@ -424,12 +428,15 @@ export default function SettingsPage() {
           copilotApiKey={copilotApiKey}
           copilotSaving={copilotSaving}
           copilotSaveError={copilotSaveError}
+          allowCustomCopilotModel={canReviewSystemHealth}
           onEditingChange={setEditing}
           onFormProviderChange={setFormProvider}
           onFormApiKeyChange={setFormApiKey}
           onFormModelChange={setFormModel}
           onFormMaxTokensChange={setFormMaxTokens}
           onCopilotPresetChange={handleCopilotPresetChange}
+          onCopilotProviderChange={setCopilotProvider}
+          onCopilotModelChange={setCopilotModel}
           onCopilotApiKeyChange={setCopilotApiKey}
           onSaveCopilot={handleSaveCopilot}
           onSaveAi={handleSaveAi}

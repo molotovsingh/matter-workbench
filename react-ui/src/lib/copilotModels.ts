@@ -5,6 +5,8 @@ export interface CopilotModelPreset {
   model: string;
 }
 
+export const CUSTOM_COPILOT_PRESET_VALUE = '__custom_copilot_model__';
+
 export const COPILOT_MODEL_PRESETS: CopilotModelPreset[] = [
   { label: 'Low', shortLabel: 'Low', provider: 'openrouter', model: 'openai/gpt-4o-mini' },
   { label: 'Medium', shortLabel: 'Medium', provider: 'openrouter', model: 'openai/gpt-5.4-mini' },
