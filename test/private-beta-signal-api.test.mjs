@@ -113,6 +113,53 @@ test("private beta signal API auto-captures failed jobs when jobs monitor is rea
   }
 });
 
+test("private beta signal API accepts sanitized client-side events from the browser", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-signal-api-client-event-"));
+  const appDir = path.join(tmp, "app");
+  const signalPath = path.join(tmp, "signals-ledger.json");
+  await mkdir(appDir, { recursive: true });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    host: "127.0.0.1",
+    port: 0,
+    privateBetaSignalPath: signalPath,
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const captured = await postJson(baseUrl, "/api/private-beta/signals/client-events", {
+      code: "upload.precheck_hash_unavailable",
+      view: "new_matter",
+      action: "create_matter",
+      stage: "upload_precheck",
+      severity: "warning",
+      matterName: "State v Rajesh Mehra",
+      fileCount: 6,
+      sizeBucket: "10_100_mb",
+      errorClass: "RangeError",
+      errorMessage: "Cannot create a string longer than 0x1fffffe8 characters",
+      details: {
+        fileName: "sbi6.pdf",
+        relativePath: "Evidence/sbi6.pdf",
+      },
+    });
+
+    assert.equal(captured.schema_version, "private-beta-signal-capture-result/v1");
+    assert.equal(captured.captured, 1);
+    const store = JSON.parse(await readFile(signalPath, "utf8"));
+    assert.equal(store.signals.length, 1);
+    assert.equal(store.signals[0].source, "client_event");
+    assert.equal(store.signals[0].code, "upload.precheck_hash_unavailable");
+    assert.equal(store.signals[0].summary.fileCount, 6);
+    assert.equal(store.signals[0].details.errorClass, "RangeError");
+    assert.doesNotMatch(JSON.stringify(store), /sbi6\.pdf|Evidence/);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("private beta signal API honors stable signal ledger path from env", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-signal-api-env-path-"));
   const appDir = path.join(tmp, "app");

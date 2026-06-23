@@ -332,6 +332,30 @@ export interface PrivateBetaFeedbackSyncResult {
   skipped: number;
 }
 
+export interface PrivateBetaClientSignalRequest {
+  code: string;
+  view?: string;
+  action?: string;
+  stage?: string;
+  severity?: 'blocker' | 'warning' | 'info' | 'error' | string;
+  category?: string;
+  matterName?: string;
+  fileCount?: number;
+  sizeBucket?: string;
+  errorClass?: string;
+  errorMessage?: string;
+}
+
+export interface PrivateBetaClientSignalResponse {
+  schema_version?: 'private-beta-signal-capture-result/v1';
+  captured: number;
+  sent: number;
+  queued: number;
+  failed: number;
+  skipped: number;
+  signals?: Array<Record<string, unknown>>;
+}
+
 export interface PrivateBetaUser {
   username: string;
   displayName?: string;

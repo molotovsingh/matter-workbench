@@ -37,6 +37,8 @@ import type {
   PrivateBetaFeedbackRequest,
   PrivateBetaFeedbackResponse,
   PrivateBetaFeedbackSyncResult,
+  PrivateBetaClientSignalRequest,
+  PrivateBetaClientSignalResponse,
   PrivateBetaUserCreateRequest,
   PrivateBetaUserList,
   PrivateBetaUserResponse,
@@ -373,6 +375,8 @@ export const api = {
   submitPrivateBetaFeedback: (body: PrivateBetaFeedbackRequest) =>
     postJson<PrivateBetaFeedbackResponse>('/api/private-beta/feedback', body),
   syncPrivateBetaFeedback: () => postJson<PrivateBetaFeedbackSyncResult>('/api/private-beta/feedback/sync', {}),
+  capturePrivateBetaClientSignal: (body: PrivateBetaClientSignalRequest) =>
+    postJson<PrivateBetaClientSignalResponse>('/api/private-beta/signals/client-events', body),
   getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
   getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
   getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),

@@ -6,6 +6,7 @@ import ts from "typescript";
 const helperPath = new URL("../react-ui/src/lib/uploadFileCollection.ts", import.meta.url);
 const newMatterPath = new URL("../react-ui/src/views/NewMatterForm.tsx", import.meta.url);
 const addFilesPath = new URL("../react-ui/src/views/AddFilesForm.tsx", import.meta.url);
+const uploadTelemetryPath = new URL("../react-ui/src/lib/uploadClientTelemetry.ts", import.meta.url);
 
 test("React upload file collection drains every directory reader batch", async () => {
   const { collectDroppedEntries } = await importHelper();
@@ -93,6 +94,19 @@ test("React new-matter form checks overlap before creating a matter", async () =
   assert.match(newMatter, /Possible duplicate matter/);
   assert.match(newMatter, /Continue creating new matter/);
   assert.match(newMatter, /setBypassOverlap\(true\)/);
+});
+
+test("React upload forms report browser-only duplicate-check telemetry without leaking filenames", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+  const addFiles = await readFile(addFilesPath, "utf8");
+  const uploadTelemetry = await readFile(uploadTelemetryPath, "utf8");
+
+  assert.match(newMatter, /reportUploadPrecheckUnavailable\(/);
+  assert.match(addFiles, /reportUploadPrecheckUnavailable\(/);
+  assert.match(uploadTelemetry, /capturePrivateBetaClientSignal/);
+  assert.match(uploadTelemetry, /upload\.precheck_hash_unavailable/);
+  assert.match(uploadTelemetry, /sizeBucketForFiles/);
+  assert.doesNotMatch(uploadTelemetry, /relativePath|fileName|\.name\b/);
 });
 
 test("React new-matter form switches to the server-returned matter folder after create", async () => {

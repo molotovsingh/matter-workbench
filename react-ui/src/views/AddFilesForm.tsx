@@ -12,6 +12,7 @@ import {
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
+import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
 
 interface Props {
   onCancel: () => void;
@@ -82,6 +83,12 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         if (activeMatterNameRef.current !== matterName) return;
 
         if (!hashes) {
+          reportUploadPrecheckUnavailable({
+            files: collected,
+            matterName,
+            view: 'add_files',
+            action: 'add_files',
+          });
           appendTerminal(['[add-files] Duplicate check is unavailable in this browser; uploading without duplicate warning.']);
         } else {
           const checkResult = await api.checkOverlap({

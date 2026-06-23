@@ -158,6 +158,29 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           limit: requestUrl.searchParams.get("limit") || undefined,
         }));
       }),
+      exactRoute("POST", "/api/private-beta/signals/client-events", async () => {
+        const body = await readRequestJson(request).catch(() => ({}));
+        if (typeof privateBetaSignalService?.captureClientEvent !== "function") {
+          sendJson(response, 200, emptySignalCaptureResult());
+          return;
+        }
+        const requestContext = currentRequestContext();
+        const runtimeStorageMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+          ? "postgres"
+          : "filesystem";
+        try {
+          sendJson(response, 200, await privateBetaSignalService.captureClientEvent(body, {
+            runtimeMode: runtimeStorageMode,
+            username: requestContext.user?.username || "",
+            displayName: requestContext.user?.displayName || "",
+            userRole: requestContext.user?.role || "",
+            traceId: requestContext.traceId || "",
+            requestId: requestContext.requestId || "",
+          }));
+        } catch {
+          sendJson(response, 200, emptySignalCaptureResult());
+        }
+      }),
       exactRoute("POST", "/api/private-beta/signals/sync", async () => {
         if (!isPrivateBetaSuperuserOrLocal()) {
           sendJson(response, 200, emptySignalSyncResult());
@@ -615,5 +638,17 @@ function emptySignalSyncResult() {
     queued: 0,
     failed: 0,
     skipped: 0,
+  };
+}
+
+function emptySignalCaptureResult() {
+  return {
+    schema_version: "private-beta-signal-capture-result/v1",
+    captured: 0,
+    sent: 0,
+    queued: 0,
+    failed: 0,
+    skipped: 1,
+    signals: [],
   };
 }

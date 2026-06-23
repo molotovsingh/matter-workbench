@@ -10,6 +10,7 @@ import {
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
+import { reportUploadPrecheckUnavailable } from '../lib/uploadClientTelemetry';
 import type { OverlapWarning } from '../types';
 
 interface Props {
@@ -102,6 +103,12 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         appendTerminal([`[new-matter] checking ${files.length} file(s) for duplicate matter overlap…`]);
         const hashes = await hashFilesSha256IfAvailable(files.map((f) => f.file));
         if (!hashes) {
+          reportUploadPrecheckUnavailable({
+            files,
+            matterName: cleanName,
+            view: 'new_matter',
+            action: 'create_matter',
+          });
           appendTerminal(['[new-matter] Duplicate check is unavailable in this browser; creating without duplicate warning.']);
         } else {
           const checkResult = await api.checkOverlap({ hashes, proposedName: cleanName });

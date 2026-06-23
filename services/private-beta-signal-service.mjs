@@ -16,7 +16,7 @@ const CAPTURE_RESULT_SCHEMA_VERSION = "private-beta-signal-capture-result/v1";
 const SYNC_RESULT_SCHEMA_VERSION = "private-beta-signal-sync-result/v1";
 const DEFAULT_LIMIT = 100;
 
-const ALLOWED_SOURCES = new Set(["matter_attention", "job_status", "skill_factory_health"]);
+const ALLOWED_SOURCES = new Set(["matter_attention", "job_status", "skill_factory_health", "client_event"]);
 const ALLOWED_SEVERITIES = new Set(["blocker", "warning", "info", "error"]);
 
 export function createPrivateBetaSignalService({
@@ -102,6 +102,15 @@ export function createPrivateBetaSignalService({
         telemetryMode: normalizedTelemetryMode,
       }));
     return captureSignals(signals);
+  }
+
+  async function captureClientEvent(event = {}, context = {}) {
+    return captureSignals([buildClientEventSignal({
+      event,
+      context,
+      runtimeMode: context.runtimeMode,
+      telemetryMode: normalizedTelemetryMode,
+    })]);
   }
 
   async function captureSignals(inputSignals = []) {
@@ -205,6 +214,7 @@ export function createPrivateBetaSignalService({
     captureMatterAttention,
     captureJobSignals,
     captureSkillFactoryHealth,
+    captureClientEvent,
     listSignals,
     syncQueuedSignals,
   };
@@ -352,6 +362,67 @@ function buildSkillFactoryHealthSignal({
   };
 }
 
+function buildClientEventSignal({
+  event = {},
+  context = {},
+  runtimeMode = "",
+  telemetryMode = "safe",
+}) {
+  const normalizedTelemetryMode = normalizeTelemetryMode(telemetryMode);
+  const code = sanitizeSignalCode(event.code, "client.event");
+  const category = sanitizeText(event.category || code.split(".")[0] || "client", 80).trim();
+  const matterName = sanitizeText(event.matterName, 180).trim();
+  const view = sanitizeClientEventToken(event.view, "unknown_view");
+  const action = sanitizeClientEventToken(event.action, "unknown_action");
+  const stage = sanitizeClientEventToken(event.stage, "unknown_stage");
+  const fileCount = toSafeNumber(event.fileCount);
+  const sizeBucket = sanitizeSizeBucket(event.sizeBucket);
+  const errorClass = sanitizeClientEventToken(event.errorClass || event.errorName, "");
+  const errorMessage = sanitizeText(event.errorMessage || event.message || "", 300).trim();
+  const username = sanitizeText(context.username, 180).trim();
+  const displayName = sanitizeText(context.displayName, 180).trim();
+  const userRole = sanitizeClientEventToken(context.userRole, "");
+  const traceId = sanitizeText(context.traceId, 120).trim();
+  const requestId = sanitizeText(context.requestId, 120).trim();
+
+  return {
+    source: "client_event",
+    fingerprint: stableFingerprint([
+      "client_event",
+      code,
+      matterName,
+      view,
+      action,
+      stage,
+      errorClass,
+      sizeBucket,
+    ]),
+    severity: normalizeSeverity(event.severity),
+    category,
+    code,
+    title: humanizeText(code) || "Client-side event",
+    matterName,
+    runtimeMode: sanitizeText(runtimeMode, 60).trim(),
+    telemetryMode: normalizedTelemetryMode,
+    summary: {
+      view,
+      stage,
+      ...(fileCount ? { fileCount } : {}),
+      ...(sizeBucket ? { sizeBucket } : {}),
+    },
+    details: {
+      action,
+      ...(errorClass ? { errorClass } : {}),
+      ...(errorMessage ? { errorMessage } : {}),
+      ...(username ? { username } : {}),
+      ...(displayName ? { displayName } : {}),
+      ...(userRole ? { userRole } : {}),
+      ...(traceId ? { traceId } : {}),
+      ...(requestId ? { requestId } : {}),
+    },
+  };
+}
+
 function emptyStore() {
   return { schema_version: LEDGER_SCHEMA_VERSION, signals: [] };
 }
@@ -451,16 +522,22 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "errorMessage",
     "failureClass",
     "finishedAt",
+    "displayName",
+    "errorClass",
     "jobId",
     "kind",
     "message",
     "metadata",
     "matterRoot",
+    "requestId",
     "route",
     "stage",
     "startedAt",
     "status",
     "storePaths",
+    "traceId",
+    "userRole",
+    "username",
   ]);
   for (const [key, value] of Object.entries(details)) {
     if (!allowed.has(key)) continue;
@@ -483,6 +560,16 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
 function sanitizeSignalCode(value, fallback = "job_failed") {
   const code = sanitizeText(value, 120).trim();
   return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(code) ? code : fallback;
+}
+
+function sanitizeClientEventToken(value, fallback = "") {
+  const text = sanitizeText(value, 80).trim();
+  return /^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(text) ? text : fallback;
+}
+
+function sanitizeSizeBucket(value) {
+  const text = sanitizeText(value, 40).trim();
+  return /^[a-z0-9_+-]{1,40}$/i.test(text) ? text : "";
 }
 
 function sanitizeWorkflowSignalDetails(workflow = {}) {

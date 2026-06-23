@@ -244,6 +244,50 @@ test("private beta signal service captures failed jobs and skill factory health 
   assert.doesNotMatch(JSON.stringify(listed), /sk-failed|sk-hidden|sk-skill-secret|do not send|storePaths/);
 });
 
+test("private beta signal service captures sanitized client-side upload precheck events", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-client-event-"));
+  const service = createPrivateBetaSignalService({
+    signalsPath: path.join(tmp, "signals-ledger.json"),
+    now: () => new Date("2026-06-23T10:00:00.000Z"),
+    idFactory: () => "signal_client_upload_precheck",
+  });
+
+  const captured = await service.captureClientEvent({
+    code: "upload.precheck_hash_unavailable",
+    view: "new_matter",
+    action: "create_matter",
+    stage: "upload_precheck",
+    severity: "warning",
+    matterName: "State v Rajesh Mehra",
+    fileCount: 6,
+    sizeBucket: "10_100_mb",
+    errorClass: "RangeError",
+    errorMessage: "Cannot create a string longer than 0x1fffffe8 characters",
+    details: {
+      fileName: "sbi6.pdf",
+      relativePath: "Evidence/sbi6.pdf",
+      sourceText: "raw client facts should never be sent",
+    },
+  }, { runtimeMode: "postgres", username: "shivangi@lawzeus.com", userRole: "tester" });
+
+  assert.equal(captured.captured, 1);
+  assert.equal(captured.signals[0].source, "client_event");
+  assert.equal(captured.signals[0].category, "upload");
+  assert.equal(captured.signals[0].code, "upload.precheck_hash_unavailable");
+  assert.equal(captured.signals[0].matterName, "State v Rajesh Mehra");
+  assert.equal(captured.signals[0].runtimeMode, "postgres");
+  assert.equal(captured.signals[0].summary.view, "new_matter");
+  assert.equal(captured.signals[0].summary.stage, "upload_precheck");
+  assert.equal(captured.signals[0].summary.fileCount, 6);
+  assert.equal(captured.signals[0].summary.sizeBucket, "10_100_mb");
+  assert.equal(captured.signals[0].details.action, "create_matter");
+  assert.equal(captured.signals[0].details.errorClass, "RangeError");
+  assert.equal(captured.signals[0].details.errorMessage, "Cannot create a string longer than 0x1fffffe8 characters");
+  assert.equal(captured.signals[0].details.username, "shivangi@lawzeus.com");
+  assert.equal(captured.signals[0].details.userRole, "tester");
+  assert.doesNotMatch(JSON.stringify(captured), /sbi6\.pdf|Evidence|raw client facts/);
+});
+
 test("private beta signal service queues failed sync and retries later", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-retry-"));
   let fail = true;
