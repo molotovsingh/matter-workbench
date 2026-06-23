@@ -66,6 +66,7 @@ flowchart LR
     RuntimeDbStorage["services/runtime-db-storage-service.mjs<br/>payload-backed workspace/files/status/advisory"]
     RuntimeDbStores["services/runtime-db-*.mjs<br/>skill ideas, samples, custom skills, runs, command log"]
     AiSettingsService["services/ai-settings-service.mjs<br/>settings visibility"]
+    CopilotWebResearchService["services/copilot-web-research-service.mjs<br/>planned Research mode gate"]
     SkillRegistryService["services/skill-registry-service.mjs"]
     SkillRouterService["services/skill-router-service.mjs"]
     SkillIdeasService["services/skill-ideas-service.mjs"]
@@ -82,6 +83,8 @@ flowchart LR
   AppShellRoutes --> RuntimeDbMatterIndex
   AppShellRoutes --> RuntimeDbStorage
   AppShellRoutes --> AiSettingsService
+  MatterWorkflowRoutes --> CopilotWebResearchService
+  AppShellRoutes --> CopilotWebResearchService
   SkillFactoryRoutes --> SkillRegistryService
   SkillFactoryRoutes --> SkillRouterService
   SkillFactoryRoutes --> SkillIdeasService

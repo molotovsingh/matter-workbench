@@ -10,6 +10,7 @@ import { createRuntimeDbConfigurableSkillStore } from "./services/runtime-db-con
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
 import { createRuntimeDbConfigurableSkillRunsService } from "./services/runtime-db-configurable-skill-runs-service.mjs";
 import { createMatterCopilotService } from "./services/matter-copilot-service.mjs";
+import { createCopilotWebResearchService } from "./services/copilot-web-research-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStoryService } from "./services/matter-story-service.mjs";
@@ -101,6 +102,11 @@ export async function createWorkbenchServer(options = {}) {
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.matterCopilotEndpoint,
+  });
+  const copilotWebResearchService = options.copilotWebResearchService || createCopilotWebResearchService({
+    matterStore,
+    env,
+    webResearchAnswerProvider: options.copilotWebResearchAnswerProvider || null,
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
@@ -321,6 +327,7 @@ export async function createWorkbenchServer(options = {}) {
     jobStatusService,
     matterAttentionService,
     matterCopilotService,
+    copilotWebResearchService,
     matterStore,
     matterContextService,
     matterStatusService,

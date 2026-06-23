@@ -24,6 +24,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     jobStatusService,
     matterAttentionService,
     matterCopilotService,
+    copilotWebResearchService,
     matterContextService,
     matterStore,
     matterStoryService,
@@ -374,6 +375,28 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await matterContextService.readMatterContextPreview(root));
       }),
+      exactRoute("POST", "/api/matter-copilot/research", async () => {
+        const body = await readRequestJson(request);
+        assertCopilotWebResearchAvailable({ copilotWebResearchService });
+        copilotWebResearchService.assertReady?.();
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          assertRuntimeDbResearchContextAvailable({ runtimeDbStorageService, copilotWebResearchService });
+          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+          const answer = await copilotWebResearchService.answerResearchQuestionFromPacket({
+            packet,
+            question: body.question,
+          });
+          sendJson(response, 200, runtimeDbReadResponse(answer, matter));
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Research matter");
+        const root = await matterRootForBody(matterStore, body);
+        sendJson(response, 200, await copilotWebResearchService.answerResearchQuestion({
+          root,
+          question: body.question,
+        }));
+      }),
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
         const body = await readRequestJson(request);
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -450,6 +473,19 @@ function assertRuntimeDbContextReadAvailable({ runtimeDbStorageService } = {}) {
 function assertRuntimeDbCopilotContextAvailable({ runtimeDbStorageService, matterCopilotService } = {}) {
   if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function"
     || typeof matterCopilotService?.answerQuestionFromPacket !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
+  }
+}
+
+function assertRuntimeDbResearchContextAvailable({ runtimeDbStorageService, copilotWebResearchService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
+  }
+  assertCopilotWebResearchAvailable({ copilotWebResearchService });
+}
+
+function assertCopilotWebResearchAvailable({ copilotWebResearchService } = {}) {
+  if (typeof copilotWebResearchService?.answerResearchQuestionFromPacket !== "function") {
     throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
   }
 }
