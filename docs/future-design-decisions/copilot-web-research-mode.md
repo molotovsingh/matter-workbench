@@ -110,10 +110,35 @@ Possible routes:
 
 ## Stateful Copilot / Follow-Up Decision
 
-Do not add full persistent Copilot memory in the same slice as Research mode.
-The first Research implementation should remain one-question-at-a-time.
+Use the general Copilot conversation principle from
+[Copilot Q&A](../copilot-qna-contract.md):
 
-A later, safer follow-up slice may add **thread-local follow-up** only:
+```text
+Stateful for conversation, stateless for evidence.
+```
+
+Research mode should not introduce durable/persistent Copilot memory in its
+first slice. But it may coexist with a visible in-session transcript and, in a
+later slice, bounded follow-up context.
+
+### Phase 1 - visible thread only
+
+A visible browser-local transcript is allowed:
+
+```text
+User
+Assistant
+User
+Assistant
+```
+
+This improves the chat feel without changing evidence rules. Backend Research
+may still receive only the current question in this phase.
+
+### Phase 2 - bounded thread-local follow-up
+
+A later, safer follow-up slice may send bounded conversation context as
+reference-disambiguation only:
 
 ```text
 Current answer
@@ -129,11 +154,16 @@ Thread-local follow-up may carry only:
 - validated matter source IDs;
 - validated public source IDs, if Research mode was used.
 
+The rule is strict: previous turns may explain what the user means, but they are
+not evidence. Every factual/legal answer must be re-grounded in current matter
+context and/or validated public sources.
+
 Thread-local follow-up must not:
 
 - persist global chat memory;
 - carry memory across matters;
-- remember unsupported citations;
+- remember unsupported citations as facts;
+- cite prior assistant answers;
 - write matter artifacts;
 - reuse stale public research without saying so;
 - mutate a skill, draft, or dispatch document.
@@ -151,6 +181,8 @@ I should refresh public research before answering this follow-up.
 
 [Refresh research]
 ```
+
+### Phase 3 - durable threads
 
 Persistent conversation memory remains a separate future product decision and
 needs its own contract before implementation.
@@ -583,11 +615,15 @@ copilot_research.invalid_public_source
 
 These codes can remain operator-facing. Lawyer-facing copy should stay simple.
 
-#### 9.9 Follow-up state is not part of the first Research slice
+#### 9.9 Conversation state is allowed only in bounded phases
 
-Do not mix Research mode with persistent conversation memory. If any follow-up
-UI is added later, keep it thread-local and source-ID-scoped as described above.
-A persistent Copilot conversation store needs a separate accepted contract.
+A visible in-session transcript is acceptable as a first UX slice. Bounded
+conversation context may be added later for reference resolution only.
+
+Do not mix Research mode with persistent conversation memory. Any follow-up
+context must be thread-local, matter-scoped, source-ID-scoped, and stateless for
+evidence. A persistent Copilot conversation store needs a separate accepted
+contract.
 
 ### 10. Tests to add
 
@@ -630,6 +666,8 @@ Required coverage:
 - loading/status copy is rendered;
 - answer renderer shows Matter sources and Public sources separately;
 - answer renderer shows the verification caveat;
+- visible transcript, if implemented, resets locally and does not imply evidence memory;
+- bounded follow-up, if implemented later, does not treat prior assistant answers as evidence;
 - provider/API/billing language is not shown to ordinary users.
 
 ### 11. Acceptance checklist
@@ -646,10 +684,12 @@ Before calling the slice ready:
 8. Public citations are validated against normalized `WEB-000N` source IDs.
 9. The answer says `Research answer from public sources`, not `current law confirmed`.
 10. The answer displays `Verify authorities before relying or filing.`
-11. No persistent Copilot memory is introduced in the first slice.
-12. No `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` file is written.
-13. Full test suite passes.
-14. Private VM deploy service check and UI hardening pass still pass.
+11. Visible transcript, if included, is browser-local/in-session and does not change evidence rules.
+12. Bounded follow-up, if included later, uses prior turns only for reference resolution.
+13. No persistent Copilot memory is introduced in the first slice.
+14. No `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` file is written.
+15. Full test suite passes.
+16. Private VM deploy service check and UI hardening pass still pass.
 
 ### 12. Suggested implementation order
 
@@ -672,5 +712,6 @@ Before calling the slice ready:
 - No broad legal updates widget in the workspace.
 - No automatic web browsing for every Copilot question.
 - No persistent Copilot conversation memory.
-- No thread-local follow-up unless promoted as a separate later slice.
+- No durable conversation store.
+- No treating prior assistant answers as evidence.
 - No database schema change required for the first slice.

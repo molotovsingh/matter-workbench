@@ -278,24 +278,96 @@ Limits / needs review:
 - what the current record does not show...
 ```
 
-## Conversation Memory
+## Conversation State
 
-First version memory should be browser-local and exportable, not durable matter
-state.
+Product principle:
+
+```text
+Stateful for conversation, stateless for evidence.
+```
+
+Users reasonably expect Copilot to understand follow-ups such as "after that",
+"what source supports it?", or "summarise the above". The app may use bounded
+conversation state to understand those references. It must not use conversation
+state as proof.
+
+### Phase 1 - visible in-session thread
+
+The lowest-risk UX improvement is a visible in-session transcript:
+
+```text
+User
+Assistant
+User
+Assistant
+```
+
+This may be browser-local only. It does not need durable storage and does not
+change the evidence contract.
 
 Allowed:
 
-- include recent conversation turns in the next provider call;
-- reset conversation from the UI;
-- copy/export the chat for sharing;
-- include provider/model and citations in the export.
+- show prior turns in the UI;
+- reset the thread from the UI;
+- copy/export the visible thread for sharing;
+- include provider/model and validated citations in the export.
 
-Not allowed:
+### Phase 2 - bounded follow-up context
+
+A later first real stateful version may send a capped conversation window to the
+backend as disambiguation context:
+
+```json
+{
+  "question": "What happened after that?",
+  "matterName": "X",
+  "conversation": [
+    { "role": "user", "content": "What is the procedural history?" },
+    { "role": "assistant", "content": "The record indicates..." }
+  ]
+}
+```
+
+Rules for bounded follow-up context:
+
+- cap by turns and characters, e.g. last 4-6 turns or about 6k chars;
+- use prior turns only to resolve references like `that`, `above`, `same party`,
+  or `after this date`;
+- re-ground every factual/legal answer in the current matter context packet;
+- do not treat previous assistant answers as evidence;
+- do not cite previous assistant answers;
+- if the follow-up cannot be resolved safely, ask the user to restate.
+
+The provider prompt must say:
+
+```text
+Use previous turns only to understand the user's reference. Do not rely on
+previous assistant answers for facts. Do not cite previous assistant answers. If
+the current matter record does not support the answer, say so.
+```
+
+### Phase 3 - durable conversation threads
+
+Durable matter conversation threads are a separate future product decision. Do
+not implement them as part of the first stateful Copilot work.
+
+Durable threads would require decisions about:
+
+- retention and deletion;
+- tenant/user scoping;
+- whether chats are matter records or only app activity;
+- whether a thread can be converted into a draft, issue note, or research memo;
+- how stale matter context invalidates old answers.
+
+### Not allowed without a separate contract
 
 - write chat history into the matter folder by default;
 - include prior chat history in the matter context packet;
 - treat prior assistant answers as evidence;
-- let chat memory override extracted records.
+- let chat memory override extracted records;
+- carry memory across matters;
+- persist global Copilot memory;
+- use a prior unsupported answer as support for a later answer.
 
 ## Provider And Cost Rules
 
