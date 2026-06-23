@@ -1,5 +1,12 @@
+import {
+  createDefaultCopilotWebResearchAnswerProvider,
+  isCopilotWebResearchAnswerProviderConfigured,
+} from "./copilot-web-research-answer-providers.mjs";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
-import { buildCopilotWebSearchQueries } from "./web-research-providers.mjs";
+import {
+  buildCopilotWebSearchQueries,
+  createExaWebResearchProvider,
+} from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION = "matter-copilot-research-answer/v1";
@@ -14,17 +21,21 @@ const MAX_QUESTION_LENGTH = 1200;
 export function createCopilotWebResearchService({
   matterStore,
   env = process.env,
+  fetchImpl = fetch,
+  endpoint,
   webResearchProvider = null,
   researchAnswerProvider = null,
   webResearchAnswerProvider = null,
 } = {}) {
   const config = readCopilotWebResearchConfig(env);
-  const answerProvider = researchAnswerProvider || webResearchAnswerProvider;
+  const searchProvider = webResearchProvider || createDefaultWebResearchProvider({ config, env, fetchImpl });
+  const answerProvider = researchAnswerProvider || webResearchAnswerProvider || createDefaultCopilotWebResearchAnswerProvider({ env, fetchImpl, endpoint });
+  const answerProviderConfigured = Boolean(researchAnswerProvider || webResearchAnswerProvider || isCopilotWebResearchAnswerProviderConfigured({ env }));
 
   function readAvailability() {
     return {
       schema_version: "copilot-web-research-availability/v1",
-      enabled: Boolean(config.enabled && config.providerConfigured && webResearchProvider && answerProvider),
+      enabled: Boolean(config.enabled && config.providerConfigured && searchProvider && answerProvider && answerProviderConfigured),
       featureEnabled: config.enabled,
       provider: config.provider,
       providerConfigured: config.providerConfigured,
@@ -39,7 +50,7 @@ export function createCopilotWebResearchService({
   }
 
   function assertReady() {
-    assertResearchReady(config, webResearchProvider, answerProvider);
+    assertResearchReady(config, searchProvider, answerProvider, answerProviderConfigured);
   }
 
   async function answerResearchQuestion({
@@ -55,12 +66,12 @@ export function createCopilotWebResearchService({
 
   async function answerResearchQuestionFromPacket({ packet, question = "" } = {}) {
     const normalizedQuestion = normalizeResearchQuestion(question);
-    assertResearchReady(config, webResearchProvider, answerProvider);
+    assertResearchReady(config, searchProvider, answerProvider, answerProviderConfigured);
     if (!packet || typeof packet !== "object") {
       throw makeHttpError("Pick or prepare a matter before using Research.", 409, "copilot_research.context_required");
     }
     const queries = buildCopilotWebSearchQueries(normalizedQuestion);
-    const research = await webResearchProvider({
+    const research = await searchProvider({
       query: queries[0] || normalizedQuestion,
       queries,
       question: normalizedQuestion,
@@ -109,11 +120,24 @@ export function readCopilotWebResearchConfig(env = process.env) {
   };
 }
 
-function assertResearchReady(config, webResearchProvider, answerProvider) {
+function createDefaultWebResearchProvider({ config, env, fetchImpl }) {
+  if (config.provider === "exa") {
+    return createExaWebResearchProvider({
+      apiKey: env[config.apiKeyEnvKey],
+      fetchImpl,
+      timeoutMs: config.timeoutMs,
+      maxResults: config.maxResults,
+      maxResultChars: config.maxResultChars,
+    });
+  }
+  return null;
+}
+
+function assertResearchReady(config, webResearchProvider, answerProvider, answerProviderConfigured) {
   if (!config.enabled) {
     throw makeHttpError("Research is not enabled for this workspace.", 409, "copilot_research.disabled");
   }
-  if (!config.providerConfigured || typeof webResearchProvider !== "function" || typeof answerProvider !== "function") {
+  if (!config.providerConfigured || typeof webResearchProvider !== "function" || typeof answerProvider !== "function" || !answerProviderConfigured) {
     throw makeHttpError("Research is temporarily unavailable.", 409, "copilot_research.provider_not_configured");
   }
 }

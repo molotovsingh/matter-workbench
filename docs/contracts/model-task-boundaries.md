@@ -68,6 +68,7 @@ Current task classes include:
 | `skill_authoring` | Durable skill prompt/config/schema authoring. | App policy. |
 | `configurable_skill_run` | Custom skill execution that writes matter artifacts. | App policy. |
 | `copilot_answer` | Transient matter Q&A in the assistant rail. | Copilot selector may apply after ping/validation. |
+| `copilot_web_research` | Explicit Research mode answer from matter context plus validated public sources. | App policy for now; may later share Copilot selector only after a research-specific ping/validation contract. |
 | `create_listofdates_pass1` | First-pass chronology generation. | App policy. |
 | `create_listofdates_pass2` | Editor pass for chronology output. | App policy. |
 | `source_backed_analysis` | Source-backed legal analysis. | App policy. |
@@ -165,6 +166,7 @@ Current code and docs connected to this contract include:
 - `shared/ai-provider-policy.mjs`;
 - `shared/legal-workbench-policy-prompt.mjs`;
 - `services/matter-copilot-service.mjs`;
+- `services/copilot-web-research-service.mjs`;
 - `services/ai-settings-service.mjs`;
 - `services/skill-router-service.mjs`;
 - `services/skill-interview-planner-service.mjs`;

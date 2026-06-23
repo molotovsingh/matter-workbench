@@ -33,6 +33,9 @@ As of the current implementation, the app has:
 - `source-descriptors-engine.mjs` using OpenRouter for `source_description`.
 - `services/matter-copilot-service.mjs` using `copilot_answer` policy for
   transient matter Q&A.
+- `services/copilot-web-research-service.mjs` using the explicit
+  `copilot_web_research` policy for planned Research mode synthesis over matter
+  context plus validated public sources.
 - `services/skill-router-service.mjs` using the `skill_router` policy for skill intent routing, with OpenAI direct by default and OpenRouter when configured.
 - `skills/registry.json` describing current skills, but not yet declaring model policy.
 
@@ -196,6 +199,7 @@ The first implementation does not need all tiers. It can start with `router` and
 | `/create_listofdates` | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `source_backed_analysis` |
 | `/describe_sources` | OpenRouter Chat Completions, structured JSON | `source_description` |
 | Matter Copilot | OpenRouter by default for transient answers, with pinged selector presets | `copilot_answer` |
+| Copilot Research | OpenRouter by default for explicit public-source Research answers; web search provider remains separate | `copilot_web_research` |
 | `/doctor` | None | deterministic |
 | Skill router | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `router` |
 
