@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.36](releases/v1.0.0-beta.36.md) |
+| Current release notes | [v1.0.0-beta.37](releases/v1.0.0-beta.37.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -103,7 +103,8 @@ implementation plan.
 | [v1.0.0-beta.33](releases/v1.0.0-beta.33.md) | Beta 3 Copilot interaction receipts release marker. |
 | [v1.0.0-beta.34](releases/v1.0.0-beta.34.md) | Beta 3 Copilot thread-helper hardening release marker. |
 | [v1.0.0-beta.35](releases/v1.0.0-beta.35.md) | Beta 3 resizable Matter Assistant rail release marker. |
-| [v1.0.0-beta.36](releases/v1.0.0-beta.36.md) | Current Beta 3 GPT 5.5 Copilot preset release marker. |
+| [v1.0.0-beta.36](releases/v1.0.0-beta.36.md) | Beta 3 GPT 5.5 Copilot preset release marker. |
+| [v1.0.0-beta.37](releases/v1.0.0-beta.37.md) | Current Beta 3 Matter Assistant composition hardening release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
