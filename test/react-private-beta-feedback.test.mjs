@@ -28,14 +28,14 @@ test("React command panel exposes child-simple private beta feedback intake", as
   assert.doesNotMatch(source, /severity|priority|reproduction steps/i);
 });
 
-test("React command panel keeps feedback after the source-backed answer note", async () => {
+test("React command panel keeps feedback after the assistant composer", async () => {
   const source = await readFile(commandPanelPath, "utf8");
-  const sourceBackedNoteIndex = source.indexOf('Ask uses the matter record. Research uses public sources when enabled.');
+  const composerIndex = source.indexOf('className="command-composer"');
   const feedbackEntryIndex = source.indexOf('<PrivateBetaFeedbackPanel');
 
-  assert.notEqual(sourceBackedNoteIndex, -1);
+  assert.notEqual(composerIndex, -1);
   assert.notEqual(feedbackEntryIndex, -1);
-  assert.ok(sourceBackedNoteIndex < feedbackEntryIndex);
+  assert.ok(composerIndex < feedbackEntryIndex);
 });
 
 test("React feedback API client and types expose the beta feedback contract", async () => {

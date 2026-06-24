@@ -448,6 +448,8 @@ body.assistant-resizing { cursor: ew-resize; user-select: none; }
 .command-panel-copy::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 .command-panel-copy::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .command-panel-note { margin: 0; font-size: var(--font-size-sm); line-height: 1.4; order: 7; }
+.command-panel-spacer { flex: 1 1 auto; min-height: 24px; }
+.command-composer { display: grid; flex: 0 0 auto; gap: 9px; margin-top: auto; }
 .command-mode-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
 .command-mode-tabs button {
   border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--muted-strong);
@@ -484,6 +486,11 @@ body.assistant-resizing { cursor: ew-resize; user-select: none; }
 .intent-choice-actions button:first-child { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .intent-choice-actions button:disabled { cursor: default; opacity: 0.58; }
 .ai-command-form { display: flex; flex-direction: column; gap: 7px; margin-top: auto; order: 4; position: relative; }
+.command-composer .ai-command-form { margin-top: 0; order: initial; }
+.command-composer .command-mode-tabs,
+.command-composer .command-panel-examples,
+.command-composer .command-panel-actions,
+.command-composer .command-activity-strip { order: initial; }
 .command-panel-input-row { display: flex; align-items: center; gap: 8px; }
 .command-suggestions {
   position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 30;
@@ -516,6 +523,10 @@ body.assistant-resizing { cursor: ew-resize; user-select: none; }
   border: 1px solid var(--border-subtle); border-radius: 5px; background: var(--subtle-bg); color: var(--muted-strong);
 }
 .command-activity-title { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; line-height: 1.2; text-transform: uppercase; }
+.command-activity-strip summary { cursor: pointer; list-style: none; }
+.command-activity-strip summary::-webkit-details-marker { display: none; }
+.command-activity-strip summary::after { content: ' ▸'; }
+.command-activity-strip[open] summary::after { content: ' ▾'; }
 .command-activity-row { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 8px; align-items: baseline; font-size: var(--font-size-sm); line-height: 1.35; }
 .command-activity-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .command-panel-session { flex: 1 1 auto; min-height: 0; margin-top: 0; overflow-y: auto; order: 3; }

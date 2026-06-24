@@ -419,33 +419,9 @@ export default function CommandPanel({
         </div>
       )}
 
-      <div className="command-mode-tabs" style={{ order: 4 }} aria-label="Command mode">
-        {(['skill', 'ask', 'research'] as CommandMode[]).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className={commandMode === mode ? 'active' : ''}
-            onClick={() => setCommandMode(mode)}
-            disabled={state.isCommandRunning || (mode === 'research' && !canUseResearch)}
-            aria-pressed={commandMode === mode}
-          >
-            {mode === 'skill' ? 'Skill' : mode === 'ask' ? 'Ask' : 'Research'}
-          </button>
-        ))}
-      </div>
-
-      <div className="command-panel-examples" style={{ order: 4 }} aria-label="Command examples">
-        {['new skill', 'find a matter', 'prepare matter'].map((command) => (
-          <button
-            key={command}
-            type="button"
-            onClick={() => runExampleCommand(command)}
-            disabled={state.isCommandRunning}
-          >
-            {command}
-          </button>
-        ))}
-      </div>
+      {copilotThread.length === 0 && skillIdeaInput === null && (
+        <div className="command-panel-spacer" style={{ order: 4 }} aria-hidden="true" />
+      )}
 
       {/* Skill idea interview session */}
       {skillIdeaInput !== null && (
@@ -459,76 +435,102 @@ export default function CommandPanel({
         </div>
       )}
 
-      <form className="ai-command-form" style={{ order: 6 }} autoComplete="off" onSubmit={handleSubmit}>
-        <label className="command-panel-label" htmlFor="aiCommandInput">Ask or run</label>
-        <div className="command-panel-input-row">
-          <input
-            id="aiCommandInput"
-            ref={commandPanelRef as React.RefObject<HTMLInputElement>}
-            type="text"
-            placeholder={commandPlaceholder(commandMode, state.activeMatter?.name, canUseResearch)}
-            spellCheck
-            value={input}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onFocus={() => { void loadCommandSuggestions(); }}
-            onKeyDown={handleKeyDown}
-            disabled={state.isCommandRunning}
-          />
-          <button
-            id="aiCommandSubmit"
-            type="submit"
-            aria-label="Run"
-            title="Run"
-            disabled={state.isCommandRunning || !input.trim()}
-          >
-            →
-          </button>
-        </div>
-        {showSuggestions && suggestions.length > 0 && (
-          <div className="command-suggestions" role="listbox">
-            {suggestions.map((s, i) => (
-              <button
-                key={s.command}
-                type="button"
-                className={`command-suggestion${i === activeSuggestion ? ' active' : ''}`}
-                onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s.command); }}
-              >
-                <strong>{s.label}</strong>
-                <span className="command-suggestion-command">{s.command}</span>
-                <span className="command-suggestion-description">{s.description}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </form>
-
-      {activityRows.length > 0 && (
-        <div className="command-activity-strip" style={{ order: 7 }}>
-          <div className="command-activity-title">Recent activity</div>
-          {activityRows.map((entry, i) => (
-            <div key={i} className="command-activity-row">
-              <time>{entry.time}</time>
-              <span>{entry.message}</span>
-            </div>
+      <div className="command-composer" style={{ order: 6 }}>
+        <div className="command-mode-tabs" aria-label="Command mode">
+          {(['skill', 'ask', 'research'] as CommandMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={commandMode === mode ? 'active' : ''}
+              onClick={() => setCommandMode(mode)}
+              disabled={state.isCommandRunning || (mode === 'research' && !canUseResearch)}
+              aria-pressed={commandMode === mode}
+            >
+              {mode === 'skill' ? 'Skill' : mode === 'ask' ? 'Ask' : 'Research'}
+            </button>
           ))}
         </div>
-      )}
 
-      <div className="command-panel-actions" style={{ order: 8 }}>
-        {reportText && (
-          <button
-            type="button"
-            className="secondary"
-            onClick={onCopyReport}
-          >
-            Copy Report
-          </button>
+        <div className="command-panel-examples" aria-label="Command examples">
+          {['new skill', 'find a matter', 'prepare matter'].map((command) => (
+            <button
+              key={command}
+              type="button"
+              onClick={() => runExampleCommand(command)}
+              disabled={state.isCommandRunning}
+            >
+              {command}
+            </button>
+          ))}
+        </div>
+
+        <form className="ai-command-form" autoComplete="off" onSubmit={handleSubmit}>
+          <label className="command-panel-label" htmlFor="aiCommandInput">Ask or run</label>
+          <div className="command-panel-input-row">
+            <input
+              id="aiCommandInput"
+              ref={commandPanelRef as React.RefObject<HTMLInputElement>}
+              type="text"
+              placeholder={commandPlaceholder(commandMode, state.activeMatter?.name, canUseResearch)}
+              spellCheck
+              value={input}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => { void loadCommandSuggestions(); }}
+              onKeyDown={handleKeyDown}
+              disabled={state.isCommandRunning}
+            />
+            <button
+              id="aiCommandSubmit"
+              type="submit"
+              aria-label="Run"
+              title="Run"
+              disabled={state.isCommandRunning || !input.trim()}
+            >
+              →
+            </button>
+          </div>
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="command-suggestions" role="listbox">
+              {suggestions.map((s, i) => (
+                <button
+                  key={s.command}
+                  type="button"
+                  className={`command-suggestion${i === activeSuggestion ? ' active' : ''}`}
+                  onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s.command); }}
+                >
+                  <strong>{s.label}</strong>
+                  <span className="command-suggestion-command">{s.command}</span>
+                  <span className="command-suggestion-description">{s.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </form>
+
+        {activityRows.length > 0 && (
+          <details className="command-activity-strip">
+            <summary className="command-activity-title">Recent activity</summary>
+            {activityRows.map((entry, i) => (
+              <div key={i} className="command-activity-row">
+                <time>{entry.time}</time>
+                <span>{entry.message}</span>
+              </div>
+            ))}
+          </details>
         )}
-      </div>
 
-      <p className="command-panel-note" style={{ order: 9 }}>
-        Ask uses the matter record. Research uses public sources when enabled. Skill work can create governed outputs.
-      </p>
+        <div className="command-panel-actions">
+          {reportText && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={onCopyReport}
+            >
+              Copy Report
+            </button>
+          )}
+        </div>
+      </div>
 
       <PrivateBetaFeedbackPanel
         order={10}
