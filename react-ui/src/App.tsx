@@ -12,6 +12,7 @@ import {
   formatMatterCopilotAnswer,
   formatMatterCopilotError,
   formatMatterCopilotResearchAnswer,
+  formatMatterCopilotResearchError,
   formatMatterCopilotTerminalError,
   parseAskCommand,
   parseResearchCommand,
@@ -260,7 +261,7 @@ function AppShell() {
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
-      const formattedError = formatMatterCopilotError(message);
+      const formattedError = formatMatterCopilotResearchError(message);
       appendTerminal([`[research] failed: ${formattedError.replace(/\s+/g, ' ').trim()}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedError });

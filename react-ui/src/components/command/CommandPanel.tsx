@@ -211,6 +211,7 @@ export default function CommandPanel({
   async function answerPendingResearchFromRecord() {
     if (!pendingResearchChoice || state.isCommandRunning) return;
     const command = `/ask ${pendingResearchChoice}`;
+    setCommandMode('ask');
     setPendingResearchChoice(null);
     appendTerminal(['[assistant] user chose matter-record answer']);
     onCommand(command);
@@ -220,6 +221,7 @@ export default function CommandPanel({
   async function answerPendingResearchWithPublicSources() {
     if (!pendingResearchChoice || state.isCommandRunning) return;
     const command = `/research ${pendingResearchChoice}`;
+    setCommandMode('research');
     setPendingResearchChoice(null);
     appendTerminal(['[research] user chose public sources']);
     onCommand(command);

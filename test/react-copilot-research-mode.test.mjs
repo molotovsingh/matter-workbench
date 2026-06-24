@@ -44,6 +44,7 @@ test("React Research answer rendering separates public sources and verification 
 
   assert.match(source, /parseResearchCommand/);
   assert.match(source, /formatMatterCopilotResearchAnswer/);
+  assert.match(source, /formatMatterCopilotResearchError/);
   assert.match(source, /Research answer from public sources/);
   assert.match(source, /Public sources:/);
   assert.match(source, /Matter sources:/);

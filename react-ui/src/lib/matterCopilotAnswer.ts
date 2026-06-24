@@ -103,6 +103,26 @@ export function formatMatterCopilotError(message: string): string {
   return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
 }
 
+export function formatMatterCopilotResearchError(message: string): string {
+  const normalized = normalizeText(message);
+  if (/not enabled/i.test(normalized)) {
+    return 'Research is not enabled for this workspace. Use Ask to answer from the matter record.';
+  }
+  if (/no useful public sources|could not find useful public sources/i.test(normalized)) {
+    return 'I could not find useful public sources. You can retry with a narrower research question or use Ask to answer from the matter record.';
+  }
+  if (/context|pick or prepare a matter|pick a matter/i.test(normalized)) {
+    return 'Pick or prepare a matter before using Research.';
+  }
+  if (/took too long|timeout/i.test(normalized)) {
+    return 'Public research took too long. You can retry Research or use Ask to answer from the matter record.';
+  }
+  if (containsUserFacingRestrictedAiLanguage(normalized)) {
+    return 'Research could not complete. You can retry Research or use Ask to answer from the matter record.';
+  }
+  return `Research could not complete: ${normalized || 'Unknown error'}. You can retry Research or use Ask to answer from the matter record.`;
+}
+
 export function formatMatterCopilotTerminalError(message: string): string {
   return `[assistant] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
 }

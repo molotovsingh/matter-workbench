@@ -27,6 +27,8 @@ test("command panel offers Ask-to-Research escalation without silent browsing", 
   assert.match(source, /Research public sources/);
   assert.match(source, /`\/ask \$\{pendingResearchChoice\}`/);
   assert.match(source, /`\/research \$\{pendingResearchChoice\}`/);
+  assert.match(source, /setCommandMode\('ask'\)/);
+  assert.match(source, /setCommandMode\('research'\)/);
 });
 
 async function importIntentHelper() {
