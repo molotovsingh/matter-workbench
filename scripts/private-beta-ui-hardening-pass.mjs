@@ -179,7 +179,7 @@ export async function runRenderedUiChecks({
     await waitForHomeSurface(page);
 
     await page.waitForSelector("body", { timeout: 60000 });
-    checks.push(await bodyIncludesCheck(page, "home_shell", ["Matter Workbench", "What do you need?"], "Home shell and command rail rendered."));
+    checks.push(await bodyIncludesCheck(page, "home_shell", ["Matter Workbench", "Matter Assistant", "Ask, Research, or Skill."], "Home shell and command rail rendered."));
     checks.push(await homeStartStateCheck(page));
     checks.push(await bodyIncludesCheck(page, "feedback_entry_visible", ["Have a problem? Tell us what happened"], "Feedback entry is visible in the command rail."));
     checks.push(await copilotTierCheck(page));
