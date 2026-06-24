@@ -43,8 +43,8 @@ test("React custom skill lifecycle actions do not race custom skill runs", async
 
   assert.match(
     skillsSource,
-    /disabled=\{!hasActiveMatter \|\| loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/,
-    "Run should be disabled without a matter and while any lifecycle action is in flight.",
+    /disabled=\{loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/,
+    "Run should be disabled only while a run or lifecycle action is in flight; no-matter opens the matter chooser.",
   );
   assert.match(
     skillsSource,
@@ -121,8 +121,8 @@ test("React Skills page lets saved skill ideas continue instead of rendering ine
   assert.match(skillsSource, /status !== SKILL_IDEA_STATUS\.DISMISSED && status !== SKILL_IDEA_STATUS\.CREATED && status !== SKILL_IDEA_STATUS\.PARKED/);
   assert.match(skillsSource, /Past skill ideas/);
   assert.match(skillsSource, /SET_PENDING_SKILL_IDEA_RESUME/);
-  assert.match(skillsSource, /Pick a matter, then continue the saved skill idea from Skills\./);
-  assert.match(skillsSource, /hasActiveMatter \? 'Continue setup' : 'Pick matter first'/);
+  assert.match(skillsSource, /Choose a matter, then return to Skills to run the workflow\./);
+  assert.match(skillsSource, /hasActiveMatter \? 'Continue setup' : 'Choose matter'/);
   assert.match(skillsSource, /Draft workflow ideas/);
   assert.match(skillsSource, /function handleParkIdea\(idea: SkillIdea\)/);
   assert.match(skillsSource, /api\.updateSkillIdeaStatus\(idea\.id, \{ status: SKILL_IDEA_STATUS\.PARKED \}\)/);
@@ -147,12 +147,19 @@ test("React Skills page keeps custom lifecycle controls out of built-ins", async
   assert.doesNotMatch(builtInSection, /renderManageActions/);
 });
 
-test("React Skills page disables custom skill runs until a matter is selected", async () => {
+test("React Skills page offers an enabled matter chooser until a matter is selected", async () => {
   const skillsSource = await readFile(skillsPagePath, "utf8");
 
   assert.match(skillsSource, /hasActiveMatter=\{Boolean\(state\.activeMatter\)\}/);
-  assert.match(skillsSource, /disabled=\{!hasActiveMatter \|\| loadingRun === skill\.id \|\| Boolean\(loadingLifecycle\)\}/);
-  assert.match(skillsSource, /!hasActiveMatter[\s\S]*\? 'Pick matter first'[\s\S]*loadingRun === skill\.id[\s\S]*\? 'Running…'[\s\S]*: 'Run'/);
+  assert.match(skillsSource, /function openMatterChooserForSkills\(\)/);
+  assert.match(skillsSource, /SET_VIEW', payload: 'find-matter'/);
+  assert.match(skillsSource, /onChooseMatter=\{openMatterChooserForSkills\}/);
+  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \? onRunSkill\(skill\) : onChooseMatter\(\)\)\}/);
+  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \|\| skill\.matter_required === false \? onRunWorkflow\(skill\.slash\) : onChooseMatter\(\)\)\}/);
+  assert.match(skillsSource, /!hasActiveMatter[\s\S]*\? 'Choose matter'[\s\S]*loadingRun === skill\.id[\s\S]*\? 'Running…'[\s\S]*: 'Run'/);
+  assert.match(skillsSource, /!hasActiveMatter && skill\.matter_required !== false \? 'Choose matter' : builtinWorkflowActionLabel\(skill\)/);
+  assert.doesNotMatch(skillsSource, /disabled=\{!hasActiveMatter/);
+  assert.doesNotMatch(skillsSource, /Pick matter first/);
 });
 
 test("React Skills page offers in-place overwrite confirmation for existing custom skill output", async () => {
