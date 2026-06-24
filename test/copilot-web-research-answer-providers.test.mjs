@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createDefaultCopilotWebResearchAnswerProvider,
   createOpenAiCopilotWebResearchAnswerProvider,
   createOpenRouterCopilotWebResearchAnswerProvider,
   isCopilotWebResearchAnswerProviderConfigured,
@@ -37,6 +38,25 @@ test("Copilot web research answer provider configuration checks task policy keys
       OPENAI_COPILOT_WEB_RESEARCH_ANSWER_MODEL: "gpt-5.4",
     },
   }), true);
+});
+
+test("default Copilot web research answer provider stamps model-policy metadata", async () => {
+  const provider = createDefaultCopilotWebResearchAnswerProvider({
+    env: { OPENROUTER_API_KEY: "sk-or-test" },
+    fetchImpl: async () => openRouterResponse({
+      answer_status: "answered",
+      answer_markdown: "Research answer from public sources\n\n_Verify authorities before relying or filing._",
+      matter_sources: [],
+      public_sources: [{ id: "WEB-0001" }],
+      warnings: [],
+    }),
+  });
+
+  const answer = await provider({ question: "Which NCLT sections apply?", packet, publicSources, searchQuery: "NCLT IBC" });
+
+  assert.equal(answer.ai_run.task, "copilot_web_research");
+  assert.equal(answer.ai_run.provider, "openrouter");
+  assert.equal(answer.ai_run.model, "openai/gpt-5.4");
 });
 
 test("OpenRouter Copilot web research answer sends strict source-ID schema request", async () => {

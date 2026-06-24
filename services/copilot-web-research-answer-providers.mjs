@@ -1,4 +1,4 @@
-import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { modelPolicyMetadata, resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
@@ -72,8 +72,8 @@ const COPILOT_WEB_RESEARCH_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
 export function createDefaultCopilotWebResearchAnswerProvider({ env = process.env, fetchImpl = fetch, endpoint } = {}) {
   const policy = resolveModelPolicy(AI_TASKS.COPILOT_WEB_RESEARCH, { env });
   const providerConfig = resolveProviderConfig(policy, { endpoint });
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterCopilotWebResearchAnswerProvider({
+  const provider = providerConfig.provider === AI_PROVIDERS.OPENROUTER
+    ? createOpenRouterCopilotWebResearchAnswerProvider({
       apiKey: env.OPENROUTER_API_KEY,
       endpoint: providerConfig.endpoint,
       fetchImpl,
@@ -82,16 +82,25 @@ export function createDefaultCopilotWebResearchAnswerProvider({ env = process.en
       timeoutMs: providerConfig.timeoutMs,
       requireParameters: providerConfig.requireParameters,
       allowFallbacks: providerConfig.allowFallbacks,
+    })
+    : createOpenAiCopilotWebResearchAnswerProvider({
+      apiKey: env.OPENAI_API_KEY,
+      endpoint: providerConfig.endpoint,
+      fetchImpl,
+      model: providerConfig.model,
+      maxOutputTokens: providerConfig.maxOutputTokens,
+      timeoutMs: providerConfig.timeoutMs,
     });
-  }
-  return createOpenAiCopilotWebResearchAnswerProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
-    fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
-  });
+  return async function defaultCopilotWebResearchAnswerProvider(args) {
+    const answer = await provider(args);
+    return {
+      ...answer,
+      ai_run: {
+        ...modelPolicyMetadata(policy, providerConfig),
+        ...(answer?.ai_run && typeof answer.ai_run === "object" ? answer.ai_run : {}),
+      },
+    };
+  };
 }
 
 export function isCopilotWebResearchAnswerProviderConfigured({ env = process.env } = {}) {
