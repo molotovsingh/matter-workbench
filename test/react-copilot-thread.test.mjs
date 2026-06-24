@@ -31,5 +31,6 @@ test("React keeps a visible in-session Copilot thread without durable storage", 
   assert.match(panel, /aria-label="Copilot conversation"/);
   assert.match(panel, /copilotThread\.slice\(-6\)/);
   assert.match(panel, /onClearCopilotThread\?\.\(\)/);
-  assert.match(css, /\.copilot-thread\s*\{/);
+  assert.match(css, /\.copilot-thread\s*\{[^}]*flex: 1 1 auto/s);
+  assert.match(css, /\.command-panel-copy\s*\{[^}]*flex: 0 0 auto/s);
 });
