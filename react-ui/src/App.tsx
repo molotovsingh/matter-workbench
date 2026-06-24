@@ -19,6 +19,7 @@ import {
 } from './lib/matterCopilotAnswer';
 import { cleanCommandLabel, resolveNativeCommand } from './lib/nativeCommands';
 import { parseSkillIdeaText } from './lib/skillIdeaInput';
+import { reportResearchAnswer, reportResearchFailure } from './lib/copilotResearchTelemetry';
 import { formatIntentDiscoveryGuidance } from './lib/skillIntentRouting';
 import { localAssistantReply } from './lib/assistantSmallTalk';
 import { createInitialPreparationRun, runAutomaticPreparation } from './lib/autoPreparationRunner';
@@ -250,6 +251,11 @@ function AppShell() {
       const formattedAnswer = formatMatterCopilotResearchAnswer(answer);
       dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedAnswer });
+      reportResearchAnswer({
+        matterName,
+        answerStatus: answer.answer_status,
+        publicSourceCount: (answer.public_sources || []).length,
+      });
       appendTerminal([
         `[research] ${answer.answer_status} — ${(answer.public_sources || []).length} public source(s)`,
         ...(canSeeOperatorDetails
@@ -262,6 +268,7 @@ function AppShell() {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       const formattedError = formatMatterCopilotResearchError(message);
+      reportResearchFailure({ matterName, error: e });
       appendTerminal([`[research] failed: ${formattedError.replace(/\s+/g, ' ').trim()}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedError });
