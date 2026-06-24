@@ -25,7 +25,7 @@ test("React custom skill lifecycle controls are scoped to custom skills", async 
   assert.match(skillsSource, /Delete/);
   assert.match(skillsSource, /skill\.status === 'active' \|\| skill\.status === 'suspended'/);
   assert.match(skillsSource, /draftCustomSkills/);
-  assert.match(skillsSource, /Draft custom skills/);
+  assert.match(skillsSource, /Draft custom workflows/);
   assert.match(skillsSource, /previousVersionCustomSkills/);
   assert.match(skillsSource, /Previous versions/);
   assert.match(skillsSource, /Archived custom skills/);
@@ -85,7 +85,7 @@ test("React Skills page uses an action-first MECE layout", async () => {
   assert.match(skillsSource, /Run or build legal workflows/);
   assert.match(skillsSource, /shortcut is shown so the Matter Assistant command rail becomes faster over time/);
   assert.match(skillsSource, /Your Skills/);
-  assert.match(skillsSource, /Skills in Progress/);
+  assert.match(skillsSource, /Workflows in progress/);
   assert.match(skillsSource, /Available workflows/);
   assert.match(skillsSource, /History/);
 
@@ -116,10 +116,11 @@ test("React Skills page lets saved skill ideas continue instead of rendering ine
   assert.match(skillsSource, /Past skill ideas/);
   assert.match(skillsSource, /SET_PENDING_SKILL_IDEA_RESUME/);
   assert.match(skillsSource, /Pick a matter, then continue the saved skill idea from Skills\./);
-  assert.match(skillsSource, /hasActiveMatter \? 'Continue' : 'Pick matter first'/);
+  assert.match(skillsSource, /hasActiveMatter \? 'Continue setup' : 'Pick matter first'/);
+  assert.match(skillsSource, /Draft workflow ideas/);
   assert.match(skillsSource, /function handleParkIdea\(idea: SkillIdea\)/);
   assert.match(skillsSource, /api\.updateSkillIdeaStatus\(idea\.id, \{ status: SKILL_IDEA_STATUS\.PARKED \}\)/);
-  assert.match(skillsSource, /loadingIdeaStatus === idea\.id \? 'Parking…' : 'Park'/);
+  assert.match(skillsSource, /loadingIdeaStatus === idea\.id \? 'Saving…' : 'Save for later'/);
   assert.match(commandSource, /state\.pendingSkillIdeaResume/);
   assert.match(commandSource, /setResumedSkillIdea\(idea\)/);
   assert.match(commandSource, /initialIdea=\{resumedSkillIdea\}/);

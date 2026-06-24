@@ -44,7 +44,32 @@ test("skill idea labels hide placeholder unknown copy", async () => {
       text: "Create a reusable skill to unknown defendants from pleadings",
       designBrief: {},
     }),
-    "Create a reusable skill to unknown defendants from pleadings",
+    "Unknown defendants from pleadings",
+  );
+});
+
+test("skill idea labels turn planner instructions into workflow titles", async () => {
+  const { skillIdeaDisplayTitle } = await importHelper();
+
+  assert.equal(
+    skillIdeaDisplayTitle({ text: "Create a reusable skill to produce Simple list of parties in the matter" }),
+    "Simple list of parties in the matter",
+  );
+  assert.equal(
+    skillIdeaDisplayTitle({ text: "Create a reusable skill to produce A comparison chart of terms" }),
+    "Comparison chart of terms",
+  );
+  assert.equal(
+    skillIdeaDisplayTitle({ text: "Create a reusable skill to produce it should explain in detail" }),
+    "Explain in detail",
+  );
+  assert.equal(
+    skillIdeaDisplayTitle({ text: "Create a reusable skill to draft a client update email from the latest matter record" }),
+    "Draft a client update email from the latest matter record",
+  );
+  assert.equal(
+    skillIdeaDisplayTitle({ text: "Create a reusable skill to synopsis" }),
+    "Synopsis",
   );
 });
 

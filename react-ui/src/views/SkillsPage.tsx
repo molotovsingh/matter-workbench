@@ -216,7 +216,7 @@ export default function SkillsPage({ onCommand }: SkillsPageProps) {
     try {
       await api.updateSkillIdeaStatus(idea.id, { status: SKILL_IDEA_STATUS.PARKED });
       await loadSkillData();
-      appendTerminal([`[skill-idea] parked saved idea — id: ${idea.id}`]);
+      appendTerminal([`[skill-idea] saved for later — id: ${idea.id}`]);
     } catch (error) {
       appendTerminal([`[skill-idea] park failed: ${getErrorMessage(error)}`]);
     } finally {
@@ -352,7 +352,7 @@ function SkillsStatusRow({
   return (
     <div className="skills-status-row">
       <span>Your Skills: {yourSkillsCount}</span>
-      <span>Skills in Progress: {inProgressCount}</span>
+      <span>Workflows in Progress: {inProgressCount}</span>
       <span>Built-in Workflows: {builtinCount}</span>
       {health && (
         <span className={`skills-health ${health.state === 'ok' ? 'is-ok' : 'needs-attention'}`}>
@@ -458,10 +458,10 @@ function SkillsInProgressSection({
 }) {
   return (
     <section className="skills-section">
-      <h2>Skills in Progress</h2>
+      <h2>Workflows in progress</h2>
       <div className="skills-row-list">
         {draftCustomSkills.length > 0 && (
-          <div className="skills-subsection-label">Draft custom skills</div>
+          <div className="skills-subsection-label">Draft custom workflows</div>
         )}
         {draftCustomSkills.map((skill) => (
           <CustomSkillRow
@@ -473,7 +473,7 @@ function SkillsInProgressSection({
           />
         ))}
         {ideas.length > 0 && (
-          <div className="skills-subsection-label">Skill ideas</div>
+          <div className="skills-subsection-label">Draft workflow ideas</div>
         )}
         {ideas.map((idea) => (
           <SkillIdeaRow
@@ -487,7 +487,7 @@ function SkillsInProgressSection({
                   onClick={() => onContinueIdea(idea)}
                   disabled={loadingIdeaStatus === idea.id}
                 >
-                  {hasActiveMatter ? 'Continue' : 'Pick matter first'}
+                  {hasActiveMatter ? 'Continue setup' : 'Pick matter first'}
                 </button>
                 <button
                   type="button"
@@ -495,7 +495,7 @@ function SkillsInProgressSection({
                   onClick={() => onParkIdea(idea)}
                   disabled={loadingIdeaStatus === idea.id}
                 >
-                  {loadingIdeaStatus === idea.id ? 'Parking…' : 'Park'}
+                  {loadingIdeaStatus === idea.id ? 'Saving…' : 'Save for later'}
                 </button>
               </>
             )}
