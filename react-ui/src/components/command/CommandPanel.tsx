@@ -23,9 +23,17 @@ import { useCommandSuggestions, looksLikeCustomSkillModification } from '../../h
 import { useCopilotQuickSwitch } from '../../hooks/useCopilotQuickSwitch';
 import type { SkillRouterDecision } from '../../types';
 
+interface CopilotThreadTurn {
+  role: 'user' | 'assistant';
+  mode: 'ask' | 'research';
+  text: string;
+}
+
 interface Props {
   onCommand: (command: string) => void;
   onTransientCopilotQuestion?: (question: string) => Promise<void> | void;
+  copilotThread?: CopilotThreadTurn[];
+  onClearCopilotThread?: () => void;
   reportText?: string | null;
   onCopyReport?: () => void;
   pendingConfigurableOverwrite?: PendingConfigurableOverwrite | null;
@@ -50,6 +58,8 @@ type CommandMode = 'skill' | 'ask' | 'research';
 export default function CommandPanel({
   onCommand,
   onTransientCopilotQuestion,
+  copilotThread = [],
+  onClearCopilotThread,
   reportText,
   onCopyReport,
   pendingConfigurableOverwrite = null,
@@ -93,9 +103,10 @@ export default function CommandPanel({
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    onClearCopilotThread?.();
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
-  }, [dispatch, loadCommandSuggestions, resetSuggestions]);
+  }, [dispatch, loadCommandSuggestions, onClearCopilotThread, resetSuggestions]);
 
   useEffect(() => {
     const idea = state.pendingSkillIdeaResume;
@@ -322,6 +333,19 @@ export default function CommandPanel({
       <p className="command-panel-copy" style={{ order: 2 }}>
         {state.commandCopyText}
       </p>
+
+      {copilotThread.length > 0 && (
+        <div className="copilot-thread" style={{ order: 3 }} aria-label="Copilot conversation">
+          {copilotThread.slice(-6).map((turn, index) => (
+            <div key={`${turn.role}-${turn.mode}-${index}`} className={`copilot-thread-turn ${turn.role}`}>
+              <div className="copilot-thread-meta">
+                {turn.role === 'user' ? 'You' : turn.mode === 'research' ? 'Research' : 'Assistant'}
+              </div>
+              <div className="copilot-thread-text">{turn.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {pendingResearchChoice && (
         <div className="intent-choice-panel research-choice-panel" style={{ order: 3 }}>

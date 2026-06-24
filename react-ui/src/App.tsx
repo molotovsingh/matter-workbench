@@ -35,6 +35,12 @@ interface PendingConfigurableOverwrite {
   artifactPath?: string | null;
 }
 
+interface CopilotThreadTurn {
+  role: 'user' | 'assistant';
+  mode: 'ask' | 'research';
+  text: string;
+}
+
 interface AuthStatus {
   enabled: boolean;
   authenticated: boolean;
@@ -46,6 +52,7 @@ function AppShell() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [authError, setAuthError] = useState('');
   const [reportText, setReportText] = useState<string | null>(null);
+  const [copilotThread, setCopilotThread] = useState<CopilotThreadTurn[]>([]);
   const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const preparationRunSeqRef = useRef(0);
@@ -63,6 +70,13 @@ function AppShell() {
     dispatch({ type: 'SET_CONFIG', payload: { authUser: null, authEnabled: true } });
   }, [dispatch, resetReadinessGate]);
   const canSeeOperatorDetails = canSeeOperatorSurface(state.authEnabled, state.authUser);
+  const appendCopilotThreadTurn = useCallback((turn: CopilotThreadTurn) => {
+    setCopilotThread((current) => [...current, turn].slice(-12));
+  }, []);
+
+  useEffect(() => {
+    setCopilotThread([]);
+  }, [state.activeMatter?.name]);
 
   useEffect(() => {
     setAuthRequiredHandler(handleAuthRequired);
@@ -183,11 +197,14 @@ function AppShell() {
     }
     if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the current matter record…' });
+    appendCopilotThreadTurn({ role: 'user', mode: 'ask', text: cleanQuestion });
     appendTerminal(['[assistant] answering from current matter record']);
     try {
       const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName });
       if (activeMatterNameRef.current !== matterName) return;
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotAnswer(answer) });
+      const formattedAnswer = formatMatterCopilotAnswer(answer);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
+      appendCopilotThreadTurn({ role: 'assistant', mode: 'ask', text: formattedAnswer });
       appendTerminal([
         `[assistant] ${answer.answer_status} — ${(answer.sources || []).length} validated source(s)`,
         ...(canSeeOperatorDetails
@@ -199,12 +216,14 @@ function AppShell() {
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
+      const formattedError = formatMatterCopilotError(message);
       appendTerminal([formatMatterCopilotTerminalError(message)]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotError(message) });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
+      appendCopilotThreadTurn({ role: 'assistant', mode: 'ask', text: formattedError });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
 
   const researchMatterQuestion = useCallback(async (
     question: string,
@@ -222,11 +241,14 @@ function AppShell() {
     }
     if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     dispatch({ type: 'SET_COMMAND_COPY', payload: 'Searching public legal sources…' });
+    appendCopilotThreadTurn({ role: 'user', mode: 'research', text: cleanQuestion });
     appendTerminal(['[research] searching public legal sources', '[research] preparing answer']);
     try {
       const answer = await api.researchMatterQuestion({ question: cleanQuestion, matterName });
       if (activeMatterNameRef.current !== matterName) return;
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotResearchAnswer(answer) });
+      const formattedAnswer = formatMatterCopilotResearchAnswer(answer);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
+      appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedAnswer });
       appendTerminal([
         `[research] ${answer.answer_status} — ${(answer.public_sources || []).length} public source(s)`,
         ...(canSeeOperatorDetails
@@ -238,12 +260,14 @@ function AppShell() {
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
-      appendTerminal([`[research] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formatMatterCopilotError(message) });
+      const formattedError = formatMatterCopilotError(message);
+      appendTerminal([`[research] failed: ${formattedError.replace(/\s+/g, ' ').trim()}`]);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
+      appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedError });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
 
   const openMatterFinder = useCallback(async () => {
     if (state.activeMatter) {
@@ -657,6 +681,8 @@ function AppShell() {
           <CommandPanel
             onCommand={handleCommand}
             onTransientCopilotQuestion={(question) => answerMatterQuestion(question, { manageRunning: false })}
+            copilotThread={copilotThread}
+            onClearCopilotThread={() => setCopilotThread([])}
             reportText={reportText}
             onCopyReport={handleCopyReport}
             pendingConfigurableOverwrite={pendingConfigurableOverwrite}
