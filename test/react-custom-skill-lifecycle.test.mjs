@@ -86,14 +86,20 @@ test("React Skills page uses an action-first MECE layout", async () => {
   assert.match(skillsSource, /shortcut is shown so the Matter Assistant command rail becomes faster over time/);
   assert.match(skillsSource, /Your Skills/);
   assert.match(skillsSource, /Workflows in progress/);
-  assert.match(skillsSource, /Available workflows/);
+  assert.match(skillsSource, /Choose a workflow/);
   assert.match(skillsSource, /History/);
 
   assert.match(skillsSource, /className="skills-action-table"/);
-  assert.match(skillsSource, /Best next action/);
-  assert.match(skillsSource, /Use the action button, or use the shortcut in Matter Assistant/);
+  assert.match(skillsSource, /<span role="columnheader">Workflow<\/span>/);
+  assert.match(skillsSource, /<span role="columnheader">Use it for<\/span>/);
+  assert.match(skillsSource, /<span role="columnheader">Action<\/span>/);
+  assert.match(skillsSource, /Click an action, or use the shortcut in Matter Assistant once familiar/);
+  assert.match(skillsSource, /builtinWorkflowTitle\(skill\)/);
   assert.match(skillsSource, /builtinWorkflowActionLabel\(skill\)/);
   assert.match(skillsSource, /builtinWorkflowPurpose\(skill\)/);
+  assert.match(skillsSource, /Set up the matter/);
+  assert.match(skillsSource, /Create document index/);
+  assert.doesNotMatch(skillsSource, /<span>\{skill\.category \|\| 'Built-in workflow'\}<\/span>/);
   assert.match(skillsSource, /<details className="skills-collapsible-section">[\s\S]*History/);
   assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*History/);
 });
@@ -136,7 +142,7 @@ test("React Skills page keeps custom lifecycle controls out of built-ins", async
 
   assert.match(skillsSource, /renderManageActions\(skill, \['suspend', 'archive', 'delete'\]\)/);
   assert.match(skillsSource, /renderManageActions\(skill, \['archive', 'delete'\]\)/);
-  assert.match(skillsSource, /<span className="pipeline-state present">Built-in<\/span>/);
+  assert.doesNotMatch(skillsSource, /<span className="pipeline-state present">Built-in<\/span>/);
   assert.doesNotMatch(builtInSection, /handleLifecycleAction/);
   assert.doesNotMatch(builtInSection, /renderManageActions/);
 });

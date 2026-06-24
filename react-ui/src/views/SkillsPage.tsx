@@ -518,26 +518,24 @@ function BuiltInWorkflowsSection({
   return (
     <section className="skills-section">
       <div className="skills-section-heading-row">
-        <h2>Available workflows</h2>
-        <p>Use the action button, or use the shortcut in Matter Assistant.</p>
+        <h2>Choose a workflow</h2>
+        <p>Click an action, or use the shortcut in Matter Assistant once familiar.</p>
       </div>
       <div className="skills-action-table" role="table" aria-label="Available skill workflows">
         <div className="skills-action-table-header" role="row">
-          <span role="columnheader">Skill / workflow</span>
-          <span role="columnheader">What it helps you do</span>
-          <span role="columnheader">Best next action</span>
+          <span role="columnheader">Workflow</span>
+          <span role="columnheader">Use it for</span>
+          <span role="columnheader">Action</span>
           <span role="columnheader">Shortcut</span>
         </div>
         {skills.map((skill) => (
           <div key={skill.slash} className="skills-action-table-row" role="row">
             <div className="skills-action-name" role="cell">
-              <strong>{skill.display?.action || skill.title}</strong>
-              <span>{skill.category || 'Built-in workflow'}</span>
+              <strong>{builtinWorkflowTitle(skill)}</strong>
             </div>
             <div className="skills-action-purpose" role="cell">
               {builtinWorkflowPurpose(skill)}
               <div className="skills-action-badges">
-                <span className="pipeline-state present">Built-in</span>
                 {skill.paid_provider_call && <span className="pipeline-state pending">Uses AI</span>}
                 {!skill.paid_provider_call && <span className="pipeline-state present">Local</span>}
               </div>
@@ -545,7 +543,7 @@ function BuiltInWorkflowsSection({
             <div className="skills-action-control" role="cell">
               <button
                 type="button"
-                className="run-skill-button"
+                className="run-skill-button secondary"
                 onClick={() => onRunWorkflow(skill.slash)}
                 disabled={!hasActiveMatter && skill.matter_required !== false}
               >
@@ -709,17 +707,31 @@ function renderManageActions(
   );
 }
 
+function builtinWorkflowTitle(skill: Skill): string {
+  const slash = skill.slash;
+  if (slash === '/matter-init') return 'Set up the matter';
+  if (slash === '/prepare_matter') return 'Prepare the matter';
+  if (slash === '/extract') return 'Read documents';
+  if (slash === '/describe_sources') return 'Create document index';
+  if (slash === '/context_preview') return 'See assistant context';
+  if (slash === '/context_search') return 'Find in matter';
+  if (slash === '/create_listofdates') return 'Create List of Dates';
+  if (slash === '/the_story') return 'Draft Matter Story';
+  if (slash === '/doctor') return 'Check readiness';
+  return skill.display?.action || skill.title;
+}
+
 function builtinWorkflowActionLabel(skill: Skill): string {
   const slash = skill.slash;
   if (slash === '/create_listofdates') return 'Run on this matter';
-  if (slash === '/describe_sources') return 'Generate or refresh labels';
+  if (slash === '/describe_sources') return 'Create index';
   if (slash === '/context_search') return 'Search this matter';
-  if (slash === '/context_preview') return 'Preview context';
+  if (slash === '/context_preview') return 'See context';
   if (slash === '/doctor') return 'Check readiness';
   if (slash === '/prepare_matter') return 'Prepare this matter';
   if (slash === '/matter-init') return 'Set up matter';
   if (slash === '/extract') return 'Read documents';
-  if (slash === '/the_story') return 'Write story';
+  if (slash === '/the_story') return 'Draft story';
   return skill.display?.action || 'Run workflow';
 }
 
