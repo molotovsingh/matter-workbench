@@ -86,7 +86,8 @@ test("config exposes research enabled only when the service is ready", async () 
   });
 });
 
-test("research API can return a fake research answer without writing artifacts", async () => {
+test("research API can return a fake research answer and capture route signal", async () => {
+  const capturedSignals = [];
   await withServer(async ({ baseUrl, mattersHome }) => {
     const matterRoot = path.join(mattersHome, "Research Matter");
     await mkdir(matterRoot, { recursive: true });
@@ -100,9 +101,22 @@ test("research API can return a fake research answer without writing artifacts",
     assert.equal(result.payload.schema_version, "matter-copilot-research-answer/v1");
     assert.equal(result.payload.answer_status, "answered");
     assert.deepEqual(result.payload.public_sources.map((source) => source.id), ["WEB-0001"]);
+    assert.equal(capturedSignals.length, 1);
+    assert.equal(capturedSignals[0].event.code, "copilot_research.answer_returned");
+    assert.equal(capturedSignals[0].event.category, "copilot_research");
+    assert.equal(capturedSignals[0].event.view, "api");
+    assert.equal(capturedSignals[0].event.fileCount, 1);
+    assert.equal(capturedSignals[0].event.matterName, "Research Matter");
+    assert.equal(capturedSignals[0].context.runtimeMode, "filesystem");
   }, {
     env: { COPILOT_WEB_RESEARCH_ENABLED: "1", EXA_API_KEY: "exa-test" },
     serverOptions: {
+      privateBetaSignalService: {
+        captureClientEvent: async (event, context) => {
+          capturedSignals.push({ event, context });
+          return { captured: 1, sent: 0, queued: 1, skipped: 0, failed: 0, signals: [] };
+        },
+      },
       copilotWebResearchAnswerProvider: async ({ publicSources }) => ({
         answer_status: "answered",
         answer_markdown: "Research answer from public sources\n\n_Verify authorities before relying or filing._",

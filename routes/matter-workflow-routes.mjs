@@ -377,25 +377,36 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/matter-copilot/research", async () => {
         const body = await readRequestJson(request);
-        assertCopilotWebResearchAvailable({ copilotWebResearchService });
-        copilotWebResearchService.assertReady?.();
-        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-          const matter = await runtimeDbMatterForBody(matterStore, body);
-          assertRuntimeDbResearchContextAvailable({ runtimeDbStorageService, copilotWebResearchService });
-          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-          const answer = await copilotWebResearchService.answerResearchQuestionFromPacket({
-            packet,
+        const runtimeMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem";
+        let signalMatterName = matterNameForBody(matterStore, body);
+        try {
+          assertCopilotWebResearchAvailable({ copilotWebResearchService });
+          copilotWebResearchService.assertReady?.();
+          if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+            const matter = await runtimeDbMatterForBody(matterStore, body);
+            signalMatterName = matter?.name || matter?.matterName || signalMatterName;
+            assertRuntimeDbResearchContextAvailable({ runtimeDbStorageService, copilotWebResearchService });
+            const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+            const answer = await copilotWebResearchService.answerResearchQuestionFromPacket({
+              packet,
+              question: body.question,
+            });
+            await captureResearchRouteSignal({ privateBetaSignalService, answer, matterName: signalMatterName, runtimeMode });
+            sendJson(response, 200, runtimeDbReadResponse(answer, matter));
+            return;
+          }
+          assertFilesystemWorkflowAvailable(matterStore, "Research matter");
+          const root = await matterRootForBody(matterStore, body);
+          const answer = await copilotWebResearchService.answerResearchQuestion({
+            root,
             question: body.question,
           });
-          sendJson(response, 200, runtimeDbReadResponse(answer, matter));
-          return;
+          await captureResearchRouteSignal({ privateBetaSignalService, answer, matterName: signalMatterName, runtimeMode });
+          sendJson(response, 200, answer);
+        } catch (error) {
+          await captureResearchRouteFailure({ privateBetaSignalService, error, matterName: signalMatterName, runtimeMode });
+          throw error;
         }
-        assertFilesystemWorkflowAvailable(matterStore, "Research matter");
-        const root = await matterRootForBody(matterStore, body);
-        sendJson(response, 200, await copilotWebResearchService.answerResearchQuestion({
-          root,
-          question: body.question,
-        }));
       }),
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
         const body = await readRequestJson(request);
@@ -609,6 +620,39 @@ function runtimeDbReadResponse(result, matter = {}) {
     matterRoot: result.matterRoot || matter.matterPath || `postgres:${matter.name || ""}`,
     matterName: result.matterName || matter.matterName || matter.name || "",
   };
+}
+
+async function captureResearchRouteSignal({ privateBetaSignalService, answer = {}, matterName = "", runtimeMode = "" } = {}) {
+  await safeCaptureBetaSignal(() => privateBetaSignalService?.captureClientEvent({
+    code: "copilot_research.answer_returned",
+    category: "copilot_research",
+    severity: answer.answer_status === "answered" ? "info" : "warning",
+    view: "api",
+    action: "research",
+    stage: "research_answer",
+    matterName,
+    fileCount: Array.isArray(answer.public_sources) ? answer.public_sources.length : 0,
+    errorMessage: answer.answer_status ? `Research answer status: ${answer.answer_status}` : "Research answer returned.",
+  }, { runtimeMode }));
+}
+
+async function captureResearchRouteFailure({ privateBetaSignalService, error, matterName = "", runtimeMode = "" } = {}) {
+  await safeCaptureBetaSignal(() => privateBetaSignalService?.captureClientEvent({
+    code: researchSignalCode(error),
+    category: "copilot_research",
+    severity: "error",
+    view: "api",
+    action: "research",
+    stage: "research_failed",
+    matterName,
+    errorClass: "Error",
+    errorMessage: "Copilot Research failed before returning a usable answer.",
+  }, { runtimeMode }));
+}
+
+function researchSignalCode(error) {
+  const code = typeof error?.code === "string" ? error.code.trim() : "";
+  return /^copilot_research\.[a-z0-9_]+$/.test(code) ? code : "copilot_research.failed";
 }
 
 function presentMatterCopilotAnswerForCurrentUser(answer = {}) {
