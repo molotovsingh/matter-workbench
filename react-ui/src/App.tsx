@@ -205,7 +205,7 @@ function AppShell() {
       const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName, conversation });
       if (activeMatterNameRef.current !== matterName) return;
       const formattedAnswer = formatMatterCopilotAnswer(answer);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Answered from the current matter record. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'ask', text: formattedAnswer });
       appendTerminal([
         `[assistant] ${answer.answer_status} — ${(answer.sources || []).length} validated source(s)`,
@@ -220,7 +220,7 @@ function AppShell() {
       const message = getErrorMessage(e);
       const formattedError = formatMatterCopilotError(message);
       appendTerminal([formatMatterCopilotTerminalError(message)]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Ask could not complete. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'ask', text: formattedError });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
@@ -249,7 +249,7 @@ function AppShell() {
       const answer = await api.researchMatterQuestion({ question: cleanQuestion, matterName });
       if (activeMatterNameRef.current !== matterName) return;
       const formattedAnswer = formatMatterCopilotResearchAnswer(answer);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Research answer ready. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedAnswer });
       reportResearchAnswer({
         matterName,
@@ -270,7 +270,7 @@ function AppShell() {
       const formattedError = formatMatterCopilotResearchError(message);
       reportResearchFailure({ matterName, error: e });
       appendTerminal([`[research] failed: ${formattedError.replace(/\s+/g, ' ').trim()}`]);
-      dispatch({ type: 'SET_COMMAND_COPY', payload: formattedError });
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Research could not complete. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedError });
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
