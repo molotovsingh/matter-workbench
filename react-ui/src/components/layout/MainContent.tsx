@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '../../store/AppContext';
 import HomeLanding from '../../views/HomeLanding';
 import SkillsPage from '../../views/SkillsPage';
@@ -23,6 +25,11 @@ import {
 } from '../../lib/filePreview';
 import { writeClipboardText } from '../../lib/clipboard';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
+
+const ASSISTANT_WIDTH_STORAGE_KEY = 'mwb.matterAssistant.width';
+const DEFAULT_ASSISTANT_WIDTH = 380;
+const MIN_ASSISTANT_WIDTH = 320;
+const MAX_ASSISTANT_WIDTH = 720;
 
 interface Props {
   onNewMatter: () => void;
@@ -140,6 +147,24 @@ function ListOfDatesMarkdownPreview({ parsed }: { parsed: NonNullable<ReturnType
   );
 }
 
+function readStoredAssistantWidth(): number {
+  try {
+    const raw = window.localStorage.getItem(ASSISTANT_WIDTH_STORAGE_KEY);
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return clampAssistantWidth(parsed);
+  } catch {
+    // Browser-local preference only.
+  }
+  return clampAssistantWidth(DEFAULT_ASSISTANT_WIDTH);
+}
+
+function clampAssistantWidth(value: number): number {
+  const viewportMax = typeof window === 'undefined'
+    ? MAX_ASSISTANT_WIDTH
+    : Math.max(MIN_ASSISTANT_WIDTH, Math.min(MAX_ASSISTANT_WIDTH, Math.floor(window.innerWidth * 0.48)));
+  return Math.max(MIN_ASSISTANT_WIDTH, Math.min(viewportMax, Math.round(value || DEFAULT_ASSISTANT_WIDTH)));
+}
+
 export default function MainContent({
   onNewMatter,
   onMatterCreated,
@@ -156,6 +181,52 @@ export default function MainContent({
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   const filePreview = state.filePreview;
+  const [assistantWidth, setAssistantWidth] = useState(readStoredAssistantWidth);
+
+  useEffect(() => {
+    setAssistantWidth((width) => clampAssistantWidth(width));
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ASSISTANT_WIDTH_STORAGE_KEY, String(assistantWidth));
+    } catch {
+      // Browser-local preference only.
+    }
+  }, [assistantWidth]);
+
+  useEffect(() => {
+    function handleResize() {
+      setAssistantWidth((width) => clampAssistantWidth(width));
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const startAssistantResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = assistantWidth;
+    function handlePointerMove(moveEvent: PointerEvent) {
+      setAssistantWidth(clampAssistantWidth(startWidth + startX - moveEvent.clientX));
+    }
+    function stopResize() {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      document.body.classList.remove('assistant-resizing');
+    }
+    document.body.classList.add('assistant-resizing');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize, { once: true });
+  }, [assistantWidth]);
+
+  const resetAssistantWidth = useCallback(() => {
+    setAssistantWidth(clampAssistantWidth(DEFAULT_ASSISTANT_WIDTH));
+  }, []);
+
+  const editorLayoutStyle = {
+    '--assistant-width': `${assistantWidth}px`,
+  } as CSSProperties;
 
   function renderMainView() {
     if (activeView === 'new-matter') {
@@ -206,7 +277,7 @@ export default function MainContent({
     <main className="main-panel">
       <TitleBar onLogout={onLogout} />
 
-      <section className="editor-layout">
+      <section className="editor-layout" style={editorLayoutStyle}>
         <div className="editor-pane">
           {activeView !== 'file-preview' && (
             <div className="editor-toolbar">
@@ -219,7 +290,18 @@ export default function MainContent({
           </article>
         </div>
 
-        {commandPanel}
+        <div className="assistant-rail">
+          <div
+            className="assistant-rail-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize Matter Assistant"
+            title="Drag to resize Matter Assistant. Double-click to reset."
+            onPointerDown={startAssistantResize}
+            onDoubleClick={resetAssistantWidth}
+          />
+          {commandPanel}
+        </div>
       </section>
 
       <StatusBar />

@@ -304,9 +304,9 @@ export default function CommandPanel({
   return (
     <aside className="command-panel" aria-label="Command box">
       <div className="command-panel-header" style={{ order: 0 }}>
-        <div>
-          <div className="command-panel-kicker">Matter Assistant</div>
-          <h2>What do you need?</h2>
+        <div className="command-panel-heading">
+          <div className="command-panel-title">Matter Assistant</div>
+          <p className="command-panel-subtitle">Ask, Research, or Skill.</p>
         </div>
         <div className="command-panel-header-actions">
           <button
@@ -315,7 +315,7 @@ export default function CommandPanel({
             onClick={resetCommandPanel}
             disabled={state.isCommandRunning}
           >
-            New task
+            New
           </button>
           {canManageCopilotSettings && <CopilotQuickSwitch switcher={copilotQuickSwitch} />}
         </div>

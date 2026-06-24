@@ -134,6 +134,21 @@ Minimum behavior:
 - a full durable story document can still be opened later;
 - original intake note and MW provenance rules from [Matter Story Lifecycle](matter-story-lifecycle.md) still apply.
 
+## Assistant Rail Hardening Follow-Up
+
+After Research mode, visible threads, and receipts landed, the Matter Assistant
+rail became more than a simple command box. The accepted follow-up hardening is:
+
+- the right Matter Assistant rail may be resized by the user;
+- width is a browser-local preference, not a server/user profile setting;
+- the header should stay compact: `Matter Assistant`, `New`, and operator-only
+  model selector where visible;
+- remove large decorative header copy such as `What do you need?` when it causes
+  cramped wrapping;
+- keep `Skill | Ask | Research` explicit and easy to reach;
+- do not change command routing, source-backed answer behavior, or provider
+  policy as part of this visual hardening.
+
 ## Production Slice Boundary
 
 The first implementation slice is a shell/layout refactor only.

@@ -86,7 +86,7 @@ test("React command panel exposes New task and resets transient assistant state"
   assert.match(source, /setPendingIntentChoice\(null\)/);
   assert.match(source, /SET_COMMAND_COPY[\s\S]*DEFAULT_COMMAND_COPY_TEXT/);
   assert.match(source, /className="command-panel-new-task"/);
-  assert.match(source, />\s*New task\s*</);
+  assert.match(source, />\s*New\s*</);
   assert.match(source, /lastActiveMatterNameRef/);
   assert.match(source, /state\.activeMatter\?\.name/);
 });
