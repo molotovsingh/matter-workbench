@@ -9,6 +9,11 @@ import { api, setAuthRequiredHandler } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
 import { getErrorMessage } from './lib/errors';
 import {
+  appendCopilotThreadTurn as appendThreadTurn,
+  boundedConversationForRequest,
+  type CopilotThreadTurn,
+} from './lib/copilotThread';
+import {
   formatMatterCopilotAnswer,
   formatMatterCopilotError,
   formatMatterCopilotResearchAnswer,
@@ -35,12 +40,6 @@ interface PendingConfigurableOverwrite {
   skillLabel: string;
   matterName: string;
   artifactPath?: string | null;
-}
-
-interface CopilotThreadTurn {
-  role: 'user' | 'assistant';
-  mode: 'ask' | 'research';
-  text: string;
 }
 
 interface AuthStatus {
@@ -73,7 +72,7 @@ function AppShell() {
   }, [dispatch, resetReadinessGate]);
   const canSeeOperatorDetails = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const appendCopilotThreadTurn = useCallback((turn: CopilotThreadTurn) => {
-    setCopilotThread((current) => [...current, turn].slice(-12));
+    setCopilotThread((current) => appendThreadTurn(current, turn));
   }, []);
 
   useEffect(() => {
@@ -702,14 +701,6 @@ function AppShell() {
       />
     </div>
   );
-}
-
-function boundedConversationForRequest(turns: CopilotThreadTurn[]) {
-  return turns.slice(-6).map((turn) => ({
-    role: turn.role,
-    mode: turn.mode,
-    content: turn.text.slice(0, 1200),
-  }));
 }
 
 function PrivateBetaAuthLoading({ error }: { error: string }) {

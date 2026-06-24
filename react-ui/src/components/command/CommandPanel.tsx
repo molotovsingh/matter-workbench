@@ -21,13 +21,8 @@ import { humanizeArtifactPath } from '../../lib/presentationLabels';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import { useCommandSuggestions, looksLikeCustomSkillModification } from '../../hooks/useCommandSuggestions';
 import { useCopilotQuickSwitch } from '../../hooks/useCopilotQuickSwitch';
+import type { CopilotThreadTurn } from '../../lib/copilotThread';
 import type { SkillRouterDecision } from '../../types';
-
-interface CopilotThreadTurn {
-  role: 'user' | 'assistant';
-  mode: 'ask' | 'research';
-  text: string;
-}
 
 interface Props {
   onCommand: (command: string) => void;

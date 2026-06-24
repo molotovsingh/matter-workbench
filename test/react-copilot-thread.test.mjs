@@ -5,13 +5,17 @@ import test from "node:test";
 const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 const cssPath = new URL("../react-ui/src/styles/global.css", import.meta.url);
+const threadHelperPath = new URL("../react-ui/src/lib/copilotThread.ts", import.meta.url);
 
 test("React keeps a visible in-session Copilot thread without durable storage", async () => {
   const app = await readFile(appPath, "utf8");
   const panel = await readFile(commandPanelPath, "utf8");
   const css = await readFile(cssPath, "utf8");
+  const helper = await readFile(threadHelperPath, "utf8");
 
-  assert.match(app, /interface CopilotThreadTurn/);
+  assert.match(helper, /interface CopilotThreadTurn/);
+  assert.match(helper, /boundedConversationForRequest/);
+  assert.match(app, /type CopilotThreadTurn/);
   assert.match(app, /useState<CopilotThreadTurn\[\]>\(\[\]\)/);
   assert.match(app, /boundedConversationForRequest/);
   assert.match(app, /conversation = boundedConversationForRequest\(copilotThread\)/);
