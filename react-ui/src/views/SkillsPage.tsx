@@ -6,7 +6,7 @@ import { SKILL_IDEA_STATUS, normalizeSkillIdeaStatus, skillIdeaStatusLabel } fro
 import { skillIdeaDisplayTitle } from '../lib/skillIdeaLabels';
 import { humanizeArtifactPath } from '../lib/presentationLabels';
 import { useLatestValue } from '../hooks/useLatestValue';
-import type { ConfigurableSkill, Skill, SkillFactoryHealth, SkillIdea } from '../types';
+import type { ConfigurableSkill, PendingSkillsMatterAction, Skill, SkillFactoryHealth, SkillIdea } from '../types';
 
 const SKILLS_INTRO_STORAGE_KEY = 'mwb.skillsIntro.hidden.v1';
 
@@ -197,17 +197,18 @@ export default function SkillsPage({ onCommand }: SkillsPageProps) {
     onLifecycleAction: (skill, action) => { void handleLifecycleAction(skill, action); },
   };
 
-  function openMatterChooserForSkills() {
-    appendTerminal(['[skills] choose a matter before running a workflow']);
+  function openMatterChooserForSkills(action: PendingSkillsMatterAction) {
+    appendTerminal([`[skills] choose a matter for ${action.label}`]);
+    dispatch({ type: 'SET_PENDING_SKILLS_MATTER_ACTION', payload: action });
     dispatch({ type: 'SET_TAB', payload: 'home' });
     dispatch({ type: 'SET_VIEW', payload: 'find-matter' });
     dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
-    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Choose a matter, then return to Skills to run the workflow.' });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: `Choose a matter for ${action.label}. Matter Workbench will continue after you select it.` });
   }
 
   function handleContinueIdea(idea: SkillIdea) {
     if (!state.activeMatter) {
-      openMatterChooserForSkills();
+      openMatterChooserForSkills({ kind: 'skill-idea', label: skillIdeaDisplayTitle(idea), idea });
       return;
     }
     dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: idea });
@@ -271,7 +272,7 @@ export default function SkillsPage({ onCommand }: SkillsPageProps) {
         onRunSkill={(skill) => { void handleRunCustomSkill(skill); }}
         onLifecycleAction={(skill, action) => { void handleLifecycleAction(skill, action); }}
         renderManageActions={(skill, actions) => renderManageActions(skill, actions, lifecycleContext)}
-        onChooseMatter={openMatterChooserForSkills}
+        onChooseMatter={(skill) => openMatterChooserForSkills({ kind: 'custom-skill', label: skill.title || skill.slash, slash: skill.slash })}
       />
 
       {inProgressCount > 0 && (
@@ -291,7 +292,7 @@ export default function SkillsPage({ onCommand }: SkillsPageProps) {
           skills={builtinRegistrySkills}
           hasActiveMatter={Boolean(state.activeMatter)}
           onRunWorkflow={onCommand}
-          onChooseMatter={openMatterChooserForSkills}
+          onChooseMatter={(skill) => openMatterChooserForSkills({ kind: 'native-workflow', label: builtinWorkflowTitle(skill), command: skill.slash })}
         />
       )}
 
@@ -390,7 +391,7 @@ function YourSkillsSection({
   onRunSkill: (skill: ConfigurableSkill) => void;
   onLifecycleAction: (skill: ConfigurableSkill, action: LifecycleAction) => void;
   renderManageActions: (skill: ConfigurableSkill, actions: LifecycleAction[]) => JSX.Element | null;
-  onChooseMatter: () => void;
+  onChooseMatter: (skill: ConfigurableSkill) => void;
 }) {
   return (
     <section className="skills-section">
@@ -411,7 +412,7 @@ function YourSkillsSection({
                   <button
                     className="run-skill-button secondary"
                     type="button"
-                    onClick={() => (hasActiveMatter ? onRunSkill(skill) : onChooseMatter())}
+                    onClick={() => (hasActiveMatter ? onRunSkill(skill) : onChooseMatter(skill))}
                     disabled={loadingRun === skill.id || Boolean(loadingLifecycle)}
                     title={isOverwritePending && pendingOverwrite?.artifactPath
                       ? `Replace ${humanizeArtifactPath(pendingOverwrite.artifactPath)}`
@@ -523,7 +524,7 @@ function BuiltInWorkflowsSection({
   skills: Skill[];
   hasActiveMatter: boolean;
   onRunWorkflow: (command: string) => void;
-  onChooseMatter: () => void;
+  onChooseMatter: (skill: Skill) => void;
 }) {
   return (
     <section className="skills-section">
@@ -554,7 +555,7 @@ function BuiltInWorkflowsSection({
               <button
                 type="button"
                 className="run-skill-button secondary"
-                onClick={() => (hasActiveMatter || skill.matter_required === false ? onRunWorkflow(skill.slash) : onChooseMatter())}
+                onClick={() => (hasActiveMatter || skill.matter_required === false ? onRunWorkflow(skill.slash) : onChooseMatter(skill))}
               >
                 {!hasActiveMatter && skill.matter_required !== false ? 'Choose matter' : builtinWorkflowActionLabel(skill)}
               </button>

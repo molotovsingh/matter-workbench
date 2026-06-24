@@ -1146,6 +1146,14 @@ export interface FilePreview {
   ext?: string;
 }
 
+export interface PendingSkillsMatterAction {
+  kind: 'native-workflow' | 'custom-skill' | 'skill-idea';
+  label: string;
+  command?: string;
+  slash?: string;
+  idea?: SkillIdea;
+}
+
 export interface AppState {
   config: AppConfig | null;
   authEnabled: boolean;
@@ -1154,6 +1162,7 @@ export interface AppState {
   matters: Matter[];
   resumeMatterName: string | null;
   pendingSkillIdeaResume: SkillIdea | null;
+  pendingSkillsMatterAction: PendingSkillsMatterAction | null;
   activeTab: ActiveTab;
   activeView: ActiveView;
   filePreview: FilePreview | null;

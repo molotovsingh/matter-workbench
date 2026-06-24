@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 const commandSuggestionsHookPath = new URL("../react-ui/src/hooks/useCommandSuggestions.ts", import.meta.url);
@@ -121,7 +122,7 @@ test("React Skills page lets saved skill ideas continue instead of rendering ine
   assert.match(skillsSource, /status !== SKILL_IDEA_STATUS\.DISMISSED && status !== SKILL_IDEA_STATUS\.CREATED && status !== SKILL_IDEA_STATUS\.PARKED/);
   assert.match(skillsSource, /Past skill ideas/);
   assert.match(skillsSource, /SET_PENDING_SKILL_IDEA_RESUME/);
-  assert.match(skillsSource, /Choose a matter, then return to Skills to run the workflow\./);
+  assert.match(skillsSource, /Choose a matter for \$\{action\.label\}\. Matter Workbench will continue after you select it\./);
   assert.match(skillsSource, /hasActiveMatter \? 'Continue setup' : 'Choose matter'/);
   assert.match(skillsSource, /Draft workflow ideas/);
   assert.match(skillsSource, /function handleParkIdea\(idea: SkillIdea\)/);
@@ -151,15 +152,32 @@ test("React Skills page offers an enabled matter chooser until a matter is selec
   const skillsSource = await readFile(skillsPagePath, "utf8");
 
   assert.match(skillsSource, /hasActiveMatter=\{Boolean\(state\.activeMatter\)\}/);
-  assert.match(skillsSource, /function openMatterChooserForSkills\(\)/);
+  assert.match(skillsSource, /function openMatterChooserForSkills\(action: PendingSkillsMatterAction\)/);
+  assert.match(skillsSource, /SET_PENDING_SKILLS_MATTER_ACTION', payload: action/);
   assert.match(skillsSource, /SET_VIEW', payload: 'find-matter'/);
-  assert.match(skillsSource, /onChooseMatter=\{openMatterChooserForSkills\}/);
-  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \? onRunSkill\(skill\) : onChooseMatter\(\)\)\}/);
-  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \|\| skill\.matter_required === false \? onRunWorkflow\(skill\.slash\) : onChooseMatter\(\)\)\}/);
+  assert.match(skillsSource, /kind: 'custom-skill', label: skill\.title \|\| skill\.slash, slash: skill\.slash/);
+  assert.match(skillsSource, /kind: 'native-workflow', label: builtinWorkflowTitle\(skill\), command: skill\.slash/);
+  assert.match(skillsSource, /kind: 'skill-idea', label: skillIdeaDisplayTitle\(idea\), idea/);
+  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \? onRunSkill\(skill\) : onChooseMatter\(skill\)\)\}/);
+  assert.match(skillsSource, /onClick=\{\(\) => \(hasActiveMatter \|\| skill\.matter_required === false \? onRunWorkflow\(skill\.slash\) : onChooseMatter\(skill\)\)\}/);
   assert.match(skillsSource, /!hasActiveMatter[\s\S]*\? 'Choose matter'[\s\S]*loadingRun === skill\.id[\s\S]*\? 'Running…'[\s\S]*: 'Run'/);
   assert.match(skillsSource, /!hasActiveMatter && skill\.matter_required !== false \? 'Choose matter' : builtinWorkflowActionLabel\(skill\)/);
   assert.doesNotMatch(skillsSource, /disabled=\{!hasActiveMatter/);
   assert.doesNotMatch(skillsSource, /Pick matter first/);
+});
+
+test("React App resumes the intended Skills action after matter selection", async () => {
+  const appSource = await readFile(appPath, "utf8");
+
+  assert.match(appSource, /const pendingSkillsAction = state\.pendingSkillsMatterAction/);
+  assert.match(appSource, /SET_PENDING_SKILLS_MATTER_ACTION', payload: null/);
+  assert.match(appSource, /pendingSkillsAction\.kind === 'native-workflow'/);
+  assert.match(appSource, /resolveNativeCommand\(pendingSkillsAction\.command\)/);
+  assert.match(appSource, /runMatterStoryFromCommand\(name\)/);
+  assert.match(appSource, /pendingSkillsAction\.kind === 'custom-skill'/);
+  assert.match(appSource, /runConfigurableSkillFromCommand\(\{[\s\S]*slash: pendingSkillsAction\.slash,[\s\S]*matterName: name/);
+  assert.match(appSource, /pendingSkillsAction\.kind === 'skill-idea'/);
+  assert.match(appSource, /SET_PENDING_SKILL_IDEA_RESUME', payload: pendingSkillsAction\.idea/);
 });
 
 test("React Skills page offers in-place overwrite confirmation for existing custom skill output", async () => {

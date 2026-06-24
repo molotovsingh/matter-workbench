@@ -629,6 +629,50 @@ function AppShell() {
   }
 
   function handleOpenMatter(name: string) {
+    const pendingSkillsAction = state.pendingSkillsMatterAction;
+    if (pendingSkillsAction) {
+      dispatch({ type: 'SET_PENDING_SKILLS_MATTER_ACTION', payload: null });
+      if (pendingSkillsAction.kind === 'native-workflow' && pendingSkillsAction.command) {
+        const nativeResolution = resolveNativeCommand(pendingSkillsAction.command);
+        appendTerminal([`[skills] continuing ${pendingSkillsAction.label} for "${name}"`]);
+        if (nativeResolution?.command === '/the_story') {
+          void runMatterStoryFromCommand(name);
+          return;
+        }
+        if (nativeResolution) {
+          dispatch({ type: 'SET_TAB', payload: 'home' });
+          setActiveView(nativeResolution.view);
+          dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(nativeResolution.command) });
+          return;
+        }
+      }
+      if (pendingSkillsAction.kind === 'custom-skill' && pendingSkillsAction.slash) {
+        dispatch({ type: 'SET_TAB', payload: 'skills' });
+        dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });
+        dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+        void runConfigurableSkillFromCommand({
+          slash: pendingSkillsAction.slash,
+          skillLabel: pendingSkillsAction.label,
+          matterName: name,
+          overwrite: false,
+        }).catch((error) => {
+          appendTerminal([`[skill] ${pendingSkillsAction.label} failed: ${getErrorMessage(error)}`]);
+          dispatch({ type: 'SET_COMMAND_COPY', payload: `${pendingSkillsAction.label} could not run: ${getErrorMessage(error)}` });
+        }).finally(() => {
+          dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+        });
+        return;
+      }
+      if (pendingSkillsAction.kind === 'skill-idea' && pendingSkillsAction.idea) {
+        dispatch({ type: 'SET_TAB', payload: 'skills' });
+        setActiveView('home');
+        dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });
+        dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: pendingSkillsAction.idea });
+        appendTerminal([`[skill-idea] continuing ${pendingSkillsAction.label} for "${name}"`]);
+        return;
+      }
+    }
+
     setActiveView('home');
     dispatch({ type: 'SET_BREADCRUMBS', payload: name });
   }
