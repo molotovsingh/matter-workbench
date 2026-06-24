@@ -30,9 +30,11 @@ test("React custom skill lifecycle controls are scoped to custom skills", async 
   assert.match(skillsSource, /Previous versions/);
   assert.match(skillsSource, /Archived custom skills/);
   assert.match(skillsSource, /const builtinRegistrySkills = registrySkills\.filter\(\(skill\) => !skill\.configurable\);/);
-  assert.match(skillsSource, /groupByCategory\(builtinRegistrySkills\)/);
+  assert.match(skillsSource, /skills=\{builtinRegistrySkills\}/);
+  assert.match(skillsSource, /onRunWorkflow=\{onCommand\}/);
   assert.doesNotMatch(skillsSource, /groupByCategory\(registrySkills\)/);
-  assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
+  assert.match(skillsSource, /<span role="columnheader">Shortcut<\/span>/);
+  assert.match(skillsSource, /<code>\{skill\.slash\}<\/code>/);
   assert.doesNotMatch(skillsSource, /updateConfigurableSkillLifecycle\([^)]*skill\.slash/);
 });
 
@@ -80,13 +82,18 @@ test("React Skills page uses an action-first MECE layout", async () => {
   assert.match(skillsSource, /<BuiltInWorkflowsSection/);
   assert.match(skillsSource, /<SkillHistorySection/);
 
+  assert.match(skillsSource, /Run or build legal workflows/);
+  assert.match(skillsSource, /shortcut is shown so the Matter Assistant command rail becomes faster over time/);
   assert.match(skillsSource, /Your Skills/);
   assert.match(skillsSource, /Skills in Progress/);
-  assert.match(skillsSource, /Built-in Workflows/);
+  assert.match(skillsSource, /Available workflows/);
   assert.match(skillsSource, /History/);
 
-  assert.match(skillsSource, /<details className="skills-collapsible-section">[\s\S]*Built-in Workflows/);
-  assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*Built-in Workflows/);
+  assert.match(skillsSource, /className="skills-action-table"/);
+  assert.match(skillsSource, /Best next action/);
+  assert.match(skillsSource, /Use the action button, or use the shortcut in Matter Assistant/);
+  assert.match(skillsSource, /builtinWorkflowActionLabel\(skill\)/);
+  assert.match(skillsSource, /builtinWorkflowPurpose\(skill\)/);
   assert.match(skillsSource, /<details className="skills-collapsible-section">[\s\S]*History/);
   assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*History/);
 });
@@ -128,7 +135,7 @@ test("React Skills page keeps custom lifecycle controls out of built-ins", async
 
   assert.match(skillsSource, /renderManageActions\(skill, \['suspend', 'archive', 'delete'\]\)/);
   assert.match(skillsSource, /renderManageActions\(skill, \['archive', 'delete'\]\)/);
-  assert.match(skillsSource, /Built-in · Managed by Matter Workbench/);
+  assert.match(skillsSource, /<span className="pipeline-state present">Built-in<\/span>/);
   assert.doesNotMatch(builtInSection, /handleLifecycleAction/);
   assert.doesNotMatch(builtInSection, /renderManageActions/);
 });

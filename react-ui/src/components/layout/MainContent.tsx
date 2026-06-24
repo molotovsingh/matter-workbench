@@ -247,7 +247,7 @@ export default function MainContent({
     if (activeView === 'context-preview') return <ContextPreview />;
 
     switch (state.activeTab) {
-      case 'skills': return <SkillsPage />;
+      case 'skills': return <SkillsPage onCommand={onCommand} />;
       case 'activity': return <ActivityPage />;
       case 'settings': return showOperatorChrome ? <SettingsPage /> : (
         <HomeLanding

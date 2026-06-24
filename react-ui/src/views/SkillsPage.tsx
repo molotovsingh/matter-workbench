@@ -24,7 +24,11 @@ interface PendingOverwrite {
   artifactPath?: string | null;
 }
 
-export default function SkillsPage() {
+interface SkillsPageProps {
+  onCommand: (command: string) => void;
+}
+
+export default function SkillsPage({ onCommand }: SkillsPageProps) {
   const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [registrySkills, setRegistrySkills] = useState<Skill[]>([]);
@@ -224,8 +228,8 @@ export default function SkillsPage() {
     <div className="skills-page">
       <div className="skills-hero">
         <div>
-          <h1>Skills</h1>
-          <p>Reusable matter work routines. Keep your own skills easy to run, and keep app-managed workflows out of the way until needed.</p>
+          <h1>Run or build legal workflows</h1>
+          <p>Choose a workflow for the current matter. The shortcut is shown so the Matter Assistant command rail becomes faster over time.</p>
         </div>
       </div>
 
@@ -278,7 +282,11 @@ export default function SkillsPage() {
       )}
 
       {builtinRegistrySkills.length > 0 && (
-        <BuiltInWorkflowsSection groupedSkills={groupByCategory(builtinRegistrySkills)} />
+        <BuiltInWorkflowsSection
+          skills={builtinRegistrySkills}
+          hasActiveMatter={Boolean(state.activeMatter)}
+          onRunWorkflow={onCommand}
+        />
       )}
 
       {historyCount > 0 && (
@@ -498,36 +506,59 @@ function SkillsInProgressSection({
   );
 }
 
-function BuiltInWorkflowsSection({ groupedSkills }: { groupedSkills: Record<string, Skill[]> }) {
+function BuiltInWorkflowsSection({
+  skills,
+  hasActiveMatter,
+  onRunWorkflow,
+}: {
+  skills: Skill[];
+  hasActiveMatter: boolean;
+  onRunWorkflow: (command: string) => void;
+}) {
   return (
-    <details className="skills-collapsible-section">
-      <summary>Built-in Workflows</summary>
-      <div className="builtin-skills-list">
-        {Object.entries(groupedSkills).map(([category, skills]) => (
-          <div key={category} className="builtin-skill-category">
-            <h3>{category}</h3>
-            {skills.map((skill) => (
-              <div key={skill.slash} className="builtin-skill-row">
-                <div>
-                  <strong>{skill.display?.action || skill.title}</strong>
-                  {skill.purpose && (
-                    <details className="skill-row-details">
-                      <summary>Details</summary>
-                      <p>{skill.purpose}</p>
-                    </details>
-                  )}
-                </div>
-                <div className="builtin-skill-command">
-                  <span>Built-in · Managed by Matter Workbench</span>
-                  {skill.paid_provider_call && <span className="pipeline-state pending">Uses AI</span>}
-                  {!skill.paid_provider_call && <span className="pipeline-state present">Local</span>}
-                </div>
+    <section className="skills-section">
+      <div className="skills-section-heading-row">
+        <h2>Available workflows</h2>
+        <p>Use the action button, or use the shortcut in Matter Assistant.</p>
+      </div>
+      <div className="skills-action-table" role="table" aria-label="Available skill workflows">
+        <div className="skills-action-table-header" role="row">
+          <span role="columnheader">Skill / workflow</span>
+          <span role="columnheader">What it helps you do</span>
+          <span role="columnheader">Best next action</span>
+          <span role="columnheader">Shortcut</span>
+        </div>
+        {skills.map((skill) => (
+          <div key={skill.slash} className="skills-action-table-row" role="row">
+            <div className="skills-action-name" role="cell">
+              <strong>{skill.display?.action || skill.title}</strong>
+              <span>{skill.category || 'Built-in workflow'}</span>
+            </div>
+            <div className="skills-action-purpose" role="cell">
+              {builtinWorkflowPurpose(skill)}
+              <div className="skills-action-badges">
+                <span className="pipeline-state present">Built-in</span>
+                {skill.paid_provider_call && <span className="pipeline-state pending">Uses AI</span>}
+                {!skill.paid_provider_call && <span className="pipeline-state present">Local</span>}
               </div>
-            ))}
+            </div>
+            <div className="skills-action-control" role="cell">
+              <button
+                type="button"
+                className="run-skill-button"
+                onClick={() => onRunWorkflow(skill.slash)}
+                disabled={!hasActiveMatter && skill.matter_required !== false}
+              >
+                {!hasActiveMatter && skill.matter_required !== false ? 'Pick matter first' : builtinWorkflowActionLabel(skill)}
+              </button>
+            </div>
+            <div className="skills-action-shortcut" role="cell">
+              <code>{skill.slash}</code>
+            </div>
           </div>
         ))}
       </div>
-    </details>
+    </section>
   );
 }
 
@@ -678,13 +709,32 @@ function renderManageActions(
   );
 }
 
-function groupByCategory(skills: Skill[]): Record<string, Skill[]> {
-  const map: Record<string, Skill[]> = {};
-  for (const s of skills) {
-    const cat = s.category || 'Other';
-    (map[cat] ??= []).push(s);
-  }
-  return map;
+function builtinWorkflowActionLabel(skill: Skill): string {
+  const slash = skill.slash;
+  if (slash === '/create_listofdates') return 'Run on this matter';
+  if (slash === '/describe_sources') return 'Generate or refresh labels';
+  if (slash === '/context_search') return 'Search this matter';
+  if (slash === '/context_preview') return 'Preview context';
+  if (slash === '/doctor') return 'Check readiness';
+  if (slash === '/prepare_matter') return 'Prepare this matter';
+  if (slash === '/matter-init') return 'Set up matter';
+  if (slash === '/extract') return 'Read documents';
+  if (slash === '/the_story') return 'Write story';
+  return skill.display?.action || 'Run workflow';
+}
+
+function builtinWorkflowPurpose(skill: Skill): string {
+  const slash = skill.slash;
+  if (slash === '/create_listofdates') return 'Build a source-backed chronology from the matter record.';
+  if (slash === '/describe_sources') return 'Turn source files into lawyer-readable document labels and a reviewable source index.';
+  if (slash === '/context_search') return 'Search the matter record for a fact, party, date, or phrase.';
+  if (slash === '/context_preview') return 'See what Matter Assistant can currently read from the matter.';
+  if (slash === '/doctor') return 'Check whether the matter is ready for drafting, chronology, or review work.';
+  if (slash === '/prepare_matter') return 'Run the standard preparation path for a new or updated matter.';
+  if (slash === '/matter-init') return 'Create or refresh the matter setup files.';
+  if (slash === '/extract') return 'Read supported source files so later workflows can use them.';
+  if (slash === '/the_story') return 'Write a matter story from the current chronology and matter context.';
+  return skill.purpose || 'Run a managed Matter Workbench workflow.';
 }
 
 function readSkillsIntroHidden(): boolean {
