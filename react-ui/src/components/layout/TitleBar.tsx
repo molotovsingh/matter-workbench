@@ -8,7 +8,7 @@ interface Props {
 export default function TitleBar({ onLogout }: Props) {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
-  const workspaceModeLabel = state.config?.workspaceModeLabel || 'Local workspace';
+  const workspaceModeLabel = compactWorkspaceModeLabel(state.config?.workspaceModeLabel || 'Local workspace');
   const releaseText = releaseBadgeText(state.config?.release);
   const releaseTitle = releaseBadgeTitle(state.config?.release);
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
@@ -55,11 +55,8 @@ export default function TitleBar({ onLogout }: Props) {
 }
 
 function releaseBadgeText(release: { label?: string; commit?: string; date?: string } | null | undefined) {
-  const label = String(release?.label || '').trim();
   const commit = String(release?.commit || '').trim();
-  const date = releaseBadgeDate(release?.date);
-  const shortCommit = commit ? commit.slice(0, 7) : '';
-  return [label, date, shortCommit].filter(Boolean).join(' | ');
+  return commit ? commit.slice(0, 7) : releaseBadgeDate(release?.date);
 }
 
 function releaseBadgeTitle(release: { label?: string; commit?: string; date?: string; note?: string } | null | undefined) {
@@ -70,6 +67,13 @@ function releaseBadgeTitle(release: { label?: string; commit?: string; date?: st
     release?.commit ? `Commit ${String(release.commit).trim()}` : '',
   ].filter(Boolean);
   return parts.join(' - ');
+}
+
+function compactWorkspaceModeLabel(value: string) {
+  const label = String(value || '').trim();
+  if (/^db workspace$/i.test(label)) return 'DB';
+  if (/^local workspace$/i.test(label)) return 'Local';
+  return label;
 }
 
 function releaseBadgeDate(dateValue: string | undefined) {

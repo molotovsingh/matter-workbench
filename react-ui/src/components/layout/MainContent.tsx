@@ -275,10 +275,9 @@ export default function MainContent({
 
   return (
     <main className="main-panel">
-      <TitleBar onLogout={onLogout} />
-
       <section className="editor-layout" style={editorLayoutStyle}>
         <div className="editor-pane">
+          <TitleBar onLogout={onLogout} />
           {activeView !== 'file-preview' && (
             <div className="editor-toolbar">
               <div className="breadcrumbs">{state.breadcrumbs}</div>
