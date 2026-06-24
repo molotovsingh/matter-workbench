@@ -150,7 +150,7 @@ function normalizeResearchQuestion(value) {
 
 function normalizeResearchAnswer({ answer, question, config, publicSources = [], searchQuery = "" }) {
   const raw = answer && typeof answer === "object" && !Array.isArray(answer) ? answer : {};
-  const sourceValidation = validatePublicSources(raw.public_sources, publicSources);
+  const sourceValidation = validatePublicSources(raw.public_sources, publicSources, raw.answer_markdown);
   const warnings = [
     ...sourceValidation.warnings,
     ...(Array.isArray(raw.warnings) ? raw.warnings.map((warning) => String(warning || "").trim()).filter(Boolean) : []),
@@ -172,25 +172,32 @@ function normalizeResearchAnswer({ answer, question, config, publicSources = [],
   };
 }
 
-function validatePublicSources(modelSources, publicSources) {
+function validatePublicSources(modelSources, publicSources, answerMarkdown = "") {
   const allowed = new Map(publicSources
     .filter((source) => source?.id)
-    .map((source) => [String(source.id), source]));
-  const requested = Array.isArray(modelSources) && modelSources.length
-    ? modelSources
-    : publicSources;
+    .map((source) => [String(source.id).trim().toUpperCase(), source]));
+  const requestedIds = [];
+  const addRequestedId = (value) => {
+    const id = String(value || "").trim().toUpperCase();
+    if (id && !requestedIds.includes(id)) requestedIds.push(id);
+  };
+
+  if (Array.isArray(modelSources)) {
+    for (const source of modelSources) addRequestedId(source?.id);
+  }
+  for (const id of referencedPublicSourceIds(answerMarkdown)) addRequestedId(id);
+  if (!requestedIds.length) {
+    for (const source of publicSources) addRequestedId(source?.id);
+  }
+
   const sources = [];
   const warnings = [];
-  const seen = new Set();
-  for (const source of requested) {
-    const id = String(source?.id || "").trim();
-    if (!id || seen.has(id)) continue;
+  for (const id of requestedIds) {
     const validated = allowed.get(id);
     if (!validated) {
       warnings.push(`Dropped unsupported public source ${id}.`);
       continue;
     }
-    seen.add(id);
     sources.push({
       id: validated.id,
       title: validated.title || "Untitled public source",
@@ -201,6 +208,10 @@ function validatePublicSources(modelSources, publicSources) {
     });
   }
   return { sources, warnings };
+}
+
+function referencedPublicSourceIds(value = "") {
+  return [...String(value || "").matchAll(/\bWEB-\d{4}\b/gi)].map((match) => match[0].toUpperCase());
 }
 
 function normalizeAnswerStatus(value) {

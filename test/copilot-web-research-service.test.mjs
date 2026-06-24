@@ -118,16 +118,19 @@ test("copilot web research normalizes fake answer provider output", async () => 
   assert.deepEqual(answer.research, { provider: "exa", query: "NCLT IBC", result_count: 1 });
 });
 
-test("copilot web research drops invented public source IDs", async () => {
+test("copilot web research validates public source IDs in structured output and prose", async () => {
   const service = createCopilotWebResearchService({
     env: { COPILOT_WEB_RESEARCH_ENABLED: "true", EXA_API_KEY: "exa-test" },
     webResearchProvider: async () => ({
       query: "NCLT IBC",
-      sources: [{ id: "WEB-0001", title: "IBC", url: "https://example.test/ibc", sourceType: "official", snippet: "Section 60(5)." }],
+      sources: [
+        { id: "WEB-0001", title: "IBC", url: "https://example.test/ibc", sourceType: "official", snippet: "Section 60(5)." },
+        { id: "WEB-0002", title: "NCLT", url: "https://example.test/nclt", sourceType: "court", snippet: "NCLT direction." },
+      ],
     }),
     researchAnswerProvider: async () => ({
       answer_status: "answered",
-      answer_markdown: "Research answer from public sources",
+      answer_markdown: "Research answer from public sources. See WEB-0002 and WEB-9999.",
       public_sources: [{ id: "WEB-9999", title: "Made-up source", url: "https://made-up.test" }],
     }),
   });
@@ -137,6 +140,6 @@ test("copilot web research drops invented public source IDs", async () => {
     question: "Which NCLT sections apply?",
   });
 
-  assert.deepEqual(answer.public_sources, []);
+  assert.deepEqual(answer.public_sources.map((source) => source.id), ["WEB-0002"]);
   assert.match(answer.warnings.join("\n"), /Dropped unsupported public source WEB-9999/);
 });

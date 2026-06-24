@@ -81,7 +81,7 @@ export function formatMatterCopilotResearchAnswer(answer: MatterCopilotResearchA
     return `I could not find useful public sources for that research question.\n\n${parts.join('\n\n')}`;
   }
   if (status === 'partial') {
-    return `Partial research answer.\n\n${parts.join('\n\n')}`;
+    return `Partial research answer from public sources.\n\n${parts.join('\n\n')}`;
   }
   if (status === 'blocked') {
     return `I cannot safely do that as a research answer.\n\n${parts.join('\n\n')}`;
@@ -124,9 +124,11 @@ function visiblePublicSourceLabels(answer: MatterCopilotResearchAnswer): string[
   const labels = [];
   const seen = new Set<string>();
   for (const source of answer.public_sources || []) {
-    const title = normalizeText(source.title) || normalizeText(source.url) || normalizeText(source.id) || 'Public source';
+    const id = normalizeText(source.id);
+    const title = normalizeText(source.title) || normalizeText(source.url) || id || 'Public source';
     const url = normalizeText(source.url);
-    const label = url && !title.includes(url) ? `${title} (${url})` : title;
+    const labelText = url && !title.includes(url) ? `${title} (${url})` : title;
+    const label = id && !labelText.startsWith(id) ? `${id} — ${labelText}` : labelText;
     if (seen.has(label)) continue;
     seen.add(label);
     labels.push(label);

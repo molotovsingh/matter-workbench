@@ -47,5 +47,7 @@ test("React Research answer rendering separates public sources and verification 
   assert.match(source, /Research answer from public sources/);
   assert.match(source, /Public sources:/);
   assert.match(source, /Matter sources:/);
+  assert.match(source, /\$\{id\} — \$\{labelText\}/);
+  assert.match(source, /Partial research answer from public sources/);
   assert.match(source, /Verify authorities before relying or filing/);
 });
