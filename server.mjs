@@ -10,6 +10,7 @@ import { createRuntimeDbConfigurableSkillStore } from "./services/runtime-db-con
 import { createConfigurableSkillsService } from "./services/configurable-skills-service.mjs";
 import { createRuntimeDbConfigurableSkillRunsService } from "./services/runtime-db-configurable-skill-runs-service.mjs";
 import { createMatterCopilotService } from "./services/matter-copilot-service.mjs";
+import { createCopilotInteractionReceiptService } from "./services/copilot-interaction-receipt-service.mjs";
 import { createCopilotWebResearchService } from "./services/copilot-web-research-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
@@ -102,6 +103,10 @@ export async function createWorkbenchServer(options = {}) {
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.matterCopilotEndpoint,
+  });
+  const copilotInteractionReceiptService = options.copilotInteractionReceiptService || createCopilotInteractionReceiptService({
+    appDir,
+    receiptsPath: options.copilotInteractionReceiptsPath || env.MWB_COPILOT_INTERACTION_RECEIPTS_PATH,
   });
   const copilotWebResearchService = options.copilotWebResearchService || createCopilotWebResearchService({
     matterStore,
@@ -330,6 +335,7 @@ export async function createWorkbenchServer(options = {}) {
     jobStatusService,
     matterAttentionService,
     matterCopilotService,
+    copilotInteractionReceiptService,
     copilotWebResearchService,
     matterStore,
     matterContextService,

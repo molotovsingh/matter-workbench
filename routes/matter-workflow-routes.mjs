@@ -1,6 +1,7 @@
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
+import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { searchMatterContextPacket, summarizeMatterContextPacket } from "../services/matter-context-service.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
@@ -24,6 +25,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     jobStatusService,
     matterAttentionService,
     matterCopilotService,
+    copilotInteractionReceiptService,
     copilotWebResearchService,
     matterContextService,
     matterStore,
@@ -391,6 +393,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               packet,
               question: body.question,
             });
+            await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "research", body, answer, matterName: signalMatterName, runtimeMode, route: "/api/matter-copilot/research" });
             await captureResearchRouteSignal({ privateBetaSignalService, answer, matterName: signalMatterName, runtimeMode });
             sendJson(response, 200, runtimeDbReadResponse(answer, matter));
             return;
@@ -401,17 +404,23 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
             root,
             question: body.question,
           });
+          await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "research", body, answer, matterName: signalMatterName, runtimeMode, route: "/api/matter-copilot/research" });
           await captureResearchRouteSignal({ privateBetaSignalService, answer, matterName: signalMatterName, runtimeMode });
           sendJson(response, 200, answer);
         } catch (error) {
+          await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "research", body, error, matterName: signalMatterName, runtimeMode, route: "/api/matter-copilot/research" });
           await captureResearchRouteFailure({ privateBetaSignalService, error, matterName: signalMatterName, runtimeMode });
           throw error;
         }
       }),
       exactRoute("POST", "/api/matter-copilot/answer", async () => {
         const body = await readRequestJson(request);
+        const runtimeMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem";
+        let receiptMatterName = matterNameForBody(matterStore, body);
+        try {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForBody(matterStore, body);
+          receiptMatterName = matter?.name || matter?.matterName || receiptMatterName;
           assertRuntimeDbCopilotContextAvailable({ runtimeDbStorageService, matterCopilotService });
           const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
           const answer = await matterCopilotService.answerQuestionFromPacket({
@@ -419,6 +428,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
             question: body.question,
             conversation: body.conversation,
           });
+          await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "ask", body, answer, matterName: receiptMatterName, runtimeMode, route: "/api/matter-copilot/answer" });
           sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(runtimeDbReadResponse(answer, matter)));
           return;
         }
@@ -429,7 +439,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           question: body.question,
           conversation: body.conversation,
         });
+        await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "ask", body, answer, matterName: receiptMatterName, runtimeMode, route: "/api/matter-copilot/answer" });
         sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(answer));
+        } catch (error) {
+          await appendCopilotReceipt({ copilotInteractionReceiptService, mode: "ask", body, error, matterName: receiptMatterName, runtimeMode, route: "/api/matter-copilot/answer" });
+          throw error;
+        }
       }),
       exactRoute("GET", "/api/rerun-advice", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -622,6 +637,24 @@ function runtimeDbReadResponse(result, matter = {}) {
     matterRoot: result.matterRoot || matter.matterPath || `postgres:${matter.name || ""}`,
     matterName: result.matterName || matter.matterName || matter.name || "",
   };
+}
+
+async function appendCopilotReceipt({ copilotInteractionReceiptService, mode, body = {}, answer = null, error = null, matterName = "", runtimeMode = "", route = "" } = {}) {
+  if (typeof copilotInteractionReceiptService?.appendReceipt !== "function") return;
+  try {
+    await copilotInteractionReceiptService.appendReceipt(buildCopilotInteractionReceipt({
+      mode,
+      matterName,
+      question: body.question,
+      answer,
+      error,
+      runtimeMode,
+      route,
+      conversationTurns: Array.isArray(body.conversation) ? body.conversation.length : 0,
+    }));
+  } catch {
+    // Receipt capture is improvement telemetry; it must never break user routes.
+  }
 }
 
 async function captureResearchRouteSignal({ privateBetaSignalService, answer = {}, matterName = "", runtimeMode = "" } = {}) {

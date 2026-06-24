@@ -24,6 +24,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     aiSettingsService,
     commandInteractionLogService,
     configService,
+    copilotInteractionReceiptService,
     copilotWebResearchService,
     env = process.env,
     jobStatusService,
@@ -72,6 +73,17 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         sendJson(response, 200, await commandInteractionLogService.appendInteraction({
           ...body,
           matter: await readMatterSummary(matterStore, { matterName: body.matterName }),
+        }));
+      }),
+      exactRoute("GET", "/api/copilot-interaction-receipts", async () => {
+        if (!isPrivateBetaSuperuserOrLocal()) {
+          sendJson(response, 403, { error: "Copilot interaction receipts require an operator account." });
+          return;
+        }
+        sendJson(response, 200, await copilotInteractionReceiptService.listReceipts({
+          matterName: requestUrl.searchParams.get("matter") || "",
+          mode: requestUrl.searchParams.get("mode") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
         }));
       }),
       exactRoute("GET", "/api/jobs", async () => {
