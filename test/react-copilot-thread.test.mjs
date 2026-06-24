@@ -13,6 +13,9 @@ test("React keeps a visible in-session Copilot thread without durable storage", 
 
   assert.match(app, /interface CopilotThreadTurn/);
   assert.match(app, /useState<CopilotThreadTurn\[\]>\(\[\]\)/);
+  assert.match(app, /boundedConversationForRequest/);
+  assert.match(app, /conversation = boundedConversationForRequest\(copilotThread\)/);
+  assert.match(app, /answerMatterQuestion\(\{ question: cleanQuestion, matterName, conversation \}\)/);
   assert.match(app, /appendCopilotThreadTurn\(\{ role: 'user', mode: 'ask'/);
   assert.match(app, /appendCopilotThreadTurn\(\{ role: 'assistant', mode: 'ask'/);
   assert.match(app, /appendCopilotThreadTurn\(\{ role: 'user', mode: 'research'/);

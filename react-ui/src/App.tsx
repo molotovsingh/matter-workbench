@@ -197,12 +197,13 @@ function AppShell() {
       appendTerminal(['[assistant] no active matter']);
       return;
     }
+    const conversation = boundedConversationForRequest(copilotThread);
     if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
     dispatch({ type: 'SET_COMMAND_COPY', payload: 'Reading the current matter record…' });
     appendCopilotThreadTurn({ role: 'user', mode: 'ask', text: cleanQuestion });
     appendTerminal(['[assistant] answering from current matter record']);
     try {
-      const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName });
+      const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName, conversation });
       if (activeMatterNameRef.current !== matterName) return;
       const formattedAnswer = formatMatterCopilotAnswer(answer);
       dispatch({ type: 'SET_COMMAND_COPY', payload: formattedAnswer });
@@ -225,7 +226,7 @@ function AppShell() {
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, copilotThread, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
 
   const researchMatterQuestion = useCallback(async (
     question: string,
@@ -701,6 +702,14 @@ function AppShell() {
       />
     </div>
   );
+}
+
+function boundedConversationForRequest(turns: CopilotThreadTurn[]) {
+  return turns.slice(-6).map((turn) => ({
+    role: turn.role,
+    mode: turn.mode,
+    content: turn.text.slice(0, 1200),
+  }));
 }
 
 function PrivateBetaAuthLoading({ error }: { error: string }) {

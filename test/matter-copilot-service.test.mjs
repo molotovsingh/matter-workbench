@@ -47,6 +47,42 @@ test("matter copilot answers from bounded context and validates citations", asyn
   assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b2"]);
 });
 
+test("matter copilot passes bounded conversation context only as reference context", async () => {
+  const root = await makeMatterRoot();
+  const service = createMatterCopilotService({
+    matterStore: { getMatterRoot: () => root },
+    env: { OPENAI_API_KEY: "sk-test" },
+    answerProvider: async ({ conversationContext }) => {
+      assert.deepEqual(conversationContext, [
+        { role: "user", mode: "ask", content: "What is the procedural history?" },
+        { role: "assistant", mode: "ask", content: "The record indicates the complaint was filed." },
+      ]);
+      return {
+        answer_status: "answered",
+        answer_markdown: "The record indicates the consumer complaint was filed on 21 January 2013.",
+        confidence: 0.8,
+        sources: [{
+          raw_citation: "FILE-0001 p1.b2",
+          source_label: "Consumer complaint filing record",
+          snippet: "Consumer Complaint Case No. 10 of 2013 was filed on 21 January 2013.",
+        }],
+        warnings: [],
+      };
+    },
+  });
+
+  const answer = await service.answerQuestion({
+    question: "What happened after that?",
+    conversation: [
+      { role: "user", mode: "ask", content: "What is the procedural history?" },
+      { role: "assistant", mode: "ask", content: "The record indicates the complaint was filed." },
+    ],
+  });
+
+  assert.equal(answer.answer_status, "answered");
+  assert.equal(answer.context.conversation_turns, 2);
+});
+
 test("matter copilot blocks unsupported-only citations without throwing a server error", async () => {
   const root = await makeMatterRoot();
   const service = createMatterCopilotService({
@@ -232,6 +268,7 @@ test("matter copilot OpenRouter provider omits temperature for GPT-5 models", as
   const result = await provider({
     question: "what happened?",
     matterContext: { schema_version: "matter-context-packet/v1" },
+    conversationContext: [{ role: "user", mode: "ask", content: "what happened before?" }],
     schema: {
       type: "object",
       additionalProperties: false,
@@ -244,6 +281,9 @@ test("matter copilot OpenRouter provider omits temperature for GPT-5 models", as
   assert.equal(requestBody.model, "openai/gpt-5.4");
   assert.equal(Object.hasOwn(requestBody, "temperature"), false);
   assert.equal(requestBody.provider.require_parameters, true);
+  const userPayload = JSON.parse(requestBody.messages[1].content);
+  assert.deepEqual(userPayload.conversation_context, [{ role: "user", mode: "ask", content: "what happened before?" }]);
+  assert.match(userPayload.strict_rules.join("\n"), /prior assistant answers are not evidence/i);
 });
 
 test("matter copilot emits stable validation and configuration codes", async () => {

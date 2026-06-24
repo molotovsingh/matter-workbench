@@ -417,6 +417,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           const answer = await matterCopilotService.answerQuestionFromPacket({
             packet,
             question: body.question,
+            conversation: body.conversation,
           });
           sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(runtimeDbReadResponse(answer, matter)));
           return;
@@ -426,6 +427,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         const answer = await matterCopilotService.answerQuestion({
           root,
           question: body.question,
+          conversation: body.conversation,
         });
         sendJson(response, 200, presentMatterCopilotAnswerForCurrentUser(answer));
       }),

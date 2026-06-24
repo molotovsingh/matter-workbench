@@ -27,6 +27,7 @@ import type {
   MatterContextPreview,
   MatterContextSearchResponse,
   MatterCopilotAnswer,
+  MatterCopilotConversationTurn,
   MatterCopilotResearchAnswer,
   MatterStoryRunResult,
   MatterAttention,
@@ -414,7 +415,7 @@ export const api = {
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
   getMatterContext: (matterName?: string) => getJson<MatterContextPreview>(withQuery('/api/matter-context', { matter: matterName })),
   searchMatterContext: (query: string, matterName?: string) => getJson<MatterContextSearchResponse>(withQuery('/api/matter-context/search', { q: query, matter: matterName })),
-  answerMatterQuestion: (body: { question: string; matterName?: string }) =>
+  answerMatterQuestion: (body: { question: string; matterName?: string; conversation?: MatterCopilotConversationTurn[] }) =>
     postJson<MatterCopilotAnswer>('/api/matter-copilot/answer', body),
   researchMatterQuestion: (body: { question: string; matterName?: string }) =>
     postJson<MatterCopilotResearchAnswer>('/api/matter-copilot/research', body),

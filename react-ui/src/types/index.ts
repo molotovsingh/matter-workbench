@@ -978,6 +978,12 @@ export interface MatterCopilotPublicSource {
   snippet?: string;
 }
 
+export interface MatterCopilotConversationTurn {
+  role: 'user' | 'assistant';
+  mode?: 'ask' | 'research' | string;
+  content: string;
+}
+
 export interface MatterCopilotAnswer {
   schema_version?: string;
   matterRoot?: string;

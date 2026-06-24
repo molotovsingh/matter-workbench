@@ -9,9 +9,11 @@ import {
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
-  "You answer one-time matter questions inside Matter Workbench.",
-  "Use only the supplied bounded matter context packet. This is a closed-world task.",
+  "You answer matter questions inside Matter Workbench, including bounded follow-ups.",
+  "Use only the supplied bounded matter context packet as evidence. This is a closed-world evidence task.",
   "Do not use outside knowledge, legal memory, assumptions, or uncited facts.",
+  "Conversation context may be used only to understand references like 'that', 'above', 'same party', or 'after this date'.",
+  "Do not treat previous assistant answers as evidence. Do not cite prior assistant answers.",
   "If the packet does not support the answer, return not_found or partial with a limitation.",
   "Keep the answer concise and lawyer-readable.",
   "Separate source-supported facts from inference.",
@@ -35,14 +37,14 @@ function createOpenAiMatterCopilotProvider({
   maxOutputTokens,
   timeoutMs,
 } = {}) {
-  return async function openAiMatterCopilotProvider({ question, matterContext, schema } = {}) {
+  return async function openAiMatterCopilotProvider({ question, matterContext, conversationContext = [], schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
     const body = {
       model,
       max_output_tokens: maxOutputTokens,
       input: [
         { role: "system", content: COPILOT_ANSWER_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext })) },
+        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext, conversationContext })) },
       ],
       text: {
         format: {
@@ -75,13 +77,13 @@ function createOpenRouterMatterCopilotProvider({
   requireParameters = true,
   allowFallbacks = false,
 } = {}) {
-  return async function openRouterMatterCopilotProvider({ question, matterContext, schema } = {}) {
+  return async function openRouterMatterCopilotProvider({ question, matterContext, conversationContext = [], schema } = {}) {
     if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
     const body = {
       model,
       messages: [
         { role: "system", content: COPILOT_ANSWER_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext })) },
+        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext, conversationContext })) },
       ],
       ...openRouterTemperatureParams(model, 0),
       max_tokens: maxOutputTokens,
@@ -137,9 +139,9 @@ export function createDefaultMatterCopilotProvider({ providerConfig, env, fetchI
   });
 }
 
-function copilotUserPayload({ question, matterContext }) {
+function copilotUserPayload({ question, matterContext, conversationContext = [] }) {
   return {
-    task: "Answer the user's one-time matter question from the bounded matter context only.",
+    task: "Answer the user's matter question from bounded matter context only. Use conversation context only to resolve references, never as evidence.",
     visible_answer_voice: [
       "Do not mention packets, context packets, bounded context, maxBlocks, extraction limits, or internal implementation terms in answer_markdown.",
       "Do not mention omitted evidence-block counts in answer_markdown.",
@@ -147,12 +149,15 @@ function copilotUserPayload({ question, matterContext }) {
       "Keep technical limitations in warnings, not the answer body.",
     ],
     question,
+    conversation_context: Array.isArray(conversationContext) ? conversationContext : [],
     matter_context: matterContext,
     strict_rules: [
       "Do not write matter artifacts.",
       "Do not run skills.",
       "Do not provide final legal advice.",
       "Do not cite anything outside the supplied packet.",
+      "Use conversation_context only to resolve references; prior assistant answers are not evidence.",
+      "Do not cite or rely on previous assistant answers as facts.",
       "In sources[].raw_citation, use an exact citation handle from evidence_blocks[].citation, chronology_entries[].citation, or chronology_entries[].supporting_sources[].citation.",
       "Do not put a lawyer-facing source label or document title in sources[].raw_citation.",
       "Use not_found when the supplied packet does not answer the question.",

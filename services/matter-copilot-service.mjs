@@ -59,6 +59,8 @@ const COPILOT_CONTEXT_LIMITS = Object.freeze({
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_ANSWER_LENGTH = 8000;
 const MAX_SNIPPET_LENGTH = 700;
+const MAX_CONVERSATION_TURNS = 6;
+const MAX_CONVERSATION_CHARS = 6000;
 const SOURCE_REQUIRED_STATUSES = new Set(["answered", "partial"]);
 
 export function createMatterCopilotService({
@@ -74,17 +76,20 @@ export function createMatterCopilotService({
   async function answerQuestion({
     root = matterStore.getMatterRoot?.(),
     question = "",
+    conversation = [],
   } = {}) {
     if (!root) throw makeHttpError("Pick a matter before asking a matter question.", 409, "matter_copilot.matter_required");
     const packet = await buildMatterContextPacket(root, COPILOT_CONTEXT_LIMITS);
-    return answerQuestionFromPacket({ packet, question });
+    return answerQuestionFromPacket({ packet, question, conversation });
   }
 
   async function answerQuestionFromPacket({
     packet,
     question = "",
+    conversation = [],
   } = {}) {
     const normalizedQuestion = normalizeQuestion(question);
+    const conversationContext = normalizeConversationContext(conversation);
     if (!packet || typeof packet !== "object") {
       throw makeHttpError("Matter context is not available for this question.", 409, "matter_copilot.context_required");
     }
@@ -99,6 +104,7 @@ export function createMatterCopilotService({
     const rawAnswer = await provider({
       question: normalizedQuestion,
       matterContext: summarizeMatterContextForCopilot(packet),
+      conversationContext,
       schema: MATTER_COPILOT_ANSWER_JSON_SCHEMA,
       providerConfig,
     });
@@ -108,6 +114,7 @@ export function createMatterCopilotService({
       packet,
       policy,
       providerConfig,
+      conversationContext,
       answeredAt: now().toISOString(),
     });
   }
@@ -203,6 +210,7 @@ function normalizeMatterCopilotAnswer({
   packet,
   policy,
   providerConfig,
+  conversationContext = [],
   answeredAt,
 }) {
   const record = rawAnswer && typeof rawAnswer === "object" && !Array.isArray(rawAnswer) ? rawAnswer : {};
@@ -254,6 +262,7 @@ function normalizeMatterCopilotAnswer({
       packet_schema_version: packet?.schema_version || "",
       evidence_blocks_included: Number(packet?.limits?.included_blocks || 0),
       evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
+      conversation_turns: conversationContext.length,
     },
     ai_run: modelPolicyMetadata(policy, providerConfig),
   };
@@ -430,6 +439,23 @@ function normalizeQuestion(value) {
   const question = boundedText(value, MAX_QUESTION_LENGTH);
   if (!question) throw makeHttpError("Question is required.", 400, "matter_copilot.question_required");
   return question;
+}
+
+function normalizeConversationContext(value) {
+  const turns = Array.isArray(value) ? value : [];
+  const normalized = [];
+  let remainingChars = MAX_CONVERSATION_CHARS;
+  for (const item of turns.slice(-MAX_CONVERSATION_TURNS)) {
+    const role = item?.role === "assistant" ? "assistant" : item?.role === "user" ? "user" : "";
+    if (!role) continue;
+    const mode = ["ask", "research"].includes(item?.mode) ? item.mode : "ask";
+    const content = boundedText(item?.content ?? item?.text, Math.min(1200, remainingChars));
+    if (!content) continue;
+    normalized.push({ role, mode, content });
+    remainingChars -= content.length;
+    if (remainingChars <= 0) break;
+  }
+  return normalized;
 }
 
 function normalizeAnswerStatus(value) {
