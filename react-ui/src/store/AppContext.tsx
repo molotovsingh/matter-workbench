@@ -148,7 +148,7 @@ interface AppContextValue {
   }) => Promise<ActiveMatter | null>;
   appendTerminal: (lines: string[]) => void;
   setStatus: (opts: { bar?: string; terminal?: string[] }) => void;
-  commandPanelRef: React.RefObject<HTMLInputElement | null>;
+  commandPanelRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -178,7 +178,7 @@ export function isMatterSwitchSupersededError(error: unknown): boolean {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const commandPanelRef = useRef<HTMLInputElement | null>(null);
+  const commandPanelRef = useRef<HTMLTextAreaElement | null>(null);
   const matterSwitchSeqRef = useRef(0);
   const matterSwitchChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const activeMatterNameRef = useRef<string | null>(null);

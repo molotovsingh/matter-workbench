@@ -100,7 +100,7 @@ export function useCommandSuggestions({ appendTerminal }: UseCommandSuggestionsO
   }, []);
 
   const handleKeyDown = useCallback((
-    e: KeyboardEvent<HTMLInputElement>,
+    e: KeyboardEvent<HTMLElement>,
     onPickSuggestion: (command: string) => void,
   ) => {
     if (!showSuggestions) return;

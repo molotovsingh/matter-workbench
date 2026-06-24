@@ -76,6 +76,21 @@ test("React command suggestions overlay the command input instead of reflowing t
   assert.match(styles, /\.command-suggestions \{[^}]*position: absolute;[^}]*bottom: calc\(100% \+ 6px\);[^}]*z-index:/s);
 });
 
+test("React command composer supports multi-line questions without moving out of the bottom rail", async () => {
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+  const hookSource = await readFile(commandSuggestionsHookPath, "utf8");
+  const styles = await readFile(stylesPath, "utf8");
+
+  assert.match(commandPanelSource, /function growTextarea\(\)/);
+  assert.match(commandPanelSource, /<textarea[\s\S]*id="aiCommandInput"[\s\S]*rows=\{1\}/);
+  assert.match(commandPanelSource, /e\.key === 'Enter' && !e\.shiftKey/);
+  assert.match(commandPanelSource, /requestSubmit\(\)/);
+  assert.match(hookSource, /KeyboardEvent<HTMLElement>/);
+  assert.match(styles, /\.command-composer \{[^}]*margin-top: auto;/s);
+  assert.match(styles, /\.ai-command-form textarea \{[^}]*resize: none;[^}]*overflow-y: hidden;/s);
+  assert.match(styles, /\.ai-command-form \.command-panel-input-row \{[^}]*align-items: flex-end;/s);
+});
+
 test("React command panel exposes New task and resets transient assistant state", async () => {
   const source = await readFile(commandPanelPath, "utf8");
 

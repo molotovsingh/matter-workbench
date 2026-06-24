@@ -127,13 +127,30 @@ export default function CommandPanel({
     if (!canUseResearch && commandMode === 'research') setCommandMode('ask');
   }, [canUseResearch, commandMode]);
 
+  function growTextarea() {
+    const el = commandPanelRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }
+
+  useEffect(() => {
+    growTextarea();
+  }, [input]);
+
   function handleInputChange(value: string) {
     setInput(value);
     updateCommandSuggestions(value);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     handleSuggestionKeyDown(e, pickSuggestion);
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      if (!showSuggestions || activeSuggestion < 0) {
+        e.preventDefault();
+        e.currentTarget.form?.requestSubmit();
+      }
+    }
   }
 
   function pickSuggestion(command: string) {
@@ -467,10 +484,10 @@ export default function CommandPanel({
         <form className="ai-command-form" autoComplete="off" onSubmit={handleSubmit}>
           <label className="command-panel-label" htmlFor="aiCommandInput">Ask or run</label>
           <div className="command-panel-input-row">
-            <input
+            <textarea
               id="aiCommandInput"
-              ref={commandPanelRef as React.RefObject<HTMLInputElement>}
-              type="text"
+              ref={commandPanelRef as React.RefObject<HTMLTextAreaElement>}
+              rows={1}
               placeholder={commandPlaceholder(commandMode, state.activeMatter?.name, canUseResearch)}
               spellCheck
               value={input}
