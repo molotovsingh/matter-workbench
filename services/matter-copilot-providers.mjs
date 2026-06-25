@@ -1,14 +1,8 @@
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_PROVIDERS } from "../shared/model-policy.mjs";
-import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
-import {
-  fetchProviderJsonWithTimeout,
-  parseOpenAiJsonOutput,
-  parseOpenRouterJsonMessage,
-} from "../shared/provider-http.mjs";
-import { makeHttpError } from "../shared/safe-paths.mjs";
+import { AI_TASKS } from "../shared/model-policy.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
-const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You answer matter questions inside Matter Workbench, including bounded follow-ups.",
   "Use only the supplied bounded matter context packet as evidence. This is a closed-world evidence task.",
   "Do not use outside knowledge, legal memory, assumptions, or uncited facts.",
@@ -29,117 +23,32 @@ const COPILOT_ANSWER_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   copilot: true,
 });
 
-function createOpenAiMatterCopilotProvider({
-  apiKey,
-  endpoint,
+export function createDefaultMatterCopilotProvider({
+  providerService,
+  providerConfig = null,
+  env = process.env,
   fetchImpl = fetch,
-  model,
-  maxOutputTokens,
-  timeoutMs,
 } = {}) {
-  return async function openAiMatterCopilotProvider({ question, matterContext, conversationContext = [], schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
-    const body = {
-      model,
-      max_output_tokens: maxOutputTokens,
-      input: [
-        { role: "system", content: COPILOT_ANSWER_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext, conversationContext })) },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "matter_copilot_answer",
-          strict: true,
-          schema,
-        },
-      },
-    };
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
-      endpoint,
-      apiKey,
-      body,
-      timeoutMs,
-      timeoutMessage: `OpenAI matter copilot answer request timed out after ${timeoutMs}ms`,
-    });
-    return parseOpenAiJsonOutput(payload, "OpenAI matter copilot answer");
-  };
-}
-
-function createOpenRouterMatterCopilotProvider({
-  apiKey,
-  endpoint,
-  fetchImpl = fetch,
-  model,
-  maxOutputTokens,
-  timeoutMs,
-  requireParameters = true,
-  allowFallbacks = false,
-} = {}) {
-  return async function openRouterMatterCopilotProvider({ question, matterContext, conversationContext = [], schema } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
-    const body = {
-      model,
-      messages: [
-        { role: "system", content: COPILOT_ANSWER_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(copilotUserPayload({ question, matterContext, conversationContext })) },
-      ],
-      ...openRouterTemperatureParams(model, 0),
-      max_tokens: maxOutputTokens,
-      provider: {
-        require_parameters: requireParameters,
-        allow_fallbacks: allowFallbacks,
-      },
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "matter_copilot_answer",
-          strict: true,
-          schema,
-        },
-      },
-    };
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
-      endpoint,
-      apiKey,
-      body,
-      timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Matter Copilot",
-      },
-      timeoutMessage: `OpenRouter matter copilot answer request timed out after ${timeoutMs}ms`,
-    });
-    return parseOpenRouterJsonMessage(payload, "OpenRouter matter copilot answer");
-  };
-}
-
-export function createDefaultMatterCopilotProvider({ providerConfig, env, fetchImpl }) {
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterMatterCopilotProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-      requireParameters: providerConfig.requireParameters,
-      allowFallbacks: providerConfig.allowFallbacks,
-    });
-  }
-  return createOpenAiMatterCopilotProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
+  const service = providerService || createAiProviderService({
+    env: providerConfig?.provider ? { ...env, COPILOT_ANSWER_PROVIDER: providerConfig.provider } : env,
     fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
   });
+  return async function matterCopilotProvider({ question, matterContext, conversationContext = [], schema } = {}) {
+    const result = await service.invoke({
+      task: AI_TASKS.COPILOT_ANSWER,
+      systemPrompt: COPILOT_ANSWER_SYSTEM_PROMPT,
+      userPayload: copilotUserPayload({ question, matterContext, conversationContext }),
+      schema,
+      schemaName: "matter_copilot_answer",
+      responseMode: "json",
+      overrides: providerConfigToOverrides(providerConfig),
+      label: "Matter copilot answer",
+    });
+    return result.parsed;
+  };
 }
 
-function copilotUserPayload({ question, matterContext, conversationContext = [] }) {
+export function copilotUserPayload({ question, matterContext, conversationContext = [] }) {
   return {
     task: "Answer the user's matter question from bounded matter context only. Use conversation context only to resolve references, never as evidence.",
     visible_answer_voice: [
@@ -162,5 +71,18 @@ function copilotUserPayload({ question, matterContext, conversationContext = [] 
       "Do not put a lawyer-facing source label or document title in sources[].raw_citation.",
       "Use not_found when the supplied packet does not answer the question.",
     ],
+  };
+}
+
+function providerConfigToOverrides(providerConfig) {
+  if (!providerConfig || typeof providerConfig !== "object") return {};
+  return {
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    timeoutMs: providerConfig.timeoutMs,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
   };
 }

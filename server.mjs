@@ -105,6 +105,7 @@ export async function createWorkbenchServer(options = {}) {
   const matterCopilotService = createMatterCopilotService({
     matterStore,
     answerProvider: options.matterCopilotProvider || null,
+    providerService: aiProviderService,
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.matterCopilotEndpoint,

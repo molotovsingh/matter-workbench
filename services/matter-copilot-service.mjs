@@ -1,10 +1,13 @@
 import {
   buildMatterContextPacket,
 } from "./matter-context-service.mjs";
-import { resolveProviderConfig, modelPolicyMetadata } from "../shared/ai-provider-policy.mjs";
-import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import { AI_TASKS } from "../shared/model-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
-import { createDefaultMatterCopilotProvider } from "./matter-copilot-providers.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
+import {
+  COPILOT_ANSWER_SYSTEM_PROMPT,
+  copilotUserPayload,
+} from "./matter-copilot-providers.mjs";
 
 export const MATTER_COPILOT_ANSWER_SCHEMA_VERSION = "matter-copilot-answer/v1";
 
@@ -66,12 +69,14 @@ const SOURCE_REQUIRED_STATUSES = new Set(["answered", "partial"]);
 export function createMatterCopilotService({
   matterStore,
   answerProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
   now = () => new Date(),
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
+  const aiProviderService = providerService || createAiProviderService({ env, fetchImpl });
 
   async function answerQuestion({
     root = matterStore.getMatterRoot?.(),
@@ -93,33 +98,63 @@ export function createMatterCopilotService({
     if (!packet || typeof packet !== "object") {
       throw makeHttpError("Matter context is not available for this question.", 409, "matter_copilot.context_required");
     }
-    const policy = resolveModelPolicy(AI_TASKS.COPILOT_ANSWER, { env });
-    const providerConfig = resolveProviderConfig(policy, { endpoint });
+    const { providerConfig, aiRun: resolvedAiRun } = aiProviderService.resolveTask(AI_TASKS.COPILOT_ANSWER, { endpoint });
     if (!providerConfig.model) throw makeHttpError("Matter copilot answer model is not configured.", 409, "matter_copilot.model_not_configured");
-    const provider = answerProvider || createDefaultMatterCopilotProvider({
-      providerConfig,
-      env,
-      fetchImpl,
-    });
-    const rawAnswer = await provider({
-      question: normalizedQuestion,
-      matterContext: summarizeMatterContextForCopilot(packet),
-      conversationContext,
-      schema: MATTER_COPILOT_ANSWER_JSON_SCHEMA,
-      providerConfig,
-    });
+    const matterContext = summarizeMatterContextForCopilot(packet);
+    const { rawAnswer, aiRun } = answerProvider
+      ? {
+          rawAnswer: await answerProvider({
+            question: normalizedQuestion,
+            matterContext,
+            conversationContext,
+            schema: MATTER_COPILOT_ANSWER_JSON_SCHEMA,
+            providerConfig,
+          }),
+          aiRun: resolvedAiRun,
+        }
+      : await invokeMatterCopilotAnswer({
+        aiProviderService,
+        question: normalizedQuestion,
+        matterContext,
+        conversationContext,
+      });
     return normalizeMatterCopilotAnswer({
       rawAnswer,
       question: normalizedQuestion,
       packet,
-      policy,
-      providerConfig,
+      aiRun,
       conversationContext,
       answeredAt: now().toISOString(),
     });
   }
 
   return { answerQuestion, answerQuestionFromPacket };
+}
+
+async function invokeMatterCopilotAnswer({
+  aiProviderService,
+  question,
+  matterContext,
+  conversationContext,
+}) {
+  let result;
+  try {
+    result = await aiProviderService.invoke({
+      task: AI_TASKS.COPILOT_ANSWER,
+      systemPrompt: COPILOT_ANSWER_SYSTEM_PROMPT,
+      userPayload: copilotUserPayload({ question, matterContext, conversationContext }),
+      schema: MATTER_COPILOT_ANSWER_JSON_SCHEMA,
+      schemaName: "matter_copilot_answer",
+      responseMode: "json",
+      label: "Matter copilot answer",
+    });
+  } catch (error) {
+    if (String(error?.code || "").endsWith("api_key_required")) {
+      throw makeHttpError("OPENAI_API_KEY or OPENROUTER_API_KEY is required for matter copilot answers", 409, "matter_copilot.provider_api_key_required");
+    }
+    throw error;
+  }
+  return { rawAnswer: result.parsed, aiRun: result.aiRun };
 }
 
 function summarizeMatterContextForCopilot(packet) {
@@ -208,8 +243,7 @@ function normalizeMatterCopilotAnswer({
   rawAnswer,
   question,
   packet,
-  policy,
-  providerConfig,
+  aiRun,
   conversationContext = [],
   answeredAt,
 }) {
@@ -223,8 +257,7 @@ function normalizeMatterCopilotAnswer({
     return blockedUnsupportedCitationAnswer({
       question,
       packet,
-      policy,
-      providerConfig,
+      aiRun,
       answeredAt,
     });
   }
@@ -235,8 +268,7 @@ function normalizeMatterCopilotAnswer({
     return blockedUnsupportedCitationAnswer({
       question,
       packet,
-      policy,
-      providerConfig,
+      aiRun,
       answeredAt,
     });
   }
@@ -264,15 +296,14 @@ function normalizeMatterCopilotAnswer({
       evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
       conversation_turns: conversationContext.length,
     },
-    ai_run: modelPolicyMetadata(policy, providerConfig),
+    ai_run: aiRun || {},
   };
 }
 
 function blockedUnsupportedCitationAnswer({
   question,
   packet,
-  policy,
-  providerConfig,
+  aiRun,
   answeredAt,
 }) {
   return {
@@ -293,7 +324,7 @@ function blockedUnsupportedCitationAnswer({
       evidence_blocks_included: Number(packet?.limits?.included_blocks || 0),
       evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
     },
-    ai_run: modelPolicyMetadata(policy, providerConfig),
+    ai_run: aiRun || {},
   };
 }
 
