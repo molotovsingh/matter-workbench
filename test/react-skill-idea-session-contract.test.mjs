@@ -248,6 +248,9 @@ test("React skill idea create action guards stale matter before and after create
     actionsSource,
     /const result = await api\.createSkillFromIdea[\s\S]*if \(!isCurrentMatterName\(matterName\)\) return \{ status: 'matter_changed' \};[\s\S]*return \{ status: 'created'/,
   );
+  assert.match(machineSource, /SHOW_TOAST/);
+  assert.match(machineSource, /🎉 Skill created/);
+  assert.match(machineSource, /Nice work/);
   assert.match(machineSource, /BUMP_SKILLS_DATA_REFRESH/);
   assert.match(machineSource, /SET_BREADCRUMBS', payload: 'Skills'/);
 });

@@ -21,6 +21,20 @@ test("Matter Assistant rail is resizable with browser-local width", async () => 
   assert.match(css, /body\.assistant-resizing/);
 });
 
+test("app shell renders dismissible toast notifications", async () => {
+  const source = await readFile(mainContentPath, "utf8");
+  const css = await readFile(cssPath, "utf8");
+
+  assert.match(source, /state\.toast/);
+  assert.match(source, /DISMISS_TOAST/);
+  assert.match(source, /window\.setTimeout/);
+  assert.match(source, /role="status"/);
+  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /className=\{`app-toast \$\{toast\.tone\}`\}/);
+  assert.match(css, /\.app-toast/);
+  assert.match(css, /\.app-toast\.success/);
+});
+
 test("Matter Assistant header stays compact", async () => {
   const source = await readFile(commandPanelPath, "utf8");
 

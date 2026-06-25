@@ -369,6 +369,17 @@ export function useSkillIdeaSessionMachine({
         createdSkill: result.skill ? { slash: result.skill.slash, name: result.skill.title } : { name: 'New skill' },
       }));
       appendTerminal([`[skill-idea] skill created: ${result.skill?.title ?? 'New skill'}`]);
+      dispatch({
+        type: 'SHOW_TOAST',
+        payload: {
+          id: `skill-created-${Date.now()}`,
+          tone: 'success',
+          title: '🎉 Skill created',
+          message: result.skill?.title
+            ? `Nice work — ${result.skill.title} is ready in Your Skills.`
+            : 'Nice work — your new skill is ready in Your Skills.',
+        },
+      });
       dispatch({ type: 'BUMP_SKILLS_DATA_REFRESH' });
       dispatch({ type: 'SET_TAB', payload: 'skills' });
       dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });

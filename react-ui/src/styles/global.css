@@ -391,6 +391,38 @@ body.assistant-resizing { cursor: ew-resize; user-select: none; }
 .editor-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .editor-pane > .titlebar { flex: 0 0 36px; }
 
+.app-toast {
+position: fixed;
+right: calc(var(--assistant-width, 380px) + 24px);
+top: 54px;
+z-index: 40;
+display: grid;
+grid-template-columns: minmax(0, 1fr) auto;
+gap: 12px;
+max-width: min(420px, calc(100vw - var(--assistant-width, 380px) - 48px));
+padding: 13px 14px;
+border: 1px solid var(--border);
+border-radius: 8px;
+background: var(--panel);
+box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+color: var(--text);
+}
+.app-toast.success { border-color: color-mix(in srgb, var(--success, #1f8f4d) 40%, var(--border)); }
+.app-toast-copy { min-width: 0; }
+.app-toast-copy strong { display: block; font-size: var(--font-size-sm); line-height: 1.35; }
+.app-toast-copy p { margin: 3px 0 0; color: var(--muted-strong); font-size: var(--font-size-sm); line-height: 1.45; }
+.app-toast-close {
+align-self: start;
+border: 0;
+background: transparent;
+color: var(--muted);
+cursor: pointer;
+font-size: 18px;
+line-height: 1;
+padding: 0 2px;
+}
+.app-toast-close:hover { color: var(--text); }
+
 .editor-toolbar {
   display: flex; align-items: center; gap: 14px; padding: 9px 24px;
   border-bottom: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 11px;

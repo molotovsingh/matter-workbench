@@ -174,7 +174,7 @@ export default function MainContent({
   onRunPreparationAgain,
   commandPanel,
 }: Props) {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { activeView } = state;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
@@ -192,6 +192,15 @@ export default function MainContent({
       // Browser-local preference only.
     }
   }, [assistantWidth]);
+
+  useEffect(() => {
+    if (!state.toast) return undefined;
+    const toastId = state.toast.id;
+    const timeout = window.setTimeout(() => {
+      dispatch({ type: 'DISMISS_TOAST', payload: toastId });
+    }, 5200);
+    return () => window.clearTimeout(timeout);
+  }, [dispatch, state.toast]);
 
   useEffect(() => {
     function handleResize() {
@@ -287,6 +296,13 @@ export default function MainContent({
           </article>
         </div>
 
+        {state.toast && (
+          <AppToast
+            toast={state.toast}
+            onDismiss={() => dispatch({ type: 'DISMISS_TOAST', payload: state.toast?.id })}
+          />
+        )}
+
         <div className="assistant-rail">
           <div
             className="assistant-rail-resizer"
@@ -303,5 +319,23 @@ export default function MainContent({
 
       <StatusBar />
     </main>
+  );
+}
+
+function AppToast({
+  toast,
+  onDismiss,
+}: {
+  toast: NonNullable<ReturnType<typeof useApp>['state']['toast']>;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className={`app-toast ${toast.tone}`} role="status" aria-live="polite">
+      <div className="app-toast-copy">
+        <strong>{toast.title}</strong>
+        {toast.message && <p>{toast.message}</p>}
+      </div>
+      <button type="button" className="app-toast-close" aria-label="Dismiss" onClick={onDismiss}>×</button>
+    </div>
   );
 }

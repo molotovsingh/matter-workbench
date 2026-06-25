@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type {
   AppState,
+  AppToast,
   ActiveMatter,
   Matter,
   ActiveTab,
@@ -32,6 +33,8 @@ type Action =
   | { type: 'SET_PENDING_SKILL_IDEA_RESUME'; payload: SkillIdea | null }
   | { type: 'SET_PENDING_SKILLS_MATTER_ACTION'; payload: PendingSkillsMatterAction | null }
   | { type: 'BUMP_SKILLS_DATA_REFRESH' }
+  | { type: 'SHOW_TOAST'; payload: AppToast }
+  | { type: 'DISMISS_TOAST'; payload?: string }
   | { type: 'SET_TAB'; payload: ActiveTab }
   | { type: 'SET_VIEW'; payload: ActiveView }
   | { type: 'SET_FILE_PREVIEW'; payload: FilePreview | null }
@@ -67,6 +70,7 @@ const initialState: AppState = {
   pendingSkillIdeaResume: null,
   pendingSkillsMatterAction: null,
   skillsDataRefreshSeq: 0,
+  toast: null,
   activeTab: 'home',
   activeView: 'home',
   filePreview: null,
@@ -100,6 +104,11 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, pendingSkillsMatterAction: action.payload };
     case 'BUMP_SKILLS_DATA_REFRESH':
       return { ...state, skillsDataRefreshSeq: state.skillsDataRefreshSeq + 1 };
+    case 'SHOW_TOAST':
+      return { ...state, toast: action.payload };
+    case 'DISMISS_TOAST':
+      if (action.payload && state.toast?.id !== action.payload) return state;
+      return { ...state, toast: null };
     case 'SET_TAB':
       return { ...state, activeTab: action.payload, activeView: 'home' };
     case 'SET_VIEW':

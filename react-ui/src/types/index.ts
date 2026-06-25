@@ -1155,6 +1155,13 @@ export interface PendingSkillsMatterAction {
   idea?: SkillIdea;
 }
 
+export interface AppToast {
+  id: string;
+  tone: 'success' | 'info' | 'warning';
+  title: string;
+  message?: string;
+}
+
 export interface AppState {
   config: AppConfig | null;
   authEnabled: boolean;
@@ -1165,6 +1172,7 @@ export interface AppState {
   pendingSkillIdeaResume: SkillIdea | null;
   pendingSkillsMatterAction: PendingSkillsMatterAction | null;
   skillsDataRefreshSeq: number;
+  toast: AppToast | null;
   activeTab: ActiveTab;
   activeView: ActiveView;
   filePreview: FilePreview | null;
