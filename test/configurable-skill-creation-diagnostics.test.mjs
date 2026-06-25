@@ -76,7 +76,7 @@ test("Skill Factory route guards expose stable diagnostic codes", async () => {
   );
 });
 
-test("configurable skill creation pipeline exposes stable model configuration codes", async () => {
+test("configurable skill creation pipeline exposes stable provider key codes", async () => {
   await assertRejectsWithCode(
     () => createSkillFromApprovedSampleInStore({
       store: { skills: [] },
@@ -86,19 +86,25 @@ test("configurable skill creation pipeline exposes stable model configuration co
       idFactory: () => "skill_1",
     }),
     409,
-    "configurable_skill_creation.authoring_model_not_configured",
+    "configurable_skill_provider.api_key_required",
   );
-  await assertRejectsWithCode(
-    () => createSkillFromApprovedSampleInStore({
-      store: { skills: [] },
-      idea: idea(),
-      sample: sample(),
-      env: { CONFIGURABLE_SKILL_RUN_PROVIDER: "openrouter" },
-      idFactory: () => "skill_1",
-    }),
-    409,
-    "configurable_skill_creation.run_model_not_configured",
-  );
+  const runProviderResult = await createSkillFromApprovedSampleInStore({
+    store: { skills: [] },
+    idea: idea(),
+    sample: sample(),
+    authoringProvider,
+    matterContextPacketOverride: {
+      matter: { matter_name: "Ayesha Vs Japan Airlines", client_name: "Ayesha", opposite_party: "Japan Airlines" },
+      warnings: [],
+      sources: [],
+      evidence_blocks: [],
+    },
+    env: { CONFIGURABLE_SKILL_RUN_PROVIDER: "openrouter" },
+    idFactory: () => "skill_1",
+  });
+  assert.equal(runProviderResult.validationError.statusCode, 422);
+  assert.equal(runProviderResult.validationError.code, "configurable_skill_creation.draft_validation_failed");
+  assert.match(runProviderResult.validationError.message, /OPENROUTER_API_KEY is required/);
 });
 
 async function dispatchSkillFactoryRoute({ method, path: routePath, body = {}, services = {} } = {}) {

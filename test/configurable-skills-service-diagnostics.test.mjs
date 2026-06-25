@@ -90,9 +90,15 @@ test("configurable skill run service exposes stable diagnostic codes", async () 
     () => makeService([baseSkill], { env: { CONFIGURABLE_SKILL_RUN_PROVIDER: "openrouter" } }).runSkill({
       slash: "/demo_skill",
       matterRootOverride: matterRoot,
+      matterContextPacketOverride: {
+        matter: { matter_name: "Demo Matter" },
+        warnings: [],
+        sources: [],
+        evidence_blocks: [],
+      },
     }),
     409,
-    "configurable_skill_run.model_not_configured",
+    "configurable_skill_provider.api_key_required",
   );
 });
 

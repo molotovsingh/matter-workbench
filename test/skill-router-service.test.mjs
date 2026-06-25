@@ -103,6 +103,7 @@ test("skill router uses model policy env overrides for OpenAI requests", async (
       registryService: registryService(),
       endpoint: `http://${address.address}:${address.port}/v1/responses`,
       env: {
+        SKILL_ROUTER_PROVIDER: "openai-direct",
         OPENAI_API_KEY: "sk-test",
         OPENAI_MODEL: "policy-router-model",
         OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "777",

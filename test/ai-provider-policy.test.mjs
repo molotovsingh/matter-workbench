@@ -15,9 +15,10 @@ test("provider config preserves current OpenAI-direct policy defaults", () => {
   });
 });
 
-test("provider config preserves current environment override behavior", () => {
+test("provider config preserves explicit OpenAI-direct environment override behavior", () => {
   const policy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, {
     env: {
+      SKILL_ROUTER_PROVIDER: "openai-direct",
       OPENAI_MODEL: "policy-model",
       OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "777",
     },

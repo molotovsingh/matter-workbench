@@ -5,6 +5,7 @@ import {
   AI_TASKS,
   DEFAULT_CONFIGURABLE_SKILL_RUN_MAX_OUTPUT_TOKENS,
   DEFAULT_CONFIGURABLE_SKILL_RUN_MODEL,
+  DEFAULT_CONFIGURABLE_SKILL_RUN_OPENROUTER_MODEL,
   DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS,
   DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS,
   DEFAULT_COPILOT_ANSWER_MODEL,
@@ -22,9 +23,12 @@ import {
   DEFAULT_CREATE_LISTOFDATES_PASS2_TIMEOUT_MS,
   DEFAULT_SKILL_AUTHORING_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_AUTHORING_MODEL,
+  DEFAULT_SKILL_AUTHORING_OPENROUTER_MODEL,
   DEFAULT_SKILL_AUTHORING_TIMEOUT_MS,
   DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
+  DEFAULT_SKILL_DESIGN_INTERVIEW_OPENROUTER_MODEL,
   DEFAULT_SKILL_SAMPLE_OUTPUT_MODEL,
+  DEFAULT_SKILL_SAMPLE_OUTPUT_OPENROUTER_MODEL,
   DEFAULT_OPENROUTER_ENDPOINT,
   DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
   DEFAULT_SKILL_ROUTER_OPENROUTER_MODEL,
@@ -63,15 +67,33 @@ test("model policy lists current AI task names", () => {
   ]);
 });
 
-test("skill router policy matches current OpenAI-direct defaults and OpenRouter overrides", () => {
+test("skill router policy defaults to OpenRouter and still supports OpenAI-direct overrides", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env: {} }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SKILL_ROUTER,
+    tier: "router",
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_SKILL_ROUTER_OPENROUTER_MODEL,
+    maxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SKILL_ROUTER_OPENROUTER_TIMEOUT_MS,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, {
+    env: {
+      SKILL_ROUTER_PROVIDER: "openai-direct",
+      OPENAI_MODEL: "policy-router-model",
+      OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "777",
+    },
+  }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_ROUTER,
     tier: "router",
     provider: AI_PROVIDERS.OPENAI_DIRECT,
     endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_OPENAI_MODEL,
-    maxOutputTokens: DEFAULT_ROUTER_MAX_OUTPUT_TOKENS,
+    model: "policy-router-model",
+    maxOutputTokens: 777,
     fallback: "fail_closed",
   });
 
@@ -111,14 +133,14 @@ test("skill router policy matches current OpenAI-direct defaults and OpenRouter 
   });
 });
 
-test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deterministic fallback", () => {
+test("skill design interview policy defaults to OpenRouter with deterministic fallback", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
     tier: "skill_design_interview",
-    provider: AI_PROVIDERS.OPENAI_DIRECT,
-    endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_SKILL_DESIGN_INTERVIEW_MODEL,
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_SKILL_DESIGN_INTERVIEW_OPENROUTER_MODEL,
     maxOutputTokens: DEFAULT_SKILL_DESIGN_INTERVIEW_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_SKILL_DESIGN_INTERVIEW_TIMEOUT_MS,
     fallback: "deterministic_fallback",
@@ -163,14 +185,14 @@ test("skill design interview policy defaults to OpenAI direct gpt-5.4 with deter
   });
 });
 
-test("skill sample output policy defaults to OpenAI direct gpt-5.4 and fails closed", () => {
+test("skill sample output policy defaults to OpenRouter and fails closed", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
     tier: "skill_sample_output",
-    provider: AI_PROVIDERS.OPENAI_DIRECT,
-    endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_SKILL_SAMPLE_OUTPUT_MODEL,
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_SKILL_SAMPLE_OUTPUT_OPENROUTER_MODEL,
     maxOutputTokens: DEFAULT_SKILL_SAMPLE_OUTPUT_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_SKILL_SAMPLE_OUTPUT_TIMEOUT_MS,
     fallback: "fail_closed",
@@ -196,14 +218,14 @@ test("skill sample output policy defaults to OpenAI direct gpt-5.4 and fails clo
   });
 });
 
-test("skill authoring and configurable run policies default to OpenAI direct gpt-5.4", () => {
+test("skill authoring and configurable run policies default to OpenRouter", () => {
   assert.deepEqual(resolveModelPolicy(AI_TASKS.SKILL_AUTHORING, { env: {} }), {
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.SKILL_AUTHORING,
     tier: "skill_authoring",
-    provider: AI_PROVIDERS.OPENAI_DIRECT,
-    endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_SKILL_AUTHORING_MODEL,
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_SKILL_AUTHORING_OPENROUTER_MODEL,
     maxOutputTokens: DEFAULT_SKILL_AUTHORING_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_SKILL_AUTHORING_TIMEOUT_MS,
     fallback: "fail_closed",
@@ -213,9 +235,9 @@ test("skill authoring and configurable run policies default to OpenAI direct gpt
     policyVersion: MODEL_POLICY_VERSION,
     task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
     tier: "configurable_skill_run",
-    provider: AI_PROVIDERS.OPENAI_DIRECT,
-    endpoint: DEFAULT_RESPONSES_ENDPOINT,
-    model: DEFAULT_CONFIGURABLE_SKILL_RUN_MODEL,
+    provider: AI_PROVIDERS.OPENROUTER,
+    endpoint: DEFAULT_OPENROUTER_ENDPOINT,
+    model: DEFAULT_CONFIGURABLE_SKILL_RUN_OPENROUTER_MODEL,
     maxOutputTokens: DEFAULT_CONFIGURABLE_SKILL_RUN_MAX_OUTPUT_TOKENS,
     timeoutMs: DEFAULT_CONFIGURABLE_SKILL_RUN_TIMEOUT_MS,
     fallback: "fail_closed",
@@ -312,6 +334,7 @@ test("two-pass list-of-dates policies default to proven gated model pair", () =>
 test("model policy preserves current environment override behavior", () => {
   assert.equal(resolveModelPolicy(AI_TASKS.SKILL_ROUTER, {
     env: {
+      SKILL_ROUTER_PROVIDER: "openai-direct",
       OPENAI_MODEL: "custom-model",
       OPENAI_ROUTER_MAX_OUTPUT_TOKENS: "900",
       OPENAI_MAX_OUTPUT_TOKENS: "2048",

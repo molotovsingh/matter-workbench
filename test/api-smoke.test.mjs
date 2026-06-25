@@ -372,7 +372,8 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(sampleResponse.ok, true, sampleOutput.error);
     assert.equal(sampleOutput.schema_version, "skill-sample-output/v1");
     assert.equal(sampleOutput.ai_run.task, "skill_sample_output");
-    assert.equal(sampleOutput.ai_run.model, "gpt-5.4");
+    assert.equal(sampleOutput.ai_run.provider, "openrouter");
+    assert.equal(sampleOutput.ai_run.model, "openai/gpt-5.4");
     assert.equal(sampleOutput.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
     assert.match(sampleOutput.sample_markdown, /^# Client Update Email/);
     assert.ok(sampleOutput.warnings.includes("Sample output only. Creating a skill still requires approval and validation."));
@@ -400,7 +401,8 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.deepEqual(partySamples.samples.map((sample) => [sample.id, sample.version, sample.state]), [
       [partySample.sample_id, 1, "current"],
     ]);
-    assert.equal(partySamples.samples[0].aiRun.model, "gpt-5.4");
+    assert.equal(partySamples.samples[0].aiRun.provider, "openrouter");
+    assert.equal(partySamples.samples[0].aiRun.model, "openai/gpt-5.4");
     assert.equal(partySamples.samples[0].aiRun.policyPromptVersion, "legal-workbench-policy/v1");
     const missingSamplesResponse = await fetch(`${baseUrl}/api/skill-ideas/${encodeURIComponent("missing_idea")}/samples`);
     const missingSamples = await missingSamplesResponse.json();

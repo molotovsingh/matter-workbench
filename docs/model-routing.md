@@ -36,7 +36,7 @@ As of the current implementation, the app has:
 - `services/copilot-web-research-service.mjs` using the explicit
   `copilot_web_research` policy for planned Research mode synthesis over matter
   context plus validated public sources.
-- `services/skill-router-service.mjs` using the `skill_router` policy for skill intent routing, with OpenAI direct by default and OpenRouter when configured.
+- `services/skill-router-service.mjs` using the `skill_router` policy for skill intent routing, with OpenRouter by default and OpenAI direct available only by explicit override.
 - `skills/registry.json` describing current skills, but not yet declaring model policy.
 
 The shared clients are intentionally thin. They know how to make provider requests and parse JSON. They do not decide legal risk, task complexity, privacy requirements, or fallback strategy.
@@ -201,7 +201,7 @@ The first implementation does not need all tiers. It can start with `router` and
 | Matter Copilot | OpenRouter by default for transient answers, with pinged selector presets | `copilot_answer` |
 | Copilot Research | OpenRouter by default for explicit public-source Research answers; web search provider remains separate | `copilot_web_research` |
 | `/doctor` | None | deterministic |
-| Skill router | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `router` |
+| Skill router | OpenRouter Chat Completions by default; OpenAI direct only by explicit override | `router` |
 
 This table shows why model routing should be central. The app already has deterministic skills and AI skills with different risk levels.
 
@@ -232,11 +232,11 @@ Use `gpt-5.4` for work where one weak model answer can bend the product in the w
 
 | Task / Surface | Recommended Model Posture | Why |
 | --- | --- | --- |
-| Skill design interview planner | `gpt-5.4` via OpenAI direct once model-backed planning is enabled | It decides what questions get asked before a future skill is designed. Bad questions create bad briefs. |
-| Skill sample output review loop | `gpt-5.4` via OpenAI direct | The sample is what the lawyer judges before any future build step. Poor samples create false confidence, so this is a quality-first stage. |
+| Skill design interview planner | `openai/gpt-5.4` through OpenRouter by default once model-backed planning is enabled | It decides what questions get asked before a future skill is designed. Bad questions create bad briefs. |
+| Skill sample output review loop | `openai/gpt-5.4` through OpenRouter by default | The sample is what the lawyer judges before any future build step. Poor samples create false confidence, so this is a quality-first stage. |
 | Skill design review | `gpt-5.4` | It should catch overlap, ambiguity, risk, missing acceptance criteria, and bad default assumptions before implementation. |
-| Skill authoring / prompt-schema drafting | `gpt-5.4` minimum, with human review and fail-closed activation | This shapes future runnable behavior. Quality beats cost here. |
-| Configurable skill validation for legal/high-risk skills | `gpt-5.4` | It should judge whether generated output obeys citation, evidence, tone, and artifact contracts before a skill can be trusted. |
+| Skill authoring / prompt-schema drafting | `openai/gpt-5.4` through OpenRouter by default, with human review and fail-closed activation | This shapes future runnable behavior. Quality beats cost here. |
+| Configurable skill validation for legal/high-risk skills | `openai/gpt-5.4` through OpenRouter by default | It should judge whether generated output obeys citation, evidence, tone, and artifact contracts before a skill can be trusted. |
 | Matter Q&A / legal synthesis, when added | `gpt-5.4` for answer synthesis | The model will be reasoning over bounded evidence and giving lawyer-facing answers. It must use readable source labels while preserving validated raw citation mappings internally. |
 | Matter Co-pilot strategy, comparison, and argument framing | `gpt-5.4` for synthesis; deterministic/local search first for pure location | Freeform matter work can bend legal judgment quickly. Use local search for "where is X" when possible, but use the premium tier for strategic synthesis. |
 | Surgical draft amendments | `gpt-5.4`, explicit draft-amendment policy | Amendment requests act on lawyer-owned text. The model should propose bounded paragraph/section changes with preview/diff semantics, not silently regenerate or overwrite drafts. |
@@ -256,17 +256,17 @@ Bulk structured labeling: strong structured model with strict schema, escalate o
 Routing and app controls: cheap or deterministic
 ```
 
-Current implementation note: `gpt-5.4` did not work through OpenRouter for the skill interview planner under the strict `json_schema + require_parameters=true` contract. Use the OpenAI-direct planner path for this task:
+Current implementation note: Skill Factory tasks now default to OpenRouter through the first-class AI provider service. Use explicit task-specific provider overrides only when an operator intentionally wants OpenAI direct:
 
 ```text
-SKILL_INTERVIEW_PLANNER_ENABLED=1
+SKILL_ROUTER_PROVIDER=openai-direct
 SKILL_INTERVIEW_PLANNER_PROVIDER=openai-direct
-OPENAI_SKILL_INTERVIEW_PLANNER_MODEL=gpt-5.4
-OPENAI_SKILL_INTERVIEW_PLANNER_MAX_OUTPUT_TOKENS=2600
-OPENAI_SKILL_INTERVIEW_PLANNER_TIMEOUT_MS=90000
+SKILL_SAMPLE_OUTPUT_PROVIDER=openai-direct
+SKILL_AUTHORING_PROVIDER=openai-direct
+CONFIGURABLE_SKILL_RUN_PROVIDER=openai-direct
 ```
 
-The OpenRouter planner path remains available for models that can honor the strict schema contract.
+The default OpenRouter skill models are `openai/gpt-5.4` for planner/sample/authoring/run work and `openai/gpt-5.4-mini` for skill routing.
 
 Skill work needs separate task names before any selector or runtime provider choice becomes visible:
 
@@ -388,7 +388,7 @@ Use OpenAI direct for some tasks and OpenRouter for others, based on explicit ta
 The current production posture is:
 
 ```text
-skill router -> OpenAI direct
+skill router -> OpenRouter by default
 source_description -> OpenRouter
 create_listofdates -> OpenAI direct by default, OpenRouter only when SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
 future drafting -> not wired
