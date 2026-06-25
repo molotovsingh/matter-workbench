@@ -25,12 +25,17 @@ export function createConfiguredListOfDatesProvider({
     timeoutMs: options.timeoutMs,
   });
   const baseAiRun = modelPolicyMetadata(modelPolicy, providerConfig);
-  const provider = injectedProvider || providerFactory({
+  const providerArgs = {
     providerConfig,
     apiKey: options.apiKey,
     env,
     fetchImpl: options.fetchImpl || fetch,
     prompt,
-  });
+  };
+  if (providerFactory === createListOfDatesProvider) {
+    providerArgs.task = task;
+    providerArgs.providerService = options.providerService;
+  }
+  const provider = injectedProvider || providerFactory(providerArgs);
   return { provider, baseAiRun };
 }

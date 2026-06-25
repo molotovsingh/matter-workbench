@@ -2,14 +2,11 @@ import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
-import { AI_PROVIDERS } from "../shared/model-policy.mjs";
+import { AI_PROVIDERS, AI_TASKS } from "../shared/model-policy.mjs";
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import {
-  createOpenRouterProviderError,
-  parseOpenRouterJsonContent,
-} from "../shared/openrouter-response.mjs";
-import { fetchProviderJsonWithTimeout } from "../shared/provider-http.mjs";
-import { DEFAULT_RESPONSES_ENDPOINT, requestResponsesJson } from "../shared/responses-client.mjs";
+import { createOpenRouterProviderError } from "../shared/openrouter-response.mjs";
+import { DEFAULT_RESPONSES_ENDPOINT } from "../shared/responses-client.mjs";
+import { createAiProviderService } from "../services/ai-provider-service.mjs";
 
 export const LAWYER_FACING_PERSPECTIVE = "client_favourable";
 export const EVENT_TYPES = [
@@ -85,7 +82,7 @@ export const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   nativeSkill: "create_listofdates",
 });
 
-export function createListOfDatesProvider({ providerConfig, apiKey, env, fetchImpl, prompt = {} }) {
+export function createListOfDatesProvider({ task = AI_TASKS.SOURCE_BACKED_ANALYSIS, providerConfig, apiKey, env, fetchImpl, prompt = {}, providerService = null }) {
   if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
     return createOpenRouterProvider({
       apiKey: apiKey || env.OPENROUTER_API_KEY,
@@ -99,6 +96,8 @@ export function createListOfDatesProvider({ providerConfig, apiKey, env, fetchIm
       providerSort: providerConfig.providerSort,
       maxPrice: providerConfig.maxPrice,
       timeoutMs: providerConfig.timeoutMs,
+      task,
+      providerService,
       ...prompt,
     });
   }
@@ -107,6 +106,8 @@ export function createListOfDatesProvider({ providerConfig, apiKey, env, fetchIm
     model: providerConfig.model,
     endpoint: providerConfig.endpoint,
     maxOutputTokens: providerConfig.maxOutputTokens,
+    task,
+    providerService,
     ...prompt,
   });
 }
@@ -120,36 +121,37 @@ export function createOpenAiProvider({
   payloadBuilder = listOfDatesPromptPayload,
   schemaName = "list_of_dates_chunk",
   schemaDescription = "Cited legal chronology entries extracted from source blocks.",
+  task = AI_TASKS.SOURCE_BACKED_ANALYSIS,
+  providerService = null,
 } = {}) {
+  const service = providerService || createAiProviderService({
+    env: { OPENAI_API_KEY: apiKey || "", SOURCE_BACKED_ANALYSIS_PROVIDER: AI_PROVIDERS.OPENAI_DIRECT },
+  });
   return async function openAiListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
-    return requestResponsesJson({
-      apiKey,
-      endpoint,
-      missingApiKeyMessage: "OPENAI_API_KEY is required for /create_listofdates",
-      body: {
+    if (!apiKey && !providerService) {
+      const error = new Error("OPENAI_API_KEY is required for /create_listofdates");
+      error.statusCode = 409;
+      throw error;
+    }
+    const result = await service.invoke({
+      task,
+      systemPrompt,
+      userPayload: payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates }),
+      schema,
+      schemaName,
+      schemaDescription,
+      responseMode: "json",
+      overrides: {
+        endpoint,
         model,
-        max_output_tokens: maxOutputTokens,
-        input: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: JSON.stringify(payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates })),
-          },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: schemaName,
-            description: schemaDescription,
-            strict: true,
-            schema,
-          },
-        },
+        maxOutputTokens,
       },
+      label: "OpenAI list-of-dates",
     });
+    return {
+      ...result.parsed,
+      ai_run: listOfDatesResponseAiRun(result.aiRun),
+    };
   };
 }
 
@@ -168,9 +170,15 @@ export function createOpenRouterProvider({
   systemPrompt = LIST_OF_DATES_SYSTEM_PROMPT,
   payloadBuilder = listOfDatesPromptPayload,
   schemaName = "list_of_dates_chunk",
+  task = AI_TASKS.SOURCE_BACKED_ANALYSIS,
+  providerService = null,
 } = {}) {
+  const service = providerService || createAiProviderService({
+    env: { OPENROUTER_API_KEY: apiKey || "", SOURCE_BACKED_ANALYSIS_PROVIDER: AI_PROVIDERS.OPENROUTER },
+    fetchImpl,
+  });
   return async function openRouterListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
-    if (!apiKey) {
+    if (!apiKey && !providerService) {
       const error = new Error("OPENROUTER_API_KEY is required for /create_listofdates");
       error.statusCode = 409;
       throw error;
@@ -181,53 +189,44 @@ export function createOpenRouterProvider({
       throw error;
     }
 
-    const requestSchema = toOpenRouterCompatibleJsonSchema(schema);
-    const body = {
-      model,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
+    let result;
+    try {
+      result = await service.invoke({
+        task,
+        systemPrompt,
+        userPayload: payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates }),
+        schema,
+        schemaName,
+        responseMode: "json",
+        overrides: {
+          endpoint,
+          model,
+          maxOutputTokens,
+          timeoutMs,
+          providerOrder,
+          providerSort,
+          maxPrice,
+          requireParameters,
+          allowFallbacks,
+          omitTemperature: true,
+          extraHeaders: { "x-title": "Matter Workbench List of Dates" },
+          mapProviderError: createOpenRouterProviderError,
         },
-        {
-          role: "user",
-          content: JSON.stringify(payloadBuilder({ matter, chunk, chunkIndex, chunkCount, candidates })),
-        },
-      ],
-      max_tokens: maxOutputTokens,
-      provider: {
-        require_parameters: requireParameters,
-        allow_fallbacks: allowFallbacks,
-      },
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: schemaName,
-          strict: true,
-          schema: requestSchema,
-        },
-      },
+        label: "OpenRouter list-of-dates",
+      });
+    } catch (error) {
+      if (error?.code === "provider.invalid_json") {
+        const wrapped = new Error(error.message.replace("OpenRouter list-of-dates response was not valid JSON", "OpenRouter response did not include valid JSON message content"));
+        wrapped.statusCode = error.statusCode || 502;
+        wrapped.code = error.code;
+        throw wrapped;
+      }
+      throw error;
+    }
+    return {
+      ...result.parsed,
+      ai_run: listOfDatesResponseAiRun(result.aiRun),
     };
-    if (providerOrder.length) body.provider.order = providerOrder;
-    if (providerSort) body.provider.sort = providerSort;
-    if (maxPrice) body.provider.max_price = maxPrice;
-
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
-      endpoint,
-      apiKey,
-      timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench List of Dates",
-      },
-      timeoutMessage: `OpenRouter list-of-dates request timed out after ${timeoutMs}ms`,
-      isErrorPayload: ({ response, payload: responsePayload }) => !response.ok || Boolean(responsePayload?.error),
-      mapProviderError: createOpenRouterProviderError,
-      body,
-    });
-
-    return parseOpenRouterJsonContent(payload);
   };
 }
 
@@ -358,7 +357,14 @@ export function listOfDatesEditorPromptPayload({ matter, candidates }) {
       date_uncertainty: candidate.date_uncertainty,
       ocr_suspicion: candidate.ocr_suspicion,
       needs_review: candidate.needs_review,
-      confidence: candidate.confidence,
     })),
   };
+}
+
+function listOfDatesResponseAiRun(aiRun = {}) {
+  const responseAiRun = {};
+  if (aiRun.returnedModel) responseAiRun.returnedModel = aiRun.returnedModel;
+  if (aiRun.returnedProvider) responseAiRun.returnedProvider = aiRun.returnedProvider;
+  if (aiRun.usage) responseAiRun.usage = aiRun.usage;
+  return responseAiRun;
 }

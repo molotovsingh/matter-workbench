@@ -62,6 +62,7 @@ export function createAiProviderService({
     if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
       if (typeof overrides.requireParameters === "boolean") providerConfig.requireParameters = overrides.requireParameters;
       if (typeof overrides.allowFallbacks === "boolean") providerConfig.allowFallbacks = overrides.allowFallbacks;
+      if (typeof overrides.omitTemperature === "boolean") providerConfig.omitTemperature = overrides.omitTemperature;
     }
     return {
       policy,
@@ -262,7 +263,7 @@ function buildOpenRouterBody({ providerConfig, systemPrompt, userPayload, schema
       { role: "system", content: String(systemPrompt || "") },
       { role: "user", content: stringifyUserPayload(userPayload) },
     ],
-    ...openRouterTemperatureParams(providerConfig.model, 0),
+    ...(providerConfig.omitTemperature ? {} : openRouterTemperatureParams(providerConfig.model, 0)),
     max_tokens: providerConfig.maxOutputTokens,
     provider: {
       require_parameters: providerConfig.requireParameters,
