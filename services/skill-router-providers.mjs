@@ -129,5 +129,6 @@ function providerConfigToOverrides(providerConfig) {
     maxPrice: providerConfig.maxPrice,
     requireParameters: providerConfig.requireParameters,
     allowFallbacks: providerConfig.allowFallbacks,
+    extraHeaders: providerConfig.extraHeaders || { "x-title": "Matter Workbench Skill Router" },
   };
 }

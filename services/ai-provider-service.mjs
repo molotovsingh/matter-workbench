@@ -102,7 +102,10 @@ export function createAiProviderService({
         apiKey: env.OPENROUTER_API_KEY,
         body,
         timeoutMs: providerConfig.timeoutMs,
-        extraHeaders: OPENROUTER_APP_HEADERS,
+        extraHeaders: {
+          ...OPENROUTER_APP_HEADERS,
+          ...(overrides.extraHeaders && typeof overrides.extraHeaders === "object" ? overrides.extraHeaders : {}),
+        },
         timeoutMessage: `OpenRouter ${task} request timed out after ${providerConfig.timeoutMs}ms`,
       });
       const parsed = normalizedResponseMode === "json"

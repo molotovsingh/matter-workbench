@@ -26,10 +26,11 @@ export function createCopilotWebResearchService({
   webResearchProvider = null,
   researchAnswerProvider = null,
   webResearchAnswerProvider = null,
+  providerService = null,
 } = {}) {
   const config = readCopilotWebResearchConfig(env);
   const searchProvider = webResearchProvider || createDefaultWebResearchProvider({ config, env, fetchImpl });
-  const answerProvider = researchAnswerProvider || webResearchAnswerProvider || createDefaultCopilotWebResearchAnswerProvider({ env, fetchImpl, endpoint });
+  const answerProvider = researchAnswerProvider || webResearchAnswerProvider || createDefaultCopilotWebResearchAnswerProvider({ providerService, env, fetchImpl, endpoint });
   const answerProviderConfigured = Boolean(researchAnswerProvider || webResearchAnswerProvider || isCopilotWebResearchAnswerProviderConfigured({ env }));
 
   function readAvailability() {

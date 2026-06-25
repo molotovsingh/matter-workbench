@@ -1,14 +1,9 @@
-import { modelPolicyMetadata, resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
-import {
-  fetchProviderJsonWithTimeout,
-  parseOpenAiJsonOutput,
-  parseOpenRouterJsonMessage,
-} from "../shared/provider-http.mjs";
 import { DEFAULT_RESPONSES_ENDPOINT } from "../shared/responses-client.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
 export const COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA = Object.freeze({
   type: "object",
@@ -51,7 +46,7 @@ export const COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA = Object.freeze({
   },
 });
 
-const COPILOT_WEB_RESEARCH_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const COPILOT_WEB_RESEARCH_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You answer legal research questions inside Matter Workbench Research mode.",
   "Use the supplied matter context only for matter facts.",
   "Use the supplied public_sources only for public legal research.",
@@ -69,36 +64,20 @@ const COPILOT_WEB_RESEARCH_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   copilot: true,
 });
 
-export function createDefaultCopilotWebResearchAnswerProvider({ env = process.env, fetchImpl = fetch, endpoint } = {}) {
-  const policy = resolveModelPolicy(AI_TASKS.COPILOT_WEB_RESEARCH, { env });
-  const providerConfig = resolveProviderConfig(policy, { endpoint });
-  const provider = providerConfig.provider === AI_PROVIDERS.OPENROUTER
-    ? createOpenRouterCopilotWebResearchAnswerProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-      requireParameters: providerConfig.requireParameters,
-      allowFallbacks: providerConfig.allowFallbacks,
-    })
-    : createOpenAiCopilotWebResearchAnswerProvider({
-      apiKey: env.OPENAI_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
+export function createDefaultCopilotWebResearchAnswerProvider({ providerService, env = process.env, fetchImpl = fetch, endpoint } = {}) {
+  const service = providerService || createAiProviderService({ env, fetchImpl });
+  return async function defaultCopilotWebResearchAnswerProvider({ question, packet, publicSources, searchQuery } = {}) {
+    const result = await invokeCopilotWebResearchAnswer({
+      service,
+      question,
+      packet,
+      publicSources,
+      searchQuery,
+      overrides: { endpoint, extraHeaders: { "x-title": "Matter Workbench Copilot Research" } },
     });
-  return async function defaultCopilotWebResearchAnswerProvider(args) {
-    const answer = await provider(args);
     return {
-      ...answer,
-      ai_run: {
-        ...modelPolicyMetadata(policy, providerConfig),
-        ...(answer?.ai_run && typeof answer.ai_run === "object" ? answer.ai_run : {}),
-      },
+      ...result.parsed,
+      ai_run: result.aiRun,
     };
   };
 }
@@ -117,33 +96,17 @@ export function createOpenAiCopilotWebResearchAnswerProvider({
   maxOutputTokens,
   timeoutMs,
 } = {}) {
-  return async function openAiCopilotWebResearchAnswerProvider({ question, packet, publicSources, searchQuery } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for Copilot research answers", 409, "copilot_research.provider_not_configured");
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return directCopilotWebResearchAnswerProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENAI_DIRECT,
       endpoint,
-      apiKey,
-      body: {
-        model,
-        max_output_tokens: maxOutputTokens,
-        input: [
-          { role: "system", content: COPILOT_WEB_RESEARCH_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(researchUserPayload({ question, packet, publicSources, searchQuery })) },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "copilot_web_research_answer",
-            strict: true,
-            schema: COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA,
-          },
-        },
-      },
+      model,
+      maxOutputTokens,
       timeoutMs,
-      timeoutMessage: `OpenAI Copilot research answer request timed out after ${timeoutMs}ms`,
-    });
-    return parseOpenAiJsonOutput(payload, "OpenAI Copilot research answer");
-  };
+    },
+    env: { OPENAI_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
 export function createOpenRouterCopilotWebResearchAnswerProvider({
@@ -156,45 +119,23 @@ export function createOpenRouterCopilotWebResearchAnswerProvider({
   requireParameters = true,
   allowFallbacks = false,
 } = {}) {
-  return async function openRouterCopilotWebResearchAnswerProvider({ question, packet, publicSources, searchQuery } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for Copilot research answers", 409, "copilot_research.provider_not_configured");
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return directCopilotWebResearchAnswerProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENROUTER,
       endpoint,
-      apiKey,
-      body: {
-        model,
-        messages: [
-          { role: "system", content: COPILOT_WEB_RESEARCH_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(researchUserPayload({ question, packet, publicSources, searchQuery })) },
-        ],
-        ...openRouterTemperatureParams(model, 0),
-        max_tokens: maxOutputTokens,
-        provider: {
-          require_parameters: requireParameters,
-          allow_fallbacks: allowFallbacks,
-        },
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "copilot_web_research_answer",
-            strict: true,
-            schema: COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA,
-          },
-        },
-      },
+      model,
+      maxOutputTokens,
       timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Copilot Research",
-      },
-      timeoutMessage: `OpenRouter Copilot research answer request timed out after ${timeoutMs}ms`,
-    });
-    return parseOpenRouterJsonMessage(payload, "OpenRouter Copilot research answer");
-  };
+      requireParameters,
+      allowFallbacks,
+      extraHeaders: { "x-title": "Matter Workbench Copilot Research" },
+    },
+    env: { OPENROUTER_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
-function researchUserPayload({ question, packet, publicSources = [], searchQuery = "" }) {
+export function researchUserPayload({ question, packet, publicSources = [], searchQuery = "" }) {
   return {
     task: "Answer the user's legal research question from current matter context and supplied public sources.",
     question,
@@ -218,5 +159,66 @@ function researchUserPayload({ question, packet, publicSources = [], searchQuery
       "If facts needed to choose a legal route are missing, list them under what to verify.",
       "End with: _Verify authorities before relying or filing._",
     ],
+  };
+}
+
+function directCopilotWebResearchAnswerProvider({ providerConfig, env, fetchImpl }) {
+  const service = createAiProviderService({
+    env: { ...env, COPILOT_WEB_RESEARCH_ANSWER_PROVIDER: providerConfig.provider },
+    fetchImpl,
+  });
+  return async function copilotWebResearchAnswerProvider({ question, packet, publicSources, searchQuery } = {}) {
+    try {
+      const result = await invokeCopilotWebResearchAnswer({
+        service,
+        question,
+        packet,
+        publicSources,
+        searchQuery,
+        overrides: providerConfigToOverrides(providerConfig),
+      });
+      return result.parsed;
+    } catch (error) {
+      if (String(error?.code || "").endsWith("api_key_required")) {
+        throw makeHttpError("OPENAI_API_KEY or OPENROUTER_API_KEY is required for Copilot research answers", 409, "copilot_research.provider_not_configured");
+      }
+      throw error;
+    }
+  };
+}
+
+async function invokeCopilotWebResearchAnswer({
+  service,
+  question,
+  packet,
+  publicSources,
+  searchQuery,
+  overrides = {},
+}) {
+  return service.invoke({
+    task: AI_TASKS.COPILOT_WEB_RESEARCH,
+    systemPrompt: COPILOT_WEB_RESEARCH_SYSTEM_PROMPT,
+    userPayload: researchUserPayload({ question, packet, publicSources, searchQuery }),
+    schema: COPILOT_WEB_RESEARCH_ANSWER_JSON_SCHEMA,
+    schemaName: "copilot_web_research_answer",
+    responseMode: "json",
+    overrides,
+    label: "Copilot research answer",
+  });
+}
+
+function providerConfigToOverrides(providerConfig) {
+  if (!providerConfig || typeof providerConfig !== "object") return {};
+  return {
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    timeoutMs: providerConfig.timeoutMs,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
+    requireParameters: providerConfig.requireParameters,
+    allowFallbacks: providerConfig.allowFallbacks,
+    extraHeaders: providerConfig.extraHeaders,
   };
 }

@@ -121,6 +121,7 @@ export async function createWorkbenchServer(options = {}) {
     endpoint: options.copilotWebResearchAnswerEndpoint,
     webResearchProvider: options.copilotWebResearchProvider || null,
     webResearchAnswerProvider: options.copilotWebResearchAnswerProvider || null,
+    providerService: aiProviderService,
   });
   const matterContextService = createMatterContextService({ matterStore });
   const workspaceService = createWorkspaceService({ matterStore });
