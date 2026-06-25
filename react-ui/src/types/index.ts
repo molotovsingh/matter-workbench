@@ -513,6 +513,7 @@ export interface SkillSampleOutputRequest {
   idea: SkillIdea;
   feedback?: string;
   previousSample?: string;
+  matterName?: string;
 }
 
 export interface SkillIdeaDesignBriefUpdateRequest {

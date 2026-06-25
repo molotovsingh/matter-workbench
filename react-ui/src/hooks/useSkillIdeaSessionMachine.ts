@@ -209,7 +209,7 @@ export function useSkillIdeaSessionMachine({
   }
 
   async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
-    const startingMatter = state.activeMatter;
+    const startingMatter = activeMatterRef.current;
     const startingMatterFolder = startingMatter?.folderName || '';
     const startingMatterName = startingMatter?.name || '';
     if (!hasSkillIdeaTestMatter(startingMatter)) {
@@ -259,6 +259,7 @@ export function useSkillIdeaSessionMachine({
         idea: savedIdea,
         feedback,
         previousSample,
+        matterName: startingMatterFolder || startingMatterName,
       });
       if (!operation.isCurrent()) return;
       const latestMatterFolder = activeMatterRef.current?.folderName || '';

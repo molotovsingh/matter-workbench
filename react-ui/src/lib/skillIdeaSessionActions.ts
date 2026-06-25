@@ -40,6 +40,7 @@ interface GenerateSkillIdeaSessionSampleArgs {
   idea: SkillIdea;
   feedback?: string;
   previousSample?: string;
+  matterName?: string;
 }
 
 export interface GeneratedSkillIdeaSessionSample {
@@ -101,11 +102,13 @@ export async function generateSkillIdeaSessionSample({
   idea,
   feedback = '',
   previousSample = '',
+  matterName = '',
 }: GenerateSkillIdeaSessionSampleArgs): Promise<GeneratedSkillIdeaSessionSample> {
   const result = await api.generateSampleOutput({
     idea,
     feedback,
     previousSample,
+    matterName: matterName || undefined,
   });
   return normalizeGeneratedSkillIdeaSample(result);
 }

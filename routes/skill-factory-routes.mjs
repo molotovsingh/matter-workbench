@@ -91,6 +91,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
                 idea: body.idea || {},
                 feedback: body.feedback || "",
                 previousSample: body.previousSample || "",
+                matterRootOverride: await matterRootOverrideForSampleOutput(matterStore, body),
               });
             const stored = await skillSamplesService.recordSample({
               idea: body.idea || sample.idea || {},
@@ -310,6 +311,13 @@ function assertRuntimeDbMatterContextPacketAvailable({ runtimeDbStorageService, 
       "skill_factory.context_required",
     );
   }
+}
+
+async function matterRootOverrideForSampleOutput(matterStore, body = {}) {
+  const direct = typeof body.matterName === "string" ? body.matterName.trim() : "";
+  if (!direct) return "";
+  const resolved = await matterStore.resolveExistingMatter(direct);
+  return resolved.matterPath || "";
 }
 
 function matterNameForSampleOutput(body = {}) {

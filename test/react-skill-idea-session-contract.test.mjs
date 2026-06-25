@@ -30,6 +30,9 @@ test("React skill idea session keeps samples tied to the saved design brief and 
   assert.match(source, /Save updates and generate a fresh sample before creating the skill\./);
   assert.match(source, /Regenerate the sample after the design brief changes before creating the skill\./);
   assert.match(actionsSource, /generatedSkillIdeaSampleMatterFolder\(result\)/);
+  assert.match(actionsSource, /matterName: matterName \|\| undefined/);
+  assert.match(source, /const startingMatter = activeMatterRef\.current/);
+  assert.match(source, /matterName: startingMatterFolder \|\| startingMatterName/);
   assert.match(source, /ignored sample result after matter changed/);
   assert.match(source, /ignored interview plan after matter changed/);
   assert.match(source, /ignored saved idea after matter changed/);
@@ -168,6 +171,7 @@ test("React skill idea machine delegates sample generation details to session ac
 
   assert.match(actionsSource, /export async function generateSkillIdeaSessionSample/);
   assert.match(actionsSource, /api\.generateSampleOutput/);
+  assert.match(actionsSource, /matterName: matterName \|\| undefined/);
   assert.match(actionsSource, /storedSample\?\.version/);
   assert.match(actionsSource, /generatedSkillIdeaSampleMatterFolder/);
   assert.match(machineSource, /generateSkillIdeaSessionSample/);

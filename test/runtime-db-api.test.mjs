@@ -2413,6 +2413,63 @@ test("runtime DB sample output reads DB-native context before building sample", 
   }
 });
 
+test("runtime DB sample output uses explicit active matter over stale saved idea matter", async () => {
+  const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sample-output-explicit-matter");
+  const matter = runtimeDbMatter({ name: "Current Matter Folder", matterName: "Current Legal Caption" });
+  const resolutionCalls = [];
+  const providerCalls = [];
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    mattersHome,
+    matter,
+    runtimeMatterIndex: {
+      async findMatterFolder(name) {
+        resolutionCalls.push(name);
+        return name === matter.name || name === matter.matterName ? matter : null;
+      },
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(targetMatter) {
+        return directRuntimeDbMatterContextPacket(targetMatter);
+      },
+    },
+    skillSampleOutputProvider: async (payload) => {
+      providerCalls.push(payload);
+      return "# Sample\n\nBuilt from the explicitly selected current matter.";
+    },
+  });
+
+  try {
+    const sample = await postJson(server.baseUrl, "/api/skill-ideas/sample-output", {
+      matterName: matter.name,
+      idea: {
+        id: "idea_stale_matter",
+        text: "produce a simple list of parties in the matter",
+        status: "draft",
+        matter: { matterName: "Missing Matter", folderName: "Missing Matter" },
+        designBrief: {
+          intendedUser: "advocate",
+          problem: "List parties.",
+          expectedInputs: "matter record",
+          expectedOutputArtifact: "20_Workshop/Parties.md",
+          targetLane: "20_Workshop",
+          paidPosture: "paid",
+          riskLevel: "medium",
+        },
+      },
+    });
+
+    assert.equal(sample.schema_version, "skill-sample-output/v1");
+    assert.equal(sample.matter.folder_name, matter.name);
+    assert.equal(providerCalls.length, 1);
+    assert.equal(providerCalls[0].matterContext.matter.folder_name, matter.name);
+    assert.deepEqual(resolutionCalls, [matter.name]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB sample output provider failures are recorded as job telemetry", async () => {
   const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-sample-output-fail");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
