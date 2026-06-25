@@ -106,6 +106,7 @@ export function createAiProviderService({
           ...OPENROUTER_APP_HEADERS,
           ...(overrides.extraHeaders && typeof overrides.extraHeaders === "object" ? overrides.extraHeaders : {}),
         },
+        mapProviderError: typeof overrides.mapProviderError === "function" ? overrides.mapProviderError : undefined,
         timeoutMessage: `OpenRouter ${task} request timed out after ${providerConfig.timeoutMs}ms`,
       });
       const parsed = normalizedResponseMode === "json"
@@ -323,9 +324,11 @@ function normalizeProviderUsage(payload) {
   const promptTokens = firstNumber(usage.prompt_tokens, usage.input_tokens, usage.promptTokenCount);
   const completionTokens = firstNumber(usage.completion_tokens, usage.output_tokens, usage.candidatesTokenCount);
   const totalTokens = firstNumber(usage.total_tokens, usage.totalTokenCount);
+  const cost = firstNumber(usage.cost);
   if (promptTokens !== null) normalized.promptTokens = promptTokens;
   if (completionTokens !== null) normalized.completionTokens = completionTokens;
   if (totalTokens !== null) normalized.totalTokens = totalTokens;
+  if (cost !== null) normalized.cost = cost;
   return Object.keys(normalized).length ? normalized : null;
 }
 

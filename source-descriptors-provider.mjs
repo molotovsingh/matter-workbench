@@ -1,15 +1,12 @@
 import { modelPolicyMetadata, resolveProviderConfig } from "./shared/ai-provider-policy.mjs";
 import {
-  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
   legalWorkbenchSystemPrompt,
 } from "./shared/legal-workbench-policy-prompt.mjs";
+import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "./shared/legal-workbench-policy-prompt.mjs";
 import { SOURCE_INDEX_RELATIVE } from "./shared/matter-artifacts.mjs";
-import { AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
-import {
-  createOpenRouterProviderError,
-  parseOpenRouterJsonContent,
-} from "./shared/openrouter-response.mjs";
-import { fetchProviderJsonWithTimeout } from "./shared/provider-http.mjs";
+import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "./shared/model-policy.mjs";
+import { createOpenRouterProviderError } from "./shared/openrouter-response.mjs";
+import { createAiProviderService } from "./services/ai-provider-service.mjs";
 
 const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
   "You create source descriptors for legal matter source documents.",
@@ -26,7 +23,7 @@ const SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS = [
   "Use only the supplied source packets.",
 ];
 
-const SOURCE_DESCRIPTOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt(SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS, {
+export const SOURCE_DESCRIPTOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt(SOURCE_DESCRIPTOR_TASK_INSTRUCTIONS, {
   nativeSkill: "source_labels",
 });
 
@@ -44,9 +41,14 @@ export function createOpenRouterSourceDescriptorProvider({
   requireParameters = true,
   allowFallbacks = false,
   timeoutMs,
+  providerService = null,
 } = {}) {
+  const service = providerService || createAiProviderService({
+    env: { OPENROUTER_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
   return async function openRouterSourceDescriptorProvider({ matter, sources, schema }) {
-    if (!apiKey) {
+    if (!apiKey && !providerService) {
       const error = new Error("OPENROUTER_API_KEY is required for source description");
       error.statusCode = 409;
       throw error;
@@ -57,35 +59,43 @@ export function createOpenRouterSourceDescriptorProvider({
       throw error;
     }
 
-    const body = buildOpenRouterSourceDescriptorRequest({
-      allowFallbacks,
-      maxOutputTokens,
-      maxPrice,
-      matter,
-      model,
-      providerOrder,
-      providerSort,
-      requireParameters,
-      schema,
-      sources,
-    });
-
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
-      endpoint,
-      apiKey,
-      timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Source Descriptors",
-      },
-      timeoutMessage: `OpenRouter source description request timed out after ${timeoutMs}ms`,
-      isErrorPayload: ({ response }) => !response.ok,
-      mapProviderError: createOpenRouterProviderError,
-      body,
-    });
-
-    return parseOpenRouterJsonContent(payload);
+    let result;
+    try {
+      result = await service.invoke({
+        task: AI_TASKS.SOURCE_DESCRIPTION,
+        systemPrompt: SOURCE_DESCRIPTOR_SYSTEM_PROMPT,
+        userPayload: sourceDescriptorUserPayload({ matter, sources }),
+        schema,
+        schemaName: "source_index",
+        responseMode: "json",
+        overrides: {
+          endpoint,
+          model,
+          maxOutputTokens,
+          timeoutMs,
+          providerOrder,
+          providerSort,
+          maxPrice,
+          requireParameters,
+          allowFallbacks,
+          extraHeaders: { "x-title": "Matter Workbench Source Descriptors" },
+          mapProviderError: createOpenRouterProviderError,
+        },
+        label: "OpenRouter source description",
+      });
+    } catch (error) {
+      if (error?.code === "provider.invalid_json") {
+        const wrapped = new Error(error.message.replace("OpenRouter source description response was not valid JSON", "OpenRouter response did not include valid JSON message content"));
+        wrapped.statusCode = error.statusCode || 502;
+        wrapped.code = error.code;
+        throw wrapped;
+      }
+      throw error;
+    }
+    return {
+      ...result.parsed,
+      ai_run: sourceDescriptorResponseAiRun(result.aiRun),
+    };
   };
 }
 
@@ -114,6 +124,7 @@ export function resolveSourceDescriptorProvider(options) {
     providerSort: options.providerSort,
     timeoutMs: options.timeoutMs,
   });
+  const providerService = options.providerService || null;
   const primaryProvider = createOpenRouterSourceDescriptorProvider({
     apiKey: options.apiKey || env.OPENROUTER_API_KEY,
     endpoint: providerConfig.endpoint,
@@ -126,6 +137,7 @@ export function resolveSourceDescriptorProvider(options) {
     requireParameters: providerConfig.requireParameters,
     allowFallbacks: providerConfig.allowFallbacks,
     timeoutMs: providerConfig.timeoutMs,
+    providerService,
   });
   const fallbackProvider = fallbackModel
     ? createOpenRouterSourceDescriptorProvider({
@@ -140,6 +152,7 @@ export function resolveSourceDescriptorProvider(options) {
       requireParameters: providerConfig.requireParameters,
       allowFallbacks: providerConfig.allowFallbacks,
       timeoutMs: providerConfig.timeoutMs,
+      providerService,
     })
     : null;
   const aiRun = options.aiRun || {
@@ -199,71 +212,38 @@ export function mergeAiRunMetadata(baseAiRun, responseAiRun) {
   };
 }
 
-function buildOpenRouterSourceDescriptorRequest({
-  allowFallbacks,
-  maxOutputTokens,
-  maxPrice,
-  matter,
-  model,
-  providerOrder,
-  providerSort,
-  requireParameters,
-  schema,
-  sources,
-}) {
-  const body = {
-    model,
-    messages: [
-      {
-        role: "system",
-        content: SOURCE_DESCRIPTOR_SYSTEM_PROMPT,
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          task: "Create source descriptors for these source packets.",
-          matter,
-          contract_summary: {
-            artifact: SOURCE_INDEX_RELATIVE,
-            schema_version: SOURCE_INDEX_SCHEMA_VERSION,
-            descriptor_key: ["file_id"],
-            evidence_required: true,
-            source_identity_owned_by_backend: true,
-            display_label_should_include_reliable_document_date: true,
-            raw_citations_remain_canonical: true,
-            source_text_beats_filename_for_date_basis: true,
-            prefer_unknown_over_guess: true,
-          },
-          sources,
-        }),
-      },
-    ],
-    temperature: 0,
-    max_tokens: maxOutputTokens,
-    provider: {
-      require_parameters: requireParameters,
-      allow_fallbacks: allowFallbacks,
+export function sourceDescriptorUserPayload({ matter, sources }) {
+  return {
+    task: "Create source descriptors for these source packets.",
+    matter,
+    contract_summary: {
+      artifact: SOURCE_INDEX_RELATIVE,
+      schema_version: SOURCE_INDEX_SCHEMA_VERSION,
+      descriptor_key: ["file_id"],
+      evidence_required: true,
+      source_identity_owned_by_backend: true,
+      display_label_should_include_reliable_document_date: true,
+      raw_citations_remain_canonical: true,
+      source_text_beats_filename_for_date_basis: true,
+      prefer_unknown_over_guess: true,
     },
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "source_index",
-        strict: true,
-        schema,
-      },
-    },
+    sources,
   };
-  if (providerOrder.length) body.provider.order = providerOrder;
-  if (providerSort) body.provider.sort = providerSort;
-  if (maxPrice) body.provider.max_price = maxPrice;
-  return body;
+}
+
+function sourceDescriptorResponseAiRun(aiRun = {}) {
+  const responseAiRun = {};
+  if (aiRun.returnedModel) responseAiRun.returnedModel = aiRun.returnedModel;
+  if (aiRun.returnedProvider) responseAiRun.returnedProvider = aiRun.returnedProvider;
+  if (aiRun.usage) responseAiRun.usage = aiRun.usage;
+  return responseAiRun;
 }
 
 function fakeProviderMetadata() {
   return {
     policyVersion: "source-index-skeleton/v1",
     policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
-    task: "source_description",
+    task: AI_TASKS.SOURCE_DESCRIPTION,
     tier: "source_description",
     provider: "fake-provider",
     model: "injected-test-provider",
