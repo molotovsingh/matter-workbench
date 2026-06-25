@@ -32,8 +32,7 @@ import {
   CONFIGURABLE_SKILLS_SCHEMA_VERSION,
   createConfigurableSkillStore,
 } from "./configurable-skill-store.mjs";
-import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
-import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
+import { resolveProviderConfig, modelPolicyMetadata } from "../shared/ai-provider-policy.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { SKILL_IDEA_STATUS } from "../shared/skill-idea-statuses.mjs";
@@ -57,6 +56,7 @@ export function createConfigurableSkillsService({
   skillStore = null,
   authoringProvider,
   runProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
@@ -115,6 +115,7 @@ export function createConfigurableSkillsService({
         matterStore,
         authoringProvider,
         runProvider,
+        providerService,
         env,
         fetchImpl,
         endpoint,
@@ -170,17 +171,13 @@ export function createConfigurableSkillsService({
       );
     }
     const provider = runProvider || createDefaultRunProvider({
+      providerService,
       providerConfig,
       env,
       fetchImpl,
     });
     const timestamp = now().toISOString();
-    const aiRun = {
-      provider: providerConfig.provider,
-      model: providerConfig.model,
-      task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
-      policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
-    };
+    const aiRun = modelPolicyMetadata(policy, providerConfig);
     let runRecord = await runLedger.createRun({
       skillId: skill.id,
       slash: skill.slash,

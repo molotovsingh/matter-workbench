@@ -28,6 +28,7 @@ export async function createSkillFromApprovedSampleInStore({
   matterStore,
   authoringProvider,
   runProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
@@ -63,6 +64,7 @@ export async function createSkillFromApprovedSampleInStore({
   } = resolveCreationProviders({
     authoringProvider,
     runProvider,
+    providerService,
     env,
     fetchImpl,
     endpoint,
@@ -169,6 +171,7 @@ function resolveTargetSkill({ idea, store }) {
 function resolveCreationProviders({
   authoringProvider,
   runProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
@@ -183,6 +186,7 @@ function resolveCreationProviders({
     );
   }
   const provider = authoringProvider || createDefaultAuthoringProvider({
+    providerService,
     providerConfig: authoringProviderConfig,
     env,
     fetchImpl,
@@ -198,6 +202,7 @@ function resolveCreationProviders({
     );
   }
   const validationRunProvider = runProvider || createDefaultRunProvider({
+    providerService,
     providerConfig: runProviderConfig,
     env,
     fetchImpl,

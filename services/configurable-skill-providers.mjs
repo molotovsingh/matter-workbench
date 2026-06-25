@@ -1,14 +1,9 @@
 import { publicSkill } from "./configurable-skill-definition.mjs";
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_PROVIDERS } from "../shared/model-policy.mjs";
-import {
-  extractOpenAiOutputText,
-  extractOpenRouterMessageText,
-  fetchProviderJsonWithTimeout,
-  parseOpenAiJsonOutput,
-  parseOpenRouterJsonMessage,
-} from "../shared/provider-http.mjs";
+import { AI_PROVIDERS, AI_TASKS } from "../shared/model-policy.mjs";
+import { DEFAULT_RESPONSES_ENDPOINT } from "../shared/responses-client.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
 export const AUTHORING_SCHEMA = {
   type: "object",
@@ -39,7 +34,7 @@ export const AUTHORING_SCHEMA = {
   },
 };
 
-const AUTHORING_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const AUTHORING_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You create strict configurable skill definitions for Matter Workbench.",
   "Return only JSON matching the schema.",
   "Do not generate code, routes, tests, files, or executable JavaScript.",
@@ -54,7 +49,7 @@ const AUTHORING_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   customSkill: true,
 });
 
-const RUN_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const RUN_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are running an approved configurable Matter Workbench skill.",
   "Return Markdown only.",
   "Use the supplied skill prompt, matter context packet, and output artifact contract.",
@@ -68,189 +63,119 @@ const RUN_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   customSkill: true,
 });
 
-export function createDefaultAuthoringProvider({ providerConfig, env, fetchImpl }) {
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterAuthoringProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-    });
-  }
-  return createOpenAiAuthoringProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
+export function createDefaultAuthoringProvider({ providerService, providerConfig = null, env = process.env, fetchImpl = fetch } = {}) {
+  const service = providerService || createAiProviderService({
+    env: providerConfig?.provider ? { ...env, SKILL_AUTHORING_PROVIDER: providerConfig.provider } : env,
     fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
   });
-}
-
-export function createDefaultRunProvider({ providerConfig, env, fetchImpl }) {
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterRunProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-    });
-  }
-  return createOpenAiRunProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
-    fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
-  });
-}
-
-export function createOpenAiAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openAiAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
-    if (!apiKey) {
-      throw makeHttpError(
-        "OPENAI_API_KEY is required for skill authoring",
-        409,
-        "configurable_skill_provider.api_key_required",
-      );
+  return async function authoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
+    try {
+      const result = await service.invoke({
+        task: AI_TASKS.SKILL_AUTHORING,
+        systemPrompt: AUTHORING_SYSTEM_PROMPT,
+        userPayload: authoringPayload({ idea, sample, existingSlashes, targetSkill }),
+        schema,
+        schemaName: "configurable_skill_definition",
+        responseMode: "json",
+        overrides: providerConfigToOverrides(providerConfig, { xTitle: "Matter Workbench Skill Authoring" }),
+        label: providerConfig?.label || "Configurable skill authoring",
+      });
+      return result.parsed;
+    } catch (error) {
+      throw normalizeConfigurableProviderError(error);
     }
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
-      endpoint,
-      apiKey,
-      timeoutMs,
-      timeoutMessage: `OpenAI skill authoring request timed out after ${timeoutMs}ms`,
-      body: {
-        model,
-        max_output_tokens: maxOutputTokens,
-        input: [
-          { role: "system", content: AUTHORING_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes, targetSkill })) },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "configurable_skill_definition",
-            strict: true,
-            schema,
-          },
-        },
-      },
-    });
-    return parseOpenAiJsonOutput(payload, "OpenAI skill authoring");
   };
+}
+
+export function createDefaultRunProvider({ providerService, providerConfig = null, env = process.env, fetchImpl = fetch } = {}) {
+  const service = providerService || createAiProviderService({
+    env: providerConfig?.provider ? { ...env, CONFIGURABLE_SKILL_RUN_PROVIDER: providerConfig.provider } : env,
+    fetchImpl,
+  });
+  return async function runProvider({ skill, matterContext } = {}) {
+    try {
+      const result = await service.invoke({
+        task: AI_TASKS.CONFIGURABLE_SKILL_RUN,
+        systemPrompt: RUN_SYSTEM_PROMPT,
+        userPayload: runPayload({ skill, matterContext }),
+        responseMode: "text",
+        overrides: providerConfigToOverrides(providerConfig, { xTitle: "Matter Workbench Configurable Skill Run" }),
+        label: providerConfig?.label || "Configurable skill run",
+      });
+      return result.parsed;
+    } catch (error) {
+      throw normalizeConfigurableProviderError(error);
+    }
+  };
+}
+
+export function createOpenAiAuthoringProvider({ apiKey, endpoint = DEFAULT_RESPONSES_ENDPOINT, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
+  return createDefaultAuthoringProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENAI_DIRECT,
+      endpoint,
+      model,
+      maxOutputTokens,
+      timeoutMs,
+      label: "OpenAI skill authoring",
+    },
+    env: { OPENAI_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
 export function createOpenRouterAuthoringProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openRouterAuthoringProvider({ idea, sample, existingSlashes, targetSkill, schema } = {}) {
-    if (!apiKey) {
-      throw makeHttpError(
-        "OPENROUTER_API_KEY is required for skill authoring",
-        409,
-        "configurable_skill_provider.api_key_required",
-      );
-    }
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultAuthoringProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENROUTER,
       endpoint,
-      apiKey,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Skill Authoring",
-      },
-      timeoutMessage: `OpenRouter skill authoring request timed out after ${timeoutMs}ms`,
-      body: {
-        model,
-        messages: [
-          { role: "system", content: AUTHORING_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(authoringPayload({ idea, sample, existingSlashes, targetSkill })) },
-        ],
-        temperature: 0,
-        max_tokens: maxOutputTokens,
-        provider: { require_parameters: true, allow_fallbacks: false },
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "configurable_skill_definition",
-            strict: true,
-            schema,
-          },
-        },
-      },
-    });
-    return parseOpenRouterJsonMessage(payload, "OpenRouter skill authoring");
-  };
+      requireParameters: true,
+      allowFallbacks: false,
+      extraHeaders: { "x-title": "Matter Workbench Skill Authoring" },
+      label: "OpenRouter skill authoring",
+    },
+    env: { OPENROUTER_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
-export function createOpenAiRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openAiRunProvider({ skill, matterContext } = {}) {
-    if (!apiKey) {
-      throw makeHttpError(
-        "OPENAI_API_KEY is required for configurable skill runs",
-        409,
-        "configurable_skill_provider.api_key_required",
-      );
-    }
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+export function createOpenAiRunProvider({ apiKey, endpoint = DEFAULT_RESPONSES_ENDPOINT, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
+  return createDefaultRunProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENAI_DIRECT,
       endpoint,
-      apiKey,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      timeoutMessage: `OpenAI configurable skill run timed out after ${timeoutMs}ms`,
-      body: {
-        model,
-        max_output_tokens: maxOutputTokens,
-        input: [
-          { role: "system", content: RUN_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(runPayload({ skill, matterContext })) },
-        ],
-      },
-    });
-    return extractOpenAiOutputText(payload, "OpenAI configurable skill run");
-  };
+      label: "OpenAI configurable skill run",
+    },
+    env: { OPENAI_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
 export function createOpenRouterRunProvider({ apiKey, endpoint, fetchImpl = fetch, model, maxOutputTokens, timeoutMs } = {}) {
-  return async function openRouterRunProvider({ skill, matterContext } = {}) {
-    if (!apiKey) {
-      throw makeHttpError(
-        "OPENROUTER_API_KEY is required for configurable skill runs",
-        409,
-        "configurable_skill_provider.api_key_required",
-      );
-    }
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultRunProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENROUTER,
       endpoint,
-      apiKey,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Configurable Skill Run",
-      },
-      timeoutMessage: `OpenRouter configurable skill run timed out after ${timeoutMs}ms`,
-      body: {
-        model,
-        messages: [
-          { role: "system", content: RUN_SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(runPayload({ skill, matterContext })) },
-        ],
-        temperature: 0,
-        max_tokens: maxOutputTokens,
-        provider: { require_parameters: true, allow_fallbacks: false },
-      },
-    });
-    return extractOpenRouterMessageText(payload, "OpenRouter configurable skill run");
-  };
+      requireParameters: true,
+      allowFallbacks: false,
+      extraHeaders: { "x-title": "Matter Workbench Configurable Skill Run" },
+      label: "OpenRouter configurable skill run",
+    },
+    env: { OPENROUTER_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
-function authoringPayload({ idea, sample, existingSlashes, targetSkill = null }) {
+export function authoringPayload({ idea, sample, existingSlashes, targetSkill = null }) {
   return {
     task: targetSkill
       ? "Create a new version of an existing configurable skill from an approved revised sample."
@@ -263,32 +188,55 @@ function authoringPayload({ idea, sample, existingSlashes, targetSkill = null })
       "For an existing-skill revision, keep the slash command stable unless the caller explicitly supplied a different activation plan.",
     ],
     idea: {
-      id: idea.id,
-      text: idea.text,
-      designBrief: idea.designBrief,
+      id: idea?.id,
+      text: idea?.text,
+      designBrief: idea?.designBrief,
     },
     approved_sample: {
-      id: sample.id,
-      matter: sample.matter,
-      markdown: sample.sampleMarkdown,
+      id: sample?.id,
+      matter: sample?.matter,
+      markdown: sample?.sampleMarkdown,
     },
     existing_skill: targetSkill ? publicSkill(targetSkill) : null,
     existing_slashes: existingSlashes,
   };
 }
 
-function runPayload({ skill, matterContext }) {
+export function runPayload({ skill, matterContext }) {
   return {
     task: "Run this active configurable skill for the selected matter.",
     skill: {
-      title: skill.title,
-      slash: skill.slash,
-      description: skill.description,
-      outputArtifact: skill.outputArtifact,
-      sourceBacked: skill.sourceBacked,
-      prompt: skill.promptConfig.prompt,
-      citationPolicy: skill.promptConfig.citationPolicy,
+      title: skill?.title,
+      slash: skill?.slash,
+      description: skill?.description,
+      outputArtifact: skill?.outputArtifact,
+      sourceBacked: skill?.sourceBacked,
+      prompt: skill?.promptConfig?.prompt,
+      citationPolicy: skill?.promptConfig?.citationPolicy,
     },
     matter_context: matterContext,
   };
+}
+
+function providerConfigToOverrides(providerConfig, { xTitle } = {}) {
+  if (!providerConfig || typeof providerConfig !== "object") return {};
+  return {
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    timeoutMs: providerConfig.timeoutMs,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
+    requireParameters: providerConfig.requireParameters,
+    allowFallbacks: providerConfig.allowFallbacks,
+    extraHeaders: providerConfig.extraHeaders || (xTitle ? { "x-title": xTitle } : undefined),
+  };
+}
+
+function normalizeConfigurableProviderError(error) {
+  if (String(error?.code || "").endsWith("api_key_required")) {
+    return makeHttpError(error.message, 409, "configurable_skill_provider.api_key_required");
+  }
+  return error;
 }

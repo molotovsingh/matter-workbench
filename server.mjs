@@ -254,6 +254,7 @@ export async function createWorkbenchServer(options = {}) {
     skillStore: configurableSkillStore,
     authoringProvider: options.configurableSkillAuthoringProvider || null,
     runProvider: options.configurableSkillRunProvider || null,
+    providerService: aiProviderService,
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.configurableSkillEndpoint,
