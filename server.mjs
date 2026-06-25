@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAiProviderService } from "./services/ai-provider-service.mjs";
 import { createAiSettingsService } from "./services/ai-settings-service.mjs";
 import { createCommandInteractionLogService } from "./services/command-interaction-log-service.mjs";
 import { createConfigService } from "./services/config-service.mjs";
@@ -65,6 +66,10 @@ export async function createWorkbenchServer(options = {}) {
 
   const configService = createConfigService({ appDir, env });
   await configService.load();
+  const aiProviderService = options.aiProviderService || createAiProviderService({
+    env,
+    fetchImpl: options.fetchImpl || fetch,
+  });
   const privateBetaAuthService = options.privateBetaAuthService || createPrivateBetaAuthService({ env });
   const privateBetaUsersService = options.privateBetaUsersService || createPrivateBetaUsersService({
     usersFile: env.MWB_PRIVATE_BETA_USERS_FILE,
@@ -325,7 +330,8 @@ export async function createWorkbenchServer(options = {}) {
     runtimeDbStorageService,
   });
   const services = {
-    aiProvider: options.aiProvider || null,
+    aiProvider: options.aiProvider || aiProviderService,
+    aiProviderService,
     aiSettingsService,
     commandInteractionLogService,
     configurableSkillRunsService,
