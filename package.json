@@ -32,6 +32,7 @@
     "private-beta:auth-preflight": "node scripts/private-beta-auth-preflight.mjs",
     "private-beta:bug-evidence-pack": "node scripts/private-beta-bug-evidence-pack.mjs",
     "private-beta:rc-closure-pack": "node scripts/private-beta-rc-closure-pack.mjs",
+    "release:position-check": "node scripts/release-position-check.mjs",
     "private-beta:ui-hardening-pass": "node scripts/private-beta-ui-hardening-pass.mjs",
     "private-beta:users": "node scripts/private-beta-users.mjs",
     "db:migrations:list": "node scripts/db-migrate.mjs --list",

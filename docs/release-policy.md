@@ -92,6 +92,19 @@ rg -n 'Current release notes|Current checklist|git checkout v1\.0\.0-beta\.OLD|D
 Historical release tables may still mention older tags. Do not delete useful
 history merely to make a grep empty.
 
+This pointer agreement is checked mechanically. Run:
+
+```bash
+npm run release:position-check
+```
+
+It verifies, for the current release, that the annotated tag, the release note's
+`Tag target / deployed commit`, and every current-release pointer
+(`README.md`, `docs/README.md`, `docs/beta-operator-checklist.md`, and the
+closure pack `DEFAULT_RELEASE`) name the same `v1.0.0-beta.N`, and that no older
+history row still carries the current marker. Pass `--release v1.0.0-beta.N` to
+check a specific release. A non-zero exit means a pointer drifted.
+
 ## Verification Gates
 
 Before tagging a private beta checkpoint, use the smallest gate set that proves
