@@ -83,7 +83,8 @@ test("runtime DB skill samples service records and approves samples in Postgres"
   assert.match(sql, /insert into skill_samples/i);
   assert.match(sql, /object_role, state, mime_type/);
   assert.match(sql, /local-skill-samples\/sample_route_plan\.md/);
-  assert.match(sql, /update skill_samples[\s\S]*approved = false/i);
+  assert.match(sql, /update skill_samples[\s\S]*set approved = false, approved_at = null[\s\S]*and approved = true[\s\S]*update skill_samples[\s\S]*set approved = true, approved_at = now\(\)/i);
+  assert.doesNotMatch(sql, /cleared as \(/i);
   assert.doesNotMatch(sql, /secret/);
 });
 
