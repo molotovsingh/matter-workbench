@@ -298,6 +298,7 @@ export async function createWorkbenchServer(options = {}) {
     registryService: skillRegistryService,
     matterStore,
     plannerProvider: options.skillInterviewPlannerProvider || null,
+    providerService: aiProviderService,
     env,
     fetchImpl: options.fetchImpl || fetch,
   });

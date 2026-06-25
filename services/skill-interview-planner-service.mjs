@@ -1,8 +1,4 @@
-import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
-import {
-  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
-} from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import { AI_TASKS } from "../shared/model-policy.mjs";
 import {
   SKILL_IDEA_DESIGN_BRIEF_FIELDS,
   SKILL_IDEA_PAID_POSTURE_VALUES,
@@ -10,7 +6,11 @@ import {
   SKILL_IDEA_TARGET_LANE_VALUES,
   sanitizeSkillIdeaDesignBrief,
 } from "../shared/skill-idea-design-brief.mjs";
-import { createDefaultSkillInterviewPlannerProvider } from "./skill-interview-planner-providers.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
+import {
+  SKILL_INTERVIEW_SYSTEM_PROMPT,
+  plannerUserPayload,
+} from "./skill-interview-planner-providers.mjs";
 
 export {
   createOpenAiSkillInterviewPlannerProvider,
@@ -105,11 +105,13 @@ export function createSkillInterviewPlannerService({
   registryService,
   matterStore,
   plannerProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
+  const aiProviderService = providerService || createAiProviderService({ env, fetchImpl });
 
   async function planInterview({ skillIdea = {}, userRequest = "", designBrief = {}, matterName = "" } = {}) {
     const requestText = normalizeText(userRequest || skillIdea.text || skillIdea.idea);
@@ -123,44 +125,41 @@ export function createSkillInterviewPlannerService({
       return disabledPlan("SKILL_INTERVIEW_PLANNER_ENABLED is not enabled");
     }
 
-    let policy;
-    let providerConfig;
+    let resolved;
     try {
-      policy = resolveModelPolicy(AI_TASKS.SKILL_DESIGN_INTERVIEW, { env });
-      providerConfig = resolveProviderConfig(policy, { endpoint });
+      resolved = aiProviderService.resolveTask(AI_TASKS.SKILL_DESIGN_INTERVIEW, { endpoint });
     } catch (error) {
       return disabledPlan(error.message);
     }
+    const { providerConfig, aiRun: resolvedAiRun } = resolved;
     if (!providerConfig.model) {
       return disabledPlan("Skill interview planner model is not configured");
     }
 
     const registry = await registryService.readRegistry();
     const activeMatter = await readPlannerMatterSummary(matterStore, { matterName });
-    const provider = plannerProvider || createDefaultSkillInterviewPlannerProvider({
-      providerConfig,
-      env,
-      fetchImpl,
-    });
+    const plannerPayload = {
+      userRequest: requestText,
+      skillIdea: summarizeSkillIdea(skillIdea),
+      activeMatter,
+      skillRegistry: summarizeRegistry(registry),
+      designBrief: sanitizeSkillIdeaDesignBrief(designBrief),
+      schema: SKILL_INTERVIEW_PLAN_SCHEMA,
+    };
 
     try {
-      const plan = await provider({
-        userRequest: requestText,
-        skillIdea: summarizeSkillIdea(skillIdea),
-        activeMatter,
-        skillRegistry: summarizeRegistry(registry),
-        designBrief: sanitizeSkillIdeaDesignBrief(designBrief),
-        schema: SKILL_INTERVIEW_PLAN_SCHEMA,
-      });
+      const { plan, aiRun } = plannerProvider
+        ? { plan: await plannerProvider(plannerPayload), aiRun: resolvedAiRun }
+        : await invokeSkillInterviewPlanner({ aiProviderService, ...plannerPayload });
       return {
         schema_version: SKILL_INTERVIEW_PLAN_SCHEMA_VERSION,
         planner: {
           enabled: true,
           used: true,
-          provider: providerConfig.provider,
-          model: providerConfig.model,
-          fallback: policy.fallback,
-          policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
+          provider: aiRun?.provider || providerConfig.provider,
+          model: aiRun?.model || providerConfig.model,
+          fallback: aiRun?.fallback || resolvedAiRun?.fallback,
+          policyPromptVersion: aiRun?.policyPromptVersion || resolvedAiRun?.policyPromptVersion,
         },
         plan,
       };
@@ -172,6 +171,33 @@ export function createSkillInterviewPlannerService({
   return {
     planInterview,
   };
+}
+
+async function invokeSkillInterviewPlanner({
+  aiProviderService,
+  userRequest,
+  skillIdea,
+  activeMatter,
+  skillRegistry,
+  designBrief,
+  schema,
+}) {
+  const result = await aiProviderService.invoke({
+    task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+    systemPrompt: SKILL_INTERVIEW_SYSTEM_PROMPT,
+    userPayload: plannerUserPayload({
+      userRequest,
+      skillIdea,
+      activeMatter,
+      skillRegistry,
+      designBrief,
+    }),
+    schema,
+    schemaName: "skill_interview_plan",
+    responseMode: "json",
+    label: "Skill interview planner",
+  });
+  return { plan: result.parsed, aiRun: result.aiRun };
 }
 
 function disabledPlan(reason) {

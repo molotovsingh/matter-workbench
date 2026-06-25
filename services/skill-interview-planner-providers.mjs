@@ -1,12 +1,8 @@
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_PROVIDERS } from "../shared/model-policy.mjs";
-import {
-  fetchProviderJsonWithTimeout,
-  parseOpenAiJsonOutput,
-  parseOpenRouterJsonMessage,
-} from "../shared/provider-http.mjs";
+import { AI_PROVIDERS, AI_TASKS } from "../shared/model-policy.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
-const SKILL_INTERVIEW_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const SKILL_INTERVIEW_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You plan short design interviews for future Legal Workbench skills.",
   "Return only strict JSON matching the supplied schema.",
   "Your job is to understand the exact skill idea and ask the lawyer-readable follow-up questions actually needed.",
@@ -33,27 +29,44 @@ const SKILL_INTERVIEW_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   customSkill: true,
 });
 
-export function createDefaultSkillInterviewPlannerProvider({ providerConfig, env, fetchImpl }) {
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterSkillInterviewPlannerProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-      requireParameters: providerConfig.requireParameters,
-      allowFallbacks: providerConfig.allowFallbacks,
-    });
-  }
-  return createOpenAiSkillInterviewPlannerProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
+export function createDefaultSkillInterviewPlannerProvider({ providerService, providerConfig = null, env = process.env, fetchImpl = fetch } = {}) {
+  const service = providerService || createAiProviderService({
+    env: providerConfig?.provider ? { ...env, SKILL_INTERVIEW_PLANNER_PROVIDER: providerConfig.provider } : env,
     fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
   });
+  return async function skillInterviewPlannerProvider({
+    userRequest,
+    skillIdea,
+    activeMatter,
+    skillRegistry,
+    designBrief,
+    schema,
+  } = {}) {
+    try {
+      const result = await service.invoke({
+        task: AI_TASKS.SKILL_DESIGN_INTERVIEW,
+        systemPrompt: SKILL_INTERVIEW_SYSTEM_PROMPT,
+        userPayload: plannerUserPayload({
+          userRequest,
+          skillIdea,
+          activeMatter,
+          skillRegistry,
+          designBrief,
+        }),
+        schema,
+        schemaName: "skill_interview_plan",
+        responseMode: "json",
+        overrides: providerConfigToOverrides(providerConfig),
+        label: "Skill interview planner",
+      });
+      return result.parsed;
+    } catch (error) {
+      if (error?.code && error.code !== "provider.error") {
+        error.code = "provider.error";
+      }
+      throw error;
+    }
+  };
 }
 
 export function createOpenAiSkillInterviewPlannerProvider({
@@ -64,59 +77,17 @@ export function createOpenAiSkillInterviewPlannerProvider({
   maxOutputTokens,
   timeoutMs,
 } = {}) {
-  return async function openAiSkillInterviewPlannerProvider({
-    userRequest,
-    skillIdea,
-    activeMatter,
-    skillRegistry,
-    designBrief,
-    schema,
-  } = {}) {
-    if (!apiKey) {
-      const error = new Error("OPENAI_API_KEY is required for skill interview planning");
-      error.statusCode = 409;
-      throw error;
-    }
-    const body = {
-      model,
-      max_output_tokens: maxOutputTokens,
-      input: [
-        {
-          role: "system",
-          content: SKILL_INTERVIEW_SYSTEM_PROMPT,
-        },
-        {
-          role: "user",
-          content: JSON.stringify(plannerUserPayload({
-            userRequest,
-            skillIdea,
-            activeMatter,
-            skillRegistry,
-            designBrief,
-          })),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "skill_interview_plan",
-          strict: true,
-          schema,
-        },
-      },
-    };
-
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultSkillInterviewPlannerProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENAI_DIRECT,
       endpoint,
-      apiKey,
-      body,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      timeoutMessage: `OpenAI skill interview planner request timed out after ${timeoutMs}ms`,
-      mapProviderError: mapOpenAiPlannerError,
-    });
-    return parseOpenAiJsonOutput(payload, "OpenAI skill interview planner");
-  };
+    },
+    env: { OPENAI_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
 export function createOpenRouterSkillInterviewPlannerProvider({
@@ -129,71 +100,22 @@ export function createOpenRouterSkillInterviewPlannerProvider({
   requireParameters = true,
   allowFallbacks = false,
 } = {}) {
-  return async function openRouterSkillInterviewPlannerProvider({
-    userRequest,
-    skillIdea,
-    activeMatter,
-    skillRegistry,
-    designBrief,
-    schema,
-  } = {}) {
-    if (!apiKey) {
-      const error = new Error("OPENROUTER_API_KEY is required for skill interview planning");
-      error.statusCode = 409;
-      throw error;
-    }
-    const body = {
-      model,
-      messages: [
-        {
-          role: "system",
-          content: SKILL_INTERVIEW_SYSTEM_PROMPT,
-        },
-        {
-          role: "user",
-          content: JSON.stringify(plannerUserPayload({
-            userRequest,
-            skillIdea,
-            activeMatter,
-            skillRegistry,
-            designBrief,
-          })),
-        },
-      ],
-      temperature: 0,
-      max_tokens: maxOutputTokens,
-      provider: {
-        require_parameters: requireParameters,
-        allow_fallbacks: allowFallbacks,
-      },
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "skill_interview_plan",
-          strict: true,
-          schema,
-        },
-      },
-    };
-
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultSkillInterviewPlannerProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENROUTER,
       endpoint,
-      apiKey,
-      body,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Skill Interview Planner",
-      },
-      timeoutMessage: `OpenRouter skill interview planner request timed out after ${timeoutMs}ms`,
-      mapProviderError: mapOpenRouterPlannerError,
-    });
-    return parseOpenRouterJsonMessage(payload, "OpenRouter skill interview planner");
-  };
+      requireParameters,
+      allowFallbacks,
+    },
+    env: { OPENROUTER_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
-function plannerUserPayload({ userRequest, skillIdea, activeMatter, skillRegistry, designBrief }) {
+export function plannerUserPayload({ userRequest, skillIdea, activeMatter, skillRegistry, designBrief }) {
   return {
     task: "Plan a non-runnable skill idea interview.",
     user_skill_idea: userRequest,
@@ -216,18 +138,17 @@ function plannerUserPayload({ userRequest, skillIdea, activeMatter, skillRegistr
   };
 }
 
-function mapOpenAiPlannerError(response, payload) {
-  const message = payload?.error?.message || `OpenAI returned ${response?.status || "an error"}`;
-  const error = new Error(message);
-  error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
-  error.code = "provider.error";
-  return error;
-}
-
-function mapOpenRouterPlannerError(response, payload) {
-  const message = payload?.error?.message || `OpenRouter returned ${response?.status || "an error"}`;
-  const error = new Error(message);
-  error.statusCode = response?.status >= 400 && response?.status < 500 ? 502 : 503;
-  error.code = "provider.error";
-  return error;
+function providerConfigToOverrides(providerConfig) {
+  if (!providerConfig || typeof providerConfig !== "object") return {};
+  return {
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    timeoutMs: providerConfig.timeoutMs,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
+    requireParameters: providerConfig.requireParameters,
+    allowFallbacks: providerConfig.allowFallbacks,
+  };
 }
