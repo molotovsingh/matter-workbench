@@ -213,9 +213,30 @@ function normalizeIdeaForSample(idea = {}) {
 }
 
 function normalizeSampleMarkdown(value) {
-  const markdown = String(value || "").trim();
+  const markdown = sanitizeInternalSampleContextLanguage(String(value || "").trim());
   if (!markdown) throw makeHttpError("Skill sample output was blank.", 502, "skill_sample_output.blank_output");
   return markdown.length > MAX_SAMPLE_LENGTH ? markdown.slice(0, MAX_SAMPLE_LENGTH) : markdown;
+}
+
+function sanitizeInternalSampleContextLanguage(value) {
+  return String(value || "")
+    .replace(/\bbounded\s+(?:matter\s+)?context(?:\s+packet)?\b/gi, "available matter materials")
+    .replace(/\b(?:matter\s+)?context\s+packet\b/gi, "available matter materials")
+    .replace(/\bprovided\s+packet\s+does\s+not\b/gi, "reviewed matter materials do not")
+    .replace(/\bavailable\s+packet\s+does\s+not\b/gi, "available matter materials do not")
+    .replace(/\bprovided\s+packet\b/gi, "reviewed matter materials")
+    .replace(/\bavailable\s+packet\b/gi, "available matter materials")
+    .replace(/\bpacket\s+excerpts?\b/gi, "reviewed matter materials")
+    .replace(/\bevidence\s+blocks?\b/gi, "source passages")
+    .replace(/\bmax(?:blocks|charsperblock|sources|libraryartifacts)\s*=\s*\d+\b/gi, "review limit")
+    .replace(/\b(?:omitted|truncated)\s+(?:evidence\s+blocks?|source\s+passages?|source\s+records?|source\s+documents?|library\s+artifacts?)\b/gi, "materials outside the reviewed set")
+    .replace(/\b(?:evidence\s+blocks?|source\s+passages?|source\s+records?|source\s+documents?|library\s+artifacts?)\s+were\s+(?:omitted|truncated)(?:\s+due\s+to\s+[^.\n]*)?/gi, "materials were outside the reviewed set")
+    .replace(/\bnot\s+reproduced\s+in\s+the\s+reviewed\s+matter\s+materials\s+provided\s+here\b/gi, "not available in the reviewed matter materials")
+    .replace(/\bnot\s+reproduced\s+in\s+the\s+available\s+matter\s+materials\s+provided\s+here\b/gi, "not available in the reviewed matter materials")
+    .replace(/\bnot\s+reproduced\s+in\s+the\s+source\s+passages\s+provided\s+here\b/gi, "not available in the reviewed matter materials")
+    .replace(/\bdoes\s+not\s+include\s+the\s+full\s+text\s+of\b/gi, "does not currently show the full text of")
+    .replace(/\bdo\s+not\s+include\s+the\s+full\s+text\s+of\b/gi, "do not currently show the full text of")
+    .trim();
 }
 
 function boundedText(value, maxLength, label) {

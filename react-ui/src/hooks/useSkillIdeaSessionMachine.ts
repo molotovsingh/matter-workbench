@@ -161,14 +161,14 @@ export function useSkillIdeaSessionMachine({
     applyTransition({ type: 'answer_question', answer });
   }, [applyTransition]);
 
-  async function persistCurrentIdea(matterName = activeMatterRef.current?.name || '') {
+  async function persistCurrentIdea(matterName = selectedSkillIdeaMatterName(activeMatterRef.current)) {
     return persistSkillIdeaSession({ session, matterName });
   }
 
   async function handleSave() {
     const operation = beginAsyncOperation('save');
     const hadSample = Boolean(session.sample);
-    const startingMatterName = activeMatterRef.current?.name || '';
+    const startingMatterName = selectedSkillIdeaMatterName(activeMatterRef.current);
     applyTransition({ type: 'start_saving' });
     appendTerminal(['[skill-idea] saving idea…']);
     try {
@@ -211,7 +211,7 @@ export function useSkillIdeaSessionMachine({
   async function handleGenerateSample(feedback = '', previousSample = session.sample?.output || '') {
     const startingMatter = activeMatterRef.current;
     const startingMatterFolder = startingMatter?.folderName || '';
-    const startingMatterName = startingMatter?.name || '';
+    const startingMatterName = selectedSkillIdeaMatterName(startingMatter);
     if (!hasSkillIdeaTestMatter(startingMatter)) {
       safeSetSession((s) => ({
         ...s,
@@ -322,7 +322,7 @@ export function useSkillIdeaSessionMachine({
       return;
     }
     const operation = beginAsyncOperation('create');
-    const startingMatterName = activeMatterRef.current?.name || '';
+    const startingMatterName = selectedSkillIdeaMatterName(activeMatterRef.current);
     applyTransition({ type: 'start_creating' });
     appendTerminal(['[skill-idea] approving sample and checking skill overlap…']);
     try {
@@ -482,12 +482,18 @@ export function useSkillIdeaSessionMachine({
   }
 
   function isCurrentMatterName(matterName: string) {
-    return (activeMatterRef.current?.name || '') === matterName;
+    const currentMatter = activeMatterRef.current;
+    return Boolean(matterName)
+      && (currentMatter?.name === matterName || currentMatter?.folderName === matterName);
   }
 
   function sampleMatterChanged(sample: SkillIdeaSessionState['sample']) {
     if (!sample?.matterFolder) return false;
     return (activeMatterRef.current?.folderName || '') !== sample.matterFolder;
+  }
+
+  function selectedSkillIdeaMatterName(matter: typeof state.activeMatter): string {
+    return matter?.folderName || matter?.name || '';
   }
 
   function handleSessionCommand(input: string): boolean {

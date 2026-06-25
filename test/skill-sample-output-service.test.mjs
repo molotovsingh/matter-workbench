@@ -96,6 +96,37 @@ test("skill sample output provider carries the shared legal workbench policy pro
   assert.match(bodies[0].input[0].content, /must not expose raw system identifiers/);
 });
 
+test("skill sample output service scrubs internal context mechanics from generated sample markdown", async () => {
+  const service = createSkillSampleOutputService({
+    matterStore: { getMatterRoot: () => "/unused" },
+    env: {},
+    sampleProvider: async () => [
+      "# Comparison Chart",
+      "",
+      "**Note:** This is a source-bounded sample only. The available packet does not include the full text of the Allotment Letter, and some evidence blocks were omitted due to maxBlocks=45.",
+      "",
+      "## Source Scope Limitation",
+      "The supplied context shows repeated references, but those documents are not reproduced in the packet excerpts provided here.",
+    ].join("\n"),
+  });
+
+  const output = await service.generateSampleOutputFromPacket({
+    idea: { text: "produce a comparison chart of terms" },
+    packet: {
+      schema_version: "matter-context-packet/v1",
+      matter: { matter_name: "Demo Matter" },
+      sources: [],
+      evidence_blocks: [],
+      library_artifacts: [],
+      warnings: [],
+    },
+  });
+
+  assert.match(output.sample_markdown, /available matter materials do not currently show the full text of the Allotment Letter/i);
+  assert.match(output.sample_markdown, /not available in the reviewed matter materials/i);
+  assert.doesNotMatch(output.sample_markdown, /bounded context|context packet|available packet|packet excerpts|evidence blocks|maxBlocks|omitted/i);
+});
+
 test("skill sample output service hides internal context-limit warnings from samples", async () => {
   const providerCalls = [];
   const service = createSkillSampleOutputService({

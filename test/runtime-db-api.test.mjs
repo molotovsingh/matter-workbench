@@ -2652,6 +2652,123 @@ test("runtime DB skill creation validates approved samples through DB-native con
   }
 });
 
+test("runtime DB skill creation uses explicit active matter over stale saved idea matter", async () => {
+  const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-create-skill-explicit-matter");
+  const matter = runtimeDbMatter({ name: "Current Matter Folder", matterName: "Current Legal Caption" });
+  const resolutionCalls = [];
+  const packetCalls = [];
+  const store = { schema_version: "configurable-skills/v1", skills: [] };
+  const idea = {
+    id: "idea_stale_create_matter",
+    text: "produce a comparison chart of terms",
+    status: "ready_for_review",
+    matter: { matterName: "Missing Matter", folderName: "Missing Matter" },
+    designBrief: {
+      intendedUser: "advocate",
+      problem: "Compare key terms.",
+      expectedInputs: "matter record",
+      expectedOutputArtifact: "20_Workshop/Comparison Chart.md",
+      targetLane: "20_Workshop",
+      paidPosture: "paid",
+      riskLevel: "medium",
+    },
+    readiness: { ready: true },
+  };
+  const sample = {
+    id: "sample_stale_create_matter",
+    ideaId: idea.id,
+    approved: true,
+    matter: { matter_name: matter.matterName, folder_name: matter.name },
+    sampleMarkdown: "# Comparison Chart\n\nCurrent-matter sample supported by the record (FILE-0001 p1.b1).",
+    aiRun: { provider: "openai-direct", model: "gpt-5.4", task: "skill_sample_output" },
+  };
+  const app = await createWorkbenchServer({
+    env: {
+      MWB_DATABASE_URL: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [matter],
+      findMatterFolder: async (name) => {
+        resolutionCalls.push(name);
+        return name === matter.name || name === matter.matterName ? matter : null;
+      },
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(targetMatter) {
+        packetCalls.push(targetMatter.name);
+        return directRuntimeDbMatterContextPacket(targetMatter);
+      },
+      async runMaterializedMatterRead() {
+        throw new Error("materialized read should not be used for DB-native skill creation validation");
+      },
+    },
+    skillIdeasService: {
+      getIdea: async (id) => {
+        assert.equal(id, idea.id);
+        return idea;
+      },
+      updateIdeaStatus: async () => ({ idea: { ...idea, status: "created" } }),
+    },
+    skillSamplesService: {
+      getApprovedCurrentSample: async ({ ideaId }) => {
+        assert.equal(ideaId, idea.id);
+        return sample;
+      },
+    },
+    configurableSkillStore: {
+      readStore: async () => store,
+      updateStore: async (mutator) => mutator(store),
+    },
+    configurableSkillAuthoringProvider: async () => ({
+      title: "Comparison Chart",
+      slash: "/comparison_chart",
+      description: "Compare key terms from the current matter record.",
+      target_lane: "20_Workshop",
+      output_artifact: "20_Workshop/Comparison Chart.md",
+      matter_required: true,
+      paid_provider_call: true,
+      source_backed: "required",
+      prompt: "Prepare a source-backed comparison chart for the active matter.",
+      citation_policy: "Use raw FILE citations for factual points.",
+    }),
+    configurableSkillRunProvider: async () => "# Comparison Chart\n\nCurrent matter run supported by the record (FILE-0001 p1.b1).",
+    skillRouterProvider: async () => ({
+      intent: "new_skill",
+      decision: "new_skill",
+      confidence: 0.95,
+      matched_skill: "",
+      matched_skill_card: null,
+      reason: "No overlapping skill.",
+      suggested_next_step: "create_new",
+      suggested_next_action: "Create the custom skill.",
+      recommended_action: "new_skill",
+      user_gate_required: false,
+      mece_violation: false,
+      legal_setting: {},
+      override_requires: [],
+      requires_confirmation: false,
+    }),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const created = await postJson(baseUrl, `/api/skill-ideas/${idea.id}/create-skill`, { matterName: matter.name });
+
+    assert.equal(created.skill.status, "active");
+    assert.equal(created.skill.slash, "/comparison_chart");
+    assert.deepEqual(resolutionCalls, [matter.name]);
+    assert.deepEqual(packetCalls, [matter.name]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode checks skill factory health from runtime DB services", async () => {
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-skill-factory-health");
   const calls = [];

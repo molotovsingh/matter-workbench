@@ -143,6 +143,7 @@ export async function handleSkillFactoryApiRequest({ request, requestUrl, respon
             runtimeDbStorageService,
             idea,
             ideaId,
+            matterName: body.matterName,
           }));
           return;
         }
@@ -284,8 +285,9 @@ async function createRuntimeDbSkillFromApprovedSample({
   runtimeDbStorageService,
   idea = {},
   ideaId = "",
+  matterName = "",
 }) {
-  const matter = await runtimeDbMatterForBody(matterStore, matterNameForIdea(idea));
+  const matter = await runtimeDbMatterForBody(matterStore, matterNameForSkillCreation({ matterName, idea }));
   assertRuntimeDbMatterContextPacketAvailable({ runtimeDbStorageService });
   const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
   return configurableSkillsService.createSkillFromApprovedSample({
@@ -330,6 +332,11 @@ function matterNameForSampleOutput(body = {}) {
 function matterNameForIdea(idea = {}) {
   const ideaMatter = idea?.matter && typeof idea.matter === "object" ? idea.matter : {};
   return String(ideaMatter.folderName || ideaMatter.matterName || "").trim();
+}
+
+function matterNameForSkillCreation({ matterName = "", idea = {} } = {}) {
+  const direct = typeof matterName === "string" ? matterName.trim() : "";
+  return direct || matterNameForIdea(idea);
 }
 
 function matterNameForSampleJob(matterStore, body = {}) {

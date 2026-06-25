@@ -192,7 +192,10 @@ export async function approveAndCreateSkillFromIdeaSession({
 
   if (!isCurrentMatterName(matterName)) return { status: 'matter_changed' };
   onCreating();
-  const result = await api.createSkillFromIdea(ideaId, { overlapOverrideJustification });
+  const result = await api.createSkillFromIdea(ideaId, {
+    overlapOverrideJustification,
+    matterName: matterName || undefined,
+  });
   if (!isCurrentMatterName(matterName)) return { status: 'matter_changed' };
   return { status: 'created', skill: result.skill };
 }

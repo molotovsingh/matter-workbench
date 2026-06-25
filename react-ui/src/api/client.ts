@@ -441,7 +441,7 @@ export const api = {
     postJson<SkillIdeaCreateResponse>(`/api/skill-ideas/${ideaId}/status`, body),
   approveSkillIdeaSample: (ideaId: string, sampleId: string) =>
     postJson<SkillIdeaSampleApprovalResponse>(`/api/skill-ideas/${ideaId}/samples/${sampleId}/approve`),
-  createSkillFromIdea: (ideaId: string, body?: { overlapOverrideJustification?: string }) =>
+  createSkillFromIdea: (ideaId: string, body?: { overlapOverrideJustification?: string; matterName?: string }) =>
     postJson<ConfigurableSkillCreateResponse>(`/api/skill-ideas/${ideaId}/create-skill`, body || {}),
 
   // ─── Logging ─────────────────────────────
