@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.52](releases/v1.0.0-beta.52.md) |
+| Current release notes | [v1.0.0-beta.53](releases/v1.0.0-beta.53.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -119,7 +119,8 @@ implementation plan.
 | [v1.0.0-beta.49](releases/v1.0.0-beta.49.md) | Beta 3 Skill Factory sample warning cleanup release marker. |
 | [v1.0.0-beta.50](releases/v1.0.0-beta.50.md) | Beta 3 sidebar account footer UX release marker. |
 | [v1.0.0-beta.51](releases/v1.0.0-beta.51.md) | Beta 3 runtime DB skill sample approval hotfix release marker. |
-| [v1.0.0-beta.52](releases/v1.0.0-beta.52.md) | Current Beta 3 Skill Factory matter-boundary hardening release marker. |
+| [v1.0.0-beta.52](releases/v1.0.0-beta.52.md) | Beta 3 Skill Factory matter-boundary hardening release marker. |
+| [v1.0.0-beta.53](releases/v1.0.0-beta.53.md) | Current Beta 3 Skill Factory post-create refresh release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
