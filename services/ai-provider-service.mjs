@@ -59,6 +59,10 @@ export function createAiProviderService({
       providerSort: overrides.providerSort,
       maxPrice: overrides.maxPrice,
     });
+    if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
+      if (typeof overrides.requireParameters === "boolean") providerConfig.requireParameters = overrides.requireParameters;
+      if (typeof overrides.allowFallbacks === "boolean") providerConfig.allowFallbacks = overrides.allowFallbacks;
+    }
     return {
       policy,
       providerConfig,

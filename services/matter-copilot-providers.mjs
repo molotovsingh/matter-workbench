@@ -84,5 +84,7 @@ function providerConfigToOverrides(providerConfig) {
     providerOrder: providerConfig.providerOrder,
     providerSort: providerConfig.providerSort,
     maxPrice: providerConfig.maxPrice,
+    requireParameters: providerConfig.requireParameters,
+    allowFallbacks: providerConfig.allowFallbacks,
   };
 }

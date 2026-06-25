@@ -1,9 +1,9 @@
-import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { AI_TASKS } from "../shared/model-policy.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 import {
-  AI_TASKS,
-  resolveModelPolicy,
-} from "../shared/model-policy.mjs";
-import { createDefaultSkillRouterProvider } from "./skill-router-providers.mjs";
+  SKILL_ROUTER_SYSTEM_PROMPT,
+  routerUserPayload,
+} from "./skill-router-providers.mjs";
 
 export {
   createDefaultSkillRouterProvider,
@@ -99,11 +99,13 @@ const ROUTER_OUTPUT_SCHEMA = {
 export function createSkillRouterService({
   registryService,
   aiProvider,
+  providerService,
   env = process.env,
   endpoint,
   fetchImpl = fetch,
 } = {}) {
   if (!registryService) throw new Error("registryService is required");
+  const aiProviderService = providerService || createAiProviderService({ env, fetchImpl });
 
   async function checkIntent({ userRequest, overrideJustification = "" } = {}) {
     const requestText = typeof userRequest === "string" ? userRequest.trim() : "";
@@ -114,20 +116,20 @@ export function createSkillRouterService({
     }
 
     const registry = await registryService.readRegistry();
-    const modelPolicy = resolveModelPolicy(AI_TASKS.SKILL_ROUTER, { env });
-    const providerConfig = resolveProviderConfig(modelPolicy, { endpoint });
-    const provider = aiProvider || createDefaultSkillRouterProvider({
-      providerConfig,
-      env,
-      fetchImpl,
-    });
-
-    const rawDecision = await provider({
-      userRequest: requestText,
-      overrideJustification: String(overrideJustification || "").trim(),
-      registry,
-      schema: ROUTER_OUTPUT_SCHEMA,
-    });
+    const rawDecision = aiProvider
+      ? await aiProvider({
+        userRequest: requestText,
+        overrideJustification: String(overrideJustification || "").trim(),
+        registry,
+        schema: ROUTER_OUTPUT_SCHEMA,
+      })
+      : await invokeSkillRouter({
+        aiProviderService,
+        endpoint,
+        userRequest: requestText,
+        overrideJustification: String(overrideJustification || "").trim(),
+        registry,
+      });
 
     return normalizeRouterDecision(rawDecision, registry, { userRequest: requestText });
   }
@@ -135,6 +137,27 @@ export function createSkillRouterService({
   return {
     checkIntent,
   };
+}
+
+async function invokeSkillRouter({
+  aiProviderService,
+  endpoint,
+  userRequest,
+  overrideJustification,
+  registry,
+}) {
+  const result = await aiProviderService.invoke({
+    task: AI_TASKS.SKILL_ROUTER,
+    systemPrompt: SKILL_ROUTER_SYSTEM_PROMPT,
+    userPayload: routerUserPayload({ userRequest, overrideJustification, registry }),
+    schema: ROUTER_OUTPUT_SCHEMA,
+    schemaName: "skill_router_decision",
+    schemaDescription: "MECE-aware routing decision for legal-workbench skill requests.",
+    responseMode: "json",
+    overrides: { endpoint },
+    label: "Skill router",
+  });
+  return result.parsed;
 }
 
 export function normalizeRouterDecision(rawDecision, registry, context = {}) {

@@ -304,6 +304,7 @@ export async function createWorkbenchServer(options = {}) {
   const skillRouterService = createSkillRouterService({
     registryService: skillRegistryService,
     aiProvider: options.skillRouterProvider || null,
+    providerService: aiProviderService,
     env,
   });
   const skillSampleOutputService = createSkillSampleOutputService({
