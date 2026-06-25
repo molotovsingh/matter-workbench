@@ -3,9 +3,9 @@ import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
-import { extractResponsesOutputText } from "../shared/responses-client.mjs";
 import {
   classifyProviderErrorCode,
+  extractResponsesOutputText,
   providerErrorMessageForCode,
 } from "../shared/provider-http.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";

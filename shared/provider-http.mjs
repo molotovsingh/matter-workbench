@@ -1,4 +1,3 @@
-import { extractResponsesOutputText } from "./responses-client.mjs";
 import { makeHttpError } from "./safe-paths.mjs";
 
 export async function fetchProviderJsonWithTimeout({
@@ -70,6 +69,17 @@ export function extractOpenAiOutputText(payload, label) {
   const outputText = extractResponsesOutputText(payload);
   if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502, "provider.empty_output");
   return outputText;
+}
+
+export function extractResponsesOutputText(payload) {
+  if (typeof payload?.output_text === "string") return payload.output_text;
+  const parts = [];
+  for (const item of payload?.output || []) {
+    for (const content of item.content || []) {
+      if (typeof content.text === "string") parts.push(content.text);
+    }
+  }
+  return parts.join("").trim();
 }
 
 export function parseOpenRouterJsonMessage(payload, label) {
