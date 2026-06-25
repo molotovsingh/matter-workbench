@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
-import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
-import {
-  LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
-} from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import { AI_TASKS } from "../shared/model-policy.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
-import { createDefaultSkillSampleOutputProvider } from "./skill-sample-output-providers.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
+import {
+  SAMPLE_SYSTEM_PROMPT,
+  sampleUserPayload,
+} from "./skill-sample-output-providers.mjs";
 
 export {
   createOpenAiSkillSampleOutputProvider,
@@ -29,6 +29,7 @@ const MAX_SAMPLE_LENGTH = 30000;
 export function createSkillSampleOutputService({
   matterStore,
   sampleProvider,
+  providerService,
   env = process.env,
   fetchImpl = fetch,
   endpoint,
@@ -36,6 +37,7 @@ export function createSkillSampleOutputService({
   idFactory = () => `sample_${randomUUID()}`,
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
+  const aiProviderService = providerService || createAiProviderService({ env, fetchImpl });
 
   async function generateSampleOutput({
     idea = {},
@@ -61,21 +63,27 @@ export function createSkillSampleOutputService({
     const normalizedIdea = normalizeIdeaForSample(idea);
     const normalizedFeedback = boundedText(feedback, MAX_FEEDBACK_LENGTH, "feedback");
     const normalizedPreviousSample = boundedText(previousSample, MAX_PREVIOUS_SAMPLE_LENGTH, "previous sample");
-    const policy = resolveModelPolicy(AI_TASKS.SKILL_SAMPLE_OUTPUT, { env });
-    const providerConfig = resolveProviderConfig(policy, { endpoint });
+    const { providerConfig, aiRun: resolvedAiRun } = aiProviderService.resolveTask(AI_TASKS.SKILL_SAMPLE_OUTPUT, { endpoint });
     if (!providerConfig.model) throw makeHttpError("Skill sample output model is not configured.", 409, "skill_sample_output.model_not_configured");
-    const provider = sampleProvider || createDefaultSkillSampleOutputProvider({
-      providerConfig,
-      env,
-      fetchImpl,
-    });
-    const sampleMarkdown = normalizeSampleMarkdown(await provider({
-      idea: normalizedIdea,
-      feedback: normalizedFeedback,
-      previousSample: normalizedPreviousSample,
-      matterContext: summarizeMatterContextForSample(packet),
-      providerConfig,
-    }));
+    const matterContext = summarizeMatterContextForSample(packet);
+    const { sampleMarkdown, aiRun } = sampleProvider
+      ? {
+          sampleMarkdown: normalizeSampleMarkdown(await sampleProvider({
+            idea: normalizedIdea,
+            feedback: normalizedFeedback,
+            previousSample: normalizedPreviousSample,
+            matterContext,
+            providerConfig,
+          })),
+          aiRun: resolvedAiRun,
+        }
+      : await invokeSkillSampleOutput({
+        aiProviderService,
+        idea: normalizedIdea,
+        feedback: normalizedFeedback,
+        previousSample: normalizedPreviousSample,
+        matterContext,
+      });
 
     return {
       schema_version: SKILL_SAMPLE_OUTPUT_SCHEMA_VERSION,
@@ -85,12 +93,7 @@ export function createSkillSampleOutputService({
       idea: normalizedIdea,
       feedback: normalizedFeedback,
       sample_markdown: sampleMarkdown,
-      ai_run: {
-        provider: providerConfig.provider,
-        model: providerConfig.model,
-        task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
-        policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
-      },
+      ai_run: aiRun || {},
       warnings: [
         "Sample output only. Creating a skill still requires approval and validation.",
         ...(Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : []),
@@ -99,6 +102,34 @@ export function createSkillSampleOutputService({
   }
 
   return { generateSampleOutput, generateSampleOutputFromPacket };
+}
+
+async function invokeSkillSampleOutput({
+  aiProviderService,
+  idea,
+  feedback,
+  previousSample,
+  matterContext,
+}) {
+  let result;
+  try {
+    result = await aiProviderService.invoke({
+      task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
+      systemPrompt: SAMPLE_SYSTEM_PROMPT,
+      userPayload: sampleUserPayload({ idea, feedback, previousSample, matterContext }),
+      responseMode: "text",
+      label: "Skill sample output",
+    });
+  } catch (error) {
+    if (String(error?.code || "").endsWith("api_key_required")) {
+      throw makeHttpError("OPENAI_API_KEY or OPENROUTER_API_KEY is required for skill sample output generation", 409, "skill_sample_output.provider_api_key_required");
+    }
+    throw error;
+  }
+  return {
+    sampleMarkdown: normalizeSampleMarkdown(result.parsed),
+    aiRun: result.aiRun,
+  };
 }
 
 function summarizeMatterContextForSample(packet) {

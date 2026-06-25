@@ -165,5 +165,5 @@ test("Workbench service graph exposes the first-class AI provider service", asyn
   assert.equal(typeof app.services.aiProviderService.invoke, "function");
   assert.equal(typeof app.services.aiProviderService.invokeOcr, "function");
   assert.equal(typeof app.services.aiProviderService.ping, "function");
-  assert.equal(app.services.aiProvider, app.services.aiProviderService);
+  assert.equal(app.services.aiProvider, null);
 });

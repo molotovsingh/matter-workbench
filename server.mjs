@@ -309,6 +309,7 @@ export async function createWorkbenchServer(options = {}) {
   const skillSampleOutputService = createSkillSampleOutputService({
     matterStore,
     sampleProvider: options.skillSampleOutputProvider || null,
+    providerService: aiProviderService,
     env,
     fetchImpl: options.fetchImpl || fetch,
     endpoint: options.skillSampleOutputEndpoint,
@@ -331,7 +332,7 @@ export async function createWorkbenchServer(options = {}) {
     runtimeDbStorageService,
   });
   const services = {
-    aiProvider: options.aiProvider || aiProviderService,
+    aiProvider: options.aiProvider || null,
     aiProviderService,
     aiSettingsService,
     commandInteractionLogService,

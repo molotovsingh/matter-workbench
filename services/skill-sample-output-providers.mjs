@@ -1,13 +1,8 @@
 import { legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
-import { AI_PROVIDERS } from "../shared/model-policy.mjs";
-import {
-  extractOpenAiOutputText,
-  extractOpenRouterMessageText,
-  fetchProviderJsonWithTimeout,
-} from "../shared/provider-http.mjs";
-import { makeHttpError } from "../shared/safe-paths.mjs";
+import { AI_PROVIDERS, AI_TASKS } from "../shared/model-policy.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
-const SAMPLE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
+export const SAMPLE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You create sample outputs for proposed Legal Workbench skills.",
   "This is not skill generation. Do not produce code, prompts, schemas, configuration, or slash commands.",
   "Return Markdown only.",
@@ -29,31 +24,17 @@ export function createOpenAiSkillSampleOutputProvider({
   maxOutputTokens,
   timeoutMs,
 } = {}) {
-  return async function openAiSkillSampleOutputProvider({
-    idea,
-    feedback,
-    previousSample,
-    matterContext,
-  } = {}) {
-    if (!apiKey) throw makeHttpError("OPENAI_API_KEY is required for skill sample output generation", 409, "skill_sample_output.provider_api_key_required");
-    const body = {
-      model,
-      max_output_tokens: maxOutputTokens,
-      input: [
-        { role: "system", content: SAMPLE_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(sampleUserPayload({ idea, feedback, previousSample, matterContext })) },
-      ],
-    };
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultSkillSampleOutputProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENAI_DIRECT,
       endpoint,
-      apiKey,
-      body,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      timeoutMessage: `OpenAI skill sample output request timed out after ${timeoutMs}ms`,
-    });
-    return extractOpenAiOutputText(payload, "OpenAI skill sample output");
-  };
+    },
+    env: { OPENAI_API_KEY: apiKey || "" },
+    fetchImpl,
+  });
 }
 
 export function createOpenRouterSkillSampleOutputProvider({
@@ -66,66 +47,40 @@ export function createOpenRouterSkillSampleOutputProvider({
   requireParameters = true,
   allowFallbacks = false,
 } = {}) {
-  return async function openRouterSkillSampleOutputProvider({
-    idea,
-    feedback,
-    previousSample,
-    matterContext,
-  } = {}) {
-    if (!apiKey) throw makeHttpError("OPENROUTER_API_KEY is required for skill sample output generation", 409, "skill_sample_output.provider_api_key_required");
-    const body = {
-      model,
-      messages: [
-        { role: "system", content: SAMPLE_SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(sampleUserPayload({ idea, feedback, previousSample, matterContext })) },
-      ],
-      temperature: 0,
-      max_tokens: maxOutputTokens,
-      provider: {
-        require_parameters: requireParameters,
-        allow_fallbacks: allowFallbacks,
-      },
-    };
-    const payload = await fetchProviderJsonWithTimeout({
-      fetchImpl,
+  return createDefaultSkillSampleOutputProvider({
+    providerConfig: {
+      provider: AI_PROVIDERS.OPENROUTER,
       endpoint,
-      apiKey,
-      body,
+      model,
+      maxOutputTokens,
       timeoutMs,
-      extraHeaders: {
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Skill Sample Output",
-      },
-      timeoutMessage: `OpenRouter skill sample output request timed out after ${timeoutMs}ms`,
-    });
-    return extractOpenRouterMessageText(payload, "OpenRouter skill sample output");
-  };
-}
-
-export function createDefaultSkillSampleOutputProvider({ providerConfig, env, fetchImpl }) {
-  if (providerConfig.provider === AI_PROVIDERS.OPENROUTER) {
-    return createOpenRouterSkillSampleOutputProvider({
-      apiKey: env.OPENROUTER_API_KEY,
-      endpoint: providerConfig.endpoint,
-      fetchImpl,
-      model: providerConfig.model,
-      maxOutputTokens: providerConfig.maxOutputTokens,
-      timeoutMs: providerConfig.timeoutMs,
-      requireParameters: providerConfig.requireParameters,
-      allowFallbacks: providerConfig.allowFallbacks,
-    });
-  }
-  return createOpenAiSkillSampleOutputProvider({
-    apiKey: env.OPENAI_API_KEY,
-    endpoint: providerConfig.endpoint,
+      requireParameters,
+      allowFallbacks,
+    },
+    env: { OPENROUTER_API_KEY: apiKey || "" },
     fetchImpl,
-    model: providerConfig.model,
-    maxOutputTokens: providerConfig.maxOutputTokens,
-    timeoutMs: providerConfig.timeoutMs,
   });
 }
 
-function sampleUserPayload({ idea, feedback, previousSample, matterContext }) {
+export function createDefaultSkillSampleOutputProvider({ providerService, providerConfig = null, env = process.env, fetchImpl = fetch } = {}) {
+  const service = providerService || createAiProviderService({
+    env: providerConfig?.provider ? { ...env, SKILL_SAMPLE_OUTPUT_PROVIDER: providerConfig.provider } : env,
+    fetchImpl,
+  });
+  return async function skillSampleOutputProvider({ idea, feedback, previousSample, matterContext } = {}) {
+    const result = await service.invoke({
+      task: AI_TASKS.SKILL_SAMPLE_OUTPUT,
+      systemPrompt: SAMPLE_SYSTEM_PROMPT,
+      userPayload: sampleUserPayload({ idea, feedback, previousSample, matterContext }),
+      responseMode: "text",
+      overrides: providerConfigToOverrides(providerConfig),
+      label: "Skill sample output",
+    });
+    return result.parsed;
+  };
+}
+
+export function sampleUserPayload({ idea, feedback, previousSample, matterContext }) {
   return {
     task: "Generate a non-runnable sample output for user review.",
     strict_boundaries: [
@@ -138,6 +93,19 @@ function sampleUserPayload({ idea, feedback, previousSample, matterContext }) {
     skill_request: idea,
     test_matter_context: matterContext,
     previous_sample: previousSample || "",
-    feedback: feedback || "",
+    reviewer_feedback: feedback || "",
+  };
+}
+
+function providerConfigToOverrides(providerConfig) {
+  if (!providerConfig || typeof providerConfig !== "object") return {};
+  return {
+    endpoint: providerConfig.endpoint,
+    model: providerConfig.model,
+    maxOutputTokens: providerConfig.maxOutputTokens,
+    timeoutMs: providerConfig.timeoutMs,
+    providerOrder: providerConfig.providerOrder,
+    providerSort: providerConfig.providerSort,
+    maxPrice: providerConfig.maxPrice,
   };
 }
