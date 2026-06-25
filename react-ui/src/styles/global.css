@@ -969,8 +969,6 @@ code { color: var(--code-text); }
 .readiness-check.pending { opacity: 0.7; }
 .readiness-session-banner { background: var(--panel); border: 1px solid var(--provider-warning-border); border-radius: 999px; box-shadow: var(--shadow-soft); color: var(--warning-text); font-size: 12px; font-weight: 700; left: 50%; max-width: min(680px, calc(100vw - 32px)); padding: 8px 14px; position: fixed; text-align: center; top: 12px; transform: translateX(-50%); z-index: 40; }
 @keyframes readiness-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.15); } }
-.private-beta-logout { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; color: var(--muted-strong); cursor: pointer; flex: 0 0 auto; font-size: 11px; padding: 5px 9px; }
-.private-beta-logout:hover { border-color: var(--accent-border); color: var(--hover-text); }
 
 /* ─── File preview ──────────────────────────────────────── */
 .document-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
@@ -1319,6 +1317,18 @@ body { background: var(--c-bg); }
 .nav-item.active { background: var(--c-sidebar-active); }
 .nav-icon { color: currentColor; display: inline-flex; flex: 0 0 15px; justify-content: center; opacity: 0.88; }
 
+/* Pinned account footer: Settings + Sign out sit together at the sidebar bottom. */
+.sidebar-footer {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding: 8px 0 12px;
+}
+.nav-item-signout { color: var(--c-sidebar-text); opacity: 0.85; }
+.nav-item-signout:hover { opacity: 1; }
+
 /* File tree inside the black rail */
 .sidebar .tree-section { gap: 4px; margin-top: 8px; }
 .sidebar .tree-root,
@@ -1364,8 +1374,7 @@ body { background: var(--c-bg); }
 .title-left,
 .title-text { color: var(--c-text-tertiary); }
 .active-matter-pill { border-color: var(--c-border); box-shadow: none; }
-.theme-toggle,
-.private-beta-logout {
+.theme-toggle {
   border-color: var(--c-border);
   border-radius: 5px;
 }

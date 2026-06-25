@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const titleBarPath = new URL("../react-ui/src/components/layout/TitleBar.tsx", import.meta.url);
+const sidebarPath = new URL("../react-ui/src/components/layout/Sidebar.tsx", import.meta.url);
 const appPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const cssPath = new URL("../react-ui/src/styles/global.css", import.meta.url);
 const typesPath = new URL("../react-ui/src/types/index.ts", import.meta.url);
@@ -38,16 +39,22 @@ test("React TitleBar renders compact release metadata when configured", async ()
   assert.match(css, /\.release-badge\s*\{/);
 });
 
-test("private beta logout stays inside TitleBar controls instead of floating over workspace mode", async () => {
+test("private beta sign-out lives in the sidebar account footer, not the titlebar or floating over workspace mode", async () => {
   const titleBar = await readFile(titleBarPath, "utf8");
+  const sidebar = await readFile(sidebarPath, "utf8");
   const app = await readFile(appPath, "utf8");
   const css = await readFile(cssPath, "utf8");
-  const logoutRule = css.match(/\.private-beta-logout\s*\{([^}]*)\}/)?.[1] || "";
+  const footerRule = css.match(/\.sidebar-footer\s*\{([^}]*)\}/)?.[1] || "";
 
-  assert.match(titleBar, /state\.authUser && onLogout/);
-  assert.match(titleBar, /className="private-beta-logout"/);
-  assert.doesNotMatch(app, /className="private-beta-logout"/);
-  assert.doesNotMatch(logoutRule, /position\s*:\s*fixed/);
-  assert.doesNotMatch(logoutRule, /right\s*:/);
-  assert.doesNotMatch(logoutRule, /top\s*:/);
+  // Sign out is gated by auth + onLogout and rendered in the pinned sidebar footer.
+  assert.match(sidebar, /state\.authUser && onLogout/);
+  assert.match(sidebar, /nav-item-signout/);
+  assert.match(sidebar, /className="sidebar-footer"/);
+  // It no longer lives in the titlebar.
+  assert.doesNotMatch(titleBar, /onLogout/);
+  assert.doesNotMatch(titleBar, /Sign out/);
+  // App wires logout into the sidebar.
+  assert.match(app, /<Sidebar[\s\S]*?onLogout=\{[\s\S]*?handleLogout/);
+  // The footer is part of the normal sidebar flow, not floated over the workspace.
+  assert.doesNotMatch(footerRule, /position\s*:\s*fixed/);
 });

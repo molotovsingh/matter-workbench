@@ -11,7 +11,7 @@ test("TitleBar lives inside editor pane so assistant rail starts at top", async 
   const css = await readFile(cssPath, "utf8");
 
   assert.match(mainContent, /<section className="editor-layout"/);
-  assert.match(mainContent, /<div className="editor-pane">\s*<TitleBar onLogout=\{onLogout\} \/>/);
+  assert.match(mainContent, /<div className="editor-pane">\s*<TitleBar \/>/);
   assert.doesNotMatch(mainContent, /<main className="main-panel">\s*<TitleBar/);
   assert.match(css, /grid-template-rows: minmax\(0, 1fr\) 24px/);
   assert.match(css, /\.editor-pane > \.titlebar/);

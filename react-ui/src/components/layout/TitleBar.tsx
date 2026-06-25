@@ -1,11 +1,7 @@
 import { useApp } from '../../store/AppContext';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 
-interface Props {
-  onLogout?: () => void;
-}
-
-export default function TitleBar({ onLogout }: Props) {
+export default function TitleBar() {
   const { state, toggleTheme } = useApp();
   const activeMatterName = state.activeMatter?.name || state.titleText;
   const workspaceModeLabel = compactWorkspaceModeLabel(state.config?.workspaceModeLabel || 'Local workspace');
@@ -44,11 +40,6 @@ export default function TitleBar({ onLogout }: Props) {
         >
           {state.theme === 'dark' ? 'Light' : 'Dark'}
         </button>
-        {state.authUser && onLogout && (
-          <button className="private-beta-logout" type="button" onClick={onLogout}>
-            Sign out
-          </button>
-        )}
       </div>
     </header>
   );

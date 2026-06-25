@@ -719,6 +719,7 @@ function AppShell() {
         onNewMatter={() => setActiveView('new-matter')}
         onAddFiles={() => setActiveView('add-files')}
         onViewAllMatters={() => { void openMatterFinder(); }}
+        onLogout={authStatus.enabled && authStatus.user ? () => { void handleLogout(); } : undefined}
       />
       <MainContent
         onNewMatter={() => setActiveView('new-matter')}
@@ -728,7 +729,6 @@ function AppShell() {
         onAddFilesDone={handleAddFilesDone}
         onCommand={handleCommand}
         onRunPreparationAgain={handleRunPreparationAgain}
-        onLogout={authStatus.enabled && authStatus.user ? () => { void handleLogout(); } : undefined}
         commandPanel={
           <CommandPanel
             onCommand={handleCommand}

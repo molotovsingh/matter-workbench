@@ -39,7 +39,6 @@ interface Props {
   onAddFilesDone: (opts?: { autoPrepare?: boolean }) => void;
   onCommand: (command: string) => void;
   onRunPreparationAgain: (matterName: string) => void;
-  onLogout?: () => void;
   commandPanel: React.ReactNode;
 }
 
@@ -173,7 +172,6 @@ export default function MainContent({
   onAddFilesDone,
   onCommand,
   onRunPreparationAgain,
-  onLogout,
   commandPanel,
 }: Props) {
   const { state } = useApp();
@@ -277,7 +275,7 @@ export default function MainContent({
     <main className="main-panel">
       <section className="editor-layout" style={editorLayoutStyle}>
         <div className="editor-pane">
-          <TitleBar onLogout={onLogout} />
+          <TitleBar />
           {activeView !== 'file-preview' && (
             <div className="editor-toolbar">
               <div className="breadcrumbs">{state.breadcrumbs}</div>

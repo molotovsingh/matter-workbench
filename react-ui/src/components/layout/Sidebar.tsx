@@ -7,6 +7,7 @@ interface Props {
   onNewMatter: () => void;
   onAddFiles: () => void;
   onViewAllMatters: () => void;
+  onLogout?: () => void;
 }
 
 const APP_TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?: string; operatorOnly?: boolean }> = [
@@ -15,11 +16,17 @@ const APP_TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?
   { id: 'settings', icon: '⚙', label: 'Settings', operatorOnly: true },
 ];
 
-export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters }: Props) {
+export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onLogout }: Props) {
   const { state, dispatch, refreshActiveMatterWorkspace } = useApp();
   const { activeMatter } = state;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const visibleTabs = APP_TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
+  // Settings lives in the pinned bottom footer next to Sign out, not in the
+  // main App nav list, so account/session controls read as one group.
+  const navTabs = visibleTabs.filter((tab) => tab.id !== 'settings');
+  const settingsTab = visibleTabs.find((tab) => tab.id === 'settings');
+  const showSignOut = Boolean(state.authUser && onLogout);
+  const showFooter = Boolean(settingsTab) || showSignOut;
 
   function returnToMatterHome() {
     dispatch({ type: 'SET_TAB', payload: 'home' });
@@ -103,7 +110,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters }: P
         </section>
       )}
 
-      <div className="sidebar-divider" />
+      <div className="sidebar-spacer" />
 
       <nav className="sidebar-section" aria-label="App navigation">
         <div className="sidebar-label">App</div>
@@ -120,7 +127,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters }: P
           <span className="nav-icon" aria-hidden="true">＋</span>
           <span>New matter</span>
         </button>
-        {visibleTabs.map((tab) => {
+        {navTabs.map((tab) => {
           const label = tab.id === 'home' && activeMatter
             ? 'Matter Home'
             : showOperatorChrome ? tab.label : (tab.lawyerLabel || tab.label);
@@ -139,7 +146,32 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters }: P
         })}
       </nav>
 
-      <div className="sidebar-spacer" />
+      {showFooter && (
+        <div className="sidebar-footer" aria-label="Account">
+          {settingsTab && (
+            <button
+              className={`nav-item${state.activeTab === 'settings' ? ' active' : ''}`}
+              type="button"
+              title="Settings"
+              onClick={() => handleTabClick('settings')}
+            >
+              <span className="nav-icon" aria-hidden="true">{settingsTab.icon}</span>
+              <span>{settingsTab.label}</span>
+            </button>
+          )}
+          {showSignOut && (
+            <button
+              className="nav-item nav-item-signout"
+              type="button"
+              title="Sign out"
+              onClick={onLogout}
+            >
+              <span className="nav-icon" aria-hidden="true">⎋</span>
+              <span>Sign out</span>
+            </button>
+          )}
+        </div>
+      )}
     </aside>
   );
 }
