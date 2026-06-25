@@ -32,6 +32,7 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
     ? skillNameSuggestions(session.ideaText, session.plannedBrief, session.answers)
     : currentQuestion?.examples;
   const showNoMatterSampleGuidance = !hasMatter && NO_MATTER_SAMPLE_GUIDANCE_PHASES.has(session.phase);
+  const sampleWarnings = session.sample ? visibleSkillSampleWarnings(session.sample.warnings) : [];
 
   return (
     <div className="skill-idea-session">
@@ -165,9 +166,9 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
             </button>
           </div>
           <pre className="skill-idea-sample-output">{session.sample.output}</pre>
-          {session.sample.warnings && session.sample.warnings.length > 0 && (
+          {sampleWarnings.length > 0 && (
             <ul className="skill-idea-sample-warnings">
-              {session.sample.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              {sampleWarnings.map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           )}
           <div className="skill-idea-actions">
@@ -253,4 +254,17 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
       )}
     </div>
   );
+}
+
+export function visibleSkillSampleWarnings(warnings: string[] | undefined) {
+  return (Array.isArray(warnings) ? warnings : [])
+    .map((warning) => String(warning || '').replace(/\s+/g, ' ').trim())
+    .filter((warning) => warning && !isInternalContextLimitWarning(warning));
+}
+
+function isInternalContextLimitWarning(warning: string) {
+  const text = warning.toLowerCase();
+  return /\bmax(?:blocks|charsperblock|sources|libraryartifacts)\b/i.test(text)
+    || /(omitted|truncated).*(evidence block|source record|source document|library artifact|bounded packet|packet)/i.test(text)
+    || /(evidence block|source record|source document|library artifact).*(omitted|truncated)/i.test(text);
 }

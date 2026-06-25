@@ -94,10 +94,7 @@ export function createSkillSampleOutputService({
       feedback: normalizedFeedback,
       sample_markdown: sampleMarkdown,
       ai_run: aiRun || {},
-      warnings: [
-        "Sample output only. Creating a skill still requires approval and validation.",
-        ...(Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : []),
-      ],
+      warnings: skillSampleWarnings(packet.warnings),
     };
   }
 
@@ -141,7 +138,6 @@ function summarizeMatterContextForSample(packet) {
     counts: {
       sources: sources.length,
       evidence_blocks_included: evidenceBlocks.length,
-      evidence_blocks_omitted: Number(packet?.limits?.omitted_blocks || 0),
       library_artifacts: Array.isArray(packet?.library_artifacts) ? packet.library_artifacts.length : 0,
     },
     sources: sources.slice(0, 20).map((source) => ({
@@ -166,8 +162,29 @@ function summarizeMatterContextForSample(packet) {
       entry_count: artifact.entry_count ?? null,
       source_count: artifact.source_count ?? null,
     })),
-    warnings: Array.isArray(packet?.warnings) ? packet.warnings.slice(0, 5) : [],
+    warnings: userFacingMatterContextWarnings(packet?.warnings),
   };
+}
+
+function skillSampleWarnings(packetWarnings = []) {
+  return [
+    "Sample output only. Creating a skill still requires approval and validation.",
+    ...userFacingMatterContextWarnings(packetWarnings),
+  ];
+}
+
+function userFacingMatterContextWarnings(warnings = []) {
+  return (Array.isArray(warnings) ? warnings : [])
+    .map((warning) => normalizeText(warning))
+    .filter((warning) => warning && !isInternalContextLimitWarning(warning))
+    .slice(0, 5);
+}
+
+function isInternalContextLimitWarning(warning = "") {
+  const text = normalizeText(warning).toLowerCase();
+  return /\bmax(?:blocks|charsperblock|sources|libraryartifacts)\b/i.test(text)
+    || /(omitted|truncated).*(evidence block|source record|source document|library artifact|bounded packet|packet)/i.test(text)
+    || /(evidence block|source record|source document|library artifact).*(omitted|truncated)/i.test(text);
 }
 
 function normalizeIdeaForSample(idea = {}) {

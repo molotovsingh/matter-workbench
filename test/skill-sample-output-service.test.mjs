@@ -96,6 +96,45 @@ test("skill sample output provider carries the shared legal workbench policy pro
   assert.match(bodies[0].input[0].content, /must not expose raw system identifiers/);
 });
 
+test("skill sample output service hides internal context-limit warnings from samples", async () => {
+  const providerCalls = [];
+  const service = createSkillSampleOutputService({
+    matterStore: { getMatterRoot: () => "/unused" },
+    env: {},
+    sampleProvider: async (payload) => {
+      providerCalls.push(payload);
+      return "# Sample\n\nReview output.";
+    },
+  });
+
+  const output = await service.generateSampleOutputFromPacket({
+    idea: { text: "produce a comparison chart of terms" },
+    packet: {
+      schema_version: "matter-context-packet/v1",
+      matter: { matter_name: "Demo Matter" },
+      limits: { omitted_blocks: 900 },
+      sources: [],
+      evidence_blocks: [],
+      library_artifacts: [],
+      warnings: [
+        "Omitted 900 evidence block(s) due to maxBlocks=120",
+        "Truncated 1 evidence block(s) due to maxCharsPerBlock=1600",
+        "Several source documents are marked needs review; OCR quality appears uneven in places.",
+      ],
+    },
+  });
+
+  assert.deepEqual(output.warnings, [
+    "Sample output only. Creating a skill still requires approval and validation.",
+    "Several source documents are marked needs review; OCR quality appears uneven in places.",
+  ]);
+  assert.equal("evidence_blocks_omitted" in providerCalls[0].matterContext.counts, false);
+  assert.deepEqual(providerCalls[0].matterContext.warnings, [
+    "Several source documents are marked needs review; OCR quality appears uneven in places.",
+  ]);
+  assert.doesNotMatch(JSON.stringify(providerCalls[0]), /maxBlocks|maxCharsPerBlock|Omitted 900|Truncated 1/);
+});
+
 test("skill sample output service includes feedback and previous sample for regeneration", async () => {
   const matterRoot = await makeMatterRoot();
   const providerCalls = [];

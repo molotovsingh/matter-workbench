@@ -106,6 +106,16 @@ test("React saved skill ideas resume without replanning and can route to matter 
   assert.match(machineSource, /Pick a matter to test this saved skill idea, then continue it from Skills\./);
 });
 
+test("React skill idea sample warnings hide internal context-limit language", async () => {
+  const componentSource = await readFile(skillIdeaSessionPath, "utf8");
+
+  assert.match(componentSource, /visibleSkillSampleWarnings/);
+  assert.match(componentSource, /isInternalContextLimitWarning/);
+  assert.match(componentSource, /max\(\?:blocks\|charsperblock\|sources\|libraryartifacts\)/i);
+  assert.doesNotMatch(componentSource, /session\.sample\.warnings\.map/);
+  assert.match(componentSource, /sampleWarnings\.map/);
+});
+
 test("React skill idea session explains no-matter saved idea flow before sample generation", async () => {
   const componentSource = await readFile(skillIdeaSessionPath, "utf8");
 
