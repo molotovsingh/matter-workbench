@@ -369,7 +369,9 @@ export function useSkillIdeaSessionMachine({
         createdSkill: result.skill ? { slash: result.skill.slash, name: result.skill.title } : { name: 'New skill' },
       }));
       appendTerminal([`[skill-idea] skill created: ${result.skill?.title ?? 'New skill'}`]);
+      dispatch({ type: 'BUMP_SKILLS_DATA_REFRESH' });
       dispatch({ type: 'SET_TAB', payload: 'skills' });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: 'Skills' });
     } catch (e) {
       if (!operation.isCurrent()) return;
       safeSetSession((s) => ({ ...s, phase: 'sampled', error: getErrorMessage(e) }));

@@ -241,8 +241,12 @@ export default function SkillIdeaSession({ initialInput, initialIdea = null, onC
       {session.phase === 'created' && (
         <div className="skill-idea-created">
           <p>
-            Skill created{session.createdSkill?.name ? `: ${session.createdSkill.name}` : ''}. You can find it in the Skills tab.
+            Skill created{session.createdSkill?.name ? `: ${session.createdSkill.name}` : ''}.
+            {' '}It is now in Your Skills. Pick any matter and click Run, or type the shortcut in Matter Assistant.
           </p>
+          {session.createdSkill?.slash && (
+            <p className="skill-idea-created-shortcut">Shortcut: <code>{session.createdSkill.slash}</code></p>
+          )}
           <div className="skill-idea-actions">
             <button type="button" onClick={actions.closeSession}>Done</button>
           </div>

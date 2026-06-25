@@ -1164,6 +1164,7 @@ export interface AppState {
   resumeMatterName: string | null;
   pendingSkillIdeaResume: SkillIdea | null;
   pendingSkillsMatterAction: PendingSkillsMatterAction | null;
+  skillsDataRefreshSeq: number;
   activeTab: ActiveTab;
   activeView: ActiveView;
   filePreview: FilePreview | null;

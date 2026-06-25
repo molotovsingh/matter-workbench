@@ -97,7 +97,7 @@ export default function SkillsPage({ onCommand }: SkillsPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [loadSkillData]);
+  }, [loadSkillData, state.skillsDataRefreshSeq]);
 
   useEffect(() => {
     setPendingOverwrite(null);

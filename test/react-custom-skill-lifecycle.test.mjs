@@ -105,6 +105,16 @@ test("React Skills page uses an action-first MECE layout", async () => {
   assert.doesNotMatch(skillsSource, /<details className="skills-collapsible-section" open>[\s\S]*History/);
 });
 
+test("React Skills page and command rail refresh after Skill Factory creates a skill", async () => {
+  const skillsSource = await readFile(skillsPagePath, "utf8");
+  const commandSource = await readFile(commandPanelPath, "utf8");
+
+  assert.match(skillsSource, /state\.skillsDataRefreshSeq/);
+  assert.match(skillsSource, /\[loadSkillData, state\.skillsDataRefreshSeq\]/);
+  assert.match(commandSource, /state\.skillsDataRefreshSeq/);
+  assert.match(commandSource, /void loadCommandSuggestions\(\);[\s\S]*\}, \[loadCommandSuggestions, state\.skillsDataRefreshSeq\]\)/);
+});
+
 test("React Skills page keeps load failures local and retryable", async () => {
   const skillsSource = await readFile(skillsPagePath, "utf8");
 

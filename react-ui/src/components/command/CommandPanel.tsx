@@ -104,6 +104,10 @@ export default function CommandPanel({
   }, [dispatch, loadCommandSuggestions, onClearCopilotThread, resetSuggestions]);
 
   useEffect(() => {
+    void loadCommandSuggestions();
+  }, [loadCommandSuggestions, state.skillsDataRefreshSeq]);
+
+  useEffect(() => {
     const idea = state.pendingSkillIdeaResume;
     if (!idea) return;
     inputOverrideRef.current = null;

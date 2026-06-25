@@ -234,6 +234,7 @@ test("React skill idea machine delegates approve-overlap-create API calls to ses
 
 test("React skill idea create action guards stale matter before and after create", async () => {
   const actionsSource = await readFile(skillIdeaSessionActionsPath, "utf8");
+  const machineSource = await readFile(skillIdeaSessionMachinePath, "utf8");
 
   assert.match(
     actionsSource,
@@ -247,6 +248,16 @@ test("React skill idea create action guards stale matter before and after create
     actionsSource,
     /const result = await api\.createSkillFromIdea[\s\S]*if \(!isCurrentMatterName\(matterName\)\) return \{ status: 'matter_changed' \};[\s\S]*return \{ status: 'created'/,
   );
+  assert.match(machineSource, /BUMP_SKILLS_DATA_REFRESH/);
+  assert.match(machineSource, /SET_BREADCRUMBS', payload: 'Skills'/);
+});
+
+test("React skill idea created state explains where to run the new skill", async () => {
+  const source = await readFile(new URL("../react-ui/src/components/command/SkillIdeaSession.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /It is now in Your Skills/);
+  assert.match(source, /Pick any matter and click Run/);
+  assert.match(source, /Shortcut: <code>\{session\.createdSkill\.slash\}<\/code>/);
 });
 
 test("React API client types skill idea status updates as idea responses", async () => {

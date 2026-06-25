@@ -31,6 +31,7 @@ type Action =
   | { type: 'SET_RESUME_MATTER'; payload: string | null }
   | { type: 'SET_PENDING_SKILL_IDEA_RESUME'; payload: SkillIdea | null }
   | { type: 'SET_PENDING_SKILLS_MATTER_ACTION'; payload: PendingSkillsMatterAction | null }
+  | { type: 'BUMP_SKILLS_DATA_REFRESH' }
   | { type: 'SET_TAB'; payload: ActiveTab }
   | { type: 'SET_VIEW'; payload: ActiveView }
   | { type: 'SET_FILE_PREVIEW'; payload: FilePreview | null }
@@ -65,6 +66,7 @@ const initialState: AppState = {
   resumeMatterName: null,
   pendingSkillIdeaResume: null,
   pendingSkillsMatterAction: null,
+  skillsDataRefreshSeq: 0,
   activeTab: 'home',
   activeView: 'home',
   filePreview: null,
@@ -96,6 +98,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, pendingSkillIdeaResume: action.payload };
     case 'SET_PENDING_SKILLS_MATTER_ACTION':
       return { ...state, pendingSkillsMatterAction: action.payload };
+    case 'BUMP_SKILLS_DATA_REFRESH':
+      return { ...state, skillsDataRefreshSeq: state.skillsDataRefreshSeq + 1 };
     case 'SET_TAB':
       return { ...state, activeTab: action.payload, activeView: 'home' };
     case 'SET_VIEW':
