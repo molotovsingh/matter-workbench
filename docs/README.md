@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.44](releases/v1.0.0-beta.44.md) |
+| Current release notes | [v1.0.0-beta.45](releases/v1.0.0-beta.45.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -111,7 +111,8 @@ implementation plan.
 | [v1.0.0-beta.41](releases/v1.0.0-beta.41.md) | Beta 3 actionable Skills matter chooser release marker. |
 | [v1.0.0-beta.42](releases/v1.0.0-beta.42.md) | Beta 3 Skills matter chooser continuation release marker. |
 | [v1.0.0-beta.43](releases/v1.0.0-beta.43.md) | Beta 3 Skill Factory sample matter hotfix release marker. |
-| [v1.0.0-beta.44](releases/v1.0.0-beta.44.md) | Current Beta 3 AI provider service foundation release marker. |
+| [v1.0.0-beta.44](releases/v1.0.0-beta.44.md) | Beta 3 AI provider service foundation release marker. |
+| [v1.0.0-beta.45](releases/v1.0.0-beta.45.md) | Current Beta 3 AI provider service planner/research migration release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
