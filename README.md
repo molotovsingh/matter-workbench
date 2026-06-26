@@ -114,8 +114,9 @@ Completed release checks include:
 - runtime DB inactive source document statuses aligned with active-source suppression;
 - local rerun/currentness advice marks Source Index/List of Dates stale when suppressed sources are still referenced;
 - runtime DB workspace/payload reads filter derived extraction/text payloads linked to inactive sources;
+- artifact currentness schema/projection foundation exists for future source-removal workflows;
 - private-cloud deployment to the beta VM;
-- runtime DB migration through `020_matter_events`;
+- runtime DB migration through `022_matter_artifact_currentness`;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, and List of Dates smoke;
@@ -127,7 +128,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.62 release marker](docs/releases/v1.0.0-beta.62.md)
+- [v1.0.0-beta.63 release marker](docs/releases/v1.0.0-beta.63.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
