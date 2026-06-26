@@ -192,14 +192,18 @@ Already present:
 - local source tombstone read-side suppression;
 - runtime DB inactive source document statuses;
 - active-context suppression for stale generated artifact summaries;
-- pure read-only source-removal impact preview helper with no route and no UI.
+- pure read-only source-removal impact preview helper with no route and no UI;
+- artifact currentness schema/service foundation for read-only projection and
+  future runtime DB transaction-coupled stale/needs-review writes.
 
 Still missing before any UI:
 
 - source-removal mutation service;
 - idempotent runtime DB transaction SQL;
 - local mutation journal/repair posture;
-- artifact currentness writes for source-set changes;
+- local artifact currentness manifest/journal write path for source-set changes;
+- source-removal mutation wiring that writes artifact currentness records for
+  source-set changes;
 - restore/quarantine workflows;
 - Matter Log source-removal summary rendering;
 - impact preview endpoint;

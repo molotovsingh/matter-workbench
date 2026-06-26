@@ -267,6 +267,9 @@ Exit criteria:
 
 Goal: avoid stale downstream outputs before removal ships.
 
+Status: foundation started. A read-only/local projection and runtime DB schema
+exist, but source-removal mutations do not yet write currentness records.
+
 Deliverables:
 
 - artifact currentness model for source-backed artifacts;

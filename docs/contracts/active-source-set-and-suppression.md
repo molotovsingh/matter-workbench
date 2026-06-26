@@ -61,7 +61,10 @@ When a source is suppressed, these local read paths exclude it from active work:
 - extraction runs reading `File Register.csv`;
 - Source Index generation;
 - List of Dates generation;
-- rerun/currentness advice for Source Index and List of Dates artifacts.
+- rerun/currentness advice for Source Index and List of Dates artifacts;
+- read-only artifact currentness projection for Source Index, List of Dates, and
+  Matter Story, plus source-removal currentness effect records for future
+  source-backed custom-skill outputs.
 
 Matter Context does not allow stale generated artifacts to reintroduce suppressed
 `FILE-NNNN` citations: List of Dates JSON entries that cite suppressed file ids
@@ -94,7 +97,7 @@ This contract is not:
 - a restore/quarantine workflow;
 - a physical purge policy;
 - a privilege-review policy;
-- an artifact-currentness implementation;
+- a complete artifact-currentness write implementation;
 - a replacement for canonical `matter_events` source-custody events.
 
 ## Future Write-Side Requirements
@@ -104,8 +107,8 @@ Before a real source-removal mutation ships, Matter Workbench still needs:
 1. canonical `source_file.removed_from_active_record` event append;
 2. atomic local manifest update / runtime DB source status update;
 3. matter/document locking or equivalent idempotency;
-4. artifact currentness projection for List of Dates, Matter Story, and custom
-   skill outputs;
+4. transaction-coupled artifact currentness writes for List of Dates, Matter
+   Story, and custom skill outputs;
 5. restore/quarantine semantics;
 6. privilege-safe Matter Log summaries;
 7. operator/lawyer confirmation copy that says `Remove from active record`, never
