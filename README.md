@@ -4,7 +4,7 @@
 
 It is built for the first hard part of legal work: taking PDFs, emails, scans, spreadsheets, pleadings, notices, orders, and client material, then producing an auditable record with document labels, extracted text, a source index, matter context, and a lawyer-review-ready chronology.
 
-> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, migration `019_credit_ledger` is applied and recorded, and deployed smoke/hardening checks have passed.**
+> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, migration `020_matter_events` is applied and recorded, and deployed smoke/hardening checks have passed.**
 >
 > Access: **Private beta only.** This is not a public self-serve legal advice product; trusted testers use supervised accounts and lawyer review remains mandatory.
 
@@ -107,9 +107,9 @@ hardening continues separately.
 
 Completed release checks include:
 
-- Postgres migration `019_credit_ledger` applied and recorded;
+- Postgres migration `020_matter_events` applied and recorded;
 - private-cloud deployment to the beta VM;
-- runtime DB migration through `019_credit_ledger`;
+- runtime DB migration through `020_matter_events`;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, and List of Dates smoke;
@@ -121,7 +121,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.55 release marker](docs/releases/v1.0.0-beta.55.md)
+- [v1.0.0-beta.56 release marker](docs/releases/v1.0.0-beta.56.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
