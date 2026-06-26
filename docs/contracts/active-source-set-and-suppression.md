@@ -64,7 +64,9 @@ When a source is suppressed, these local read paths exclude it from active work:
 - rerun/currentness advice for Source Index and List of Dates artifacts;
 - read-only artifact currentness projection for Source Index, List of Dates, and
   Matter Story, plus source-removal currentness effect records for future
-  source-backed custom-skill outputs.
+  source-backed custom-skill outputs;
+- non-routed local artifact-currentness manifest persistence for future
+  transaction/journal wiring.
 
 Matter Context does not allow stale generated artifacts to reintroduce suppressed
 `FILE-NNNN` citations: List of Dates JSON entries that cite suppressed file ids
@@ -97,7 +99,7 @@ This contract is not:
 - a restore/quarantine workflow;
 - a physical purge policy;
 - a privilege-review policy;
-- a complete artifact-currentness write implementation;
+- a complete source-removal artifact-currentness write implementation;
 - a replacement for canonical `matter_events` source-custody events.
 
 ## Future Write-Side Requirements
