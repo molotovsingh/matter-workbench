@@ -16,6 +16,8 @@ test("active source set contract documents read-side suppression without unlocki
   assert.match(contract, /quarantined/);
   assert.match(contract, /must not store\nsource text, extracted evidence blocks, or legal work product/);
   assert.match(contract, /Matter Context packets/);
+  assert.match(contract, /generated Library artifact summaries/);
+  assert.match(contract, /stale generated artifacts to reintroduce suppressed/);
   assert.match(contract, /List of Dates generation/);
   assert.match(contract, /canonical `source_file\.removed_from_active_record` event append/);
   assert.match(contract, /never\s+ordinary `Delete file`/);

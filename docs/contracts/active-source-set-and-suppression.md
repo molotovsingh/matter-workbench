@@ -57,16 +57,24 @@ write-side removal must make manifest/event writes atomic and operator-visible.
 When a source is suppressed, these local read paths exclude it from active work:
 
 - Matter Context packets used by Copilot/search/custom skills;
+- generated Library artifact summaries inside Matter Context packets;
 - extraction runs reading `File Register.csv`;
 - Source Index generation;
 - List of Dates generation.
+
+Matter Context does not allow stale generated artifacts to reintroduce suppressed
+`FILE-NNNN` citations: List of Dates JSON entries that cite suppressed file ids
+are omitted from active context, List of Dates Markdown is skipped if it cites a
+suppressed file id, and Source Index summary counts are reduced to active
+sources.
 
 Runtime DB mode also filters `deleted_pending` source documents from workspace
 and payload reads, and runtime matter-context packets treat inactive File
 Register rows as suppressed.
 
-Suppressed extraction records and source descriptors are not deleted. They remain
-custody/evidence history, but they do not feed the active context/read model.
+Suppressed extraction records, source descriptors, and stale generated artifact
+entries are not deleted. They remain custody/evidence history, but they do not
+feed the active context/read model.
 
 ## Non-Goals
 

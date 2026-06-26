@@ -94,18 +94,27 @@ export function addSourceSuppressionEntry(index, entry = {}) {
 }
 
 export function sourceSuppressionEntryFor(source = {}, index = createSourceSuppressionIndex()) {
+  const lookupIndex = index || createSourceSuppressionIndex();
   const fileId = normalizeText(source.file_id || source.fileId);
   const paths = sourcePathsForLookup(source);
   const candidates = [];
-  if (fileId && index.byFileId?.has(fileId)) candidates.push(index.byFileId.get(fileId));
+  if (fileId && lookupIndex.byFileId?.has(fileId)) candidates.push(lookupIndex.byFileId.get(fileId));
   for (const sourcePath of paths) {
-    if (index.bySourcePath?.has(sourcePath)) candidates.push(index.bySourcePath.get(sourcePath));
+    if (lookupIndex.bySourcePath?.has(sourcePath)) candidates.push(lookupIndex.bySourcePath.get(sourcePath));
   }
   return candidates.find((entry) => isInactiveSourceStatus(entry?.status)) || null;
 }
 
 export function isSourceSuppressed(source = {}, index = createSourceSuppressionIndex()) {
   return Boolean(sourceSuppressionEntryFor(source, index));
+}
+
+export function suppressedCitationFileIds(value = "", index = createSourceSuppressionIndex()) {
+  return extractCitationFileIds(value).filter((fileId) => isSourceSuppressed({ file_id: fileId }, index));
+}
+
+export function hasSuppressedCitation(value = "", index = createSourceSuppressionIndex()) {
+  return suppressedCitationFileIds(value, index).length > 0;
 }
 
 export function isInactiveSourceStatus(status = "") {
@@ -129,6 +138,10 @@ export function sourceSuppressionWarning(source = {}, entry = {}) {
   const fileId = normalizeText(source.file_id || source.fileId || entry.file_id) || "unknown source";
   const status = normalizeStatus(entry.status) || "suppressed";
   return `Suppressed ${fileId} from active source set (${status})`;
+}
+
+function extractCitationFileIds(value = "") {
+  return uniqueValues(String(value || "").match(/FILE-\d{4,}/g) || []);
 }
 
 function sourcePathsForLookup(source = {}) {

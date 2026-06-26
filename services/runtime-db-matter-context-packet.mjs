@@ -23,6 +23,7 @@ import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs
 import {
   addSuppressedSource,
   createSourceSuppressionIndex,
+  hasSuppressedCitation,
   isInactiveSourceStatus,
   isSourceSuppressed,
   sourceSuppressionEntryFor,
@@ -55,7 +56,7 @@ export function buildRuntimeDbMatterContextPacket({
   const registerByFileId = buildRegisterIndex(fileRegisters);
   const sourceDescriptors = readTrustedSourceDescriptors({ readText, registerByFileId, warnings });
   const records = readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppressionIndex });
-  const libraryArtifacts = readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings });
+  const libraryArtifacts = readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings, sourceSuppressionIndex });
 
   return buildMatterContextPacketFromParts({
     folderName: matter.name,
@@ -332,7 +333,7 @@ function readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppr
   return records.sort((a, b) => String(a.file_id).localeCompare(String(b.file_id), undefined, { numeric: true }));
 }
 
-function readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings }) {
+function readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings, sourceSuppressionIndex }) {
   const candidates = [
     SOURCE_INDEX_RELATIVE,
     LIST_OF_DATES_JSON_RELATIVE,
@@ -345,22 +346,26 @@ function readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnin
     if (!item) continue;
     const body = readText(relativePath);
     if (!body) continue;
-    const summary = summarizeLibraryArtifact({ relativePath, body, updatedAt: item.updatedAt, limits, warnings });
+    const summary = summarizeLibraryArtifact({ relativePath, body, updatedAt: item.updatedAt, limits, warnings, sourceSuppressionIndex });
     if (summary) summaries.push(summary);
   }
   return summaries;
 }
 
-function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warnings }) {
+function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warnings, sourceSuppressionIndex }) {
   if (relativePath.endsWith(".json")) {
     try {
-      return summarizeJsonArtifact(relativePath, JSON.parse(body), updatedAt, limits);
+      return summarizeJsonArtifact(relativePath, JSON.parse(body), updatedAt, limits, warnings, sourceSuppressionIndex);
     } catch (error) {
       warnings.push(`Skipped invalid JSON library artifact ${relativePath}: ${error.message}`);
       return null;
     }
   }
   if (relativePath.endsWith(".md")) {
+    if (relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
+      warnings.push(`Skipped ${relativePath}: cites suppressed source(s)`);
+      return null;
+    }
     const maxChars = Number.isInteger(limits.maxChronologyMarkdownChars) ? limits.maxChronologyMarkdownChars : 32000;
     const markdown = boundedText(body, maxChars);
     return {
@@ -377,14 +382,20 @@ function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warni
   return null;
 }
 
-function summarizeJsonArtifact(relativePath, json, updatedAt, limits = {}) {
+function summarizeJsonArtifact(relativePath, json, updatedAt, limits = {}, warnings = [], sourceSuppressionIndex = null) {
   if (relativePath === SOURCE_INDEX_RELATIVE) {
+    const sources = Array.isArray(json.sources) ? json.sources : [];
+    const activeSources = sources.filter((source) => !isSourceSuppressed(source, sourceSuppressionIndex));
+    const suppressedCount = sources.length - activeSources.length;
+    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} Source Index descriptor(s) from active context`);
     return {
       path: relativePath,
       kind: "source_index",
       schema_version: json.schema_version || "",
-      summary: `${Array.isArray(json.sources) ? json.sources.length : 0} source descriptor(s)`,
-      source_count: Array.isArray(json.sources) ? json.sources.length : 0,
+      summary: `${activeSources.length} active source descriptor(s)`,
+      source_count: activeSources.length,
+      source_count_total: sources.length,
+      sources_suppressed: suppressedCount,
       generated_at: json.generated_at || "",
       ai_run: sanitizeAiRun(json.ai_run),
       mtime: isoOrEmpty(updatedAt),
@@ -392,18 +403,23 @@ function summarizeJsonArtifact(relativePath, json, updatedAt, limits = {}) {
   }
   if (relativePath === LIST_OF_DATES_JSON_RELATIVE) {
     const entries = Array.isArray(json.entries) ? json.entries : [];
+    const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
+    const suppressedCount = entries.length - activeEntries.length;
+    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} List of Dates entr${suppressedCount === 1 ? "y" : "ies"} from active context`);
     const maxEntries = Number.isInteger(limits.maxChronologyEntries) ? limits.maxChronologyEntries : 120;
-    const includedEntries = entries.slice(0, maxEntries);
+    const includedEntries = activeEntries.slice(0, maxEntries);
     return {
       path: relativePath,
       kind: "list_of_dates",
       schema_version: json.schema_version || "",
-      summary: `${entries.length} accepted chronology entr${entries.length === 1 ? "y" : "ies"} with preserved raw citations`,
-      entry_count: entries.length,
+      summary: `${activeEntries.length} active chronology entr${activeEntries.length === 1 ? "y" : "ies"} with preserved raw citations`,
+      entry_count: activeEntries.length,
+      entry_count_total: entries.length,
+      entries_suppressed: suppressedCount,
       entries_included: includedEntries.length,
-      entries_omitted: Math.max(0, entries.length - includedEntries.length),
+      entries_omitted: Math.max(0, activeEntries.length - includedEntries.length),
       entries: includedEntries.map(summarizeChronologyEntry),
-      citation_index: entries.map(summarizeChronologyCitation).filter((entry) => entry.citation),
+      citation_index: activeEntries.map(summarizeChronologyCitation).filter((entry) => entry.citation),
       generated_at: json.generated_at || "",
       ai_run: sanitizeAiRun(json.ai_run),
       mtime: isoOrEmpty(updatedAt),
@@ -450,6 +466,18 @@ function summarizeChronologyCitation(entry = {}) {
     source_excerpt: boundedText(entry.source_excerpt, 300),
     event: boundedText(entry.event, 300),
   };
+}
+
+function chronologyEntryHasSuppressedCitation(entry = {}, sourceSuppressionIndex = null) {
+  if (hasSuppressedCitation(entry.citation, sourceSuppressionIndex)) return true;
+  if (hasSuppressedCitation(entry.source_label, sourceSuppressionIndex)) return true;
+  if (hasSuppressedCitation(entry.source_short_label, sourceSuppressionIndex)) return true;
+  if (!Array.isArray(entry.supporting_sources)) return false;
+  return entry.supporting_sources.some((source) => (
+    hasSuppressedCitation(source?.citation, sourceSuppressionIndex)
+    || hasSuppressedCitation(source?.source_label, sourceSuppressionIndex)
+    || hasSuppressedCitation(source?.source_short_label, sourceSuppressionIndex)
+  ));
 }
 
 function sanitizeAiRun(aiRun = {}) {

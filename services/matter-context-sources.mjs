@@ -40,6 +40,7 @@ export async function readMatterContextSources(root, warnings = []) {
     registerByFileId,
     sourceDescriptors,
     records,
+    sourceSuppressionIndex,
   };
 }
 

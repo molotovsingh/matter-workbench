@@ -955,7 +955,11 @@ export interface MatterContextArtifact {
   summary?: string;
   schema_version?: string;
   source_count?: number | null;
+  source_count_total?: number | null;
+  sources_suppressed?: number | null;
   entry_count?: number | null;
+  entry_count_total?: number | null;
+  entries_suppressed?: number | null;
 }
 
 export interface MatterContextPreview {

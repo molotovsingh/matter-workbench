@@ -6,8 +6,12 @@ import {
   LIST_OF_DATES_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
+import {
+  hasSuppressedCitation,
+  isSourceSuppressed,
+} from "./active-source-set-service.mjs";
 
-export async function readLibraryArtifactSummaries(root, limits, warnings) {
+export async function readLibraryArtifactSummaries(root, limits, warnings, { sourceSuppressionIndex = null } = {}) {
   const candidates = [
     SOURCE_INDEX_RELATIVE,
     LIST_OF_DATES_JSON_RELATIVE,
@@ -16,13 +20,13 @@ export async function readLibraryArtifactSummaries(root, limits, warnings) {
   const summaries = [];
   for (const relativePath of candidates) {
     if (summaries.length >= limits.maxLibraryArtifacts) break;
-    const summary = await summarizeLibraryArtifact(root, relativePath, limits, warnings);
+    const summary = await summarizeLibraryArtifact(root, relativePath, limits, warnings, { sourceSuppressionIndex });
     if (summary) summaries.push(summary);
   }
   return summaries;
 }
 
-async function summarizeLibraryArtifact(root, relativePath, limits, warnings) {
+async function summarizeLibraryArtifact(root, relativePath, limits, warnings, { sourceSuppressionIndex = null } = {}) {
   const artifactPath = path.join(root, relativePath);
   let body = "";
   let info = null;
@@ -37,7 +41,7 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings) {
   if (relativePath.endsWith(".json")) {
     try {
       const json = JSON.parse(body);
-      return summarizeJsonArtifact(relativePath, json, info, limits);
+      return summarizeJsonArtifact(relativePath, json, info, limits, warnings, { sourceSuppressionIndex });
     } catch (error) {
       warnings.push(`Skipped invalid JSON library artifact ${relativePath}: ${error.message}`);
       return null;
@@ -45,6 +49,10 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings) {
   }
 
   if (relativePath.endsWith(".md")) {
+    if (relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
+      warnings.push(`Skipped ${relativePath}: cites suppressed source(s)`);
+      return null;
+    }
     const maxChars = Number.isInteger(limits.maxChronologyMarkdownChars) ? limits.maxChronologyMarkdownChars : 32000;
     const markdown = boundedText(body, maxChars);
     return {
@@ -62,14 +70,20 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings) {
   return null;
 }
 
-function summarizeJsonArtifact(relativePath, json, info, limits = {}) {
+function summarizeJsonArtifact(relativePath, json, info, limits = {}, warnings = [], { sourceSuppressionIndex = null } = {}) {
   if (relativePath === SOURCE_INDEX_RELATIVE) {
+    const sources = Array.isArray(json.sources) ? json.sources : [];
+    const activeSources = sources.filter((source) => !isSourceSuppressed(source, sourceSuppressionIndex));
+    const suppressedCount = sources.length - activeSources.length;
+    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} Source Index descriptor(s) from active context`);
     return {
       path: relativePath,
       kind: "source_index",
       schema_version: json.schema_version || "",
-      summary: `${Array.isArray(json.sources) ? json.sources.length : 0} source descriptor(s)`,
-      source_count: Array.isArray(json.sources) ? json.sources.length : 0,
+      summary: `${activeSources.length} active source descriptor(s)`,
+      source_count: activeSources.length,
+      source_count_total: sources.length,
+      sources_suppressed: suppressedCount,
       generated_at: json.generated_at || "",
       ai_run: sanitizeAiRun(json.ai_run),
       mtime: info.mtime.toISOString(),
@@ -78,18 +92,23 @@ function summarizeJsonArtifact(relativePath, json, info, limits = {}) {
 
   if (relativePath === LIST_OF_DATES_JSON_RELATIVE) {
     const entries = Array.isArray(json.entries) ? json.entries : [];
+    const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
+    const suppressedCount = entries.length - activeEntries.length;
+    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} List of Dates entr${suppressedCount === 1 ? "y" : "ies"} from active context`);
     const maxEntries = Number.isInteger(limits.maxChronologyEntries) ? limits.maxChronologyEntries : 120;
-    const includedEntries = entries.slice(0, maxEntries);
+    const includedEntries = activeEntries.slice(0, maxEntries);
     return {
       path: relativePath,
       kind: "list_of_dates",
       schema_version: json.schema_version || "",
-      summary: `${entries.length} accepted chronology entr${entries.length === 1 ? "y" : "ies"} with preserved raw citations`,
-      entry_count: entries.length,
+      summary: `${activeEntries.length} active chronology entr${activeEntries.length === 1 ? "y" : "ies"} with preserved raw citations`,
+      entry_count: activeEntries.length,
+      entry_count_total: entries.length,
+      entries_suppressed: suppressedCount,
       entries_included: includedEntries.length,
-      entries_omitted: Math.max(0, entries.length - includedEntries.length),
+      entries_omitted: Math.max(0, activeEntries.length - includedEntries.length),
       entries: includedEntries.map(summarizeChronologyEntry),
-      citation_index: entries.map(summarizeChronologyCitation).filter((entry) => entry.citation),
+      citation_index: activeEntries.map(summarizeChronologyCitation).filter((entry) => entry.citation),
       generated_at: json.generated_at || "",
       ai_run: sanitizeAiRun(json.ai_run),
       mtime: info.mtime.toISOString(),
@@ -137,6 +156,18 @@ function summarizeChronologyCitation(entry = {}) {
     source_excerpt: boundedText(entry.source_excerpt, 300),
     event: boundedText(entry.event, 300),
   };
+}
+
+function chronologyEntryHasSuppressedCitation(entry = {}, sourceSuppressionIndex = null) {
+  if (hasSuppressedCitation(entry.citation, sourceSuppressionIndex)) return true;
+  if (hasSuppressedCitation(entry.source_label, sourceSuppressionIndex)) return true;
+  if (hasSuppressedCitation(entry.source_short_label, sourceSuppressionIndex)) return true;
+  if (!Array.isArray(entry.supporting_sources)) return false;
+  return entry.supporting_sources.some((source) => (
+    hasSuppressedCitation(source?.citation, sourceSuppressionIndex)
+    || hasSuppressedCitation(source?.source_label, sourceSuppressionIndex)
+    || hasSuppressedCitation(source?.source_short_label, sourceSuppressionIndex)
+  ));
 }
 
 function sanitizeAiRun(aiRun = {}) {

@@ -92,6 +92,40 @@ test("runtime DB matter context filters inactive register rows from active packe
       source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0002__removed.txt",
       pages: [{ page: 1, blocks: [{ id: "p1.b1", text: "Removed text." }] }],
     })],
+    ["10_Library/Source Index.json", JSON.stringify({
+      schema_version: "source-index/v1",
+      sources: [
+        {
+          file_id: "FILE-0001",
+          sha256: "hash-1",
+          source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__active.txt",
+          display_label: "Active note",
+        },
+        {
+          file_id: "FILE-0002",
+          sha256: "hash-2",
+          source_path: "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0002__removed.txt",
+          display_label: "Removed note",
+        },
+      ],
+    })],
+    ["10_Library/List of Dates.json", JSON.stringify({
+      schema_version: "list-of-dates/v1",
+      entries: [
+        {
+          date_iso: "2026-04-20",
+          event: "Active source chronology remains.",
+          citation: "FILE-0001 p1.b1",
+        },
+        {
+          date_iso: "2026-04-21",
+          event: "Removed chronology must not re-enter.",
+          citation: "FILE-0002 p1.b1",
+          source_excerpt: "Removed stale runtime excerpt.",
+        },
+      ],
+    })],
+    ["10_Library/List of Dates.md", "# List of Dates\n\nRemoved runtime chronology cites FILE-0002 p1.b1.\n"],
   ]);
   const workspace = {
     tree: buildRuntimeWorkspaceTree({
@@ -113,8 +147,18 @@ test("runtime DB matter context filters inactive register rows from active packe
 
   assert.deepEqual(packet.file_registers[0].rows.map((row) => row.file_id), ["FILE-0001"]);
   assert.deepEqual(packet.sources.map((source) => source.file_id), ["FILE-0001"]);
+  const sourceIndexArtifact = packet.library_artifacts.find((artifact) => artifact.kind === "source_index");
+  assert.equal(sourceIndexArtifact.source_count, 1);
+  assert.equal(sourceIndexArtifact.sources_suppressed, 1);
+  const chronologyArtifact = packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates");
+  assert.deepEqual(chronologyArtifact.entries.map((entry) => entry.event), ["Active source chronology remains."]);
+  assert.equal(chronologyArtifact.entries_suppressed, 1);
+  assert.equal(packet.library_artifacts.some((artifact) => artifact.kind === "list_of_dates_markdown"), false);
+  assert.doesNotMatch(JSON.stringify(packet.library_artifacts), /Removed note|Removed chronology|Removed stale runtime excerpt/i);
   assert.doesNotMatch(JSON.stringify(packet), /Removed text/);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
+  assert.match(packet.warnings.join("\n"), /Suppressed 1 List of Dates entry from active context/);
+  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
 });
 
 test("runtime DB matter context rejects malformed source index payloads", () => {

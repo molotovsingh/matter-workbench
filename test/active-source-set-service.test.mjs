@@ -9,9 +9,11 @@ import {
   SOURCE_TOMBSTONES_SCHEMA_VERSION,
   addInactiveRegisterRowsToSuppressionIndex,
   createSourceSuppressionIndex,
+  hasSuppressedCitation,
   isInactiveSourceStatus,
   isSourceSuppressed,
   readSourceSuppressionIndex,
+  suppressedCitationFileIds,
   sourceSuppressionEntryFor,
 } from "../services/active-source-set-service.mjs";
 
@@ -34,6 +36,8 @@ test("source suppression index treats removed and quarantined source rows as ina
   assert.equal(isSourceSuppressed({ file_id: "FILE-0003" }, index), true);
   assert.equal(isSourceSuppressed({ file_id: "FILE-0001" }, index), false);
   assert.equal(sourceSuppressionEntryFor({ file_id: "FILE-0002" }, index).event_id, "evt_2");
+  assert.equal(hasSuppressedCitation("See FILE-0002 p1.b1", index), true);
+  assert.deepEqual(suppressedCitationFileIds("FILE-0001 p1.b1; FILE-0002 p1.b2", index), ["FILE-0002"]);
   assert.equal(isInactiveSourceStatus("deleted-pending"), true);
   assert.equal(isInactiveSourceStatus("exact-duplicate"), false);
 });

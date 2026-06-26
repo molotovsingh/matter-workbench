@@ -127,19 +127,22 @@ async function writeSourceTombstones(root, sources) {
   }, null, 2)}\n`);
 }
 
-async function writeListOfDates(root) {
+async function writeListOfDates(root, {
+  entries = [
+    {
+      date_iso: "2026-04-20",
+      event: "Agreement was signed.",
+      citation: "FILE-0001 p1.b1",
+    },
+  ],
+  markdown = "# List of Dates\n\nVerbose chronology note.\n\n| Date | Event |\n",
+} = {}) {
   await writeFile(
     path.join(root, "10_Library", "List of Dates.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-05-11T12:00:00.000Z",
-      entries: [
-        {
-          date_iso: "2026-04-20",
-          event: "Agreement was signed.",
-          citation: "FILE-0001 p1.b1",
-        },
-      ],
+      entries,
       ai_run: {
         provider: "openrouter",
         model: "openai/gpt-4.1",
@@ -152,7 +155,7 @@ async function writeListOfDates(root) {
       },
     }, null, 2)}\n`,
   );
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\nVerbose chronology note.\n\n| Date | Event |\n");
+  await writeFile(path.join(root, "10_Library", "List of Dates.md"), markdown);
 }
 
 test("matter context packet includes source-labeled extraction blocks and selected library summaries", async () => {
@@ -290,6 +293,22 @@ test("matter context packet excludes tombstoned sources from registers, descript
       short_label: "Removed note",
     },
   ]);
+  await writeListOfDates(root, {
+    entries: [
+      {
+        date_iso: "2026-04-20",
+        event: "Active source chronology still appears.",
+        citation: "FILE-0001 p1.b1",
+      },
+      {
+        date_iso: "2026-04-21",
+        event: "Removed chronology event must not re-enter.",
+        citation: "FILE-0002 p1.b1",
+        source_excerpt: "Removed stale excerpt must not re-enter active context.",
+      },
+    ],
+    markdown: "# List of Dates\n\nRemoved chronology note cites FILE-0002 p1.b1.\n",
+  });
   await writeSourceTombstones(root, [{
     file_id: "FILE-0002",
     source_path: removedPath,
@@ -302,8 +321,17 @@ test("matter context packet excludes tombstoned sources from registers, descript
   assert.deepEqual(packet.file_registers[0].rows.map((row) => row.file_id), ["FILE-0001"]);
   assert.deepEqual(packet.sources.map((source) => source.file_id), ["FILE-0001"]);
   assert.deepEqual(packet.evidence_blocks.map((block) => block.file_id), ["FILE-0001", "FILE-0001"]);
-  assert.doesNotMatch(JSON.stringify(packet), /Removed note|removed evidence/i);
+  const sourceIndexArtifact = packet.library_artifacts.find((artifact) => artifact.kind === "source_index");
+  assert.equal(sourceIndexArtifact.source_count, 1);
+  assert.equal(sourceIndexArtifact.sources_suppressed, 1);
+  const chronologyArtifact = packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates");
+  assert.deepEqual(chronologyArtifact.entries.map((entry) => entry.event), ["Active source chronology still appears."]);
+  assert.equal(chronologyArtifact.entries_suppressed, 1);
+  assert.equal(packet.library_artifacts.some((artifact) => artifact.kind === "list_of_dates_markdown"), false);
+  assert.doesNotMatch(JSON.stringify(packet.library_artifacts), /Removed note|removed evidence|Removed chronology|Removed stale excerpt/i);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
+  assert.match(packet.warnings.join("\n"), /Suppressed 1 List of Dates entry from active context/);
+  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
 });
 
 test("matter context search returns source labels, snippets, and raw citations from bounded packet", async () => {

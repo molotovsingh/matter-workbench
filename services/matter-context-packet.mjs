@@ -28,8 +28,9 @@ export async function buildMatterContextPacket(matterRoot, options = {}) {
     registerByFileId,
     sourceDescriptors,
     records,
+    sourceSuppressionIndex,
   } = await readMatterContextSources(root, warnings);
-  const libraryArtifacts = await readLibraryArtifactSummaries(root, limits, warnings);
+  const libraryArtifacts = await readLibraryArtifactSummaries(root, limits, warnings, { sourceSuppressionIndex });
 
   return buildMatterContextPacketFromParts({
     folderName: path.basename(root),
