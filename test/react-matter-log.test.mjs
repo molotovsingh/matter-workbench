@@ -12,7 +12,8 @@ test("React API client exposes the read-only Matter Log projection endpoint", as
   const types = await readFile(typesPath, "utf8");
 
   assert.match(types, /export interface MatterLogEntry/);
-  assert.match(types, /custodyGrade: 'projection'/);
+  assert.match(types, /sourceLedger: 'matter_events' \| 'job_status' \| 'configurable_skill_runs'/);
+  assert.match(types, /custodyGrade: 'canonical_event' \| 'projection'/);
   assert.match(types, /canonical: boolean/);
   assert.match(types, /export interface MatterLog/);
   assert.match(client, /getMatterLog: \(limit = 100, matterName\?: string\) => getJson<MatterLog>/);
@@ -29,5 +30,6 @@ test("Activity page labels Matter Log as a best-effort preview, not custody evid
   assert.match(source, /Not a custody-grade event log yet/);
   assert.match(source, /conversation memory is not evidence/i);
   assert.match(source, /Projection details/);
+  assert.match(source, /canonical event/);
   assert.match(source, /Canonical event/);
 });

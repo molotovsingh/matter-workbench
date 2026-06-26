@@ -270,7 +270,7 @@ export interface MatterLogActor {
 
 export interface MatterLogEntry {
   id: string;
-  sourceLedger: 'job_status' | 'configurable_skill_runs' | string;
+  sourceLedger: 'matter_events' | 'job_status' | 'configurable_skill_runs' | string;
   sourceId: string;
   sourceSchemaVersion?: string;
   occurredAt: string;
@@ -281,7 +281,7 @@ export interface MatterLogEntry {
   title: string;
   summary: string;
   status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown' | string;
-  custodyGrade: 'projection' | string;
+  custodyGrade: 'canonical_event' | 'projection' | string;
   canonical: boolean;
   actor?: MatterLogActor;
   route?: string;

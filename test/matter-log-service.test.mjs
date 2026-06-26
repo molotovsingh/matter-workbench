@@ -57,7 +57,7 @@ test("matter log service projects jobs and custom skill runs as non-canonical re
   assert.deepEqual(log.entries.map((entry) => entry.id), ["custom_skill_run:run_story", "job:job_extract"]);
   assert.ok(log.entries.every((entry) => entry.custodyGrade === "projection"));
   assert.ok(log.entries.every((entry) => entry.canonical === false));
-  assert.match(log.limitations.join("\n"), /not a canonical matter event ledger/i);
+  assert.match(log.limitations.join("\n"), /until canonical matter_events are recorded/i);
   assert.match(log.limitations.join("\n"), /Conversation memory.*not treated as evidence/i);
 
   const runEntry = log.entries[0];
@@ -70,6 +70,45 @@ test("matter log service projects jobs and custom skill runs as non-canonical re
   assert.equal(jobEntry.category, "source_preparation");
   assert.equal(jobEntry.route, "/api/extract");
 });
+
+test("matter log service includes canonical matter_events before legacy projections", async () => {
+  const service = createMatterLogService({
+    now: () => new Date("2026-06-26T12:30:00.000Z"),
+    matterEventsService: {
+      listEvents: async () => ({
+        schema_version: "matter-events/v1",
+        events: [{
+          schema_version: "matter-event/v1",
+          eventId: "11111111-1111-4111-8111-111111111111",
+          eventType: "custom_skill.created",
+          occurredAt: "2026-06-26T12:10:00.000Z",
+          matterName: "Taori vs Roma Builder",
+          summaryKey: "custom_skill_created",
+          object: { type: "custom_skill", id: "skill_issue", label: "Issue Discovery" },
+          payload: { slash: "/issue_discovery", title: "Issue Discovery" },
+          idempotencyKey: "custom_skill.created:skill_issue:v1",
+        }],
+      }),
+    },
+    jobStatusService: {
+      listJobs: async () => ({ jobs: [{ id: "job_extract", kind: "extract", label: "Extract", status: "succeeded", matterName: "Taori vs Roma Builder", startedAt: "2026-06-26T12:00:00.000Z" }] }),
+    },
+    configurableSkillRunsService: { listRuns: async () => ({ runs: [] }) },
+  });
+
+  const log = await service.readMatterLog({ matterName: "Taori vs Roma Builder", limit: 10 });
+
+  assert.equal(log.summary.canonicalEvents, true);
+  assert.deepEqual(log.summary.sourceLedgers, ["job_status", "matter_events"]);
+  assert.equal(log.entries[0].id, "event:11111111-1111-4111-8111-111111111111");
+  assert.equal(log.entries[0].sourceLedger, "matter_events");
+  assert.equal(log.entries[0].canonical, true);
+  assert.equal(log.entries[0].custodyGrade, "canonical_event");
+  assert.equal(log.entries[0].category, "skill_factory");
+  assert.equal(log.entries[0].summary, "Issue Discovery custom skill was created (/issue_discovery).");
+  assert.match(log.limitations.join("\n"), /Canonical matter_events are included when present/);
+});
+
 
 test("matter log projection filters to the requested matter without treating receipts as evidence", () => {
   const jobEntries = jobsToMatterLogEntries([

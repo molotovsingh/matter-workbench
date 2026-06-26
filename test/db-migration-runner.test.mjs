@@ -41,6 +41,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "017_custody_supersession.sql",
       "018_skill_idea_created_status.sql",
       "019_credit_ledger.sql",
+      "020_matter_events.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -62,6 +63,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("017_custody_supersession.sql"), "017_custody_supersession");
   assert.equal(migrationVersionFromFile("018_skill_idea_created_status.sql"), "018_skill_idea_created_status");
   assert.equal(migrationVersionFromFile("019_credit_ledger.sql"), "019_credit_ledger");
+  assert.equal(migrationVersionFromFile("020_matter_events.sql"), "020_matter_events");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

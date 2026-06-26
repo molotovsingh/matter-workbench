@@ -441,7 +441,7 @@ function MatterLogCard({ entry }: { entry: MatterLogEntry }) {
           <div className="activity-title-row">
             <h3>{entry.title || humanizeJobKind(entry.eventType)}</h3>
             <span className={`pipeline-state ${statusClass}`}>{formatJobStatus(entry.status)}</span>
-            <span className="pipeline-state warning">projection</span>
+            <span className="pipeline-state warning">{entry.canonical ? 'canonical event' : 'projection'}</span>
           </div>
           <div className="activity-run-line">
             {entry.matterName && <span>{entry.matterName}</span>}
@@ -483,6 +483,7 @@ function formatMatterLogCategory(category: string): string {
 }
 
 function formatMatterLogSource(sourceLedger: string): string {
+  if (sourceLedger === 'matter_events') return 'Matter events';
   if (sourceLedger === 'job_status') return 'Job ledger';
   if (sourceLedger === 'configurable_skill_runs') return 'Custom skill run ledger';
   return humanizeJobKind(sourceLedger || 'ledger');

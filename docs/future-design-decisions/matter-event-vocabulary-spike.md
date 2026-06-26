@@ -28,8 +28,8 @@ It is not:
 - a replacement for custody/state/currentness decisions.
 
 The current product surface remains the read-only `matter-log/v0-readonly`
-preview. That preview is a projection from existing ledgers, not this event
-vocabulary.
+preview. That preview can now merge canonical `matter_events` rows when present,
+but current runtime mutations are still mostly legacy job/run projections.
 
 ## Naming Rules
 
@@ -106,6 +106,28 @@ Open questions:
 | Future file removal | `source_file.removed_from_active_record` | Source mutation | Future canonical event | Not ordinary delete. Must tombstone/suppress and mark downstream stale. |
 | Future file removal | `source_file.restored_to_active_record` | Source mutation | Future canonical event | Requires restore/quarantine design. |
 | Future file removal | `source_file.quarantined` | Source mutation / privilege | Future canonical event | Privilege/confidentiality semantics unresolved. |
+
+## Foundation Landed
+
+Implemented after this spike was drafted:
+
+- `db/migrations/020_matter_events.sql` creates tenant-scoped `matter_events`
+  with RLS, idempotency, matter linkage, denormalized matter name, actor/source
+  JSON, object JSON, and payload JSON.
+- `services/runtime-db-matter-events-service.mjs` appends/lists Postgres matter
+  events.
+- `services/matter-events-service.mjs` provides an append-only local JSONL
+  fallback.
+- `services/matter-log-service.mjs` merges canonical `matter_events` entries
+  ahead of legacy job/run projections.
+
+Not landed yet:
+
+- a transaction-coupled production mutation append;
+- file removal;
+- tombstones;
+- artifact currentness projection;
+- outbox/broker publishing.
 
 ## First Canonical Event Spike Candidate
 

@@ -14,6 +14,7 @@ import { createMatterCopilotService } from "./services/matter-copilot-service.mj
 import { createCopilotInteractionReceiptService } from "./services/copilot-interaction-receipt-service.mjs";
 import { createCopilotWebResearchService } from "./services/copilot-web-research-service.mjs";
 import { createMatterContextService } from "./services/matter-context-service.mjs";
+import { createMatterEventsService } from "./services/matter-events-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStoryService } from "./services/matter-story-service.mjs";
 import { createJobStatusService } from "./services/job-status-service.mjs";
@@ -29,6 +30,7 @@ import { createPrivateBetaObservabilityService } from "./services/private-beta-o
 import { createPrivateBetaSignalService } from "./services/private-beta-signal-service.mjs";
 import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-telemetry-retry-service.mjs";
 import { createPrivateBetaUsersService } from "./services/private-beta-users-service.mjs";
+import { createRuntimeDbMatterEventsService } from "./services/runtime-db-matter-events-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
@@ -277,9 +279,22 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const runtimeDbMatterEventsService = options.runtimeDbMatterEventsService || createRuntimeDbMatterEventsService({
+    databaseUrl: runtimeDbUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
+  });
+  const matterEventsService = options.matterEventsService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbMatterEventsService.enabled
+      ? runtimeDbMatterEventsService
+      : createMatterEventsService({
+        appDir,
+        eventsPath: options.matterEventsPath,
+      })
+  );
   const matterLogService = options.matterLogService || createMatterLogService({
     configurableSkillRunsService,
     jobStatusService,
+    matterEventsService,
   });
   const privateBetaObservabilityService = options.privateBetaObservabilityService || createPrivateBetaObservabilityService({
     feedbackService: privateBetaFeedbackService,
@@ -351,6 +366,7 @@ export async function createWorkbenchServer(options = {}) {
     env,
     jobStatusService,
     matterAttentionService,
+    matterEventsService,
     matterLogService,
     matterCopilotService,
     copilotInteractionReceiptService,

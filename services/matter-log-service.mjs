@@ -2,6 +2,21 @@ const MATTER_LOG_SCHEMA_VERSION = "matter-log/v0-readonly";
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 
+const EVENT_CATEGORY_BY_PREFIX = [
+  ["source_file.", "source_mutation"],
+  ["matter.created", "source_mutation"],
+  ["source_text.", "source_preparation"],
+  ["source_index.", "source_preparation"],
+  ["chronology.", "generated_artifact"],
+  ["matter_story.", "generated_artifact"],
+  ["custom_skill.run_", "generated_artifact"],
+  ["custom_skill.created", "skill_factory"],
+  ["custom_skill.lifecycle_", "skill_factory"],
+  ["skill_idea.", "skill_factory"],
+  ["skill_sample.", "skill_factory"],
+  ["assistant.", "ledger_activity"],
+];
+
 const JOB_CATEGORY_BY_KIND = new Map([
   ["intake", "source_preparation"],
   ["extract", "source_preparation"],
@@ -19,12 +34,17 @@ const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 export function createMatterLogService({
   jobStatusService,
   configurableSkillRunsService,
+  matterEventsService,
   now = () => new Date(),
 } = {}) {
   async function readMatterLog({ matterName = "", limit = DEFAULT_LIMIT } = {}) {
     const normalizedMatterName = normalizeText(matterName);
     const normalizedLimit = normalizeLimit(limit);
-    const [jobLedger, runLedger] = await Promise.all([
+    const [eventLedger, jobLedger, runLedger] = await Promise.all([
+      safeListMatterEvents(matterEventsService, {
+        matterName: normalizedMatterName,
+        limit: normalizedLimit,
+      }),
       safeListJobs(jobStatusService, {
         matterName: normalizedMatterName,
         limit: normalizedLimit,
@@ -35,7 +55,9 @@ export function createMatterLogService({
       }),
     ]);
 
+    const canonicalEntries = eventsToMatterLogEntries(eventLedger.events, { matterName: normalizedMatterName });
     const entries = [
+      ...canonicalEntries,
       ...jobsToMatterLogEntries(jobLedger.jobs, { matterName: normalizedMatterName }),
       ...runsToMatterLogEntries(runLedger.runs, { matterName: normalizedMatterName }),
     ]
@@ -50,11 +72,13 @@ export function createMatterLogService({
       summary: {
         entries: entries.length,
         sourceLedgers: sourceLedgersForEntries(entries),
-        canonicalEvents: false,
+        canonicalEvents: canonicalEntries.length > 0,
       },
       limitations: [
-        "This is a read-only projection from existing ledgers, not a canonical matter event ledger.",
-        "It does not yet prove custody-grade source changes, tombstones, restores, or artifact currentness.",
+        canonicalEntries.length
+          ? "Canonical matter_events are included when present; older jobs and custom skill runs remain best-effort projections."
+          : "This is a read-only projection from existing ledgers until canonical matter_events are recorded.",
+        "It does not yet prove custody-grade source removal, tombstones, restores, or artifact currentness.",
         "Conversation memory and Copilot receipts are not treated as evidence.",
       ],
       entries,
@@ -62,6 +86,14 @@ export function createMatterLogService({
   }
 
   return { readMatterLog };
+}
+
+export function eventsToMatterLogEntries(events = [], { matterName = "" } = {}) {
+  const normalizedMatterName = normalizeText(matterName);
+  return (Array.isArray(events) ? events : [])
+    .filter((event) => !normalizedMatterName || normalizeText(event?.matterName) === normalizedMatterName)
+    .map(eventToMatterLogEntry)
+    .filter(Boolean);
 }
 
 export function jobsToMatterLogEntries(jobs = [], { matterName = "" } = {}) {
@@ -81,6 +113,42 @@ export function runsToMatterLogEntries(runs = [], { matterName = "" } = {}) {
     })
     .map(runToMatterLogEntry)
     .filter(Boolean);
+}
+
+function eventToMatterLogEntry(event = {}) {
+  const eventId = normalizeText(event.eventId || event.id);
+  if (!eventId) return null;
+  const eventType = normalizeText(event.eventType || event.event_type);
+  const occurredAt = normalizeTimestamp(event.occurredAt || event.occurred_at || event.createdAt || event.created_at);
+  const object = event.object && typeof event.object === "object" && !Array.isArray(event.object) ? event.object : {};
+  const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload) ? event.payload : {};
+  const title = matterEventTitle(event, { eventType, object });
+  const status = matterEventStatus(event, { eventType });
+  return removeEmpty({
+    id: `event:${eventId}`,
+    sourceLedger: "matter_events",
+    sourceId: eventId,
+    sourceSchemaVersion: normalizeText(event.schema_version),
+    occurredAt,
+    matterName: normalizeText(event.matterName || event.matter_name),
+    matterId: normalizeText(event.matterId || event.matter_id),
+    category: matterEventCategory(eventType),
+    eventType,
+    title,
+    summary: matterEventSummary(event, { title, eventType, object, payload }),
+    status,
+    custodyGrade: "canonical_event",
+    canonical: true,
+    actor: event.actor,
+    route: normalizeText(event.source?.route),
+    details: removeEmpty({
+      summaryKey: normalizeText(event.summaryKey || event.summary_key),
+      object,
+      payload,
+      idempotencyKey: normalizeText(event.idempotencyKey || event.idempotency_key),
+      source: event.source,
+    }),
+  });
 }
 
 function jobToMatterLogEntry(job = {}) {
@@ -157,6 +225,12 @@ function runToMatterLogEntry(run = {}) {
   });
 }
 
+async function safeListMatterEvents(matterEventsService, { matterName = "", limit = DEFAULT_LIMIT } = {}) {
+  if (typeof matterEventsService?.listEvents !== "function") return { events: [] };
+  const ledger = await matterEventsService.listEvents({ matterName, limit });
+  return { events: Array.isArray(ledger?.events) ? ledger.events : [] };
+}
+
 async function safeListJobs(jobStatusService, { matterName = "", limit = DEFAULT_LIMIT } = {}) {
   if (typeof jobStatusService?.listJobs !== "function") return { jobs: [] };
   const ledger = await jobStatusService.listJobs({ matterName, limit });
@@ -171,6 +245,38 @@ async function safeListRuns(configurableSkillRunsService, { matterName = "", lim
   return {
     runs: runs.filter((run) => normalizeText(run?.matterFolder) === matterName || normalizeText(run?.matterName) === matterName),
   };
+}
+
+function matterEventTitle(event = {}, { eventType = "", object = {} } = {}) {
+  const label = normalizeText(object.label || event.payload?.title || event.payload?.slash);
+  if (label) return label;
+  return humanizeDottedEvent(eventType || "matter.event");
+}
+
+function matterEventSummary(event = {}, { title = "Event", eventType = "", object = {}, payload = {} } = {}) {
+  const summaryKey = normalizeText(event.summaryKey || event.summary_key);
+  if (summaryKey === "custom_skill_created") {
+    const slash = normalizeText(payload.slash);
+    return `${title} custom skill was created${slash ? ` (${slash})` : ""}.`;
+  }
+  if (eventType === "source_file.removed_from_active_record") {
+    return `${title} was removed from the active matter record.`;
+  }
+  if (object.type || object.id) return `${humanizeDottedEvent(eventType)} recorded for ${normalizeText(object.label || object.id || object.type)}.`;
+  return `${humanizeDottedEvent(eventType)} recorded.`;
+}
+
+function matterEventStatus(event = {}, { eventType = "" } = {}) {
+  const payloadStatus = normalizeText(event.payload?.status).toLowerCase();
+  if (TERMINAL_STATUSES.has(payloadStatus) || payloadStatus === "running") return payloadStatus;
+  if (/\.(failed|cancelled)$/.test(eventType)) return eventType.endsWith(".failed") ? "failed" : "cancelled";
+  return "succeeded";
+}
+
+function matterEventCategory(eventType = "") {
+  const normalized = normalizeText(eventType);
+  const match = EVENT_CATEGORY_BY_PREFIX.find(([prefix]) => normalized === prefix || normalized.startsWith(prefix));
+  return match?.[1] || "matter_event";
 }
 
 function jobSummary(job = {}, { title = "Job", status = "unknown", errorSummary = "" } = {}) {
@@ -252,6 +358,13 @@ function isoNow(now) {
   const parsed = Date.parse(String(value || ""));
   if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
   return new Date().toISOString();
+}
+
+function humanizeDottedEvent(value = "") {
+  return normalizeText(value || "event")
+    .split(/[._]+/)
+    .map((word) => word ? `${word[0].toUpperCase()}${word.slice(1)}` : "")
+    .join(" ");
 }
 
 function humanizeKind(kind = "") {
