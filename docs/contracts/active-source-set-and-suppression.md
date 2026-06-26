@@ -77,8 +77,10 @@ maps to `chronology_regeneration_needed`, not a cheap label refresh.
 Runtime DB mode also supports inactive source document statuses
 `removed_from_active_record`, `quarantined`, `deleted_pending`, and `deleted`.
 Workspace, payload, overlap, and runtime Matter Context read paths treat those
-statuses as inactive, while runtime matter-context packets also treat inactive
-File Register rows as suppressed.
+statuses as inactive. Runtime DB workspace and payload reads apply that filter to
+source originals/working copies and to derived extraction/text payloads when they
+are linked to an inactive source document. Runtime matter-context packets also
+treat inactive File Register rows as suppressed.
 
 Suppressed extraction records, source descriptors, and stale generated artifact
 entries are not deleted. They remain custody/evidence history, but they do not
