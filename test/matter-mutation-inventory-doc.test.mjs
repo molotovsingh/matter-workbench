@@ -44,10 +44,10 @@ test("matter mutation inventory keeps delete/remove blocked behind Matter Log pl
   const inventory = await readFile(inventoryPath, "utf8");
 
   assert.match(inventory, /Remove from active record/);
-  assert.match(inventory, /No source-custody event implementation/);
-  assert.match(inventory, /No source-removal write-side tombstone mutation/);
-  assert.match(inventory, /No complete unified active source set read\/write model/);
-  assert.match(inventory, /No source-removal mutation integration that writes artifact currentness/);
+  assert.match(inventory, /No routed\/authorized source-removal endpoint/);
+  assert.match(inventory, /No operator-visible repair workflow/);
+  assert.match(inventory, /No complete unified active source set read\/write model exposed to product UI/);
+  assert.match(inventory, /No impact preview endpoint or feature-flagged confirmation UI/);
   assert.match(inventory, /No restore\/quarantine design/);
   assert.doesNotMatch(inventory, /ordinary file system delete/i);
 });

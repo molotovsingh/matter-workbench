@@ -99,19 +99,19 @@ This contract is not:
 - a restore/quarantine workflow;
 - a physical purge policy;
 - a privilege-review policy;
-- a complete source-removal artifact-currentness write implementation;
+- a user-facing source-removal workflow;
 - a replacement for canonical `matter_events` source-custody events.
 
 ## Future Write-Side Requirements
 
-Before a real source-removal mutation ships, Matter Workbench still needs:
+A non-routed backend service now covers the canonical `source_file.removed_from_active_record` event append, atomic local manifest /
+runtime DB status update, matter/document locking or equivalent idempotency, and
+artifact currentness writes for test/future wiring. Before a real user-facing
+source-removal workflow ships, Matter Workbench still needs:
 
-1. canonical `source_file.removed_from_active_record` event append;
-2. atomic local manifest update / runtime DB source status update;
-3. matter/document locking or equivalent idempotency;
-4. transaction-coupled artifact currentness writes for List of Dates, Matter
-   Story, and custom skill outputs;
-5. restore/quarantine semantics;
-6. privilege-safe Matter Log summaries;
-7. operator/lawyer confirmation copy that says `Remove from active record`, never
-   ordinary `Delete file`.
+1. routed/authorized endpoint wiring behind a feature flag;
+2. operator-visible local repair workflow;
+3. restore/quarantine semantics;
+4. privilege-safe Matter Log summaries;
+5. impact preview endpoint and confirmation copy that says
+   `Remove from active record`, never ordinary `Delete file`.

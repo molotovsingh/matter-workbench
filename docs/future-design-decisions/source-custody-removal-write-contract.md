@@ -194,17 +194,19 @@ Already present:
 - active-context suppression for stale generated artifact summaries;
 - pure read-only source-removal impact preview helper with no route and no UI;
 - artifact currentness schema/service foundation for read-only projection,
-  non-routed local manifest persistence, and future runtime DB
-  transaction-coupled stale/needs-review writes.
+  non-routed local manifest persistence, and runtime DB stale/needs-review write
+  helpers;
+- non-routed source-removal mutation service with required reason/idempotency,
+  local tombstone/event/currentness writes, local repair-state failure posture,
+  and runtime DB transaction SQL.
 
 Still missing before any UI:
 
-- source-removal mutation service;
-- idempotent runtime DB transaction SQL;
-- local mutation journal/repair posture;
-- source-removal mutation wiring that writes local/runtime DB artifact
-  currentness records for source-set changes;
+- routed/authorized source-removal endpoint;
+- operator-visible local repair workflow for failed local mutations;
 - restore/quarantine workflows;
 - Matter Log source-removal summary rendering;
 - impact preview endpoint;
-- feature-flagged UI.
+- feature-flagged UI;
+- release/deploy of the non-routed mutation service when it becomes active
+  runtime behavior.

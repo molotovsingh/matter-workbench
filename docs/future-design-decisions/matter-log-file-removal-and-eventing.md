@@ -217,8 +217,9 @@ Exit criteria:
 
 Goal: prove removed source files will not resurrect during preparation.
 
-Status: read-side foundation started. No write-side source-removal mutation or
-UI exists yet.
+Status: read-side foundation exists and a non-routed backend source-removal
+mutation service now exists for tests/future wiring. No route, endpoint, or UI
+exists yet.
 
 Deliverables:
 
@@ -268,8 +269,8 @@ Exit criteria:
 Goal: avoid stale downstream outputs before removal ships.
 
 Status: foundation started. A read-only/local projection, non-routed local
-manifest helper, and runtime DB schema exist, but source-removal mutations do not
-yet write currentness records.
+manifest helper, runtime DB schema, and non-routed source-removal currentness
+writes exist. No route, endpoint, or UI exists yet.
 
 Deliverables:
 
@@ -303,6 +304,9 @@ Exit criteria:
 ### Phase 9 — Backend tombstone operation, no broad UI
 
 Goal: implement the core mutation safely before making it easy to click.
+
+Status: foundation started as a non-routed service only. It is not exposed to
+users and does not unlock a file-removal UI.
 
 Deliverables:
 

@@ -93,14 +93,14 @@ written.
 
 File removal should remain blocked until these gaps are addressed:
 
-1. No source-custody event implementation for active source-set changes.
-2. No source-removal write-side tombstone mutation for local filesystem source scanning.
-3. No complete unified active source set read/write model.
-4. No source-removal mutation integration that writes artifact currentness for
-   List of Dates, Matter Story, and custom skill outputs.
-5. No restore/quarantine design.
-6. No privilege-safe Matter Log summaries.
-7. No idempotent removal mutation with matter/document locking.
+1. No routed/authorized source-removal endpoint.
+2. No operator-visible repair workflow for failed local source-removal mutations.
+3. No complete unified active source set read/write model exposed to product UI.
+4. No restore/quarantine design.
+5. No privilege-safe Matter Log summaries.
+6. No impact preview endpoint or feature-flagged confirmation UI.
+7. No release/deploy of the non-routed mutation service as active runtime
+   behavior.
 
 ## First Implemented Event Spike
 
