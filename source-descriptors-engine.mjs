@@ -17,6 +17,11 @@ import {
   validateAndSortDescriptors,
 } from "./source-descriptors-validation.mjs";
 import { makeHttpError } from "./shared/safe-paths.mjs";
+import {
+  addInactiveRegisterRowsToSuppressionIndex,
+  readSourceSuppressionIndex,
+  sourceSuppressionEntryFor,
+} from "./services/active-source-set-service.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = "source-descriptors-v1-skeleton";
@@ -40,7 +45,10 @@ export async function runSourceDescriptors(options = {}) {
   const intakes = getIntakes(matterJson);
   if (!intakes.length) throw new Error("No intakes recorded in matter.json. Run /matter-init first.");
 
-  const records = await readExtractionRecords(matterRoot, intakes);
+  const suppressionWarnings = [];
+  const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
+  await addInactiveRegisterRowsToSuppressionIndex(matterRoot, intakes, sourceSuppressionIndex, { warnings: suppressionWarnings });
+  const records = await readExtractionRecords(matterRoot, intakes, sourceSuppressionIndex);
   const result = await buildSourceDescriptorsFromRecords({
     ...options,
     matterRoot,
@@ -48,6 +56,9 @@ export async function runSourceDescriptors(options = {}) {
     records,
     dryRun,
   });
+  if (suppressionWarnings.length) {
+    result.outputLines.splice(1, 0, ...suppressionWarnings.map((warning) => `[source-descriptors] ${warning}`));
+  }
 
   if (!dryRun) {
     const outputJson = path.join(matterRoot, ...result.outputPaths.json.split("/"));
@@ -482,7 +493,7 @@ function getIntakes(matterJson) {
   return intakes.filter((intake) => intake && intake.intake_dir);
 }
 
-async function readExtractionRecords(matterRoot, intakes) {
+async function readExtractionRecords(matterRoot, intakes, sourceSuppressionIndex) {
   const records = [];
   for (const intake of intakes) {
     const extractedDir = path.join(matterRoot, intake.intake_dir, "_extracted");
@@ -496,7 +507,9 @@ async function readExtractionRecords(matterRoot, intakes) {
       const recordPath = path.join(extractedDir, entry.name);
       try {
         const record = JSON.parse(await readFile(recordPath, "utf8"));
-        if (record.schema_version === "extraction-record/v1" && record.file_id) records.push(record);
+        if (record.schema_version !== "extraction-record/v1" || !record.file_id) continue;
+        if (sourceSuppressionEntryFor(record, sourceSuppressionIndex)) continue;
+        records.push(record);
       } catch {
         // /doctor owns invalid extraction-record reporting; this skeleton skips bad records.
       }

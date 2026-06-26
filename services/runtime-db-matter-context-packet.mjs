@@ -20,6 +20,14 @@ import {
 } from "./matter-context-path-policy.mjs";
 import { readRuntimeDbPayloadText } from "./runtime-db-payload-read-model.mjs";
 import { runtimeWorkspaceFilePaths } from "./runtime-db-workspace-read-model.mjs";
+import {
+  addSuppressedSource,
+  createSourceSuppressionIndex,
+  isInactiveSourceStatus,
+  isSourceSuppressed,
+  sourceSuppressionEntryFor,
+  sourceSuppressionWarning,
+} from "./active-source-set-service.mjs";
 
 const EXTRACTION_RECORD_SCHEMA_VERSION = "extraction-record/v1";
 const SOURCE_INDEX_SCHEMA_VERSION = "source-index/v1";
@@ -41,11 +49,12 @@ export function buildRuntimeDbMatterContextPacket({
 
   const matterJson = readMatterJson({ matter, workspace, readText, warnings });
   const intakes = discoverIntakes({ matterJson, paths });
-  const fileRegisters = readFileRegisters({ intakes, readText, warnings });
+  const sourceSuppressionIndex = createSourceSuppressionIndex();
+  const fileRegisters = readFileRegisters({ intakes, readText, warnings, sourceSuppressionIndex });
   synthesizeMissingRegisters({ fileRegisters, intakes, paths });
   const registerByFileId = buildRegisterIndex(fileRegisters);
   const sourceDescriptors = readTrustedSourceDescriptors({ readText, registerByFileId, warnings });
-  const records = readExtractionRecords({ intakes, paths, readText, warnings });
+  const records = readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppressionIndex });
   const libraryArtifacts = readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings });
 
   return buildMatterContextPacketFromParts({
@@ -124,7 +133,7 @@ function compareIntakes(a, b) {
   return a.intake_dir.localeCompare(b.intake_dir, undefined, { numeric: true });
 }
 
-function readFileRegisters({ intakes, readText, warnings }) {
+function readFileRegisters({ intakes, readText, warnings, sourceSuppressionIndex }) {
   const registers = [];
   for (const intake of intakes) {
     const relativePath = `${intake.intake_dir}/File Register.csv`;
@@ -133,7 +142,8 @@ function readFileRegisters({ intakes, readText, warnings }) {
     try {
       const rows = parseCsv(body)
         .filter((row) => !shouldExcludeRegisterRow(row))
-        .map((row) => normalizeRegisterRow(row, intake));
+        .map((row) => normalizeRegisterRow(row, intake))
+        .filter((row) => isActiveRegisterRow(row, sourceSuppressionIndex, warnings));
       registers.push({
         intake_id: intake.intake_id,
         intake_dir: intake.intake_dir,
@@ -193,6 +203,18 @@ function normalizeRegisterRow(row, intake) {
     duplicate_of: row.duplicate_of || "",
     status: row.status || "",
   };
+}
+
+function isActiveRegisterRow(row, sourceSuppressionIndex, warnings) {
+  if (isInactiveSourceStatus(row.status)) {
+    addSuppressedSource(sourceSuppressionIndex, row, {
+      status: row.status,
+      reason: "File Register row is not active",
+    });
+    warnings.push(sourceSuppressionWarning(row, { status: row.status }));
+    return false;
+  }
+  return true;
 }
 
 function buildRegisterIndex(fileRegisters) {
@@ -278,7 +300,7 @@ function normalizeTrustedSourceDescriptor(descriptor = {}) {
   };
 }
 
-function readExtractionRecords({ intakes, paths, readText, warnings }) {
+function readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppressionIndex }) {
   const intakeByDir = new Map(intakes.map((intake) => [intake.intake_dir, intake]));
   const records = [];
   const recordPaths = paths
@@ -292,12 +314,17 @@ function readExtractionRecords({ intakes, paths, readText, warnings }) {
     try {
       const record = JSON.parse(body);
       if (record.schema_version !== EXTRACTION_RECORD_SCHEMA_VERSION || !record.file_id) continue;
-      records.push({
+      const recordWithPath = {
         ...record,
         intake_id: intake.intake_id,
         intake_dir: intake.intake_dir,
         record_path: relativePath,
-      });
+      };
+      if (isSourceSuppressed(recordWithPath, sourceSuppressionIndex)) {
+        warnings.push(sourceSuppressionWarning(recordWithPath, sourceSuppressionEntryFor(recordWithPath, sourceSuppressionIndex)));
+        continue;
+      }
+      records.push(recordWithPath);
     } catch (error) {
       warnings.push(`Skipped invalid extraction record ${relativePath}: ${error.message}`);
     }

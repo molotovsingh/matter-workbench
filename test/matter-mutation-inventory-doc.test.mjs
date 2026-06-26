@@ -45,8 +45,8 @@ test("matter mutation inventory keeps delete/remove blocked behind Matter Log pl
 
   assert.match(inventory, /Remove from active record/);
   assert.match(inventory, /No source-custody event implementation/);
-  assert.match(inventory, /No tombstone\/suppression mechanism/);
-  assert.match(inventory, /No unified active source set read model/);
+  assert.match(inventory, /No source-removal write-side tombstone mutation/);
+  assert.match(inventory, /No complete unified active source set read\/write model/);
   assert.match(inventory, /No artifact currentness projection/);
   assert.match(inventory, /No restore\/quarantine design/);
   assert.doesNotMatch(inventory, /ordinary file system delete/i);

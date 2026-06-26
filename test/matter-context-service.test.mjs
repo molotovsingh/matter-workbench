@@ -11,6 +11,10 @@ import {
   summarizeMatterContextPacket,
 } from "../services/matter-context-service.mjs";
 import { toCsv } from "../shared/csv.mjs";
+import {
+  SOURCE_TOMBSTONES_RELATIVE,
+  SOURCE_TOMBSTONES_SCHEMA_VERSION,
+} from "../services/active-source-set-service.mjs";
 
 const HASH_ONE = "1".repeat(64);
 const HASH_TWO = "2".repeat(64);
@@ -113,6 +117,14 @@ async function writeSourceIndex(root, sources) {
       },
     }, null, 2)}\n`,
   );
+}
+
+async function writeSourceTombstones(root, sources) {
+  await mkdir(path.join(root, path.dirname(SOURCE_TOMBSTONES_RELATIVE)), { recursive: true });
+  await writeFile(path.join(root, SOURCE_TOMBSTONES_RELATIVE), `${JSON.stringify({
+    schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION,
+    sources,
+  }, null, 2)}\n`);
 }
 
 async function writeListOfDates(root) {
@@ -221,6 +233,77 @@ test("matter context packet includes source-labeled extraction blocks and select
   assert.equal(summary.top_sources[0].source_short_label, "Confirmed Legal Notice dated 20 April 2026");
   assert.deepEqual(summary.top_sources[0].sample_citations, ["FILE-0001 p1.b1", "FILE-0001 p1.b2"]);
   assert.doesNotMatch(JSON.stringify(summary), /Agreement was signed on 20 April 2026/);
+});
+
+test("matter context packet excludes tombstoned sources from registers, descriptors, and evidence blocks", async () => {
+  const root = await makeMatterRoot();
+  const activePath = "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__active.txt";
+  const removedPath = "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0002__removed.txt";
+  await writeRegister(root, [
+    {
+      file_id: "FILE-0001",
+      intake_id: "INTAKE-01",
+      source_path: activePath,
+      original_path: activePath,
+      working_copy_path: activePath,
+      category: "Text Notes",
+      original_name: "active.txt",
+      sha256: HASH_ONE,
+      size_bytes: "64",
+      duplicate_of: "",
+      status: "unique",
+    },
+    {
+      file_id: "FILE-0002",
+      intake_id: "INTAKE-01",
+      source_path: removedPath,
+      original_path: removedPath,
+      working_copy_path: removedPath,
+      category: "Text Notes",
+      original_name: "removed.txt",
+      sha256: HASH_TWO,
+      size_bytes: "64",
+      duplicate_of: "",
+      status: "unique",
+    },
+  ]);
+  await writeExtractionRecord(root, extractionRecord({ sourcePath: activePath }));
+  await writeExtractionRecord(root, extractionRecord({
+    fileId: "FILE-0002",
+    sha256: HASH_TWO,
+    sourcePath: removedPath,
+    blocks: ["This removed evidence must not be in active matter context."],
+  }));
+  await writeSourceIndex(root, [
+    {
+      file_id: "FILE-0001",
+      sha256: HASH_ONE,
+      source_path: activePath,
+      display_label: "Active note",
+      short_label: "Active note",
+    },
+    {
+      file_id: "FILE-0002",
+      sha256: HASH_TWO,
+      source_path: removedPath,
+      display_label: "Removed note",
+      short_label: "Removed note",
+    },
+  ]);
+  await writeSourceTombstones(root, [{
+    file_id: "FILE-0002",
+    source_path: removedPath,
+    status: "removed_from_active_record",
+    event_id: "evt_remove_2",
+  }]);
+
+  const packet = await buildMatterContextPacket(root);
+
+  assert.deepEqual(packet.file_registers[0].rows.map((row) => row.file_id), ["FILE-0001"]);
+  assert.deepEqual(packet.sources.map((source) => source.file_id), ["FILE-0001"]);
+  assert.deepEqual(packet.evidence_blocks.map((block) => block.file_id), ["FILE-0001", "FILE-0001"]);
+  assert.doesNotMatch(JSON.stringify(packet), /Removed note|removed evidence/i);
+  assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
 });
 
 test("matter context search returns source labels, snippets, and raw citations from bounded packet", async () => {

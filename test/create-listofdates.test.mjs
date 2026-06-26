@@ -16,6 +16,10 @@ import { runMatterInit } from "../matter-init-engine.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { parseCsv } from "../shared/csv.mjs";
 import {
+  SOURCE_TOMBSTONES_RELATIVE,
+  SOURCE_TOMBSTONES_SCHEMA_VERSION,
+} from "../services/active-source-set-service.mjs";
+import {
   bankDiscrepancyPaymentEntry,
   bankPaymentEntry,
   bookingPaymentEntry,
@@ -75,6 +79,33 @@ test("create-listofdates builds chronology artifacts from DB-native extraction i
   assert.equal(result.artifact.generated_at, "2026-06-19T00:00:00.000Z");
   assert.equal(result.artifact.entries.length, 1);
   assert.match(result.artifactFiles[2].text, /Agreement was signed/);
+});
+
+test("create-listofdates excludes tombstoned sources before chronology AI input", async () => {
+  const root = await makeMatterRoot();
+  await writeSource(root, "active.txt", "Agreement was signed on 20 April 2026 by Mehta and Skyline.\n");
+  await writeSource(root, "removed.txt", "Removed document alleges a disputed meeting on 30 May 2026.\n");
+  await runMatterInit({ matterRoot: root, metadata: metadata(), dryRun: false });
+  await runExtract({ matterRoot: root, dryRun: false });
+  await mkdir(path.join(root, path.dirname(SOURCE_TOMBSTONES_RELATIVE)), { recursive: true });
+  await writeFile(path.join(root, SOURCE_TOMBSTONES_RELATIVE), `${JSON.stringify({
+    schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION,
+    sources: [{ file_id: "FILE-0002", status: "removed_from_active_record" }],
+  }, null, 2)}\n`);
+  const calls = [];
+
+  const result = await runCreateListOfDates({
+    matterRoot: root,
+    aiProvider: async ({ chunk }) => {
+      calls.push(chunk.map((block) => block.file_id));
+      assert.equal(chunk.some((block) => block.file_id === "FILE-0002"), false);
+      return { entries: [listOfDatesEntry({ citation: chunk[0].citation })] };
+    },
+  });
+
+  assert.deepEqual(calls, [["FILE-0001"]]);
+  assert.equal(result.counts.recordsRead, 1);
+  assert.match(result.outputLines.join("\n"), /read 1 extraction record/);
 });
 
 test("create-listofdates calls an AI provider and writes cited chronology outputs", async () => {

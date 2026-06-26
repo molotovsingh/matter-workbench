@@ -16,12 +16,30 @@ import { parseCsv, toCsv } from "./shared/csv.mjs";
 import { writeFileAtomic } from "./shared/atomic-file.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { EXTRACTION_LOG_HEADERS } from "./shared/matter-contract.mjs";
+import {
+  isInactiveSourceStatus,
+  readSourceSuppressionIndex,
+  sourceSuppressionEntryFor,
+} from "./services/active-source-set-service.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const EXTRACT_ENGINE_VERSION = "extract-v1-deterministic";
 const ENGINE_VERSION = EXTRACT_ENGINE_VERSION;
+
+function shouldExtractRegisterRow(row, sourceSuppressionIndex, outputLines) {
+  if (isInactiveSourceStatus(row.status)) {
+    outputLines.push(`[extract] ${row.file_id || "source"}: skipped-suppressed (${row.status})`);
+    return false;
+  }
+  const suppression = sourceSuppressionEntryFor(row, sourceSuppressionIndex);
+  if (suppression) {
+    outputLines.push(`[extract] ${row.file_id || "source"}: skipped-suppressed (${suppression.status || "removed_from_active_record"})`);
+    return false;
+  }
+  return true;
+}
 
 export function pickExtractor(row) {
   const lowerName = (row.original_name || "").toLowerCase();
@@ -147,6 +165,9 @@ export async function runExtract(options = {}) {
     failed: 0,
   };
   const outputLines = [`> workbench.run /extract${forceRefresh ? " --force-refresh" : ""}${dryRun ? " (dry-run)" : ""}`];
+  const suppressionWarnings = [];
+  const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
+  outputLines.push(...suppressionWarnings.map((warning) => `[extract] ${warning}`));
   const perIntake = [];
   const fileResults = [];
 
@@ -157,7 +178,8 @@ export async function runExtract(options = {}) {
       throw new Error(`File Register.csv missing for ${intake.intake_id || intake.intake_dir}. Run /matter-init before /extract.`);
     }
 
-    const registerRows = parseCsv(await readFile(fileRegisterPath, "utf8"));
+    const registerRows = parseCsv(await readFile(fileRegisterPath, "utf8"))
+      .filter((row) => shouldExtractRegisterRow(row, sourceSuppressionIndex, outputLines));
     const extractedDir = path.join(intakeDir, "_extracted");
     if (!dryRun) await mkdir(extractedDir, { recursive: true });
 

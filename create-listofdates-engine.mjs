@@ -17,6 +17,7 @@ import {
   readSourceIndex,
   withSourceLabels,
 } from "./listofdates/source-records.mjs";
+import { readSourceSuppressionIndex } from "./services/active-source-set-service.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const ENGINE_VERSION = DEFAULT_LIST_OF_DATES_ENGINE_VERSION;
@@ -38,11 +39,13 @@ export async function runCreateListOfDates(options = {}) {
   const intakes = getIntakes(matterJson);
   if (!intakes.length) throw new Error("No intakes recorded in matter.json. Run /matter-init first.");
 
-  const fileIndex = await readFileRegisterIndex(matterRoot, intakes);
-  const records = await readExtractionRecords(matterRoot, intakes);
+  const suppressionWarnings = [];
+  const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
+  const fileIndex = await readFileRegisterIndex(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
+  const records = await readExtractionRecords(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
   if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
 
-  const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun });
+  const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun, suppressionWarnings });
 
   if (isTwoPassListOfDatesEnabled({ env, options })) {
     return runCreateListOfDatesTwoPass({
@@ -68,7 +71,7 @@ export async function runCreateListOfDates(options = {}) {
   });
 }
 
-async function prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun }) {
+async function prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun, suppressionWarnings = [] }) {
   const blocks = buildSourceBlocks(records, fileIndex);
   if (!blocks.length) throw new Error("Extraction records contain no text blocks to analyze.");
   const sourceIndex = await readSourceIndex(matterRoot, blocks);
@@ -82,6 +85,7 @@ async function prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex
   const filteredBlockCount = blocks.length - chronologyBlocks.length;
   const outputLines = [
     `> workbench.run /create_listofdates${dryRun ? " (dry-run)" : ""}`,
+    ...suppressionWarnings.map((warning) => `[listofdates] ${warning}`),
     `[listofdates] read ${records.length} extraction record(s)`,
     `[listofdates] sending ${chronologyBlocks.length} source block(s) in ${chunks.length} AI request(s)`,
   ];

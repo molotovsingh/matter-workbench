@@ -9,6 +9,10 @@ import {
   runSourceDescriptors,
   validateAndSortDescriptors,
 } from "../source-descriptors-engine.mjs";
+import {
+  SOURCE_TOMBSTONES_RELATIVE,
+  SOURCE_TOMBSTONES_SCHEMA_VERSION,
+} from "../services/active-source-set-service.mjs";
 
 test("documented Source Index schema includes generated label governance fields", async () => {
   const schema = JSON.parse(await readFile(new URL("../docs/source-index.v1.schema.json", import.meta.url), "utf8"));
@@ -154,6 +158,48 @@ test("source descriptors engine writes source-index/v1 with fake provider descri
   assert.equal(scan.document_date, null);
   assert.equal(scan.needs_review, true);
   assert.equal(scan.label_status, "needs_review");
+});
+
+test("source descriptors skip tombstoned extraction records", async () => {
+  const root = await makeMatterRoot();
+  await mkdir(path.join(root, path.dirname(SOURCE_TOMBSTONES_RELATIVE)), { recursive: true });
+  await writeFile(path.join(root, SOURCE_TOMBSTONES_RELATIVE), `${JSON.stringify({
+    schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION,
+    sources: [{ file_id: "FILE-0002", status: "removed_from_active_record" }],
+  }, null, 2)}\n`);
+  const calls = [];
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    provider: async ({ sources }) => {
+      calls.push(sources.map((source) => source.file_id));
+      return { sources: validDescriptors(sources) };
+    },
+  });
+
+  assert.deepEqual(calls, [["FILE-0001", "FILE-0003"]]);
+  assert.equal(result.counts.recordsRead, 2);
+  assert.deepEqual(result.artifact.sources.map((source) => source.file_id), ["FILE-0001", "FILE-0003"]);
+});
+
+test("source descriptors skip extraction records with inactive File Register status", async () => {
+  const root = await makeMatterRoot();
+  await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), [
+    "file_id,source_path,working_copy_path,status",
+    "FILE-0002,00_Inbox/Intake 01 - Initial/By Type/PDFs/FILE-0002__order.pdf,00_Inbox/Intake 01 - Initial/By Type/PDFs/FILE-0002__order.pdf,removed_from_active_record",
+  ].join("\n"));
+  const calls = [];
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    provider: async ({ sources }) => {
+      calls.push(sources.map((source) => source.file_id));
+      return { sources: validDescriptors(sources) };
+    },
+  });
+
+  assert.deepEqual(calls, [["FILE-0001", "FILE-0003"]]);
+  assert.equal(result.counts.recordsRead, 2);
 });
 
 test("source descriptors preserve file_id, sha256, and source_path from extraction records", async () => {

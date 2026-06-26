@@ -3,6 +3,13 @@ import path from "node:path";
 
 import { parseCsv } from "../shared/csv.mjs";
 import { sourceLabelMetadata } from "../shared/source-labels.mjs";
+import {
+  addInactiveRegisterRowsToSuppressionIndex,
+  addSuppressedSource,
+  isInactiveSourceStatus,
+  readSourceSuppressionIndex,
+  sourceSuppressionEntryFor,
+} from "../services/active-source-set-service.mjs";
 
 const BLOCK_CHAR_LIMIT = 2800;
 const CHUNK_CHAR_LIMIT = 18000;
@@ -37,14 +44,24 @@ export function getIntakes(matterJson) {
   return intakes.filter((intake) => intake && intake.intake_dir);
 }
 
-export async function readFileRegisterIndex(matterRoot, intakes) {
+export async function readFileRegisterIndex(matterRoot, intakes, { sourceSuppressionIndex = null, warnings = [] } = {}) {
+  const suppressionIndex = sourceSuppressionIndex || await readSourceSuppressionIndex(matterRoot, { warnings });
   const index = new Map();
   for (const intake of intakes) {
     const registerPath = path.join(matterRoot, intake.intake_dir, "File Register.csv");
     try {
       const rows = parseCsv(await readFile(registerPath, "utf8"));
       for (const row of rows) {
-        if (row.file_id) index.set(row.file_id, row);
+        if (!row.file_id) continue;
+        if (isInactiveSourceStatus(row.status)) {
+          addSuppressedSource(suppressionIndex, row, {
+            status: row.status,
+            reason: "File Register row is not active",
+          });
+          continue;
+        }
+        if (sourceSuppressionEntryFor(row, suppressionIndex)) continue;
+        index.set(row.file_id, row);
       }
     } catch {
       // Missing historical registers should not block chronology from records.
@@ -53,7 +70,11 @@ export async function readFileRegisterIndex(matterRoot, intakes) {
   return index;
 }
 
-export async function readExtractionRecords(matterRoot, intakes) {
+export async function readExtractionRecords(matterRoot, intakes, { sourceSuppressionIndex = null, warnings = [] } = {}) {
+  const suppressionIndex = sourceSuppressionIndex || await readSourceSuppressionIndex(matterRoot, { warnings });
+  if (!sourceSuppressionIndex) {
+    await addInactiveRegisterRowsToSuppressionIndex(matterRoot, intakes, suppressionIndex, { warnings });
+  }
   const records = [];
   for (const intake of intakes) {
     const extractedDir = path.join(matterRoot, intake.intake_dir, "_extracted");
@@ -67,7 +88,9 @@ export async function readExtractionRecords(matterRoot, intakes) {
       const recordPath = path.join(extractedDir, entry.name);
       try {
         const record = JSON.parse(await readFile(recordPath, "utf8"));
-        if (record.schema_version === "extraction-record/v1" && record.file_id) records.push(record);
+        if (record.schema_version !== "extraction-record/v1" || !record.file_id) continue;
+        if (sourceSuppressionEntryFor(record, suppressionIndex)) continue;
+        records.push(record);
       } catch {
         // /doctor will own invalid-record reporting; this skill skips them.
       }

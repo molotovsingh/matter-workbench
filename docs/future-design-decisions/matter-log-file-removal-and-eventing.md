@@ -180,6 +180,12 @@ Current narrow implementation slices (2026-06-26):
   transaction as the configurable skill store write; local filesystem mode
   appends to the JSONL fallback after the skill store write under the same
   mutation queue.
+- The first active-source read-side foundation is now wired. Local mode can read
+  `.matter-workbench/source-tombstones.json` and suppress removed/quarantined
+  sources from Matter Context, extraction, Source Index generation, and List of
+  Dates generation. Runtime DB read paths filter `deleted_pending` source
+  documents from workspace/payload reads and suppress inactive File Register rows
+  in context packets.
 - The React Activity page labels this as `Matter Log` / `Preview` and states
   that it is not custody-grade yet.
 - These slices do **not** add file removal, tombstones, restore/quarantine, or
@@ -210,6 +216,9 @@ Exit criteria:
 
 Goal: prove removed source files will not resurrect during preparation.
 
+Status: read-side foundation started. No write-side source-removal mutation or
+UI exists yet.
+
 Deliverables:
 
 - runtime DB design for active/removed source document status;
@@ -224,9 +233,20 @@ Exit criteria:
 - rerunning matter-init/source reconciliation after tombstone cannot re-add the
   removed file.
 
+Current partial exit evidence:
+
+- Matter Context, extraction, Source Index generation, and List of Dates
+  generation ignore locally suppressed source ids/paths.
+- Runtime DB workspace/payload reads filter `deleted_pending` source documents.
+- A true source-removal write path, source reconciliation behavior, and restore
+  semantics are still not implemented.
+
 ### Phase 6 — Active source set projection
 
 Goal: make every context builder read from a canonical active source set.
+
+Status: started for read-side context/build paths, not complete for write-side
+custody or UI.
 
 Deliverables:
 
