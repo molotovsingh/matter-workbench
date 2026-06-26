@@ -191,7 +191,8 @@ Already present:
 - `custom_skill.created` transaction-coupled event path;
 - local source tombstone read-side suppression;
 - runtime DB inactive source document statuses;
-- active-context suppression for stale generated artifact summaries.
+- active-context suppression for stale generated artifact summaries;
+- pure read-only source-removal impact preview helper with no route and no UI.
 
 Still missing before any UI:
 
