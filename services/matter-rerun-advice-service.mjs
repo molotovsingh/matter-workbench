@@ -11,6 +11,11 @@ import {
   classifyListOfDatesDependencyState,
   LIST_OF_DATES_DEPENDENCY_STATES,
 } from "./listofdates-dependency-state.mjs";
+import {
+  addInactiveRegisterRowsToSuppressionIndex,
+  isSourceSuppressed,
+  readSourceSuppressionIndex,
+} from "./active-source-set-service.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 
 export {
@@ -27,8 +32,9 @@ export async function readRerunAdviceForSkill(skill, root) {
 }
 
 export async function describeSourcesRerunAdvice(root) {
+  const sourceSuppressionIndex = await readRerunSourceSuppressionIndex(root);
   const target = await readArtifact(root, SOURCE_INDEX_RELATIVE, { jsonRequired: true });
-  const extractionInputs = await listExtractionRecordInputs(root);
+  const extractionInputs = await listExtractionRecordInputs(root, { sourceSuppressionIndex });
   return buildRerunAdvice({
     root,
     skill: "/describe_sources",
@@ -42,13 +48,14 @@ export async function describeSourcesRerunAdvice(root) {
 }
 
 export async function listOfDatesRerunAdvice(root) {
+  const sourceSuppressionIndex = await readRerunSourceSuppressionIndex(root);
   const markdownTarget = await readArtifact(root, LIST_OF_DATES_MARKDOWN_RELATIVE);
   const jsonTarget = await readArtifact(root, LIST_OF_DATES_JSON_RELATIVE);
   const target = markdownTarget.exists ? {
     ...markdownTarget,
     json: jsonTarget.json,
   } : jsonTarget;
-  const extractionInputs = await listExtractionRecordInputs(root);
+  const extractionInputs = await listExtractionRecordInputs(root, { sourceSuppressionIndex });
   const sourceIndexInput = await inputFile(root, SOURCE_INDEX_RELATIVE);
   const sourceIndexJson = sourceIndexInput
     ? await readJsonIfPossible(path.join(root, SOURCE_INDEX_RELATIVE))
@@ -100,7 +107,10 @@ function buildRerunAdvice({
       artifactPath: target.relativePath,
     });
   }
-  if (!upstreamInputs.length) {
+  const contentChangedInput = typeof findContentChange === "function"
+    ? findContentChange({ target, upstreamInputs })
+    : null;
+  if (!upstreamInputs.length && !contentChangedInput) {
     return baseRerunAdvice({
       skill,
       label,
@@ -115,9 +125,6 @@ function buildRerunAdvice({
   const newestInput = upstreamInputs.reduce((newest, input) => (
     !newest || input.mtimeMs > newest.mtimeMs ? input : newest
   ), null);
-  const contentChangedInput = typeof findContentChange === "function"
-    ? findContentChange({ target, upstreamInputs })
-    : null;
   const mtimeStale = newestInput && isNewerByTrustedMtime({
     inputMtimeMs: newestInput.mtimeMs,
     targetMtimeMs: target.mtimeMs,
@@ -221,7 +228,17 @@ function formatRerunMessage(advice) {
   return lines.join("\n");
 }
 
-async function listExtractionRecordInputs(root) {
+async function readRerunSourceSuppressionIndex(root) {
+  const warnings = [];
+  const sourceSuppressionIndex = await readSourceSuppressionIndex(root, { warnings });
+  const intakeFolders = await listIntakeFoldersFromDisk(root);
+  await addInactiveRegisterRowsToSuppressionIndex(root, intakeFolders.map((folder) => ({
+    intake_dir: `00_Inbox/${folder.name}`,
+  })), sourceSuppressionIndex, { warnings });
+  return sourceSuppressionIndex;
+}
+
+async function listExtractionRecordInputs(root, { sourceSuppressionIndex = null } = {}) {
   const inputs = [];
   const intakeFolders = await listIntakeFoldersFromDisk(root);
   for (const folder of intakeFolders) {
@@ -243,12 +260,16 @@ async function listExtractionRecordInputs(root) {
       }
       if (!fileStat.isFile()) continue;
       const json = await readJsonIfPossible(filePath);
-      inputs.push({
+      const fileId = normalizeText(json?.file_id) || normalizeText(json?.fileId) || entry.name.replace(/\.json$/i, "");
+      const input = {
         relativePath: toMatterRelative(root, filePath),
         mtimeMs: fileStat.mtimeMs,
-        fileId: normalizeText(json?.file_id) || normalizeText(json?.fileId) || entry.name.replace(/\.json$/i, ""),
+        fileId,
+        sourcePath: normalizeText(json?.source_path || json?.sourcePath),
         contentHash: sourceContentHash(json),
-      });
+      };
+      if (isSourceSuppressed({ file_id: input.fileId, source_path: input.sourcePath }, sourceSuppressionIndex)) continue;
+      inputs.push(input);
     }
   }
   return inputs;
@@ -341,6 +362,16 @@ export function isNewerByTrustedMtime({ inputMtimeMs, targetMtimeMs }) {
 function findSourceDescriptorContentChange({ target, upstreamInputs }) {
   const previousByFileId = sourceIndexSourceMap(target.json);
   if (!previousByFileId.size) return null;
+  const activeFileIds = new Set(upstreamInputs.map((input) => input.fileId).filter(Boolean));
+  for (const fileId of previousByFileId.keys()) {
+    if (!activeFileIds.has(fileId)) {
+      return {
+        relativePath: target.relativePath,
+        mtimeMs: target.mtimeMs,
+        reason: "A source in the Source Index is no longer in the active source set.",
+      };
+    }
+  }
   for (const input of upstreamInputs) {
     if (!input.fileId || !input.contentHash) continue;
     const previous = previousByFileId.get(input.fileId);
@@ -363,6 +394,20 @@ function findSourceDescriptorContentChange({ target, upstreamInputs }) {
 function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
   const snapshotByFileId = listOfDatesSnapshotMap(target.json);
   if (!snapshotByFileId.size) return null;
+  const activeExtractionFileIds = new Set(upstreamInputs
+    .filter((input) => input.inputKind === "extraction_record")
+    .map((input) => input.fileId)
+    .filter(Boolean));
+  for (const fileId of snapshotByFileId.keys()) {
+    if (!activeExtractionFileIds.has(fileId)) {
+      return {
+        relativePath: target.relativePath,
+        mtimeMs: target.mtimeMs,
+        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        reason: "A source from the List of Dates snapshot is no longer in the active source set.",
+      };
+    }
+  }
   for (const input of upstreamInputs) {
     if (input.inputKind !== "extraction_record" || !input.fileId || !input.contentHash) continue;
     const previous = snapshotByFileId.get(input.fileId);
@@ -387,6 +432,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
   const currentByFileId = sourceIndexSourceMap(sourceIndex);
   for (const current of sourceIndex.sources) {
     const currentFileId = sourceFileId(current);
+    if (currentFileId && !activeExtractionFileIds.has(currentFileId)) continue;
     if (currentFileId && !snapshotByFileId.has(currentFileId)) {
       return {
         ...sourceIndexInput,
