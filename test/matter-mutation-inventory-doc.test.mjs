@@ -44,7 +44,7 @@ test("matter mutation inventory keeps delete/remove blocked behind Matter Log pl
   const inventory = await readFile(inventoryPath, "utf8");
 
   assert.match(inventory, /Remove from active record/);
-  assert.match(inventory, /No canonical matter event envelope/);
+  assert.match(inventory, /No source-custody event implementation/);
   assert.match(inventory, /No tombstone\/suppression mechanism/);
   assert.match(inventory, /No unified active source set read model/);
   assert.match(inventory, /No artifact currentness projection/);

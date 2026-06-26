@@ -175,9 +175,11 @@ Current narrow implementation slices (2026-06-26):
   and `services/runtime-db-matter-events-service.mjs` add the durable event-store
   foundation: tenant-scoped `matter_events`, RLS, idempotency keys, local JSONL
   fallback, and Matter Log merge support for canonical events when present.
-- No production mutation is transaction-coupled to `matter_events` yet. The next
-  safe step is a low-risk `custom_skill.created` append with the strongest
-  available atomicity at the Skill Factory/store boundary.
+- The first production mutation is now wired: Skill Factory activation appends
+  `custom_skill.created`. Runtime DB mode appends the event in the same SQL
+  transaction as the configurable skill store write; local filesystem mode
+  appends to the JSONL fallback after the skill store write under the same
+  mutation queue.
 - The React Activity page labels this as `Matter Log` / `Preview` and states
   that it is not custody-grade yet.
 - These slices do **not** add file removal, tombstones, restore/quarantine, or
@@ -187,6 +189,8 @@ Current narrow implementation slices (2026-06-26):
 ### Phase 4 — Append-only event store behind the scenes
 
 Goal: start recording canonical events for new mutations.
+
+Status: started. `custom_skill.created` is the first implemented event.
 
 Deliverables:
 
@@ -199,7 +203,8 @@ Deliverables:
 Exit criteria:
 
 - at least one existing mutation writes a real Matter Log event in both runtime
-  DB mode and local mode, with tests.
+  DB mode and local mode, with tests. This is satisfied for
+  `custom_skill.created`; source-custody mutations still require later phases.
 
 ### Phase 5 — Tombstone/suppression design spike
 

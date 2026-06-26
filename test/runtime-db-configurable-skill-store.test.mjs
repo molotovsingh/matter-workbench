@@ -107,6 +107,64 @@ test("runtime DB configurable skill store writes mutated skills to skill and ver
   assert.doesNotMatch(sql, /secret/);
 });
 
+test("runtime DB configurable skill store can append extra mutation SQL in the same transaction", async () => {
+  const calls = [];
+  const store = createRuntimeDbConfigurableSkillStore({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence(calls, [
+      [],
+      {},
+    ]),
+  });
+
+  const result = await store.updateStore((draft) => {
+    draft.skills.push({
+      id: "skill_route_plan",
+      title: "Filing Route Plan",
+      slash: "/filing_route_plan",
+      description: "Recommend law, forum, and filing documents.",
+      status: "active",
+      version: 1,
+      sourceIdeaId: "idea_route_plan",
+      sourceSampleId: "sample_route_plan",
+      approvedSampleHash: "hash_route_plan",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/Filing Route Plan.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: { prompt: "Prepare the route plan.", citationPolicy: "Use matter sources." },
+      modelPolicy: { task: "configurable_skill_run", policyPromptVersion: "legal-workbench-policy/v1" },
+      validation: { status: "passed", messages: [] },
+      createdAt: "2026-06-06T02:00:00.000Z",
+      updatedAt: "2026-06-06T02:00:00.000Z",
+    });
+    return { created: true };
+  }, {
+    afterWriteSql: ({ result: mutationResult, store: nextStore }) => {
+      assert.deepEqual(mutationResult, { created: true });
+      assert.equal(nextStore.skills.length, 1);
+      return [
+        "insert into matter_events (event_type, idempotency_key) values ('custom_skill.created', 'custom_skill.created:skill_route_plan:v1') on conflict do nothing;",
+      ];
+    },
+  });
+
+  assert.deepEqual(result, { created: true });
+  const writeSql = calls[1].input;
+  assertTransactionWrapped(writeSql);
+  assert.match(writeSql, /insert into configurable_skills/i);
+  assert.match(writeSql, /insert into configurable_skill_versions/i);
+  assert.match(writeSql, /insert into matter_events/i);
+  assert.match(writeSql, /custom_skill\.created:skill_route_plan:v1/);
+  assert.ok(
+    writeSql.indexOf("insert into configurable_skills") < writeSql.indexOf("insert into matter_events"),
+    "matter event SQL should be appended after the skill write SQL inside the transaction",
+  );
+  assert.doesNotMatch(writeSql, /secret/);
+});
+
 test("runtime DB configurable skill store writes replacement store returned by mutator", async () => {
   const calls = [];
   const store = createRuntimeDbConfigurableSkillStore({

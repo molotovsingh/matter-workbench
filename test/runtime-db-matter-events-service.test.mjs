@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appendEventMutationSql,
   appendEventSql,
   createRuntimeDbMatterEventsService,
   listEventsSql,
@@ -111,6 +112,31 @@ test("runtime DB matter event SQL is idempotent and source-delete vocabulary sta
     () => appendEventSql({ tenantId, event: { eventType: "source_file.deleted", idempotencyKey: "bad" } }),
     (error) => error.statusCode === 400 && error.code === "matter_events.event_type_required",
   );
+
+  const mutationSql = appendEventMutationSql({ event: {
+    eventId: "11111111-1111-4111-8111-111111111111",
+    eventType: "custom_skill.created",
+    matterName: "Matter A",
+    summaryKey: "custom_skill_created",
+    object: { type: "custom_skill", id: "skill_123" },
+    payload: { slash: "/issue_discovery" },
+    idempotencyKey: "custom_skill.created:skill_123:v1",
+    occurredAt: "2026-06-26T12:00:00.000Z",
+  } });
+  assert.match(mutationSql, /insert into matter_events/i);
+  assert.match(mutationSql, /select 1 from inserted limit 1;/i);
+  assert.doesNotMatch(mutationSql, /set_config\('app\.tenant_id'/);
+  assert.doesNotMatch(mutationSql, /commit;/i);
+
+  const directMutationSql = appendEventMutationSql({
+    eventId: "11111111-1111-4111-8111-111111111111",
+    eventType: "custom_skill.created",
+    matterName: "Matter A",
+    object: { type: "custom_skill", id: "skill_123" },
+    idempotencyKey: "custom_skill.created:skill_123:v1",
+  });
+  assert.match(directMutationSql, /insert into matter_events/i);
+  assert.doesNotMatch(directMutationSql, /set_config\('app\.tenant_id'/);
 
   const listSql = listEventsSql({ tenantId, matterName: "Matter A", eventType: "custom_skill.created", limit: 3 });
   assert.match(listSql, /matter_name = 'Matter A'/);

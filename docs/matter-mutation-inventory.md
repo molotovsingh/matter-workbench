@@ -51,7 +51,7 @@ This document is not an event schema. It is an inventory.
 | Skill idea create/update/status | `POST /api/skill-ideas`; design brief/status routes | Skill factory mutation | Skill ideas store / runtime DB skill ideas | Good Skill Factory log candidate | May be linked to a matter but is a workflow-design record. |
 | Skill sample generation | `POST /api/skill-ideas/sample-output` | Skill factory mutation / generated sample | Job ledger; skill sample store / runtime DB samples | Good Skill Factory log candidate | Sample output is review-only, not matter artifact. |
 | Skill sample approval | `POST /api/skill-ideas/:id/samples/:sampleId/approve` | Skill factory mutation | Skill sample store / runtime DB samples | Good Skill Factory log candidate | Approval changes which sample can create a skill. |
-| Custom skill creation | `POST /api/skill-ideas/:id/create-skill`; `configurableSkillsService.createSkillFromApprovedSample` | Skill factory mutation | Configurable skill store / runtime DB skill store; idea status | Good event spike candidate | Low-risk first canonical event candidate because beta.53 already refreshes post-create UI. |
+| Custom skill creation | `POST /api/skill-ideas/:id/create-skill`; `configurableSkillsService.createSkillFromApprovedSample` | Skill factory mutation | Configurable skill store / runtime DB skill store; idea status; `custom_skill.created` matter event | First canonical event implemented | Low-risk first event because it does not alter source evidence. Runtime DB mode appends the event transaction-coupled with the skill store write; local mode appends to JSONL fallback after the skill store write under the same mutation queue. |
 | Custom skill lifecycle | `POST /api/configurable-skills/:id/lifecycle` | Skill factory mutation | Configurable skill store / runtime DB skill store | Good Skill Factory log candidate | Pause/archive/delete affects workflow availability, not matter source record. |
 | Custom skill run | `POST /api/configurable-skills/run`; `configurableSkillsService.runSkill`; runtime DB `persistTextArtifacts` | Generated artifact mutation / skill run | Job ledger; configurable skill run ledger; output artifacts | Good Matter Log candidate | Matter-bound output; should be stale if it cites removed sources. |
 | Custom skill overwrite cancelled | `POST /api/configurable-skills/runs/cancelled` | Ledger/audit mutation | Configurable skill run ledger | Good Activity/Matter Log candidate | Records decision to keep existing output. |
@@ -93,7 +93,7 @@ written.
 
 File removal should remain blocked until these gaps are addressed:
 
-1. No canonical matter event envelope.
+1. No source-custody event implementation for active source-set changes.
 2. No tombstone/suppression mechanism for local filesystem source scanning.
 3. No unified active source set read model.
 4. No artifact currentness projection across List of Dates, Matter Story, and
@@ -102,11 +102,11 @@ File removal should remain blocked until these gaps are addressed:
 6. No privilege-safe Matter Log summaries.
 7. No idempotent removal mutation with matter/document locking.
 
-## Suggested First Event Spike
+## First Implemented Event Spike
 
-Candidate: custom skill creation.
+Implemented: custom skill creation emits `custom_skill.created`.
 
-Why:
+Why this was first:
 
 - it is already a governed action;
 - it has a clear actor/time/result;
@@ -114,7 +114,7 @@ Why:
 - a failure does not risk source custody;
 - post-create UI already expects a refresh signal.
 
-A first canonical event could be shaped as:
+The first canonical event is shaped as:
 
 ```json
 {
@@ -132,7 +132,8 @@ A first canonical event could be shaped as:
 }
 ```
 
-This shape is illustrative, not an accepted schema.
+This shape is implemented for the first event, but it is not a public API schema
+and it does not unlock source-file removal.
 
 ## Test Hooks For This Inventory
 

@@ -247,6 +247,18 @@ export async function createWorkbenchServer(options = {}) {
       ? runtimeDbConfigurableSkillStore
       : null
   );
+  const runtimeDbMatterEventsService = options.runtimeDbMatterEventsService || createRuntimeDbMatterEventsService({
+    databaseUrl: runtimeDbUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
+  });
+  const matterEventsService = options.matterEventsService || (
+    matterStore.hasRuntimeDbStorageMode() && runtimeDbMatterEventsService.enabled
+      ? runtimeDbMatterEventsService
+      : createMatterEventsService({
+        appDir,
+        eventsPath: options.matterEventsPath,
+      })
+  );
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
@@ -254,6 +266,7 @@ export async function createWorkbenchServer(options = {}) {
     skillIdeasService,
     skillSamplesService,
     configurableSkillRunsService,
+    matterEventsService,
     skillStore: configurableSkillStore,
     authoringProvider: options.configurableSkillAuthoringProvider || null,
     runProvider: options.configurableSkillRunProvider || null,
@@ -279,18 +292,6 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
-  const runtimeDbMatterEventsService = options.runtimeDbMatterEventsService || createRuntimeDbMatterEventsService({
-    databaseUrl: runtimeDbUrl,
-    tenantId: runtimeMatterIndex.tenantId || "",
-  });
-  const matterEventsService = options.matterEventsService || (
-    matterStore.hasRuntimeDbStorageMode() && runtimeDbMatterEventsService.enabled
-      ? runtimeDbMatterEventsService
-      : createMatterEventsService({
-        appDir,
-        eventsPath: options.matterEventsPath,
-      })
-  );
   const matterLogService = options.matterLogService || createMatterLogService({
     configurableSkillRunsService,
     jobStatusService,

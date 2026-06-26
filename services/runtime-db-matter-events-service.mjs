@@ -63,8 +63,14 @@ export function createRuntimeDbMatterEventsService({
     if (!enabled) throw makeHttpError("Runtime DB matter events are not configured", 503, "runtime_db.matter_events.not_configured");
   }
 
+  function appendEventMutationSql(input = {}) {
+    const event = normalizeMatterEvent(input, { now, idFactory });
+    return buildAppendEventMutationSql({ event });
+  }
+
   return {
     appendEvent,
+    appendEventMutationSql,
     enabled,
     listEvents,
     storePath,
@@ -75,6 +81,20 @@ export function appendEventSql({ tenantId, event }) {
   const normalized = normalizeMatterEvent(event, { idFactory: () => randomUUID() });
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
+    buildAppendEventMutationSql({ event: normalized, returning: true }),
+    "",
+  ].join("\n");
+}
+
+export function appendEventMutationSql(input = {}) {
+  const event = input?.event && typeof input.event === "object" ? input.event : input;
+  const normalized = normalizeMatterEvent(event, { idFactory: () => randomUUID() });
+  return buildAppendEventMutationSql({ event: normalized, returning: false });
+}
+
+function buildAppendEventMutationSql({ event, returning = false }) {
+  const normalized = normalizeMatterEvent(event, { idFactory: () => randomUUID() });
+  const insert = [
     "with target_matter as (",
     "  select id, name",
     "  from matters",
@@ -102,8 +122,13 @@ export function appendEventSql({ tenantId, event }) {
     `    ${sqlTimestamp(normalized.createdAt || normalized.occurredAt)}`,
     "  )",
     "  on conflict (tenant_id, idempotency_key) do nothing",
-    "  returning *",
-    "), selected as (",
+    returning ? "  returning *" : "  returning id",
+    ")",
+  ];
+  if (!returning) return [...insert, "select 1 from inserted limit 1;"].join("\n");
+  return [
+    ...insert,
+    ", selected as (",
     "  select * from inserted",
     "  union all",
     "  select *",
@@ -114,7 +139,6 @@ export function appendEventSql({ tenantId, event }) {
     "  limit 1",
     ")",
     selectMatterEventJson("selected"),
-    "",
   ].join("\n");
 }
 

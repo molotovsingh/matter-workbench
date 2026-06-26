@@ -54,6 +54,78 @@ test("configurable skills mark the source idea created after successful activati
   assert.deepEqual(statusUpdates, [{ id: "idea_party_1", status: "created" }]);
 });
 
+test("configurable skills append a local custom_skill.created matter event after activation", async () => {
+  const events = [];
+  const { service } = await makeServiceHarness({
+    matterEventsService: {
+      appendEvent: async (event) => {
+        events.push(event);
+        return event;
+      },
+    },
+  });
+
+  const created = await service.createSkillFromApprovedSample({ ideaId: "idea_party_1" });
+
+  assert.equal(created.skill.status, "active");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].eventType, "custom_skill.created");
+  assert.equal(events[0].matterName, "Ayesha Vs Japan Airlines");
+  assert.deepEqual(events[0].object, { type: "custom_skill", id: "skill_1", label: "Party and Officer Map" });
+  assert.equal(events[0].payload.source_idea_id, "idea_party_1");
+  assert.equal(events[0].payload.source_sample_id, "sample_party_1");
+  assert.equal(events[0].payload.slash, "/party_officer_map");
+  assert.equal(events[0].idempotencyKey, "custom_skill.created:skill_1:v1");
+  assert.doesNotMatch(JSON.stringify(events[0]), /FILE-0001|sampleMarkdown|evidence_blocks/i);
+});
+
+test("configurable skills provide custom_skill.created SQL for runtime DB activation transactions", async () => {
+  const sqlEvents = [];
+  const storeState = { schema_version: "configurable-skills/v1", skills: [] };
+  const skillStore = {
+    readStore: async () => storeState,
+    updateStore: async (mutator, options = {}) => {
+      const result = await mutator(storeState);
+      if (typeof options.afterWriteSql === "function") {
+        sqlEvents.push(options.afterWriteSql({ result, store: storeState }));
+      }
+      return result;
+    },
+  };
+  const appendedEvents = [];
+  const { service } = await makeServiceHarness({
+    skillStore,
+    matterEventsService: {
+      appendEventMutationSql: (event) => {
+        sqlEvents.push(event);
+        return "insert into matter_events (...) values (...);";
+      },
+      appendEvent: async (event) => {
+        appendedEvents.push(event);
+      },
+    },
+  });
+
+  const created = await service.createSkillFromApprovedSample({
+    ideaId: "idea_party_1",
+    matterRecordOverride: {
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "Runtime Matter",
+    },
+  });
+
+  assert.equal(created.skill.status, "active");
+  assert.equal(appendedEvents.length, 0);
+  const event = sqlEvents.find((entry) => entry && typeof entry === "object" && entry.eventType === "custom_skill.created");
+  assert.ok(event, "expected custom_skill.created event to be passed to appendEventMutationSql");
+  assert.equal(event.matterId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(event.matterName, "Runtime Matter");
+  assert.equal(event.object.id, "skill_1");
+  assert.equal(event.payload.source_idea_id, "idea_party_1");
+  assert.equal(event.idempotencyKey, "custom_skill.created:skill_1:v1");
+  assert.ok(sqlEvents.includes("insert into matter_events (...) values (...);"));
+});
+
 test("failed new skill drafts do not reserve the clean slash on retry", async () => {
   const { service } = await makeServiceHarness({
     runMarkdownSequence: [
@@ -479,7 +551,7 @@ test("configurable skill lifecycle rejects invalid transitions without mutating 
   assert.equal(withDeleted.skills.find((skill) => skill.id === created.skill.id).status, "deleted");
 });
 
-async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequence = null, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false } = {}) {
+async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequence = null, authoredSlash = "/party_officer_map", failRuntimeAfterValidation = false, matterEventsService = null, skillStore = null } = {}) {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "configurable-skills-test-"));
   const appDir = path.join(tmp, "app");
   const matterRoot = path.join(tmp, "matter");
@@ -538,6 +610,8 @@ async function makeServiceHarness({ sampleMarkdown, runMarkdown, runMarkdownSequ
       },
     },
     configurableSkillRunsService: runLedger,
+    matterEventsService,
+    skillStore,
     env: {},
     idFactory: (() => {
       let index = 0;

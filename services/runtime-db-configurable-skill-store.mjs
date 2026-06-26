@@ -36,25 +36,30 @@ export function createRuntimeDbConfigurableSkillStore({
     };
   }
 
-  async function writeStore(store = {}, { expectedCatalogFingerprint = "" } = {}) {
+  async function writeStore(store = {}, { expectedCatalogFingerprint = "", extraSql = [] } = {}) {
     ensureEnabled();
     const skills = Array.isArray(store.skills) ? store.skills.map(normalizeStoredSkill) : [];
     const sql = wrapRuntimeDbWriteTransaction([
       `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
       configurableSkillCatalogWriteGuardSql({ expectedCatalogFingerprint }),
       ...skills.flatMap((skill) => configurableSkillUpsertSql(skill)),
+      ...normalizeExtraSql(extraSql),
       "select '{}'::jsonb::text;",
       "",
     ].join("\n"));
     queryJson(sql);
   }
 
-  async function updateStore(mutator) {
+  async function updateStore(mutator, options = {}) {
     ensureEnabled();
     if (typeof mutator !== "function") throw makeHttpError("Configurable skill mutator is required", 500, "runtime_db.configurable_skill_store.mutator_required");
     const store = await readStoreWithFingerprint();
     const result = await mutator(store);
-    await writeStore(isStoreReplacement(result) ? result : store, { expectedCatalogFingerprint: store.catalogFingerprint });
+    const nextStore = isStoreReplacement(result) ? result : store;
+    const extraSql = typeof options.afterWriteSql === "function"
+      ? options.afterWriteSql({ result, store: nextStore })
+      : [];
+    await writeStore(nextStore, { expectedCatalogFingerprint: store.catalogFingerprint, extraSql });
     return result;
   }
 
@@ -146,6 +151,13 @@ function readStoreSql({ tenantId }) {
     ")::text;",
     "",
   ].join("\n");
+}
+
+function normalizeExtraSql(extraSql = []) {
+  const statements = Array.isArray(extraSql) ? extraSql : [extraSql];
+  return statements
+    .map((statement) => String(statement || "").trim())
+    .filter(Boolean);
 }
 
 function configurableSkillCatalogWriteGuardSql({ expectedCatalogFingerprint = "" } = {}) {

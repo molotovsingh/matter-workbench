@@ -1,10 +1,10 @@
 # Matter Event Vocabulary Spike
 
 Date: 2026-06-26
-Status: Review draft — vocabulary spike only, not an accepted event schema
+Status: Review draft — vocabulary plus first implemented event; not a frozen schema
 Priority: High before canonical Matter Log events or file-removal workflows
-Confidence: Low-medium; use this to guide the first append-only event spike, not
-as a frozen contract.
+Confidence: Low-medium; use this to guide incremental append-only event work,
+not as a frozen contract.
 
 Related notes:
 
@@ -16,8 +16,9 @@ Related notes:
 
 ## Posture
 
-This document names event families so the first canonical Matter Log spike can
-be small and reviewable.
+This document names event families so canonical Matter Log events can stay
+small and reviewable. It now records the first implemented low-risk event,
+`custom_skill.created`, but the broader vocabulary remains a review draft.
 
 It is not:
 
@@ -28,8 +29,9 @@ It is not:
 - a replacement for custody/state/currentness decisions.
 
 The current product surface remains the read-only `matter-log/v0-readonly`
-preview. That preview can now merge canonical `matter_events` rows when present,
-but current runtime mutations are still mostly legacy job/run projections.
+preview. That preview can now merge canonical `matter_events` rows when present.
+Only the low-risk Skill Factory creation path writes a canonical event so far;
+most matter mutations are still legacy job/run projections.
 
 ## Naming Rules
 
@@ -99,7 +101,7 @@ Open questions:
 | Skill Factory | `skill_idea.created` | Skill factory | Skill idea store now; future event | App-level design record; may be linked to selected matter. |
 | Skill Factory | `skill_sample.generated` | Skill factory | Job/sample store now; future event | Review sample only, not a matter artifact. |
 | Skill Factory | `skill_sample.approved` | Skill factory | Sample store now; future event | Approval that enables custom skill creation. |
-| Skill Factory | `custom_skill.created` | Skill factory | Skill store now; future event | Preferred first canonical event spike candidate. |
+| Skill Factory | `custom_skill.created` | Skill factory | Skill store + matter_events | First implemented canonical event. Runtime DB mode appends it transaction-coupled with the configurable skill store write; local mode appends to the JSONL fallback after the skill store write under the same mutation queue. |
 | Skill Factory | `custom_skill.lifecycle_changed` | Skill factory | Skill store now; future event | Suspend/resume/archive/restore/delete workflow availability. |
 | Maintenance | `doctor.fix_applied` | Source preparation / maintenance | Job now; future event | Needs per-fix payload; not every fix is source mutation. |
 | Assistant activity | `assistant.receipt_recorded` | Ledger activity | Copilot receipts | Activity only; not evidence and not source mutation. |
@@ -120,18 +122,22 @@ Implemented after this spike was drafted:
   fallback.
 - `services/matter-log-service.mjs` merges canonical `matter_events` entries
   ahead of legacy job/run projections.
+- `custom_skill.created` is now appended by the Skill Factory creation path.
+  Runtime DB mode appends it inside the same SQL transaction as the
+  configurable skill store update. Local filesystem mode appends to the JSONL
+  fallback after the skill store write under the same mutation queue.
 
 Not landed yet:
 
-- a transaction-coupled production mutation append;
+- source-custody mutation events;
 - file removal;
 - tombstones;
 - artifact currentness projection;
 - outbox/broker publishing.
 
-## First Canonical Event Spike Candidate
+## First Implemented Canonical Event
 
-Preferred first mutation: `custom_skill.created`.
+First implemented mutation: `custom_skill.created`.
 
 Why this first:
 
@@ -141,7 +147,7 @@ Why this first:
 - it can be idempotent by idea/sample/skill ids;
 - it can appear in Matter Log without claiming source custody.
 
-Candidate payload:
+Implemented payload shape:
 
 ```json
 {
@@ -182,12 +188,13 @@ First move:
 
 A broker should not be the source of truth for legal matter custody.
 
-## Review Questions Before Coding The Spike
+## Open Review Questions After The First Event
 
-- Should app-level Skill Factory events require a matter id when the user had an
-  active matter, or should they be global with optional matter context?
-- Should failed attempts be canonical events or job failures only?
-- What is the local filesystem event ledger path and locking behavior?
-- What runtime DB table shape best fits existing tenancy and RLS patterns?
-- How will projections merge canonical events with legacy `matter-log/v0-readonly`
-  entries without duplicates?
+- Should failed attempts become canonical events or remain job failures only?
+- Should Skill Factory lifecycle changes use one `custom_skill.lifecycle_changed`
+  event or action-specific event types?
+- Which source-preparation event should follow without risking custody confusion?
+- What source-custody event fields are mandatory before file removal can be
+  designed?
+- How should local filesystem mode recover if a skill store write succeeds but
+  the JSONL fallback append fails?

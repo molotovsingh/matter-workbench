@@ -2533,6 +2533,7 @@ test("runtime DB skill creation validates approved samples through DB-native con
   const { mattersHome } = await runtimeDbTestPaths("runtime-db-api-create-skill");
   const matter = runtimeDbMatter({ name: "Taori vs Roma Builder", matterName: "Taori vs Roma Builder" });
   const calls = [];
+  const matterEventCalls = [];
   const store = { schema_version: "configurable-skills/v1", skills: [] };
   const idea = {
     id: "idea_issues",
@@ -2595,7 +2596,19 @@ test("runtime DB skill creation validates approved samples through DB-native con
     },
     configurableSkillStore: {
       readStore: async () => store,
-      updateStore: async (mutator) => mutator(store),
+      updateStore: async (mutator, options = {}) => {
+        const result = await mutator(store);
+        if (typeof options.afterWriteSql === "function") {
+          matterEventCalls.push(options.afterWriteSql({ result, store }));
+        }
+        return result;
+      },
+    },
+    matterEventsService: {
+      appendEventMutationSql: (event) => {
+        matterEventCalls.push(event);
+        return "insert into matter_events (...) values (...);";
+      },
     },
     configurableSkillAuthoringProvider: async () => ({
       title: "Issue Discovery",
@@ -2647,6 +2660,14 @@ test("runtime DB skill creation validates approved samples through DB-native con
     assert.equal(created.skill.status, "active");
     assert.equal(created.skill.slash, "/issue_discovery");
     assert.deepEqual(calls, [["packet", matter.name]]);
+    const canonicalEvent = matterEventCalls.find((entry) => entry?.eventType === "custom_skill.created");
+    assert.ok(canonicalEvent, "expected runtime DB skill creation to prepare a custom_skill.created event");
+    assert.equal(canonicalEvent.matterId, matter.id);
+    assert.equal(canonicalEvent.matterName, matter.name);
+    assert.equal(canonicalEvent.payload.source_idea_id, idea.id);
+    assert.equal(canonicalEvent.payload.source_sample_id, sample.id);
+    assert.equal(canonicalEvent.payload.slash, "/issue_discovery");
+    assert.ok(matterEventCalls.includes("insert into matter_events (...) values (...);"));
   } finally {
     app.server.close();
   }

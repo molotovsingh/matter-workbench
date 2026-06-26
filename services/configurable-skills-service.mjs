@@ -53,6 +53,7 @@ export function createConfigurableSkillsService({
   skillIdeasService,
   skillSamplesService,
   configurableSkillRunsService,
+  matterEventsService = null,
   skillStore = null,
   authoringProvider,
   runProvider,
@@ -125,7 +126,12 @@ export function createConfigurableSkillsService({
         now,
         idFactory,
       });
-    });
+    }, customSkillCreatedEventWriteHooks({
+      idea,
+      sample,
+      matterEventsService,
+      matterRecord: matterRecordOverride,
+    }));
     if (validationError) throw validationError;
     if (typeof skillIdeasService.updateIdeaStatus === "function") {
       await skillIdeasService.updateIdeaStatus(idea.id, SKILL_IDEA_STATUS.CREATED);
@@ -379,6 +385,61 @@ export function createConfigurableSkillsService({
     storePath,
     updateSkillLifecycle,
   };
+
+  function customSkillCreatedEventWriteHooks({ idea, sample, matterEventsService, matterRecord = null } = {}) {
+    if (!matterEventsService) return {};
+    return {
+      afterWriteSql: typeof matterEventsService.appendEventMutationSql === "function"
+        ? ({ result }) => {
+          const event = customSkillCreatedEvent({ result, idea, sample, matterRecord });
+          return event ? matterEventsService.appendEventMutationSql(event) : [];
+        }
+        : null,
+      afterWrite: typeof matterEventsService.appendEventMutationSql === "function" || typeof matterEventsService.appendEvent !== "function"
+        ? null
+        : async ({ result }) => {
+          const event = customSkillCreatedEvent({ result, idea, sample, matterRecord });
+          if (event) await matterEventsService.appendEvent(event);
+        },
+    };
+  }
+
+  function customSkillCreatedEvent({ result, idea, sample, matterRecord = null } = {}) {
+    if (result?.validationError) return null;
+    const activationResult = result?.result && typeof result.result === "object" ? result.result : result;
+    const skill = normalizeStoredSkill(activationResult?.skill || {});
+    if (!skill.id || skill.status !== "active") return null;
+    return {
+      eventType: "custom_skill.created",
+      matterId: normalizeText(matterRecord?.id),
+      matterName: matterNameForEvent({ matterRecord, idea, sample }),
+      summaryKey: "custom_skill_created",
+      object: { type: "custom_skill", id: skill.id, label: skill.title },
+      payload: {
+        skill_id: skill.id,
+        slash: skill.slash,
+        title: skill.title,
+        source_idea_id: idea.id,
+        source_sample_id: sample.id || skill.sourceSampleId,
+        skill_version: skill.version,
+        status: skill.status,
+        output_artifact: skill.outputArtifact,
+        target_lane: skill.targetLane,
+        source_backed: skill.sourceBacked,
+      },
+      idempotencyKey: ["custom_skill.created", skill.id, `v${skill.version}`].join(":"),
+    };
+  }
+
+  function matterNameForEvent({ matterRecord = null, idea = {}, sample = {} } = {}) {
+    const recordName = normalizeText(matterRecord?.name || matterRecord?.folderName || matterRecord?.matterName);
+    if (recordName) return recordName;
+    const ideaMatter = idea?.matter && typeof idea.matter === "object" ? idea.matter : {};
+    const ideaMatterName = normalizeText(ideaMatter.folderName || ideaMatter.matterName);
+    if (ideaMatterName) return ideaMatterName;
+    const sampleMatter = sample?.matter && typeof sample.matter === "object" ? sample.matter : {};
+    return normalizeText(sampleMatter.folder_name || sampleMatter.folderName || sampleMatter.matter_name || sampleMatter.matterName);
+  }
 
   async function matterContextForRun({
     matterName: rawMatterName = "",

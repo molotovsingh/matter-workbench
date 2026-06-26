@@ -48,11 +48,15 @@ export function createConfigurableSkillStore({ appDir, skillsPath } = {}) {
     await persistence.writeStoreFile(store);
   }
 
-  async function updateStore(mutator) {
+  async function updateStore(mutator, options = {}) {
     return persistence.withStoreMutation(async () => {
       const store = await readStore();
       const result = await mutator(store);
-      await writeStore(isStoreReplacement(result) ? result : store);
+      const nextStore = isStoreReplacement(result) ? result : store;
+      await writeStore(nextStore);
+      if (typeof options.afterWrite === "function") {
+        await options.afterWrite({ result, store: nextStore });
+      }
       return result;
     });
   }
