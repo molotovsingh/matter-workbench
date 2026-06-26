@@ -68,9 +68,11 @@ are omitted from active context, List of Dates Markdown is skipped if it cites a
 suppressed file id, and Source Index summary counts are reduced to active
 sources.
 
-Runtime DB mode also filters `deleted_pending` source documents from workspace
-and payload reads, and runtime matter-context packets treat inactive File
-Register rows as suppressed.
+Runtime DB mode also supports inactive source document statuses
+`removed_from_active_record`, `quarantined`, `deleted_pending`, and `deleted`.
+Workspace, payload, overlap, and runtime Matter Context read paths treat those
+statuses as inactive, while runtime matter-context packets also treat inactive
+File Register rows as suppressed.
 
 Suppressed extraction records, source descriptors, and stale generated artifact
 entries are not deleted. They remain custody/evidence history, but they do not

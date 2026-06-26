@@ -182,10 +182,10 @@ Current narrow implementation slices (2026-06-26):
   mutation queue.
 - The first active-source read-side foundation is now wired. Local mode can read
   `.matter-workbench/source-tombstones.json` and suppress removed/quarantined
-  sources from Matter Context, extraction, Source Index generation, and List of
-  Dates generation. Runtime DB read paths filter `deleted_pending` source
-  documents from workspace/payload reads and suppress inactive File Register rows
-  in context packets.
+  sources from Matter Context, extraction, Source Index generation, List of Dates
+  generation, and stale generated artifact summaries. Runtime DB read paths use
+  inactive source document statuses for workspace/payload/overlap reads and
+  suppress inactive File Register rows in context packets.
 - The React Activity page labels this as `Matter Log` / `Preview` and states
   that it is not custody-grade yet.
 - These slices do **not** add file removal, tombstones, restore/quarantine, or
@@ -237,7 +237,9 @@ Current partial exit evidence:
 
 - Matter Context, extraction, Source Index generation, and List of Dates
   generation ignore locally suppressed source ids/paths.
-- Runtime DB workspace/payload reads filter `deleted_pending` source documents.
+- Runtime DB workspace/payload/overlap reads now use the same inactive source
+  status vocabulary as the read-side contract: `removed_from_active_record`,
+  `quarantined`, `deleted_pending`, and `deleted`.
 - A true source-removal write path, source reconciliation behavior, and restore
   semantics are still not implemented.
 

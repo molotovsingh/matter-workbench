@@ -42,6 +42,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "018_skill_idea_created_status.sql",
       "019_credit_ledger.sql",
       "020_matter_events.sql",
+      "021_source_document_active_statuses.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -64,6 +65,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("018_skill_idea_created_status.sql"), "018_skill_idea_created_status");
   assert.equal(migrationVersionFromFile("019_credit_ledger.sql"), "019_credit_ledger");
   assert.equal(migrationVersionFromFile("020_matter_events.sql"), "020_matter_events");
+  assert.equal(migrationVersionFromFile("021_source_document_active_statuses.sql"), "021_source_document_active_statuses");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

@@ -9,6 +9,8 @@ import {
 } from "./runtime-db-sql-format.mjs";
 import { runtimeDbActorSqls } from "./runtime-db-upload-persistence-sql.mjs";
 
+const INACTIVE_SOURCE_DOCUMENT_STATUS_SQL = "('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted')";
+
 export function buildWorkspaceSql({ tenantId, matter }) {
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
@@ -40,7 +42,7 @@ export function buildWorkspaceSql({ tenantId, matter }) {
     "  where so.tenant_id = current_app_tenant_id()",
     `    and so.matter_id = ${sqlUuid(matter.id)}`,
     "    and so.state in ('uploaded', 'verified')",
-    "    and (so.object_role not in ('source_original', 'source_working_copy') or d.id is null or d.status <> 'deleted_pending')",
+    `    and (so.object_role not in ('source_original', 'source_working_copy') or d.id is null or d.status not in ${INACTIVE_SOURCE_DOCUMENT_STATUS_SQL})`,
     "    and so.object_key is not null",
     "  order by so.id, d.file_id nulls last",
     ")",
@@ -199,7 +201,7 @@ export function buildPayloadSql({ tenantId, matter, relativePath }) {
     "  left join documents d on d.id = db.document_id and d.tenant_id = db.tenant_id and d.matter_id = db.matter_id",
     `  where so.matter_id = ${sqlUuid(matter.id)}`,
     "    and so.state in ('uploaded', 'verified')",
-    "    and (so.object_role not in ('source_original', 'source_working_copy') or d.id is null or d.status <> 'deleted_pending')",
+    `    and (so.object_role not in ('source_original', 'source_working_copy') or d.id is null or d.status not in ${INACTIVE_SOURCE_DOCUMENT_STATUS_SQL})`,
     "  order by array_position(" + sqlTextArray(keys) + ", so.object_key)",
     "  limit 1",
     ")",
@@ -227,7 +229,7 @@ export function buildUploadOverlapSql({ tenantId, hashes }) {
     "  select matter_id, count(*)::int as matter_total_files",
     "  from documents d",
     "  where d.tenant_id = current_app_tenant_id()",
-    "    and d.status <> 'deleted_pending'",
+    `    and d.status not in ${INACTIVE_SOURCE_DOCUMENT_STATUS_SQL}`,
     "  group by matter_id",
     "), overlap_rows as (",
     "  select",
@@ -242,7 +244,7 @@ export function buildUploadOverlapSql({ tenantId, hashes }) {
     "    from documents d",
     "    where d.tenant_id = current_app_tenant_id()",
     "      and d.matter_id = m.id",
-    "      and d.status <> 'deleted_pending'",
+    `      and d.status not in ${INACTIVE_SOURCE_DOCUMENT_STATUS_SQL}`,
     "      and lower(coalesce(d.sha256, '')) = i.sha256",
     "  )",
     "  left join matter_totals mt on mt.matter_id = m.id",

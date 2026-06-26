@@ -30,11 +30,11 @@ test("runtime DB storage query SQL builds workspace and payload reads", () => {
   assert.match(workspaceSql, /from storage_objects so/i);
   assert.match(workspaceSql, /join storage_object_payloads sop/i);
   assert.match(workspaceSql, /left join documents d/i);
-  assert.match(workspaceSql, /d\.status <> 'deleted_pending'/);
+  assert.match(workspaceSql, /d\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
   assert.match(workspaceSql, /'objects'/);
   assert.match(payloadSql, /with candidates as/i);
   assert.match(payloadSql, /left join documents d/i);
-  assert.match(payloadSql, /d\.status <> 'deleted_pending'/);
+  assert.match(payloadSql, /d\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
   assert.match(payloadSql, /DB Matter\/10_Library\/List of Dates\.md/);
   assert.match(payloadSql, /encode\(sop\.payload, 'base64'\)/i);
   assert.match(payloadSql, /array_position/);
@@ -70,6 +70,7 @@ test("runtime DB storage query SQL builds lookup, overlap, and advisory reads", 
 
   assert.match(lookupSql, /lower\(name\) = lower\('O''Reilly Matter'\)/);
   assert.match(overlapSql, /from unnest\(ARRAY\['aaaaaaaa/);
+  assert.match(overlapSql, /d\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
   assert.match(overlapSql, /overlapPercent/);
   assert.match(advisorySql, /preparation_advisory_snapshots/);
   assert.match(advisorySql, /matter-attention\/v1/);
