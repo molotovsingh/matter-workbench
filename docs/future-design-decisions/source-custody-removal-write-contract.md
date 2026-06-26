@@ -192,7 +192,7 @@ Already present:
 - local source tombstone read-side suppression;
 - runtime DB inactive source document statuses;
 - active-context suppression for stale generated artifact summaries;
-- pure read-only source-removal impact preview helper with no route and no UI;
+- pure read-only source-removal impact preview helper and endpoint with no UI;
 - artifact currentness schema/service foundation for read-only projection,
   non-routed local manifest persistence, and runtime DB stale/needs-review write
   helpers;
@@ -207,7 +207,6 @@ Still missing before any UI:
 - routed/authorized source-removal endpoint;
 - operator-visible local repair workflow for failed local mutations;
 - restore/quarantine workflows;
-- impact preview endpoint;
 - feature-flagged UI;
-- release/deploy of the non-routed mutation service when it becomes active
-  runtime behavior.
+- release/deploy of the source-removal write path if it is ever routed as
+  active runtime behavior.

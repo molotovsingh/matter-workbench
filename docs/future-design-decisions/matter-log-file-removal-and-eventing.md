@@ -288,6 +288,8 @@ Exit criteria:
 
 Goal: let users/operators understand consequences before enabling removal.
 
+Status: backend read-only endpoint exists. It has no UI and performs no mutation.
+
 Deliverables:
 
 - backend dry-run endpoint for `what would happen if FILE-0007 were removed?`;

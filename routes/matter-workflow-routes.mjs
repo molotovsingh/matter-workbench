@@ -4,6 +4,7 @@ import { runMatterInit } from "../matter-init-engine.mjs";
 import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { searchMatterContextPacket, summarizeMatterContextPacket } from "../services/matter-context-service.mjs";
+import { buildSourceRemovalImpactPreviewFromPacket, previewSourceRemovalImpact } from "../services/source-removal-impact-preview-service.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
@@ -348,6 +349,19 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         }
         const root = await matterRootForQuery(matterStore, requestUrl, { allowMissingActive: true });
         sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan(root));
+      }),
+      exactRoute("GET", "/api/source-removal-impact-preview", async () => {
+        const fileId = requestUrl.searchParams.get("fileId") || requestUrl.searchParams.get("file_id") || "";
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          assertRuntimeDbContextReadAvailable({ runtimeDbStorageService });
+          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+          sendJson(response, 200, runtimeDbReadResponse(buildSourceRemovalImpactPreviewFromPacket(packet, { fileId }), matter));
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Preview source removal impact");
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await previewSourceRemovalImpact({ matterRoot: root, fileId }));
       }),
       exactRoute("GET", "/api/matter-context/search", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {

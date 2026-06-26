@@ -101,6 +101,10 @@ test("runtime DB doctor read and fix routes stay DB-native", async () => {
 });
 
 test("runtime DB matter context and rerun advice read routes stay DB-native", async () => {
+  const previewSource = await readRouteSource(
+    'exactRoute("GET", "/api/source-removal-impact-preview"',
+    'exactRoute("GET", "/api/matter-context/search"',
+  );
   const searchSource = await readRouteSource(
     'exactRoute("GET", "/api/matter-context/search"',
     'exactRoute("GET", "/api/matter-context"',
@@ -117,6 +121,13 @@ test("runtime DB matter context and rerun advice read routes stay DB-native", as
     'exactRoute("GET", "/api/rerun-advice"',
     "    ],\n  });\n}",
   );
+
+  assert.match(previewSource, /assertRuntimeDbContextReadAvailable/);
+  assert.match(previewSource, /readMatterContextPacket/);
+  assert.match(previewSource, /buildSourceRemovalImpactPreviewFromPacket/);
+  assert.match(previewSource, /return;\n\s*}\n\s*assertFilesystemWorkflowAvailable/);
+  assert.doesNotMatch(previewSource, /runRuntimeDbMaterializedRead/);
+  assert.doesNotMatch(previewSource, /runMaterializedMatterRead/);
 
   assert.match(searchSource, /assertRuntimeDbContextReadAvailable/);
   assert.match(searchSource, /readMatterContextPacket/);

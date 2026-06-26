@@ -24,7 +24,7 @@ test("source custody removal write contract stays narrow, idempotent, and non-de
   assert.match(contract, /inside one transaction/);
   assert.match(contract, /status\+tombstone\+event|status.*event/s);
   assert.match(contract, /Do not silently regenerate paid\/model artifacts/);
-  assert.match(contract, /pure read-only source-removal impact preview helper with no route and no UI/);
+  assert.match(contract, /pure read-only source-removal impact preview helper and endpoint with no UI/);
   assert.match(contract, /Still missing before any UI/);
   assert.doesNotMatch(contract, /DELETE FROM/i);
   assert.doesNotMatch(contract, /rm -rf/i);
