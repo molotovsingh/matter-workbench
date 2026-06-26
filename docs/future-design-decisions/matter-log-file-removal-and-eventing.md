@@ -299,14 +299,17 @@ Deliverables:
 Exit criteria:
 
 - UI can show impact preview: source will be removed, List of Dates will become
-  stale, Matter Story/custom outputs may need review.
+  stale, Matter Story/custom outputs may need review;
+- Matter Log can render a privilege-safe source-removal summary from the
+  canonical event.
 
 ### Phase 9 — Backend tombstone operation, no broad UI
 
 Goal: implement the core mutation safely before making it easy to click.
 
 Status: foundation started as a non-routed service only. It is not exposed to
-users and does not unlock a file-removal UI.
+users and does not unlock a file-removal UI. Matter Log can render the canonical
+source-removal event when present.
 
 Deliverables:
 

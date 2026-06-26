@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createMatterLogService, jobsToMatterLogEntries, runsToMatterLogEntries } from "../services/matter-log-service.mjs";
+import { createMatterLogService, eventsToMatterLogEntries, jobsToMatterLogEntries, runsToMatterLogEntries } from "../services/matter-log-service.mjs";
 
 test("matter log service projects jobs and custom skill runs as non-canonical read-only entries", async () => {
   const service = createMatterLogService({
@@ -107,6 +107,44 @@ test("matter log service includes canonical matter_events before legacy projecti
   assert.equal(log.entries[0].category, "skill_factory");
   assert.equal(log.entries[0].summary, "Issue Discovery custom skill was created (/issue_discovery).");
   assert.match(log.limitations.join("\n"), /Canonical matter_events are included when present/);
+});
+
+
+test("matter log renders source-removal canonical events without leaking source text", () => {
+  const [entry] = eventsToMatterLogEntries([{
+    schema_version: "matter-event/v1",
+    eventId: "22222222-2222-4222-8222-222222222222",
+    eventType: "source_file.removed_from_active_record",
+    occurredAt: "2026-06-26T12:20:00.000Z",
+    matterName: "Taori vs Roma Builder",
+    actor: { displayName: "Asha", username: "asha" },
+    object: { type: "source_file", id: "FILE-0007", label: "FILE-0007" },
+    payload: {
+      file_id: "FILE-0007",
+      previous_status: "verified",
+      status: "removed_from_active_record",
+      source_path: "00_Inbox/Intake 01/By Type/PDFs/FILE-0007__wrong.pdf",
+      reason: "Wrong client file uploaded to this matter.",
+      physical_deletion: false,
+      affected_artifacts: [
+        { family: "source_index", effect: "mark_stale_or_refresh_needed", source_text: "must not leak" },
+        { family: "list_of_dates", effect: "chronology_regeneration_needed", generated_markdown: "must not leak" },
+        { family: "matter_story", state: "needs_review", legal_analysis: "must not leak" },
+      ],
+      source_text: "secret source text must not leak",
+      extracted_evidence_blocks: [{ text: "evidence must not leak" }],
+      generated_legal_work_product: "analysis must not leak",
+    },
+    idempotencyKey: "source-removal:FILE-0007:v1",
+  }], { matterName: "Taori vs Roma Builder" });
+
+  assert.equal(entry.category, "source_mutation");
+  assert.equal(entry.title, "FILE-0007");
+  assert.equal(entry.summary, "FILE-0007 removed from the active record by Asha. Reason: Wrong client file uploaded to this matter. Source Index marked stale; List of Dates marked for regeneration; Matter Story needs review.");
+  assert.equal(entry.details.payload.file_id, "FILE-0007");
+  assert.equal(entry.details.payload.physical_deletion, false);
+  assert.deepEqual(entry.details.payload.affected_artifacts.map((artifact) => artifact.family), ["source_index", "list_of_dates", "matter_story"]);
+  assert.doesNotMatch(JSON.stringify(entry), /secret source text|evidence must not leak|analysis must not leak|must not leak/);
 });
 
 

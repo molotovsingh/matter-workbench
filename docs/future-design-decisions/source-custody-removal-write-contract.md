@@ -198,14 +198,15 @@ Already present:
   helpers;
 - non-routed source-removal mutation service with required reason/idempotency,
   local tombstone/event/currentness writes, local repair-state failure posture,
-  and runtime DB transaction SQL.
+  and runtime DB transaction SQL;
+- privilege-safe read-only Matter Log rendering for canonical
+  `source_file.removed_from_active_record` events.
 
 Still missing before any UI:
 
 - routed/authorized source-removal endpoint;
 - operator-visible local repair workflow for failed local mutations;
 - restore/quarantine workflows;
-- Matter Log source-removal summary rendering;
 - impact preview endpoint;
 - feature-flagged UI;
 - release/deploy of the non-routed mutation service when it becomes active

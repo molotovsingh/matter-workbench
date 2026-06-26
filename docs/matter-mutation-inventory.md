@@ -97,10 +97,11 @@ File removal should remain blocked until these gaps are addressed:
 2. No operator-visible repair workflow for failed local source-removal mutations.
 3. No complete unified active source set read/write model exposed to product UI.
 4. No restore/quarantine design.
-5. No privilege-safe Matter Log summaries.
-6. No impact preview endpoint or feature-flagged confirmation UI.
-7. No release/deploy of the non-routed mutation service as active runtime
+5. No impact preview endpoint or feature-flagged confirmation UI.
+6. No release/deploy of the non-routed mutation service as active runtime
    behavior.
+7. No operator-facing Matter Log source-removal workflow because the mutation is
+   not routed.
 
 ## First Implemented Event Spike
 

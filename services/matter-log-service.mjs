@@ -122,7 +122,8 @@ function eventToMatterLogEntry(event = {}) {
   const occurredAt = normalizeTimestamp(event.occurredAt || event.occurred_at || event.createdAt || event.created_at);
   const object = event.object && typeof event.object === "object" && !Array.isArray(event.object) ? event.object : {};
   const payload = event.payload && typeof event.payload === "object" && !Array.isArray(event.payload) ? event.payload : {};
-  const title = matterEventTitle(event, { eventType, object });
+  const safePayload = isSourceRemovalEvent(eventType) ? sanitizeSourceRemovalPayload(payload) : payload;
+  const title = matterEventTitle(event, { eventType, object, payload: safePayload });
   const status = matterEventStatus(event, { eventType });
   return removeEmpty({
     id: `event:${eventId}`,
@@ -135,7 +136,7 @@ function eventToMatterLogEntry(event = {}) {
     category: matterEventCategory(eventType),
     eventType,
     title,
-    summary: matterEventSummary(event, { title, eventType, object, payload }),
+    summary: matterEventSummary(event, { title, eventType, object, payload: safePayload }),
     status,
     custodyGrade: "canonical_event",
     canonical: true,
@@ -144,7 +145,7 @@ function eventToMatterLogEntry(event = {}) {
     details: removeEmpty({
       summaryKey: normalizeText(event.summaryKey || event.summary_key),
       object,
-      payload,
+      payload: safePayload,
       idempotencyKey: normalizeText(event.idempotencyKey || event.idempotency_key),
       source: event.source,
     }),
@@ -247,7 +248,8 @@ async function safeListRuns(configurableSkillRunsService, { matterName = "", lim
   };
 }
 
-function matterEventTitle(event = {}, { eventType = "", object = {} } = {}) {
+function matterEventTitle(event = {}, { eventType = "", object = {}, payload = {} } = {}) {
+  if (isSourceRemovalEvent(eventType)) return sourceRemovalFileId({ object, payload }) || "Source file";
   const label = normalizeText(object.label || event.payload?.title || event.payload?.slash);
   if (label) return label;
   return humanizeDottedEvent(eventType || "matter.event");
@@ -259,11 +261,88 @@ function matterEventSummary(event = {}, { title = "Event", eventType = "", objec
     const slash = normalizeText(payload.slash);
     return `${title} custom skill was created${slash ? ` (${slash})` : ""}.`;
   }
-  if (eventType === "source_file.removed_from_active_record") {
-    return `${title} was removed from the active matter record.`;
-  }
+  if (isSourceRemovalEvent(eventType)) return sourceRemovalSummary(event, { title, payload });
   if (object.type || object.id) return `${humanizeDottedEvent(eventType)} recorded for ${normalizeText(object.label || object.id || object.type)}.`;
   return `${humanizeDottedEvent(eventType)} recorded.`;
+}
+
+function sourceRemovalSummary(event = {}, { title = "Source file", payload = {} } = {}) {
+  const actor = actorLabel(event.actor);
+  const reason = normalizeText(payload.reason, 220);
+  const parts = [`${title} removed from the active record${actor ? ` by ${actor}` : ""}.`];
+  if (reason) parts.push(`Reason: ${trimTerminalPeriod(reason)}.`);
+  const artifactSummary = sourceRemovalArtifactSummary(payload.affected_artifacts);
+  if (artifactSummary) parts.push(artifactSummary);
+  return parts.join(" ");
+}
+
+function trimTerminalPeriod(value = "") {
+  return normalizeText(value).replace(/[.。]+$/u, "");
+}
+
+function sourceRemovalFileId({ object = {}, payload = {} } = {}) {
+  return normalizeFileId(payload.file_id || payload.fileId || object.id || object.label);
+}
+
+function sanitizeSourceRemovalPayload(payload = {}) {
+  const affectedArtifacts = sanitizeAffectedArtifacts(payload.affected_artifacts || payload.affectedArtifacts);
+  return removeEmpty({
+    file_id: normalizeFileId(payload.file_id || payload.fileId),
+    previous_status: normalizeText(payload.previous_status || payload.previousStatus, 80),
+    new_status: normalizeText(payload.new_status || payload.newStatus || payload.status, 80),
+    status: normalizeText(payload.status, 80),
+    source_path: normalizeText(payload.source_path || payload.sourcePath, 500),
+    original_path: normalizeText(payload.original_path || payload.originalPath, 500),
+    working_copy_path: normalizeText(payload.working_copy_path || payload.workingCopyPath, 500),
+    sha256: normalizeText(payload.sha256, 128),
+    reason: normalizeText(payload.reason, 500),
+    physical_deletion: payload.physical_deletion === true ? true : false,
+    affected_artifacts: affectedArtifacts,
+  });
+}
+
+function sanitizeAffectedArtifacts(value = []) {
+  return (Array.isArray(value) ? value : [])
+    .map((artifact) => {
+      const raw = artifact && typeof artifact === "object" && !Array.isArray(artifact) ? artifact : {};
+      return removeEmpty({
+        family: normalizeText(raw.family || raw.artifactFamily || raw.artifact_family, 80),
+        effect: normalizeText(raw.effect, 120),
+        state: normalizeText(raw.state, 80),
+        dependencyState: normalizeText(raw.dependencyState || raw.dependency_state, 120),
+        artifactPath: normalizeText(raw.artifactPath || raw.artifact_path, 500),
+        reference_count: Number.isInteger(raw.reference_count) ? raw.reference_count : undefined,
+      });
+    })
+    .filter((artifact) => artifact.family || artifact.artifactPath || artifact.effect || artifact.state || artifact.dependencyState);
+}
+
+function sourceRemovalArtifactSummary(affectedArtifacts = []) {
+  const labels = new Set();
+  for (const artifact of Array.isArray(affectedArtifacts) ? affectedArtifacts : []) {
+    const family = normalizeText(artifact.family || artifact.artifactFamily || artifact.artifact_family);
+    const effect = normalizeText(artifact.effect || artifact.state || artifact.dependencyState || artifact.dependency_state).toLowerCase();
+    if (family === "source_index") labels.add("Source Index marked stale");
+    else if (family === "list_of_dates") labels.add(effect.includes("regeneration") ? "List of Dates marked for regeneration" : "List of Dates marked stale");
+    else if (family === "matter_story") labels.add("Matter Story needs review");
+    else if (family === "custom_skill_output") labels.add("Source-backed custom skill outputs need review");
+  }
+  if (!labels.size) return "";
+  return `${[...labels].join("; ")}.`;
+}
+
+function actorLabel(actor = {}) {
+  if (!actor || typeof actor !== "object" || Array.isArray(actor)) return "";
+  return normalizeText(actor.displayName || actor.display_name || actor.username, 120);
+}
+
+function isSourceRemovalEvent(eventType = "") {
+  return normalizeText(eventType) === "source_file.removed_from_active_record";
+}
+
+function normalizeFileId(value = "") {
+  const text = normalizeText(value, 40).toUpperCase();
+  return /^FILE-\d{4,}$/.test(text) ? text : "";
 }
 
 function matterEventStatus(event = {}, { eventType = "" } = {}) {
