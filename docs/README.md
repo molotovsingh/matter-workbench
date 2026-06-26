@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.57](releases/v1.0.0-beta.57.md) |
+| Current release notes | [v1.0.0-beta.58](releases/v1.0.0-beta.58.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -125,7 +125,8 @@ implementation plan.
 | [v1.0.0-beta.54](releases/v1.0.0-beta.54.md) | Beta 3 Skill Factory creation toast release marker. |
 | [v1.0.0-beta.55](releases/v1.0.0-beta.55.md) | Beta 3 Matter Log preview release marker. |
 | [v1.0.0-beta.56](releases/v1.0.0-beta.56.md) | Beta 3 Matter Events foundation release marker. |
-| [v1.0.0-beta.57](releases/v1.0.0-beta.57.md) | Current Beta 3 custom-skill canonical event release marker. |
+| [v1.0.0-beta.57](releases/v1.0.0-beta.57.md) | Beta 3 custom-skill canonical event release marker. |
+| [v1.0.0-beta.58](releases/v1.0.0-beta.58.md) | Current Beta 3 active source suppression foundation release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |

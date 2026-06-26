@@ -4,7 +4,7 @@
 
 It is built for the first hard part of legal work: taking PDFs, emails, scans, spreadsheets, pleadings, notices, orders, and client material, then producing an auditable record with document labels, extracted text, a source index, matter context, and a lawyer-review-ready chronology.
 
-> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, and the first canonical Matter Log event (`custom_skill.created`) is live for new custom skill activations.**
+> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, with canonical custom-skill events and read-side active source suppression live.**
 >
 > Access: **Private beta only.** This is not a public self-serve legal advice product; trusted testers use supervised accounts and lawyer review remains mandatory.
 
@@ -109,6 +109,7 @@ Completed release checks include:
 
 - Postgres migration `020_matter_events` applied and recorded;
 - `custom_skill.created` canonical Matter Log event wired for new custom skill activations;
+- read-side active source suppression foundation wired before any file-removal UI;
 - private-cloud deployment to the beta VM;
 - runtime DB migration through `020_matter_events`;
 - login smoke;
@@ -122,7 +123,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.57 release marker](docs/releases/v1.0.0-beta.57.md)
+- [v1.0.0-beta.58 release marker](docs/releases/v1.0.0-beta.58.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
