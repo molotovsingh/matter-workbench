@@ -80,6 +80,305 @@ work.
 This is not yet a commitment to full event sourcing. A first slice may be an
 append-only event/audit ledger plus explicit projection updates.
 
+## Incremental Plan To Start The Journey
+
+The journey should start with small, reversible phases. Do not wait for a full
+Kafka/event-sourcing architecture. Also do not jump straight to a visible delete
+button.
+
+Each phase below should be small enough to ship behind tests and, where useful,
+behind a feature flag.
+
+### Phase 0 — Product guardrail now
+
+Goal: prevent the wrong implementation from appearing.
+
+Deliverables:
+
+- keep `Delete file` out of normal lawyer UI;
+- document that the only acceptable future label is closer to `Remove from
+  active record`;
+- add/keep a repo test or product-doc check if needed to prevent a normal delete
+  affordance from landing accidentally.
+
+Exit criteria:
+
+- team understands that file removal is a matter-custody mutation, not a file
+  manager action.
+
+### Phase 1 — Current mutation inventory
+
+Goal: know what already mutates a matter before adding a Matter Log.
+
+Deliverables:
+
+- inventory current matter-changing operations:
+  - matter create;
+  - switch matter, if logged only as UI activity;
+  - files added;
+  - prepare matter;
+  - extraction;
+  - source labels;
+  - List of Dates create/refresh;
+  - Matter Story;
+  - custom skill create/run;
+  - lifecycle/status changes;
+- classify each operation as source mutation, derived artifact mutation, UI-only
+  state, or audit/system event.
+
+Exit criteria:
+
+- a short table exists showing which existing ledgers/jobs/events can seed a
+  Matter Log without pretending they are full custody records.
+
+### Phase 2 — Event vocabulary spike, not schema lock-in
+
+Goal: define event names and payload classes lightly enough to test.
+
+Deliverables:
+
+- draft event vocabulary for existing operations and future file removal;
+- separate source-file events from artifact events;
+- identify required event fields versus optional diagnostic fields;
+- decide which event summaries are generated from templates instead of stored as
+  free text.
+
+Exit criteria:
+
+- a minimal event envelope is accepted for a spike, not yet frozen as a public
+  API.
+
+### Phase 3 — Read-only Matter Log from existing records
+
+Goal: give the product a Matter Log surface before new destructive actions.
+
+Deliverables:
+
+- read-only Matter Log API that projects from existing job/run/activity records
+  where possible;
+- UI surface under matter home or activity that shows matter-scoped timeline;
+- clear labels that distinguish current best-effort history from full custody
+  events.
+
+Exit criteria:
+
+- users can answer basic questions such as `what changed recently in this
+  matter?` without any file-removal feature existing yet.
+
+### Phase 4 — Append-only event store behind the scenes
+
+Goal: start recording canonical events for new mutations.
+
+Deliverables:
+
+- runtime DB `matter_events` or equivalent app-owned event table;
+- local fallback event ledger if local filesystem mode remains supported;
+- append helper used by one low-risk operation first, such as custom skill
+  creation or List of Dates refresh;
+- idempotency key support for event appends.
+
+Exit criteria:
+
+- at least one existing mutation writes a real Matter Log event in both runtime
+  DB mode and local mode, with tests.
+
+### Phase 5 — Tombstone/suppression design spike
+
+Goal: prove removed source files will not resurrect during preparation.
+
+Deliverables:
+
+- runtime DB design for active/removed source document status;
+- local filesystem design for tombstones:
+  - tombstone manifest;
+  - quarantine lane;
+  - or other suppression mechanism;
+- tests showing source scanners can skip tombstoned files.
+
+Exit criteria:
+
+- rerunning matter-init/source reconciliation after tombstone cannot re-add the
+  removed file.
+
+### Phase 6 — Active source set projection
+
+Goal: make every context builder read from a canonical active source set.
+
+Deliverables:
+
+- active source set read model/API;
+- removed/tombstoned source set read model/API;
+- matter context builder and source inventory readers respect active-only status;
+- technical/audit views can still find tombstoned records where allowed.
+
+Exit criteria:
+
+- Ask, Skills, Source Index, and List of Dates input paths can be tested against
+  active-only source selection.
+
+### Phase 7 — Artifact currentness projection
+
+Goal: avoid stale downstream outputs before removal ships.
+
+Deliverables:
+
+- artifact currentness model for source-backed artifacts;
+- List of Dates uses existing dependency state contract;
+- Matter Story and custom skill outputs get at least coarse stale/current flags;
+- UI can show old artifact preserved but not current.
+
+Exit criteria:
+
+- when source set changes in a test fixture, List of Dates is marked
+  `chronology_regeneration_needed` or equivalent without deleting the old output.
+
+### Phase 8 — Removal impact preview, no mutation yet
+
+Goal: let users/operators understand consequences before enabling removal.
+
+Deliverables:
+
+- backend dry-run endpoint for `what would happen if FILE-0007 were removed?`;
+- lists affected artifacts and refresh needs;
+- no state mutation;
+- Matter Log not changed by dry run unless separately logged as an operator
+  diagnostic.
+
+Exit criteria:
+
+- UI can show impact preview: source will be removed, List of Dates will become
+  stale, Matter Story/custom outputs may need review.
+
+### Phase 9 — Backend tombstone operation, no broad UI
+
+Goal: implement the core mutation safely before making it easy to click.
+
+Deliverables:
+
+- operator-only or test-only backend operation to remove source from active
+  record;
+- required reason;
+- idempotency key;
+- event append;
+- active source set update;
+- artifact currentness updates;
+- no physical purge.
+
+Exit criteria:
+
+- tests prove removed source is absent from future context and `FILE-NNNN` ids
+  are not renumbered.
+
+### Phase 10 — Preparation reconciliation after tombstone
+
+Goal: make the normal preparation path compatible with removals.
+
+Deliverables:
+
+- matter-init/source reconciliation respects tombstones;
+- extraction/source-label refresh does not resurrect removed files;
+- stale advisories are updated consistently;
+- failure states are logged.
+
+Exit criteria:
+
+- running preparation after a tombstone leaves the removed source inactive and
+  records visible refresh status.
+
+### Phase 11 — Minimal Matter Log UI as trust surface
+
+Goal: make the mutation explainable to lawyers.
+
+Deliverables:
+
+- matter-scoped log entries for source removal, stale marking, refresh start,
+  refresh completion/failure;
+- actor, timestamp, reason, affected FILE id, and impact;
+- privilege-safe summaries;
+- filter for source changes versus generated-output changes.
+
+Exit criteria:
+
+- after a test removal, a user can see who did it, why, what changed, and which
+  outputs became stale.
+
+### Phase 12 — Gated `Remove from active record` UI
+
+Goal: expose removal carefully.
+
+Deliverables:
+
+- feature-flagged UI on source/original files only;
+- confirmation with impact preview;
+- required reason;
+- no availability on generated Library artifacts, drafts, dispatch copies, or
+  technical files;
+- no silent paid/model regeneration.
+
+Exit criteria:
+
+- beta tester can remove a wrong source file and understand the consequence
+  before committing.
+
+### Phase 13 — Restore path
+
+Goal: make ordinary mistakes reversible.
+
+Deliverables:
+
+- restore tombstoned source file;
+- restore event;
+- active source projection update;
+- stale downstream outputs again unless proven unaffected;
+- Matter Log entry.
+
+Exit criteria:
+
+- removed file can be restored without FILE id renumbering or citation breakage.
+
+### Phase 14 — Refresh orchestration
+
+Goal: turn removal aftermath into guided recovery.
+
+Deliverables:
+
+- queue or run deterministic reconciliation;
+- mark List of Dates regeneration needed;
+- ask user before paid/model regeneration unless policy says otherwise;
+- show refresh status in Matter Log and Matter Home.
+
+Exit criteria:
+
+- user is not left with silent stale outputs after removal.
+
+### Phase 15 — Broker decision point
+
+Goal: decide whether Postgres outbox remains enough.
+
+Trigger this phase only after Matter Log and removal flows are real.
+
+Questions:
+
+- Are there multiple worker services consuming the same stream?
+- Do projections need replay at scale?
+- Is cross-service fanout becoming complex?
+- Are hosted reliability requirements beyond Postgres outbox?
+
+Exit criteria:
+
+- explicit decision: stay with Postgres jobs/outbox, or introduce Kafka/another
+  broker as transport while keeping matter events as custody authority.
+
+### Suggested first three pull requests
+
+1. **Matter mutation inventory doc/test** — no runtime behavior change.
+2. **Read-only Matter Log skeleton** — project existing jobs/runs/activity into a
+   matter timeline with honest `best effort` labeling.
+3. **Event append spike for one low-risk mutation** — record one new canonical
+   event, prove local/runtime DB compatibility, and add idempotency tests.
+
+These start the fundamental shift without prematurely implementing deletion.
+
 ## Terminology
 
 ### Matter Log
