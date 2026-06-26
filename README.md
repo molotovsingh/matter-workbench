@@ -4,7 +4,7 @@
 
 It is built for the first hard part of legal work: taking PDFs, emails, scans, spreadsheets, pleadings, notices, orders, and client material, then producing an auditable record with document labels, extracted text, a source index, matter context, and a lawyer-review-ready chronology.
 
-> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, with canonical custom-skill events and active source suppression foundations live.**
+> Status: **Beta 3 private-cloud beta is code-complete on `main`, deployed, with canonical custom-skill events and active source suppression/currentness foundations live.**
 >
 > Access: **Private beta only.** This is not a public self-serve legal advice product; trusted testers use supervised accounts and lawyer review remains mandatory.
 
@@ -112,6 +112,7 @@ Completed release checks include:
 - read-side active source suppression foundation wired before any file-removal UI;
 - stale generated artifact summaries prevented from reintroducing suppressed source citations;
 - runtime DB inactive source document statuses aligned with active-source suppression;
+- local rerun/currentness advice marks Source Index/List of Dates stale when suppressed sources are still referenced;
 - private-cloud deployment to the beta VM;
 - runtime DB migration through `020_matter_events`;
 - login smoke;
@@ -125,7 +126,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.60 release marker](docs/releases/v1.0.0-beta.60.md)
+- [v1.0.0-beta.61 release marker](docs/releases/v1.0.0-beta.61.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
