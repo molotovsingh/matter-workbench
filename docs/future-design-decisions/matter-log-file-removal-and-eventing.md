@@ -165,6 +165,18 @@ Exit criteria:
 - users can answer basic questions such as `what changed recently in this
   matter?` without any file-removal feature existing yet.
 
+Current narrow implementation slice (2026-06-26):
+
+- `services/matter-log-service.mjs` and `GET /api/matter-log` expose
+  `matter-log/v0-readonly` as a **best-effort projection**.
+- The first projection uses only the job status ledger and configurable skill run
+  ledger.
+- The React Activity page labels this as `Matter Log` / `Preview` and states
+  that it is not custody-grade yet.
+- This slice does **not** add file removal, tombstones, canonical matter events,
+  restore/quarantine, or artifact currentness projection.
+- This slice does **not** make Copilot receipts or conversation memory evidence.
+
 ### Phase 4 — Append-only event store behind the scenes
 
 Goal: start recording canonical events for new mutations.

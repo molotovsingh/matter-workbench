@@ -26,6 +26,7 @@ import type {
   MatterSkillRunRequest,
   MatterContextPreview,
   MatterContextSearchResponse,
+  MatterLog,
   MatterCopilotAnswer,
   MatterCopilotConversationTurn,
   MatterCopilotResearchAnswer,
@@ -393,6 +394,7 @@ export const api = {
 
   // ─── Matter workflow ──────────────────────
   getJobs: (limit = 100) => getJson<JobStatusList>(`/api/jobs?limit=${limit}`),
+  getMatterLog: (limit = 100, matterName?: string) => getJson<MatterLog>(withQuery('/api/matter-log', { limit: String(limit), matter: matterName })),
   getPrivateBetaFeedback: (limit = 100) => getJson<PrivateBetaFeedbackList>(`/api/private-beta/feedback?limit=${limit}`),
   submitPrivateBetaFeedback: (body: PrivateBetaFeedbackRequest) =>
     postJson<PrivateBetaFeedbackResponse>('/api/private-beta/feedback', body),

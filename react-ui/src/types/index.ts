@@ -262,6 +262,46 @@ export interface JobStatusList {
   jobs: JobStatus[];
 }
 
+export interface MatterLogActor {
+  username?: string;
+  displayName?: string;
+  role?: string;
+}
+
+export interface MatterLogEntry {
+  id: string;
+  sourceLedger: 'job_status' | 'configurable_skill_runs' | string;
+  sourceId: string;
+  sourceSchemaVersion?: string;
+  occurredAt: string;
+  matterName?: string;
+  matterId?: string;
+  category: 'source_preparation' | 'generated_artifact' | 'skill_factory' | 'ledger_activity' | 'workflow_job' | string;
+  eventType: string;
+  title: string;
+  summary: string;
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled' | 'unknown' | string;
+  custodyGrade: 'projection' | string;
+  canonical: boolean;
+  actor?: MatterLogActor;
+  route?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface MatterLog {
+  schema_version?: 'matter-log/v0-readonly' | string;
+  status: 'best_effort_projection' | string;
+  generatedAt: string;
+  matterName?: string;
+  summary?: {
+    entries?: number;
+    sourceLedgers?: string[];
+    canonicalEvents?: boolean;
+  };
+  limitations?: string[];
+  entries: MatterLogEntry[];
+}
+
 export type PrivateBetaFeedbackChoice = 'did_not_work' | 'confused' | 'want_something';
 
 export interface PrivateBetaFeedbackContext {

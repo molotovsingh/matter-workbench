@@ -14,7 +14,7 @@ import { getErrorMessage } from '../lib/errors';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import { canSeeOperatorSurface } from '../lib/lawyerMode';
 import { useLatestValue } from '../hooks/useLatestValue';
-import type { ActiveMatter, JobStatus, PrivateBetaFeedback, SkillRun } from '../types';
+import type { ActiveMatter, JobStatus, MatterLogEntry, PrivateBetaFeedback, SkillRun } from '../types';
 
 interface DayGroup {
   label: string;
@@ -26,6 +26,7 @@ export default function ActivityPage() {
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
   const [runs, setRuns] = useState<SkillRun[]>([]);
   const [jobs, setJobs] = useState<JobStatus[]>([]);
+  const [matterLogEntries, setMatterLogEntries] = useState<MatterLogEntry[]>([]);
   const [feedback, setFeedback] = useState<PrivateBetaFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -35,14 +36,16 @@ export default function ActivityPage() {
     setLoading(true);
     setLoadError('');
     try {
-      const [runResult, jobResult, feedbackResult] = await Promise.all([
+      const [runResult, jobResult, matterLogResult, feedbackResult] = await Promise.all([
         api.getSkillRuns(100),
         api.getJobs(100),
+        api.getMatterLog(100),
         canReviewFeedback ? api.getPrivateBetaFeedback(100) : Promise.resolve({ feedback: [] }),
       ]);
       if (isCancelled()) return;
       setRuns(runResult.runs || []);
       setJobs(jobResult.jobs || []);
+      setMatterLogEntries(matterLogResult.entries || []);
       setFeedback(feedbackResult.feedback || []);
     } catch (e) {
       if (isCancelled()) return;
@@ -70,6 +73,9 @@ export default function ActivityPage() {
   const visibleFeedback = activeMatterName
     ? feedback.filter((item) => item.context?.activeMatterName === activeMatterName || item.context?.activeMatterFolder === activeMatterName)
     : feedback;
+  const visibleMatterLogEntries = activeMatterName
+    ? matterLogEntries.filter((entry) => entry.matterName === activeMatterName)
+    : matterLogEntries;
   const succeeded = visibleRuns.filter((r) => receiptForRun(r).isCompletedWork);
   const needsAttention = visibleRuns.filter((r) => receiptForRun(r).needsAttention);
   const missingOutput = visibleRuns.filter((r) => receiptForRun(r).receiptState === 'output_missing');
@@ -148,9 +154,10 @@ export default function ActivityPage() {
           {missingOutput.length > 0 && <span className="warning">{missingOutput.length} output missing</span>}
           {(running.length + runningJobs.length) > 0 && <span className="running">{running.length + runningJobs.length} running</span>}
           {(failed.length + failedJobs.length) > 0 && <span className="failed">{failed.length + failedJobs.length} failed</span>}
+          {visibleMatterLogEntries.length > 0 && <span className="warning">{visibleMatterLogEntries.length} log entries</span>}
           {newFeedback.length > 0 && <span className="warning">{newFeedback.length} feedback</span>}
           {queuedFeedback.length > 0 && <span className="warning">{queuedFeedback.length} sync queued</span>}
-          {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleFeedback.length === 0 && <span className="muted">No runs yet</span>}
+          {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleMatterLogEntries.length === 0 && visibleFeedback.length === 0 && <span className="muted">No runs yet</span>}
         </div>
       </div>
 
@@ -215,6 +222,20 @@ export default function ActivityPage() {
           <div className="activity-day-list attention">
             {needsAttention.map((run) => (
               <RunCard key={run.id} run={run} activeMatter={state.activeMatter} onCopy={handleCopyReport} onOpen={handleOpenOutput} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && !loadError && visibleMatterLogEntries.length > 0 && (
+        <section className="activity-section">
+          <h2>Matter Log <span className="pipeline-state warning">Preview</span></h2>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 14 }}>
+            Best-effort projection from job and custom skill ledgers. Not a custody-grade event log yet; conversation memory is not evidence.
+          </p>
+          <div className="activity-day-list quiet">
+            {visibleMatterLogEntries.map((entry) => (
+              <MatterLogCard key={entry.id} entry={entry} />
             ))}
           </div>
         </section>
@@ -286,7 +307,7 @@ export default function ActivityPage() {
         </section>
       )}
 
-      {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleFeedback.length === 0 && (
+      {!loading && visibleRuns.length === 0 && visibleJobs.length === 0 && visibleMatterLogEntries.length === 0 && visibleFeedback.length === 0 && (
         <div style={{ marginTop: 40, color: 'var(--muted)', fontSize: 14 }}>
           <p>No skill runs yet. Run a skill from the Home tab or command box.</p>
         </div>
@@ -408,6 +429,63 @@ function feedbackSyncClass(status?: string): string {
   if (status === 'queued') return 'warning';
   if (status === 'failed') return 'failed';
   return 'running';
+}
+
+function MatterLogCard({ entry }: { entry: MatterLogEntry }) {
+  const statusClass = jobStatusClass(entry.status);
+  const occurredTime = entry.occurredAt ? formatTime(entry.occurredAt) : '';
+  return (
+    <article className={`activity-card compact ${statusClass}`}>
+      <div className="activity-card-main">
+        <div className="activity-card-copy">
+          <div className="activity-title-row">
+            <h3>{entry.title || humanizeJobKind(entry.eventType)}</h3>
+            <span className={`pipeline-state ${statusClass}`}>{formatJobStatus(entry.status)}</span>
+            <span className="pipeline-state warning">projection</span>
+          </div>
+          <div className="activity-run-line">
+            {entry.matterName && <span>{entry.matterName}</span>}
+            <span>{formatMatterLogCategory(entry.category)}</span>
+            <span>{formatMatterLogSource(entry.sourceLedger)}</span>
+          </div>
+          {entry.summary && (
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '6px 0 0' }}>{entry.summary}</p>
+          )}
+        </div>
+        {occurredTime && (
+          <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
+            {occurredTime}
+          </time>
+        )}
+      </div>
+      <details className="activity-run-details" style={{ marginTop: 8 }}>
+        <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>Projection details</summary>
+        <dl className="skill-card-meta">
+          <div><dt>Event type</dt><dd>{entry.eventType}</dd></div>
+          <div><dt>Source ledger</dt><dd>{entry.sourceLedger}</dd></div>
+          <div><dt>Source ID</dt><dd>{entry.sourceId}</dd></div>
+          <div><dt>Custody grade</dt><dd>{entry.custodyGrade}</dd></div>
+          <div><dt>Canonical event</dt><dd>{entry.canonical ? 'yes' : 'no'}</dd></div>
+          {entry.route && <div><dt>Route</dt><dd>{entry.route}</dd></div>}
+        </dl>
+      </details>
+    </article>
+  );
+}
+
+function formatMatterLogCategory(category: string): string {
+  if (category === 'source_preparation') return 'Source preparation';
+  if (category === 'generated_artifact') return 'Generated artifact';
+  if (category === 'skill_factory') return 'Skill Factory';
+  if (category === 'ledger_activity') return 'Ledger activity';
+  if (category === 'workflow_job') return 'Workflow job';
+  return humanizeJobKind(category || 'event');
+}
+
+function formatMatterLogSource(sourceLedger: string): string {
+  if (sourceLedger === 'job_status') return 'Job ledger';
+  if (sourceLedger === 'configurable_skill_runs') return 'Custom skill run ledger';
+  return humanizeJobKind(sourceLedger || 'ledger');
 }
 
 function JobCard({ job }: { job: JobStatus }) {

@@ -28,6 +28,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
     copilotWebResearchService,
     env = process.env,
     jobStatusService,
+    matterLogService,
     matterStore,
     maxUploadBytes,
     privateBetaFeedbackService,
@@ -102,6 +103,13 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
         }));
         sendJson(response, 200, jobs);
+      }),
+      exactRoute("GET", "/api/matter-log", async () => {
+        const log = await matterLogService.readMatterLog({
+          matterName: requestUrl.searchParams.get("matter") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
+        });
+        sendJson(response, 200, await scopedMatterLog({ matterStore, log }));
       }),
       exactRoute("POST", "/api/private-beta/preparation-runs", async () => {
         const body = await readRequestJson(request);
@@ -607,6 +615,21 @@ async function scopedMatterLedger({ matterStore, list, key, fields }) {
   return {
     ...ledger,
     [key]: filterByVisibleMatterNames(ledger?.[key], visibleNames, { fields }),
+  };
+}
+
+async function scopedMatterLog({ matterStore, log }) {
+  if (!isPrivateBetaScopedUser()) return log;
+  const visibleNames = await visibleMatterNameSet(matterStore);
+  const entries = filterByVisibleMatterNames(log?.entries, visibleNames, { fields: ["matterName"] });
+  return {
+    ...log,
+    entries,
+    summary: {
+      ...(log?.summary || {}),
+      entries: entries.length,
+      sourceLedgers: Array.from(new Set(entries.map((entry) => entry.sourceLedger).filter(Boolean))).sort(),
+    },
   };
 }
 

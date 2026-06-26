@@ -18,6 +18,7 @@ import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStoryService } from "./services/matter-story-service.mjs";
 import { createJobStatusService } from "./services/job-status-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
+import { createMatterLogService } from "./services/matter-log-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
@@ -276,6 +277,10 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const matterLogService = options.matterLogService || createMatterLogService({
+    configurableSkillRunsService,
+    jobStatusService,
+  });
   const privateBetaObservabilityService = options.privateBetaObservabilityService || createPrivateBetaObservabilityService({
     feedbackService: privateBetaFeedbackService,
     heartbeatService: privateBetaHeartbeatService,
@@ -346,6 +351,7 @@ export async function createWorkbenchServer(options = {}) {
     env,
     jobStatusService,
     matterAttentionService,
+    matterLogService,
     matterCopilotService,
     copilotInteractionReceiptService,
     copilotWebResearchService,
