@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.64](releases/v1.0.0-beta.64.md) |
+| Current release notes | [v1.0.0-beta.65](releases/v1.0.0-beta.65.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -132,7 +132,8 @@ implementation plan.
 | [v1.0.0-beta.61](releases/v1.0.0-beta.61.md) | Beta 3 active-source currentness advice release marker. |
 | [v1.0.0-beta.62](releases/v1.0.0-beta.62.md) | Beta 3 runtime DB inactive source derived-payload filter release marker. |
 | [v1.0.0-beta.63](releases/v1.0.0-beta.63.md) | Beta 3 artifact-currentness foundation release marker. |
-| [v1.0.0-beta.64](releases/v1.0.0-beta.64.md) | Current Beta 3 source-removal backend foundation release marker. |
+| [v1.0.0-beta.64](releases/v1.0.0-beta.64.md) | Beta 3 source-removal backend foundation release marker. |
+| [v1.0.0-beta.65](releases/v1.0.0-beta.65.md) | Current Beta 3 read-only source-removal impact preview release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
