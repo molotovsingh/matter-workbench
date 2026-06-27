@@ -116,7 +116,7 @@ Completed release checks include:
 - local rerun/currentness advice marks Source Index/List of Dates stale when suppressed sources are still referenced;
 - runtime DB workspace/payload reads filter derived extraction/text payloads linked to inactive sources;
 - artifact currentness schema/projection foundation exists for future source-removal workflows;
-- non-routed source-removal mutation foundations, privilege-safe Matter Log rendering, and a read-only impact preview endpoint exist, without write-route/UI exposure;
+- non-routed source-removal mutation foundations, privilege-safe Matter Log rendering, a read-only impact preview endpoint, and non-destructive matter archive/reopen lifecycle exist, without source-delete/purge UI exposure;
 - private-cloud deployment to the beta VM;
 - runtime DB migration through `022_matter_artifact_currentness`;
 - login smoke;
@@ -130,7 +130,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.65 release marker](docs/releases/v1.0.0-beta.65.md)
+- [v1.0.0-beta.66 release marker](docs/releases/v1.0.0-beta.66.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
