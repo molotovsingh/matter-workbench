@@ -1299,9 +1299,35 @@ body { background: var(--c-bg); }
 }
 .record-action.primary { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
 .record-action.archive { grid-column: 1 / -1; color: var(--c-sidebar-text); }
-.record-action.archive.confirm { border-color: var(--warning); color: var(--warning); }
 .record-action:hover { background: var(--c-sidebar-hover); }
 .record-action.primary:hover { background: var(--c-accent-hover); }
+.archive-confirm-panel {
+  background: rgba(255, 193, 7, 0.10);
+  border: 1px solid rgba(255, 193, 7, 0.34);
+  border-radius: 6px;
+  color: var(--c-sidebar-text-active);
+  display: grid;
+  font-size: 12px;
+  gap: 7px;
+  line-height: 1.35;
+  margin: 0 12px 10px;
+  padding: 10px;
+}
+.archive-confirm-panel span { color: var(--c-sidebar-text); }
+.archive-confirm-actions { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 2px; }
+.archive-confirm-actions button {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.05);
+  color: var(--c-sidebar-text-active);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 8px;
+}
+.archive-confirm-actions button.danger { border-color: var(--warning); color: var(--warning); }
+.archive-confirm-actions button:hover { background: var(--c-sidebar-hover); }
 .technical-toggle {
   align-items: center;
   background: transparent;

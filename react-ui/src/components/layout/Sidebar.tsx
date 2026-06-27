@@ -53,13 +53,14 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
     });
   }
 
-  async function handleArchiveMatter() {
+  function requestArchiveMatter() {
     if (!activeMatter || archiveBusy) return;
-    if (archiveConfirmName !== activeMatter.name) {
-      setArchiveConfirmName(activeMatter.name);
-      appendTerminal([`[matter] archive requested for "${activeMatter.name}" — click Confirm archive to close it without deleting files`]);
-      return;
-    }
+    setArchiveConfirmName(activeMatter.name);
+    appendTerminal([`[matter] archive requested for "${activeMatter.name}" — this closes it without deleting files`]);
+  }
+
+  async function confirmArchiveMatter() {
+    if (!activeMatter || archiveBusy || archiveConfirmName !== activeMatter.name) return;
     setArchiveBusy(true);
     try {
       await api.archiveMatter(activeMatter.name);
@@ -119,15 +120,28 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
               <span aria-hidden="true">↻</span>Refresh
             </button>
             <button
-              className={`record-action archive${archiveConfirmName === activeMatter.name ? ' confirm' : ''}`}
+              className="record-action archive"
               type="button"
               title="Archive this matter without deleting files"
-              disabled={archiveBusy}
-              onClick={() => { void handleArchiveMatter(); }}
+              disabled={archiveBusy || archiveConfirmName === activeMatter.name}
+              onClick={requestArchiveMatter}
             >
-              <span aria-hidden="true">▱</span>{archiveConfirmName === activeMatter.name ? 'Confirm archive' : 'Archive'}
+              <span aria-hidden="true">▱</span>Archive
             </button>
           </div>
+          {archiveConfirmName === activeMatter.name && (
+            <div className="archive-confirm-panel" role="alert" aria-live="polite">
+              <strong>Archive this matter?</strong>
+              <span>This closes it from active work. No source files, generated artifacts, file IDs, or history will be deleted.</span>
+              <span>You can reopen it later from All matters → Archived.</span>
+              <div className="archive-confirm-actions">
+                <button type="button" onClick={() => setArchiveConfirmName(null)} disabled={archiveBusy}>Cancel</button>
+                <button type="button" className="danger" onClick={() => { void confirmArchiveMatter(); }} disabled={archiveBusy}>
+                  {archiveBusy ? 'Archiving…' : 'Confirm archive'}
+                </button>
+              </div>
+            </div>
+          )}
           {showOperatorChrome && (
             <>
               <button
