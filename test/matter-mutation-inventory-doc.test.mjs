@@ -10,6 +10,8 @@ const skillFactoryRoutesPath = new URL("../routes/skill-factory-routes.mjs", imp
 const TRACKED_MUTATION_ROUTES = [
   "/api/matters/new",
   "/api/matters/add-files",
+  "/api/matters/archive",
+  "/api/matters/reopen",
   "/api/matter-init",
   "/api/extract",
   "/api/describe-sources",

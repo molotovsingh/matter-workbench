@@ -250,11 +250,12 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
       exactRoute("GET", "/api/matters", async () => {
         const isRuntimeDbStorage = usesRuntimeDbStorage(matterStore, runtimeDbStorageService);
+        const includeArchived = /^(1|true|yes)$/i.test(requestUrl.searchParams.get("includeArchived") || "");
         sendJson(response, 200, {
           enabled: Boolean(configService.getMattersHome()) || isRuntimeDbStorage,
           mattersHome: configService.getMattersHome() || null,
           active: matterStore.activeMatterNameWithinHome(),
-          matters: await matterStore.listMattersHomeChildren(),
+          matters: await matterStore.listMattersHomeChildren({ includeArchived }),
         });
       }),
       exactRoute("POST", "/api/active-matter/clear", async () => {
@@ -269,6 +270,24 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           return;
         }
         sendJson(response, 200, presentWorkspaceForCurrentUser(await workspaceService.readWorkspace()));
+      }),
+      exactRoute("POST", "/api/matters/archive", async () => {
+        const body = await readRequestJson(request);
+        const matter = await matterStore.archiveMatter(body.name);
+        sendJson(response, 200, {
+          matter,
+          active: matterStore.activeMatterNameWithinHome(),
+          message: "Matter archived. Source files and generated artifacts were not deleted.",
+        });
+      }),
+      exactRoute("POST", "/api/matters/reopen", async () => {
+        const body = await readRequestJson(request);
+        const matter = await matterStore.reopenMatter(body.name);
+        sendJson(response, 200, {
+          matter,
+          active: matterStore.activeMatterNameWithinHome(),
+          message: "Matter reopened. Existing source file IDs and history were preserved.",
+        });
       }),
       exactRoute("POST", "/api/matters/new", async () => {
         sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.createMatter(request)));

@@ -144,7 +144,7 @@ export default function SettingsPage() {
       await api.setConfig({ mattersHome: mattersHomeEdit.trim() });
       setMattersHome(mattersHomeEdit.trim());
       appendTerminal(['[settings] matters home updated']);
-      const mattersResult = await api.getMatters();
+      const mattersResult = await api.getMatters({ includeArchived: true });
       dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
     } catch (err) {
       setMattersHomeError(getErrorMessage(err));

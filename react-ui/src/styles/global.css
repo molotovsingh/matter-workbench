@@ -644,6 +644,10 @@ padding: 0 2px;
 .home-matter-list button { width: 100%; border: 0; background: transparent; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 18px; text-align: left; }
 .home-matter-list button:hover, .home-quick-actions button:hover, .home-card-link:hover { background: var(--item-hover-bg); }
 .home-matter-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: 0 0 auto; }
+.home-matter-badge { color: var(--muted); font-size: var(--font-size-xs); margin-left: auto; }
+.home-matter-browser-tabs { border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; padding: 0 18px 14px; }
+.home-matter-browser-tabs button { border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); color: var(--muted); cursor: pointer; font: inherit; font-size: var(--font-size-sm); padding: 5px 10px; }
+.home-matter-browser-tabs button.active { border-color: var(--accent-border); background: var(--accent-soft); color: var(--text); }
 .home-card-link { width: 100%; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; padding: 10px 18px; text-align: center; }
 .home-quick-actions { display: grid; gap: 10px; padding: 0 18px 18px; }
 .home-quick-actions button { border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer; display: grid; gap: 3px; padding: 14px 16px; text-align: left; }
@@ -1294,6 +1298,8 @@ body { background: var(--c-bg); }
   white-space: nowrap;
 }
 .record-action.primary { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+.record-action.archive { grid-column: 1 / -1; color: var(--c-sidebar-text); }
+.record-action.archive.confirm { border-color: var(--warning); color: var(--warning); }
 .record-action:hover { background: var(--c-sidebar-hover); }
 .record-action.primary:hover { background: var(--c-accent-hover); }
 .technical-toggle {

@@ -39,6 +39,7 @@ messy matter folder -> structured legal workspace -> source-backed legal work pr
 - Preserve originals and assign stable document IDs.
 - Detect duplicate files and unsafe upload paths.
 - Keep matter metadata and file custody explicit.
+- Archive and reopen closed matters without deleting source files or history.
 
 ### Extraction And Source Indexing
 

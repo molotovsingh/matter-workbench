@@ -7,6 +7,7 @@ export interface Matter {
   clientName?: string;
   matterType?: string;
   status?: string;
+  archivedAt?: string;
 }
 
 export interface AuthUser {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api/client';
 import { useApp } from '../store/AppContext';
 import { getErrorMessage } from '../lib/errors';
 import type { AuthUser, Matter } from '../types';
@@ -44,26 +45,36 @@ export default function HomeLanding({
   onRunPreparationAgain,
   showMatterBrowser = false,
 }: Props) {
-  const { state, dispatch, switchActiveMatter } = useApp();
+  const { state, dispatch, switchActiveMatter, appendTerminal } = useApp();
   const { matters, activeMatter } = state;
   const [loading, setLoading] = useState(false);
   const [matterBrowserOpen, setMatterBrowserOpen] = useState(showMatterBrowser);
   const [learnOpen, setLearnOpen] = useState(true);
   const [matterQuery, setMatterQuery] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [reopeningMatter, setReopeningMatter] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const displayName = getDisplayName(state.authUser);
+  const activeMatters = useMemo(() => matters.filter((m) => m.status !== 'archived'), [matters]);
+  const archivedMatters = useMemo(() => matters.filter((m) => m.status === 'archived'), [matters]);
+  const visibleMatters = showArchived ? archivedMatters : activeMatters;
+  const matterStartSummary = activeMatters.length > 0
+    ? `${activeMatters.length} active matter(s) are in the record.`
+    : archivedMatters.length > 0
+      ? `${archivedMatters.length} archived matter(s) can be reopened.`
+      : 'Open a matter once one has been created.';
   const browserMatters = useMemo(() => {
     const q = matterQuery.trim().toLowerCase();
-    if (!q) return matters;
-    return matters.filter((m: Matter) => [
+    if (!q) return visibleMatters;
+    return visibleMatters.filter((m: Matter) => [
       m.name,
       m.clientName,
       m.matterType,
       m.status,
       m.folderPath,
     ].filter(Boolean).some((value) => String(value).toLowerCase().includes(q)));
-  }, [matters, matterQuery]);
+  }, [visibleMatters, matterQuery]);
 
   useEffect(() => {
     if (!showMatterBrowser) return;
@@ -84,6 +95,30 @@ export default function HomeLanding({
     } catch {
       // switchActiveMatter already reports the error in the activity strip.
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReopenMatter(name: string) {
+    if (loading || reopeningMatter) return;
+    setLoading(true);
+    setReopeningMatter(name);
+    try {
+      await api.reopenMatter(name);
+      const refreshed = await api.getMatters({ includeArchived: true });
+      dispatch({ type: 'SET_MATTERS', payload: refreshed.matters ?? [] });
+      await switchActiveMatter(name, {
+        startMessage: `[matter] reopening "${name}"…`,
+        successMessage: `[matter] reopened "${name}" — history and file IDs were preserved`,
+        failureMessage: (e) => `[error] ${getErrorMessage(e)}`,
+      });
+      dispatch({ type: 'SET_RESUME_MATTER', payload: name });
+      setShowArchived(false);
+      onOpenMatter(name);
+    } catch (error) {
+      appendTerminal([`[matter] reopen failed: ${getErrorMessage(error)}`]);
+    } finally {
+      setReopeningMatter(null);
       setLoading(false);
     }
   }
@@ -114,7 +149,7 @@ export default function HomeLanding({
         </button>
         <button className="home-start-action" type="button" onClick={handleShowMatterBrowser}>
           <strong>Find an existing matter</strong>
-          <span>{matters.length > 0 ? `${matters.length} matter(s) are already in the record.` : 'Open a matter once one has been created.'}</span>
+          <span>{matterStartSummary}</span>
         </button>
         <button
           className="home-start-action"
@@ -147,8 +182,18 @@ export default function HomeLanding({
         <section className="home-card home-matter-browser" aria-label="Find a matter">
           <div className="home-card-header">
             <h2>Find a matter</h2>
-            <span>{matterQuery ? `${browserMatters.length} of ${matters.length}` : `${matters.length} total`}</span>
+            <span>{matterQuery ? `${browserMatters.length} of ${visibleMatters.length}` : `${visibleMatters.length} ${showArchived ? 'archived' : 'active'}`}</span>
           </div>
+          {archivedMatters.length > 0 && (
+            <div className="home-matter-browser-tabs" role="group" aria-label="Matter lifecycle filter">
+              <button type="button" className={!showArchived ? 'active' : ''} onClick={() => setShowArchived(false)}>
+                Active ({activeMatters.length})
+              </button>
+              <button type="button" className={showArchived ? 'active' : ''} onClick={() => setShowArchived(true)}>
+                Archived ({archivedMatters.length})
+              </button>
+            </div>
+          )}
           <div className="home-matter-browser-search">
             <label htmlFor="homeMatterSearch">Search matters</label>
             <input
@@ -163,14 +208,23 @@ export default function HomeLanding({
             />
           </div>
           <ul className="home-matter-list">
-            {browserMatters.length > 0 ? browserMatters.map((m) => (
-              <li key={m.name}>
-                <button type="button" onClick={() => handleOpenMatter(m.name)} disabled={loading}>
-                  <span className="home-matter-dot" aria-hidden="true" />
-                  <strong>{m.name}</strong>
-                </button>
-              </li>
-            )) : (
+            {browserMatters.length > 0 ? browserMatters.map((m) => {
+              const archived = m.status === 'archived';
+              return (
+                <li key={m.name}>
+                  <button
+                    type="button"
+                    onClick={() => { archived ? void handleReopenMatter(m.name) : void handleOpenMatter(m.name); }}
+                    disabled={loading}
+                  >
+                    <span className="home-matter-dot" aria-hidden="true" />
+                    <strong>{m.name}</strong>
+                    {archived && <span className="home-matter-badge">Archived · reopen</span>}
+                    {reopeningMatter === m.name && <span className="home-matter-badge">Reopening…</span>}
+                  </button>
+                </li>
+              );
+            }) : (
               <li className="home-matter-empty">No matters found.</li>
             )}
           </ul>

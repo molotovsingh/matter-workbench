@@ -331,7 +331,7 @@ function AppShell() {
       try {
         const [config, mattersResult] = await Promise.all([
           api.getConfig(),
-          api.getMatters(),
+          api.getMatters({ includeArchived: true }),
         ]);
         if (cancelled) return;
         dispatch({ type: 'SET_CONFIG', payload: { config } });
@@ -607,7 +607,7 @@ function AppShell() {
     activeMatterNameRef.current = name;
     dispatch({ type: 'SET_RESUME_MATTER', payload: name });
     setActiveView('home');
-    api.getMatters()
+    api.getMatters({ includeArchived: true })
       .then((r) => dispatch({ type: 'SET_MATTERS', payload: r.matters ?? [] }))
       .catch((e) => {
         const message = getErrorMessage(e);

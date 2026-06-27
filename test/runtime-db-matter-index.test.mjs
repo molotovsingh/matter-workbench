@@ -231,3 +231,126 @@ test("runtime DB matter index exposes stable code on invalid Postgres JSON", asy
     },
   );
 });
+
+test("runtime DB matter index can archive and reopen matters without delete SQL", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+      MWB_RUNTIME_DB_STORAGE: "postgres",
+    },
+    spawn: (command, args, options) => {
+      calls.push(options.input);
+      if (/\n\s*status = 'active',/i.test(options.input) && /from candidate/i.test(options.input)) {
+        return {
+          status: 0,
+          stdout: JSON.stringify([{
+            id: "matter-archive-1",
+            name: "Closed Folder",
+            matterName: "Closed Client Matter",
+            status: "active",
+            archivedAt: "",
+          }]),
+          stderr: "",
+        };
+      }
+      if (/\n\s*status = 'archived',/i.test(options.input)) {
+        return {
+          status: 0,
+          stdout: JSON.stringify([{
+            id: "matter-archive-1",
+            name: "Closed Folder",
+            matterName: "Closed Client Matter",
+            status: "archived",
+            archivedAt: "2026-06-27 10:00:00+00",
+          }]),
+          stderr: "",
+        };
+      }
+      if (/status = 'active'/i.test(options.input) && /from candidate/i.test(options.input)) {
+        return {
+          status: 0,
+          stdout: JSON.stringify([{
+            id: "matter-archive-1",
+            name: "Closed Folder",
+            matterName: "Closed Client Matter",
+            status: "active",
+            archivedAt: "",
+          }]),
+          stderr: "",
+        };
+      }
+      return { status: 0, stdout: "[]", stderr: "" };
+    },
+  });
+
+  assert.deepEqual(await index.archiveMatter("Closed Client Matter"), {
+    id: "matter-archive-1",
+    name: "Closed Folder",
+    matterName: "Closed Client Matter",
+    clientName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+    status: "archived",
+    archivedAt: "2026-06-27 10:00:00+00",
+  });
+  assert.deepEqual(await index.reopenMatter("Closed Client Matter"), {
+    id: "matter-archive-1",
+    name: "Closed Folder",
+    matterName: "Closed Client Matter",
+    clientName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+  });
+
+  assert.match(calls[0], /update matters m/i);
+  assert.match(calls[0], /status = 'archived'/i);
+  assert.match(calls[0], /archived_at = now\(\)/i);
+  assert.doesNotMatch(calls[0], /delete\s+from/i);
+  assert.match(calls[1], /update matters m/i);
+  assert.match(calls[1], /status = 'active'/i);
+  assert.match(calls[1], /archived_at = null/i);
+  assert.doesNotMatch(calls[1], /delete\s+from/i);
+});
+
+test("runtime DB matter index lists archived matters only when requested", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+    },
+    spawn: (command, args, options) => {
+      calls.push(options.input);
+      return {
+        status: 0,
+        stdout: JSON.stringify([{
+          id: "matter-archived",
+          name: "Archived Folder",
+          matterName: "Archived Client Matter",
+          status: "archived",
+          archivedAt: "2026-06-27 10:00:00+00",
+        }]),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.deepEqual(await index.listMatterFolders({ includeArchived: true }), [{
+    id: "matter-archived",
+    name: "Archived Folder",
+    matterName: "Archived Client Matter",
+    clientName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+    status: "archived",
+    archivedAt: "2026-06-27 10:00:00+00",
+  }]);
+  assert.match(calls[0], /m\.status in \('active', 'archived'\)/i);
+});

@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { api } from '../../api/client';
+import { getErrorMessage } from '../../lib/errors';
 import { useApp } from '../../store/AppContext';
 import WorkspaceTree from '../workspace/WorkspaceTree';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
@@ -17,8 +20,10 @@ const APP_TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?
 ];
 
 export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onLogout }: Props) {
-  const { state, dispatch, refreshActiveMatterWorkspace } = useApp();
+  const { state, dispatch, refreshActiveMatterWorkspace, clearActiveMatter: resetArchivedMatterSelection, appendTerminal } = useApp();
   const { activeMatter } = state;
+  const [archiveConfirmName, setArchiveConfirmName] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const visibleTabs = APP_TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
   // Settings lives in the pinned bottom footer next to Sign out, not in the
@@ -46,6 +51,29 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
       successMessage: '[workspace] refreshed',
       failurePrefix: '[workspace] error',
     });
+  }
+
+  async function handleArchiveMatter() {
+    if (!activeMatter || archiveBusy) return;
+    if (archiveConfirmName !== activeMatter.name) {
+      setArchiveConfirmName(activeMatter.name);
+      appendTerminal([`[matter] archive requested for "${activeMatter.name}" — click Confirm archive to close it without deleting files`]);
+      return;
+    }
+    setArchiveBusy(true);
+    try {
+      await api.archiveMatter(activeMatter.name);
+      const mattersResult = await api.getMatters({ includeArchived: true });
+      dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
+      resetArchivedMatterSelection();
+      dispatch({ type: 'SET_TAB', payload: 'home' });
+      appendTerminal([`[matter] archived "${activeMatter.name}" — source files and history were not deleted`]);
+      setArchiveConfirmName(null);
+    } catch (error) {
+      appendTerminal([`[matter] archive failed: ${getErrorMessage(error)}`]);
+    } finally {
+      setArchiveBusy(false);
+    }
   }
 
   return (
@@ -89,6 +117,15 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
             </button>
             <button className="record-action" type="button" title="Refresh the matter record" onClick={() => { void handleRefresh(); }}>
               <span aria-hidden="true">↻</span>Refresh
+            </button>
+            <button
+              className={`record-action archive${archiveConfirmName === activeMatter.name ? ' confirm' : ''}`}
+              type="button"
+              title="Archive this matter without deleting files"
+              disabled={archiveBusy}
+              onClick={() => { void handleArchiveMatter(); }}
+            >
+              <span aria-hidden="true">▱</span>{archiveConfirmName === activeMatter.name ? 'Confirm archive' : 'Archive'}
             </button>
           </div>
           {showOperatorChrome && (
