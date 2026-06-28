@@ -371,9 +371,9 @@ export const api = {
 
   // ─── Matters ─────────────────────────────
   getMatters: (opts: { includeArchived?: boolean } = {}) =>
-    getJson<{ matters: Array<{ name: string; status?: string; archivedAt?: string }> }>(withQuery('/api/matters', { includeArchived: opts.includeArchived ? '1' : undefined })),
-  archiveMatter: (name: string) => postJson<{ matter: { name: string; status?: string; archivedAt?: string }; active: string | null; message?: string }>('/api/matters/archive', { name }),
-  reopenMatter: (name: string) => postJson<{ matter: { name: string; status?: string; archivedAt?: string }; active: string | null; message?: string }>('/api/matters/reopen', { name }),
+    getJson<{ matters: Array<{ name: string; status?: string; archivedAt?: string; archiveReason?: string; archivedBy?: string; archivedByDisplayName?: string }> }>(withQuery('/api/matters', { includeArchived: opts.includeArchived ? '1' : undefined })),
+  archiveMatter: (name: string, opts: { reason?: string } = {}) => postJson<{ matter: { name: string; status?: string; archivedAt?: string; archiveReason?: string; archivedBy?: string; archivedByDisplayName?: string }; active: string | null; message?: string }>('/api/matters/archive', { name, reason: opts.reason || '' }),
+  reopenMatter: (name: string) => postJson<{ matter: { name: string; status?: string; archivedAt?: string; archiveReason?: string; archivedBy?: string; archivedByDisplayName?: string }; active: string | null; message?: string }>('/api/matters/reopen', { name }),
   newMatter: (formData: FormData) => postFormData<WorkspaceApiResponse>('/api/matters/new', formData),
   addFiles: (formData: FormData) => postFormData<AddFilesResponse>('/api/matters/add-files', formData),
   checkOverlap: (body: CheckOverlapRequest) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),

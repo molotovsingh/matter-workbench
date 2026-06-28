@@ -8,6 +8,9 @@ export interface Matter {
   matterType?: string;
   status?: string;
   archivedAt?: string;
+  archiveReason?: string;
+  archivedBy?: string;
+  archivedByDisplayName?: string;
 }
 
 export interface AuthUser {

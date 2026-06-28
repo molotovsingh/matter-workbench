@@ -1322,6 +1322,11 @@ body { background: var(--c-bg); }
   padding: 10px;
 }
 .archive-confirm-panel span { color: var(--c-sidebar-text); }
+.archive-reason-field { display: grid; gap: 5px; }
+.archive-reason-field span { font-weight: 600; }
+.archive-reason-field textarea { background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; color: var(--c-sidebar-text-active); font: inherit; line-height: 1.35; min-height: 68px; padding: 7px 8px; resize: vertical; }
+.archive-reason-field textarea::placeholder { color: var(--c-sidebar-text-muted); }
+.archive-reason-field small { color: var(--c-sidebar-text-muted); font-size: 11px; justify-self: end; }
 .archive-confirm-actions { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 2px; }
 .archive-confirm-actions button {
   border: 1px solid rgba(255,255,255,0.12);

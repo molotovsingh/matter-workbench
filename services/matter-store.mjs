@@ -214,21 +214,35 @@ export function createMatterStore({
     return state.matterRoot;
   }
 
-  async function archiveMatter(rawName) {
+  async function archiveMatter(rawName, { reason = "" } = {}) {
+    const archiveReason = normalizeArchiveReason(reason);
     if (hasRuntimeMatterIndex()) {
-      const archived = presentMatterListItem(await runtimeMatterIndex.archiveMatter(rawName));
+      const archived = presentMatterListItem(await runtimeMatterIndex.archiveMatter(rawName, { reason: archiveReason }));
       if (activeMatterNameWithinHome() === archived.name) clearMatterRoot();
       return archived;
     }
     const resolved = await resolveExistingMatter(rawName);
     const archivedAt = new Date().toISOString();
+    const actor = lifecycleActorFromContext(requestContextProvider?.() || {});
     await writeLocalMatterLifecycle(resolved.matterPath, {
       status: MATTER_ARCHIVED_STATUS,
       archivedAt,
+      archiveReason,
+      archivedBy: actor.username,
+      archivedByDisplayName: actor.displayName,
       reopenedAt: "",
+      reopenedBy: "",
+      reopenedByDisplayName: "",
     });
     if (activeMatterNameWithinHome() === resolved.name) clearMatterRoot();
-    return { name: resolved.name, status: MATTER_ARCHIVED_STATUS, archivedAt };
+    return {
+      name: resolved.name,
+      status: MATTER_ARCHIVED_STATUS,
+      archivedAt,
+      ...(archiveReason ? { archiveReason } : {}),
+      ...(actor.username ? { archivedBy: actor.username } : {}),
+      ...(actor.displayName ? { archivedByDisplayName: actor.displayName } : {}),
+    };
   }
 
   async function reopenMatter(rawName) {
@@ -236,10 +250,16 @@ export function createMatterStore({
       return presentMatterListItem(await runtimeMatterIndex.reopenMatter(rawName));
     }
     const resolved = await resolveExistingMatter(rawName, { includeArchived: true });
+    const actor = lifecycleActorFromContext(requestContextProvider?.() || {});
     await writeLocalMatterLifecycle(resolved.matterPath, {
       status: MATTER_ACTIVE_STATUS,
       archivedAt: "",
+      archiveReason: "",
+      archivedBy: "",
+      archivedByDisplayName: "",
       reopenedAt: new Date().toISOString(),
+      reopenedBy: actor.username,
+      reopenedByDisplayName: actor.displayName,
     });
     return { name: resolved.name };
   }
@@ -381,13 +401,18 @@ async function readLocalMatterLifecycle(matterPath) {
     return {
       status,
       archivedAt: typeof parsed?.archived_at === "string" ? parsed.archived_at : typeof parsed?.archivedAt === "string" ? parsed.archivedAt : "",
+      archiveReason: typeof parsed?.archive_reason === "string" ? parsed.archive_reason : typeof parsed?.archiveReason === "string" ? parsed.archiveReason : "",
+      archivedBy: typeof parsed?.archived_by === "string" ? parsed.archived_by : typeof parsed?.archivedBy === "string" ? parsed.archivedBy : "",
+      archivedByDisplayName: typeof parsed?.archived_by_display_name === "string" ? parsed.archived_by_display_name : typeof parsed?.archivedByDisplayName === "string" ? parsed.archivedByDisplayName : "",
       reopenedAt: typeof parsed?.reopened_at === "string" ? parsed.reopened_at : typeof parsed?.reopenedAt === "string" ? parsed.reopenedAt : "",
+      reopenedBy: typeof parsed?.reopened_by === "string" ? parsed.reopened_by : typeof parsed?.reopenedBy === "string" ? parsed.reopenedBy : "",
+      reopenedByDisplayName: typeof parsed?.reopened_by_display_name === "string" ? parsed.reopened_by_display_name : typeof parsed?.reopenedByDisplayName === "string" ? parsed.reopenedByDisplayName : "",
     };
   } catch (cause) {
     if (cause?.code && cause.code !== "ENOENT") {
-      return { status: MATTER_ACTIVE_STATUS, archivedAt: "", reopenedAt: "", lifecycleUnreadable: true };
+      return { status: MATTER_ACTIVE_STATUS, archivedAt: "", archiveReason: "", archivedBy: "", archivedByDisplayName: "", reopenedAt: "", reopenedBy: "", reopenedByDisplayName: "", lifecycleUnreadable: true };
     }
-    return { status: MATTER_ACTIVE_STATUS, archivedAt: "", reopenedAt: "" };
+    return { status: MATTER_ACTIVE_STATUS, archivedAt: "", archiveReason: "", archivedBy: "", archivedByDisplayName: "", reopenedAt: "", reopenedBy: "", reopenedByDisplayName: "" };
   }
 }
 
@@ -400,7 +425,12 @@ async function writeLocalMatterLifecycle(matterPath, lifecycle) {
     schema_version: MATTER_LIFECYCLE_SCHEMA_VERSION,
     status: lifecycle.status === MATTER_ARCHIVED_STATUS ? MATTER_ARCHIVED_STATUS : MATTER_ACTIVE_STATUS,
     archived_at: lifecycle.archivedAt || "",
+    archive_reason: normalizeArchiveReason(lifecycle.archiveReason || ""),
+    archived_by: normalizeLifecycleActorText(lifecycle.archivedBy || ""),
+    archived_by_display_name: normalizeLifecycleActorText(lifecycle.archivedByDisplayName || ""),
     reopened_at: lifecycle.reopenedAt || "",
+    reopened_by: normalizeLifecycleActorText(lifecycle.reopenedBy || ""),
+    reopened_by_display_name: normalizeLifecycleActorText(lifecycle.reopenedByDisplayName || ""),
     note: "Matter lifecycle marker only. Archiving does not delete source files or generated artifacts.",
   };
   await writeFile(temp, `${JSON.stringify(body, null, 2)}\n`, "utf8");
@@ -415,10 +445,44 @@ function presentMatterListItem(matter = {}) {
   const isArchived = item.status === MATTER_ARCHIVED_STATUS;
   if (!isArchived) delete item.status;
   if (item.archived_at && !item.archivedAt) item.archivedAt = item.archived_at;
+  if (item.archive_reason && !item.archiveReason) item.archiveReason = item.archive_reason;
+  if (item.archived_by && !item.archivedBy) item.archivedBy = item.archived_by;
+  if (item.archived_by_display_name && !item.archivedByDisplayName) item.archivedByDisplayName = item.archived_by_display_name;
   if (!isArchived || !item.archivedAt) delete item.archivedAt;
+  if (!isArchived || !item.archiveReason) delete item.archiveReason;
+  if (!isArchived || !item.archivedBy) delete item.archivedBy;
+  if (!isArchived || !item.archivedByDisplayName) delete item.archivedByDisplayName;
   delete item.archived_at;
+  delete item.archive_reason;
+  delete item.archived_by;
+  delete item.archived_by_display_name;
   delete item.reopenedAt;
   delete item.reopened_at;
+  delete item.reopenedBy;
+  delete item.reopened_by;
+  delete item.reopenedByDisplayName;
+  delete item.reopened_by_display_name;
   if (!item.lifecycleUnreadable) delete item.lifecycleUnreadable;
   return item;
+}
+
+export function normalizeArchiveReason(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length > 500) {
+    throw makeHttpError("Archive reason must be 500 characters or fewer.", 400, "matter_store.archive_reason_too_long");
+  }
+  return text;
+}
+
+function lifecycleActorFromContext(context = {}) {
+  const user = context.user && typeof context.user === "object" ? context.user : null;
+  return {
+    username: normalizeLifecycleActorText(user?.username || ""),
+    displayName: normalizeLifecycleActorText(user?.displayName || user?.username || ""),
+  };
+}
+
+function normalizeLifecycleActorText(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length <= 320 ? text : text.slice(0, 320);
 }

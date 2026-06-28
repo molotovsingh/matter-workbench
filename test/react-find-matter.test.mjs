@@ -32,6 +32,8 @@ test("React Find a matter opens a visible matter browser instead of no-op Home",
   assert.match(homeLanding, /Archived matters are closed from active work, not deleted/);
   assert.match(homeLanding, /Reopen restores the matter with its existing file IDs and history/);
   assert.match(homeLanding, /formatArchivedDate/);
+  assert.match(homeLanding, /Reason: \{m\.archiveReason\}/);
+  assert.match(homeLanding, /Archived by/);
   assert.match(homeLanding, /Reopen/);
   assert.doesNotMatch(homeLanding, /unarchive/i);
 });

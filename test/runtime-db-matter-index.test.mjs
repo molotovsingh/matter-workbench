@@ -265,6 +265,7 @@ test("runtime DB matter index can archive and reopen matters without delete SQL"
             matterName: "Closed Client Matter",
             status: "archived",
             archivedAt: "2026-06-27 10:00:00+00",
+            archiveReason: "Client paused instructions",
           }]),
           stderr: "",
         };
@@ -286,7 +287,7 @@ test("runtime DB matter index can archive and reopen matters without delete SQL"
     },
   });
 
-  assert.deepEqual(await index.archiveMatter("Closed Client Matter"), {
+  assert.deepEqual(await index.archiveMatter("Closed Client Matter", { reason: "Client paused instructions" }), {
     id: "matter-archive-1",
     name: "Closed Folder",
     matterName: "Closed Client Matter",
@@ -296,6 +297,7 @@ test("runtime DB matter index can archive and reopen matters without delete SQL"
     jurisdiction: "",
     status: "archived",
     archivedAt: "2026-06-27 10:00:00+00",
+    archiveReason: "Client paused instructions",
   });
   assert.deepEqual(await index.reopenMatter("Closed Client Matter"), {
     id: "matter-archive-1",
@@ -310,12 +312,16 @@ test("runtime DB matter index can archive and reopen matters without delete SQL"
   assert.match(calls[0], /update matters m/i);
   assert.match(calls[0], /status = 'archived'/i);
   assert.match(calls[0], /archived_at = now\(\)/i);
+  assert.match(calls[0], /archive_reason = 'Client paused instructions'/i);
+  assert.match(calls[0], /reopened_at = null/i);
   assert.match(calls[0], /order by lower\(coalesce\(nullif\(latest_import\.source_root_hint, ''\), m\.name\)\)/i);
   assert.doesNotMatch(calls[0], /lower\(folder_name\)/i);
   assert.doesNotMatch(calls[0], /delete\s+from/i);
   assert.match(calls[1], /update matters m/i);
   assert.match(calls[1], /status = 'active'/i);
   assert.match(calls[1], /archived_at = null/i);
+  assert.match(calls[1], /archive_reason = null/i);
+  assert.match(calls[1], /reopened_at = now\(\)/i);
   assert.doesNotMatch(calls[1], /delete\s+from/i);
 });
 

@@ -41,9 +41,9 @@ export function createRuntimeDbMatterIndex({
     return rows[0] || null;
   }
 
-  async function archiveMatter(name) {
+  async function archiveMatter(name, { reason = "" } = {}) {
     const matterName = validateMatterName(name);
-    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), fromStatus: "active", toStatus: "archived" });
+    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), reason, fromStatus: "active", toStatus: "archived" });
     if (updated) return normalizeMatterRow(updated);
     const alreadyArchived = await findMatterFolder(matterName, { includeArchived: true });
     if (alreadyArchived?.status === "archived") return alreadyArchived;
@@ -52,7 +52,7 @@ export function createRuntimeDbMatterIndex({
 
   async function reopenMatter(name) {
     const matterName = validateMatterName(name);
-    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), fromStatus: "archived", toStatus: "active" });
+    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), reason: "", fromStatus: "archived", toStatus: "active" });
     if (updated) return normalizeMatterRow(updated);
     const alreadyActive = await findMatterFolder(matterName);
     if (alreadyActive) return alreadyActive;
@@ -147,7 +147,10 @@ function buildMatterRowsSql({ tenantId, name = "", viewer = null, includeArchive
     "    coalesce(m.matter_type, '') as matter_type,",
     "    coalesce(m.jurisdiction, '') as jurisdiction,",
     "    coalesce(m.status, 'active') as status,",
-    "    coalesce(m.archived_at::text, '') as archived_at",
+    "    coalesce(m.archived_at::text, '') as archived_at,",
+    "    coalesce(m.archive_reason, '') as archive_reason,",
+    "    coalesce(m.archived_by_username, '') as archived_by,",
+    "    coalesce(m.archived_by_display_name, '') as archived_by_display_name",
     "  from matters m",
     "  left join latest_import on latest_import.matter_id = m.id",
     "  where m.tenant_id = current_app_tenant_id()",
@@ -164,16 +167,19 @@ function buildMatterRowsSql({ tenantId, name = "", viewer = null, includeArchive
     "  'matterType', matter_type,",
     "  'jurisdiction', jurisdiction,",
     "  'status', status,",
-    "  'archivedAt', archived_at",
+    "  'archivedAt', archived_at,",
+    "  'archiveReason', archive_reason,",
+    "  'archivedBy', archived_by,",
+    "  'archivedByDisplayName', archived_by_display_name",
     ") order by lower(folder_name)), '[]'::jsonb)::text from matter_rows;",
     "",
   ].join("\n");
 }
 
-function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name = "", viewer = null, fromStatus, toStatus } = {}) {
+function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name = "", viewer = null, reason = "", fromStatus, toStatus } = {}) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: ensureRuntimeDbSafeRoleSql(buildMatterLifecycleMutationSql({ tenantId, name, viewer, fromStatus, toStatus })),
+    input: ensureRuntimeDbSafeRoleSql(buildMatterLifecycleMutationSql({ tenantId, name, viewer, reason, fromStatus, toStatus })),
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -187,10 +193,18 @@ function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name = "", viewer
   return parsePsqlJsonArray(result.stdout || "")[0] || null;
 }
 
-function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, fromStatus, toStatus } = {}) {
+function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, reason = "", fromStatus, toStatus } = {}) {
   const filter = String(name || "").trim();
   const visibilityClause = matterVisibilitySql(viewer);
+  const actorUsername = lifecycleActorText(viewer?.username || "");
+  const actorDisplayName = lifecycleActorText(viewer?.displayName || viewer?.username || "");
   const archivedAtSql = toStatus === "archived" ? "now()" : "null";
+  const archiveReasonSql = toStatus === "archived" ? sqlString(normalizeArchiveReasonText(reason)) : "null";
+  const archivedBySql = toStatus === "archived" && actorUsername ? sqlString(actorUsername) : "null";
+  const archivedByDisplayNameSql = toStatus === "archived" && actorDisplayName ? sqlString(actorDisplayName) : "null";
+  const reopenedAtSql = toStatus === "active" ? "now()" : "null";
+  const reopenedBySql = toStatus === "active" && actorUsername ? sqlString(actorUsername) : "null";
+  const reopenedByDisplayNameSql = toStatus === "active" && actorDisplayName ? sqlString(actorDisplayName) : "null";
   return [
     `select set_config('app.tenant_id', ${sqlString(tenantId)}, false);`,
     "with latest_import as (",
@@ -217,6 +231,12 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, f
     "  set",
     `    status = ${sqlString(toStatus)},`,
     `    archived_at = ${archivedAtSql},`,
+    `    archive_reason = ${archiveReasonSql},`,
+    `    archived_by_username = ${archivedBySql},`,
+    `    archived_by_display_name = ${archivedByDisplayNameSql},`,
+    `    reopened_at = ${reopenedAtSql},`,
+    `    reopened_by_username = ${reopenedBySql},`,
+    `    reopened_by_display_name = ${reopenedByDisplayNameSql},`,
     "    updated_at = now()",
     "  from candidate",
     "  where m.tenant_id = current_app_tenant_id()",
@@ -230,7 +250,10 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, f
     "    coalesce(m.matter_type, '') as matter_type,",
     "    coalesce(m.jurisdiction, '') as jurisdiction,",
     "    coalesce(m.status, 'active') as status,",
-    "    coalesce(m.archived_at::text, '') as archived_at",
+    "    coalesce(m.archived_at::text, '') as archived_at,",
+    "    coalesce(m.archive_reason, '') as archive_reason,",
+    "    coalesce(m.archived_by_username, '') as archived_by,",
+    "    coalesce(m.archived_by_display_name, '') as archived_by_display_name",
     ")",
     "select coalesce(jsonb_agg(jsonb_build_object(",
     "  'id', id,",
@@ -241,7 +264,10 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, f
     "  'matterType', matter_type,",
     "  'jurisdiction', jurisdiction,",
     "  'status', status,",
-    "  'archivedAt', archived_at",
+    "  'archivedAt', archived_at,",
+    "  'archiveReason', archive_reason,",
+    "  'archivedBy', archived_by,",
+    "  'archivedByDisplayName', archived_by_display_name",
     ")), '[]'::jsonb)::text from updated;",
     "",
   ].join("\n");
@@ -282,6 +308,12 @@ function normalizeMatterRow(row = {}) {
   if (status === "archived") normalized.status = "archived";
   const archivedAt = stringValue(row.archivedAt);
   if (archivedAt) normalized.archivedAt = archivedAt;
+  const archiveReason = stringValue(row.archiveReason);
+  if (archiveReason) normalized.archiveReason = archiveReason;
+  const archivedBy = stringValue(row.archivedBy);
+  if (archivedBy) normalized.archivedBy = archivedBy;
+  const archivedByDisplayName = stringValue(row.archivedByDisplayName);
+  if (archivedByDisplayName) normalized.archivedByDisplayName = archivedByDisplayName;
   return normalized;
 }
 
@@ -306,6 +338,19 @@ function parsePsqlJsonArray(stdout = "") {
 
 function isRuntimeCutoverApproved(env = process.env) {
   return /^(1|true|yes|approved)$/i.test(String(env.MWB_DB_RUNTIME_CUTOVER_APPROVED || "").trim());
+}
+
+function normalizeArchiveReasonText(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length > 500) {
+    throw makeHttpError("Archive reason must be 500 characters or fewer.", 400, "runtime_db.matter_index.archive_reason_too_long");
+  }
+  return text;
+}
+
+function lifecycleActorText(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length <= 320 ? text : text.slice(0, 320);
 }
 
 function sqlString(value) {

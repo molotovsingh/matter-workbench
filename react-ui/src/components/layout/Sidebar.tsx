@@ -23,6 +23,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
   const { state, dispatch, refreshActiveMatterWorkspace, clearActiveMatter: resetArchivedMatterSelection, appendTerminal } = useApp();
   const { activeMatter } = state;
   const [archiveConfirmName, setArchiveConfirmName] = useState<string | null>(null);
+  const [archiveReason, setArchiveReason] = useState('');
   const [archiveBusy, setArchiveBusy] = useState(false);
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const visibleTabs = APP_TABS.filter((tab) => !tab.operatorOnly || showOperatorChrome);
@@ -56,6 +57,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
   function requestArchiveMatter() {
     if (!activeMatter || archiveBusy) return;
     setArchiveConfirmName(activeMatter.name);
+    setArchiveReason('');
     appendTerminal([`[matter] archive requested for "${activeMatter.name}" — this closes it without deleting files`]);
   }
 
@@ -63,13 +65,14 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
     if (!activeMatter || archiveBusy || archiveConfirmName !== activeMatter.name) return;
     setArchiveBusy(true);
     try {
-      await api.archiveMatter(activeMatter.name);
+      await api.archiveMatter(activeMatter.name, { reason: archiveReason });
       const mattersResult = await api.getMatters({ includeArchived: true });
       dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
       resetArchivedMatterSelection();
       dispatch({ type: 'SET_TAB', payload: 'home' });
       appendTerminal([`[matter] archived "${activeMatter.name}" — source files and history were not deleted`]);
       setArchiveConfirmName(null);
+      setArchiveReason('');
     } catch (error) {
       appendTerminal([`[matter] archive failed: ${getErrorMessage(error)}`]);
     } finally {
@@ -134,8 +137,20 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
               <strong>Archive this matter?</strong>
               <span>This closes it from active work. No source files, generated artifacts, file IDs, or history will be deleted.</span>
               <span>You can reopen it later from All matters → Archived.</span>
+              <label className="archive-reason-field">
+                <span>Reason for archive (optional)</span>
+                <textarea
+                  value={archiveReason}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Example: client matter closed, client leaving, duplicate test matter…"
+                  onChange={(event) => setArchiveReason(event.target.value)}
+                  disabled={archiveBusy}
+                />
+                <small>{archiveReason.length}/500</small>
+              </label>
               <div className="archive-confirm-actions">
-                <button type="button" onClick={() => setArchiveConfirmName(null)} disabled={archiveBusy}>Cancel</button>
+                <button type="button" onClick={() => { setArchiveConfirmName(null); setArchiveReason(''); }} disabled={archiveBusy}>Cancel</button>
                 <button type="button" className="danger" onClick={() => { void confirmArchiveMatter(); }} disabled={archiveBusy}>
                   {archiveBusy ? 'Archiving…' : 'Confirm archive'}
                 </button>

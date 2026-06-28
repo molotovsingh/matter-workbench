@@ -273,7 +273,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       }),
       exactRoute("POST", "/api/matters/archive", async () => {
         const body = await readRequestJson(request);
-        const matter = await matterStore.archiveMatter(body.name);
+        const matter = await matterStore.archiveMatter(body.name, { reason: body.reason });
         sendJson(response, 200, {
           matter,
           active: matterStore.activeMatterNameWithinHome(),

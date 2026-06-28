@@ -52,10 +52,11 @@ test("matter archive is non-destructive and reversible", async () => {
     });
 
     await postJson(baseUrl, "/api/switch-matter", { name: "Returning Client Matter" });
-    const archived = await postJson(baseUrl, "/api/matters/archive", { name: "Returning Client Matter" });
+    const archived = await postJson(baseUrl, "/api/matters/archive", { name: "Returning Client Matter", reason: "Client paused instructions" });
     assert.equal(archived.active, null);
     assert.equal(archived.matter.name, "Returning Client Matter");
     assert.equal(archived.matter.status, "archived");
+    assert.equal(archived.matter.archiveReason, "Client paused instructions");
     assert.match(archived.message, /not deleted/i);
     assert.equal(await readFile(path.join(matterRoot, "source-note.txt"), "utf8"), "Client file remains on disk.");
 
@@ -66,7 +67,11 @@ test("matter archive is non-destructive and reversible", async () => {
     assert.equal(withArchived.matters.length, 1);
     assert.equal(withArchived.matters[0].name, "Returning Client Matter");
     assert.equal(withArchived.matters[0].status, "archived");
+    assert.equal(withArchived.matters[0].archiveReason, "Client paused instructions");
     assert.match(withArchived.matters[0].archivedAt, /^\d{4}-\d{2}-\d{2}T/);
+    const lifecycle = JSON.parse(await readFile(path.join(matterRoot, ".matter-workbench", "matter-lifecycle.json"), "utf8"));
+    assert.equal(lifecycle.archive_reason, "Client paused instructions");
+    assert.match(lifecycle.note, /does not delete source files/i);
 
     const switchArchivedResponse = await fetch(`${baseUrl}/api/switch-matter`, {
       method: "POST",

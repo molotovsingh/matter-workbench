@@ -241,6 +241,8 @@ export default function HomeLanding({
                       <span className="home-matter-title-block">
                         <strong>{m.name}</strong>
                         {archived && <small>{formatArchivedDate(m.archivedAt)}</small>}
+                        {archived && m.archiveReason && <small>Reason: {m.archiveReason}</small>}
+                        {archived && (m.archivedByDisplayName || m.archivedBy) && <small>Archived by {m.archivedByDisplayName || m.archivedBy}</small>}
                       </span>
                     </button>
                     {archived && (
