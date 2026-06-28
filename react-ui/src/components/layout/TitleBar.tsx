@@ -45,14 +45,19 @@ export default function TitleBar() {
   );
 }
 
-function releaseBadgeText(release: { label?: string; commit?: string; date?: string } | null | undefined) {
+function releaseBadgeText(release: { version?: string; codename?: string; label?: string; commit?: string; date?: string } | null | undefined) {
+  const codename = String(release?.codename || '').trim();
+  const label = String(release?.label || '').trim();
+  const version = compactReleaseVersion(release?.version);
   const commit = String(release?.commit || '').trim();
-  return commit ? commit.slice(0, 7) : releaseBadgeDate(release?.date);
+  return codename || label || version || (commit ? commit.slice(0, 7) : releaseBadgeDate(release?.date));
 }
 
-function releaseBadgeTitle(release: { label?: string; commit?: string; date?: string; note?: string } | null | undefined) {
+function releaseBadgeTitle(release: { version?: string; codename?: string; label?: string; commit?: string; date?: string; note?: string } | null | undefined) {
   const parts = [
-    releaseBadgeText(release),
+    release?.codename ? `Codename ${String(release.codename).trim()}` : '',
+    compactReleaseVersion(release?.version) || releaseBadgeText(release),
+    release?.label ? String(release.label).trim() : '',
     release?.note ? String(release.note).trim() : '',
     release?.date ? `Released ${String(release.date).trim()}` : '',
     release?.commit ? `Commit ${String(release.commit).trim()}` : '',
@@ -65,6 +70,11 @@ function compactWorkspaceModeLabel(value: string) {
   if (/^db workspace$/i.test(label)) return 'DB';
   if (/^local workspace$/i.test(label)) return 'Local';
   return label;
+}
+
+function compactReleaseVersion(versionValue: string | undefined) {
+  const match = String(versionValue || '').trim().match(/^v\d+\.\d+\.\d+-beta\.(\d+)$/);
+  return match ? `beta.${match[1]}` : '';
 }
 
 function releaseBadgeDate(dateValue: string | undefined) {

@@ -399,12 +399,14 @@ async function sendRawFileStream(response, raw) {
 }
 
 function releaseConfig(env = process.env) {
+  const version = cleanReleaseVersion(env.MWB_RELEASE_VERSION);
+  const codename = cleanReleaseText(env.MWB_RELEASE_CODENAME, 40);
   const label = cleanReleaseText(env.MWB_RELEASE_LABEL, 40);
   const commit = cleanReleaseCommit(env.MWB_RELEASE_COMMIT);
   const date = cleanReleaseDate(env.MWB_RELEASE_DATE);
   const note = cleanReleaseText(env.MWB_RELEASE_NOTE, 180);
-  if (!label && !commit && !date && !note) return null;
-  return { label, commit, date, note };
+  if (!version && !codename && !label && !commit && !date && !note) return null;
+  return { version, codename, label, commit, date, note };
 }
 
 function cleanReleaseText(value, maxLength) {
@@ -413,6 +415,11 @@ function cleanReleaseText(value, maxLength) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function cleanReleaseVersion(value) {
+  const version = String(value || "").trim();
+  return /^v\d+\.\d+\.\d+-beta\.\d+$/.test(version) ? version : "";
 }
 
 function cleanReleaseCommit(value) {

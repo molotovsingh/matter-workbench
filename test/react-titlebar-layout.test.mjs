@@ -23,6 +23,8 @@ test("TitleBar uses compact workspace and release labels", async () => {
   assert.match(titleBar, /compactWorkspaceModeLabel/);
   assert.match(titleBar, /return 'DB'/);
   assert.match(titleBar, /return 'Local'/);
+  assert.match(titleBar, /release\?\.codename/);
+  assert.match(titleBar, /compactReleaseVersion/);
   assert.match(titleBar, /commit\.slice\(0, 7\)/);
   assert.doesNotMatch(titleBar, /label, date, shortCommit/);
 });

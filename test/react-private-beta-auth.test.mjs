@@ -38,6 +38,7 @@ test("React shows a dismissible what's-new note after private beta login", async
   assert.match(app, /BetaWhatsNewBanner/);
   assert.match(app, /setShowWhatsNew\(Boolean\(status\.authenticated\)\)/);
   assert.match(app, /lower === '\/whats_new'/);
+  assert.match(app, /release\?\.codename/);
   assert.match(app, /Welcome back — here is what to test/);
   assert.match(app, /Remove from active record|removed from the active record/);
   assert.match(suggestions, /What's new/);

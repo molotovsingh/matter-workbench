@@ -778,16 +778,19 @@ function BetaWhatsNewBanner({
   release: AppConfig['release'];
   onDismiss: () => void;
 }) {
-  const label = release?.label?.trim() || 'Latest beta update';
+  const codename = release?.codename?.trim() || '';
+  const version = release?.version?.trim() || '';
+  const label = codename || release?.label?.trim() || 'Latest beta update';
   const note = release?.note?.trim() || '';
   const date = release?.date?.trim() || '';
+  const releaseLine = [label, version, date].filter(Boolean).join(' · ');
   return (
     <section className="beta-whats-new-card" role="status" aria-live="polite" aria-label="What's new in this beta">
       <div className="beta-whats-new-header">
         <div>
           <div className="section-kicker">What's new</div>
           <h2>Welcome back — here is what to test</h2>
-          <p>{label}{date ? ` · ${date}` : ''}</p>
+          <p>{releaseLine}</p>
         </div>
         <button type="button" className="beta-whats-new-dismiss" onClick={onDismiss} aria-label="Dismiss what's new">
           ×

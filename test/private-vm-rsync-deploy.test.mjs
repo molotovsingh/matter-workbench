@@ -34,6 +34,8 @@ test("private VM rsync deploy parser reads target options without accepting pass
       allowDirty: false,
       skipServiceCheck: false,
       skipUiHardening: false,
+      releaseVersion: "",
+      releaseCodename: "",
       releaseLabel: "",
       releaseDate: "",
       releaseNote: "",
@@ -97,6 +99,8 @@ test("private VM rsync deploy stamps release metadata before restarting the serv
     user: "aks",
     commit: "abc1234",
     sourceDir: "/Users/aksingh/matter-workbench",
+    releaseVersion: "v1.0.0-beta.78",
+    releaseCodename: "Nameplate Lantern",
     releaseLabel: "Beta 3",
     releaseDate: "2026-06-15",
     releaseNote: "Small release byte for testers",
@@ -106,10 +110,14 @@ test("private VM rsync deploy stamps release metadata before restarting the serv
   const command = activate?.command.join(" ") || "";
   assert.match(command, /systemctl --user set-environment/);
   assert.match(command, /MWB_RELEASE_COMMIT='abc1234'/);
+  assert.match(command, /MWB_RELEASE_VERSION='v1.0.0-beta.78'/);
+  assert.match(command, /MWB_RELEASE_CODENAME='Nameplate Lantern'/);
   assert.match(command, /MWB_RELEASE_LABEL='Beta 3'/);
   assert.match(command, /MWB_RELEASE_DATE='2026-06-15'/);
   assert.match(command, /MWB_RELEASE_NOTE='Small release byte for testers'/);
   assert.deepEqual(plan.release, {
+    version: "v1.0.0-beta.78",
+    codename: "Nameplate Lantern",
     label: "Beta 3",
     commit: "abc1234",
     date: "2026-06-15",

@@ -104,6 +104,8 @@ test("runtime DB config exposes sanitized release metadata for the title bar", a
   const server = await startRuntimeDbTestServer({
     appDir,
     env: {
+      MWB_RELEASE_VERSION: "v1.0.0-beta.77",
+      MWB_RELEASE_CODENAME: "Notice Bell\nignored",
       MWB_RELEASE_LABEL: "Beta 3\nignored",
       MWB_RELEASE_COMMIT: "5d10ca7",
       MWB_RELEASE_DATE: "2026-06-15",
@@ -115,6 +117,8 @@ test("runtime DB config exposes sanitized release metadata for the title bar", a
     const config = await getJson(server.baseUrl, "/api/config");
 
     assert.deepEqual(config.release, {
+      version: "v1.0.0-beta.77",
+      codename: "Notice Bell ignored",
       label: "Beta 3 ignored",
       commit: "5d10ca7",
       date: "2026-06-15",

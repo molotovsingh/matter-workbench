@@ -102,6 +102,8 @@ export interface AppConfig {
   maxUploadFiles?: number;
   copilotWebResearchEnabled?: boolean;
   release?: {
+    version?: string;
+    codename?: string;
     label?: string;
     commit?: string;
     date?: string;

@@ -39,6 +39,8 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
     allowDirty: false,
     skipServiceCheck: false,
     skipUiHardening: false,
+    releaseVersion: env.MWB_RELEASE_VERSION || "",
+    releaseCodename: env.MWB_RELEASE_CODENAME || "",
     releaseLabel: env.MWB_RELEASE_LABEL || "",
     releaseDate: env.MWB_RELEASE_DATE || "",
     releaseNote: env.MWB_RELEASE_NOTE || "",
@@ -66,6 +68,12 @@ export function parsePrivateVmRsyncDeployArgs(argv = [], env = process.env) {
       i += 1;
     } else if (arg === "--service-name") {
       parsed.serviceName = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--release-version") {
+      parsed.releaseVersion = requiredValue(argv, i, arg);
+      i += 1;
+    } else if (arg === "--release-codename") {
+      parsed.releaseCodename = requiredValue(argv, i, arg);
       i += 1;
     } else if (arg === "--release-label") {
       parsed.releaseLabel = requiredValue(argv, i, arg);
@@ -110,6 +118,8 @@ export function buildPrivateVmRsyncDeployPlan({
   serviceName = "matter-workbench-runtime.service",
   skipServiceCheck = false,
   skipUiHardening = false,
+  releaseVersion = "",
+  releaseCodename = "",
   releaseLabel = "",
   releaseDate = "",
   releaseNote = "",
@@ -218,6 +228,8 @@ export function buildPrivateVmRsyncDeployPlan({
           [
             "systemctl --user set-environment",
             `MWB_RELEASE_COMMIT=${shellQuote(commit)}`,
+            `MWB_RELEASE_VERSION=${shellQuote(releaseVersion)}`,
+            `MWB_RELEASE_CODENAME=${shellQuote(releaseCodename)}`,
             `MWB_RELEASE_LABEL=${shellQuote(releaseLabel)}`,
             `MWB_RELEASE_DATE=${shellQuote(stampedReleaseDate)}`,
             `MWB_RELEASE_NOTE=${shellQuote(releaseNote)}`,
@@ -302,6 +314,8 @@ export function buildPrivateVmRsyncDeployPlan({
     baseUrl,
     serviceName,
     release: {
+      version: releaseVersion,
+      codename: releaseCodename,
       label: releaseLabel,
       commit,
       date: stampedReleaseDate,
@@ -325,6 +339,8 @@ export async function runPrivateVmRsyncDeploy({
   allowDirty = false,
   skipServiceCheck = false,
   skipUiHardening = false,
+  releaseVersion = "",
+  releaseCodename = "",
   releaseLabel = "",
   releaseDate = "",
   releaseNote = "",
@@ -352,6 +368,8 @@ export async function runPrivateVmRsyncDeploy({
     serviceName,
     skipServiceCheck,
     skipUiHardening,
+    releaseVersion,
+    releaseCodename,
     releaseLabel,
     releaseDate,
     releaseNote,
