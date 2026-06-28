@@ -641,10 +641,18 @@ padding: 0 2px;
 .home-card-header span { color: var(--muted); font-size: var(--font-size-sm); }
 .home-matter-list, .home-activity-list { list-style: none; margin: 0; padding: 0; }
 .home-matter-list li + li { border-top: 1px solid var(--border); }
-.home-matter-list button { width: 100%; border: 0; background: transparent; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 18px; text-align: left; }
-.home-matter-list button:hover, .home-quick-actions button:hover, .home-card-link:hover { background: var(--item-hover-bg); }
+.home-matter-row { display: flex; align-items: stretch; gap: 8px; padding: 6px 10px; }
+.home-matter-row.archived { background: var(--panel-2); }
+.home-matter-main { flex: 1 1 auto; min-width: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 8px; text-align: left; }
+.home-matter-main:hover, .home-matter-reopen:hover, .home-quick-actions button:hover, .home-card-link:hover { background: var(--item-hover-bg); }
 .home-matter-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex: 0 0 auto; }
-.home-matter-badge { color: var(--muted); font-size: var(--font-size-xs); margin-left: auto; }
+.home-matter-row.archived .home-matter-dot { background: var(--muted); }
+.home-matter-title-block { display: grid; gap: 2px; min-width: 0; }
+.home-matter-title-block strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-matter-title-block small { color: var(--muted); font-size: var(--font-size-xs); }
+.home-matter-reopen { align-self: center; border: 1px solid var(--accent-border); border-radius: 999px; background: var(--accent-soft); color: var(--text); cursor: pointer; flex: 0 0 auto; font: inherit; font-size: var(--font-size-sm); padding: 7px 12px; }
+.home-matter-reopen:disabled, .home-matter-main:disabled { cursor: wait; opacity: 0.7; }
+.home-matter-archive-note { border-top: 1px solid var(--border-subtle); color: var(--muted-strong); font-size: var(--font-size-ui); line-height: 1.45; padding: 0 18px 14px; }
 .home-matter-browser-tabs { border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; padding: 0 18px 14px; }
 .home-matter-browser-tabs button { border: 1px solid var(--border); border-radius: 999px; background: var(--panel-2); color: var(--muted); cursor: pointer; font: inherit; font-size: var(--font-size-sm); padding: 5px 10px; }
 .home-matter-browser-tabs button.active { border-color: var(--accent-border); background: var(--accent-soft); color: var(--text); }

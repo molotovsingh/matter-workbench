@@ -28,6 +28,17 @@ function timeAwareGreeting(displayName = '') {
   return displayName ? `${prefix}, ${displayName}.` : `${prefix}.`;
 }
 
+function formatArchivedDate(value?: string) {
+  const raw = value?.trim();
+  if (!raw) return 'Archived date not recorded';
+  const normalized = raw
+    .replace(' ', 'T')
+    .replace(/([+-]\d{2})$/, '$1:00');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return `Archived ${raw}`;
+  return `Archived ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
 interface Props {
   onNewMatter: () => void;
   onOpenMatter: (name: string) => void;
@@ -207,21 +218,43 @@ export default function HomeLanding({
               spellCheck={false}
             />
           </div>
+          {showArchived && (
+            <div className="home-matter-archive-note">
+              Archived matters are closed from active work, not deleted. Reopen restores the matter with its existing file IDs and history.
+            </div>
+          )}
           <ul className="home-matter-list">
             {browserMatters.length > 0 ? browserMatters.map((m) => {
               const archived = m.status === 'archived';
+              const reopening = reopeningMatter === m.name;
               return (
                 <li key={m.name}>
-                  <button
-                    type="button"
-                    onClick={() => { archived ? void handleReopenMatter(m.name) : void handleOpenMatter(m.name); }}
-                    disabled={loading}
-                  >
-                    <span className="home-matter-dot" aria-hidden="true" />
-                    <strong>{m.name}</strong>
-                    {archived && <span className="home-matter-badge">Archived · reopen</span>}
-                    {reopeningMatter === m.name && <span className="home-matter-badge">Reopening…</span>}
-                  </button>
+                  <div className={`home-matter-row${archived ? ' archived' : ''}`}>
+                    <button
+                      className="home-matter-main"
+                      type="button"
+                      onClick={() => { archived ? void handleReopenMatter(m.name) : void handleOpenMatter(m.name); }}
+                      disabled={loading}
+                      aria-label={archived ? `Reopen ${m.name}` : `Open ${m.name}`}
+                    >
+                      <span className="home-matter-dot" aria-hidden="true" />
+                      <span className="home-matter-title-block">
+                        <strong>{m.name}</strong>
+                        {archived && <small>{formatArchivedDate(m.archivedAt)}</small>}
+                      </span>
+                    </button>
+                    {archived && (
+                      <button
+                        className="home-matter-reopen"
+                        type="button"
+                        onClick={() => { void handleReopenMatter(m.name); }}
+                        disabled={loading}
+                        aria-label={`Reopen matter ${m.name}`}
+                      >
+                        {reopening ? 'Reopening…' : 'Reopen'}
+                      </button>
+                    )}
+                  </div>
                 </li>
               );
             }) : (
