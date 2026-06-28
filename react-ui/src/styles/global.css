@@ -1023,6 +1023,15 @@ code { color: var(--code-text); }
 .readiness-check.attention em { color: var(--warning-text); }
 .readiness-check.pending { opacity: 0.7; }
 .readiness-session-banner { background: var(--panel); border: 1px solid var(--provider-warning-border); border-radius: 999px; box-shadow: var(--shadow-soft); color: var(--warning-text); font-size: 12px; font-weight: 700; left: 50%; max-width: min(680px, calc(100vw - 32px)); padding: 8px 14px; position: fixed; text-align: center; top: 12px; transform: translateX(-50%); z-index: 40; }
+.beta-whats-new-card { background: var(--panel); border: 1px solid var(--accent-soft); border-radius: 14px; box-shadow: var(--shadow-strong); color: var(--text); display: grid; gap: 12px; max-width: min(440px, calc(100vw - 32px)); padding: 18px; position: fixed; right: 20px; top: 20px; z-index: 45; }
+.beta-whats-new-header { align-items: start; display: flex; gap: 12px; justify-content: space-between; }
+.beta-whats-new-header h2 { font-family: var(--display-font); font-size: 22px; line-height: 1.08; margin: 4px 0 6px; }
+.beta-whats-new-header p, .beta-whats-new-note, .beta-whats-new-tip { color: var(--muted-strong); font-size: 13px; line-height: 1.45; margin: 0; }
+.beta-whats-new-card ul { display: grid; gap: 8px; margin: 0; padding-left: 18px; }
+.beta-whats-new-card li { color: var(--text); font-size: 13px; line-height: 1.45; }
+.beta-whats-new-dismiss { align-items: center; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 999px; color: var(--muted-strong); cursor: pointer; display: inline-flex; font: inherit; font-size: 18px; height: 30px; justify-content: center; line-height: 1; width: 30px; }
+.beta-whats-new-dismiss:hover { border-color: var(--accent); color: var(--text); }
+.beta-whats-new-tip code { background: var(--panel-2); border: 1px solid var(--border-subtle); border-radius: 4px; color: var(--text); padding: 1px 4px; }
 @keyframes readiness-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.15); } }
 
 /* ─── File preview ──────────────────────────────────────── */

@@ -29,6 +29,22 @@ test("React private beta login fields have explicit accessible labels", async ()
   assert.match(source, /id="private-beta-password"/);
 });
 
+test("React shows a dismissible what's-new note after private beta login", async () => {
+  const app = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
+  const suggestions = await readFile(new URL("../react-ui/src/hooks/useCommandSuggestions.ts", import.meta.url), "utf8");
+  const css = await readFile(new URL("../react-ui/src/styles/global.css", import.meta.url), "utf8");
+
+  assert.match(app, /showWhatsNew/);
+  assert.match(app, /BetaWhatsNewBanner/);
+  assert.match(app, /setShowWhatsNew\(Boolean\(status\.authenticated\)\)/);
+  assert.match(app, /lower === '\/whats_new'/);
+  assert.match(app, /Welcome back — here is what to test/);
+  assert.match(app, /Remove from active record|removed from the active record/);
+  assert.match(suggestions, /What's new/);
+  assert.match(suggestions, /\/whats_new/);
+  assert.match(css, /\.beta-whats-new-card/);
+});
+
 test("React API client exposes private beta auth helpers", async () => {
   const source = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
   assert.match(source, /getAuthStatus: \(\) => getJson/);

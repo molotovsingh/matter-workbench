@@ -26,6 +26,7 @@ export function looksLikeCustomSkillModification(input: string, suggestions: Com
 }
 
 export const STATIC_COMMAND_SUGGESTIONS: CommandSuggestion[] = [
+  { label: "What's new", description: 'Show the latest beta tester notes', command: '/whats_new' },
   { label: 'New skill', description: 'Design a reusable matter skill', command: 'new skill' },
   { label: 'Find a matter', description: 'Open matter picker', command: 'find a matter' },
   ...COMMAND_PANEL_NATIVE_SUGGESTIONS,

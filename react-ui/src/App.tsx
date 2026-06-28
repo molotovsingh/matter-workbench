@@ -33,7 +33,7 @@ import { filePreviewTitle, loadTextFilePreview } from './lib/filePreview';
 import { humanizeArtifactPath } from './lib/presentationLabels';
 import { canSeeOperatorSurface } from './lib/lawyerMode';
 import { useUserReadinessGate } from './hooks/useUserReadinessGate';
-import type { ActiveView, AuthUser } from './types';
+import type { ActiveView, AppConfig, AuthUser } from './types';
 
 interface PendingConfigurableOverwrite {
   slash: string;
@@ -52,6 +52,7 @@ function AppShell() {
   const { state, dispatch, setTheme, appendTerminal, refreshActiveMatterWorkspace, clearActiveMatter } = useApp();
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [authError, setAuthError] = useState('');
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [reportText, setReportText] = useState<string | null>(null);
   const [copilotThread, setCopilotThread] = useState<CopilotThreadTurn[]>([]);
   const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
@@ -66,6 +67,7 @@ function AppShell() {
   }, [dispatch]);
   const handleAuthRequired = useCallback(() => {
     setAuthError('Please sign in again.');
+    setShowWhatsNew(false);
     setAuthStatus({ enabled: true, authenticated: false, user: null });
     resetReadinessGate();
     dispatch({ type: 'SET_CONFIG', payload: { authUser: null, authEnabled: true } });
@@ -302,6 +304,7 @@ function AppShell() {
         const status = await api.getAuthStatus();
         if (!cancelled) {
           setAuthStatus(status);
+          setShowWhatsNew(Boolean(status.authenticated));
           dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
         }
       } catch (e) {
@@ -358,6 +361,7 @@ function AppShell() {
       const status = await api.login({ username, password });
       resetReadinessGate();
       setAuthStatus(status);
+      setShowWhatsNew(Boolean(status.authenticated));
       dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed in']);
     } catch (e) {
@@ -370,6 +374,7 @@ function AppShell() {
       const status = await api.logout();
       resetReadinessGate();
       setAuthStatus(status);
+      setShowWhatsNew(false);
       dispatch({ type: 'SET_CONFIG', payload: { authUser: status.user, authEnabled: status.enabled } });
       appendTerminal(['[auth] signed out']);
     } catch (e) {
@@ -507,6 +512,12 @@ function AppShell() {
 
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
+    if (lower === '/whats_new' || lower === '/whatsnew' || lower === 'whats new' || lower === "what's new") {
+      setShowWhatsNew(true);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: "Opened What's new for testers." });
+      appendTerminal(["[release] what's new opened"]);
+      return;
+    }
     const localReply = localAssistantReply(cmd, Boolean(state.activeMatter));
     if (localReply) {
       dispatch({ type: 'SET_COMMAND_COPY', payload: localReply });
@@ -715,6 +726,12 @@ function AppShell() {
           {readinessBanner}
         </div>
       )}
+      {showWhatsNew && (
+        <BetaWhatsNewBanner
+          release={state.config?.release ?? null}
+          onDismiss={() => setShowWhatsNew(false)}
+        />
+      )}
       <Sidebar
         onNewMatter={() => setActiveView('new-matter')}
         onAddFiles={() => setActiveView('add-files')}
@@ -744,6 +761,44 @@ function AppShell() {
         }
       />
     </div>
+  );
+}
+
+const TESTER_WHATS_NEW_ITEMS = [
+  'Larger beta upload batches are supported, including files up to 256 MB and large folders.',
+  'Long uploads and document reading now show clearer progress and keep-page-open guidance.',
+  'Matters can be archived and reopened without deleting source records or history.',
+  'Source files can be removed from the active record without deleting the original evidence.',
+];
+
+function BetaWhatsNewBanner({
+  release,
+  onDismiss,
+}: {
+  release: AppConfig['release'];
+  onDismiss: () => void;
+}) {
+  const label = release?.label?.trim() || 'Latest beta update';
+  const note = release?.note?.trim() || '';
+  const date = release?.date?.trim() || '';
+  return (
+    <section className="beta-whats-new-card" role="status" aria-live="polite" aria-label="What's new in this beta">
+      <div className="beta-whats-new-header">
+        <div>
+          <div className="section-kicker">What's new</div>
+          <h2>Welcome back — here is what to test</h2>
+          <p>{label}{date ? ` · ${date}` : ''}</p>
+        </div>
+        <button type="button" className="beta-whats-new-dismiss" onClick={onDismiss} aria-label="Dismiss what's new">
+          ×
+        </button>
+      </div>
+      <ul>
+        {TESTER_WHATS_NEW_ITEMS.map((item) => <li key={item}>{item}</li>)}
+      </ul>
+      {note && <p className="beta-whats-new-note">Build note: {note}</p>}
+      <p className="beta-whats-new-tip">Tip: type <code>/whats_new</code> anytime to reopen this note.</p>
+    </section>
   );
 }
 
