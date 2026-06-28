@@ -1,14 +1,14 @@
 # Source Custody Removal Write Contract
 
-Date: 2026-06-26
-Status: Draft implementation contract — not yet enabled by any route or UI
-Priority: High before any `Remove from active record` workflow
+Date: 2026-06-28
+Status: Implemented narrow contract for first routed non-destructive source-removal workflow
+Priority: Keep narrow before restore/quarantine/purge workflows
 
 ## Purpose
 
-This note narrows the future write-side source-removal mutation. It is a contract
-draft for implementation review, not permission to add a user-facing removal
-button.
+This note narrows the write-side source-removal mutation. It is the contract for
+the first routed `Remove from active record` workflow, not permission to add
+ordinary file deletion or permanent purge.
 
 The operation is **not** ordinary file deletion. It is a matter-custody mutation
 that removes a source from the active source set while preserving identity,
@@ -134,9 +134,10 @@ mutation queue and perform, in order:
 4. mark affected artifacts stale where the local projection exists;
 5. return the source id, event id, and affected-artifact summary.
 
-If a local append fails after a manifest write, the operation must surface an
-operator-visible repair state before any UI is enabled. A future implementation
-may use a single local transaction journal to make this stronger.
+If a local append fails after a manifest write, the operation must surface a
+repair-required state and block later removals until repaired. A future
+implementation may use a single local transaction journal and operator repair UI
+to make this stronger.
 
 ## Active Source Set Effects
 
@@ -192,21 +193,20 @@ Already present:
 - local source tombstone read-side suppression;
 - runtime DB inactive source document statuses;
 - active-context suppression for stale generated artifact summaries;
-- pure read-only source-removal impact preview helper and endpoint with no UI;
+- pure read-only source-removal impact preview helper and endpoint;
 - artifact currentness schema/service foundation for read-only projection,
-  non-routed local manifest persistence, and runtime DB stale/needs-review write
-  helpers;
-- non-routed source-removal mutation service with required reason/idempotency,
-  local tombstone/event/currentness writes, local repair-state failure posture,
-  and runtime DB transaction SQL;
+  local manifest persistence, and runtime DB stale/needs-review write helpers;
+- source-removal mutation service with required reason/idempotency, local
+  tombstone/event/currentness writes, local repair-state failure posture, and
+  runtime DB transaction SQL;
+- routed `POST /api/source-removal/remove-from-active-record` endpoint;
+- first confirmation UI labeled `Remove from active record`;
 - privilege-safe read-only Matter Log rendering for canonical
   `source_file.removed_from_active_record` events.
 
-Still missing before any UI:
+Still missing after the first UI:
 
-- routed/authorized source-removal endpoint;
 - operator-visible local repair workflow for failed local mutations;
 - restore/quarantine workflows;
-- feature-flagged UI;
-- release/deploy of the source-removal write path if it is ever routed as
-  active runtime behavior.
+- retention/legal-hold/export-before-purge workflow;
+- full Matter Log review workflow for source-removal events.

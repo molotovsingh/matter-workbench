@@ -2,6 +2,7 @@ import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
+import { currentRequestContext } from "../services/request-context.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
 import { searchMatterContextPacket, summarizeMatterContextPacket } from "../services/matter-context-service.mjs";
 import { buildSourceRemovalImpactPreviewFromPacket, previewSourceRemovalImpact } from "../services/source-removal-impact-preview-service.mjs";
@@ -35,6 +36,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     prepareMatterService,
     privateBetaSignalService,
     runtimeDbStorageService,
+    runtimeDbSourceRemovalMutationService,
+    sourceRemovalMutationService,
   } = services;
 
   return dispatchRoutes({
@@ -363,6 +366,36 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         const root = await matterRootForQuery(matterStore, requestUrl);
         sendJson(response, 200, await previewSourceRemovalImpact({ matterRoot: root, fileId }));
       }),
+      exactRoute("POST", "/api/source-removal/remove-from-active-record", async () => {
+        const body = await readRequestJson(request);
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          assertRuntimeDbSourceRemovalAvailable({ runtimeDbSourceRemovalMutationService });
+          const result = await runtimeDbSourceRemovalMutationService.removeRuntimeDbSourceFromActiveRecord({
+            matterId: matter.id,
+            matterName: matter.name,
+            fileId: body.fileId || body.file_id,
+            reason: body.reason,
+            idempotencyKey: body.idempotencyKey || body.idempotency_key,
+            actor: sourceRemovalActor(),
+          });
+          assertSourceRemovalResult(result, body.fileId || body.file_id);
+          sendJson(response, 200, runtimeDbReadResponse(result, matter));
+          return;
+        }
+        assertSourceRemovalMutationAvailable({ sourceRemovalMutationService });
+        const root = await matterRootForBody(matterStore, body);
+        const result = await sourceRemovalMutationService.removeLocalSourceFromActiveRecord({
+          matterRoot: root,
+          matterName: matterNameForBody(matterStore, body),
+          fileId: body.fileId || body.file_id,
+          reason: body.reason,
+          idempotencyKey: body.idempotencyKey || body.idempotency_key,
+          actor: sourceRemovalActor(),
+        });
+        assertSourceRemovalResult(result, body.fileId || body.file_id);
+        sendJson(response, 200, result);
+      }),
       exactRoute("GET", "/api/matter-context/search", async () => {
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
@@ -512,6 +545,19 @@ function assertRuntimeDbContextReadAvailable({ runtimeDbStorageService } = {}) {
   }
 }
 
+function assertRuntimeDbSourceRemovalAvailable({ runtimeDbSourceRemovalMutationService } = {}) {
+  if (!runtimeDbSourceRemovalMutationService?.enabled
+    || typeof runtimeDbSourceRemovalMutationService?.removeRuntimeDbSourceFromActiveRecord !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.source_removal_required");
+  }
+}
+
+function assertSourceRemovalMutationAvailable({ sourceRemovalMutationService } = {}) {
+  if (typeof sourceRemovalMutationService?.removeLocalSourceFromActiveRecord !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.source_removal_required");
+  }
+}
+
 function assertRuntimeDbCopilotContextAvailable({ runtimeDbStorageService, matterCopilotService } = {}) {
   if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function"
     || typeof matterCopilotService?.answerQuestionFromPacket !== "function") {
@@ -642,6 +688,23 @@ function matterNameForBody(matterStore, body = {}) {
   const matterName = typeof body.matterName === "string" ? body.matterName.trim() : "";
   if (matterName) return matterName;
   return matterStore.activeMatterNameWithinHome?.() || matterStore.getActiveMatterRecord?.()?.name || "";
+}
+
+function sourceRemovalActor() {
+  const user = currentRequestContext().user || {};
+  return {
+    username: user.username || "",
+    displayName: user.displayName || user.username || "",
+    role: user.role || "",
+  };
+}
+
+function assertSourceRemovalResult(result = {}, fileId = "") {
+  if (result?.state !== "source_not_found") return;
+  const error = new Error(`${fileId || "Source"} is not present in the active source record.`);
+  error.statusCode = 404;
+  error.code = "source_removal.source_not_found";
+  throw error;
 }
 
 function runtimeDbReadResponse(result, matter = {}) {

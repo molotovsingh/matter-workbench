@@ -8,8 +8,8 @@ const ledgerPath = new URL("../docs/future-design-decisions/README.md", import.m
 test("source custody removal write contract stays narrow, idempotent, and non-deleting", async () => {
   const contract = await readFile(contractPath, "utf8");
 
-  assert.match(contract, /Draft implementation contract/);
-  assert.match(contract, /not permission to add a user-facing removal/);
+  assert.match(contract, /Implemented narrow contract/);
+  assert.match(contract, /not permission to add\s+ordinary file deletion or permanent purge/s);
   assert.match(contract, /Remove from active record/);
   assert.match(contract, /Do not call it `Delete file`/);
   assert.match(contract, /uploaded source\/original file represented by a stable `FILE-NNNN` id/);
@@ -24,8 +24,9 @@ test("source custody removal write contract stays narrow, idempotent, and non-de
   assert.match(contract, /inside one transaction/);
   assert.match(contract, /status\+tombstone\+event|status.*event/s);
   assert.match(contract, /Do not silently regenerate paid\/model artifacts/);
-  assert.match(contract, /pure read-only source-removal impact preview helper and endpoint with no UI/);
-  assert.match(contract, /Still missing before any UI/);
+  assert.match(contract, /routed `POST \/api\/source-removal\/remove-from-active-record` endpoint/);
+  assert.match(contract, /first confirmation UI labeled `Remove from active record`/);
+  assert.match(contract, /Still missing after the first UI/);
   assert.doesNotMatch(contract, /DELETE FROM/i);
   assert.doesNotMatch(contract, /rm -rf/i);
 });

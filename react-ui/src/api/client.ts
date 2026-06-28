@@ -61,6 +61,8 @@ import type {
   SkillSampleOutputResponse,
   SkillRegistry,
   SkillRun,
+  SourceRemovalImpactPreview,
+  SourceRemovalResult,
   SystemHealthReport,
   UserReadinessReport,
   WorkspaceApiNode,
@@ -418,6 +420,9 @@ export const api = {
   getRerunAdvice: (skill: string, matterName?: string) => getJson<RerunAdvice>(withQuery('/api/rerun-advice', { skill, matter: matterName })),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),
+  getSourceRemovalImpactPreview: (fileId: string, matterName?: string) => getJson<SourceRemovalImpactPreview>(withQuery('/api/source-removal-impact-preview', { fileId, matter: matterName })),
+  removeSourceFromActiveRecord: (body: { matterName?: string; fileId: string; reason: string; idempotencyKey: string }) =>
+    postJson<SourceRemovalResult>('/api/source-removal/remove-from-active-record', body),
   getMatterContext: (matterName?: string) => getJson<MatterContextPreview>(withQuery('/api/matter-context', { matter: matterName })),
   searchMatterContext: (query: string, matterName?: string) => getJson<MatterContextSearchResponse>(withQuery('/api/matter-context/search', { q: query, matter: matterName })),
   answerMatterQuestion: (body: { question: string; matterName?: string; conversation?: MatterCopilotConversationTurn[] }) =>

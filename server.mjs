@@ -33,6 +33,10 @@ import { createPrivateBetaUsersService } from "./services/private-beta-users-ser
 import { createRuntimeDbMatterEventsService } from "./services/runtime-db-matter-events-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
+import {
+  createRuntimeDbSourceRemovalMutationService,
+  createSourceRemovalMutationService,
+} from "./services/source-removal-mutation-service.mjs";
 import { runtimeDatabaseUrl } from "./services/runtime-db-config.mjs";
 import { newTraceId, requestContextFromAuthStatus, runWithRequestContext } from "./services/request-context.mjs";
 import { createRuntimeDbSkillIdeasService } from "./services/runtime-db-skill-ideas-service.mjs";
@@ -259,6 +263,14 @@ export async function createWorkbenchServer(options = {}) {
         eventsPath: options.matterEventsPath,
       })
   );
+  const runtimeDbSourceRemovalMutationService = options.runtimeDbSourceRemovalMutationService || createRuntimeDbSourceRemovalMutationService({
+    databaseUrl: runtimeDbUrl,
+    tenantId: runtimeMatterIndex.tenantId || "",
+  });
+  const sourceRemovalMutationService = options.sourceRemovalMutationService || createSourceRemovalMutationService({
+    appDir,
+    matterEventsService,
+  });
   const configurableSkillsService = createConfigurableSkillsService({
     appDir,
     skillsPath: options.configurableSkillsPath,
@@ -387,6 +399,7 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaUsersService,
     telemetryRetryService,
     runtimeDbStorageService,
+    runtimeDbSourceRemovalMutationService,
     skillIdeasService,
     skillFactoryHealthService,
     skillInterviewPlannerService,
@@ -397,6 +410,7 @@ export async function createWorkbenchServer(options = {}) {
     systemHealthService,
     userReadinessService,
     sourceDescriptorProvider: options.sourceDescriptorProvider || null,
+    sourceRemovalMutationService,
     uploadService,
     workspaceService,
   };

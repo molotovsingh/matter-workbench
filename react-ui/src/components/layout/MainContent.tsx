@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '../../store/AppContext';
+import { api } from '../../api/client';
 import HomeLanding from '../../views/HomeLanding';
 import SkillsPage from '../../views/SkillsPage';
 import ActivityPage from '../../views/ActivityPage';
@@ -24,7 +25,9 @@ import {
   sourceFragmentsForListOfDates,
 } from '../../lib/filePreview';
 import { writeClipboardText } from '../../lib/clipboard';
+import { getErrorMessage } from '../../lib/errors';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
+import type { SourceRemovalImpactPreview } from '../../types';
 
 const ASSISTANT_WIDTH_STORAGE_KEY = 'mwb.matterAssistant.width';
 const DEFAULT_ASSISTANT_WIDTH = 380;
@@ -43,14 +46,68 @@ interface Props {
 }
 
 function FilePreview({ preview }: { preview: { path: string; type: string; url?: string; content?: string; ext?: string } }) {
-  const { state } = useApp();
+  const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const filename = preview.path.split('/').pop() ?? preview.path;
   const isListOfDatesMarkdown = preview.type === 'text' && isListOfDatesMarkdownPath(preview.path);
   const listOfDates = isListOfDatesMarkdown ? parseListOfDatesMarkdown(preview.content || '') : null;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
+  const sourceFileId = sourceFileIdForPreviewPath(preview.path);
+  const [removalOpen, setRemovalOpen] = useState(false);
+  const [removalReason, setRemovalReason] = useState('');
+  const [removalImpact, setRemovalImpact] = useState<SourceRemovalImpactPreview | null>(null);
+  const [removalLoading, setRemovalLoading] = useState(false);
+  const [removalError, setRemovalError] = useState('');
 
   async function copyMarkdown() {
     await writeClipboardText(preview.content || '');
+  }
+
+  async function openRemovalPanel() {
+    if (!sourceFileId) return;
+    setRemovalOpen(true);
+    setRemovalError('');
+    setRemovalLoading(true);
+    try {
+      const impact = await api.getSourceRemovalImpactPreview(sourceFileId, state.activeMatter?.name);
+      setRemovalImpact(impact);
+    } catch (error) {
+      setRemovalError(getErrorMessage(error));
+    } finally {
+      setRemovalLoading(false);
+    }
+  }
+
+  async function confirmSourceRemoval() {
+    if (!sourceFileId || !removalReason.trim()) return;
+    const matterName = state.activeMatter?.name;
+    setRemovalLoading(true);
+    setRemovalError('');
+    try {
+      const result = await api.removeSourceFromActiveRecord({
+        matterName,
+        fileId: sourceFileId,
+        reason: removalReason.trim(),
+        idempotencyKey: sourceRemovalIdempotencyKey(matterName || 'matter', sourceFileId),
+      });
+      appendTerminal([
+        `[source-removal] ${sourceFileId} ${result.state || 'updated'} — source bytes and history were preserved`,
+      ]);
+      setRemovalOpen(false);
+      setRemovalReason('');
+      setRemovalImpact(null);
+      dispatch({ type: 'SET_FILE_PREVIEW', payload: null });
+      dispatch({ type: 'SET_ACTIVE_FILE', payload: null });
+      dispatch({ type: 'SET_VIEW', payload: 'home' });
+      await refreshActiveMatterWorkspace({
+        reason: '[source-removal] refreshing active matter…',
+        successMessage: '[source-removal] active source record updated',
+        expectedMatterName: matterName,
+      });
+    } catch (error) {
+      setRemovalError(getErrorMessage(error));
+    } finally {
+      setRemovalLoading(false);
+    }
   }
 
   return (
@@ -90,7 +147,63 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
             )}
           </div>
         )}
+        {sourceFileId && (
+          <div className="document-actions">
+            <button type="button" className="run-skill-button secondary danger" onClick={() => { void openRemovalPanel(); }}>
+              Remove from active record
+            </button>
+          </div>
+        )}
       </div>
+      {removalOpen && sourceFileId && (
+        <section className="source-removal-panel" aria-label="Remove source from active record">
+          <strong>Remove {sourceFileId} from the active record?</strong>
+          <p>
+            This is non-destructive. Source bytes, extracted text, file IDs, and history are preserved;
+            future source-backed work will stop treating this file as active.
+          </p>
+          {removalLoading && <p className="source-removal-note">Checking impact…</p>}
+          {removalImpact && (
+            <div className="source-removal-impact">
+              <span>{removalImpact.active_context?.evidence_blocks || 0} active evidence block{(removalImpact.active_context?.evidence_blocks || 0) === 1 ? '' : 's'} reference this source.</span>
+              {(removalImpact.affected_artifacts || []).length > 0 && (
+                <ul>
+                  {(removalImpact.affected_artifacts || []).map((artifact, index) => (
+                    <li key={`${artifact.family || 'artifact'}-${index}`}>
+                      {humanizeSourceRemovalFamily(artifact.family)}: {humanizeSourceRemovalFamily(artifact.effect)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(removalImpact.warnings || []).length > 0 && (
+                <ul>
+                  {(removalImpact.warnings || []).map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <label className="source-removal-reason">
+            <span>Reason required</span>
+            <textarea
+              value={removalReason}
+              onChange={(event) => setRemovalReason(event.target.value.slice(0, 500))}
+              placeholder="e.g. Wrong client file uploaded to this matter."
+              maxLength={500}
+            />
+          </label>
+          {removalError && <div className="form-error">{removalError}</div>}
+          <div className="source-removal-actions">
+            <button type="button" className="run-skill-button secondary" disabled={removalLoading} onClick={() => { setRemovalOpen(false); setRemovalError(''); }}>
+              Cancel
+            </button>
+            <button type="button" className="run-skill-button danger" disabled={removalLoading || !removalReason.trim() || Boolean(removalError && !removalImpact)} onClick={() => { void confirmSourceRemoval(); }}>
+              Confirm removal
+            </button>
+          </div>
+        </section>
+      )}
       {preview.type === 'pdf' && preview.url && (
         <iframe className="file-pdf-frame" src={preview.url} title={filename} />
       )}
@@ -162,6 +275,20 @@ function clampAssistantWidth(value: number): number {
     ? MAX_ASSISTANT_WIDTH
     : Math.max(MIN_ASSISTANT_WIDTH, Math.min(MAX_ASSISTANT_WIDTH, Math.floor(window.innerWidth * 0.48)));
   return Math.max(MIN_ASSISTANT_WIDTH, Math.min(viewportMax, Math.round(value || DEFAULT_ASSISTANT_WIDTH)));
+}
+
+function sourceFileIdForPreviewPath(path = ''): string {
+  return path.match(/(?:^|[/_\s-])(FILE-\d{4,})(?:\b|__|\.)/i)?.[1]?.toUpperCase() || '';
+}
+
+function sourceRemovalIdempotencyKey(matterName: string, fileId: string): string {
+  const safeMatter = String(matterName || 'matter').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'matter';
+  return `source-removal:${safeMatter}:${fileId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function humanizeSourceRemovalFamily(value = ''): string {
+  const text = String(value || '').replace(/_/g, ' ').trim();
+  return text ? text.replace(/^./, (char) => char.toUpperCase()) : 'Artifact';
 }
 
 export default function MainContent({

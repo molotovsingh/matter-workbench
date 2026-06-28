@@ -1,12 +1,12 @@
 # Matter Mutation Inventory
 
-Date: 2026-06-26
-Status: Phase 1 inventory for Matter Log / file-removal planning
+Date: 2026-06-28
+Status: Current mutation inventory for Matter Log / non-destructive source-removal planning
 
-This inventory starts the Matter Log journey without adding file removal. It maps
-current Matter Workbench operations that change matter state, generated outputs,
-or durable ledgers. It should stay honest about what current records can and
-cannot prove.
+This inventory maps current Matter Workbench operations that change matter state,
+generated outputs, or durable ledgers. It should stay honest about what current
+records can and cannot prove. Source removal means `Remove from active record`,
+not physical deletion.
 
 Related design note:
 
@@ -14,8 +14,8 @@ Related design note:
 
 ## Purpose
 
-Before adding `Remove from active record`, Matter Workbench needs to know which
-operations already mutate matter state and which existing records can seed a
+As `Remove from active record` becomes routed, Matter Workbench needs to keep
+clear which operations mutate matter state and which existing records can seed a
 read-only Matter Log.
 
 This document is not an event schema. It is an inventory.
@@ -36,7 +36,8 @@ This document is not an event schema. It is an inventory.
 | Operation | Routes / services | Class | Existing durable record | Matter Log readiness | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Create new matter from upload | `POST /api/matters/new`; `uploadService.createMatter`; runtime DB `createMatterFromUploadedFiles`; filesystem upload + `runMatterInit` | Source mutation | Runtime DB custody rows in DB mode; filesystem matter folder + `matter.json` / File Register in local mode | High-value future event; current local record is source truth but not append-only event | Allocates matter identity and first intake/source files. |
-| Add files to matter | `POST /api/matters/add-files`; `uploadService.addFilesToMatter`; runtime DB `addUploadedFilesToMatter`; filesystem add-files + `runMatterInit` | Source mutation | Runtime DB upload/import rows in DB mode; filesystem intake folder + File Register in local mode | High-value future event; needs Matter Log before source removal | Reverse operation will be `Remove from active record`; must preserve FILE ids. |
+| Add files to matter | `POST /api/matters/add-files`; `uploadService.addFilesToMatter`; runtime DB `addUploadedFilesToMatter`; filesystem add-files + `runMatterInit` | Source mutation | Runtime DB upload/import rows in DB mode; filesystem intake folder + File Register in local mode | High-value future event; now has a non-destructive reverse operation | Reverse operation is `Remove from active record`; FILE ids must be preserved. |
+| Remove source from active record | `POST /api/source-removal/remove-from-active-record`; `sourceRemovalMutationService.removeLocalSourceFromActiveRecord`; runtime DB `removeRuntimeDbSourceFromActiveRecord` | Source mutation / active-source suppression | Runtime DB `documents.status = removed_from_active_record`, `matter_events`, and currentness rows; local source tombstone manifest, matter event, and currentness marker | Custody-sensitive event; must stay reasoned and idempotent | This does not delete source bytes, payloads, extraction records, source descriptors, generated artifacts, or FILE ids. It suppresses the source from future active-source context and marks downstream artifacts stale/needs-review. |
 | Archive / reopen matter | `POST /api/matters/archive`; `POST /api/matters/reopen`; `matterStore.archiveMatter`; `matterStore.reopenMatter`; runtime DB matter status update; local `.matter-workbench/matter-lifecycle.json` marker | Matter lifecycle mutation | Runtime DB `matters.status` / `archived_at`; local non-destructive lifecycle marker | Good Matter Log candidate; safe because it does not delete source bytes | Closes a matter out of the active list and can reopen it if the client returns. No files, artifacts, FILE ids, or history are deleted. |
 | Set up / initialize matter | `POST /api/matter-init`; `runMatterInit`; runtime DB `initializeMatter` | Source preparation mutation | Job ledger when routed through API; matter artifacts/registers | Good projection seed from job ledger, not full custody on its own | Reconciles matter structure and records. Must become tombstone-aware before removal. |
 | Extract documents | `POST /api/extract`; `runExtract`; runtime DB `extractDocuments` | Source preparation mutation | Job ledger; extraction payloads | Good projection seed | Derived from active source set; removal must prevent extracted payloads from staying in active context. |
@@ -90,19 +91,18 @@ A safe read-only Matter Log skeleton can begin by projecting:
 The projection must say `best effort` or equivalent until canonical events are
 written.
 
-## Gaps Blocking File Removal
+## Remaining Gaps After First Source Removal Route
 
-File removal should remain blocked until these gaps are addressed:
+The first routed operation is non-destructive `Remove from active record`. It is
+not ordinary file deletion. These gaps still matter before broader file-removal,
+restore, quarantine, or purge workflows:
 
-1. No routed/authorized source-removal endpoint.
-2. No operator-visible repair workflow for failed local source-removal mutations.
-3. No complete unified active source set read/write model exposed to product UI.
-4. No restore/quarantine design.
-5. No feature-flagged confirmation UI.
-6. No release/deploy of the source-removal write path as active routed runtime
-   behavior.
-7. No operator-facing Matter Log source-removal workflow because the mutation is
-   not routed.
+1. No operator-visible repair workflow for failed local source-removal mutations.
+2. No complete unified active source set read/write model exposed to product UI.
+3. No restore/quarantine design.
+4. No retention/legal-hold/export-before-purge workflow.
+5. No operator-facing Matter Log source-removal review workflow beyond the
+   canonical event/currentness records.
 
 ## First Implemented Event Spike
 

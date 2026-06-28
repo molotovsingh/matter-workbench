@@ -12,6 +12,7 @@ const TRACKED_MUTATION_ROUTES = [
   "/api/matters/add-files",
   "/api/matters/archive",
   "/api/matters/reopen",
+  "/api/source-removal/remove-from-active-record",
   "/api/matter-init",
   "/api/extract",
   "/api/describe-sources",
@@ -42,14 +43,14 @@ test("matter mutation inventory covers current high-impact mutation routes", asy
   }
 });
 
-test("matter mutation inventory keeps delete/remove blocked behind Matter Log planning", async () => {
+test("matter mutation inventory keeps delete/remove non-destructive and guarded", async () => {
   const inventory = await readFile(inventoryPath, "utf8");
 
   assert.match(inventory, /Remove from active record/);
-  assert.match(inventory, /No routed\/authorized source-removal endpoint/);
+  assert.match(inventory, /POST \/api\/source-removal\/remove-from-active-record/);
+  assert.match(inventory, /does not delete source bytes, payloads, extraction records, source descriptors, generated artifacts, or FILE ids/);
   assert.match(inventory, /No operator-visible repair workflow/);
   assert.match(inventory, /No complete unified active source set read\/write model exposed to product UI/);
-  assert.match(inventory, /No feature-flagged confirmation UI/);
   assert.match(inventory, /No restore\/quarantine design/);
   assert.doesNotMatch(inventory, /ordinary file system delete/i);
 });

@@ -1195,6 +1195,52 @@ export interface FilePreview {
   ext?: string;
 }
 
+export interface SourceRemovalImpactPreview {
+  schema_version: string;
+  file_id: string;
+  can_remove?: boolean;
+  action_label?: string;
+  requires_reason?: boolean;
+  physical_deletion?: boolean;
+  source?: {
+    file_id?: string;
+    source_label?: string;
+    source_short_label?: string;
+    document_type?: string;
+    source_path?: string;
+  };
+  active_context?: {
+    source_records?: number;
+    evidence_blocks?: number;
+  };
+  affected_artifacts?: Array<{
+    family?: string;
+    effect?: string;
+    reference_count?: number;
+    reason?: string;
+  }>;
+  warnings?: string[];
+}
+
+export interface SourceRemovalResult {
+  schema_version: string;
+  file_id: string;
+  state: string;
+  action_label?: string;
+  physical_deletion?: boolean;
+  event_id?: string;
+  matterName?: string;
+  matter_name?: string;
+  affected_artifacts?: Array<{
+    artifactFamily?: string;
+    artifactPath?: string;
+    state?: string;
+    dependencyState?: string;
+    reasonCode?: string;
+  }>;
+  warnings?: string[];
+}
+
 export interface PendingSkillsMatterAction {
   kind: 'native-workflow' | 'custom-skill' | 'skill-idea';
   label: string;

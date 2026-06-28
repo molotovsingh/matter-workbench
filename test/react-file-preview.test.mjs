@@ -10,6 +10,7 @@ const reactFilePreviewPath = new URL("../react-ui/src/lib/filePreview.ts", impor
 const reactSourceLabelsPath = new URL("../react-ui/src/lib/sourceLabels.ts", import.meta.url);
 const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 const reactWorkspaceTreePath = new URL("../react-ui/src/components/workspace/WorkspaceTree.tsx", import.meta.url);
+const reactMainContentPath = new URL("../react-ui/src/components/layout/MainContent.tsx", import.meta.url);
 
 async function importReactFilePreviewModule() {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "react-file-preview-test-"));
@@ -97,6 +98,21 @@ test("React file preview renders List of Dates markdown as chronology instead of
   assert.match(source, /Copy Markdown/);
   assert.match(source, /chronology-table/);
   assert.match(source, /lawyerFacingListOfDatesSourceFragment\(fragment\)/);
+});
+
+test("React file preview exposes non-destructive source removal confirmation", async () => {
+  const source = await readFile(reactMainContentPath, "utf8");
+  const client = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../react-ui/src/styles/global.css", import.meta.url), "utf8");
+
+  assert.match(source, /sourceFileIdForPreviewPath\(preview\.path\)/);
+  assert.match(source, /Remove from active record/);
+  assert.match(source, /source bytes and history were preserved/i);
+  assert.match(source, /api\.getSourceRemovalImpactPreview/);
+  assert.match(source, /api\.removeSourceFromActiveRecord/);
+  assert.match(source, /Reason required/);
+  assert.match(client, /\/api\/source-removal\/remove-from-active-record/);
+  assert.match(styles, /source-removal-panel/);
 });
 
 test("React Workspace tree ignores late text previews after matter changes", async () => {
