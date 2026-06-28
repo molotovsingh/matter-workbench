@@ -150,6 +150,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   }
 
   const totalSize = collected.reduce((sum, c) => sum + c.file.size, 0);
+  const displayMatterName = state.activeMatter?.metadata?.matterName || state.activeMatter?.name;
 
   return (
     <div className="matter-intake-shell">
@@ -158,7 +159,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
           Add Files
         </div>
         <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 30, fontWeight: 500, margin: '0 0 8px', lineHeight: 1.18 }}>
-          Add files to {state.activeMatter?.name}
+          Add files to {displayMatterName}
         </h1>
         <p style={{ color: 'var(--muted)', margin: 0, fontSize: 14 }}>
           Upload source documents to the current matter.

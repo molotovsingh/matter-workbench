@@ -220,10 +220,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     activeMatterNameRef.current = matter?.name ?? null;
     dispatch({ type: 'SET_ACTIVE_MATTER', payload: matter });
     if (matter) {
+      const displayName = matter.metadata?.matterName || matter.name;
       dispatch({ type: 'SET_RESUME_MATTER', payload: matter.name });
-      dispatch({ type: 'SET_TITLE', payload: matter.name });
-      dispatch({ type: 'SET_BREADCRUMBS', payload: matter.name });
-      dispatch({ type: 'SET_STATUS_BAR', payload: matter.name });
+      dispatch({ type: 'SET_TITLE', payload: displayName });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: displayName });
+      dispatch({ type: 'SET_STATUS_BAR', payload: displayName });
     }
   }, []);
 

@@ -97,6 +97,38 @@ test("runtime DB matter index fails closed when local storage folder is missing"
   );
 });
 
+test("runtime DB postgres storage mode resolves lawyer captions with slashes through the index", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-slash-caption-"));
+  const mattersHome = path.join(tmp, "matters");
+  await mkdir(mattersHome, { recursive: true });
+  const legalCaption = "National Insurance Co. Ltd v M/s Sarkar Fertilizers";
+  const storageName = "National Insurance Co. Ltd v M - s Sarkar Fertilizers";
+
+  const runtimeMatterIndex = {
+    enabled: true,
+    storageMode: "postgres",
+    listMatterFolders: async () => [{ name: storageName, matterName: legalCaption }],
+    findMatterFolder: async (name) => {
+      assert.equal(name, legalCaption);
+      return {
+        id: "22222222-2222-4222-8222-222222222222",
+        name: storageName,
+        matterName: legalCaption,
+        clientName: "M/s Sarkar Fertilizers",
+      };
+    },
+  };
+  const store = createMatterStore({
+    configService: configService(mattersHome),
+    runtimeMatterIndex,
+  });
+
+  const resolved = await store.resolveExistingMatter(legalCaption);
+  assert.equal(resolved.name, storageName);
+  assert.equal(resolved.matterName, legalCaption);
+  assert.equal(resolved.matterPath, `postgres:${storageName}`);
+});
+
 test("runtime DB postgres storage mode resolves missing local folder as virtual active matter", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-virtual-storage-"));
   const mattersHome = path.join(tmp, "matters");

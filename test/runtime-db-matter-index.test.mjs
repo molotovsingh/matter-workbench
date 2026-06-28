@@ -150,9 +150,40 @@ test("runtime DB matter index can resolve by legal matter name or local folder n
     matterType: "",
     jurisdiction: "",
   });
-  assert.match(calls[0], /m\.name = 'Taori Vs Roma Builders'/);
-  assert.match(calls[0], /source_root_hint = 'Taori Vs Roma Builders'/);
+  assert.match(calls[0], /m\.name in \('Taori Vs Roma Builders'\)/);
+  assert.match(calls[0], /source_root_hint in \('Taori Vs Roma Builders'\)/);
   assert.match(calls[0], /11111111-1111-4111-8111-111111111111/);
+});
+
+test("runtime DB matter index resolves lawyer captions with slashes through storage-name candidates", async () => {
+  const calls = [];
+  const index = createRuntimeDbMatterIndex({
+    env: {
+      MWB_RUNTIME_DB: "postgres",
+      MWB_DB_RUNTIME_CUTOVER_APPROVED: "yes",
+      MWB_DATABASE_URL: "postgres://runtime:secret@db.example/mwb",
+    },
+    spawn: (command, args, options) => {
+      calls.push(options.input);
+      return {
+        status: 0,
+        stdout: JSON.stringify([{ name: "National Insurance Co. Ltd v M - s Sarkar Fertilizers" }]),
+        stderr: "",
+      };
+    },
+  });
+
+  assert.deepEqual(await index.findMatterFolder("National Insurance Co. Ltd v M/s Sarkar Fertilizers"), {
+    id: "",
+    name: "National Insurance Co. Ltd v M - s Sarkar Fertilizers",
+    matterName: "",
+    clientName: "",
+    oppositeParty: "",
+    matterType: "",
+    jurisdiction: "",
+  });
+  assert.match(calls[0], /'National Insurance Co\. Ltd v M\/s Sarkar Fertilizers'/);
+  assert.match(calls[0], /'National Insurance Co\. Ltd v M - s Sarkar Fertilizers'/);
 });
 
 test("runtime DB matter index redacts database credentials from query failures", async () => {

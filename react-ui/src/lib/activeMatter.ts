@@ -5,8 +5,8 @@ export function activeMatterFromWorkspace(
   workspace: WorkspaceApiResponse,
   fallbackName = '',
 ): ActiveMatter {
-  const name = workspace.metadata?.matterName || workspace.folderName || fallbackName;
-  const folderName = workspace.folderName || fallbackName || name;
+  const folderName = workspace.folderName || fallbackName || workspace.metadata?.matterName || '';
+  const name = folderName || workspace.metadata?.matterName || fallbackName;
   return {
     name,
     folderName,

@@ -159,7 +159,6 @@ export function createMatterStore({
   }
 
   async function resolveExistingRuntimeDbMatter(rawName, { includeArchived = false } = {}) {
-    validateMatterName(rawName);
     const matter = await runtimeMatterIndex.findMatterFolder(rawName, { includeArchived });
     if (!matter) throw makeHttpError("Matter not found", 404, "matter_store.not_found");
 

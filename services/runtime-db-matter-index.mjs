@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import process from "node:process";
 
 import { psqlConnectionArgs } from "../scripts/db-psql.mjs";
+import { matterStorageNameFromCaption } from "../shared/matter-identity-policy.mjs";
 import { makeHttpError, validateMatterName } from "../shared/safe-paths.mjs";
 import { runtimeDatabaseUrl } from "./runtime-db-config.mjs";
 import { ensureRuntimeDbSafeRoleSql } from "./runtime-db-sql-safety.mjs";
@@ -42,19 +43,19 @@ export function createRuntimeDbMatterIndex({
   }
 
   async function archiveMatter(name, { reason = "" } = {}) {
-    const matterName = validateMatterName(name);
-    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), reason, fromStatus: "active", toStatus: "archived" });
+    const nameCandidates = matterLookupCandidates(name, { requireValid: true });
+    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, nameCandidates, viewer: currentViewer(), reason, fromStatus: "active", toStatus: "archived" });
     if (updated) return normalizeMatterRow(updated);
-    const alreadyArchived = await findMatterFolder(matterName, { includeArchived: true });
+    const alreadyArchived = await findMatterFolder(name, { includeArchived: true });
     if (alreadyArchived?.status === "archived") return alreadyArchived;
     throw makeHttpError("Matter not found", 404, "runtime_db.matter_index.not_found");
   }
 
   async function reopenMatter(name) {
-    const matterName = validateMatterName(name);
-    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name: matterName, viewer: currentViewer(), reason: "", fromStatus: "archived", toStatus: "active" });
+    const nameCandidates = matterLookupCandidates(name, { requireValid: true });
+    const updated = mutateMatterLifecycle({ databaseUrl, tenantId, spawn, nameCandidates, viewer: currentViewer(), reason: "", fromStatus: "archived", toStatus: "active" });
     if (updated) return normalizeMatterRow(updated);
-    const alreadyActive = await findMatterFolder(matterName);
+    const alreadyActive = await findMatterFolder(name);
     if (alreadyActive) return alreadyActive;
     throw makeHttpError("Matter not found", 404, "runtime_db.matter_index.not_found");
   }
@@ -120,9 +121,9 @@ function queryMatterRows({ databaseUrl, tenantId, spawn, name = "", viewer = nul
 }
 
 function buildMatterRowsSql({ tenantId, name = "", viewer = null, includeArchived = false } = {}) {
-  const filter = String(name || "").trim();
-  const filterClause = filter
-    ? `and (m.name = ${sqlString(filter)} or latest_import.source_root_hint = ${sqlString(filter)})`
+  const filterCandidates = matterLookupCandidates(name);
+  const filterClause = filterCandidates.length
+    ? `and ${matterNameCandidateSql(filterCandidates)}`
     : "";
   const visibilityClause = matterVisibilitySql(viewer);
   const statusClause = includeArchived
@@ -176,10 +177,10 @@ function buildMatterRowsSql({ tenantId, name = "", viewer = null, includeArchive
   ].join("\n");
 }
 
-function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name = "", viewer = null, reason = "", fromStatus, toStatus } = {}) {
+function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, nameCandidates = [], viewer = null, reason = "", fromStatus, toStatus } = {}) {
   const { command, args, env } = psqlConnectionArgs(databaseUrl);
   const result = spawn(command, [...args, "-v", "ON_ERROR_STOP=1", "-t", "-A"], {
-    input: ensureRuntimeDbSafeRoleSql(buildMatterLifecycleMutationSql({ tenantId, name, viewer, reason, fromStatus, toStatus })),
+    input: ensureRuntimeDbSafeRoleSql(buildMatterLifecycleMutationSql({ tenantId, nameCandidates, viewer, reason, fromStatus, toStatus })),
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
@@ -193,8 +194,8 @@ function mutateMatterLifecycle({ databaseUrl, tenantId, spawn, name = "", viewer
   return parsePsqlJsonArray(result.stdout || "")[0] || null;
 }
 
-function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, reason = "", fromStatus, toStatus } = {}) {
-  const filter = String(name || "").trim();
+function buildMatterLifecycleMutationSql({ tenantId, nameCandidates = [], viewer = null, reason = "", fromStatus, toStatus } = {}) {
+  const filterCandidates = Array.isArray(nameCandidates) ? nameCandidates.filter(Boolean) : [];
   const visibilityClause = matterVisibilitySql(viewer);
   const actorUsername = lifecycleActorText(viewer?.username || "");
   const actorDisplayName = lifecycleActorText(viewer?.displayName || viewer?.username || "");
@@ -222,7 +223,7 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, r
     "  left join latest_import on latest_import.matter_id = m.id",
     "  where m.tenant_id = current_app_tenant_id()",
     `    and m.status = ${sqlString(fromStatus)}`,
-    `    and (m.name = ${sqlString(filter)} or latest_import.source_root_hint = ${sqlString(filter)})`,
+    `    and ${matterNameCandidateSql(filterCandidates)}`,
     visibilityClause,
     "  order by lower(coalesce(nullif(latest_import.source_root_hint, ''), m.name))",
     "  limit 1",
@@ -271,6 +272,33 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, r
     ")), '[]'::jsonb)::text from updated;",
     "",
   ].join("\n");
+}
+
+function matterLookupCandidates(name = "", { requireValid = false } = {}) {
+  const raw = String(name || "").replace(/\s+/g, " ").trim();
+  const candidates = [];
+  if (raw) candidates.push(raw);
+  if (raw) {
+    try {
+      const storageName = matterStorageNameFromCaption(raw);
+      if (storageName) candidates.push(storageName);
+    } catch {
+      // Keep the verbatim lookup candidate for existing DB rows; callers that
+      // require a usable matter name fail below when no non-empty candidate exists.
+    }
+  }
+  const unique = [...new Set(candidates)];
+  if (requireValid && !unique.length) {
+    throw makeHttpError("Invalid matter name", 400, "path.invalid_matter_name");
+  }
+  return unique;
+}
+
+function matterNameCandidateSql(candidates = []) {
+  const values = [...new Set(candidates.map((candidate) => String(candidate || "").trim()).filter(Boolean))];
+  if (!values.length) return "false";
+  const list = values.map(sqlString).join(", ");
+  return `(m.name in (${list}) or latest_import.source_root_hint in (${list}))`;
 }
 
 function matterVisibilitySql(viewer = null) {
