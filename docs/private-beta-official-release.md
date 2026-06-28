@@ -77,7 +77,7 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 release: v1.0.0-beta.79
 codename: Column Compass
 deployed_commit: 09be1e5
-release_doc_commit: 1195ea2
+release_doc_commit: 807234c
 live_url: https://mwb-beta.139.59.74.9.sslip.io
 rollback_candidate: 53157e5 / v1.0.0-beta.78
 ```
