@@ -56,6 +56,9 @@ test("React automatic preparation runner includes List of Dates, story, and labe
   assert.match(runner, /createPreparationTelemetryRunId\(\)/);
   assert.match(runner, /safeRecordPreparationRunTelemetry/);
   assert.match(runner, /LABEL_REFRESH_NEEDED/);
+  assert.match(runner, /startStageHeartbeat/);
+  assert.match(runner, /Large or scanned PDFs can take several minutes/);
+  assert.match(runner, /Keep this page open/);
   assert.match(prepareMatter, /runPreparationStage\(matchedStage, matterName\)/);
   assert.match(prepareMatter, /runAutomaticPreparation\(\{/);
 });

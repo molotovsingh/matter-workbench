@@ -23,6 +23,8 @@ export const AUTO_PREPARATION_STEPS: PreparationProgressStep[] = [
 type ProgressUpdate = (status: PreparationRunStatus) => void;
 type PreparationRunMode = 'needed' | 'full';
 
+const LONG_RUNNING_STAGE_HEARTBEAT_MS = 15_000;
+
 export interface RunAutomaticPreparationOptions {
   matterName: string;
   appendTerminal: (lines: string[]) => void;
@@ -138,9 +140,10 @@ export async function runAutomaticPreparation({
     }
 
     status = markStageRunning(status, nextStage);
-    await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'running', stageStarts);
+    await recordStageTelemetry(telemetryRunId, matterName, nextStage, 'running', stageStarts, stageRunningDetail(nextStage));
     onProgress(status);
     appendTerminal([`[prepare] auto running: ${stageLabel(nextStage)}`]);
+    const stopHeartbeat = startStageHeartbeat(status, nextStage, onProgress, isStale);
     try {
       await runPreparationStage(nextStage, matterName);
       if (isStale()) return finishWithTelemetry(staleResult(), status);
@@ -159,6 +162,8 @@ export async function runAutomaticPreparation({
         state: 'blocked',
         message,
       }, status);
+    } finally {
+      stopHeartbeat();
     }
   }
 
@@ -195,9 +200,10 @@ async function runFullPreparation({
 
   for (const stage of FULL_PREPARATION_STAGES) {
     next = markStageRunning(next, stage);
-    await recordStageTelemetry(telemetryRunId, matterName, stage, 'running', stageStarts);
+    await recordStageTelemetry(telemetryRunId, matterName, stage, 'running', stageStarts, stageRunningDetail(stage));
     publishProgress(next);
     publishTerminal([`[prepare] rerun running: ${stageLabel(stage)}`]);
+    const stopHeartbeat = startStageHeartbeat(next, stage, publishProgress, isStale);
     try {
       await runPreparationStage(stage, matterName, {
         forceExtractRefresh: true,
@@ -219,6 +225,8 @@ async function runFullPreparation({
         message,
         status: next,
       };
+    } finally {
+      stopHeartbeat();
     }
   }
 
@@ -327,7 +335,7 @@ function mergePlanIntoStatus(
 }
 
 function markStageRunning(status: PreparationRunStatus, stage: PreparationStage): PreparationRunStatus {
-  return markStep(status, stepIdForStage(stage), 'running', `Running ${stageLabel(stage)}…`);
+  return markStep(status, stepIdForStage(stage), 'running', stageRunningDetail(stage));
 }
 
 function markStageDone(status: PreparationRunStatus, stage: PreparationStage): PreparationRunStatus {
@@ -336,6 +344,44 @@ function markStageDone(status: PreparationRunStatus, stage: PreparationStage): P
 
 function markStageFailed(status: PreparationRunStatus, stage: PreparationStage, detail: string): PreparationRunStatus {
   return markStep(status, stepIdForStage(stage), 'failed', detail);
+}
+
+function startStageHeartbeat(
+  status: PreparationRunStatus,
+  stage: PreparationStage,
+  onProgress: ProgressUpdate,
+  isStale: () => boolean,
+): () => void {
+  const stepId = stepIdForStage(stage);
+  if (!stepId || typeof window === 'undefined' || typeof window.setInterval !== 'function') return () => {};
+  const startedAt = Date.now();
+  const timer = window.setInterval(() => {
+    if (isStale()) {
+      window.clearInterval(timer);
+      return;
+    }
+    const elapsedMs = Date.now() - startedAt;
+    onProgress(markStep(status, stepId, 'running', stageRunningDetail(stage, elapsedMs)));
+  }, LONG_RUNNING_STAGE_HEARTBEAT_MS);
+  return () => window.clearInterval(timer);
+}
+
+function stageRunningDetail(stage: PreparationStage, elapsedMs = 0): string {
+  const stepId = stepIdForStage(stage);
+  if (stepId === 'extract') {
+    const elapsed = elapsedMs >= LONG_RUNNING_STAGE_HEARTBEAT_MS ? ` Still reading documents (${formatElapsed(elapsedMs)} elapsed).` : '';
+    return `Reading documents. Large or scanned PDFs can take several minutes.${elapsed} Keep this page open; the matter will update when this step finishes.`;
+  }
+  if (stepId === 'matter-init') return 'Registering file IDs and source records…';
+  return `Running ${stageLabel(stage)}…`;
+}
+
+function formatElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
 }
 
 function markStep(status: PreparationRunStatus, stepId: string | null, state: PreparationProgressStep['state'], detail = ''): PreparationRunStatus {
