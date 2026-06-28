@@ -17,7 +17,7 @@ import { runPrivateBetaAuthPreflight } from "./private-beta-auth-preflight.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "private-beta-rc-closure-pack/v1";
-const DEFAULT_RELEASE = "v1.0.0-beta.68";
+const DEFAULT_RELEASE = "v1.0.0-beta.69";
 
 const DEFAULT_LOCAL_GATES = [
   { label: "ui_typecheck", command: "npm", args: ["run", "ui:typecheck", "--silent"] },
