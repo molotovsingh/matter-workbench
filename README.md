@@ -118,7 +118,7 @@ Completed release checks include:
 - artifact currentness schema/projection foundation exists for future source-removal workflows;
 - non-routed source-removal mutation foundations, privilege-safe Matter Log rendering, a read-only impact preview endpoint, and non-destructive matter archive/reopen lifecycle exist, without source-delete/purge UI exposure;
 - private-cloud deployment to the beta VM;
-- runtime DB migration through `022_matter_artifact_currentness`;
+- runtime DB migration through `023_matter_archive_metadata`;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, and List of Dates smoke;
@@ -130,7 +130,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.69 release marker](docs/releases/v1.0.0-beta.69.md)
+- [v1.0.0-beta.70 release marker](docs/releases/v1.0.0-beta.70.md)
 - [Docs map](docs/README.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
