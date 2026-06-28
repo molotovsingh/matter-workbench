@@ -12,6 +12,7 @@ import { writeUploadedFiles } from "./upload-file-intake.mjs";
 import {
   createMultipartUploadHandler,
   DEFAULT_MAX_UPLOAD_BYTES,
+  DEFAULT_MAX_UPLOAD_FILES,
 } from "./multipart-upload.mjs";
 
 export function createUploadService({
@@ -19,11 +20,12 @@ export function createUploadService({
   runtimeDbStorageService = null,
   workspaceService,
   maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES,
+  maxUploadFiles = DEFAULT_MAX_UPLOAD_FILES,
 } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!workspaceService) throw new Error("workspaceService is required");
 
-  const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes });
+  const handleMultipartUpload = createMultipartUploadHandler({ maxUploadBytes, maxUploadFiles });
   const matterWriteQueues = new Map();
   async function createMatter(request) {
     const upload = await handleMultipartUpload(request);

@@ -41,6 +41,7 @@ async function withServer(run, options = {}) {
     env: { MATTERS_HOME: mattersHome, ...(options.env || {}) },
     host: "127.0.0.1",
     maxUploadBytes: options.maxUploadBytes,
+    maxUploadFiles: options.maxUploadFiles,
     port: 0,
     runtimeDbStorageService: options.runtimeDbStorageService,
     runtimeMatterIndex: options.runtimeMatterIndex,
@@ -56,12 +57,13 @@ async function withServer(run, options = {}) {
   }
 }
 
-test("config exposes the configured upload byte limit for browser preflight", async () => {
+test("config exposes the configured upload limits for browser preflight", async () => {
   await withServer(async ({ baseUrl }) => {
     const config = await getJson(baseUrl, "/api/config");
 
     assert.equal(config.maxUploadBytes, 12345);
-  }, { maxUploadBytes: 12345 });
+    assert.equal(config.maxUploadFiles, 250);
+  }, { maxUploadBytes: 12345, maxUploadFiles: 250 });
 });
 
 test("multipart upload creates a matter and adds a follow-up intake", async () => {
@@ -644,6 +646,23 @@ test("multipart upload route returns 413 when the configured byte limit is excee
     assert.match(payload.error, /too large for one batch/i);
     assert.equal(payload.code, "upload.too_large");
   }, { maxUploadBytes: 10 });
+});
+
+test("multipart upload route returns 413 when the configured file count limit is exceeded", async () => {
+  await withServer(async ({ baseUrl }) => {
+    const form = new FormData();
+    form.set("name", "Too Many Files Matter");
+    form.set("metadata", JSON.stringify({ matterName: "Too Many Files Matter" }));
+    form.set("paths", JSON.stringify(["one.txt", "two.txt"]));
+    appendTextFile(form, "files", "one.txt", "one");
+    appendTextFile(form, "files", "two.txt", "two");
+
+    const { response, payload } = await postMultipartRaw(baseUrl, "/api/matters/new", form);
+    assert.equal(response.status, 413);
+    assert.match(payload.error, /too many files for one batch/i);
+    assert.match(payload.error, /1 file/);
+    assert.equal(payload.code, "upload.too_many_files");
+  }, { maxUploadFiles: 1 });
 });
 
 test("multipart upload route applies upload byte limit from environment", async () => {

@@ -726,6 +726,13 @@ padding: 0 2px;
 .file-list-summary { color: var(--text); font-size: 12px; font-weight: 700; }
 .file-list-entry { color: var(--muted-strong); font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 11px; overflow-wrap: anywhere; }
 .form-hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.upload-limit-hint {
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: 8px;
+  color: var(--info-text);
+  padding: 9px 11px;
+}
 
 /* ─── Matter overview ───────────────────────────────────── */
 .matter-overview-hero { max-width: 780px; margin: 0 0 24px; }

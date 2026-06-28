@@ -58,7 +58,7 @@ test("React upload preflight blocks batches over the configured byte limit", asy
       { relativePath: "small.pdf", file: { name: "small.pdf", size: 4 } },
       { relativePath: "second.pdf", file: { name: "second.pdf", size: 5 } },
     ], 10),
-    { ok: true, totalBytes: 9, maxBytes: 10, message: "" },
+    { ok: true, totalBytes: 9, maxBytes: 10, totalFiles: 2, maxFiles: 5000, message: "" },
   );
 
   const blocked = assessUploadBatchSize([
@@ -67,11 +67,29 @@ test("React upload preflight blocks batches over the configured byte limit", asy
   assert.equal(blocked.ok, false);
   assert.equal(blocked.totalBytes, 11);
   assert.equal(blocked.maxBytes, 10);
+  assert.equal(blocked.totalFiles, 1);
+  assert.equal(blocked.maxFiles, 5000);
   assert.match(blocked.message, /too large for one upload/i);
   assert.match(blocked.message, /10 B/);
 });
 
-test("React upload preflight blocks oversized beta uploads even before config loads", async () => {
+test("React upload preflight blocks batches over the configured file limit", async () => {
+  const { assessUploadBatchSize } = await importUploadPreflight();
+
+  const blocked = assessUploadBatchSize([
+    { relativePath: "one.pdf", file: { name: "one.pdf", size: 1 } },
+    { relativePath: "two.pdf", file: { name: "two.pdf", size: 1 } },
+    { relativePath: "three.pdf", file: { name: "three.pdf", size: 1 } },
+  ], 100, 2);
+
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.totalFiles, 3);
+  assert.equal(blocked.maxFiles, 2);
+  assert.match(blocked.message, /too many files/i);
+  assert.match(blocked.message, /2 files/);
+});
+
+test("React upload preflight describes larger private beta upload batches", async () => {
   const { assessUploadBatchSize } = await importUploadPreflight();
 
   const small = assessUploadBatchSize([
@@ -79,30 +97,28 @@ test("React upload preflight blocks oversized beta uploads even before config lo
   ], undefined);
 
   assert.equal(small.ok, true);
-  assert.equal(small.maxBytes, 96 * 1024 * 1024);
+  assert.equal(small.maxBytes, 256 * 1024 * 1024);
 
-  const blocked = assessUploadBatchSize([
-    { relativePath: "sb16.pdf", file: { name: "sb16.pdf", size: 60 * 1024 * 1024 } },
-    { relativePath: "sb15.pdf", file: { name: "sb15.pdf", size: 50 * 1024 * 1024 } },
+  const allowed = assessUploadBatchSize([
+    { relativePath: "sb16.pdf", file: { name: "sb16.pdf", size: 120 * 1024 * 1024 } },
+    { relativePath: "sb15.pdf", file: { name: "sb15.pdf", size: 100 * 1024 * 1024 } },
   ], undefined);
 
-  assert.equal(blocked.ok, false);
-  assert.equal(blocked.maxBytes, 96 * 1024 * 1024);
-  assert.match(blocked.message, /too large for one upload/i);
-  assert.match(blocked.message, /96 MB/);
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.maxBytes, 256 * 1024 * 1024);
 });
 
 test("React upload preflight keeps the browser stability cap below a larger server limit", async () => {
   const { assessUploadBatchSize } = await importUploadPreflight();
 
   const blocked = assessUploadBatchSize([
-    { relativePath: "sb16.pdf", file: { name: "sb16.pdf", size: 60 * 1024 * 1024 } },
-    { relativePath: "sb15.pdf", file: { name: "sb15.pdf", size: 50 * 1024 * 1024 } },
+    { relativePath: "large-1.pdf", file: { name: "large-1.pdf", size: 180 * 1024 * 1024 } },
+    { relativePath: "large-2.pdf", file: { name: "large-2.pdf", size: 100 * 1024 * 1024 } },
   ], 2 * 1024 * 1024 * 1024);
 
   assert.equal(blocked.ok, false);
-  assert.equal(blocked.maxBytes, 96 * 1024 * 1024);
-  assert.match(blocked.message, /96 MB/);
+  assert.equal(blocked.maxBytes, 256 * 1024 * 1024);
+  assert.match(blocked.message, /256 MB/);
 });
 
 test("React new-matter and add-files forms share folder-aware upload collection helpers", async () => {
@@ -153,8 +169,10 @@ test("React upload forms block oversized batches before submitting FormData", as
     assert.match(source, /assessUploadBatchSize/);
     assert.match(source, /state\.config\?\.maxUploadBytes/);
   }
-  assert.match(newMatter, /const sizeCheck = assessUploadBatchSize\(files, state\.config\?\.maxUploadBytes\)/);
-  assert.match(addFiles, /const sizeCheck = assessUploadBatchSize\(collected, state\.config\?\.maxUploadBytes\)/);
+  assert.match(newMatter, /const sizeCheck = assessUploadBatchSize\(files, state\.config\?\.maxUploadBytes, state\.config\?\.maxUploadFiles\)/);
+  assert.match(addFiles, /const sizeCheck = assessUploadBatchSize\(collected, state\.config\?\.maxUploadBytes, state\.config\?\.maxUploadFiles\)/);
+  assert.match(newMatter, /describeUploadBatchLimit\(state\.config\?\.maxUploadBytes, state\.config\?\.maxUploadFiles\)/);
+  assert.match(addFiles, /describeUploadBatchLimit\(state\.config\?\.maxUploadBytes, state\.config\?\.maxUploadFiles\)/);
 });
 
 test("React new-matter form checks overlap before creating a matter", async () => {

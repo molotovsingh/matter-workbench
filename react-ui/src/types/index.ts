@@ -99,6 +99,7 @@ export interface AppConfig {
   runtimeStorageMode?: 'filesystem' | 'postgres';
   workspaceModeLabel?: string;
   maxUploadBytes?: number;
+  maxUploadFiles?: number;
   copilotWebResearchEnabled?: boolean;
   release?: {
     label?: string;

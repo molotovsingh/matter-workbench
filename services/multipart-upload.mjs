@@ -6,9 +6,11 @@ import busboy from "busboy";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 
 export const DEFAULT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+export const DEFAULT_MAX_UPLOAD_FILES = 5000;
 
 export function createMultipartUploadHandler({
   maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES,
+  maxUploadFiles = DEFAULT_MAX_UPLOAD_FILES,
   tempPrefix = "matter-upload-",
 } = {}) {
   return async function handleMultipartUpload(request) {
@@ -21,7 +23,7 @@ export function createMultipartUploadHandler({
     return new Promise((resolve, reject) => {
       const bb = busboy({
         headers: request.headers,
-        limits: { fileSize: maxUploadBytes, files: 5000, fields: 20 },
+        limits: { fileSize: maxUploadBytes, files: maxUploadFiles, fields: 20 },
       });
 
       const fields = {};
@@ -91,7 +93,7 @@ export function createMultipartUploadHandler({
         filePromises.push(filePromise);
       });
 
-      bb.on("filesLimit", () => fail(makeHttpError("Too many files", 413, "upload.too_many_files")));
+      bb.on("filesLimit", () => fail(uploadTooManyFilesError(maxUploadFiles)));
       bb.on("error", fail);
       bb.on("finish", async () => {
         if (aborted) return;
@@ -118,6 +120,16 @@ function uploadTooLargeError(maxUploadBytes) {
   );
 }
 
+function uploadTooManyFilesError(maxUploadFiles) {
+  const limit = formatWholeNumber(maxUploadFiles);
+  const suffix = limit ? ` Keep each upload under ${limit} ${Number(maxUploadFiles) === 1 ? "file" : "files"}.` : "";
+  return makeHttpError(
+    `This upload has too many files for one batch. Split the folder into smaller batches and try again.${suffix}`,
+    413,
+    "upload.too_many_files",
+  );
+}
+
 function formatBytes(bytes) {
   const value = Number(bytes);
   if (!Number.isFinite(value) || value <= 0) return "";
@@ -126,4 +138,10 @@ function formatBytes(bytes) {
   const kib = value / 1024;
   if (kib >= 1) return `${Math.floor(kib)} KB`;
   return `${Math.floor(value)} bytes`;
+}
+
+function formatWholeNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  return Math.floor(number).toLocaleString("en-US");
 }

@@ -9,7 +9,7 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
-import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
+import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 import type { OverlapWarning } from '../types';
@@ -97,7 +97,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
       return;
     }
-    const sizeCheck = assessUploadBatchSize(files, state.config?.maxUploadBytes);
+    const sizeCheck = assessUploadBatchSize(files, state.config?.maxUploadBytes, state.config?.maxUploadFiles);
     if (!sizeCheck.ok) {
       setError(sizeCheck.message);
       return;
@@ -166,6 +166,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   }
 
   const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);
+  const uploadLimitCopy = describeUploadBatchLimit(state.config?.maxUploadBytes, state.config?.maxUploadFiles);
 
   return (
     <div className="matter-intake-shell">
@@ -280,6 +281,9 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
               {...{ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>}
               onChange={handleFileInput}
             />
+          </div>
+          <div className="form-hint upload-limit-hint" style={{ marginTop: 10 }}>
+            {uploadLimitCopy}
           </div>
           {files.length > 0 && (
             <div className="file-list">

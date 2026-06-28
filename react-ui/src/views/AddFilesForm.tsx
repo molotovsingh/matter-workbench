@@ -11,7 +11,7 @@ import {
   getDroppedFileSystemEntries,
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
-import { assessUploadBatchSize } from '../lib/uploadBatchPreflight';
+import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 
@@ -72,7 +72,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       setError(`Multiple selected files would upload as "${duplicatePath}". Use Browse folder to preserve folders, or rename/remove duplicates before uploading.`);
       return;
     }
-    const sizeCheck = assessUploadBatchSize(collected, state.config?.maxUploadBytes);
+    const sizeCheck = assessUploadBatchSize(collected, state.config?.maxUploadBytes, state.config?.maxUploadFiles);
     if (!sizeCheck.ok) {
       setError(sizeCheck.message);
       return;
@@ -151,6 +151,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
 
   const totalSize = collected.reduce((sum, c) => sum + c.file.size, 0);
   const displayMatterName = state.activeMatter?.metadata?.matterName || state.activeMatter?.name;
+  const uploadLimitCopy = describeUploadBatchLimit(state.config?.maxUploadBytes, state.config?.maxUploadFiles);
 
   return (
     <div className="matter-intake-shell">
@@ -194,6 +195,10 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
             </div>
             <input ref={fileInput} type="file" multiple hidden onChange={handleFileInput} />
             <input ref={folderInput} type="file" multiple hidden {...{ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>} onChange={handleFileInput} />
+          </div>
+
+          <div className="form-hint upload-limit-hint" style={{ marginTop: 10 }}>
+            {uploadLimitCopy}
           </div>
 
           {collected.length > 0 && (

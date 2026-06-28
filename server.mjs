@@ -51,7 +51,10 @@ import { createSkillRegistryService } from "./services/skill-registry-service.mj
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
 import { createSkillSamplesService } from "./services/skill-samples-service.mjs";
 import { createSkillSampleOutputService } from "./services/skill-sample-output-service.mjs";
-import { DEFAULT_MAX_UPLOAD_BYTES } from "./services/multipart-upload.mjs";
+import {
+  DEFAULT_MAX_UPLOAD_BYTES,
+  DEFAULT_MAX_UPLOAD_FILES,
+} from "./services/multipart-upload.mjs";
 import { createUploadService } from "./services/upload-service.mjs";
 import { createWorkspaceService } from "./services/workspace-service.mjs";
 import { handleApiRequest } from "./routes/api-routes.mjs";
@@ -138,11 +141,13 @@ export async function createWorkbenchServer(options = {}) {
     tenantId: runtimeMatterIndex.tenantId || "",
   });
   const maxUploadBytes = options.maxUploadBytes ?? configuredMaxUploadBytes(env);
+  const maxUploadFiles = options.maxUploadFiles ?? configuredMaxUploadFiles(env);
   const uploadService = createUploadService({
     matterStore,
     runtimeDbStorageService,
     workspaceService,
     maxUploadBytes,
+    maxUploadFiles,
   });
   const privateBetaMetricsService = options.privateBetaMetricsService || createPrivateBetaMetricsService({
     appDir,
@@ -389,6 +394,7 @@ export async function createWorkbenchServer(options = {}) {
     matterStatusService,
     matterStoryService,
     maxUploadBytes,
+    maxUploadFiles,
     prepareMatterService,
     privateBetaAuthService,
     privateBetaFeedbackService,
@@ -522,6 +528,11 @@ function siblingMothershipSyncUrl(value = "", pathname = "/v1/metrics") {
 export function configuredMaxUploadBytes(env = process.env) {
   const configured = Number(env.MWB_MAX_UPLOAD_BYTES || env.MWB_UPLOAD_MAX_BYTES || "");
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_UPLOAD_BYTES;
+}
+
+export function configuredMaxUploadFiles(env = process.env) {
+  const configured = Number(env.MWB_MAX_UPLOAD_FILES || env.MWB_UPLOAD_MAX_FILES || "");
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_MAX_UPLOAD_FILES;
 }
 
 function buildDeploymentMetricsContext({ env = {}, host = "", port = "", matterStore } = {}) {
