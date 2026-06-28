@@ -1,12 +1,12 @@
 # Matter Workbench Beta User Runbook
 
-Status: Current private/local beta operator guide
+Status: Official private beta release operator guide
 
-This runbook is for a supervised beta operator or developer helping a tester. It is not a public support manual and it is not a substitute for release notes.
+This runbook is for a supervised beta operator or developer helping a tester on the official `v1.0.0-beta.78` private beta release. It is not a public support manual and it is not a substitute for release notes.
 
 ## Before a session
 
-1. Pull the intended branch/commit and confirm the release note or worktree under review.
+1. Use the official release checkpoint: `v1.0.0-beta.78` / **Nameplate Lantern**. Do not add new features during handoff prep.
 2. Install dependencies if needed:
 
    ```sh
@@ -83,6 +83,7 @@ Runtime DB mode can run without a local matters folder. In that mode, System Hea
 - Sync queued feedback/signals when configured.
 - Review mothership/operator report if this is a private VM/web beta.
 - File only evidence-backed fixes.
+- Treat new improvement ideas as future feedback unless they are blockers.
 - Update release notes or worktree handoff notes before asking another reviewer to test.
 
 ## Escalation stop rules

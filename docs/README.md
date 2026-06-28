@@ -31,6 +31,7 @@ equally authoritative.
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
 | Current release notes | [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) |
+| Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
@@ -147,7 +148,7 @@ implementation plan.
 | [v1.0.0-beta.75](releases/v1.0.0-beta.75.md) | Beta 3 long-wait progress UX release marker. **Codename:** Patience Lantern. |
 | [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) | Beta 3 closure evidence hardening release marker. **Codename:** Closure Sextant. |
 | [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) | Beta 3 tester What’s new notice release marker. **Codename:** Notice Bell. |
-| [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) | Current Beta 3 release codename app chrome marker. **Codename:** Nameplate Lantern. |
+| [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) | Current official private beta release checkpoint. **Codename:** Nameplate Lantern. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |

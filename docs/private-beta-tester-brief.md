@@ -1,10 +1,10 @@
 # Matter Workbench Private Beta Tester Brief
 
-Status: tester-facing brief for supervised local/private beta
+Status: tester-facing brief for the official supervised private beta
 
-This brief is for trusted testers using Matter Workbench with an operator
-nearby. It is not a public product page, and it is not a promise that the app is
-ready for public web use.
+This brief is for trusted testers using Matter Workbench `v1.0.0-beta.78`,
+codename **Nameplate Lantern**, with an operator nearby. It is not a public
+product page, and it is not a promise that the app is ready for public web use.
 
 ## What You Are Testing
 
@@ -34,15 +34,16 @@ For each matter, try this flow:
 
 1. Open the app at the URL given by the operator.
 2. Sign in with the username and temporary password given by the operator.
-3. Select a matter or create a small disposable matter.
-4. If you upload files, wait for automatic preparation to finish.
-5. Read the Preparation Advisory before trusting generated output.
-6. Open Source Labels / Document Index.
-7. Open List of Dates.
-8. Ask Copilot one specific question from the matter record.
-9. Run one custom skill only on a matter where replacing generated output is acceptable.
-10. Open Activity if anything seems to hang, skip, or fail.
-11. If something is confusing, wrong, slow, or legally weak, click
+3. Read the **What’s new** note, or type `/whats_new` later to reopen it.
+4. Select a matter or create a small disposable matter.
+5. If you upload files, wait for automatic preparation to finish.
+6. Read the Preparation Advisory before trusting generated output.
+7. Open Source Labels / Document Index.
+8. Open List of Dates.
+9. Ask Copilot one specific question from the matter record.
+10. Run one custom skill only on a matter where replacing generated output is acceptable.
+11. Open Activity if anything seems to hang, skip, or fail.
+12. If something is confusing, wrong, slow, or legally weak, click
     **Have a problem? Tell us what happened** and write a short plain-language
     note.
 
@@ -116,7 +117,7 @@ what happened clearly, not to diagnose the app.
 
 ## Current Beta Boundary
 
-This beta is suitable for supervised testing by trusted users.
+This official private beta release is suitable for supervised testing by trusted users. Actionable feedback from the current release window has been fixed or intentionally parked for future roadmap work.
 
 It is not yet:
 

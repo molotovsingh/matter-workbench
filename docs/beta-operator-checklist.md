@@ -1,6 +1,6 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.78` supervised local/private beta
+Status: Current checklist for `v1.0.0-beta.78` official supervised private beta release
 
 This is the practical runbook for operating Matter Workbench as a private local
 or local/private runtime-DB beta. It is written for one trusted operator, not
@@ -8,7 +8,7 @@ for public SaaS support.
 
 ## Beta Boundary
 
-Use this release for supervised legal-matter testing.
+Use this release for supervised legal-matter testing. This release is feature-frozen unless a blocker, regression, security/custody issue, or deployment failure appears.
 
 Do not present it as:
 
@@ -30,12 +30,13 @@ git fetch origin --tags
 git checkout v1.0.0-beta.78
 ```
 
-Before the tag exists, stay on the current release-candidate branch and confirm
-the commit recorded by the closure pack:
+The official release tag exists. If you need fresh release confidence evidence before a handoff, rerun:
 
 ```bash
 npm run private-beta:rc-closure-pack
 ```
+
+Do not add new features during handoff preparation. Record new ideas as future feedback unless they are blockers.
 
 Install dependencies if this is a fresh machine:
 
@@ -419,3 +420,7 @@ unacceptable.
 Current accepted local/private beta:
 
 [Matter Workbench v1.0.0-beta.78](releases/v1.0.0-beta.78.md)
+
+Official release decision:
+
+[Matter Workbench Official Private Beta Release](private-beta-official-release.md)
