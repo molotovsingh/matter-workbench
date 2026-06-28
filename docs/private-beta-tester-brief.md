@@ -2,8 +2,8 @@
 
 Status: tester-facing brief for the official supervised private beta
 
-This brief is for trusted testers using Matter Workbench `v1.0.0-beta.78`,
-codename **Nameplate Lantern**, with an operator nearby. It is not a public
+This brief is for trusted testers using Matter Workbench `v1.0.0-beta.79`,
+codename **Column Compass**, with an operator nearby. It is not a public
 product page, and it is not a promise that the app is ready for public web use.
 
 ## What You Are Testing

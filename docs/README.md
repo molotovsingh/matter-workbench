@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) |
+| Current release notes | [v1.0.0-beta.79](releases/v1.0.0-beta.79.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -148,7 +148,8 @@ implementation plan.
 | [v1.0.0-beta.75](releases/v1.0.0-beta.75.md) | Beta 3 long-wait progress UX release marker. **Codename:** Patience Lantern. |
 | [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) | Beta 3 closure evidence hardening release marker. **Codename:** Closure Sextant. |
 | [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) | Beta 3 tester What’s new notice release marker. **Codename:** Notice Bell. |
-| [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) | Current official private beta release checkpoint. **Codename:** Nameplate Lantern. |
+| [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) | Official private beta handoff checkpoint. **Codename:** Nameplate Lantern. |
+| [v1.0.0-beta.79](releases/v1.0.0-beta.79.md) | Current shallow UI polish release checkpoint. **Codename:** Column Compass. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |

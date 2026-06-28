@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.78`,
-codename **Nameplate Lantern**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.79`,
+codename **Column Compass**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -135,7 +135,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.78 release marker](docs/releases/v1.0.0-beta.78.md)
+- [v1.0.0-beta.79 release marker](docs/releases/v1.0.0-beta.79.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)
