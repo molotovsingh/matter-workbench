@@ -210,7 +210,7 @@ function buildMatterLifecycleMutationSql({ tenantId, name = "", viewer = null, f
     `    and m.status = ${sqlString(fromStatus)}`,
     `    and (m.name = ${sqlString(filter)} or latest_import.source_root_hint = ${sqlString(filter)})`,
     visibilityClause,
-    "  order by lower(folder_name)",
+    "  order by lower(coalesce(nullif(latest_import.source_root_hint, ''), m.name))",
     "  limit 1",
     "), updated as (",
     "  update matters m",

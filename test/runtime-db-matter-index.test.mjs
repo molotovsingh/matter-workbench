@@ -310,6 +310,8 @@ test("runtime DB matter index can archive and reopen matters without delete SQL"
   assert.match(calls[0], /update matters m/i);
   assert.match(calls[0], /status = 'archived'/i);
   assert.match(calls[0], /archived_at = now\(\)/i);
+  assert.match(calls[0], /order by lower\(coalesce\(nullif\(latest_import\.source_root_hint, ''\), m\.name\)\)/i);
+  assert.doesNotMatch(calls[0], /lower\(folder_name\)/i);
   assert.doesNotMatch(calls[0], /delete\s+from/i);
   assert.match(calls[1], /update matters m/i);
   assert.match(calls[1], /status = 'active'/i);
