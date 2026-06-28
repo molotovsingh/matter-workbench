@@ -68,10 +68,16 @@ It belongs under **Case Analysis**, not as the neutral primary chronology.
 2. **Diagnosis can be differential.**
    It is acceptable, and often necessary, to identify several optional filings/remedies. Lawyers work by differential diagnosis before choosing the drafting path.
 
-3. **One current MW List of Dates.**
+3. **Automatic diagnosis runs last in preparation.**
+   The Filing and Procedural Posture Diagnosis should be generated only after the neutral Case Timeline and Matter Story exist. It should be refreshed when new documents make the Case Timeline or Story stale. In the preparation sequence, it is last: timeline first, story next, posture diagnosis after that.
+
+4. **Diagnosis is provisional until lawyer confirmation.**
+   The first generated diagnosis should not pretend to be lawyer-approved. It should mark inferred court/forum, procedural posture, remedies, filing priority, and governing framework as MW-inferred or uncertain, and should include a lawyer-to-confirm section.
+
+5. **One current MW List of Dates.**
    Do not produce multiple parallel LoDs for every possible filing at this stage. Produce one current MW LoD addressing the main issues and main remedy. Other later drafts may read from it as a source of truth.
 
-4. **MW List of Dates is versioned.**
+6. **MW List of Dates is versioned.**
    The latest version should live directly in the Case Analysis folder. Earlier versions should move to an archive subfolder to avoid confusion.
 
    Proposed naming:
@@ -87,16 +93,16 @@ It belongs under **Case Analysis**, not as the neutral primary chronology.
 
    Timestamp is required because more than one version may be generated on the same day.
 
-5. **MW-authored analysis is distinct from lawyer-shaped drafts.**
+7. **MW-authored analysis is distinct from lawyer-shaped drafts.**
    Case Analysis is MW-authored. Drafts are lawyer-shaped versions. The aspiration is that lawyers can later edit draft outputs through small instructions to LLMs, while MW analysis remains auditable.
 
-6. **Adverse facts should be included if legally important.**
+8. **Adverse facts should be included if legally important.**
    Facts cannot be suppressed under law. They may be stated with proportionate treatment and responsible framing, but material adverse facts should not be silently omitted.
 
-7. **Omitted / de-emphasized facts need a review section.**
+9. **Omitted / de-emphasized facts need a review section.**
    An advocacy LoD may select and emphasize facts. It should include an end section for facts considered but not emphasized, with a strict warning that this section is for lawyer review only and not for formal-facing consequential drafts.
 
-8. **Skill first, native later.**
+10. **Skill first, native later.**
    The posture diagnosis and MW LoD should begin as a custom/governed skill or skill-family experiment. Once output quality is consistently right, the best parts can be promoted into native automation.
 
 ## Product Hypothesis
@@ -119,6 +125,7 @@ This diagnosis should come before any MW List of Dates and should answer, in pri
 6. What governing statute/rules/framework appear material?
 7. What facts are central, introductory, adverse, missing, or uncertain?
 8. What should the lawyer confirm before relying on the diagnosis?
+9. Which parts are MW-inferred, lawyer-confirmed, lawyer-corrected, or unknown?
 
 ## Persistent Case Analysis Q&A
 
@@ -180,6 +187,33 @@ Based on Case Timeline: ...
 
 This Q&A is not itself evidence. It is legal instruction/context for MW analysis and should not pollute the neutral Case Timeline unless a point is supported by source documents.
 
+## Lawyer Confirmation Model
+
+Confirmation should not be a single `Approve` checkbox. A single checkbox would create false confidence.
+
+The better model is field-level confirmation through the persistent Case Analysis Q&A:
+
+```text
+MW-inferred -> lawyer confirmed
+MW-inferred -> lawyer corrected
+unknown -> lawyer supplied
+uncertain -> parked for follow-up
+```
+
+Fields likely needing confirmation:
+
+- client side;
+- court/forum;
+- procedural stage;
+- imminent filing or response;
+- main remedy/objective;
+- governing statute/rules;
+- limitation/deadline concerns;
+- material adverse facts;
+- missing documents or facts.
+
+First slice can be document-only: the diagnosis includes a `Lawyer to confirm` section. Later UI can expose these as editable confirmation cards that append to `Case Analysis Q&A.md` rather than silently overwriting the diagnosis.
+
 ## Live Q&A Capture
 
 ### Q1. Should the List of Dates live inside Case Analysis, not as a primary neutral artifact?
@@ -222,6 +256,14 @@ This Q&A is not itself evidence. It is legal instruction/context for MW analysis
 
 **Answer:** Skill first. Because LoD quality is heavily strategy- and procedural-posture-dependent, the interview should confirm court, legal objectives, governing statute, and related context. Once the output is right, it can become native and automated.
 
+### Q11. When should the Filing and Procedural Posture Diagnosis be generated?
+
+**Answer:** Automatically, but last. It should be generated only after the Case Timeline and Matter Story exist, because it needs both the neutral factual spine and the concise story context. If a new document causes the Case Timeline and Story to refresh, the diagnosis should refresh after them.
+
+### Q12. How should lawyer confirmation work?
+
+**Answer:** The diagnosis should be provisional with lawyer-to-confirm items. The confirmation mechanism needs design. The likely direction is not a single approval checkbox, but a persistent Case Analysis Q&A / field-confirmation ledger where the lawyer confirms or corrects court, posture, filing, remedy, statute, deadlines, adverse facts, and missing information.
+
 ## Open Questions For Next Discussion
 
 1. What is the minimum set of questions the posture diagnosis skill must ask before it can produce useful output?
@@ -230,6 +272,7 @@ This Q&A is not itself evidence. It is legal instruction/context for MW analysis
 4. How should MW represent uncertainty without sounding indecisive?
 5. How should lawyer corrections update the diagnosis and later MW LoD without silently rewriting history?
 6. Should the Q&A document be exposed in the UI, or initially only as a generated artifact under Case Analysis?
+7. What is the minimum first-slice UI for confirming/correcting MW-inferred posture fields?
 
 ## Non-Goals For Now
 
