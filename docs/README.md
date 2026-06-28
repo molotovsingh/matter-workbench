@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.73](releases/v1.0.0-beta.73.md) |
+| Current release notes | [v1.0.0-beta.74](releases/v1.0.0-beta.74.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
 | Product feature brief | [Product Features and Differentiation](product-features-and-differentiation.md) |
@@ -141,7 +141,8 @@ implementation plan.
 | [v1.0.0-beta.70](releases/v1.0.0-beta.70.md) | Beta 3 archive reason metadata release marker. |
 | [v1.0.0-beta.71](releases/v1.0.0-beta.71.md) | Beta 3 archive confirmation sidebar expansion release marker. |
 | [v1.0.0-beta.72](releases/v1.0.0-beta.72.md) | Beta 3 runtime matter caption add-files fix release marker. |
-| [v1.0.0-beta.73](releases/v1.0.0-beta.73.md) | Current Beta 3 non-destructive source-removal release marker. |
+| [v1.0.0-beta.73](releases/v1.0.0-beta.73.md) | Beta 3 non-destructive source-removal release marker. |
+| [v1.0.0-beta.74](releases/v1.0.0-beta.74.md) | Current Beta 3 larger upload batch limit release marker. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
