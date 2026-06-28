@@ -21,6 +21,6 @@ test("React archive confirmation captures an optional non-destructive archive re
   assert.match(apiClient, /reason: opts\.reason \|\| ''/);
   assert.match(styles, /archive-reason-field/);
   assert.match(styles, /\.app-shell:has\(\.archive-confirm-panel\)/);
-  assert.match(styles, /grid-template-columns: 340px minmax\(0, 1fr\)/);
+  assert.match(styles, /grid-template-columns: 360px minmax\(0, 1fr\)/);
   assert.doesNotMatch(sidebar, /unarchive/i);
 });
