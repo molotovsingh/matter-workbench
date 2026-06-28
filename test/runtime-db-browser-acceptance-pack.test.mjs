@@ -168,10 +168,45 @@ test("runtime DB browser acceptance uses mounted app navigation instead of silen
 
   assert.equal(result.clicked, true);
   assert.equal(result.label, "Activity");
+  assert.equal(result.scope, 'nav[aria-label="App navigation"]');
   assert.deepEqual(clicked, ["activity"]);
   assert.deepEqual(calls[0], ["wait", '[aria-label="Workspace navigation"]']);
   assert.deepEqual(calls[1], ["wait", 'nav[aria-label="App navigation"] button']);
   assert.deepEqual(calls[2], ["locator", 'nav[aria-label="App navigation"]']);
+});
+
+test("runtime DB browser acceptance can use account footer navigation for settings", async () => {
+  const { clickAppNav } = await import(packPath.href);
+  const clicked = [];
+  const appButton = { count: async () => 0 };
+  const accountButton = {
+    count: async () => 1,
+    first: () => ({ click: async () => { clicked.push("settings"); } }),
+  };
+  const locators = {
+    'nav[aria-label="App navigation"]': {
+      getByRole: () => appButton,
+    },
+    '[aria-label="Account"]': {
+      getByRole: () => accountButton,
+    },
+  };
+  const page = {
+    waitForSelector: async () => {},
+    locator: (selector) => locators[selector],
+    waitForLoadState: async () => {},
+    waitForTimeout: async () => {},
+  };
+
+  const result = await clickAppNav(page, "Settings", [
+    'nav[aria-label="App navigation"]',
+    '[aria-label="Account"]',
+  ]);
+
+  assert.equal(result.clicked, true);
+  assert.equal(result.label, "Settings");
+  assert.equal(result.scope, '[aria-label="Account"]');
+  assert.deepEqual(clicked, ["settings"]);
 });
 
 test("package and docs expose the runtime DB browser acceptance pack", async () => {

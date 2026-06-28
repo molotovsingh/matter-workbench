@@ -28,6 +28,7 @@ test("shadow DB backup writes an ignored local SQL dump and manifest without lea
   });
 
   assert.equal(result.success, true);
+  assert.equal(result.sha256, "05430be89433c01c5f2c46b80ffa2be157ee4e94b2920930f89909e5e0694e0d");
   assert.match(result.backupPath, /shadow-db-backup-2026-06-05T00-00-00-000Z\.sql$/);
   assert.match(result.manifestPath, /shadow-db-backup-2026-06-05T00-00-00-000Z\.json$/);
   assert.equal(calls[0].command, "/custom/bin/pg_dump");

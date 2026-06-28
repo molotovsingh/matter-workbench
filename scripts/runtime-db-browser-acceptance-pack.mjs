@@ -280,7 +280,10 @@ export async function runPlaywrightBrowserAcceptance({ baseUrl, credentials = {}
       passed: Boolean(activityNav.clicked && await waitForHeading(page, "Activity")),
       detail: activityNav.clicked ? "Activity page opened." : activityNav.detail,
     });
-    const settingsNav = await clickAppNav(page, "Settings");
+    const settingsNav = await clickAppNav(page, "Settings", [
+      'nav[aria-label="App navigation"]',
+      '[aria-label="Account"]',
+    ]);
     checks.push({
       key: "settings_visible",
       passed: Boolean(settingsNav.clicked && await waitForHeading(page, "Settings")),
@@ -313,22 +316,26 @@ export function resolveChromiumExecutable(env = process.env) {
   return candidates.find((candidate) => existsSync(candidate)) || "";
 }
 
-export async function clickAppNav(page, labels) {
+export async function clickAppNav(page, labels, scopes = ['nav[aria-label="App navigation"]']) {
   await waitForReactShell(page);
-  const appNav = page.locator('nav[aria-label="App navigation"]');
-  for (const text of Array.isArray(labels) ? labels : [labels]) {
-    const candidate = appNav.getByRole("button", { name: new RegExp(`\\b${escapeRegExp(text)}\\b`, "i") });
-    if (await candidate.count()) {
-      await candidate.first().click();
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(150);
-      return { clicked: true, label: text };
+  const labelList = Array.isArray(labels) ? labels : [labels];
+  const scopeList = Array.isArray(scopes) ? scopes : [scopes];
+  for (const selector of scopeList) {
+    const nav = page.locator(selector);
+    for (const text of labelList) {
+      const candidate = nav.getByRole("button", { name: new RegExp(`\\b${escapeRegExp(text)}\\b`, "i") });
+      if (await candidate.count()) {
+        await candidate.first().click();
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        await page.waitForTimeout(150);
+        return { clicked: true, label: text, scope: selector };
+      }
     }
   }
   return {
     clicked: false,
     label: "",
-    detail: `App navigation item not found: ${(Array.isArray(labels) ? labels : [labels]).join(" or ")}`,
+    detail: `Navigation item not found: ${labelList.join(" or ")} in ${scopeList.join(" or ")}`,
   };
 }
 
