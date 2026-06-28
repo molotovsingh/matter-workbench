@@ -132,6 +132,7 @@ Current release and repo-state docs:
 
 - [v1.0.0-beta.76 release marker](docs/releases/v1.0.0-beta.76.md)
 - [Docs map](docs/README.md)
+- [Release codenames](docs/release-codenames.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
 - [Private beta runbook](docs/beta-user-runbook.md)
 - [Database transition handoff](docs/database-transition-handoff.md)
