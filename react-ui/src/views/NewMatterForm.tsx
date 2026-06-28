@@ -31,6 +31,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   const [dragover, setDragover] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
   const [overlapWarnings, setOverlapWarnings] = useState<OverlapWarning[]>([]);
   const [bypassOverlap, setBypassOverlap] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -104,8 +105,10 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
     }
     setSubmitting(true);
     setError('');
+    setProgressMessage('Checking selected files before upload…');
     try {
       if (!bypassOverlap) {
+        setProgressMessage(`Checking ${files.length} file(s) for duplicate matter overlap…`);
         appendTerminal([`[new-matter] checking ${files.length} file(s) for duplicate matter overlap…`]);
         const hashes = await hashFilesSha256IfAvailable(files.map((f) => f.file));
         if (!hashes) {
@@ -127,6 +130,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         }
       }
 
+      setProgressMessage(`Uploading ${files.length} file(s) and creating the matter. Keep this page open; large folders can take a few minutes.`);
       appendTerminal([`[new-matter] creating "${cleanName}"…`]);
       const fd = new FormData();
       fd.append('name', cleanName);
@@ -162,6 +166,7 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       appendTerminal([`[new-matter] error: ${getErrorMessage(err)}`]);
     } finally {
       setSubmitting(false);
+      setProgressMessage('');
     }
   }
 
@@ -326,6 +331,13 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
                 Continue creating new matter
               </button>
             </div>
+          </div>
+        )}
+
+        {progressMessage && (
+          <div className="form-info">
+            <strong>Working…</strong>
+            <p>{progressMessage}</p>
           </div>
         )}
 

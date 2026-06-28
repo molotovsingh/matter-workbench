@@ -134,6 +134,8 @@ test("React new-matter and add-files forms share folder-aware upload collection 
   assert.match(newMatter, /files\.slice\(0, 20\)/);
   assert.match(newMatter, /\+{files\.length - 20} more/);
   assert.match(newMatter, /formatSize\(totalSize\)/);
+  assert.match(newMatter, /Uploading \$\{files\.length\} file\(s\) and creating the matter/);
+  assert.match(addFiles, /Uploading \$\{collected\.length\} file\(s\) to this matter/);
   assert.doesNotMatch(newMatter, /Array\.from\(e\.dataTransfer\.files\)/);
   assert.doesNotMatch(addFiles, /function walkEntries/);
 });

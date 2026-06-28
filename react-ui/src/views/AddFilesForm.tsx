@@ -27,6 +27,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   const [label, setLabel] = useState('');
   const [dragover, setDragover] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
   const [error, setError] = useState('');
   const [selfOverlap, setSelfOverlap] = useState<OverlapWarning | null>(null);
   const [otherOverlaps, setOtherOverlaps] = useState<OverlapWarning[]>([]);
@@ -81,9 +82,11 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
     if (!matterName) return;
     setSubmitting(true);
     setError('');
+    setProgressMessage('Checking selected files before upload…');
 
     try {
       if (!bypassOverlap) {
+        setProgressMessage(`Checking ${collected.length} file(s) for duplicate records…`);
         appendTerminal(['[add-files] checking for duplicates…']);
         const hashes = await hashFilesSha256IfAvailable(collected.map((c) => c.file));
         if (activeMatterNameRef.current !== matterName) return;
@@ -116,6 +119,7 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         }
       }
 
+      setProgressMessage(`Uploading ${collected.length} file(s) to this matter. Keep this page open; large folders can take a few minutes.`);
       appendTerminal([`[add-files] uploading ${collected.length} file(s)…`]);
       const fd = new FormData();
       fd.append('matterName', matterName);
@@ -139,7 +143,10 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       setError(getErrorMessage(err));
       appendTerminal([`[add-files] error: ${getErrorMessage(err)}`]);
     } finally {
-      if (activeMatterNameRef.current === matterName) setSubmitting(false);
+      if (activeMatterNameRef.current === matterName) {
+        setSubmitting(false);
+        setProgressMessage('');
+      }
     }
   }
 
@@ -246,6 +253,13 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
               <button type="button" onClick={onCancel}>Cancel</button>
               <button type="button" className="secondary" onClick={handleContinueWithOverlap}>Continue adding here</button>
             </div>
+          </div>
+        )}
+
+        {progressMessage && (
+          <div className="form-info">
+            <strong>Working…</strong>
+            <p>{progressMessage}</p>
           </div>
         )}
 
