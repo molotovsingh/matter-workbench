@@ -1615,7 +1615,7 @@ body { background: var(--c-bg); }
 
 @media (max-width: 1100px) {
   .app-shell,
-  .app-shell.home-mode,
+  .app-shell.home-mode { grid-template-columns: 64px minmax(0,1fr); }
   .app-shell:has(.archive-confirm-panel) { grid-template-columns: 64px minmax(0,1fr); }
   .sidebar { align-items: stretch; overflow-x: hidden; }
   .sidebar-brand { padding: 18px 14px 14px; }
@@ -1645,7 +1645,7 @@ body { background: var(--c-bg); }
 
 @media (max-width: 700px) {
   .app-shell,
-  .app-shell.home-mode,
+  .app-shell.home-mode { grid-template-columns: 48px minmax(0,1fr); }
   .app-shell:has(.archive-confirm-panel) { grid-template-columns: 48px minmax(0,1fr); }
   .sidebar { display: flex; }
   .main-panel { grid-column: 2; }
