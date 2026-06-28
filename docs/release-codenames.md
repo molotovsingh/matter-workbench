@@ -82,3 +82,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.74](releases/v1.0.0-beta.74.md) | **Upload Atlas** | Release note present. |
 | [v1.0.0-beta.75](releases/v1.0.0-beta.75.md) | **Patience Lantern** | Release note present. |
 | [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) | **Closure Sextant** | Release note present. |
+| [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) | **Notice Bell** | Release note present. |

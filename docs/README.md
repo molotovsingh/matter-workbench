@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) |
+| Current release notes | [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
 | Mode A clean-slate acceptance evidence | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) |
@@ -145,7 +145,8 @@ implementation plan.
 | [v1.0.0-beta.73](releases/v1.0.0-beta.73.md) | Beta 3 non-destructive source-removal release marker. **Codename:** Custody Lily. |
 | [v1.0.0-beta.74](releases/v1.0.0-beta.74.md) | Beta 3 larger upload batch limit release marker. **Codename:** Upload Atlas. |
 | [v1.0.0-beta.75](releases/v1.0.0-beta.75.md) | Beta 3 long-wait progress UX release marker. **Codename:** Patience Lantern. |
-| [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) | Current Beta 3 closure evidence hardening release marker. **Codename:** Closure Sextant. |
+| [v1.0.0-beta.76](releases/v1.0.0-beta.76.md) | Beta 3 closure evidence hardening release marker. **Codename:** Closure Sextant. |
+| [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) | Current Beta 3 tester What’s new notice release marker. **Codename:** Notice Bell. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
