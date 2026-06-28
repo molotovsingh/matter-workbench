@@ -130,7 +130,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.77 release marker](docs/releases/v1.0.0-beta.77.md)
+- [v1.0.0-beta.78 release marker](docs/releases/v1.0.0-beta.78.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)
 - [Repo branch/worktree hygiene](docs/repo-branch-hygiene.md)
