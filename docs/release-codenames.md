@@ -90,3 +90,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.83](releases/v1.0.0-beta.83.md) | **Error Firewall** | Release note present. |
 | [v1.0.0-beta.84](releases/v1.0.0-beta.84.md) | **Boundary Gauge** | Release note present. |
 | [v1.0.0-beta.85](releases/v1.0.0-beta.85.md) | **OpenAI Relay** | Release note present. |
+| [v1.0.0-beta.86](releases/v1.0.0-beta.86.md) | **Preset Spine** | Release note present. |
