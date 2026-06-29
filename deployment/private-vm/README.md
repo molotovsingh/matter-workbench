@@ -229,25 +229,46 @@ deployed app directory. These commands automatically load the standard VM
 intake surface Codex can use to triage repeated errors, tester bugs, confusing
 UX, and feature ideas against the current repository and runtime evidence.
 
-For a boring, repeatable first pass on a specific complaint, use the canned
-read-only investigation bundle instead of hand-assembling SQL:
+For a boring, repeatable first pass on a specific complaint, use the two-stage
+read-only investigation workflow instead of hand-assembling SQL.
+
+Stage 1 collects candidate matters and signals when the case is not known:
 
 ```bash
-npm run mothership:investigate -- \
+npm run mothership:signals -- \
+  --focus-user shivangi \
+  --preset large-files \
+  --since-hours 72
+```
+
+Stage 2 focuses on one candidate signal, feedback item, or known matter:
+
+```bash
+npm run mothership:focus -- \
+  --signal-id signal_123 \
+  --since-hours 72
+```
+
+or, when the matter really is known:
+
+```bash
+npm run mothership:focus -- \
   --focus-user shivangi \
   --matter "National Insurance" \
   --since-hours 72
 ```
 
+`mothership:investigate` is the shared implementation behind both stage aliases.
 `--user` is kept as a short alias for `--focus-user`: it highlights that
-reporter's feedback but does not filter evidence. Use matter, text, preset, and
-time-window options to define the evidence scope. Only use `--reported-by` when
-you deliberately want a strict reporter filter.
+reporter's feedback but does not filter evidence. Use matter, text, preset,
+signal, feedback, and time-window options to define the evidence scope. Only use
+`--reported-by` when you deliberately want a strict reporter filter.
 
 The investigation bundle reads the same mothership store once and reports the
-matching feedback, focus-user feedback counts, nearby signals, nearby heartbeat
-journeys, latest matter health, and open-feedback counts. Use `--format json`
-when another tool should consume the result.
+matching feedback, focus-user feedback counts, candidate matters, candidate
+signals, nearby heartbeat journeys, latest matter health, evidence gaps, and
+open-feedback counts. Use `--format json` when another tool should consume the
+result.
 
 The same report also carries deployment/backend metrics:
 

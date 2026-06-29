@@ -30,11 +30,14 @@ const LARGE_FILE_TERMS = Object.freeze([
 
 export function parseMothershipInvestigateArgs(argv = []) {
   const parsed = {
+    mode: "collect",
     preset: "large-files",
     focusUser: "",
     reportedBy: "",
     matter: "",
     text: "",
+    signalId: "",
+    feedbackId: "",
     sinceHours: DEFAULT_SINCE_HOURS,
     windowMinutes: DEFAULT_WINDOW_MINUTES,
     limit: DEFAULT_LIMIT,
@@ -53,10 +56,13 @@ export function parseMothershipInvestigateArgs(argv = []) {
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`Missing value for --${key}`);
     index += 1;
-    if (key === "preset") parsed.preset = normalizePreset(value);
+    if (key === "mode" || key === "stage") parsed.mode = normalizeMode(value);
+    else if (key === "preset") parsed.preset = normalizePreset(value);
     else if (key === "user" || key === "focus-user") parsed.focusUser = cleanText(value, 160);
     else if (key === "reported-by") parsed.reportedBy = cleanText(value, 160);
     else if (key === "matter") parsed.matter = cleanText(value, 300);
+    else if (key === "signal-id") parsed.signalId = cleanText(value, 200);
+    else if (key === "feedback-id") parsed.feedbackId = cleanText(value, 200);
     else if (key === "text" || key === "keyword" || key === "keywords") parsed.text = cleanText(value, 400);
     else if (key === "since-hours") parsed.sinceHours = positiveInteger(value, DEFAULT_SINCE_HOURS);
     else if (key === "window-minutes") parsed.windowMinutes = positiveInteger(value, DEFAULT_WINDOW_MINUTES);
@@ -103,19 +109,35 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
   const cutoff = new Date(now.getTime() - sinceHours * 60 * 60 * 1000);
   const windowMinutes = positiveInteger(options.windowMinutes, DEFAULT_WINDOW_MINUTES);
   const limit = positiveInteger(options.limit, DEFAULT_LIMIT);
-  const query = {
+  const baseQuery = {
+    mode: normalizeMode(options.mode || "collect"),
     preset: normalizePreset(options.preset || "large-files"),
     focusUser: cleanText(options.focusUser || options.user || "", 160),
     reportedBy: cleanText(options.reportedBy || "", 160),
     matter: cleanText(options.matter || "", 300),
     text: cleanText(options.text || "", 400),
+    signalId: cleanText(options.signalId || "", 200),
+    feedbackId: cleanText(options.feedbackId || "", 200),
     sinceHours,
     windowMinutes,
     limit,
   };
+  const allFeedbackRows = rowsSince(dataset.feedback, cutoff).map(normalizeFeedbackRow);
+  const heartbeats = rowsSince(dataset.heartbeats, cutoff).map(normalizeHeartbeatRow);
+  const allSignals = rowsSince(dataset.signals, cutoff).map(normalizeSignalRow);
+  const seedFeedback = baseQuery.feedbackId
+    ? allFeedbackRows.find((item) => item.feedbackId === baseQuery.feedbackId) || null
+    : null;
+  const seedSignal = baseQuery.signalId
+    ? allSignals.find((item) => item.signalId === baseQuery.signalId) || null
+    : null;
+  const seedMatter = seedFeedback?.matter || seedSignal?.matter || "";
+  const query = {
+    ...baseQuery,
+    matter: baseQuery.matter || seedMatter,
+  };
   const terms = investigationTerms(query);
-  const feedback = rowsSince(dataset.feedback, cutoff)
-    .map(normalizeFeedbackRow)
+  const feedback = allFeedbackRows
     .filter((item) => matchesInvestigation(item, { query, terms }))
     .slice(0, limit);
   const feedbackWithFocus = feedback.map((item) => ({
@@ -127,9 +149,7 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
     ...feedbackWithFocus.map((item) => item.matter),
   ].map(normalizeLookup).filter(Boolean)));
 
-  const heartbeats = rowsSince(dataset.heartbeats, cutoff).map(normalizeHeartbeatRow);
-  const signals = rowsSince(dataset.signals, cutoff)
-    .map(normalizeSignalRow)
+  const signals = allSignals
     .filter((item) => matchesSignal(item, { query, terms, matterHints: initialMatterHints }))
     .slice(0, Math.max(limit * 2, limit));
   const matterHints = Array.from(new Set([
@@ -146,14 +166,20 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
     relatedHeartbeats: nearbyHeartbeats(heartbeats, item, windowMinutes, matterHints.length ? matterHints : [normalizeLookup(item.matter)]),
   }));
 
-  const allFeedbackRows = rowsSince(dataset.feedback, cutoff).map(normalizeFeedbackRow);
   const openFeedbackCounts = countOpenFeedback(allFeedbackRows, { query, terms });
+  const candidateMatters = buildCandidateMatters({ feedback: feedbackWithEvidence, signals, heartbeats, matterHints, limit });
+  const candidateSignals = signals.slice(0, limit);
+  const evidenceGaps = buildEvidenceGaps(feedbackWithEvidence);
   const focusOpenFeedbackCounts = countOpenFeedback(allFeedbackRows, { query, terms, focusUser: query.focusUser });
 
   return {
     schema_version: SCHEMA_VERSION,
     generatedAt: now.toISOString(),
     query,
+    seed: {
+      feedback: seedFeedback ? summarizeSeedFeedback(seedFeedback) : null,
+      signal: seedSignal ? summarizeSeedSignal(seedSignal) : null,
+    },
     counts: {
       feedbackMatched: feedbackWithEvidence.length,
       signalsMatched: signals.length,
@@ -161,6 +187,9 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
       openFeedbackMatched: openFeedbackCounts.reduce((sum, row) => sum + row.count, 0),
       focusFeedbackMatched: feedbackWithEvidence.filter((item) => item.focusUserMatch).length,
       focusOpenFeedbackMatched: focusOpenFeedbackCounts.reduce((sum, row) => sum + row.count, 0),
+      candidateMatterCount: candidateMatters.length,
+      candidateSignalCount: candidateSignals.length,
+      evidenceGapCount: evidenceGaps.length,
     },
     latestHeartbeat: latestHeartbeat ? {
       capturedAt: latestHeartbeat.capturedAt,
@@ -172,6 +201,9 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
     latestMatterHealthCapturedAt: latestMatterHealthSnapshot.capturedAt,
     openFeedbackCounts,
     focusOpenFeedbackCounts,
+    candidateMatters,
+    candidateSignals,
+    evidenceGaps,
     feedback: feedbackWithEvidence,
     signals,
   };
@@ -182,10 +214,13 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
     "# Mothership Investigation",
     "",
     `Generated: ${report.generatedAt || ""}`,
+    `Mode: ${report.query?.mode || "collect"}`,
     `Preset: ${report.query?.preset || ""}`,
     `Focus user: ${report.query?.focusUser || "(none)"}`,
     `Reported-by filter: ${report.query?.reportedBy || "(none)"}`,
     `Matter: ${report.query?.matter || "(any)"}`,
+    `Signal ID: ${report.query?.signalId || "(none)"}`,
+    `Feedback ID: ${report.query?.feedbackId || "(none)"}`,
     `Text: ${report.query?.text || "(preset terms)"}`,
     `Window: last ${report.query?.sinceHours || DEFAULT_SINCE_HOURS}h; nearby ±${report.query?.windowMinutes || DEFAULT_WINDOW_MINUTES}m`,
     "",
@@ -196,8 +231,36 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
     `- focus-user feedback matched: ${report.counts?.focusFeedbackMatched ?? 0}`,
     `- focus-user open feedback matched: ${report.counts?.focusOpenFeedbackMatched ?? 0}`,
     `- signals matched: ${report.counts?.signalsMatched ?? 0}`,
+    `- candidate matters: ${report.counts?.candidateMatterCount ?? 0}`,
+    `- candidate signals: ${report.counts?.candidateSignalCount ?? 0}`,
+    `- evidence gaps: ${report.counts?.evidenceGapCount ?? 0}`,
     `- heartbeats scanned: ${report.counts?.heartbeatsScanned ?? 0}`,
   ];
+
+  if (report.seed?.signal || report.seed?.feedback) {
+    lines.push("", "## Stage 2 Seed", "");
+    if (report.seed.signal) lines.push(`- signal: ${report.seed.signal.signalId}; ${report.seed.signal.matter || ""}; ${report.seed.signal.title || report.seed.signal.detail || ""}`);
+    if (report.seed.feedback) lines.push(`- feedback: ${report.seed.feedback.feedbackId}; ${report.seed.feedback.matter || ""}; ${report.seed.feedback.tryingToDo || report.seed.feedback.visibleError || ""}`);
+  }
+
+  if (report.candidateMatters?.length) {
+    lines.push("", "## Candidate Matters", "");
+    for (const matter of report.candidateMatters) {
+      const why = matter.why?.length ? ` — ${matter.why.join("; ")}` : "";
+      lines.push(`- ${matter.matter}: confidence=${matter.confidence}; feedback=${matter.feedbackCount}; focus=${matter.focusFeedbackCount}; signals=${matter.signalCount}; errors=${matter.errorSignalCount}${why}`);
+      if (matter.latestHealth) lines.push(`  - latest health: ${matter.latestHealth.prepareState}; next=${matter.latestHealth.nextStepLabel || ""}; attention=${matter.latestHealth.attentionState || ""}`);
+    }
+  }
+
+  if (report.candidateSignals?.length) {
+    lines.push("", "## Candidate Signals", "");
+    for (const signal of report.candidateSignals.slice(0, 12)) lines.push(`- ${signal.signalId}: ${signal.severity}/${signal.source}; ${signal.matter || ""}; ${signal.title || signal.detail || ""}; received=${signal.receivedAt}`);
+  }
+
+  if (report.evidenceGaps?.length) {
+    lines.push("", "## Evidence Gaps", "");
+    for (const gap of report.evidenceGaps.slice(0, 12)) lines.push(`- ${gap.feedbackId}: ${gap.reason}; ${gap.matter || ""}; ${gap.visibleError || gap.tryingToDo || ""}`);
+  }
 
   if (report.latestHeartbeat) {
     lines.push(`- latest heartbeat: ${report.latestHeartbeat.capturedAt || ""}`);
@@ -278,6 +341,150 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
   return lines.join("\n");
 }
 
+function summarizeSeedFeedback(item = {}) {
+  return {
+    feedbackId: item.feedbackId || "",
+    status: item.status || "",
+    classification: item.classification || "",
+    matter: item.matter || "",
+    user: item.user || "",
+    tryingToDo: item.tryingToDo || "",
+    visibleError: item.visibleError || "",
+    receivedAt: item.receivedAt || "",
+  };
+}
+
+function summarizeSeedSignal(item = {}) {
+  return {
+    signalId: item.signalId || "",
+    severity: item.severity || "",
+    source: item.source || "",
+    matter: item.matter || "",
+    title: item.title || "",
+    detail: item.detail || "",
+    receivedAt: item.receivedAt || "",
+  };
+}
+
+function buildCandidateMatters({ feedback = [], signals = [], heartbeats = [], limit = DEFAULT_LIMIT } = {}) {
+  const map = new Map();
+  for (const item of feedback) {
+    const record = candidateMatterRecord(map, item.matter);
+    if (!record) continue;
+    record.feedbackCount += 1;
+    if (item.status === "new") record.openFeedbackCount += 1;
+    if (item.focusUserMatch) record.focusFeedbackCount += 1;
+    record.feedbackIds.push(item.feedbackId);
+    record.latestAt = laterIso(record.latestAt, item.receivedAt || item.occurredAt);
+    if (!record.sampleFeedback && (item.tryingToDo || item.visibleError)) record.sampleFeedback = item.tryingToDo || item.visibleError;
+  }
+  for (const item of signals) {
+    const record = candidateMatterRecord(map, item.matter);
+    if (!record) continue;
+    record.signalCount += 1;
+    if (item.severity === "error") record.errorSignalCount += 1;
+    record.signalIds.push(item.signalId);
+    if (item.title) record.stages.add(item.title);
+    record.latestAt = laterIso(record.latestAt, item.receivedAt || item.lastSeenAt || item.firstSeenAt);
+  }
+  const rows = Array.from(map.values()).map((record) => {
+    const latestHealth = latestHealthForMatter(heartbeats, record.matter);
+    const score = record.openFeedbackCount * 4
+      + record.focusFeedbackCount * 3
+      + record.errorSignalCount * 3
+      + record.feedbackCount * 2
+      + record.signalCount;
+    const why = [];
+    if (record.openFeedbackCount) why.push(`${record.openFeedbackCount} open feedback`);
+    if (record.focusFeedbackCount) why.push(`${record.focusFeedbackCount} focus-user feedback`);
+    if (record.errorSignalCount) why.push(`${record.errorSignalCount} error signal`);
+    if (latestHealth?.prepareState) why.push(`latest health ${latestHealth.prepareState}`);
+    return {
+      matter: record.matter,
+      confidence: score >= 8 ? "high" : score >= 4 ? "medium" : "low",
+      score,
+      feedbackCount: record.feedbackCount,
+      openFeedbackCount: record.openFeedbackCount,
+      focusFeedbackCount: record.focusFeedbackCount,
+      signalCount: record.signalCount,
+      errorSignalCount: record.errorSignalCount,
+      latestAt: record.latestAt,
+      stages: Array.from(record.stages).slice(0, 5),
+      feedbackIds: record.feedbackIds.slice(0, 5),
+      signalIds: record.signalIds.slice(0, 5),
+      sampleFeedback: record.sampleFeedback,
+      latestHealth,
+      why,
+    };
+  });
+  return rows
+    .sort((a, b) => b.score - a.score || String(b.latestAt || "").localeCompare(String(a.latestAt || "")) || a.matter.localeCompare(b.matter))
+    .slice(0, limit);
+}
+
+function candidateMatterRecord(map, matter) {
+  const key = normalizeLookup(matter);
+  if (!key) return null;
+  if (!map.has(key)) {
+    map.set(key, {
+      matter: cleanText(matter, 300),
+      feedbackCount: 0,
+      openFeedbackCount: 0,
+      focusFeedbackCount: 0,
+      signalCount: 0,
+      errorSignalCount: 0,
+      latestAt: "",
+      stages: new Set(),
+      feedbackIds: [],
+      signalIds: [],
+      sampleFeedback: "",
+    });
+  }
+  return map.get(key);
+}
+
+function latestHealthForMatter(heartbeats = [], matter = "") {
+  const hint = normalizeLookup(matter);
+  if (!hint) return null;
+  for (const heartbeat of heartbeats) {
+    const [health] = summarizeMatterHealth(heartbeat.payload?.matterHealth, [hint]);
+    if (health) return health;
+  }
+  return null;
+}
+
+function buildEvidenceGaps(feedback = []) {
+  return feedback
+    .filter((item) => hasFailureLanguage(item) && !item.relatedSignals?.length)
+    .map((item) => ({
+      feedbackId: item.feedbackId,
+      matter: item.matter,
+      user: item.user,
+      receivedAt: item.receivedAt,
+      tryingToDo: item.tryingToDo,
+      visibleError: item.visibleError,
+      reason: "feedback has failure/slow-processing language but no nearby matching signal",
+    }));
+}
+
+function hasFailureLanguage(item = {}) {
+  const text = normalizeLookup([
+    item.tryingToDo,
+    item.happenedInstead,
+    item.visibleError,
+    ...(Array.isArray(item.recentActivity) ? item.recentActivity : []),
+  ].join(" "));
+  return /\b(502|bad gateway|failed to fetch|failed|not working|did not process|slow|large|larger|heavy|rerun)\b/i.test(text);
+}
+
+function laterIso(current = "", candidate = "") {
+  const currentDate = toDate(current);
+  const candidateDate = toDate(candidate);
+  if (!candidateDate) return current || "";
+  if (!currentDate || candidateDate > currentDate) return candidateDate.toISOString();
+  return currentDate.toISOString();
+}
+
 function rowsSince(rows = [], cutoff) {
   return (Array.isArray(rows) ? rows : []).filter((row) => {
     const date = toDate(row.received_at || row.receivedAt || row.captured_at || row.capturedAt || row.occurred_at || row.occurredAt);
@@ -345,6 +552,7 @@ function normalizeHeartbeatRow(row = {}) {
 function matchesInvestigation(item, { query, terms }) {
   const haystack = normalizeLookup(item?.searchText || item);
   if (query.reportedBy && !matchesReporter(item, query.reportedBy)) return false;
+  if (query.feedbackId && item?.feedbackId === query.feedbackId) return true;
   if (query.matter && !haystack.includes(normalizeLookup(query.matter))) return false;
   if (query.text && !haystack.includes(normalizeLookup(query.text))) return false;
   if (query.preset === "all" || query.text) return true;
@@ -353,6 +561,7 @@ function matchesInvestigation(item, { query, terms }) {
 
 function matchesSignal(signal, { query, terms, matterHints }) {
   const haystack = normalizeLookup(signal.searchText);
+  if (query.signalId && signal.signalId === query.signalId) return true;
   if (query.matter && !haystack.includes(normalizeLookup(query.matter))) return false;
   if (query.text) return haystack.includes(normalizeLookup(query.text));
   if (query.reportedBy && !matterHints.length) return false;
@@ -468,6 +677,13 @@ function investigationTerms(query) {
   if (query.text) return [query.text];
   if (query.preset === "large-files") return [...LARGE_FILE_TERMS];
   return [];
+}
+
+function normalizeMode(value) {
+  const mode = String(value || "collect").trim().toLowerCase();
+  if (mode === "collect" || mode === "signals" || mode === "stage1" || mode === "stage-1") return "collect";
+  if (mode === "focus" || mode === "investigate" || mode === "stage2" || mode === "stage-2") return "focus";
+  throw new Error("--mode must be collect or focus");
 }
 
 function normalizePreset(value) {

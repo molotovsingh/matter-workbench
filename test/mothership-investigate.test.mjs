@@ -165,11 +165,14 @@ test("mothership investigate parses safe bounded options", () => {
     "--limit", "5",
     "--format", "json",
   ]), {
+    mode: "collect",
     preset: "large-files",
     focusUser: "shivangi",
     reportedBy: "",
     matter: "National Insurance",
     text: "",
+    signalId: "",
+    feedbackId: "",
     sinceHours: 48,
     windowMinutes: 30,
     limit: 5,
@@ -201,14 +204,38 @@ test("mothership investigate bundles large-file feedback with nearby evidence", 
   assert.equal(report.latestHeartbeat.capturedAt, "2026-06-29T13:55:00.000Z");
   assert.equal(report.latestMatterHealthCapturedAt, "2026-06-29T13:50:00.000Z");
   assert.equal(report.latestMatterHealth[0].prepareState, "missing");
+  assert.equal(report.counts.candidateMatterCount, 1);
+  assert.equal(report.candidateMatters[0].matter, "National Insurance Co. Ltd v M - s Sarkar Fertilizers");
+  assert.equal(report.candidateMatters[0].confidence, "high");
+  assert.equal(report.candidateSignals[0].signalId, "signal_extract_failed");
+  assert.equal(report.evidenceGaps.length, 0);
 
   const markdown = renderMothershipInvestigationMarkdown(report);
   assert.match(markdown, /Mothership Investigation/);
+  assert.match(markdown, /Candidate Matters/);
+  assert.match(markdown, /Candidate Signals/);
   assert.match(markdown, /Focus User Feedback/);
   assert.match(markdown, /Reading document still not working/);
   assert.match(markdown, /Large extraction is slow for this matter/);
   assert.match(markdown, /502 Bad Gateway/);
   assert.match(markdown, /health National Insurance Co\. Ltd/);
+});
+
+test("mothership investigate can focus stage two on a selected signal", () => {
+  const report = buildMothershipInvestigation(fixtureDataset(), {
+    now: NOW,
+    mode: "focus",
+    signalId: "signal_extract_failed",
+    sinceHours: 72,
+  });
+
+  assert.equal(report.query.mode, "focus");
+  assert.equal(report.query.signalId, "signal_extract_failed");
+  assert.equal(report.query.matter, "National Insurance Co. Ltd v M - s Sarkar Fertilizers");
+  assert.equal(report.seed.signal.signalId, "signal_extract_failed");
+  assert.equal(report.counts.feedbackMatched, 2);
+  assert.equal(report.counts.signalsMatched, 1);
+  assert.equal(report.candidateMatters[0].matter, "National Insurance Co. Ltd v M - s Sarkar Fertilizers");
 });
 
 test("mothership investigate does not attach unrelated signals or health to text-only misses", () => {
@@ -278,7 +305,9 @@ test("mothership investigate runner uses one report query", async () => {
   assert.equal(report.counts.focusFeedbackMatched, 1);
 });
 
-test("package exposes mothership investigate command", async () => {
+test("package exposes mothership investigation stage commands", async () => {
   const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(pkg.scripts["mothership:signals"], "node scripts/mothership-investigate.mjs --mode collect");
+  assert.equal(pkg.scripts["mothership:focus"], "node scripts/mothership-investigate.mjs --mode focus");
   assert.equal(pkg.scripts["mothership:investigate"], "node scripts/mothership-investigate.mjs");
 });
