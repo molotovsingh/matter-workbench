@@ -731,6 +731,13 @@ export interface AiStartupCheck {
   statusCode?: number;
 }
 
+export interface CopilotModelPreset {
+  label: string;
+  shortLabel: string;
+  provider: string;
+  model: string;
+}
+
 export interface AiSettings {
   provider: string | null;
   model?: string;
@@ -738,6 +745,7 @@ export interface AiSettings {
   maxOutputTokens?: number;
   envPath?: string;
   aiTasks?: AiTask[];
+  copilotModelPresets?: CopilotModelPreset[];
   startupChecks?: {
     copilot?: AiStartupCheck;
   };

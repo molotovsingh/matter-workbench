@@ -4,7 +4,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { cleanCommandLabel } from '../lib/nativeCommands';
-import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
+import { copilotPresetValue, findCopilotPreset } from '../lib/copilotModels';
 import { canSeeOperatorSurface } from '../lib/lawyerMode';
 import { findCopilotTask } from '../lib/aiSettingsTasks';
 import { SystemHealthPanel, systemHealthNeedsAttention } from '../components/settings/SystemHealthPanel';
@@ -25,8 +25,8 @@ export default function SettingsPage() {
   const [aiSaveError, setAiSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [copilotProvider, setCopilotProvider] = useState('openrouter');
-  const [copilotModel, setCopilotModel] = useState('openai/gpt-4.1');
+  const [copilotProvider, setCopilotProvider] = useState('openai-direct');
+  const [copilotModel, setCopilotModel] = useState('gpt-5.4');
   const [copilotApiKey, setCopilotApiKey] = useState('');
   const [copilotSaving, setCopilotSaving] = useState(false);
   const [copilotSaveError, setCopilotSaveError] = useState('');
@@ -184,7 +184,7 @@ export default function SettingsPage() {
   }
 
   function handleCopilotPresetChange(value: string) {
-    const preset = COPILOT_MODEL_PRESETS.find((item) => copilotPresetValue(item.provider, item.model) === value);
+    const preset = (settings?.copilotModelPresets || []).find((item) => copilotPresetValue(item.provider, item.model) === value);
     if (!preset) return;
     setCopilotProvider(preset.provider);
     setCopilotModel(preset.model);
@@ -203,7 +203,7 @@ export default function SettingsPage() {
       setSettings(updated);
       applyCopilotSettings(updated);
       setCopilotApiKey('');
-      appendTerminal([`[settings] Matter Copilot saved: ${findCopilotPreset(copilotProvider, copilotModel)?.label || 'Custom'}`]);
+      appendTerminal([`[settings] Matter Copilot saved: ${findCopilotPreset(updated.copilotModelPresets, copilotProvider, copilotModel)?.label || 'Custom'}`]);
     } catch (err) {
       setCopilotSaveError(getErrorMessage(err));
     } finally {

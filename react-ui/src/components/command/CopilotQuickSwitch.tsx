@@ -1,4 +1,4 @@
-import { COPILOT_MODEL_PRESETS, copilotPresetValue } from '../../lib/copilotModels';
+import { copilotPresetValue } from '../../lib/copilotModels';
 import type { CopilotQuickSwitchState } from '../../hooks/useCopilotQuickSwitch';
 
 interface Props {
@@ -18,7 +18,7 @@ export default function CopilotQuickSwitch({ switcher }: Props) {
         {!switcher.presetExists && (
           <option value="">{switcher.currentLabel}</option>
         )}
-        {COPILOT_MODEL_PRESETS.map((preset) => (
+        {switcher.presets.map((preset) => (
           <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
             {preset.shortLabel}
           </option>

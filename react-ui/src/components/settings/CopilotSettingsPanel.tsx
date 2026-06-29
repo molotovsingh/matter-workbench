@@ -1,5 +1,5 @@
 import type { FormEventHandler } from 'react';
-import { COPILOT_MODEL_PRESETS, copilotPresetValue, findCopilotPreset } from '../../lib/copilotModels';
+import { copilotPresetValue, findCopilotPreset } from '../../lib/copilotModels';
 import { findCopilotTask } from '../../lib/aiSettingsTasks';
 import type { AiSettings } from '../../types';
 
@@ -63,10 +63,11 @@ export function CopilotSettingsPanel({
   onTest,
 }: CopilotSettingsPanelProps) {
   const copilotTask = findCopilotTask(settings);
-  const copilotPreset = COPILOT_MODEL_PRESETS.some((preset) => preset.provider === copilotProvider && preset.model === copilotModel)
+  const copilotPresets = settings?.copilotModelPresets || [];
+  const copilotPreset = copilotPresets.some((preset) => preset.provider === copilotProvider && preset.model === copilotModel)
     ? copilotPresetValue(copilotProvider, copilotModel)
     : '';
-  const currentCopilotPreset = findCopilotPreset(copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
+  const currentCopilotPreset = findCopilotPreset(copilotPresets, copilotTask?.provider || copilotProvider, copilotTask?.model || copilotModel);
 
   return (
     <>
@@ -107,7 +108,7 @@ export function CopilotSettingsPanel({
                   className="settings-input"
                 >
                   {!copilotPreset && <option value="">Custom: {copilotProvider} / {copilotModel}</option>}
-                  {COPILOT_MODEL_PRESETS.map((preset) => (
+                  {copilotPresets.map((preset) => (
                     <option key={copilotPresetValue(preset.provider, preset.model)} value={copilotPresetValue(preset.provider, preset.model)}>
                       {preset.label}
                     </option>

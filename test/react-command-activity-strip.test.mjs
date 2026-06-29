@@ -102,8 +102,9 @@ test("React command panel exposes the tested model switcher only to operators", 
 
   assert.match(commandPanelSource, /canManageCopilotSettings && <CopilotQuickSwitch/);
   assert.match(switchSource, /aria-label="Copilot strength"/);
-  assert.match(switchSource, /COPILOT_MODEL_PRESETS/);
+  assert.match(switchSource, /switcher\.presets\.map/);
   assert.match(hookSource, /api\.saveAiSettings\(\{\s*copilotProvider/s);
+  assert.match(hookSource, /setPresets\(settings\.copilotModelPresets \|\| \[\]\)/);
   assert.match(hookSource, /Testing \$\{nextPreset\.shortLabel\}/);
   assert.match(hookSource, /Switch failed\. Still using/);
   assert.doesNotMatch(switchSource, /disabled=\{!canManageCopilotSettings \|\| switching\}/);

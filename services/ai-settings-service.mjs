@@ -14,6 +14,7 @@ import {
   AI_PROVIDERS,
   AI_TASKS,
   DEFAULT_OPENROUTER_ENDPOINT,
+  listCopilotModelPresets,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
 import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
@@ -80,6 +81,7 @@ export function createAiSettingsService({
       maxOutputTokens: parsePositiveInteger(env.OPENAI_MAX_OUTPUT_TOKENS) || DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
       envPath: path.join(root, ".env"),
       aiTasks: readAiTaskStatuses(),
+      copilotModelPresets: listCopilotModelPresets(),
       startupChecks: latestCopilotCheck ? { copilot: latestCopilotCheck } : {},
     };
   }

@@ -49,6 +49,12 @@ export const DEFAULT_COPILOT_ANSWER_MODEL = "openai/gpt-4.1";
 export const DEFAULT_COPILOT_ANSWER_OPENAI_MODEL = "gpt-5.4-mini";
 export const DEFAULT_COPILOT_ANSWER_MAX_OUTPUT_TOKENS = 2200;
 export const DEFAULT_COPILOT_ANSWER_TIMEOUT_MS = 90_000;
+export const COPILOT_MODEL_PRESETS = Object.freeze([
+  Object.freeze({ label: "Low", shortLabel: "Low", provider: AI_PROVIDERS.OPENAI_DIRECT, model: "gpt-4o-mini" }),
+  Object.freeze({ label: "Medium", shortLabel: "Medium", provider: AI_PROVIDERS.OPENAI_DIRECT, model: "gpt-5.4-mini" }),
+  Object.freeze({ label: "High", shortLabel: "High", provider: AI_PROVIDERS.OPENAI_DIRECT, model: "gpt-5.4" }),
+  Object.freeze({ label: "Highest", shortLabel: "Highest", provider: AI_PROVIDERS.OPENAI_DIRECT, model: "gpt-5.5" }),
+]);
 export const DEFAULT_COPILOT_WEB_RESEARCH_PROVIDER = AI_PROVIDERS.OPENROUTER;
 export const DEFAULT_COPILOT_WEB_RESEARCH_MODEL = "openai/gpt-5.4";
 export const DEFAULT_COPILOT_WEB_RESEARCH_OPENAI_MODEL = "gpt-5.4";
@@ -348,6 +354,10 @@ function timeoutForProvider(base, env, provider) {
 
 export function listModelPolicyTasks() {
   return Object.keys(TASK_POLICIES);
+}
+
+export function listCopilotModelPresets() {
+  return COPILOT_MODEL_PRESETS.map((preset) => ({ ...preset }));
 }
 
 function parsePositiveInteger(value) {

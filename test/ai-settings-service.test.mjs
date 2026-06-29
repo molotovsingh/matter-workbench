@@ -107,6 +107,12 @@ test("AI settings expose read-only provider status without secrets", async () =>
 
   const settings = service.readSettings();
   assert.equal(settings.aiTasks.length, 4);
+  assert.deepEqual(settings.copilotModelPresets, [
+    { label: "Low", shortLabel: "Low", provider: "openai-direct", model: "gpt-4o-mini" },
+    { label: "Medium", shortLabel: "Medium", provider: "openai-direct", model: "gpt-5.4-mini" },
+    { label: "High", shortLabel: "High", provider: "openai-direct", model: "gpt-5.4" },
+    { label: "Highest", shortLabel: "Highest", provider: "openai-direct", model: "gpt-5.5" },
+  ]);
   const copilot = settings.aiTasks.find((task) => task.task === "copilot_answer");
   assert.equal(copilot.label, "Matter Copilot");
   assert.equal(copilot.provider, "openrouter");
