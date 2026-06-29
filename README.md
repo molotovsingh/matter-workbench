@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.82`,
-codename **Assistant Signal**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.83`,
+codename **Error Firewall**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -126,6 +126,7 @@ Completed release checks include:
 - automatic provisional Filing and Procedural Posture Diagnosis after Case Timeline and Matter Story;
 - lawyer confirmation/correction/not-sure controls for posture diagnosis;
 - Assistant readiness degradation remains visible with sanitized user-facing copy;
+- user-facing AI/provider errors are centralized behind a safe API and command-activity boundary;
 - private-cloud deployment to the beta VM;
 - runtime DB migration through `023_matter_archive_metadata`;
 - login smoke;
@@ -139,7 +140,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.82 release marker](docs/releases/v1.0.0-beta.82.md)
+- [v1.0.0-beta.83 release marker](docs/releases/v1.0.0-beta.83.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)

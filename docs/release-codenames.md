@@ -87,3 +87,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.79](releases/v1.0.0-beta.79.md) | **Column Compass** | Release note present. |
 | [v1.0.0-beta.80](releases/v1.0.0-beta.80.md) | **Timeline Lantern** | Release note present. |
 | [v1.0.0-beta.82](releases/v1.0.0-beta.82.md) | **Assistant Signal** | Release note present. |
+| [v1.0.0-beta.83](releases/v1.0.0-beta.83.md) | **Error Firewall** | Release note present. |
