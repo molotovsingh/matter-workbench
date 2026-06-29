@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.89](releases/v1.0.0-beta.89.md) |
+| Current release notes | [v1.0.0-beta.91](releases/v1.0.0-beta.91.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -158,7 +158,9 @@ implementation plan.
 | [v1.0.0-beta.86](releases/v1.0.0-beta.86.md) | Centralized Copilot preset hotfix. **Codename:** Preset Spine. |
 | [v1.0.0-beta.87](releases/v1.0.0-beta.87.md) | Copilot provider-check refactor. **Codename:** Provider Spine. |
 | [v1.0.0-beta.88](releases/v1.0.0-beta.88.md) | AI task model-policy metadata refactor. **Codename:** Policy Spine. |
-| [v1.0.0-beta.89](releases/v1.0.0-beta.89.md) | Current canned mothership investigation helper. **Codename:** Boring Queries. |
+| [v1.0.0-beta.89](releases/v1.0.0-beta.89.md) | Canned mothership investigation helper. **Codename:** Boring Queries. |
+| [v1.0.0-beta.90](releases/v1.0.0-beta.90.md) | Mothership investigation query narrowing. **Codename:** Quiet Query. |
+| [v1.0.0-beta.91](releases/v1.0.0-beta.91.md) | Current mothership focus-user investigation semantics. **Codename:** Focus Lens. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
