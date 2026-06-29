@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.84](releases/v1.0.0-beta.84.md) |
+| Current release notes | [v1.0.0-beta.85](releases/v1.0.0-beta.85.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -153,7 +153,8 @@ implementation plan.
 | [v1.0.0-beta.80](releases/v1.0.0-beta.80.md) | Case Timeline and posture diagnosis release checkpoint. **Codename:** Timeline Lantern. |
 | [v1.0.0-beta.82](releases/v1.0.0-beta.82.md) | Assistant readiness signal hotfix. **Codename:** Assistant Signal. |
 | [v1.0.0-beta.83](releases/v1.0.0-beta.83.md) | AI error boundary hardening hotfix. **Codename:** Error Firewall. |
-| [v1.0.0-beta.84](releases/v1.0.0-beta.84.md) | Current AI error boundary service-check hotfix. **Codename:** Boundary Gauge. |
+| [v1.0.0-beta.84](releases/v1.0.0-beta.84.md) | AI error boundary service-check hotfix. **Codename:** Boundary Gauge. |
+| [v1.0.0-beta.85](releases/v1.0.0-beta.85.md) | Current OpenAI-direct provider routing hotfix. **Codename:** OpenAI Relay. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |

@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.84`](releases/v1.0.0-beta.84.md)
+Release: [`v1.0.0-beta.85`](releases/v1.0.0-beta.85.md)
 
-Codename: **Boundary Gauge**
+Codename: **OpenAI Relay**
 
 Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.84` is the official private beta release checkpoint.
+`v1.0.0-beta.85` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -46,6 +46,7 @@ The release is acceptable for supervised private beta because:
 - beta.82 restores Assistant readiness as a visible degraded-readiness signal while keeping provider/account details out of Ask answers;
 - beta.83 centralizes user-facing AI error sanitization so provider/account failures stay out of API responses and command activity;
 - beta.84 adds the AI error-boundary leak probe to the private VM service check;
+- beta.85 routes the supervised beta runtime through OpenAI direct, including Source Index labels when selected;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -79,18 +80,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.84
-codename: Boundary Gauge
-deployed_commit: b2cb308
+release: v1.0.0-beta.85
+codename: OpenAI Relay
+deployed_commit: 2abb153
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 2b6f2a3 / v1.0.0-beta.83
+rollback_candidate: b2cb308 / v1.0.0-beta.84
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T03-40-43-594Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T03-57-35-707Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
