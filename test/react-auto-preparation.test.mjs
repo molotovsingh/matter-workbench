@@ -39,14 +39,16 @@ test("React automatic preparation tolerates switch render gap but cancels after 
   assert.match(context, /dispatch\(\{ type: 'SET_PREPARATION_RUN', payload: null \}\)/);
 });
 
-test("React automatic preparation runner includes Case Timeline, story, and label-only refresh", async () => {
+test("React automatic preparation runner includes Case Timeline, story, posture diagnosis, and label-only refresh", async () => {
   const runner = await readFile(runnerPath, "utf8");
   const prepareMatter = await readFile(prepareMatterPath, "utf8");
 
   assert.match(runner, /id: 'create-listofdates', label: 'Building Case Timeline'/);
   assert.match(runner, /id: 'dispute-story', label: 'Writing dispute story'/);
+  assert.match(runner, /id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture'/);
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
   assert.match(runner, /api\.runMatterStory\(/);
+  assert.match(runner, /api\.runProceduralPostureDiagnosis\(/);
   assert.match(runner, /overwrite: options\.forceStoryRegeneration === true \|\| stage\.state === 'stale'/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
   assert.match(runner, /api\.recordPreparationRunTelemetry\(/);
@@ -67,11 +69,15 @@ test("React matter overview renders Matter Workbench story before original intak
   const overview = await readFile(overviewPath, "utf8");
 
   assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
+  assert.match(overview, /<ProceduralPostureCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} \/>/);
   assert.match(overview, /Matter Workbench story/);
   assert.match(overview, /Author: MW/);
   assert.match(overview, /Based on: \{caseTimelineSourceLabel\(source\?\.basedOn\)\}/);
   assert.match(overview, /Current Case Timeline/);
   assert.match(overview, /Original intake note/);
+  assert.match(overview, /Confirm working posture/);
+  assert.match(overview, /Disagree \/ correct/);
+  assert.match(overview, /Not sure yet/);
   assert.match(overview, /isMwStorySource/);
 });
 
@@ -84,14 +90,14 @@ test("React matter overview can force a full preparation rerun", async () => {
 
   assert.match(runner, /mode = 'needed'/);
   assert.match(runner, /const FULL_PREPARATION_STAGES: PreparationStage\[\] = \[/);
-  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'[\s\S]*slash: '\/the_story'/);
+  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'[\s\S]*slash: '\/the_story'[\s\S]*slash: '\/procedural_posture_diagnosis'/);
   assert.match(runner, /if \(mode === 'full'\) \{/);
   assert.match(runner, /const finalPlan = await api\.getPrepareMatter\(matterName\)/);
   assert.doesNotMatch(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);
   assert.doesNotMatch(runner, /rerun kept: \$\{stageLabel\(stage\)\}/);
   assert.match(runner, /publishProgress = \(run: PreparationRunStatus\) => \{[\s\S]*if \(!isStale\(\)\) onProgress\(run\);/);
   assert.match(runner, /publishTerminal = \(lines: string\[\]\) => \{[\s\S]*if \(!isStale\(\)\) appendTerminal\(lines\);/);
-  assert.match(runner, /runPreparationStage\(stage, matterName, \{[\s\S]*forceExtractRefresh: true,[\s\S]*forceListOfDatesRegeneration: true,/);
+  assert.match(runner, /runPreparationStage\(stage, matterName, \{[\s\S]*forceExtractRefresh: true,[\s\S]*forceListOfDatesRegeneration: true,[\s\S]*forcePostureDiagnosisRegeneration: true,/);
   assert.match(runner, /api\.runExtract\(\{ \.\.\.body, forceRefresh: options\.forceExtractRefresh === true \}\)/);
   assert.match(runner, /!options\.forceListOfDatesRegeneration && stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
   assert.doesNotMatch(runner, /for \(const stage of FULL_PREPARATION_STAGES\) \{[\s\S]{0,80}if \(isStale\(\)\) return staleResult\(\)/);

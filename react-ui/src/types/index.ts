@@ -923,6 +923,22 @@ export interface MatterStoryRunResult {
   runId?: string;
 }
 
+export interface ProceduralPostureDiagnosisResult {
+  schema_version?: string;
+  state?: string;
+  status?: string;
+  artifactPath?: string;
+  jsonPath?: string;
+  qnaPath?: string;
+  generatedAt?: string;
+  diagnosisUpdatedAt?: string;
+  confirmation?: { state?: string; confirmed_at?: string; reason_or_correction?: string; actor?: string };
+  courtForum?: { value?: string; confidence?: string; reason?: string } | null;
+  proceduralPosture?: { value?: string; confidence?: string; reason?: string } | null;
+  recommendedWorkingPath?: { filing_or_remedy?: string; reason?: string } | null;
+  lawyerToConfirmCount?: number;
+}
+
 export interface DoctorIssue {
   id: string;
   severity: 'error' | 'warning' | 'info';

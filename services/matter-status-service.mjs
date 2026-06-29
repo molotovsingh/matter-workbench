@@ -11,7 +11,7 @@ import {
   listOfDatesRerunAdvice,
 } from "./matter-rerun-advice-service.mjs";
 
-export function createMatterStatusService({ matterStore, skillRegistryService = null } = {}) {
+export function createMatterStatusService({ matterStore, skillRegistryService = null, proceduralPostureDiagnosisService = null } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
 
   async function readMatterStatus(root = matterStore.ensureMatterRoot()) {
@@ -52,6 +52,10 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
     const listOfDatesMarkdownPresent = await fileExists(listOfDatesMarkdownPath);
     const listOfDates = listOfDatesJsonPresent ? await readJsonIfPossible(listOfDatesJsonPath) : null;
     const listRerunAdvice = await listOfDatesRerunAdvice(root);
+
+    const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
+      ? await proceduralPostureDiagnosisService.readDiagnosisStatus(root)
+      : null;
 
     const stages = [
       stage({
@@ -100,6 +104,18 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
         metrics: listOfDatesMetrics(listOfDates),
         rerunAdvice: listRerunAdvice,
       }),
+      ...(postureStatus ? [stage({
+        id: "procedural-posture-diagnosis",
+        slash: "/procedural_posture_diagnosis",
+        label: "Diagnose procedural posture",
+        present: postureStatus.markdownPresent || postureStatus.jsonPresent,
+        artifacts: [
+          ...(postureStatus.markdownPresent ? [postureStatus.artifactPath] : []),
+          ...(postureStatus.jsonPresent ? [postureStatus.jsonPath] : []),
+        ].filter(Boolean),
+        metrics: { lawyerToConfirm: postureStatus.lawyerToConfirmCount || 0 },
+        rerunAdvice: postureDiagnosisRerunAdvice(postureStatus),
+      })] : []),
     ];
 
     return {
@@ -152,6 +168,30 @@ function listOfDatesMetrics(listOfDates) {
       : null;
   if (!Number.isInteger(rows) || rows < 0) return null;
   return { rows };
+}
+
+function postureDiagnosisRerunAdvice(status = {}) {
+  const state = status.state === "missing"
+    ? "missing"
+    : status.state === "stale" || status.state === "needs_reconfirmation"
+      ? "stale"
+      : status.state === "blocked"
+        ? "missing_upstream"
+        : "current";
+  return {
+    skill: "/procedural_posture_diagnosis",
+    label: "procedural posture diagnosis",
+    state,
+    shouldConfirm: state !== "current",
+    artifactPath: status.artifactPath || "",
+    lastRunAt: status.diagnosisUpdatedAt || "",
+    reason: state === "current"
+      ? "Procedural posture diagnosis is current against Case Timeline and Matter Story."
+      : state === "stale"
+        ? "Case Timeline or Matter Story changed after the procedural posture diagnosis."
+        : status.blockedReasons?.join(" ") || "Case Timeline and Matter Story are required before diagnosis.",
+    newestInputAt: status.caseTimelineUpdatedAt || status.matterStoryUpdatedAt || "",
+  };
 }
 
 async function fileExists(filePath) {

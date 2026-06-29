@@ -2088,6 +2088,108 @@ test("runtime DB postgres storage mode runs matter story from DB-native custody"
   }
 });
 
+test("runtime DB postgres storage mode runs procedural posture diagnosis from DB-native custody", async () => {
+  const { appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-posture-diagnosis");
+  const runtimeMatter = runtimeDbMatter({
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    name: "DB Posture Matter",
+    matterName: "Legal Caption",
+    clientName: "Runtime Client",
+  });
+  const calls = [];
+  const persisted = [];
+  const packet = directRuntimeDbMatterContextPacket(runtimeMatter);
+  packet.library_artifacts.push({
+    path: "10_Library/List of Dates.json",
+    kind: "list_of_dates",
+    entry_count: 1,
+    entries: [{
+      date_iso: "2026-04-20",
+      event: "Agreement was signed.",
+      legal_relevance: "Records agreement formation before posture review.",
+      citation: "FILE-0001 p1.b1",
+      perspective: "record_neutral",
+    }],
+  });
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    proceduralPostureDiagnosisProvider: async () => proceduralPostureFinalDiagnosisFixture(),
+    runtimeMatterIndex: {
+      enabled: true,
+      storageMode: "postgres",
+      listMatterFolders: async () => [runtimeMatter],
+      findMatterFolder: async (name) => (
+        name === "DB Posture Matter" || name === "Legal Caption"
+          ? runtimeMatter
+          : null
+      ),
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readMatterContextPacket(matter) {
+        calls.push(["packet", matter.name]);
+        return packet;
+      },
+      async readMatterJson(matter) {
+        calls.push(["matter-json", matter.name]);
+        return { matter_name: matter.matterName, client_name: matter.clientName };
+      },
+      async artifactExists(matter, relativePath) {
+        calls.push(["exists", matter.name, relativePath]);
+        return false;
+      },
+      async artifactStat(matter, relativePath) {
+        const known = new Set([
+          "10_Library/List of Dates.md",
+          "10_Library/List of Dates.json",
+          "10_Library/Source Index.json",
+          "20_Workshop/The Story.md",
+        ]);
+        if (!known.has(relativePath)) return null;
+        return { mtime: new Date("2026-06-29T10:00:00.000Z"), mtimeMs: Date.parse("2026-06-29T10:00:00.000Z"), isFile: () => true };
+      },
+      async readFilePreview(relativePath, matter) {
+        calls.push(["preview", matter.name, relativePath]);
+        if (relativePath === "20_Workshop/The Story.md") {
+          return { content: "# The Story\n\nThe matter concerns agreement formation and no visible filed proceeding." };
+        }
+        throw Object.assign(new Error("missing"), { statusCode: 404 });
+      },
+      async persistTextArtifacts(matter, files) {
+        calls.push(["persist", matter.name, files.map((file) => file.relativePath)]);
+        persisted.push(...files);
+        return files.map((file) => ({ relativePath: file.relativePath, objectRole: "matter_artifact" }));
+      },
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const result = await postJson(baseUrl, "/api/procedural-posture-diagnosis", {
+      matterName: "Legal Caption",
+      overwrite: true,
+    });
+
+    assert.equal(result.state, "written");
+    assert.equal(result.artifactPath, "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md");
+    assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
+      "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+      "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+    ]);
+    assert.equal(persisted.length, 2);
+    assert.match(String(persisted[0].text), /Filing and Procedural Posture Diagnosis/);
+    assert.match(String(persisted[1].text), /procedural-posture-diagnosis\/v1/);
+    assert.deepEqual(calls.map((call) => call[0]), ["packet", "matter-json", "exists", "preview", "persist"]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("runtime DB postgres storage mode fails closed without DB-native matter story helpers", async () => {
   const { tmp, appDir, mattersHome } = await runtimeDbTestPaths("runtime-db-api-matter-story");
   const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
@@ -2976,6 +3078,51 @@ test("runtime DB postgres storage mode writes command interactions through runti
     app.server.close();
   }
 });
+
+function proceduralPostureFinalDiagnosisFixture() {
+  return {
+    schema_version: "posture_diagnosis_final/v1",
+    status: "provisional_mw_inferred",
+    short_diagnosis: "The visible DB record suggests pre-filing posture, subject to lawyer confirmation.",
+    court_forum: {
+      value: "Civil forum to be confirmed",
+      confidence: "medium",
+      why: "The record shows an agreement event but no filed proceeding.",
+      source_refs: ["FILE-0001 p1.b1"],
+      lawyer_to_confirm: "Confirm forum and whether proceedings exist outside the supplied record.",
+    },
+    procedural_posture: {
+      value: "Pre-filing / posture uncertain",
+      confidence: "medium",
+      why: "No proceeding number, order, or filing is visible in the supplied packet.",
+      source_refs: ["FILE-0001 p1.b1"],
+      lawyer_to_confirm: "Confirm current stage.",
+    },
+    possible_filings: [{
+      priority: "primary",
+      filing_or_remedy: "Confirm forum before drafting",
+      reason: "The record lacks a filed-proceeding marker.",
+      key_facts: ["Agreement was signed"],
+      caveats: ["Forum confirmation required"],
+      source_refs: ["FILE-0001 p1.b1"],
+    }],
+    recommended_working_path: {
+      priority: "primary",
+      filing_or_remedy: "Confirm procedural status pack",
+      reason: "The next drafting path depends on whether a proceeding exists.",
+      key_facts: ["No filed proceeding visible"],
+      caveats: ["Lawyer confirmation required"],
+      source_refs: ["FILE-0001 p1.b1"],
+    },
+    governing_law: [{ text: "Governing framework requires forum confirmation.", source_refs: ["FILE-0001 p1.b1"] }],
+    central_facts: [{ text: "Agreement execution is visible in the record.", source_refs: ["FILE-0001 p1.b1"] }],
+    adverse_or_difficult_facts: [{ text: "The record is silent on any filed proceeding.", source_refs: ["FILE-0001 p1.b1"] }],
+    missing_information: ["Forum", "Current stage"],
+    lawyer_to_confirm: ["Court/forum", "Procedural stage", "Priority remedy"],
+    internal_source_handles: ["FILE-0001 p1.b1"],
+    critique_handling: [{ critique_signal: "Keep uncertainty", disposition: "accepted", reason: "Marked posture uncertain." }],
+  };
+}
 
 function directRuntimeDbMatterContextPacket(matter) {
   return {

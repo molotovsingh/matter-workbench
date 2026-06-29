@@ -5,7 +5,7 @@ import { missingMetadataLabels, PREPARE_STAGE_DEFINITIONS, warningsForPlan } fro
 
 const PREPARE_SCHEMA_VERSION = "prepare-matter-plan/v1";
 
-export function createPrepareMatterService({ matterStore, matterStatusService, matterStoryService = null } = {}) {
+export function createPrepareMatterService({ matterStore, matterStatusService, matterStoryService = null, proceduralPostureDiagnosisService = null } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!matterStatusService) throw new Error("matterStatusService is required");
 
@@ -30,7 +30,11 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
       ? await matterStoryService.readDisputeStoryStatus(root)
       : null;
     const disputeStory = buildDisputeStoryStage(storyStatus, listOfDates);
-    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory].filter(Boolean);
+    const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
+      ? await proceduralPostureDiagnosisService.readDiagnosisStatus(root)
+      : null;
+    const proceduralPostureDiagnosis = buildProceduralPostureDiagnosisStage(postureStatus, disputeStory);
+    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory, proceduralPostureDiagnosis].filter(Boolean);
     const nextStage = firstActionableStage(runnableStages);
 
     return {
@@ -47,6 +51,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
       downstream: {
         listOfDates,
         ...(disputeStory ? { disputeStory } : {}),
+        ...(proceduralPostureDiagnosis ? { proceduralPostureDiagnosis } : {}),
       },
       nextStep: nextStage
         ? nextStepSummary(nextStage)
@@ -57,7 +62,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
           stage: "",
           slash: "",
         },
-      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory }),
+      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory, proceduralPostureDiagnosis }),
     };
   }
 
@@ -311,6 +316,55 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
     state: "missing",
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
     reason: "The dispute story is missing and uses AI after the Case Timeline is ready.",
+  };
+}
+
+function buildProceduralPostureDiagnosisStage(postureStatus, disputeStoryStage) {
+  if (!postureStatus) return null;
+  const base = {
+    ...stageBase("/procedural_posture_diagnosis", null),
+    artifacts: postureStatus.markdownPresent ? [postureStatus.artifactPath || "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md"] : [],
+    postureStatus,
+  };
+  if (!disputeStoryStage || disputeStoryStage.state !== "current") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: "Write the Matter Story before diagnosing filing and procedural posture.",
+    };
+  }
+  if (postureStatus.state === "blocked") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: postureStatus.blockedReasons?.join(" ") || "Case Timeline and Matter Story are required first.",
+    };
+  }
+  if (postureStatus.state === "stale" || postureStatus.state === "needs_reconfirmation") {
+    return {
+      ...base,
+      state: "stale",
+      action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+      reason: "Case Timeline or Matter Story changed after the procedural posture diagnosis. Refresh the diagnosis before downstream drafting.",
+    };
+  }
+  if (postureStatus.markdownPresent || postureStatus.jsonPresent) {
+    return {
+      ...base,
+      state: postureStatus.state === "current_confirmed" || postureStatus.state === "current_corrected" ? "current" : "current_unconfirmed",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: postureStatus.state === "current_confirmed" || postureStatus.state === "current_corrected"
+        ? "Procedural posture diagnosis is current and lawyer confirmation has been recorded."
+        : "Procedural posture diagnosis is current but still needs lawyer confirmation.",
+    };
+  }
+  return {
+    ...base,
+    state: "missing",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+    reason: "Filing and procedural posture diagnosis is missing and uses AI after Case Timeline and Matter Story are ready.",
   };
 }
 

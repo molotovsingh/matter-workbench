@@ -38,6 +38,13 @@ export const PREPARE_STAGE_DEFINITIONS = [
     description: "Turn the Case Timeline into a short matter description for intake metadata.",
     paidProviderCall: true,
   },
+  {
+    id: "procedural-posture-diagnosis",
+    slash: "/procedural_posture_diagnosis",
+    label: "Diagnose procedural posture",
+    description: "Infer the filing forum, procedural posture, possible remedies, and lawyer-confirmation points.",
+    paidProviderCall: true,
+  },
 ];
 
 export function prepareStageDefinition(slash) {
@@ -50,7 +57,7 @@ export function missingMetadataLabels(metadata = {}) {
     .map(({ label }) => label);
 }
 
-export function warningsForPlan({ missingMetadata, stages, listOfDates, disputeStory = null }) {
+export function warningsForPlan({ missingMetadata, stages, listOfDates, disputeStory = null, proceduralPostureDiagnosis = null }) {
   const warnings = [];
   if (missingMetadata.length) {
     warnings.push(`Missing metadata: ${missingMetadata.join(", ")}`);
@@ -63,6 +70,9 @@ export function warningsForPlan({ missingMetadata, stages, listOfDates, disputeS
   }
   if (disputeStory?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
     warnings.push("The Story will use a paid AI provider call before filling the intake dispute description.");
+  }
+  if (proceduralPostureDiagnosis?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
+    warnings.push("Procedural posture diagnosis will use a paid AI provider call and remains provisional until lawyer confirmation.");
   }
   return warnings;
 }

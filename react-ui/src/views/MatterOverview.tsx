@@ -16,6 +16,7 @@ import type {
   AttentionSummary,
   PreparationRunStatus,
   MatterMetadata,
+  ProceduralPostureDiagnosisResult,
 } from '../types';
 
 interface Props {
@@ -45,6 +46,7 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
       </section>
 
       <MatterStoryCard meta={meta} />
+      <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} />
 
       <dl className="matter-info-card">
         <dt>Client</dt>
@@ -133,6 +135,155 @@ function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
       )}
     </section>
   );
+}
+
+function ProceduralPostureCard({ matterName, refreshKey }: { matterName: string; refreshKey: string }) {
+  const [status, setStatus] = useState<ProceduralPostureDiagnosisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [correction, setCorrection] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const loadStatus = () => {
+    setError(null);
+    api.getProceduralPostureDiagnosis(matterName)
+      .then(setStatus)
+      .catch((e) => setError(getErrorMessage(e)));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus(null);
+    setError(null);
+    api.getProceduralPostureDiagnosis(matterName)
+      .then((payload) => { if (!cancelled) setStatus(payload); })
+      .catch((e) => { if (!cancelled) setError(getErrorMessage(e)); });
+    return () => { cancelled = true; };
+  }, [matterName, refreshKey]);
+
+  async function recordDecision(decision: 'confirmed' | 'corrected' | 'not_sure') {
+    setFormError(null);
+    const reasonOrCorrection = correction.trim();
+    if (decision === 'corrected' && !reasonOrCorrection) {
+      setFormError('Add the correction or reason before recording disagreement.');
+      return;
+    }
+    setBusy(decision);
+    try {
+      await api.confirmProceduralPostureDiagnosis({
+        matterName,
+        decision,
+        reasonOrCorrection,
+        actor: 'lawyer',
+      });
+      setCorrection('');
+      loadStatus();
+    } catch (e) {
+      setFormError(getErrorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (error) {
+    return (
+      <section className="matter-story-card matter-posture-card">
+        <div className="matter-story-heading">
+          <div>
+            <p className="matter-story-kicker">Case Analysis</p>
+            <h2>Filing and Procedural Posture Diagnosis</h2>
+          </div>
+        </div>
+        <p className="muted">Procedural posture diagnosis is unavailable: {error}</p>
+      </section>
+    );
+  }
+
+  if (!status) {
+    return (
+      <section className="matter-story-card matter-posture-card">
+        <div className="matter-story-heading">
+          <div>
+            <p className="matter-story-kicker">Case Analysis</p>
+            <h2>Filing and Procedural Posture Diagnosis</h2>
+          </div>
+        </div>
+        <p className="muted">Checking procedural posture diagnosis…</p>
+      </section>
+    );
+  }
+
+  const state = status.state || 'missing';
+  const confirmationState = status.confirmation?.state || 'unconfirmed';
+  const readyForConfirmation = state === 'current_unconfirmed' || state === 'current_confirmed' || state === 'current_corrected';
+
+  return (
+    <section className="matter-story-card matter-posture-card">
+      <div className="matter-story-heading">
+        <div>
+          <p className="matter-story-kicker">Case Analysis</p>
+          <h2>Filing and Procedural Posture Diagnosis</h2>
+        </div>
+        <div className="matter-story-provenance" aria-label="Procedural posture status">
+          <span>{postureStateLabel(state)}</span>
+          <span>Confirmation: {confirmationStateLabel(confirmationState)}</span>
+        </div>
+      </div>
+      {status.courtForum?.value && (
+        <p><strong>Court / forum:</strong> {status.courtForum.value} <span className="muted">({status.courtForum.confidence || 'unknown'} confidence)</span></p>
+      )}
+      {status.proceduralPosture?.value && (
+        <p><strong>Procedural posture:</strong> {status.proceduralPosture.value} <span className="muted">({status.proceduralPosture.confidence || 'unknown'} confidence)</span></p>
+      )}
+      {status.recommendedWorkingPath?.filing_or_remedy && (
+        <p><strong>Working path:</strong> {status.recommendedWorkingPath.filing_or_remedy}</p>
+      )}
+      {state === 'blocked' && <p className="muted">Waiting on Case Timeline and Matter Story before diagnosis can run.</p>}
+      {state === 'missing' && <p className="muted">Diagnosis will run after Case Timeline and Matter Story are ready.</p>}
+      {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Refresh diagnosis before relying on it.</p> : null}
+      {readyForConfirmation && (
+        <div className="posture-confirmation-panel">
+          <p className="muted">
+            Confirm this as a working posture for analysis, correct it with a reason, or mark it not sure. This is not final legal approval.
+          </p>
+          <textarea
+            value={correction}
+            onChange={(event) => setCorrection(event.target.value)}
+            placeholder="If disagreeing, explain the correct court/forum, stage, remedy, or missing context."
+            rows={3}
+          />
+          {formError && <p className="form-error">{formError}</p>}
+          <div className="form-actions">
+            <button type="button" className="run-skill-button" onClick={() => recordDecision('confirmed')} disabled={Boolean(busy)}>
+              {busy === 'confirmed' ? 'Recording…' : 'Confirm working posture'}
+            </button>
+            <button type="button" className="secondary-button" onClick={() => recordDecision('corrected')} disabled={Boolean(busy)}>
+              {busy === 'corrected' ? 'Recording…' : 'Disagree / correct'}
+            </button>
+            <button type="button" className="secondary-button" onClick={() => recordDecision('not_sure')} disabled={Boolean(busy)}>
+              {busy === 'not_sure' ? 'Recording…' : 'Not sure yet'}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function postureStateLabel(state: string): string {
+  if (state === 'current_confirmed') return 'Confirmed working posture';
+  if (state === 'current_corrected') return 'Correction recorded';
+  if (state === 'current_unconfirmed') return 'Ready for lawyer confirmation';
+  if (state === 'stale' || state === 'needs_reconfirmation') return 'Needs refresh';
+  if (state === 'blocked') return 'Waiting on Case Timeline / Story';
+  return 'Not started';
+}
+
+function confirmationStateLabel(state: string): string {
+  if (state === 'confirmed') return 'confirmed';
+  if (state === 'corrected') return 'corrected';
+  if (state === 'not_sure') return 'not sure';
+  return 'unconfirmed';
 }
 
 function caseTimelineSourceLabel(value?: string): string {

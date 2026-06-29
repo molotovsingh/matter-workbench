@@ -39,6 +39,7 @@ import {
   runtimeMatterStatusFromWorkspaceState,
   runtimePrepareMatterPlanFromStatus,
 } from "./runtime-db-preparation-read-model.mjs";
+import { buildDiagnosisStatus } from "./procedural-posture-diagnosis-service.mjs";
 import { sha256Bytes } from "./runtime-db-bytes.mjs";
 import {
   buildMaterializedDeletionPersistenceSql,
@@ -398,6 +399,32 @@ export function createRuntimeDbStorageService({
       if (error?.statusCode === 409) return true;
       throw error;
     }
+  }
+
+  async function artifactStat(matter, relativePath) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const normalizedPath = normalizeMatterRelativePath(relativePath);
+    const state = readWorkspaceState(normalizedMatter);
+    const row = state.objects.find((object) => validatedRelativePathFromRuntimeObjectKey(object.objectKey, normalizedMatter.name) === normalizedPath);
+    if (!row) return null;
+    const updatedMs = Date.parse(row.updatedAt || "") || 0;
+    return {
+      mtime: new Date(updatedMs || Date.now()),
+      mtimeMs: updatedMs,
+      updatedAt: row.updatedAt || "",
+      isFile: () => true,
+    };
+  }
+
+  async function readProceduralPostureDiagnosisStatus(matter) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    return buildDiagnosisStatus({
+      matterRoot: `postgres:${normalizedMatter.name}`,
+      artifactReader: async (relativePath) => (await readFilePreview(relativePath, normalizedMatter)).content,
+      artifactStatReader: (relativePath) => artifactStat(normalizedMatter, relativePath),
+    });
   }
 
   async function persistTextArtifacts(matter, files = []) {
@@ -767,6 +794,7 @@ export function createRuntimeDbStorageService({
   return {
     addUploadedFilesToMatter,
     artifactExists,
+    artifactStat,
     checkUploadedFileOverlap,
     createListOfDates,
     describeSources,
@@ -779,6 +807,7 @@ export function createRuntimeDbStorageService({
     readDoctorScan,
     readMatterAttention,
     readMatterJson,
+    readProceduralPostureDiagnosisStatus,
     refreshListOfDatesSourceLabels,
     readMatterContextPacket,
     readMatterStatus,
