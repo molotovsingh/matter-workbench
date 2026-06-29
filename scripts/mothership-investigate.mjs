@@ -126,9 +126,8 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
     .filter((item) => matchesSignal(item, { query, terms, matterHints }))
     .slice(0, Math.max(limit * 2, limit));
   const latestHeartbeat = heartbeats[0] || null;
-  const latestMatterHealth = latestHeartbeat
-    ? summarizeMatterHealth(latestHeartbeat.payload?.matterHealth, matterHints)
-    : [];
+  const latestMatterHealthSnapshot = latestMatchingMatterHealth(heartbeats, matterHints);
+  const latestMatterHealth = latestMatterHealthSnapshot.matterHealth;
 
   const feedbackWithEvidence = feedback.map((item) => ({
     ...item,
@@ -155,6 +154,7 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
       activeSessions: latestHeartbeat.payload?.activeSessions ?? null,
     } : null,
     latestMatterHealth,
+    latestMatterHealthCapturedAt: latestMatterHealthSnapshot.capturedAt,
     openFeedbackCounts,
     feedback: feedbackWithEvidence,
     signals,
@@ -187,6 +187,7 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
   }
 
   lines.push("", "## Latest Matter Health", "");
+  if (report.latestMatterHealthCapturedAt) lines.push(`Snapshot: ${report.latestMatterHealthCapturedAt}`, "");
   if (report.latestMatterHealth?.length) {
     for (const item of report.latestMatterHealth) {
       lines.push(`- ${item.matter}: ${item.prepareState || "unknown"}; next=${item.nextStepLabel || ""}; attention=${item.attentionState || ""}; blockers=${item.blockers ?? 0}; warnings=${item.warnings ?? 0}`);
@@ -338,6 +339,14 @@ function nearbyHeartbeats(heartbeats, feedback, windowMinutes, matterHints = [])
     const date = toDate(heartbeat.capturedAt || heartbeat.receivedAt);
     return date && Math.abs(date.getTime() - center.getTime()) <= windowMs;
   }).map((heartbeat) => summarizeHeartbeat(heartbeat, matterHints)).filter((heartbeat) => heartbeat.journeys.length || heartbeat.matterHealth.length || heartbeat.counters.failedJobs || heartbeat.counters.slowStages).slice(0, 8);
+}
+
+function latestMatchingMatterHealth(heartbeats = [], matterHints = []) {
+  for (const heartbeat of heartbeats) {
+    const matterHealth = summarizeMatterHealth(heartbeat.payload?.matterHealth, matterHints);
+    if (matterHealth.length) return { capturedAt: heartbeat.capturedAt, matterHealth };
+  }
+  return { capturedAt: "", matterHealth: [] };
 }
 
 function summarizeHeartbeat(heartbeat, matterHints = []) {

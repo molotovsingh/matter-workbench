@@ -79,6 +79,17 @@ function fixtureDataset() {
         payload: {
           counters: { failedJobs: 0, slowStages: 0, openSignals: 5 },
           activeSessions: 0,
+          matterHealth: [],
+          journeys: [],
+        },
+      },
+      {
+        heartbeat_id: "heartbeat_latest_with_health",
+        captured_at: new Date("2026-06-29T13:50:00.000Z"),
+        received_at: new Date("2026-06-29T13:50:01.000Z"),
+        payload: {
+          counters: { failedJobs: 0, slowStages: 0, openSignals: 5 },
+          activeSessions: 0,
           matterHealth: [
             {
               matter: "National Insurance Co. Ltd v M - s Sarkar Fertilizers",
@@ -87,7 +98,7 @@ function fixtureDataset() {
               attentionState: "clear",
               blockers: 0,
               warnings: 0,
-              checkedAt: "2026-06-29T13:54:59.000Z",
+              checkedAt: "2026-06-29T13:49:59.000Z",
             },
           ],
           journeys: [],
@@ -165,6 +176,8 @@ test("mothership investigate bundles large-file feedback with nearby evidence", 
   assert.equal(report.feedback[0].feedbackId, "feedback_large_files");
   assert.equal(report.feedback[0].relatedSignals[0].signalId, "signal_extract_failed");
   assert.equal(report.feedback[0].relatedHeartbeats[0].journeys[0].currentStage, "Extract Documents");
+  assert.equal(report.latestHeartbeat.capturedAt, "2026-06-29T13:55:00.000Z");
+  assert.equal(report.latestMatterHealthCapturedAt, "2026-06-29T13:50:00.000Z");
   assert.equal(report.latestMatterHealth[0].prepareState, "missing");
 
   const markdown = renderMothershipInvestigationMarkdown(report);
