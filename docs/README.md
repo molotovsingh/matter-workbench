@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.80](releases/v1.0.0-beta.80.md) |
+| Current release notes | [v1.0.0-beta.82](releases/v1.0.0-beta.82.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -150,7 +150,8 @@ implementation plan.
 | [v1.0.0-beta.77](releases/v1.0.0-beta.77.md) | Beta 3 tester What’s new notice release marker. **Codename:** Notice Bell. |
 | [v1.0.0-beta.78](releases/v1.0.0-beta.78.md) | Official private beta handoff checkpoint. **Codename:** Nameplate Lantern. |
 | [v1.0.0-beta.79](releases/v1.0.0-beta.79.md) | Shallow UI polish release checkpoint. **Codename:** Column Compass. |
-| [v1.0.0-beta.80](releases/v1.0.0-beta.80.md) | Current Case Timeline and posture diagnosis release checkpoint. **Codename:** Timeline Lantern. |
+| [v1.0.0-beta.80](releases/v1.0.0-beta.80.md) | Case Timeline and posture diagnosis release checkpoint. **Codename:** Timeline Lantern. |
+| [v1.0.0-beta.82](releases/v1.0.0-beta.82.md) | Current Assistant readiness signal hotfix. **Codename:** Assistant Signal. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
