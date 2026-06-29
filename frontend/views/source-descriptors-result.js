@@ -47,7 +47,7 @@ export function renderSourceDescriptorsResultHtml(result, escapeHtml) {
   return `
     <h1>Source Labels created</h1>
     <p>
-      Source labels were generated from extracted documents and saved for downstream List of Dates work.
+      Source labels were generated from extracted documents and saved for downstream Case Timeline work.
     </p>
     <dl class="skill-contract">
       <div>

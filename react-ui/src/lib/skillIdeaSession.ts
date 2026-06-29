@@ -265,7 +265,7 @@ function titleFromIntent(value: string): string {
   if (/\bforum|jurisdiction|filing route|where to file|petition|notice|external documents?\b/i.test(text)) return 'Filing Route Plan';
   if (/\b(document|documents|notice|notices|petition|petitions|annexure|filings?)\b/i.test(text)) return 'Document Preparation Plan';
   if (/\bparty|parties|officer|entity|entities|director|signatory\b/i.test(text)) return 'Party and Officer Map';
-  if (/\bchronolog|timeline|list of dates|key dates?\b/i.test(text)) return 'List of Dates Review';
+  if (/\bchronolog|timeline|list of dates|key dates?\b/i.test(text)) return 'Case Timeline Review';
   if (/\bweakness|risk|gap|support|unsupported|merits?\b/i.test(text)) return 'Case Risk Review';
   return titleFromText(text);
 }

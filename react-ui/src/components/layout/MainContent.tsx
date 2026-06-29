@@ -230,7 +230,7 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
 function ListOfDatesMarkdownPreview({ parsed }: { parsed: NonNullable<ReturnType<typeof parseListOfDatesMarkdown>> }) {
   return (
     <>
-      <section className="chronology-table" aria-label="List of Dates chronology">
+      <section className="chronology-table" aria-label="Case Timeline chronology">
         <div className="chronology-header">
           <span>Date</span><span>Event</span><span>Relevance</span><span>Source</span>
         </div>

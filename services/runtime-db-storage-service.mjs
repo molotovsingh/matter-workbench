@@ -593,9 +593,9 @@ export function createRuntimeDbStorageService({
     const listJson = readRuntimeDbJsonPayload({
       matter: normalizedMatter,
       relativePath: "10_Library/List of Dates.json",
-      label: "List of Dates",
+      label: "Case Timeline",
       readPayloadRow,
-      missingMessage: "List of Dates artifact is missing from DB payload custody. Run /create_listofdates first.",
+      missingMessage: "Case Timeline artifact is missing from DB payload custody. Run /create_listofdates first.",
       missingCode: "runtime_db.listofdates_refresh.list_missing",
     });
     const sourceIndex = readRuntimeDbJsonPayload({

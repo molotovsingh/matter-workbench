@@ -157,7 +157,7 @@ async function readListOfDatesArtifact(filePath) {
   try {
     artifact = JSON.parse(await readFile(filePath, "utf8"));
   } catch (error) {
-    const wrapped = new Error(`List of Dates artifact is missing or invalid at ${filePath}. Run /create_listofdates first. (${error.message})`);
+    const wrapped = new Error(`Case Timeline artifact is missing or invalid at ${filePath}. Run /create_listofdates first. (${error.message})`);
     wrapped.statusCode = 404;
     throw wrapped;
   }
@@ -180,7 +180,7 @@ async function readSourceIndexArtifact(filePath) {
 
 function validateListOfDatesArtifact(artifact) {
   if (artifact?.schema_version !== "list-of-dates/v1" || !Array.isArray(artifact.entries)) {
-    const error = new Error("List of Dates artifact is not a supported list-of-dates/v1 JSON file.");
+    const error = new Error("Case Timeline artifact is not a supported list-of-dates/v1 JSON file.");
     error.statusCode = 400;
     throw error;
   }
@@ -200,7 +200,7 @@ async function writeJsonFile(filePath, value) {
 
 function buildLabelRefreshIndex({ snapshot, sourceIndex }) {
   if (!Array.isArray(snapshot) || !snapshot.length) {
-    throwLabelRefreshUnsafe("List of Dates has no source snapshot. Regenerate the chronology before refreshing labels.");
+    throwLabelRefreshUnsafe("Case Timeline has no source snapshot. Regenerate the chronology before refreshing labels.");
   }
   const snapshotByFileId = new Map(snapshot.map((source) => [source.file_id, normalizeRefreshSnapshotSource(source)]));
   const snapshotIds = new Set(snapshotByFileId.keys());
@@ -210,7 +210,7 @@ function buildLabelRefreshIndex({ snapshot, sourceIndex }) {
     if (!source?.file_id) continue;
     const previous = snapshotByFileId.get(source.file_id);
     if (!previous) {
-      throwLabelRefreshUnsafe("Source Index includes documents that were not part of the current List of Dates. Regenerate the chronology.");
+      throwLabelRefreshUnsafe("Source Index includes documents that were not part of the current Case Timeline. Regenerate the chronology.");
     }
     const current = normalizeRefreshSnapshotSource(source);
     if ((previous.content_hash || "") !== (current.content_hash || "")) {
@@ -228,7 +228,7 @@ function buildLabelRefreshIndex({ snapshot, sourceIndex }) {
 
   for (const snapshotId of snapshotIds) {
     if (!labelIndex.has(snapshotId)) {
-      throwLabelRefreshUnsafe("Source Index is missing a source used by the current List of Dates. Regenerate the chronology.");
+      throwLabelRefreshUnsafe("Source Index is missing a source used by the current Case Timeline. Regenerate the chronology.");
     }
   }
 
@@ -282,7 +282,7 @@ function applySourceLabelsToRecord(record = {}, labelIndex, { strictHash }) {
   const metadata = fileId ? labelIndex.get(fileId) : null;
   if (!metadata) return { ...record };
   if (strictHash && record.content_hash && metadata.content_hash && record.content_hash !== metadata.content_hash) {
-    throwLabelRefreshUnsafe("A List of Dates row points to an older source hash. Regenerate the chronology.");
+    throwLabelRefreshUnsafe("A Case Timeline row points to an older source hash. Regenerate the chronology.");
   }
   const next = { ...record };
   for (const key of [

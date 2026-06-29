@@ -178,7 +178,7 @@ export default function HomeLanding({
           <h2>Learn how this works</h2>
           <p>
             Matter Workbench helps you turn uploaded records into a prepared matter. It reads files,
-            builds a source record, creates a List of Dates, and gives you a cautious matter assistant
+            builds a source record, builds a Case Timeline, and gives you a cautious matter assistant
             that answers from the record.
           </p>
           <ul>

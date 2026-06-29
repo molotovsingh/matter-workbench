@@ -90,7 +90,7 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
         id: "create-listofdates",
         slash: "/create_listofdates",
         display: displayBySlash.get("/create_listofdates"),
-        label: displayBySlash.get("/create_listofdates")?.action || "Create List of Dates",
+        label: displayBySlash.get("/create_listofdates")?.action || "Build Case Timeline",
         present: listOfDatesMarkdownPresent || listOfDatesJsonPresent,
         artifacts: [
           ...(listOfDatesMarkdownPresent ? [LIST_OF_DATES_MARKDOWN_RELATIVE] : []),

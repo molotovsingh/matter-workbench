@@ -155,7 +155,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           jobStatusService,
           kind: "list_of_dates",
           route: "/api/create-listofdates",
-          label: "Create List of Dates",
+          label: "Build Case Timeline",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
             const env = services.env || {};
@@ -177,7 +177,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
                 matter,
               );
             }
-            assertFilesystemWorkflowAvailable(matterStore, "Create List of Dates");
+            assertFilesystemWorkflowAvailable(matterStore, "Build Case Timeline");
             const root = await matterRootForBody(matterStore, body);
             const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
             const options = {
@@ -200,7 +200,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           jobStatusService,
           kind: "label_refresh",
           route: "/api/create-listofdates/refresh-labels",
-          label: "Refresh List of Dates Labels",
+          label: "Refresh Case Timeline Labels",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
             if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -211,7 +211,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               });
               return runtimeDbWorkflowResponse(result, matter);
             }
-            assertFilesystemWorkflowAvailable(matterStore, "Refresh List of Dates labels");
+            assertFilesystemWorkflowAvailable(matterStore, "Refresh Case Timeline labels");
             const root = await matterRootForBody(matterStore, body);
             return refreshListOfDatesSourceLabels({
               matterRoot: root,

@@ -95,7 +95,7 @@ function noActiveMatterPlan() {
       listOfDates: {
         id: "create-listofdates",
         slash: "/create_listofdates",
-        label: "Create List of Dates",
+        label: "Build Case Timeline",
         state: "not_selected",
         action: PREPARATION_STAGE_ACTIONS.BLOCKED,
         reason: "Pick or create a matter first.",
@@ -231,7 +231,7 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
       ...base,
       state: "current",
       action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
-      reason: "List of Dates already exists and appears current.",
+      reason: "Case Timeline already exists and appears current.",
     };
   }
   if (sourceLabelsStage.state !== "current") {
@@ -239,7 +239,7 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Label sources before creating the List of Dates.",
+      reason: "Label sources before building the Case Timeline.",
     };
   }
   if (adviceState === "missing_upstream") {
@@ -278,7 +278,7 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Create the List of Dates before writing the dispute story.",
+      reason: "Build the Case Timeline before writing the dispute story.",
     };
   }
   if (storyStatus.storyStale) {
@@ -286,7 +286,7 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
       ...base,
       state: "stale",
       action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-      reason: "The List of Dates changed after The Story was written. Refresh the Matter Workbench story.",
+      reason: "The Case Timeline changed after The Story was written. Refresh the Matter Workbench story.",
     };
   }
   if (storyStatus.storyMarkdownPresent && !storyStatus.briefDescriptionManagedByMatterWorkbench) {
@@ -310,7 +310,7 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
     ...base,
     state: "missing",
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-    reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
+    reason: "The dispute story is missing and uses AI after the Case Timeline is ready.",
   };
 }
 
@@ -371,7 +371,7 @@ function sourceLabelReason(state) {
 }
 
 function listOfDatesReason(state) {
-  if (state === "stale") return "Newer source material may affect the List of Dates; regeneration needs a paid AI confirmation.";
-  if (state === "failed") return "Existing List of Dates metadata could not be read; regeneration needs confirmation.";
-  return "List of Dates is missing and requires a paid AI confirmation before running.";
+  if (state === "stale") return "Newer source material may affect the Case Timeline; regeneration needs a paid AI confirmation.";
+  if (state === "failed") return "Existing Case Timeline metadata could not be read; regeneration needs confirmation.";
+  return "Case Timeline is missing and requires a paid AI confirmation before running.";
 }

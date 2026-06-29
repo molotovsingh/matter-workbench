@@ -85,7 +85,7 @@ export function CopilotSettingsPanel({
                 <div>
                   <strong>Matter Copilot</strong>
                   <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                    Source-backed chat answers only. Skills and List of Dates keep their governed routes.
+                    Source-backed chat answers only. Skills and Case Timeline keep their governed routes.
                   </div>
                   <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 5 }}>
                     Current: {currentCopilotPreset?.label || 'Custom'}

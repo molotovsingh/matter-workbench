@@ -88,7 +88,7 @@ export async function runCreateListOfDatesTwoPass({
       systemPrompt: LIST_OF_DATES_EDITOR_SYSTEM_PROMPT,
       payloadBuilder: listOfDatesEditorPromptPayload,
       schemaName: "list_of_dates_editor",
-      schemaDescription: "Final lawyer-facing List of Dates entries edited from a candidate ledger.",
+      schemaDescription: "Final record-neutral Case Timeline entries edited from a candidate ledger.",
     },
     injectedProvider: options.pass2Provider,
   });
@@ -218,7 +218,7 @@ export async function runCreateListOfDatesTwoPass({
     }
     outputLines.push(`[listofdates] provider ${aiRun.provider}: ${aiRun.model}`);
     outputLines.push(dryRun
-      ? "[listofdates] dry run only. Re-run with apply to write list of dates."
+      ? "[listofdates] dry run only. Re-run with apply to write the Case Timeline."
       : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
 
     return {

@@ -121,7 +121,7 @@ function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
         </div>
         <div className="matter-story-provenance" aria-label="Matter story provenance">
           <span>Author: MW</span>
-          <span>Based on: {source?.basedOn || 'Current List of Dates'}</span>
+          <span>Based on: {caseTimelineSourceLabel(source?.basedOn)}</span>
         </div>
       </div>
       <StoryText text={story} />
@@ -133,6 +133,10 @@ function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
       )}
     </section>
   );
+}
+
+function caseTimelineSourceLabel(value?: string): string {
+  return (value || 'Current Case Timeline').replace(/List of Dates/gi, 'Case Timeline');
 }
 
 function StoryText({ text }: { text: string }) {

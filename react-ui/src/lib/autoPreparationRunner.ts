@@ -15,7 +15,7 @@ export const AUTO_PREPARATION_STEPS: PreparationProgressStep[] = [
   { id: 'matter-init', label: 'Registering files', state: 'pending' },
   { id: 'extract', label: 'Reading documents', state: 'pending' },
   { id: 'describe-sources', label: 'Preparing source record', state: 'pending' },
-  { id: 'create-listofdates', label: 'Building List of Dates', state: 'pending' },
+  { id: 'create-listofdates', label: 'Building Case Timeline', state: 'pending' },
   { id: 'dispute-story', label: 'Writing dispute story', state: 'pending' },
   { id: 'advisory', label: 'Checking advisory', state: 'pending' },
 ];
@@ -56,7 +56,7 @@ const FULL_PREPARATION_STAGES: PreparationStage[] = [
   { id: 'matter-init', slash: '/matter-init', label: 'Set Up Matter', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'extract', slash: '/extract', label: 'Extract Documents', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'describe-sources', slash: '/describe_sources', label: 'Label Sources', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
-  { id: 'create-listofdates', slash: '/create_listofdates', label: 'Create List of Dates', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
+  { id: 'create-listofdates', slash: '/create_listofdates', label: 'Build Case Timeline', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'dispute-story', slash: '/the_story', label: 'The Story', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
 ];
 

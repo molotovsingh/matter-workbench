@@ -28,7 +28,7 @@ export function renderListOfDatesResultHtml(result, escapeHtml) {
     : `<tr><td colspan="5">No cited date events were accepted from the AI response.</td></tr>`;
 
   return `
-    <h1>List of Dates created</h1>
+    <h1>Case Timeline created</h1>
     <p>
       Generated from extracted documents and source labels. Review before relying on this chronology.
     </p>

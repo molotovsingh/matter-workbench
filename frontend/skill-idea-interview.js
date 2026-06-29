@@ -122,7 +122,7 @@ function buildAdjacentInterview({ originalText, ideaText, adjacent }) {
       {
         id: "unchanged",
         label: "What must stay unchanged?",
-        examples: ["preserve raw FILE citations and existing List of Dates output"],
+        examples: ["preserve raw FILE citations and existing Case Timeline output"],
       },
       {
         id: "artifact",

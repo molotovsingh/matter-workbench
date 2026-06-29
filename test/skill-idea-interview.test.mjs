@@ -114,7 +114,7 @@ test("skill idea interview detects adjacent list-of-dates improvement", () => {
 
   assert.equal(interview.mode, "adjacent_improvement");
   assert.equal(interview.targetSkill, "/create_listofdates");
-  assert.match(interview.understood, /Create List of Dates/);
+  assert.match(interview.understood, /Build Case Timeline/);
   assert.equal(interview.designBrief.targetLane, "10_Library");
   assert.equal(interview.designBrief.expectedOutputArtifact, "10_Library/List of Dates.md");
   assert.deepEqual(
@@ -133,7 +133,7 @@ test("skill idea interview treats pleading summary as a new skill, not list-of-d
   assert.equal(interview.targetSkill, "");
   assert.equal(interview.designBrief.targetLane, "20_Workshop");
   assert.equal(interview.designBrief.expectedOutputArtifact, "20_Workshop/Pleadings Summary.md");
-  assert.doesNotMatch(interview.understood, /Create List of Dates/);
+  assert.doesNotMatch(interview.understood, /Build Case Timeline/);
 });
 
 test("skill interview planner falls back deterministically without provider configuration", async () => {

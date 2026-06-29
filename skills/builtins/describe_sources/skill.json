@@ -12,7 +12,7 @@
   },
   "category": "Organize",
   "product_surface": "native_legal",
-  "purpose": "Organize documents and prepare the source record for List of Dates.",
+  "purpose": "Organize documents and prepare the source record for the Case Timeline.",
   "mode": "AI",
   "matter_required": true,
   "paid_provider_call": true,

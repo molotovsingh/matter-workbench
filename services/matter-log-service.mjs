@@ -323,7 +323,7 @@ function sourceRemovalArtifactSummary(affectedArtifacts = []) {
     const family = normalizeText(artifact.family || artifact.artifactFamily || artifact.artifact_family);
     const effect = normalizeText(artifact.effect || artifact.state || artifact.dependencyState || artifact.dependency_state).toLowerCase();
     if (family === "source_index") labels.add("Source Index marked stale");
-    else if (family === "list_of_dates") labels.add(effect.includes("regeneration") ? "List of Dates marked for regeneration" : "List of Dates marked stale");
+    else if (family === "list_of_dates") labels.add(effect.includes("regeneration") ? "Case Timeline marked for regeneration" : "Case Timeline marked stale");
     else if (family === "matter_story") labels.add("Matter Story needs review");
     else if (family === "custom_skill_output") labels.add("Source-backed custom skill outputs need review");
   }

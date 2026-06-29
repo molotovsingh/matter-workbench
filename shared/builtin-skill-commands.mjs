@@ -31,7 +31,7 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
   },
   {
     command: "/describe_sources",
-    description: "Create Source Labels / Document Index for List of Dates. Paid AI actions ask first.",
+    description: "Create Source Labels / Document Index for the Case Timeline. Paid AI actions ask first.",
   },
   {
     command: "/context_preview",
@@ -43,11 +43,11 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
   },
   {
     command: "/create_listofdates",
-    description: "Create the lawyer-facing list of dates. Paid AI actions ask first.",
+    description: "Build the neutral Case Timeline. Paid AI actions ask first.",
   },
   {
     command: "/the_story",
-    description: "Write the Matter Story from the current List of Dates. Paid AI actions ask first.",
+    description: "Write the Matter Story from the current Case Timeline. Paid AI actions ask first.",
   },
   {
     command: "/doctor",
@@ -68,6 +68,8 @@ export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
   ["show context", "/context_preview"],
   ["preview matter context", "/context_preview"],
   ["find in matter", "/context_search"],
+  ["case timeline", "/create_listofdates"],
+  ["build case timeline", "/create_listofdates"],
   ["list of dates", "/create_listofdates"],
   ["create list of dates", "/create_listofdates"],
   ["chronology", "/create_listofdates"],

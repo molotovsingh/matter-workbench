@@ -70,7 +70,7 @@ test("List of Dates fixture helper writes source indexes and lawyer defaults", a
     event_type: "agreement",
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["agreement"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 });
 
@@ -85,7 +85,7 @@ test("List of Dates fixture helper builds named notice and invalid citation payl
     event_type: "notice",
     legal_relevance: "Supports the client's notice timeline because the cited block records that notice followed inspection.",
     issue_tags: ["notice", "inspection"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(invalidCitationListOfDatesEntry(), {
@@ -98,7 +98,7 @@ test("List of Dates fixture helper builds named notice and invalid citation payl
     event_type: "other",
     legal_relevance: "Should be rejected because the citation is not supplied.",
     issue_tags: ["evidence_gap"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(noticeListOfDatesCandidate({ confidence: 0.9 }), {
@@ -165,7 +165,7 @@ test("List of Dates fixture helper builds source rows and model payload rows", a
     event_type: "notice",
     legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
     issue_tags: ["notice"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(listOfDatesCandidate({
@@ -200,7 +200,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "payment",
     legal_relevance: "Supports the client's payment chronology because the bank statement records Rs.10,00,000.",
     issue_tags: ["payment"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(receiptPaymentEntry({ citation: "FILE-0008 p1.b1" }), {
@@ -213,7 +213,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "payment",
     legal_relevance: "Corroborates the client's payment chronology because the receipt records Rs.10,00,000.",
     issue_tags: ["payment", "receipt"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(bankDiscrepancyPaymentEntry({ citation: "FILE-0007 p1.b2" }), {
@@ -226,7 +226,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "payment",
     legal_relevance: "Supports the client's payment discrepancy issue because the bank statement records Rs.15,70,000.",
     issue_tags: ["payment", "contradiction"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(receiptDiscrepancyPaymentEntry({ citation: "FILE-0008 p1.b2" }), {
@@ -239,7 +239,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "payment",
     legal_relevance: "Supports the client's payment discrepancy issue because the receipt records Rs.12,25,000, with a discrepancy of Rs.3,45,000.",
     issue_tags: ["payment", "contradiction"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(possessionDeadlineEntry({ citation: "FILE-0009 p1.b1" }), {
@@ -252,7 +252,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "deadline",
     legal_relevance: "Supports the client's possession delay issue because the agreement records the possession deadline.",
     issue_tags: ["possession", "deadline"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(interviewDeadlineEntry({ citation: "FILE-0010 p1.b1" }), {
@@ -265,7 +265,7 @@ test("List of Dates fixture helper builds payment and deadline scenario rows", (
     event_type: "deadline",
     legal_relevance: "Corroborates the client's possession delay issue because the interview records the same possession deadline.",
     issue_tags: ["possession", "deadline"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 });
 
@@ -280,7 +280,7 @@ test("List of Dates fixture helper builds separate-payment and non-merits scenar
     event_type: "payment",
     legal_relevance: "Supports the client's payment chronology because the source records a Rs.10,00,000 booking amount.",
     issue_tags: ["payment"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.deepEqual(maintenanceDepositEntry({ citation: "FILE-0012 p1.b1" }), {
@@ -293,7 +293,7 @@ test("List of Dates fixture helper builds separate-payment and non-merits scenar
     event_type: "payment",
     legal_relevance: "Supports the client's payment chronology because the source records a Rs.2,50,000 maintenance deposit.",
     issue_tags: ["payment"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
   });
 
   assert.equal(nonMeritsTranscriptEntry().citation, "FILE-0001 p1.b1");

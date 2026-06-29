@@ -125,7 +125,7 @@ test("prepare matter plan blocks source labeling when extraction has no usable r
   assert.equal(plan.downstream.listOfDates.action, "blocked");
 });
 
-test("prepare matter plan treats missing list of dates as a preparation stage", async () => {
+test("prepare matter plan treats missing Case Timeline as a preparation stage", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "prepare-matter-current-test-"));
   const extractedDir = path.join(root, "00_Inbox", "Intake 01 - Initial", "_extracted");
   const libraryDir = path.join(root, "10_Library");
@@ -164,7 +164,7 @@ test("prepare matter plan treats missing list of dates as a preparation stage", 
   ]);
   assert.equal(plan.nextStep.slash, "/create_listofdates");
   assert.equal(plan.downstream.listOfDates.action, "confirm_paid_run");
-  assert.match(plan.downstream.listOfDates.reason, /List of Dates is missing/i);
+  assert.match(plan.downstream.listOfDates.reason, /Case Timeline is missing/i);
 });
 
 test("prepare matter plan places dispute story after current List of Dates when story skill exists", async () => {

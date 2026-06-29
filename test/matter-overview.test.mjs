@@ -41,7 +41,7 @@ test("matter overview renders read-only pipeline status", () => {
       },
       {
         slash: "/create_listofdates",
-        label: "Create List of Dates",
+        label: "Build Case Timeline",
         present: true,
         artifacts: ["10_Library/List of Dates.md"],
         metrics: {
@@ -92,7 +92,7 @@ test("matter overview explains label refresh without implying AI regeneration is
     stages: [
       {
         slash: "/create_listofdates",
-        label: "Create List of Dates",
+        label: "Build Case Timeline",
         present: true,
         artifacts: ["10_Library/List of Dates.md"],
         rerunAdvice: {

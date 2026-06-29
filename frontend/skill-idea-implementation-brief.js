@@ -8,7 +8,7 @@ import { calculateSkillIdeaReadiness } from "../shared/skill-idea-design-brief.m
 const KNOWN_TARGETS = [
   {
     slash: "/create_listofdates",
-    title: "Create List of Dates",
+    title: "Build Case Timeline",
     keywords: /\b(list\s+of\s+dates|chronolog|timeline)\b/i,
   },
   {
@@ -259,7 +259,7 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     : "Separate review document unless the implementation brief justifies changing the existing output.");
   return {
     proposalType: "modify_existing_skill",
-    title: limitationRelated ? "List of Dates Limitation Flags" : `Improve ${targetTitle}`,
+    title: limitationRelated ? "Case Timeline Limitation Flags" : `Improve ${targetTitle}`,
     proposedSkillName: "",
     proposedSlash: "",
     targetSkillId,
@@ -280,7 +280,7 @@ function buildModifyBrief({ idea, brief, text, targetSkill }) {
     ],
     rerunBehavior: "Do not change existing rerun behavior silently. If a new output document is introduced, add the same current-output confirmation pattern before overwriting it.",
     changeShape: limitationRelated
-      ? "Likely separate review document that reads List of Dates, unless later review approves a List of Dates mode/profile."
+      ? "Likely separate review document that reads the Case Timeline, unless later review approves a Case Timeline mode/profile."
       : "To be decided: mode/profile, output change, or separate review document.",
     whatChanges,
     whatMustStayUnchanged: [
@@ -329,10 +329,10 @@ function specialtyDefaults(specialty) {
     return {
       title: "Client Update Email",
       proposedSlash: "/client_update_email",
-      userFacingPurpose: "Draft a warm, careful client update email after reviewing the matter materials and List of Dates.",
+      userFacingPurpose: "Draft a warm, careful client update email after reviewing the matter materials and Case Timeline.",
       intendedUser: "Lawyer preparing client communication",
       problem: "Reassure the client that the matter has been reviewed and further work is underway without giving unsupported legal advice.",
-      expectedInputs: "Matter metadata, Source Index, List of Dates, and selected source-backed context needed to draft a status email.",
+      expectedInputs: "Matter metadata, Source Index, Case Timeline, and selected source-backed context needed to draft a status email.",
       outputArtifact: "30_Drafts/Client Update Email.md",
       targetLane: "30_Drafts",
       outputPosture: "Client-facing draft; lawyer must review before sending.",
@@ -346,7 +346,7 @@ function specialtyDefaults(specialty) {
         "Confirm overwrite before replacing an existing Client Update Email.md draft.",
       ],
       acceptanceTests: [
-        "A client-update idea is classified as a new skill, not a List of Dates modification.",
+        "A client-update idea is classified as a new skill, not a Case Timeline modification.",
         "The future runtime writes only 30_Drafts/Client Update Email.md.",
         "The draft states that review/work is underway without promising outcome, strength, timeline, or final advice.",
         "The client-facing draft does not include raw FILE-NNNN citations unless explicitly requested.",
@@ -366,7 +366,7 @@ function specialtyDefaults(specialty) {
       ],
       implementationNotes: [
         "Implement as a hand-built built-in skill only after this governance brief is accepted.",
-        "Reuse the matter context packet and List of Dates output; do not read raw source files directly.",
+        "Reuse the matter context packet and Case Timeline output; do not read raw source files directly.",
         "Render clearly as Draft - lawyer review required.",
       ],
     };
@@ -391,7 +391,7 @@ function specialtyDefaults(specialty) {
         "Confirm overwrite before replacing an existing Party and Officer Map.md output.",
       ],
       acceptanceTests: [
-        "A party/officer-name idea is classified as a new skill, not a List of Dates modification.",
+        "A party/officer-name idea is classified as a new skill, not a Case Timeline modification.",
         "The future runtime writes only 20_Workshop/Party and Officer Map.md.",
         "Every identity claim includes readable label plus raw citation.",
         "Conflicting names or aliases are marked for lawyer review rather than silently merged.",
@@ -399,7 +399,7 @@ function specialtyDefaults(specialty) {
       nonGoals: [
         "Do not decide legal liability from officer relationships.",
         "Do not merge uncertain aliases without showing uncertainty.",
-        "Do not write to List of Dates or Source Index.",
+        "Do not write to Case Timeline or Source Index.",
         "Do not implement a general skill factory.",
       ],
       openQuestions: [

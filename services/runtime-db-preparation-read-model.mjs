@@ -39,7 +39,7 @@ export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tr
     statusStage({
       id: "create-listofdates",
       slash: "/create_listofdates",
-      label: "Create List of Dates",
+      label: "Build Case Timeline",
       present: paths.some((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json"),
       artifacts: paths
         .filter((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json")
@@ -137,7 +137,7 @@ function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Create the List of Dates before writing the dispute story.",
+      reason: "Build the Case Timeline before writing the dispute story.",
     };
   }
   if (storyStatus.storyStale) {
@@ -145,7 +145,7 @@ function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
       ...base,
       state: "stale",
       action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-      reason: "The List of Dates changed after The Story was written. Refresh the Matter Workbench story.",
+      reason: "The Case Timeline changed after The Story was written. Refresh the Matter Workbench story.",
     };
   }
   if (storyStatus.storyMarkdownPresent && !storyStatus.briefDescriptionManagedByMatterWorkbench) {
@@ -169,7 +169,7 @@ function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
     ...base,
     state: "missing",
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-    reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
+    reason: "The dispute story is missing and uses AI after the Case Timeline is ready.",
   };
 }
 
@@ -301,7 +301,7 @@ function runtimeListOfDatesRerunAdvice(inputs = {}) {
   ];
   return buildRuntimeRerunAdvice({
     skill: "/create_listofdates",
-    label: "list of dates",
+    label: "case timeline",
     target,
     upstreamInputs,
     staleDescription: "newer extraction records or Source Index changes were found in DB payload custody",

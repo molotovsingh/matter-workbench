@@ -96,7 +96,7 @@ test("story description update overwrites intake description and preserves it as
   assert.equal(matterJson.brief_description, "Replacement Matter Workbench story.");
   assert.equal(matterJson.original_intake_note, "Initial intake description.");
   assert.equal(matterJson.brief_description_source.author, "MW");
-  assert.equal(matterJson.brief_description_source.based_on, "Current List of Dates");
+  assert.equal(matterJson.brief_description_source.based_on, "Current Case Timeline");
 });
 
 test("story status marks Matter Workbench story stale when List of Dates changed later", async () => {

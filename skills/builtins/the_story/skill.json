@@ -12,7 +12,7 @@
   },
   "category": "Analyze",
   "product_surface": "native_legal",
-  "purpose": "Write a short Matter Workbench story for the matter overview from the current List of Dates.",
+  "purpose": "Write a short Matter Workbench story for the matter overview from the current Case Timeline.",
   "mode": "AI",
   "matter_required": true,
   "paid_provider_call": true,

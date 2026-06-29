@@ -157,7 +157,7 @@ test("runtime DB matter context filters inactive register rows from active packe
   assert.doesNotMatch(JSON.stringify(packet.library_artifacts), /Removed note|Removed chronology|Removed stale runtime excerpt/i);
   assert.doesNotMatch(JSON.stringify(packet), /Removed text/);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
-  assert.match(packet.warnings.join("\n"), /Suppressed 1 List of Dates entry from active context/);
+  assert.match(packet.warnings.join("\n"), /Suppressed 1 Case Timeline entry from active context/);
   assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
 });
 

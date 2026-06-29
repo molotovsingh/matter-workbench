@@ -24,13 +24,13 @@ const NATIVE_DISPUTE_STORY_SKILL = Object.freeze({
   id: "builtin_the_story",
   title: "The Story",
   slash: DISPUTE_STORY_SKILL_SLASH,
-  description: "Write a short Matter Workbench story for the matter overview from the current List of Dates.",
+  description: "Write a short Matter Workbench story for the matter overview from the current Case Timeline.",
   outputArtifact: DISPUTE_STORY_OUTPUT_RELATIVE,
   sourceBacked: "required",
   promptConfig: Object.freeze({
     prompt: [
       "Write a concise Matter Workbench story for the selected matter.",
-      "Use the current List of Dates as the primary spine and do not introduce new facts that are not supported by the supplied matter context.",
+      "Use the current Case Timeline as the primary spine and do not introduce new facts that are not supported by the supplied matter context.",
       "Source Index and matter metadata may clarify names, roles, labels, and procedural context only.",
       "Structure the Markdown in exactly this order: At a glance; What this matter is about; Key dispute; Procedural posture; Main risks and missing facts.",
       "Each section should be one short paragraph with no more than two sentences, so the full story remains readable on the matter overview.",
@@ -284,7 +284,7 @@ function assertMatterStoryHasListOfDates(matterContext = {}) {
   ));
   if (hasListOfDates) return;
   throw makeHttpError(
-    "Create the List of Dates before writing the Matter Story.",
+    "Build the Case Timeline before writing the Matter Story.",
     409,
     "matter_story.list_of_dates_required",
   );
@@ -367,7 +367,7 @@ export function buildBriefDescriptionMatterJsonUpdate({
         description: currentDescription,
         reason: "Matter Workbench story is already current.",
         author: MATTER_WORKBENCH_AUTHOR,
-        basedOn: "Current List of Dates",
+        basedOn: "Current Case Timeline",
         source: normalizeMatterWorkbenchStorySource(currentSource, { artifactPath, now }),
       },
       nextMatterJson: null,
@@ -400,7 +400,7 @@ export function buildBriefDescriptionMatterJsonUpdate({
       state: "updated",
       description,
       author: MATTER_WORKBENCH_AUTHOR,
-      basedOn: "Current List of Dates",
+      basedOn: "Current Case Timeline",
       originalIntakeNote,
       source,
     },
@@ -414,7 +414,7 @@ export function matterWorkbenchStorySource({ artifactPath = DISPUTE_STORY_OUTPUT
     author: MATTER_WORKBENCH_AUTHOR,
     slash: DISPUTE_STORY_SKILL_SLASH,
     artifact: artifactPath,
-    based_on: "Current List of Dates",
+    based_on: "Current Case Timeline",
     basis_artifact: DISPUTE_STORY_BASIS_RELATIVE,
     updated_at: now().toISOString(),
   };

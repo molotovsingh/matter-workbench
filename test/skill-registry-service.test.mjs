@@ -47,9 +47,9 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(contextSearch.category, "Review");
   assert.equal(listOfDates.category, "Analyze");
   assert.equal(listOfDates.product_surface, "native_legal");
-  assert.equal(listOfDates.display.action, "Create List of Dates");
-  assert.equal(listOfDates.display.artifact, "List of Dates");
-  assert.equal(listOfDates.display.running, "Creating List of Dates");
+  assert.equal(listOfDates.display.action, "Build Case Timeline");
+  assert.equal(listOfDates.display.artifact, "Case Timeline");
+  assert.equal(listOfDates.display.running, "Building Case Timeline");
   assert.equal(listOfDates.mode, "AI");
   assert.deepEqual(listOfDates.downstream, []);
   assert.equal(listOfDates.markdown_first, true);

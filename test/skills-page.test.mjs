@@ -38,9 +38,9 @@ function registryFixture() {
       {
         id: "create_listofdates",
         slash: "/create_listofdates",
-        title: "Create List of Dates",
+        title: "Build Case Timeline",
         product_surface: "native_legal",
-        purpose: "Build a cited legal chronology.",
+        purpose: "Build a neutral cited Case Timeline.",
         mode: "AI",
         matter_required: true,
         paid_provider_call: true,
@@ -773,7 +773,7 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.match(packet, /Client-facing draft; lawyer must review before sending/);
   assert.match(packet, /do not expose raw FILE-NNNN pX\.bY citations/i);
   assert.match(packet, /## Acceptance Tests/);
-  assert.match(packet, /A client-update idea is classified as a new skill, not a List of Dates modification/);
+  assert.match(packet, /A client-update idea is classified as a new skill, not a Case Timeline modification/);
   assert.match(packet, /## Non-Goals/);
   assert.match(packet, /Do not send email/);
   assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
@@ -828,7 +828,7 @@ test("skill idea implementation brief keeps party and officer mapping as a new s
   assert.match(packet, /- Proposed slash command: \/party_officer_map/);
   assert.match(packet, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(packet, /Every formal name, officer, alias, role, and relationship must cite readable source labels plus raw FILE-NNNN pX\.bY citations/);
-  assert.match(packet, /A party\/officer-name idea is classified as a new skill, not a List of Dates modification/);
+  assert.match(packet, /A party\/officer-name idea is classified as a new skill, not a Case Timeline modification/);
   assert.doesNotMatch(packet, /Proposal type: Improve existing skill/);
   assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
 });
@@ -841,7 +841,7 @@ test("skill idea implementation brief classifies limitation flags as a list-of-d
     designBrief: {
       intendedUser: "Litigation associate",
       problem: "Make List of Dates also flag limitation issues.",
-      expectedInputs: "Existing Create List of Dates inputs and current source-backed chronology.",
+      expectedInputs: "Existing Build Case Timeline inputs and current source-backed chronology.",
       expectedOutputArtifact: "10_Library/List of Dates.md",
       targetLane: "10_Library",
       paidPosture: "paid",
@@ -882,8 +882,8 @@ test("skill idea review packet includes governance fields without source text or
     },
     designBrief: {
       intendedUser: "Litigation associate",
-      problem: "Explore whether Create List of Dates should flag limitation issues.",
-      expectedInputs: "Existing Create List of Dates inputs and source-backed matter files.",
+      problem: "Explore whether Build Case Timeline should flag limitation issues.",
+      expectedInputs: "Existing Build Case Timeline inputs and source-backed matter files.",
       expectedOutputArtifact: "10_Library/List of Dates.md",
       targetLane: "10_Library",
       paidPosture: "unknown",

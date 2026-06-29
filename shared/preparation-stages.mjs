@@ -27,7 +27,7 @@ export const PREPARE_STAGE_DEFINITIONS = [
   {
     id: "create-listofdates",
     slash: "/create_listofdates",
-    label: "Create List of Dates",
+    label: "Build Case Timeline",
     description: "Build a source-backed chronology for lawyer review.",
     paidProviderCall: true,
   },
@@ -35,7 +35,7 @@ export const PREPARE_STAGE_DEFINITIONS = [
     id: "dispute-story",
     slash: "/the_story",
     label: "Write dispute story",
-    description: "Turn the List of Dates into a short matter description for intake metadata.",
+    description: "Turn the Case Timeline into a short matter description for intake metadata.",
     paidProviderCall: true,
   },
 ];
@@ -59,7 +59,7 @@ export function warningsForPlan({ missingMetadata, stages, listOfDates, disputeS
     warnings.push("Automatic preparation may make paid AI provider calls.");
   }
   if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RUN && listOfDates?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
-    warnings.push("List of Dates only needs a label refresh; chronology regeneration is not required.");
+    warnings.push("Case Timeline only needs a label refresh; chronology regeneration is not required.");
   }
   if (disputeStory?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {
     warnings.push("The Story will use a paid AI provider call before filling the intake dispute description.");

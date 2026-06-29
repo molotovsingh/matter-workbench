@@ -26,7 +26,7 @@ export async function buildSourceLabelAttentionItems({ root, status } = {}) {
         code: "source_index_missing",
         title: "Source Index is missing",
         detail: "Extraction artifacts exist, but Source Labels / Document Index has not produced Source Index.json.",
-        action: "Run Source Labels before generating or relying on List of Dates.",
+        action: "Run Source Labels before generating or relying on the Case Timeline.",
         evidence: [evidence(SOURCE_INDEX_RELATIVE)],
       });
     }

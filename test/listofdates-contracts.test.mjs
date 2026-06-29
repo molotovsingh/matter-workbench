@@ -7,10 +7,10 @@ import {
 } from "../listofdates/contracts.mjs";
 import {
   EVENT_TYPES,
-  LAWYER_FACING_PERSPECTIVE,
+  CASE_TIMELINE_PERSPECTIVE,
 } from "../listofdates/providers.mjs";
 
-test("List of Dates output schema preserves the lawyer-facing entry contract", () => {
+test("List of Dates output schema preserves the record-neutral entry contract", () => {
   const entrySchema = OUTPUT_SCHEMA.properties.entries.items;
 
   assert.deepEqual(OUTPUT_SCHEMA.required, ["entries"]);
@@ -19,7 +19,7 @@ test("List of Dates output schema preserves the lawyer-facing entry contract", (
   assert.ok(entrySchema.required.includes("legal_relevance"));
   assert.ok(entrySchema.required.includes("citation"));
   assert.deepEqual(entrySchema.properties.event_type.enum, EVENT_TYPES);
-  assert.deepEqual(entrySchema.properties.perspective.enum, [LAWYER_FACING_PERSPECTIVE]);
+  assert.deepEqual(entrySchema.properties.perspective.enum, [CASE_TIMELINE_PERSPECTIVE]);
   assert.equal(entrySchema.properties.citation.pattern, "^FILE-\\d{4,} p\\d+\\.b\\d+$");
   assert.equal(entrySchema.properties.issue_tags.maxItems, 8);
   assert.equal(entrySchema.properties.confidence.minimum, 0);

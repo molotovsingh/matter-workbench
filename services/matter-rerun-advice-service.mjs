@@ -63,7 +63,7 @@ export async function listOfDatesRerunAdvice(root) {
   return buildRerunAdvice({
     root,
     skill: "/create_listofdates",
-    label: "list of dates",
+    label: "case timeline",
     target,
     upstreamInputs: [
       ...extractionInputs.map((input) => ({ ...input, inputKind: "extraction_record" })),
@@ -404,7 +404,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
         relativePath: target.relativePath,
         mtimeMs: target.mtimeMs,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "A source from the List of Dates snapshot is no longer in the active source set.",
+        reason: "A source from the Case Timeline snapshot is no longer in the active source set.",
       };
     }
   }
@@ -415,14 +415,14 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         ...input,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "Changed source content was found after the List of Dates was built.",
+        reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
     if (previous.contentHash && previous.contentHash !== input.contentHash) {
       return {
         ...input,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "Changed source content was found after the List of Dates was built.",
+        reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
   }
@@ -437,7 +437,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         ...sourceIndexInput,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "A new source appears in Source Index after the List of Dates was built.",
+        reason: "A new source appears in Source Index after the Case Timeline was built.",
       };
     }
   }
@@ -447,14 +447,14 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         ...sourceIndexInput,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "A source from the List of Dates snapshot is missing from current Source Index.",
+        reason: "A source from the Case Timeline snapshot is missing from current Source Index.",
       };
     }
     if (previous.contentHash && current.contentHash && previous.contentHash !== current.contentHash) {
       return {
         ...sourceIndexInput,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
-        reason: "Changed source content was found after the List of Dates was built.",
+        reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
     if (
@@ -465,7 +465,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         ...sourceIndexInput,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
-        reason: "Source metadata changed after the List of Dates was built.",
+        reason: "Source metadata changed after the Case Timeline was built.",
       };
     }
     if (
@@ -477,7 +477,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         ...sourceIndexInput,
         dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
-        reason: "Source labels changed after the List of Dates was rendered.",
+        reason: "Source labels changed after the Case Timeline was rendered.",
       };
     }
   }

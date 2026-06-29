@@ -16,10 +16,10 @@ const workflowFiles = [
     refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after Source Labels update'/,
   },
   {
-    name: "List of Dates",
+    name: "Case Timeline",
     path: "../react-ui/src/views/workflows/ListOfDatesResult.tsx",
     runPattern: /api\.runCreateListOfDates/,
-    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after List of Dates update'/,
+    refreshPattern: /expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after Case Timeline update'/,
   },
   {
     name: "Prepare Matter",

@@ -73,7 +73,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   },
   {
     command: '/create_listofdates',
-    label: 'Create List of Dates',
+    label: 'Build Case Timeline',
     description: 'Build the source-backed chronology',
     view: 'list-of-dates',
     pill: 'Uses AI',
@@ -84,7 +84,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
   {
     command: '/the_story',
     label: 'Write Matter Story',
-    description: 'Write the Matter Story from the current List of Dates',
+    description: 'Write the Matter Story from the current Case Timeline',
     view: 'home',
     pill: 'Uses AI',
     showInSidebar: true,

@@ -39,11 +39,11 @@ test("React automatic preparation tolerates switch render gap but cancels after 
   assert.match(context, /dispatch\(\{ type: 'SET_PREPARATION_RUN', payload: null \}\)/);
 });
 
-test("React automatic preparation runner includes List of Dates, story, and label-only refresh", async () => {
+test("React automatic preparation runner includes Case Timeline, story, and label-only refresh", async () => {
   const runner = await readFile(runnerPath, "utf8");
   const prepareMatter = await readFile(prepareMatterPath, "utf8");
 
-  assert.match(runner, /id: 'create-listofdates', label: 'Building List of Dates'/);
+  assert.match(runner, /id: 'create-listofdates', label: 'Building Case Timeline'/);
   assert.match(runner, /id: 'dispute-story', label: 'Writing dispute story'/);
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
   assert.match(runner, /api\.runMatterStory\(/);
@@ -69,7 +69,8 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
   assert.match(overview, /Matter Workbench story/);
   assert.match(overview, /Author: MW/);
-  assert.match(overview, /Based on: \{source\?\.basedOn \|\| 'Current List of Dates'\}/);
+  assert.match(overview, /Based on: \{caseTimelineSourceLabel\(source\?\.basedOn\)\}/);
+  assert.match(overview, /Current Case Timeline/);
   assert.match(overview, /Original intake note/);
   assert.match(overview, /isMwStorySource/);
 });
@@ -182,7 +183,7 @@ test("React prepare-matter empty state describes the full mandatory chain", asyn
   assert.match(prepareMatter, /set up the matter/i);
   assert.match(prepareMatter, /read documents/i);
   assert.match(prepareMatter, /label sources/i);
-  assert.match(prepareMatter, /build the List of Dates/i);
+  assert.match(prepareMatter, /build the Case Timeline/i);
   assert.match(prepareMatter, /check the advisory/i);
   assert.doesNotMatch(prepareMatter, /metadata check, extraction, and source labeling/);
 });
