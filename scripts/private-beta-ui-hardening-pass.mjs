@@ -279,9 +279,15 @@ export async function homeStartStateCheck(page) {
 }
 
 async function copilotTierCheck(page) {
+  const requiredLabels = ["Low", "Medium", "High"];
+  await page.waitForFunction((required) => {
+    const options = Array.from(document.querySelectorAll('select[aria-label="Copilot strength"] option'));
+    const labels = options.map((node) => String(node.textContent || "").trim());
+    return required.every((label) => labels.includes(label));
+  }, requiredLabels, { timeout: 15000 }).catch(() => {});
   const options = await page.locator('select[aria-label="Copilot strength"] option').evaluateAll((nodes) => nodes.map((node) => node.textContent || "")).catch(() => []);
   const labels = options.map((item) => String(item).trim());
-  const missing = ["Low", "Medium", "High"].filter((label) => !labels.includes(label));
+  const missing = requiredLabels.filter((label) => !labels.includes(label));
   return {
     key: "copilot_tiers_visible",
     passed: missing.length === 0,
