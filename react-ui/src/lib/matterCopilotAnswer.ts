@@ -97,7 +97,7 @@ export function formatMatterCopilotError(message: string): string {
       'Run preparation again, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
     ].join('\n\n');
   }
-  if (containsUserFacingRestrictedAiLanguage(normalized)) {
+  if (isAssistantAvailabilityError(normalized) || containsUserFacingRestrictedAiLanguage(normalized)) {
     return USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE;
   }
   return `I could not answer from the current matter record: ${normalized || 'Unknown error'}`;
@@ -117,7 +117,7 @@ export function formatMatterCopilotResearchError(message: string): string {
   if (/took too long|timeout/i.test(normalized)) {
     return 'Public research took too long. You can retry Research or use Ask to answer from the matter record.';
   }
-  if (containsUserFacingRestrictedAiLanguage(normalized)) {
+  if (isAssistantAvailabilityError(normalized) || containsUserFacingRestrictedAiLanguage(normalized)) {
     return 'Research could not complete. You can retry Research or use Ask to answer from the matter record.';
   }
   return `Research could not complete: ${normalized || 'Unknown error'}. You can retry Research or use Ask to answer from the matter record.`;
@@ -125,6 +125,10 @@ export function formatMatterCopilotResearchError(message: string): string {
 
 export function formatMatterCopilotTerminalError(message: string): string {
   return `[assistant] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
+}
+
+function isAssistantAvailabilityError(value: string): boolean {
+  return /\buser not found\b|\bauth(?:entication|orization)? failed\b|\bunauthori[sz]ed\b|\bforbidden\b|\bpermission denied\b|\baccess denied\b|\binvalid credentials\b/i.test(value);
 }
 
 function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {

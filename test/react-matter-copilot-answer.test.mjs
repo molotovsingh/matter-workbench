@@ -117,6 +117,17 @@ test("React matter copilot errors collapse provider and billing language", async
   assert.equal(containsUserFacingRestrictedAiLanguage(rendered), false);
 });
 
+test("React matter copilot errors collapse provider account misses", async () => {
+  const { formatMatterCopilotError, formatMatterCopilotTerminalError } = await loadMatterCopilotAnswerModule();
+
+  const rendered = formatMatterCopilotError("User not found.");
+  const terminal = formatMatterCopilotTerminalError("Matter copilot failed: User not found.");
+
+  assert.equal(rendered, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
+  assert.match(terminal, /Assistant is temporarily unavailable/);
+  assert.doesNotMatch(terminal, /User not found/i);
+});
+
 test("React App routes copilot failures through the terminal-safe formatter", async () => {
   const appSource = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
 
