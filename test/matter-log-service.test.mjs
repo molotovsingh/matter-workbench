@@ -140,7 +140,7 @@ test("matter log renders source-removal canonical events without leaking source 
 
   assert.equal(entry.category, "source_mutation");
   assert.equal(entry.title, "FILE-0007");
-  assert.equal(entry.summary, "FILE-0007 removed from the active record by Asha. Reason: Wrong client file uploaded to this matter. Source Index marked stale; List of Dates marked for regeneration; Matter Story needs review.");
+  assert.equal(entry.summary, "FILE-0007 removed from the active record by Asha. Reason: Wrong client file uploaded to this matter. Source Index marked stale; Case Timeline marked for regeneration; Matter Story needs review.");
   assert.equal(entry.details.payload.file_id, "FILE-0007");
   assert.equal(entry.details.payload.physical_deletion, false);
   assert.deepEqual(entry.details.payload.affected_artifacts.map((artifact) => artifact.family), ["source_index", "list_of_dates", "matter_story"]);

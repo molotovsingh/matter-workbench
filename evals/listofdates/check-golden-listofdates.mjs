@@ -412,8 +412,8 @@ function lawyerFacingChecks(generatedEvents, requireLawyerFacing) {
     if (!Array.isArray(event.issue_tags) || !event.issue_tags.length) {
       issues.push(lawyerFacingIssue("missing_issue_tags", event, "Generated entry is missing issue_tags."));
     }
-    if (event.perspective !== "client_favourable") {
-      issues.push(lawyerFacingIssue("invalid_perspective", event, `Expected perspective client_favourable, got ${event.perspective || "(missing)"}.`));
+    if (event.perspective !== "record_neutral") {
+      issues.push(lawyerFacingIssue("invalid_perspective", event, `Expected perspective record_neutral, got ${event.perspective || "(missing)"}.`));
     }
     for (const banned of BANNED_UNSUPPORTED_CONCLUSIONS) {
       if (banned.test(event.legal_relevance)) {

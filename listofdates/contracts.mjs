@@ -1,6 +1,6 @@
 import {
+  CASE_TIMELINE_PERSPECTIVE,
   EVENT_TYPES,
-  LAWYER_FACING_PERSPECTIVE,
 } from "./providers.mjs";
 
 export const CSV_HEADERS = [
@@ -80,7 +80,7 @@ export const OUTPUT_SCHEMA = {
           },
           perspective: {
             type: "string",
-            enum: [LAWYER_FACING_PERSPECTIVE],
+            enum: [CASE_TIMELINE_PERSPECTIVE],
           },
           citation: {
             type: "string",

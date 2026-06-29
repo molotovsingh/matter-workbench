@@ -32,6 +32,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     matterContextService,
     matterStore,
     matterStoryService,
+    proceduralPostureDiagnosisService,
     matterStatusService,
     prepareMatterService,
     privateBetaSignalService,
@@ -155,7 +156,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           jobStatusService,
           kind: "list_of_dates",
           route: "/api/create-listofdates",
-          label: "Create List of Dates",
+          label: "Build Case Timeline",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
             const env = services.env || {};
@@ -177,7 +178,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
                 matter,
               );
             }
-            assertFilesystemWorkflowAvailable(matterStore, "Create List of Dates");
+            assertFilesystemWorkflowAvailable(matterStore, "Build Case Timeline");
             const root = await matterRootForBody(matterStore, body);
             const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
             const options = {
@@ -200,7 +201,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           jobStatusService,
           kind: "label_refresh",
           route: "/api/create-listofdates/refresh-labels",
-          label: "Refresh List of Dates Labels",
+          label: "Refresh Case Timeline Labels",
           matterName: matterNameForBody(matterStore, body),
           operation: async () => {
             if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -211,7 +212,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               });
               return runtimeDbWorkflowResponse(result, matter);
             }
-            assertFilesystemWorkflowAvailable(matterStore, "Refresh List of Dates labels");
+            assertFilesystemWorkflowAvailable(matterStore, "Refresh Case Timeline labels");
             const root = await matterRootForBody(matterStore, body);
             return refreshListOfDatesSourceLabels({
               matterRoot: root,
@@ -266,6 +267,84 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
               overwrite: Boolean(body.overwrite),
             });
           },
+        }));
+      }),
+      exactRoute("GET", "/api/procedural-posture-diagnosis", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          assertRuntimeDbProceduralPostureStatusAvailable({ runtimeDbStorageService });
+          sendJson(response, 200, runtimeDbReadResponse(await runtimeDbStorageService.readProceduralPostureDiagnosisStatus(matter), matter));
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Read procedural posture diagnosis");
+        const root = await matterRootForQuery(matterStore, requestUrl);
+        sendJson(response, 200, await proceduralPostureDiagnosisService.readDiagnosisStatus(root));
+      }),
+      exactRoute("POST", "/api/procedural-posture-diagnosis", async () => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await runTrackedWorkflow({
+          jobStatusService,
+          kind: "posture_diagnosis",
+          route: "/api/procedural-posture-diagnosis",
+          label: "Diagnose Procedural Posture",
+          matterName: matterNameForBody(matterStore, body),
+          operation: async () => {
+            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+              const matter = await runtimeDbMatterForBody(matterStore, body);
+              assertRuntimeDbProceduralPostureRunAvailable({ runtimeDbStorageService });
+              const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+              const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+              const result = await proceduralPostureDiagnosisService.runDiagnosis({
+                matterName: matter.name,
+                overwrite: Boolean(body.overwrite),
+                matterRootOverride: `postgres:${matter.name}`,
+                matterRecordOverride: matter,
+                matterContextPacketOverride: packet,
+                matterJsonOverride: matterJson,
+                artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+                artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+                artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
+                artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+              });
+              const { artifactPersistence, ...responsePayload } = result;
+              return Array.isArray(artifactPersistence) && artifactPersistence.length
+                ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
+                : responsePayload;
+            }
+            assertFilesystemWorkflowAvailable(matterStore, "Diagnose procedural posture");
+            return proceduralPostureDiagnosisService.runDiagnosis({
+              matterName: body.matterName,
+              overwrite: Boolean(body.overwrite),
+            });
+          },
+        }));
+      }),
+      exactRoute("POST", "/api/procedural-posture-diagnosis/confirmation", async () => {
+        const body = await readRequestJson(request);
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          assertRuntimeDbProceduralPostureConfirmationAvailable({ runtimeDbStorageService });
+          const result = await proceduralPostureDiagnosisService.recordConfirmation({
+            matterName: matter.name,
+            matterRootOverride: `postgres:${matter.name}`,
+            decision: body.decision,
+            reasonOrCorrection: body.reasonOrCorrection,
+            actor: body.actor,
+            artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+            artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+          });
+          const { artifactPersistence, ...responsePayload } = result;
+          sendJson(response, 200, Array.isArray(artifactPersistence) && artifactPersistence.length
+            ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
+            : responsePayload);
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Confirm procedural posture diagnosis");
+        sendJson(response, 200, await proceduralPostureDiagnosisService.recordConfirmation({
+          matterName: body.matterName,
+          decision: body.decision,
+          reasonOrCorrection: body.reasonOrCorrection,
+          actor: body.actor,
         }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
@@ -603,6 +682,30 @@ function assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService } = {}) {
     || typeof runtimeDbStorageService?.persistTextArtifacts !== "function"
     || typeof runtimeDbStorageService?.persistMatterJson !== "function") {
     throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
+  }
+}
+
+function assertRuntimeDbProceduralPostureStatusAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readProceduralPostureDiagnosisStatus !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.procedural_posture_required");
+  }
+}
+
+function assertRuntimeDbProceduralPostureRunAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function"
+    || typeof runtimeDbStorageService?.readMatterJson !== "function"
+    || typeof runtimeDbStorageService?.artifactExists !== "function"
+    || typeof runtimeDbStorageService?.artifactStat !== "function"
+    || typeof runtimeDbStorageService?.readFilePreview !== "function"
+    || typeof runtimeDbStorageService?.persistTextArtifacts !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.procedural_posture_required");
+  }
+}
+
+function assertRuntimeDbProceduralPostureConfirmationAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readFilePreview !== "function"
+    || typeof runtimeDbStorageService?.persistTextArtifacts !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.procedural_posture_required");
   }
 }
 

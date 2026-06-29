@@ -22,6 +22,7 @@ import { createMatterAttentionService } from "./services/matter-attention-servic
 import { createMatterLogService } from "./services/matter-log-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
+import { createProceduralPostureDiagnosisService } from "./services/procedural-posture-diagnosis-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
 import { createPrivateBetaFeedbackService } from "./services/private-beta-feedback-service.mjs";
 import { createPrivateBetaHeartbeatService } from "./services/private-beta-heartbeat-service.mjs";
@@ -305,6 +306,12 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     configurableSkillsService,
   });
+  const proceduralPostureDiagnosisService = createProceduralPostureDiagnosisService({
+    matterStore,
+    aiProviderService,
+    diagnosisProvider: options.proceduralPostureDiagnosisProvider || null,
+    env,
+  });
   const jobStatusService = options.jobStatusService || createJobStatusService({
     appDir,
     jobsPath: options.jobStatusPath,
@@ -326,8 +333,8 @@ export async function createWorkbenchServer(options = {}) {
     registryPath: options.skillRegistryPath,
     configurableSkillsService,
   });
-  const matterStatusService = createMatterStatusService({ matterStore, skillRegistryService });
-  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService, matterStoryService });
+  const matterStatusService = createMatterStatusService({ matterStore, skillRegistryService, proceduralPostureDiagnosisService });
+  const prepareMatterService = createPrepareMatterService({ matterStore, matterStatusService, matterStoryService, proceduralPostureDiagnosisService });
   const matterAttentionService = createMatterAttentionService({
     matterStore,
     matterStatusService,
@@ -393,6 +400,7 @@ export async function createWorkbenchServer(options = {}) {
     matterContextService,
     matterStatusService,
     matterStoryService,
+    proceduralPostureDiagnosisService,
     maxUploadBytes,
     maxUploadFiles,
     prepareMatterService,

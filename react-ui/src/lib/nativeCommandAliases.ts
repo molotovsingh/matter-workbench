@@ -11,6 +11,8 @@ export const NATIVE_COMMAND_ALIASES = [
   ['show context', '/context_preview'],
   ['preview matter context', '/context_preview'],
   ['find in matter', '/context_search'],
+  ['case timeline', '/create_listofdates'],
+  ['build case timeline', '/create_listofdates'],
   ['list of dates', '/create_listofdates'],
   ['create list of dates', '/create_listofdates'],
   ['chronology', '/create_listofdates'],

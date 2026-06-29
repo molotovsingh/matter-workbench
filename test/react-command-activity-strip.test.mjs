@@ -72,9 +72,9 @@ test("React compact command activity mirrors terminal-style status lines", async
   ], () => "18:57:34");
 
   assert.deepEqual(latestCompactActivityRows(lines, 4), [
-    { time: "18:57", message: "running: Create List of Dates" },
+    { time: "18:57", message: "running: Build Case Timeline" },
     { time: "18:57", message: "loaded /Users/aksingh/matters-matter-workbench" },
-    { time: "18:57", message: "opened List of Dates" },
+    { time: "18:57", message: "opened Case Timeline" },
     { time: "18:57", message: "OPENAI_API_KEY=[redacted-secret]" },
   ]);
 });

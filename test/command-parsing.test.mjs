@@ -123,7 +123,7 @@ test("slash command suggestions are explicit and description-backed", () => {
     ["/describe_sources"],
   );
   assert.equal(listSlashCommandSuggestions("chronology").length, 0);
-  assert.match(listSlashCommandSuggestions("/create")[0].description, /list of dates/i);
+  assert.match(listSlashCommandSuggestions("/create")[0].description, /case timeline/i);
   assert.match(listSlashCommandSuggestions("/context")[0].description, /evidence packet/i);
   assert.match(listSlashCommandSuggestions("/context_s")[0].description, /locally/i);
   assert.deepEqual(

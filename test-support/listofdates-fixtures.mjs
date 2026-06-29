@@ -91,7 +91,7 @@ export function lawyerFields(overrides = {}) {
     event_type: "other",
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["chronology"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
     ...overrides,
   };
 }

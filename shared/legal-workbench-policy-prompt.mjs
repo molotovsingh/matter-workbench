@@ -35,7 +35,7 @@ export const NATIVE_SKILL_POLICY_PROMPTS = Object.freeze({
     "surface bad-copy and missing-document signals without blocking by default.",
   ].join(" "),
   create_listofdates: [
-    "Native skill policy for Create List of Dates:",
+    "Native skill policy for Build Case Timeline:",
     "use one legal event per final row;",
     "consolidate duplicate mentions of the same event;",
     "do not treat repeated citations as repeated events;",

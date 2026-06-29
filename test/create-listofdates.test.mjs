@@ -124,7 +124,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
       assert.ok(schema.properties.entries.items.required.includes("event_type"));
       assert.ok(schema.properties.entries.items.required.includes("issue_tags"));
       assert.ok(schema.properties.entries.items.required.includes("perspective"));
-      assert.deepEqual(schema.properties.entries.items.properties.perspective.enum, ["client_favourable"]);
+      assert.deepEqual(schema.properties.entries.items.properties.perspective.enum, ["record_neutral"]);
       assert.ok(chunk.some((block) => block.citation === "FILE-0001 p1.b1"));
       assert.ok(chunk.some((block) => block.citation === "FILE-0001 p1.b2"));
       return {
@@ -163,7 +163,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.deepEqual(jsonOutput.ai_run, result.aiRun);
   assert.equal(jsonOutput.entries.length, 2);
   assert.equal(jsonOutput.entries[0].event_type, "agreement");
-  assert.equal(jsonOutput.entries[0].perspective, "client_favourable");
+  assert.equal(jsonOutput.entries[0].perspective, "record_neutral");
   assert.deepEqual(jsonOutput.entries[0].issue_tags, ["agreement"]);
   assert.match(jsonOutput.entries[0].legal_relevance, /contract chronology/);
 
@@ -173,7 +173,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.equal(csvRows[0].event_type, "agreement");
   assert.match(csvRows[0].legal_relevance, /contract chronology/);
   assert.equal(csvRows[0].issue_tags, "agreement");
-  assert.equal(csvRows[0].perspective, "client_favourable");
+  assert.equal(csvRows[0].perspective, "record_neutral");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
   assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[1].source_path, "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt");
@@ -892,10 +892,10 @@ test("OpenAI provider sends bounded structured output requests", async () => {
   assert.equal(bodies[0].max_output_tokens, 1234);
   assert.equal(bodies[0].text.format.type, "json_schema");
   assert.equal(bodies[0].text.format.strict, true);
-  assert.match(bodies[0].input[0].content, /lawyer-facing, client-favourable/);
+  assert.match(bodies[0].input[0].content, /record-neutral, source-backed Case Timeline/);
   assert.match(bodies[0].input[0].content, /Every legal_relevance sentence must be supported/);
   assert.match(bodies[0].input[1].content, /allowed_event_types/);
-  assert.match(bodies[0].input[1].content, /client_favourable/);
+  assert.match(bodies[0].input[1].content, /record_neutral/);
 });
 
 test("OpenRouter provider sends strict no-fallback structured output requests", async () => {
@@ -1010,11 +1010,11 @@ test("OpenRouter provider sends strict no-fallback structured output requests", 
   assert.equal(schema.properties.entries.maxItems, 3);
   assert.equal(schema.properties.entries.items.properties.confidence.maximum, 1);
   assert.match(requests[0].body.messages[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
-  assert.match(requests[0].body.messages[0].content, /Native skill policy for Create List of Dates/);
-  assert.match(requests[0].body.messages[0].content, /lawyer-facing, client-favourable/);
+  assert.match(requests[0].body.messages[0].content, /Native skill policy for Build Case Timeline/);
+  assert.match(requests[0].body.messages[0].content, /record-neutral, source-backed Case Timeline/);
   assert.match(requests[0].body.messages[0].content, /Every legal_relevance sentence must be supported/);
   assert.match(requests[0].body.messages[1].content, /allowed_event_types/);
-  assert.match(requests[0].body.messages[1].content, /client_favourable/);
+  assert.match(requests[0].body.messages[1].content, /record_neutral/);
   assert.deepEqual(response.ai_run, {
     returnedModel: "qwen/qwen3-source-backed",
     returnedProvider: "openrouter-test-provider",

@@ -36,6 +36,7 @@ import type {
   PreparationPlan,
   PreparationRunTelemetryRequest,
   PreparationRunTelemetryResponse,
+  ProceduralPostureDiagnosisResult,
   PrivateBetaFeedbackList,
   PrivateBetaFeedbackRequest,
   PrivateBetaFeedbackResponse,
@@ -417,6 +418,10 @@ export const api = {
   runCreateListOfDates: (body: MatterSkillRunRequest) => postJson<ListOfDatesRunResult>('/api/create-listofdates', body),
   refreshListOfDatesLabels: (body: MatterSkillRunRequest & { dryRun?: boolean }) => postJson<ListOfDatesRunResult>('/api/create-listofdates/refresh-labels', body),
   runMatterStory: (body: MatterSkillRunRequest & { overwrite?: boolean }) => postJson<MatterStoryRunResult>('/api/matter-story', body),
+  getProceduralPostureDiagnosis: (matterName?: string) => getJson<ProceduralPostureDiagnosisResult>(withQuery('/api/procedural-posture-diagnosis', { matter: matterName })),
+  runProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { overwrite?: boolean }) => postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis', body),
+  confirmProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { decision: 'confirmed' | 'corrected' | 'not_sure' | string; reasonOrCorrection?: string; actor?: string }) =>
+    postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis/confirmation', body),
   getRerunAdvice: (skill: string, matterName?: string) => getJson<RerunAdvice>(withQuery('/api/rerun-advice', { skill, matter: matterName })),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),

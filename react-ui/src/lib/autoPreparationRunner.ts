@@ -15,8 +15,9 @@ export const AUTO_PREPARATION_STEPS: PreparationProgressStep[] = [
   { id: 'matter-init', label: 'Registering files', state: 'pending' },
   { id: 'extract', label: 'Reading documents', state: 'pending' },
   { id: 'describe-sources', label: 'Preparing source record', state: 'pending' },
-  { id: 'create-listofdates', label: 'Building List of Dates', state: 'pending' },
+  { id: 'create-listofdates', label: 'Building Case Timeline', state: 'pending' },
   { id: 'dispute-story', label: 'Writing dispute story', state: 'pending' },
+  { id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture', state: 'pending' },
   { id: 'advisory', label: 'Checking advisory', state: 'pending' },
 ];
 
@@ -56,8 +57,9 @@ const FULL_PREPARATION_STAGES: PreparationStage[] = [
   { id: 'matter-init', slash: '/matter-init', label: 'Set Up Matter', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'extract', slash: '/extract', label: 'Extract Documents', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'describe-sources', slash: '/describe_sources', label: 'Label Sources', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
-  { id: 'create-listofdates', slash: '/create_listofdates', label: 'Create List of Dates', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
+  { id: 'create-listofdates', slash: '/create_listofdates', label: 'Build Case Timeline', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'dispute-story', slash: '/the_story', label: 'The Story', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
+  { id: 'procedural-posture-diagnosis', slash: '/procedural_posture_diagnosis', label: 'Diagnose procedural posture', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
 ];
 
 export async function runAutomaticPreparation({
@@ -209,6 +211,7 @@ async function runFullPreparation({
         forceExtractRefresh: true,
         forceListOfDatesRegeneration: true,
         forceStoryRegeneration: true,
+        forcePostureDiagnosisRegeneration: true,
       });
       publishTerminal([`[prepare] rerun complete: ${stageLabel(stage)}`]);
       next = markStageDone(next, stage);
@@ -256,7 +259,7 @@ async function runFullPreparation({
 export async function runPreparationStage(
   stageOrSlash: PreparationStage | string,
   matterName?: string,
-  options: { forceExtractRefresh?: boolean; forceListOfDatesRegeneration?: boolean; forceStoryRegeneration?: boolean } = {},
+  options: { forceExtractRefresh?: boolean; forceListOfDatesRegeneration?: boolean; forceStoryRegeneration?: boolean; forcePostureDiagnosisRegeneration?: boolean } = {},
 ) {
   const stage = typeof stageOrSlash === 'string' ? { slash: stageOrSlash, label: cleanCommandLabel(stageOrSlash), state: '', action: '' } : stageOrSlash;
   const body = { matterName };
@@ -271,6 +274,9 @@ export async function runPreparationStage(
   }
   if (stage.slash === '/the_story') {
     return api.runMatterStory({ ...body, overwrite: options.forceStoryRegeneration === true || stage.state === 'stale' });
+  }
+  if (stage.slash === '/procedural_posture_diagnosis') {
+    return api.runProceduralPostureDiagnosis({ ...body, overwrite: options.forcePostureDiagnosisRegeneration === true || stage.state === 'stale' });
   }
   throw new Error(`No React runner is wired for preparation stage ${stage.slash || stage.label}`);
 }
@@ -402,6 +408,7 @@ function stepIdForStage(stage: PreparationStage): string | null {
   if (stage.slash === '/describe_sources') return 'describe-sources';
   if (stage.slash === '/create_listofdates') return 'create-listofdates';
   if (stage.slash === '/the_story') return 'dispute-story';
+  if (stage.slash === '/procedural_posture_diagnosis') return 'procedural-posture-diagnosis';
   return null;
 }
 

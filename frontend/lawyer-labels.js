@@ -5,9 +5,9 @@ const ARTIFACT_LABELS = Object.freeze([
   [/File Register\.csv$/i, "File Register"],
   [/Extraction Log\.csv$/i, "Extraction Log"],
   [/Source Index\.json$/i, "Source Labels record"],
-  [/List of Dates\.md$/i, "List of Dates"],
-  [/List of Dates\.json$/i, "List of Dates data"],
-  [/List of Dates\.csv$/i, "List of Dates spreadsheet"],
+  [/List of Dates\.md$/i, "Case Timeline"],
+  [/List of Dates\.json$/i, "Case Timeline data"],
+  [/List of Dates\.csv$/i, "Case Timeline spreadsheet"],
   [/List of Dates Candidates\.json$/i, "Internal chronology candidates"],
 ]);
 

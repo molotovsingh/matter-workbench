@@ -171,7 +171,7 @@ const PASS1_SYSTEM = [
 const PASS2_SYSTEM = [
   "You are a senior Indian litigation chronology editor.",
   "You receive a verbose, high-recall candidate ledger with citations and excerpts.",
-  "Create the lawyer-facing, client-perspective List of Dates.",
+  "Create the record-neutral, lawyer-reviewable Case Timeline.",
   "Merge same-date/same-fact variants into one row and preserve all useful supporting citations.",
   "Do not create separate rows for minor wording differences across complaint, affidavit, order, appeal, revision petition, or written version.",
   "If the same fact appears in several sources, write one event and list all supporting citations.",
@@ -181,7 +181,7 @@ const PASS2_SYSTEM = [
   "Do not invent new facts. Do not add an event unless it is grounded in one or more candidate citations.",
   "Do not mention source_path, original filenames, technical filenames, or internal candidate details except merged_candidate_ids.",
   "Use readable source labels plus raw FILE-NNNN pX.bY citations.",
-  "Do not overstate legal conclusions. Use supports, rebuts, corroborates, records, preserves objection, shows notice, or may support subject to proof.",
+  "Do not overstate legal conclusions or tilt toward either side. Use records, corroborates, shows notice, preserves an objection, flags an inconsistency, contextualizes, or supports review of a claim/defence issue.",
   "Return strict JSON only.",
 ].join(" ");
 

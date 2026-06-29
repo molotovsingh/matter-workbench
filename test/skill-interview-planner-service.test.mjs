@@ -13,8 +13,8 @@ function fakeRegistryService() {
       return {
         skills: [{
           slash: "/create_listofdates",
-          title: "Create List of Dates",
-          purpose: "Create a lawyer-facing chronology.",
+          title: "Build Case Timeline",
+          purpose: "Build a neutral cited Case Timeline.",
           inputs: ["extraction records", "Source Index.json"],
           outputs: ["10_Library/List of Dates.md"],
           default_lane: "10_Library",
@@ -182,8 +182,8 @@ test("skill interview planner sends only idea, matter metadata, and skill summar
   });
   assert.deepEqual(received.skillRegistry, [{
     slash: "/create_listofdates",
-    title: "Create List of Dates",
-    purpose: "Create a lawyer-facing chronology.",
+    title: "Build Case Timeline",
+    purpose: "Build a neutral cited Case Timeline.",
     inputs: ["extraction records", "Source Index.json"],
     outputs: ["10_Library/List of Dates.md"],
     lane: "10_Library",

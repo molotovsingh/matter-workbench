@@ -155,7 +155,7 @@ export async function runCreateListOfDatesOnePass({
   }
   outputLines.push(`[listofdates] provider ${aiRun.provider}: ${aiRun.model}`);
   outputLines.push(dryRun
-    ? "[listofdates] dry run only. Re-run with apply to write list of dates."
+    ? "[listofdates] dry run only. Re-run with apply to write the Case Timeline."
     : `[listofdates] wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}`);
 
   return {

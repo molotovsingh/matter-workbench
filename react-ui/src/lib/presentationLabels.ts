@@ -4,7 +4,7 @@ const KNOWN_ARTIFACT_LABELS: Array<[RegExp, string]> = [
   [/^matter\.json$/i, 'Matter details'],
   [/^00_Inbox\/Intake \d+ - [^/]+\/File Register\.csv$/i, 'File Register'],
   [/^10_Library\/Source Index\.json$/i, 'Source Labels'],
-  [/^10_Library\/List of Dates\.(?:md|json|csv)$/i, 'List of Dates'],
+  [/^10_Library\/List of Dates\.(?:md|json|csv)$/i, 'Case Timeline'],
   [/^20_Workshop\/Party and Officer Map\.md$/i, 'Party and Officer Map'],
   [/^20_Workshop\/Statute and Section Reading Guide\.md$/i, 'Statute and Section Reading Guide'],
   [/^30_Drafts\/Draft Legal Output\.md$/i, 'Draft Legal Output'],

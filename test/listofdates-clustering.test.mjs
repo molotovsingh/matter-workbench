@@ -10,7 +10,7 @@ function entry(overrides = {}) {
     event_type: "payment",
     legal_relevance: "Supports the client's payment chronology because the cited source records the payment.",
     issue_tags: ["payment"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
     citation: "FILE-0001 p1.b1",
     source_file_id: "FILE-0001",
     source_label: "Bank statement",

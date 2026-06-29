@@ -48,7 +48,7 @@ function entries() {
       citation: "FILE-0001 p1.b1",
       event_type: "agreement",
       issue_tags: ["agreement"],
-      perspective: "client_favourable",
+      perspective: "record_neutral",
       source_label: "Agreement",
     },
   ];

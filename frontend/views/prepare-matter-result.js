@@ -48,7 +48,7 @@ export function renderPreparePaidConfirmationHtml(stage, escapeHtml = defaultEsc
       <h2 id="preparePaidConfirmTitle">Label sources may use a paid AI provider</h2>
       <p>
         Prepare Matter is ready to run <strong>${escapeHtml(lawyerActionLabel(stage, stage?.label || "Label sources"))}</strong>.
-        This updates the matter's source labels for downstream List of Dates work.
+        This updates the matter's source labels for downstream Case Timeline work.
       </p>
       <ul class="overlap-list">
         <li><strong>Step:</strong> ${escapeHtml(lawyerActionLabel(stage, stage?.label || "Label sources"))}</li>

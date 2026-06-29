@@ -42,7 +42,7 @@ test("describe-sources rerun advice treats tombstoned source descriptors as stal
   assert.equal(advice.artifactPath, "10_Library/Source Index.json");
 });
 
-test("List of Dates rerun advice marks chronology regeneration needed when snapshot contains inactive source", async () => {
+test("Case Timeline rerun advice marks chronology regeneration needed when snapshot contains inactive source", async () => {
   const root = await makeMatterRoot();
   await writeExtractionRecord(root, "FILE-0001", "hash-1");
   await writeExtractionRecord(root, "FILE-0002", "hash-2");
@@ -60,7 +60,7 @@ test("List of Dates rerun advice marks chronology regeneration needed when snaps
 
   assert.equal(advice.state, "stale");
   assert.equal(advice.dependencyState, "chronology_regeneration_needed");
-  assert.match(advice.reason, /List of Dates snapshot is no longer in the active source set/);
+  assert.match(advice.reason, /Case Timeline snapshot is no longer in the active source set/);
   assert.equal(advice.shouldConfirm, false);
 });
 

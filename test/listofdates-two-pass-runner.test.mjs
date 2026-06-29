@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CANDIDATE_SCHEMA, OUTPUT_SCHEMA } from "../listofdates/contracts.mjs";
-import { LAWYER_FACING_PERSPECTIVE } from "../listofdates/providers.mjs";
+import { CASE_TIMELINE_PERSPECTIVE } from "../listofdates/providers.mjs";
 import { runCreateListOfDatesTwoPass } from "../listofdates/two-pass-runner.mjs";
 
 const matterJson = {
@@ -73,7 +73,7 @@ test("List of Dates two-pass runner returns candidate ledger and final entries",
               event_type: "agreement",
               legal_relevance: "Supports the client's contract chronology because the cited block records the agreement date.",
               issue_tags: ["agreement"],
-              perspective: LAWYER_FACING_PERSPECTIVE,
+              perspective: CASE_TIMELINE_PERSPECTIVE,
               citation: "FILE-0001 p1.b1",
               needs_review: false,
               confidence: 0.94,

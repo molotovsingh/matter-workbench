@@ -68,9 +68,10 @@ test("both storage modes serve preparation stages from the shared contract", asy
 
   const fsSlashes = fsPlan.stages.map((stage) => stage.slash);
   const dbSlashes = dbPlan.stages.map((stage) => stage.slash);
-  assert.deepEqual(fsSlashes.filter((slash) => slash !== "/the_story"), dbSlashes);
+  const optionalStoryFamily = new Set(["/the_story", "/procedural_posture_diagnosis"]);
+  assert.deepEqual(fsSlashes.filter((slash) => !optionalStoryFamily.has(slash)), dbSlashes);
   assert.deepEqual(
-    PREPARE_STAGE_DEFINITIONS.map((definition) => definition.slash).filter((slash) => slash !== "/the_story"),
+    PREPARE_STAGE_DEFINITIONS.map((definition) => definition.slash).filter((slash) => !optionalStoryFamily.has(slash)),
     dbSlashes,
   );
 });

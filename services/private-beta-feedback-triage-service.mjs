@@ -23,7 +23,7 @@ export const TRIAGE_ACTION_LANES = Object.freeze([
 const VALID_CLASSIFICATIONS = new Set(TRIAGE_CLASSIFICATIONS);
 const VALID_ACTION_LANES = new Set(TRIAGE_ACTION_LANES);
 const VALID_CONFIDENCE = new Set(["high", "medium", "low"]);
-const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|list of dates|label sources|source labels?/;
+const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|case timeline|list of dates|label sources|source labels?/;
 const COPILOT_CITATION_RE = /unsupported citation|matter copilot returned unsupported citation/;
 const AUTH_RE = /login|logged out|asking login|authentication/;
 const LEGAL_QUALITY_RE = /wrong law|legal quality|incorrect legal|bad chronology|missed date|missing date|case details|judgement.*details|incomplete answer|hallucinat|unsupported legal|wrong party|limitation/i;
@@ -121,7 +121,7 @@ function deterministicTriage(item = {}, { currentness = "unknown" } = {}) {
   if (category === "critical_signal") return criticalSignalTriage(text, { currentness });
   if (category === "warning_signal") return warningSignalTriage(item);
 
-  if (category === "confusing_ux" && /cannot find|can't find|where.*(list of dates|chronology)|where did.*(list of dates|chronology)/.test(text) && !hasPreparationRelatedEvidence(item)) {
+  if (category === "confusing_ux" && /cannot find|can't find|where.*(case timeline|list of dates|chronology)|where did.*(case timeline|list of dates|chronology)/.test(text) && !hasPreparationRelatedEvidence(item)) {
     return {
       classification: category,
       action_lane: "product_decision",
@@ -147,8 +147,8 @@ function deterministicTriage(item = {}, { currentness = "unknown" } = {}) {
       classification: category,
       action_lane: "fix_now",
       confidence: "high",
-      reason: "Feedback or a related signal points to the extraction/source-label/List of Dates pipeline.",
-      recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/List of Dates path if records exist but downstream stages cannot see them.",
+      reason: "Feedback or a related signal points to the extraction/source-label/Case Timeline pipeline.",
+      recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/Case Timeline path if records exist but downstream stages cannot see them.",
       missing_evidence: [],
     };
   }
@@ -269,8 +269,8 @@ function criticalSignalTriage(text, { currentness }) {
       classification: "critical_signal",
       action_lane: "fix_now",
       confidence: "high",
-      reason: "Critical signal points to extraction/source-label/List of Dates preparation failure.",
-      recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/List of Dates path if records exist but downstream stages cannot see them.",
+      reason: "Critical signal points to extraction/source-label/Case Timeline preparation failure.",
+      recommended_action: "Verify matter preparation state and fix the extraction-to-source-labels/Case Timeline path if records exist but downstream stages cannot see them.",
       missing_evidence: [],
     };
   }

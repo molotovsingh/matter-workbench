@@ -7,7 +7,7 @@ import {
   validateAndHydrateCandidates,
   validateAndHydrateEntries,
 } from "../listofdates/entries.mjs";
-import { LAWYER_FACING_PERSPECTIVE } from "../listofdates/providers.mjs";
+import { CASE_TIMELINE_PERSPECTIVE } from "../listofdates/providers.mjs";
 
 const sourceBlocks = [
   {
@@ -51,7 +51,7 @@ test("List of Dates entries hydrate valid model rows and apply safety normalizat
       event_type: "notice",
       legal_relevance: "This event is relevant because it proves breach of agreement",
       issue_tags: ["Payment Default", "payment-default", "Client Loss", "x", "y", "z", "a", "b", "c"],
-      perspective: LAWYER_FACING_PERSPECTIVE,
+      perspective: CASE_TIMELINE_PERSPECTIVE,
       citation: "FILE-0001 p1.b1",
       needs_review: true,
       confidence: 2,
@@ -63,7 +63,7 @@ test("List of Dates entries hydrate valid model rows and apply safety normalizat
       event_type: "notice",
       legal_relevance: "Supports fraud allegation",
       issue_tags: ["fraud"],
-      perspective: LAWYER_FACING_PERSPECTIVE,
+      perspective: CASE_TIMELINE_PERSPECTIVE,
       citation: "FILE-0001 p1.b1",
       confidence: 0.7,
     },

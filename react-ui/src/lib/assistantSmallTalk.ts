@@ -6,7 +6,7 @@ export function localAssistantReply(input: string, hasActiveMatter: boolean): st
   if (!GREETING_PATTERN.test(text)) return null;
 
   if (hasActiveMatter) {
-    return 'Hi. Ask me a specific question about this matter, or run a workflow like Source Labels, List of Dates, or Prepare Matter.';
+    return 'Hi. Ask me a specific question about this matter, or run a workflow like Source Labels, Case Timeline, or Prepare Matter.';
   }
 
   return 'Hi. Pick a matter first, or use New Matter, Find a Matter, or Prepare Matter.';

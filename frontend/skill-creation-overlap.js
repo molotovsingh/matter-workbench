@@ -62,7 +62,7 @@ export function renderSkillCreationOverlapGateHtml({
       <form class="ai-command-override-form" data-skill-overlap-form hidden>
         <label>
           <span>Why should this be a separate custom skill?</span>
-          <textarea data-skill-overlap-justification spellcheck="true" placeholder="Example: This produces a workshop issue review, not the Library List of Dates document.">${escapeHtml(overrideJustification || "")}</textarea>
+          <textarea data-skill-overlap-justification spellcheck="true" placeholder="Example: This produces a workshop issue review, not the Library Case Timeline document.">${escapeHtml(overrideJustification || "")}</textarea>
         </label>
         <div class="command-interview-actions">
           <button type="submit">Re-check and create skill</button>

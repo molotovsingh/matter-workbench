@@ -94,7 +94,7 @@ function summarizeJsonArtifact(relativePath, json, info, limits = {}, warnings =
     const entries = Array.isArray(json.entries) ? json.entries : [];
     const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
     const suppressedCount = entries.length - activeEntries.length;
-    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} List of Dates entr${suppressedCount === 1 ? "y" : "ies"} from active context`);
+    if (suppressedCount > 0) warnings.push(`Suppressed ${suppressedCount} Case Timeline entr${suppressedCount === 1 ? "y" : "ies"} from active context`);
     const maxEntries = Number.isInteger(limits.maxChronologyEntries) ? limits.maxChronologyEntries : 120;
     const includedEntries = activeEntries.slice(0, maxEntries);
     return {

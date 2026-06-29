@@ -1,6 +1,6 @@
 import {
+  CASE_TIMELINE_PERSPECTIVE,
   EVENT_TYPES,
-  LAWYER_FACING_PERSPECTIVE,
 } from "./providers.mjs";
 import { sourceLabelFields } from "./source-records.mjs";
 
@@ -28,7 +28,7 @@ export function validateAndHydrateEntries(rawEntries, blocks, sourceIndex = new 
     const issueTags = normalizeIssueTags(raw.issue_tags);
     const perspective = String(raw.perspective || "").replace(/\s+/g, " ").trim();
     if (!event || !dateText || !eventType || !legalRelevance || !issueTags.length) continue;
-    if (perspective !== LAWYER_FACING_PERSPECTIVE) continue;
+    if (perspective !== CASE_TIMELINE_PERSPECTIVE) continue;
     if (isNonMeritsChronologyEntry({ event, legalRelevance, eventType, issueTags })) continue;
     entries.push({
       date_iso: raw.date_iso,

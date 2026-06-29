@@ -390,7 +390,7 @@ test("mothership report links nearby same-matter signals to feedback triage", ()
   assert.equal(feedback.action_lane, "fix_now");
   assert.equal(feedback.relatedSignals.length, 1);
   assert.equal(feedback.relatedSignals[0].id, "signal_nearby_source_labels_failed");
-  assert.match(feedback.reason, /extraction\/source-label\/List of Dates/i);
+  assert.match(feedback.reason, /extraction\/source-label\/Case Timeline/i);
   assert.match(renderMothershipReportMarkdown(report), /Related signals: 1/);
 });
 
@@ -460,7 +460,7 @@ test("mothership report adds a bounded what-happened packet with nearby job stat
       classification: "bug",
       received_at: "2026-06-13T10:00:00.000Z",
       payload: {
-        tryingToDo: "Create List of Dates",
+        tryingToDo: "Build Case Timeline",
         happenedInstead: "It was blocked.",
         context: { activeMatterName: "Pipeline Matter" },
       },

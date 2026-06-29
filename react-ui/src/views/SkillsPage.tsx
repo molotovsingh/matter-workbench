@@ -725,7 +725,7 @@ function builtinWorkflowTitle(skill: Skill): string {
   if (slash === '/describe_sources') return 'Create document index';
   if (slash === '/context_preview') return 'See assistant context';
   if (slash === '/context_search') return 'Find in matter';
-  if (slash === '/create_listofdates') return 'Create List of Dates';
+  if (slash === '/create_listofdates') return 'Build Case Timeline';
   if (slash === '/the_story') return 'Draft Matter Story';
   if (slash === '/doctor') return 'Check readiness';
   return skill.display?.action || skill.title;

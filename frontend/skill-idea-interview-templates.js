@@ -3,7 +3,7 @@ const DEFAULT_SOURCE_CITATION_RULE = "Every material point must cite source labe
 export const ADJACENT_SKILL_PATTERNS = [
   {
     slash: "/create_listofdates",
-    title: "Create List of Dates",
+    title: "Build Case Timeline",
     patterns: [/list\s+of\s+dates/i, /chronolog/i, /timeline/i],
     targetLane: "10_Library",
     outputArtifact: "10_Library/List of Dates.md",
@@ -142,7 +142,7 @@ export const DOMAIN_INTERVIEW_TEMPLATES = [
     designBrief: {
       intendedUser: "Lawyer reviewing client-side case risk",
       problem: "Identify weaknesses, risks, adverse facts, evidentiary gaps, contradictions, credibility concerns, and likely opponent arguments from the client's perspective.",
-      expectedInputs: "Whole matter context, extracted records, Source Index, List of Dates, pleadings, notices, correspondence, orders, receipts, and other source-backed records.",
+      expectedInputs: "Whole matter context, extracted records, Source Index, Case Timeline, pleadings, notices, correspondence, orders, receipts, and other source-backed records.",
       expectedOutputArtifact: "20_Workshop/Weakness Review.md",
       targetLane: "20_Workshop",
       paidPosture: "unknown",

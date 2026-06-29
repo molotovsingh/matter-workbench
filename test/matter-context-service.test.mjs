@@ -330,7 +330,7 @@ test("matter context packet excludes tombstoned sources from registers, descript
   assert.equal(packet.library_artifacts.some((artifact) => artifact.kind === "list_of_dates_markdown"), false);
   assert.doesNotMatch(JSON.stringify(packet.library_artifacts), /Removed note|removed evidence|Removed chronology|Removed stale excerpt/i);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
-  assert.match(packet.warnings.join("\n"), /Suppressed 1 List of Dates entry from active context/);
+  assert.match(packet.warnings.join("\n"), /Suppressed 1 Case Timeline entry from active context/);
   assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
 });
 

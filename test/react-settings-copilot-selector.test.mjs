@@ -37,7 +37,7 @@ test("React Settings exposes Matter Copilot as a task-scoped model selector", as
   assert.doesNotMatch(models, /provider-branded model labels/);
   assert.match(source, /copilotProvider/);
   assert.match(source, /copilotModel/);
-  assert.match(source, /Skills and List of Dates keep their governed routes/);
+  assert.match(source, /Skills and Case Timeline keep their governed routes/);
 });
 
 test("tester-facing Copilot strength is hidden from non-operators", async () => {

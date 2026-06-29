@@ -33,7 +33,7 @@ test("React command panel suggestions expose all built-in workflow labels", asyn
     "Source Labels / Document Index",
     "Preview matter context",
     "Find in matter",
-    "Create List of Dates",
+    "Build Case Timeline",
     "Check matter health",
   ]) {
     const labelIndex = source.indexOf(`label: '${label}'`);

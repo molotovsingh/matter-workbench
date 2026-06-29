@@ -18,9 +18,9 @@ export async function buildChronologyAttentionItems({ root, status } = {}) {
       severity: "blocker",
       category: "chronology",
       code: "listofdates_json_unreadable",
-      title: "List of Dates.json is unreadable",
+      title: "Case Timeline JSON is unreadable",
       detail: listJson.error,
-      action: "Repair or regenerate List of Dates before using chronology-dependent skills.",
+      action: "Repair or regenerate the Case Timeline before using chronology-dependent skills.",
       evidence: [evidence(LIST_OF_DATES_JSON_RELATIVE)],
     });
   }
@@ -30,9 +30,9 @@ export async function buildChronologyAttentionItems({ root, status } = {}) {
       severity: "warning",
       category: "chronology",
       code: "listofdates_json_missing",
-      title: "List of Dates markdown exists without JSON metadata",
+      title: "Case Timeline markdown exists without JSON metadata",
       detail: "The lawyer-facing markdown exists, but the machine-readable chronology state is missing.",
-      action: "Regenerate List of Dates or recover the JSON sidecar before downstream drafting.",
+      action: "Regenerate the Case Timeline or recover the JSON sidecar before downstream drafting.",
       evidence: [evidence(LIST_OF_DATES_MARKDOWN_RELATIVE), evidence(LIST_OF_DATES_JSON_RELATIVE)],
     });
   }
@@ -41,9 +41,9 @@ export async function buildChronologyAttentionItems({ root, status } = {}) {
       severity: "warning",
       category: "chronology",
       code: "listofdates_markdown_missing",
-      title: "List of Dates JSON exists without markdown",
+      title: "Case Timeline JSON exists without markdown",
       detail: "The machine-readable chronology exists, but the lawyer-facing markdown is missing.",
-      action: "Refresh labels/rendering or regenerate List of Dates.",
+      action: "Refresh labels/rendering or regenerate the Case Timeline.",
       evidence: [evidence(LIST_OF_DATES_JSON_RELATIVE), evidence(LIST_OF_DATES_MARKDOWN_RELATIVE)],
     });
   }
@@ -52,15 +52,15 @@ export async function buildChronologyAttentionItems({ root, status } = {}) {
       severity: "warning",
       category: "chronology",
       code: "listofdates_missing",
-      title: "List of Dates has not been generated",
+      title: "Case Timeline has not been generated",
       detail: "Source Labels exist, but the hero chronology artifact is missing.",
-      action: "Run Create List of Dates when the source labels are acceptable.",
+      action: "Run Build Case Timeline when the source labels are acceptable.",
       evidence: [evidence(LIST_OF_DATES_MARKDOWN_RELATIVE)],
     });
   }
 
   items.push(...buildRerunAdviceAttentionItems("chronology", listAdvice, {
-    staleTitle: "List of Dates dependency state needs attention",
+    staleTitle: "Case Timeline dependency state needs attention",
     staleAction: "Use the dependency state to choose label refresh, review, or regeneration.",
   }));
   return items;

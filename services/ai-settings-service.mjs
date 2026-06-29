@@ -49,7 +49,7 @@ const AI_TASK_STATUS = [
   {
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
     label: "/create_listofdates",
-    surface: "List of Dates chronology",
+    surface: "Case Timeline chronology",
     modelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",
   },
   {

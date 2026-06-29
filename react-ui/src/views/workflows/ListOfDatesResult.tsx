@@ -26,7 +26,7 @@ export default function ListOfDatesResult() {
     const matterName = state.activeMatter.name;
     setConfirming(false);
     setRunning(true); setError(''); setDone(false);
-    appendTerminal(['[list-of-dates] creating List of Dates…']);
+    appendTerminal(['[list-of-dates] building Case Timeline…']);
     try {
       const result = await api.runCreateListOfDates({ matterName });
       if (activeMatterNameRef.current !== matterName) return;
@@ -35,7 +35,7 @@ export default function ListOfDatesResult() {
       appendTerminal([`[list-of-dates] ${result.entries?.length ?? 0} entries created`]);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
-        failurePrefix: '[workspace] refresh failed after List of Dates update',
+        failurePrefix: '[workspace] refresh failed after Case Timeline update',
       });
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
@@ -60,7 +60,7 @@ export default function ListOfDatesResult() {
       appendTerminal([`[list-of-dates] refreshed labels for ${result.entries?.length ?? 0} entries`]);
       await refreshActiveMatterWorkspace({
         expectedMatterName: matterName,
-        failurePrefix: '[workspace] refresh failed after List of Dates update',
+        failurePrefix: '[workspace] refresh failed after Case Timeline update',
       });
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
@@ -79,7 +79,7 @@ export default function ListOfDatesResult() {
           <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             Library workflow
           </div>
-          <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Create List of Dates</h1>
+          <h1 style={{ fontFamily: 'var(--display-font)', fontSize: 28, fontWeight: 600, margin: '0 0 5px' }}>Build Case Timeline</h1>
           <p className="document-path">{state.activeMatter?.name}</p>
         </div>
         <div className="document-actions">
@@ -95,10 +95,10 @@ export default function ListOfDatesResult() {
         <div style={{ marginTop: 20 }}>
           <RerunConfirmDialog
             skill="/create_listofdates"
-            title={`Review List of Dates before regenerating — ${state.activeMatter?.name}`}
+            title={`Review Case Timeline before regenerating — ${state.activeMatter?.name}`}
             matterName={state.activeMatter?.name}
-            confirmLabel="Regenerate List of Dates"
-            cancelLabel="Keep current List of Dates"
+            confirmLabel="Regenerate Case Timeline"
+            cancelLabel="Keep current Case Timeline"
             extraActions={(advice) => advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED
               ? [{ id: 'refresh-labels', label: 'Refresh labels only' }]
               : []}

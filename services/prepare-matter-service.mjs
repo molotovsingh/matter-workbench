@@ -5,7 +5,7 @@ import { missingMetadataLabels, PREPARE_STAGE_DEFINITIONS, warningsForPlan } fro
 
 const PREPARE_SCHEMA_VERSION = "prepare-matter-plan/v1";
 
-export function createPrepareMatterService({ matterStore, matterStatusService, matterStoryService = null } = {}) {
+export function createPrepareMatterService({ matterStore, matterStatusService, matterStoryService = null, proceduralPostureDiagnosisService = null } = {}) {
   if (!matterStore) throw new Error("matterStore is required");
   if (!matterStatusService) throw new Error("matterStatusService is required");
 
@@ -30,7 +30,11 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
       ? await matterStoryService.readDisputeStoryStatus(root)
       : null;
     const disputeStory = buildDisputeStoryStage(storyStatus, listOfDates);
-    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory].filter(Boolean);
+    const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
+      ? await proceduralPostureDiagnosisService.readDiagnosisStatus(root)
+      : null;
+    const proceduralPostureDiagnosis = buildProceduralPostureDiagnosisStage(postureStatus, disputeStory);
+    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory, proceduralPostureDiagnosis].filter(Boolean);
     const nextStage = firstActionableStage(runnableStages);
 
     return {
@@ -47,6 +51,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
       downstream: {
         listOfDates,
         ...(disputeStory ? { disputeStory } : {}),
+        ...(proceduralPostureDiagnosis ? { proceduralPostureDiagnosis } : {}),
       },
       nextStep: nextStage
         ? nextStepSummary(nextStage)
@@ -57,7 +62,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
           stage: "",
           slash: "",
         },
-      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory }),
+      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory, proceduralPostureDiagnosis }),
     };
   }
 
@@ -95,7 +100,7 @@ function noActiveMatterPlan() {
       listOfDates: {
         id: "create-listofdates",
         slash: "/create_listofdates",
-        label: "Create List of Dates",
+        label: "Build Case Timeline",
         state: "not_selected",
         action: PREPARATION_STAGE_ACTIONS.BLOCKED,
         reason: "Pick or create a matter first.",
@@ -231,7 +236,7 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
       ...base,
       state: "current",
       action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
-      reason: "List of Dates already exists and appears current.",
+      reason: "Case Timeline already exists and appears current.",
     };
   }
   if (sourceLabelsStage.state !== "current") {
@@ -239,7 +244,7 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Label sources before creating the List of Dates.",
+      reason: "Label sources before building the Case Timeline.",
     };
   }
   if (adviceState === "missing_upstream") {
@@ -278,7 +283,7 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Create the List of Dates before writing the dispute story.",
+      reason: "Build the Case Timeline before writing the dispute story.",
     };
   }
   if (storyStatus.storyStale) {
@@ -286,7 +291,7 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
       ...base,
       state: "stale",
       action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-      reason: "The List of Dates changed after The Story was written. Refresh the Matter Workbench story.",
+      reason: "The Case Timeline changed after The Story was written. Refresh the Matter Workbench story.",
     };
   }
   if (storyStatus.storyMarkdownPresent && !storyStatus.briefDescriptionManagedByMatterWorkbench) {
@@ -310,7 +315,56 @@ function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
     ...base,
     state: "missing",
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-    reason: "The dispute story is missing and uses AI after the List of Dates is ready.",
+    reason: "The dispute story is missing and uses AI after the Case Timeline is ready.",
+  };
+}
+
+function buildProceduralPostureDiagnosisStage(postureStatus, disputeStoryStage) {
+  if (!postureStatus) return null;
+  const base = {
+    ...stageBase("/procedural_posture_diagnosis", null),
+    artifacts: postureStatus.markdownPresent ? [postureStatus.artifactPath || "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md"] : [],
+    postureStatus,
+  };
+  if (!disputeStoryStage || disputeStoryStage.state !== "current") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: "Write the Matter Story before diagnosing filing and procedural posture.",
+    };
+  }
+  if (postureStatus.state === "blocked") {
+    return {
+      ...base,
+      state: "blocked",
+      action: PREPARATION_STAGE_ACTIONS.BLOCKED,
+      reason: postureStatus.blockedReasons?.join(" ") || "Case Timeline and Matter Story are required first.",
+    };
+  }
+  if (postureStatus.state === "stale" || postureStatus.state === "needs_reconfirmation") {
+    return {
+      ...base,
+      state: "stale",
+      action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+      reason: "Case Timeline or Matter Story changed after the procedural posture diagnosis. Refresh the diagnosis before downstream drafting.",
+    };
+  }
+  if (postureStatus.markdownPresent || postureStatus.jsonPresent) {
+    return {
+      ...base,
+      state: postureStatus.state === "current_confirmed" || postureStatus.state === "current_corrected" ? "current" : "current_unconfirmed",
+      action: PREPARATION_STAGE_ACTIONS.SKIP_CURRENT,
+      reason: postureStatus.state === "current_confirmed" || postureStatus.state === "current_corrected"
+        ? "Procedural posture diagnosis is current and lawyer confirmation has been recorded."
+        : "Procedural posture diagnosis is current but still needs lawyer confirmation.",
+    };
+  }
+  return {
+    ...base,
+    state: "missing",
+    action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+    reason: "Filing and procedural posture diagnosis is missing and uses AI after Case Timeline and Matter Story are ready.",
   };
 }
 
@@ -371,7 +425,7 @@ function sourceLabelReason(state) {
 }
 
 function listOfDatesReason(state) {
-  if (state === "stale") return "Newer source material may affect the List of Dates; regeneration needs a paid AI confirmation.";
-  if (state === "failed") return "Existing List of Dates metadata could not be read; regeneration needs confirmation.";
-  return "List of Dates is missing and requires a paid AI confirmation before running.";
+  if (state === "stale") return "Newer source material may affect the Case Timeline; regeneration needs a paid AI confirmation.";
+  if (state === "failed") return "Existing Case Timeline metadata could not be read; regeneration needs confirmation.";
+  return "Case Timeline is missing and requires a paid AI confirmation before running.";
 }

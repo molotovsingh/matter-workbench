@@ -8,7 +8,7 @@ import { createOpenRouterProviderError } from "../shared/openrouter-response.mjs
 import { DEFAULT_RESPONSES_ENDPOINT } from "../shared/responses-client.mjs";
 import { createAiProviderService } from "../services/ai-provider-service.mjs";
 
-export const LAWYER_FACING_PERSPECTIVE = "client_favourable";
+export const CASE_TIMELINE_PERSPECTIVE = "record_neutral";
 export const EVENT_TYPES = [
   "agreement",
   "payment",
@@ -30,13 +30,13 @@ export const EVENT_TYPES = [
 
 export const LIST_OF_DATES_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are a careful Indian legal chronology assistant.",
-  "Create a lawyer-facing, client-favourable, source-backed list of dates from extracted document blocks.",
+  "Create a record-neutral, source-backed Case Timeline from extracted document blocks.",
   "Use only the supplied source blocks and the declared client recorded in the matter metadata.",
   "Extract legally or factually relevant dated events.",
   "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
   "Every entry must cite exactly one supplied citation in the form FILE-NNNN pX.bY.",
   "Every legal_relevance sentence must be supported by the same cited block as the event.",
-  "Write legal_relevance with sharp lawyer verbs: supports, rebuts, corroborates, contradicts, records, shows notice, or preserves objection.",
+  "Write legal_relevance with sharp neutral lawyer verbs: records, corroborates, shows notice, preserves an objection, flags an inconsistency, contextualizes, or supports review of a claim/defence issue.",
   "Avoid generic phrases such as this event is relevant, this payment is relevant, crucial, or foundational.",
   "Use claimed, denied, alleged, states, records, objected, failed, missed, demanded, or acknowledged for disputed facts.",
   "Frame opposing-party responses as demands, denials, acknowledgements, or notices; do not praise willingness to resolve or accommodate.",
@@ -68,14 +68,14 @@ export const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt(
 
 export const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "You are a careful Indian legal chronology editor.",
-  "Convert a verbose candidate ledger into a lawyer-facing, client-perspective List of Dates.",
+  "Convert a verbose candidate ledger into a record-neutral, lawyer-reviewable Case Timeline.",
   "Use only the supplied candidate ledger and matter metadata.",
   "Merge duplicate or near-duplicate candidates into one final row while preserving useful supporting citations through the canonical citation field.",
   "Drop pure precedent, statute, or case-law dates unless they are part of this matter's own procedural history.",
   "Keep ownership, authority, limitation, collateral-proceeding, appeal-delay, and enforceability dates when they materially explain the matter.",
   "Use readable source labels for reasoning, but every final row must cite one raw FILE-NNNN pX.bY citation from the candidate ledger.",
   "Do not invent dates, facts, parties, citations, advocacy, or legal conclusions.",
-  "Write legal_relevance as one source-supported sentence explaining why the event matters to the declared client's case.",
+  "Write legal_relevance as one source-supported sentence explaining why the event matters to the matter chronology, procedural posture, claim, defence, limitation, quantum, or evidence review.",
   "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
   "Return one compact JSON object only, matching the requested schema.",
 ], {
@@ -209,7 +209,7 @@ export function createOpenRouterProvider({
           requireParameters,
           allowFallbacks,
           omitTemperature: true,
-          extraHeaders: { "x-title": "Matter Workbench List of Dates" },
+          extraHeaders: { "x-title": "Matter Workbench Case Timeline" },
           mapProviderError: createOpenRouterProviderError,
         },
         label: "OpenRouter list-of-dates",
@@ -261,7 +261,7 @@ function stripUnsupportedJsonSchemaKeywords(value) {
 
 function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
   return {
-    task: "Create list of dates from this chunk of extraction records.",
+    task: "Create Case Timeline entries from this chunk of extraction records.",
     matter,
     chunk_index: chunkIndex,
     chunk_count: chunkCount,
@@ -269,12 +269,12 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
       "Include exact calendar dates only when the source gives day, month, and year.",
       "Normalize dates to YYYY-MM-DD.",
       "Write event text as a concise lawyer-reviewable fact from the cited block.",
-      `Write perspective exactly as ${LAWYER_FACING_PERSPECTIVE}.`,
+      `Write perspective exactly as ${CASE_TIMELINE_PERSPECTIVE}.`,
       "Classify event_type using one allowed event type.",
-      "Write legal_relevance as one source-supported sentence explaining why this event matters to the declared client's case.",
-      "Prefer precise legal relevance forms: Supports that the client performed payment obligations; Rebuts any suggestion that the client was in default; Corroborates delay despite payment; Shows the opposing party had notice before responding; Preserves the client's objection.",
+      "Write legal_relevance as one source-supported sentence explaining why this event matters to the matter chronology, procedural posture, claim, defence, limitation, quantum, or evidence review.",
+      "Prefer precise neutral relevance forms: Records the payment milestone; Corroborates a stated delay; Shows notice of a demand; Preserves a stated objection; Flags an inconsistency for review; Contextualizes a later filing.",
       "Avoid generic relevance text such as this event is relevant, this payment is relevant, crucial, or foundational.",
-      "Use client-favourable legal framing only when the cited block supports it.",
+      "Do not label a fact as helpful, adverse, or client-favourable in the prose; describe its source-backed procedural or evidentiary significance.",
       "Use issue_tags as short conservative review handles such as payment, delay, possession, notice, deadline, contradiction, admission, denial, objection, evidence_gap, procedure, or damages.",
       "Use claimed, denied, alleged, states, or records for disputed facts; do not present disputed allegations as proven.",
       "Frame opposing-party responses as demands, denials, acknowledgements, or notices; do not characterize them as willingness to resolve or accommodate.",
@@ -300,7 +300,7 @@ function listOfDatesPromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
 
 export function listOfDatesCandidatePromptPayload({ matter, chunk, chunkIndex, chunkCount }) {
   return {
-    task: "Create a verbose candidate ledger for a later List of Dates editor pass.",
+    task: "Create a verbose candidate ledger for a later Case Timeline editor pass.",
     matter,
     chunk_index: chunkIndex,
     chunk_count: chunkCount,
@@ -328,18 +328,23 @@ export function listOfDatesCandidatePromptPayload({ matter, chunk, chunkIndex, c
 
 export function listOfDatesEditorPromptPayload({ matter, candidates }) {
   return {
-    task: "Edit a verbose candidate ledger into the final lawyer-facing List of Dates.",
+    task: "Edit a verbose candidate ledger into the final record-neutral Case Timeline.",
     matter,
     instructions: [
       "Use only these candidates.",
+      "Edit them into a record-neutral Case Timeline, not an advocacy List of Dates.",
+      "Keep legally material turning points: contract/allotment formation, payment performance, possession-delay milestones, interest disputes, registration/stamp-duty demands, tax/maintenance demands, client objections, and live procedural events.",
+      "Preserve difficult or inconvenient facts when material, including demands, denials, alleged defaults, tax/maintenance claims, and procedural setbacks; frame them neutrally.",
       "Merge duplicate and near-duplicate candidates into one final row.",
-      "Preserve material collateral dates when they explain ownership, authority, limitation, parallel litigation, appeal delay, or enforceability.",
-      "Drop pure precedent or statute dates unless they describe this matter's own procedural history.",
-      "Use the final event and legal_relevance fields to write a client-perspective chronology supported by the cited candidate.",
-      `Write perspective exactly as ${LAWYER_FACING_PERSPECTIVE}.`,
+      "Drop weak OCR fragments, pure metadata, low-value repeated receipts, and pure precedent/statute dates unless they describe this matter's own procedural history or materially affect claim, defence, limitation, quantum, or evidence review.",
+      "Write event as a concise neutral fact from the cited candidate; do not tilt the event wording toward either side.",
+      "Write legal_relevance as one concise source-supported sentence, preferably 18-35 words, explaining matter/procedural/evidentiary significance without final legal conclusions.",
+      "Do not start legal_relevance with: This is, This event, This payment, This notice, This communication, or This date.",
+      "Start legal_relevance with a concrete lawyer verb or phrase such as Records, Corroborates, Shows notice of, Preserves, Contradicts, Flags, Grounds, Contextualizes, Supports review of, or Helps assess.",
+      `Write perspective exactly as ${CASE_TIMELINE_PERSPECTIVE}.`,
       "Use one raw FILE-NNNN pX.bY citation from the candidate ledger for each final row.",
       "Do not repeat raw citations inside event or legal_relevance text.",
-      "Use needs_review=true when OCR noise, uncertainty, or candidate conflict remains.",
+      "Use needs_review=true when OCR noise, date uncertainty, month-only precision, or candidate conflict remains.",
     ],
     allowed_event_types: EVENT_TYPES,
     candidates: candidates.map((candidate) => ({

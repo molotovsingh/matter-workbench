@@ -29,7 +29,7 @@ function lawyerFields(overrides = {}) {
     event_type: "other",
     legal_relevance: "Supports the client's chronology because the cited source records the event.",
     issue_tags: ["chronology"],
-    perspective: "client_favourable",
+    perspective: "record_neutral",
     ...overrides,
   };
 }
@@ -261,6 +261,7 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/extract", "present"],
       ["/describe_sources", "present"],
       ["/create_listofdates", "present"],
+      ["/procedural_posture_diagnosis", "not_run"],
     ]);
     const prepareMatter = await getJson(baseUrl, "/api/prepare-matter");
     assert.equal(prepareMatter.schema_version, "prepare-matter-plan/v1");
@@ -270,6 +271,7 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/describe_sources", "skip_current"],
       ["/create_listofdates", "skip_current"],
       ["/the_story", "confirm_paid_run"],
+      ["/procedural_posture_diagnosis", "blocked"],
     ]);
     assert.equal(prepareMatter.nextStep.state, "missing");
     assert.equal(prepareMatter.nextStep.slash, "/the_story");
