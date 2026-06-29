@@ -187,6 +187,31 @@ test("mothership investigate bundles large-file feedback with nearby evidence", 
   assert.match(markdown, /health National Insurance Co\. Ltd/);
 });
 
+test("mothership investigate does not attach unrelated signals or health to text-only misses", () => {
+  const report = buildMothershipInvestigation(fixtureDataset(), {
+    now: NOW,
+    preset: "all",
+    text: "manish",
+    sinceHours: 72,
+  });
+
+  assert.equal(report.counts.feedbackMatched, 0);
+  assert.equal(report.counts.signalsMatched, 0);
+  assert.deepEqual(report.latestMatterHealth, []);
+});
+
+test("mothership investigate does not attach generic signal matches to user-only misses", () => {
+  const report = buildMothershipInvestigation(fixtureDataset(), {
+    now: NOW,
+    user: "manish raghav",
+    sinceHours: 72,
+  });
+
+  assert.equal(report.counts.feedbackMatched, 0);
+  assert.equal(report.counts.signalsMatched, 0);
+  assert.deepEqual(report.latestMatterHealth, []);
+});
+
 test("mothership investigate runner uses one report query", async () => {
   const calls = [];
   const output = [];

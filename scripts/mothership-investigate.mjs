@@ -317,8 +317,11 @@ function matchesInvestigation(searchText, { query, terms }) {
 function matchesSignal(signal, { query, terms, matterHints }) {
   const haystack = normalizeLookup(signal.searchText);
   if (query.matter && !haystack.includes(normalizeLookup(query.matter))) return false;
-  if (query.preset === "all" || terms.some((term) => haystack.includes(normalizeLookup(term)))) return true;
-  return matterHints.some((hint) => hint && haystack.includes(hint));
+  if (query.text) return haystack.includes(normalizeLookup(query.text));
+  if (query.user && !matterHints.length) return false;
+  if (matterHints.some((hint) => hint && haystack.includes(hint))) return true;
+  if (query.preset === "all") return !query.user;
+  return terms.some((term) => haystack.includes(normalizeLookup(term)));
 }
 
 function nearbySignals(signals, feedback, windowMinutes) {
@@ -342,6 +345,7 @@ function nearbyHeartbeats(heartbeats, feedback, windowMinutes, matterHints = [])
 }
 
 function latestMatchingMatterHealth(heartbeats = [], matterHints = []) {
+  if (!matterHints.length) return { capturedAt: "", matterHealth: [] };
   for (const heartbeat of heartbeats) {
     const matterHealth = summarizeMatterHealth(heartbeat.payload?.matterHealth, matterHints);
     if (matterHealth.length) return { capturedAt: heartbeat.capturedAt, matterHealth };
