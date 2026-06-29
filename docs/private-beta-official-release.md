@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.83`](releases/v1.0.0-beta.83.md)
+Release: [`v1.0.0-beta.84`](releases/v1.0.0-beta.84.md)
 
-Codename: **Error Firewall**
+Codename: **Boundary Gauge**
 
 Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.83` is the official private beta release checkpoint.
+`v1.0.0-beta.84` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -45,7 +45,8 @@ The release is acceptable for supervised private beta because:
 - beta.80 adds provisional Filing and Procedural Posture Diagnosis after Matter Story with lawyer confirmation/correction/not-sure controls;
 - beta.82 restores Assistant readiness as a visible degraded-readiness signal while keeping provider/account details out of Ask answers;
 - beta.83 centralizes user-facing AI error sanitization so provider/account failures stay out of API responses and command activity;
-- service check, UI hardening, local tests, typecheck, build, and smoke all passed.
+- beta.84 adds the AI error-boundary leak probe to the private VM service check;
+- service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
 
@@ -78,18 +79,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.83
-codename: Error Firewall
-deployed_commit: 2b6f2a3
+release: v1.0.0-beta.84
+codename: Boundary Gauge
+deployed_commit: b2cb308
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 91817d5 / v1.0.0-beta.82
+rollback_candidate: 2b6f2a3 / v1.0.0-beta.83
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T03-27-57-089Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T03-40-43-594Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
