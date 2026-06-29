@@ -68,8 +68,9 @@ test("research API returns stable disabled and provider configuration errors", a
       matterName: "Missing Matter",
     });
     assert.equal(missingProvider.response.status, 409);
-    assert.equal(missingProvider.payload.code, "copilot_research.provider_not_configured");
-    assert.match(missingProvider.payload.error, /Research is temporarily unavailable/);
+    assert.equal(missingProvider.payload.code, "assistant.unavailable");
+    assert.match(missingProvider.payload.error, /Assistant is temporarily unavailable/);
+    assert.doesNotMatch(JSON.stringify(missingProvider.payload), /provider|openrouter|openai|model|quota|billing/i);
   }, { env: { COPILOT_WEB_RESEARCH_ENABLED: "1" } });
 });
 

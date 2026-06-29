@@ -132,5 +132,7 @@ test("React App routes copilot failures through the terminal-safe formatter", as
   const appSource = await readFile(new URL("../react-ui/src/App.tsx", import.meta.url), "utf8");
 
   assert.match(appSource, /formatMatterCopilotTerminalError/);
+  assert.match(appSource, /selectedMatterNameRef/);
+  assert.match(appSource, /getUserFacingErrorMessage\(e\)/);
   assert.doesNotMatch(appSource, /\[copilot\] failed: \$\{message\}/);
 });

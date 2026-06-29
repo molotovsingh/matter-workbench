@@ -1,4 +1,4 @@
-import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage } from '../../../shared/user-facing-ai-language-policy.js';
+import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage, isAssistantAvailabilityError } from '../../../shared/user-facing-ai-language-policy.js';
 import { redactSensitiveText } from './secretRedaction';
 import type { MatterCopilotAnswer, MatterCopilotResearchAnswer } from '../types';
 
@@ -125,10 +125,6 @@ export function formatMatterCopilotResearchError(message: string): string {
 
 export function formatMatterCopilotTerminalError(message: string): string {
   return `[assistant] failed: ${formatMatterCopilotError(message).replace(/\s+/g, ' ').trim()}`;
-}
-
-function isAssistantAvailabilityError(value: string): boolean {
-  return /\buser not found\b|\bauth(?:entication|orization)? failed\b|\bunauthori[sz]ed\b|\bforbidden\b|\bpermission denied\b|\baccess denied\b|\binvalid credentials\b/i.test(value);
 }
 
 function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {

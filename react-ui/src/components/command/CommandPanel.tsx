@@ -14,7 +14,7 @@ import {
   shouldAutoStartConfigurableSkillImprovement,
   shouldStartSkillIdeaSessionFromIntent,
 } from '../../lib/skillIntentRouting';
-import { getErrorMessage } from '../../lib/errors';
+import { getUserFacingErrorMessage } from '../../lib/errors';
 import { DEFAULT_COMMAND_COPY_TEXT } from '../../lib/commandPanelCopy';
 import { shouldSuggestResearchForAsk } from '../../lib/copilotResearchIntent';
 import { humanizeArtifactPath } from '../../lib/presentationLabels';
@@ -306,7 +306,7 @@ export default function CommandPanel({
         }
         await api.logCommandInteraction({ command: cmd, matterName: matterName ?? undefined });
       } catch (error) {
-        const message = getErrorMessage(error);
+        const message = getUserFacingErrorMessage(error);
         setResumedSkillIdea(null);
         setSkillIdeaInput(cmd);
         appendTerminal([`[skill-idea] intent check unavailable; starting interview: ${message}`]);

@@ -164,6 +164,7 @@ test("React command panel checks backend intent before opening Skill Factory for
 
   assert.match(source, /parseSkillIdeaText\(cmd\)/);
   assert.match(source, /api\.checkIntent\(\{ userRequest: cmd, matterName: matterName \?\? undefined \}\)/);
+  assert.match(source, /getUserFacingErrorMessage\(error\)/);
   assert.match(source, /shouldStartSkillIdeaSessionFromIntent\(decision\)/);
   assert.match(source, /formatIntentDiscoveryGuidance\(decision\)/);
   assert.match(source, /shouldAutoStartConfigurableSkillImprovement\(decision, cmd\)/);
@@ -175,6 +176,7 @@ test("React command panel checks backend intent before opening Skill Factory for
   assert.match(source, /onCommand\(matchedSkill\)/);
   assert.match(source, /buildPendingIntentSkill\(choiceLabels\.secondary\)/);
   assert.match(source, /commandForMode\(commandMode, cmd\)/);
+  assert.doesNotMatch(source, /intent check unavailable; starting interview: \$\{getErrorMessage\(error\)\}/);
   assert.doesNotMatch(source, /if \(ideaParsed !== null\) \{\s*setSkillIdeaInput\(cmd\);/);
 });
 

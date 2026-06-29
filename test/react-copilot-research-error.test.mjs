@@ -25,7 +25,7 @@ test("research errors use Research-specific recovery copy", async () => {
 async function importAnswerHelpers() {
   let source = await readFile(answerPath, "utf8");
   source = source
-    .replace(/import[^\n]+user-facing-ai-language-policy\.js';\n/, `const USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE = "Assistant is temporarily unavailable. You can continue using the workspace.";\nconst containsUserFacingRestrictedAiLanguage = (value) => /openai|openrouter|gpt|llm|api[\\s_-]*key|provider|model|quota|billing|credits?|insufficient[\\s_-]*funds/i.test(String(value || ""));\n`)
+    .replace(/import[^\n]+user-facing-ai-language-policy\.js';\n/, `const USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE = "Assistant is temporarily unavailable. You can continue using the workspace.";\nconst containsUserFacingRestrictedAiLanguage = (value) => /openai|openrouter|gpt|llm|api[\\s_-]*key|provider|model|quota|billing|credits?|insufficient[\\s_-]*funds/i.test(String(value || ""));\nconst isAssistantAvailabilityError = (value) => /user not found|auth|unauthorized|forbidden|permission denied|access denied|invalid credentials/i.test(String(value || "")) || containsUserFacingRestrictedAiLanguage(value);\n`)
     .replace(/import[^\n]+secretRedaction';\n/, "const redactSensitiveText = (value) => String(value || '');\n")
     .replace(/import type[^\n]+;\n/, "");
   const compiled = ts.transpileModule(source, {

@@ -7,6 +7,7 @@ import ts from "typescript";
 
 const errorsPath = new URL("../react-ui/src/lib/errors.ts", import.meta.url);
 const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
+const userFacingAiPolicyPath = new URL("../shared/user-facing-ai-language-policy.js", import.meta.url);
 const workspaceTreePath = new URL("../react-ui/src/components/workspace/WorkspaceTree.tsx", import.meta.url);
 
 test("React error formatter keeps diagnostic codes opt-in", async () => {
@@ -55,6 +56,7 @@ test("Workspace file preview exposes diagnostic codes only in the operator error
 
 async function importReactErrors() {
   const secretRedactionUrl = await transpiledDataUrl(reactSecretRedactionPath);
+  const userFacingAiPolicyUrl = await transpiledDataUrl(userFacingAiPolicyPath);
   const source = await readFile(errorsPath, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -62,7 +64,9 @@ async function importReactErrors() {
       target: ts.ScriptTarget.ES2022,
       importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
     },
-  }).outputText.replace("from './secretRedaction';", `from '${secretRedactionUrl}';`);
+  }).outputText
+    .replace("from './secretRedaction';", `from '${secretRedactionUrl}';`)
+    .replace("from '../../../shared/user-facing-ai-language-policy.js';", `from '${userFacingAiPolicyUrl}';`);
   const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-react-errors-"));
   const modulePath = path.join(dir, "errors.mjs");
   await writeFile(modulePath, compiled);

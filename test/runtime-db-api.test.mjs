@@ -2621,7 +2621,9 @@ test("runtime DB sample output provider failures are recorded as job telemetry",
     });
     const payload = await response.json();
     assert.equal(response.status, 502);
-    assert.equal(payload.code, "provider.quota_exceeded");
+    assert.equal(payload.code, "assistant.unavailable");
+    assert.match(payload.error, /Assistant is temporarily unavailable/);
+    assert.doesNotMatch(JSON.stringify(payload), /provider|quota|billing|openrouter|openai/i);
 
     const jobs = await getJson(server.baseUrl, "/api/jobs?kind=skill_sample_output&status=failed&limit=5");
     assert.equal(jobs.jobs.length, 1);

@@ -1,3 +1,4 @@
+import { userFacingAiErrorMessage } from '../../../shared/user-facing-ai-language-policy.js';
 import { redactSensitiveText } from './secretRedaction';
 
 interface ErrorMessageOptions {
@@ -10,6 +11,11 @@ export function getErrorMessage(error: unknown, options: ErrorMessageOptions = {
   const code = diagnosticErrorCode(error);
   if (!code || message.includes(code)) return message;
   return redactSensitiveText(`${message} (code: ${code})`);
+}
+
+export function getUserFacingErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error);
+  return userFacingAiErrorMessage(message, diagnosticErrorCode(error)) || message;
 }
 
 function baseErrorMessage(error: unknown): string {

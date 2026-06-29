@@ -64,6 +64,10 @@ import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./route
 import { serveStatic } from "./routes/static-routes.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
+import {
+  userFacingAiErrorCode,
+  userFacingAiErrorMessage,
+} from "./shared/user-facing-ai-language-policy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -459,9 +463,11 @@ export async function createWorkbenchServer(options = {}) {
       });
     } catch (error) {
       const statusCode = error.statusCode || 500;
+      const rawMessage = error.statusCode ? error.message : "Internal server error";
+      const rawCode = safeErrorCode(error.code) || "";
       sendJson(response, statusCode, {
-        error: error.statusCode ? error.message : "Internal server error",
-        code: safeErrorCode(error.code) || "",
+        error: userFacingAiErrorMessage(rawMessage, rawCode) || rawMessage,
+        code: safeErrorCode(userFacingAiErrorCode(rawMessage, rawCode)) || "",
         stack: env.NODE_ENV === "development" ? error.stack : undefined,
       });
     } finally {

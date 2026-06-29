@@ -7,7 +7,7 @@ import CommandPanel from './components/command/CommandPanel';
 import PrivateBetaReadinessGate from './components/auth/PrivateBetaReadinessGate';
 import { api, setAuthRequiredHandler } from './api/client';
 import { writeClipboardText } from './lib/clipboard';
-import { getErrorMessage } from './lib/errors';
+import { getErrorMessage, getUserFacingErrorMessage } from './lib/errors';
 import {
   appendCopilotThreadTurn as appendThreadTurn,
   boundedConversationForRequest,
@@ -57,6 +57,7 @@ function AppShell() {
   const [copilotThread, setCopilotThread] = useState<CopilotThreadTurn[]>([]);
   const [pendingConfigurableOverwrite, setPendingConfigurableOverwrite] = useState<PendingConfigurableOverwrite | null>(null);
   const activeMatterNameRef = useLatestValue(state.activeMatter?.name ?? null);
+  const selectedMatterNameRef = useLatestValue(state.activeMatter?.name ?? state.resumeMatterName ?? null);
   const preparationRunSeqRef = useRef(0);
   const { readinessGate, resetReadinessGate } = useUserReadinessGate({
     authenticated: Boolean(authStatus?.authenticated),
@@ -205,7 +206,7 @@ function AppShell() {
     appendTerminal(['[assistant] answering from current matter record']);
     try {
       const answer = await api.answerMatterQuestion({ question: cleanQuestion, matterName, conversation });
-      if (activeMatterNameRef.current !== matterName) return;
+      if (selectedMatterNameRef.current !== matterName) return;
       const formattedAnswer = formatMatterCopilotAnswer(answer);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Answered from the current matter record. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'ask', text: formattedAnswer });
@@ -218,7 +219,7 @@ function AppShell() {
           : []),
       ]);
     } catch (e) {
-      if (activeMatterNameRef.current !== matterName) return;
+      if (selectedMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       const formattedError = formatMatterCopilotError(message);
       appendTerminal([formatMatterCopilotTerminalError(message)]);
@@ -227,7 +228,7 @@ function AppShell() {
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, state.resumeMatterName, copilotThread, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, copilotThread, selectedMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
 
   const researchMatterQuestion = useCallback(async (
     question: string,
@@ -249,7 +250,7 @@ function AppShell() {
     appendTerminal(['[research] searching public legal sources', '[research] preparing answer']);
     try {
       const answer = await api.researchMatterQuestion({ question: cleanQuestion, matterName });
-      if (activeMatterNameRef.current !== matterName) return;
+      if (selectedMatterNameRef.current !== matterName) return;
       const formattedAnswer = formatMatterCopilotResearchAnswer(answer);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Research answer ready. See the conversation below.' });
       appendCopilotThreadTurn({ role: 'assistant', mode: 'research', text: formattedAnswer });
@@ -267,7 +268,7 @@ function AppShell() {
           : []),
       ]);
     } catch (e) {
-      if (activeMatterNameRef.current !== matterName) return;
+      if (selectedMatterNameRef.current !== matterName) return;
       const message = getErrorMessage(e);
       const formattedError = formatMatterCopilotResearchError(message);
       reportResearchFailure({ matterName, error: e });
@@ -277,7 +278,7 @@ function AppShell() {
     } finally {
       if (manageRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
+  }, [state.activeMatter?.name, state.resumeMatterName, selectedMatterNameRef, dispatch, appendTerminal, appendCopilotThreadTurn, canSeeOperatorDetails]);
 
   const openMatterFinder = useCallback(async () => {
     if (state.activeMatter) {
@@ -606,7 +607,7 @@ function AppShell() {
       }
     } catch (e) {
       if (activeMatterNameRef.current !== matterName) return;
-      const message = getErrorMessage(e);
+      const message = getUserFacingErrorMessage(e);
       appendTerminal([`[cmd] check failed for "${cmd}": ${message}`]);
       dispatch({ type: 'SET_COMMAND_COPY', payload: 'Could not check that command. Try again, or use a listed action.' });
     } finally {
