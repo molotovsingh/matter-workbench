@@ -152,6 +152,76 @@ test("private VM service check captures sanitized user readiness", async () => {
   assert.match(rendered, /user_readiness_language_leak: no/);
 });
 
+test("private VM service check probes AI error boundary when Assistant readiness is degraded", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    calls.push(parsed.pathname);
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/user-readiness") {
+      return jsonResponse({
+        schema_version: "user-readiness/v1",
+        status: "degraded",
+        checks: [
+          { id: "secure_session", status: "ready", message: "Signed in securely." },
+          { id: "assistant_readiness", status: "attention", message: "Assistant is temporarily unavailable. You can continue using the workspace." },
+        ],
+      });
+    }
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
+    if (parsed.pathname === "/api/switch-matter") return jsonResponse({ tree: { children: [{ kind: "file", path: "note.txt", previewable: true, previewKind: "text" }] } });
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "note" });
+    if (parsed.pathname === "/api/skills/check-intent") {
+      assert.equal(init?.method, "POST");
+      assert.equal(JSON.parse(init.body).matterName, "Atlas");
+      return jsonResponse({
+        error: "Assistant is temporarily unavailable. You can continue using the workspace.",
+        code: "assistant.unavailable",
+      }, 502);
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+  const rendered = renderPrivateVmServiceCheck(report).join("\n");
+
+  assert.equal(report.passed, true);
+  assert.equal(report.aiErrorBoundarySkipped, false);
+  assert.equal(report.aiErrorBoundaryAvailable, true);
+  assert.equal(report.aiErrorBoundaryStatusCode, 502);
+  assert.equal(report.aiErrorBoundaryCode, "assistant.unavailable");
+  assert.equal(report.aiErrorBoundaryLanguageLeak, false);
+  assert.equal(calls.includes("/api/skills/check-intent"), true);
+  assert.match(rendered, /ai_error_boundary_probe: yes/);
+  assert.match(rendered, /ai_error_boundary_language_leak: no/);
+});
+
+test("private VM service check fails when AI error boundary leaks restricted language", async () => {
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === "/") return htmlResponse("<div>Matter Workbench</div>");
+    if (parsed.pathname === "/api/user-readiness") {
+      return jsonResponse({
+        schema_version: "user-readiness/v1",
+        status: "degraded",
+        checks: [{ id: "assistant_readiness", status: "attention", message: "Assistant is temporarily unavailable. You can continue using the workspace." }],
+      });
+    }
+    if (parsed.pathname === "/api/matters") return jsonResponse({ enabled: true, mattersHome: null, matters: [{ name: "Atlas" }] });
+    if (parsed.pathname === "/api/switch-matter") return jsonResponse({ tree: { children: [{ kind: "file", path: "note.txt", previewable: true, previewKind: "text" }] } });
+    if (parsed.pathname === "/api/file") return jsonResponse({ content: "note" });
+    if (parsed.pathname === "/api/skills/check-intent") return jsonResponse({ error: "User not found.", code: "provider.error" }, 502);
+    throw new Error(`Unexpected URL: ${url}`);
+  };
+
+  const report = await runPrivateVmServiceCheck({ baseUrl: "http://vm:4191", fetchImpl });
+
+  assert.equal(report.passed, false);
+  assert.equal(report.aiErrorBoundaryLanguageLeak, true);
+  assert.match(report.warning, /AI error boundary probe exposed restricted technical language/);
+  assert.match(renderPrivateVmServiceCheck(report).join("\n"), /ai_error_boundary_language_leak: yes/);
+});
+
 test("private VM service check fails on user readiness technical language leaks", async () => {
   const fetchImpl = async (url, init = {}) => {
     const parsed = new URL(String(url));

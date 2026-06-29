@@ -174,7 +174,8 @@ export async function runPrivateVmServiceCheck({
     });
   }
   const content = typeof preview.content === "string" ? preview.content : "";
-  const passed = Boolean(rootText.length && matters.length && targetName && content.length && (!readiness.available || readiness.ok));
+  const aiErrorBoundary = await probeAiErrorBoundary(authSession.fetch, baseUrl, targetName, readiness);
+  const passed = Boolean(rootText.length && matters.length && targetName && content.length && (!readiness.available || readiness.ok) && aiErrorBoundary.ok);
   const restoreWarning = await restoreActiveMatterBestEffort(authSession.fetch, baseUrl, previousActiveMatter, targetName);
 
   return {
@@ -192,7 +193,8 @@ export async function runPrivateVmServiceCheck({
     filePreviewReadable: Boolean(content.length),
     previewBytes: content.length,
     ...readinessReportFields(readiness),
-    warning: joinWarnings(restoreWarning, readinessWarning),
+    ...aiErrorBoundaryReportFields(aiErrorBoundary),
+    warning: joinWarnings(restoreWarning, readinessWarning, aiErrorBoundaryWarningFor(aiErrorBoundary)),
     error: passed ? "" : "Private VM service check failed.",
   };
 }
@@ -219,8 +221,13 @@ export function renderPrivateVmServiceCheck(report = {}) {
     `user_readiness_checks: ${report.userReadinessChecks || 0}`,
     `user_readiness_assistant: ${report.userReadinessAssistant || ""}`,
     `user_readiness_language_leak: ${report.userReadinessLanguageLeak ? "yes" : "no"}`,
+    `ai_error_boundary_probe: ${report.aiErrorBoundarySkipped ? "skipped" : report.aiErrorBoundaryAvailable ? "yes" : "no"}`,
+    `ai_error_boundary_status: ${report.aiErrorBoundaryStatusCode || ""}`,
+    `ai_error_boundary_code: ${report.aiErrorBoundaryCode || ""}`,
+    `ai_error_boundary_language_leak: ${report.aiErrorBoundaryLanguageLeak ? "yes" : "no"}`,
   ];
   if (report.userReadinessError) lines.push(`user_readiness_error: ${report.userReadinessError}`);
+  if (report.aiErrorBoundaryError) lines.push(`ai_error_boundary_error: ${report.aiErrorBoundaryError}`);
   if (report.availableMatterNames?.length) lines.push(`available_matter_names: ${report.availableMatterNames.join("; ")}`);
   if (report.warning) lines.push(`warning: ${report.warning}`);
   if (report.error) lines.push(`error: ${report.error}`);
@@ -292,6 +299,64 @@ function readinessWarningFor(readiness = {}) {
   return "";
 }
 
+async function probeAiErrorBoundary(fetchImpl, baseUrl, matterName = "", readiness = {}) {
+  if (!shouldProbeAiErrorBoundary(readiness)) {
+    return { skipped: true, available: false, ok: true, statusCode: 0, code: "", languageLeak: false, error: "" };
+  }
+  try {
+    const { response, payload } = await postJsonPayload(fetchImpl, `${baseUrl}/api/skills/check-intent`, {
+      matterName,
+      userRequest: "What is this matter about?",
+    });
+    const serialized = JSON.stringify(payload || {});
+    const languageLeak = containsUserFacingRestrictedAiLanguage(payload) || /user not found/i.test(serialized);
+    return {
+      skipped: false,
+      available: true,
+      ok: !languageLeak,
+      statusCode: response.status,
+      code: typeof payload?.code === "string" ? payload.code : "",
+      languageLeak,
+      error: "",
+    };
+  } catch (error) {
+    return {
+      skipped: false,
+      available: false,
+      ok: false,
+      statusCode: 0,
+      code: "",
+      languageLeak: false,
+      error: redactServiceCheckLine(error.message || "AI error boundary probe failed"),
+    };
+  }
+}
+
+function shouldProbeAiErrorBoundary(readiness = {}) {
+  if (!readiness.available) return false;
+  if (readiness.languageLeak) return false;
+  return /attention|unavailable|temporarily/i.test(readiness.assistant || "") || readiness.status === "degraded";
+}
+
+function aiErrorBoundaryReportFields(probe = {}) {
+  return {
+    aiErrorBoundarySkipped: Boolean(probe.skipped),
+    aiErrorBoundaryAvailable: Boolean(probe.available),
+    aiErrorBoundaryOk: Boolean(probe.ok),
+    aiErrorBoundaryStatusCode: probe.statusCode || 0,
+    aiErrorBoundaryCode: probe.code || "",
+    aiErrorBoundaryLanguageLeak: Boolean(probe.languageLeak),
+    aiErrorBoundaryError: probe.error || "",
+  };
+}
+
+function aiErrorBoundaryWarningFor(probe = {}) {
+  if (probe.skipped) return "";
+  if (probe.languageLeak) return "AI error boundary probe exposed restricted technical language.";
+  if (!probe.ok) return "AI error boundary probe did not pass.";
+  return "";
+}
+
 async function getJson(fetchImpl, url) {
   const response = await fetchImpl(url);
   const payload = await response.json();
@@ -346,14 +411,19 @@ function firstCookie(setCookieHeader = "") {
 }
 
 async function postJson(fetchImpl, url, body = {}) {
+  const { response, payload } = await postJsonPayload(fetchImpl, url, body);
+  if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
+  return payload;
+}
+
+async function postJsonPayload(fetchImpl, url, body = {}) {
   const response = await fetchImpl(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = await response.json();
-  if (!response.ok) throw new Error(`${url}: ${payload.error || response.status}`);
-  return payload;
+  return { response, payload };
 }
 
 async function restoreActiveMatterBestEffort(fetchImpl, baseUrl, previousActiveMatter, targetName) {
