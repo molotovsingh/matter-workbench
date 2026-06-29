@@ -96,3 +96,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.89](releases/v1.0.0-beta.89.md) | **Boring Queries** | Release note present. |
 | [v1.0.0-beta.90](releases/v1.0.0-beta.90.md) | **Quiet Query** | Release note present. |
 | [v1.0.0-beta.91](releases/v1.0.0-beta.91.md) | **Focus Lens** | Release note present. |
+| [v1.0.0-beta.92](releases/v1.0.0-beta.92.md) | **Signal Ladder** | Release note present. |

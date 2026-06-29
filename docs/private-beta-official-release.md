@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.91`](releases/v1.0.0-beta.91.md)
+Release: [`v1.0.0-beta.92`](releases/v1.0.0-beta.92.md)
 
-Codename: **Focus Lens**
+Codename: **Signal Ladder**
 
 Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.91` is the official private beta release checkpoint.
+`v1.0.0-beta.92` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -53,6 +53,7 @@ The release is acceptable for supervised private beta because:
 - beta.89 adds a canned read-only mothership investigation command for repeatable complaint checks;
 - beta.90 narrows that helper so text/user misses do not include unrelated evidence;
 - beta.91 treats user as focus context while matter/text/preset/time define the evidence scope;
+- beta.92 adds stage-one candidate signal collection and stage-two signal/feedback/matter focusing;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -86,18 +87,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.91
-codename: Focus Lens
-deployed_commit: 8344c04
+release: v1.0.0-beta.92
+codename: Signal Ladder
+deployed_commit: a253f29
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: b970114 / v1.0.0-beta.90
+rollback_candidate: 8344c04 / v1.0.0-beta.91
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T14-28-22-529Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T15-27-56-350Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
