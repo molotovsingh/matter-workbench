@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.79`,
-codename **Column Compass**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.80`,
+codename **Timeline Lantern**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -122,6 +122,10 @@ Completed release checks include:
 - runtime DB workspace/payload reads filter derived extraction/text payloads linked to inactive sources;
 - artifact currentness schema/projection foundation exists for future source-removal workflows;
 - non-routed source-removal mutation foundations, privilege-safe Matter Log rendering, a read-only impact preview endpoint, and non-destructive matter archive/reopen lifecycle exist, without source-delete/purge UI exposure;
+- Case Timeline presentation for the neutral chronology while preserving internal List of Dates command/artifact stability;
+- automatic provisional Filing and Procedural Posture Diagnosis after Case Timeline and Matter Story;
+- lawyer confirmation/correction/not-sure controls for posture diagnosis;
+- assistant-only readiness degradation suppressed from the global top banner;
 - private-cloud deployment to the beta VM;
 - runtime DB migration through `023_matter_archive_metadata`;
 - login smoke;
@@ -135,7 +139,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.79 release marker](docs/releases/v1.0.0-beta.79.md)
+- [v1.0.0-beta.80 release marker](docs/releases/v1.0.0-beta.80.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)

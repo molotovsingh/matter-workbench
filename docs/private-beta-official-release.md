@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.79`](releases/v1.0.0-beta.79.md)
+Release: [`v1.0.0-beta.80`](releases/v1.0.0-beta.80.md)
 
-Codename: **Column Compass**
+Codename: **Timeline Lantern**
 
-Date: 2026-06-28
+Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.79` is the official private beta release checkpoint.
+`v1.0.0-beta.80` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -40,8 +40,11 @@ The release is acceptable for supervised private beta because:
 - matter archive/reopen is non-destructive;
 - source removal is non-destructive and uses **Remove from active record** language;
 - release nickname and What’s new messaging are visible to testers;
-- beta.79 widens the left navigation rail without changing legal, custody, auth, upload, database, or model behavior;
-- service check, UI hardening, ops pack, local tests, typecheck, and build all passed.
+- beta.79 widened the left navigation rail without changing legal, custody, auth, upload, database, or model behavior;
+- beta.80 presents the neutral chronology as Case Timeline while preserving internal List of Dates routes and artifact paths;
+- beta.80 adds provisional Filing and Procedural Posture Diagnosis after Matter Story with lawyer confirmation/correction/not-sure controls;
+- beta.80 suppresses the global top readiness banner when Matter Assistant availability is the only degraded readiness check;
+- service check, UI hardening, ops pack, local tests, typecheck, build, and smoke all passed.
 
 ## Fixed Or Closed Tester Feedback
 
@@ -74,19 +77,19 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.79
-codename: Column Compass
-deployed_commit: 09be1e5
-release_doc_commit: 807234c
+release: v1.0.0-beta.80
+codename: Timeline Lantern
+deployed_commit: 2218fb9
+release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 53157e5 / v1.0.0-beta.78
+rollback_candidate: 09be1e5 / v1.0.0-beta.79
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-28T13-19-12-892Z/ui-hardening-report.md
-/home/aks/matter-workbench-backups/ops-packs/private-vm-ops-pack-2026-06-28T13-19-42-448Z/ops-pack.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T02-27-46-257Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ops-packs/private-vm-ops-pack-2026-06-29T02-28-33-240Z/ops-pack.md
 ```
 
 ## Operator Rule
