@@ -234,15 +234,20 @@ read-only investigation bundle instead of hand-assembling SQL:
 
 ```bash
 npm run mothership:investigate -- \
-  --user shivangi \
+  --focus-user shivangi \
   --matter "National Insurance" \
   --since-hours 72
 ```
 
+`--user` is kept as a short alias for `--focus-user`: it highlights that
+reporter's feedback but does not filter evidence. Use matter, text, preset, and
+time-window options to define the evidence scope. Only use `--reported-by` when
+you deliberately want a strict reporter filter.
+
 The investigation bundle reads the same mothership store once and reports the
-matching feedback, nearby signals, nearby heartbeat journeys, latest matter
-health, and open-feedback counts. Use `--format json` when another tool should
-consume the result.
+matching feedback, focus-user feedback counts, nearby signals, nearby heartbeat
+journeys, latest matter health, and open-feedback counts. Use `--format json`
+when another tool should consume the result.
 
 The same report also carries deployment/backend metrics:
 

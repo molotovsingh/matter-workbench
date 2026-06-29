@@ -31,7 +31,8 @@ const LARGE_FILE_TERMS = Object.freeze([
 export function parseMothershipInvestigateArgs(argv = []) {
   const parsed = {
     preset: "large-files",
-    user: "",
+    focusUser: "",
+    reportedBy: "",
     matter: "",
     text: "",
     sinceHours: DEFAULT_SINCE_HOURS,
@@ -53,7 +54,8 @@ export function parseMothershipInvestigateArgs(argv = []) {
     if (!value || value.startsWith("--")) throw new Error(`Missing value for --${key}`);
     index += 1;
     if (key === "preset") parsed.preset = normalizePreset(value);
-    else if (key === "user") parsed.user = cleanText(value, 160);
+    else if (key === "user" || key === "focus-user") parsed.focusUser = cleanText(value, 160);
+    else if (key === "reported-by") parsed.reportedBy = cleanText(value, 160);
     else if (key === "matter") parsed.matter = cleanText(value, 300);
     else if (key === "text" || key === "keyword" || key === "keywords") parsed.text = cleanText(value, 400);
     else if (key === "since-hours") parsed.sinceHours = positiveInteger(value, DEFAULT_SINCE_HOURS);
@@ -103,7 +105,8 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
   const limit = positiveInteger(options.limit, DEFAULT_LIMIT);
   const query = {
     preset: normalizePreset(options.preset || "large-files"),
-    user: cleanText(options.user || "", 160),
+    focusUser: cleanText(options.focusUser || options.user || "", 160),
+    reportedBy: cleanText(options.reportedBy || "", 160),
     matter: cleanText(options.matter || "", 300),
     text: cleanText(options.text || "", 400),
     sinceHours,
@@ -113,29 +116,39 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
   const terms = investigationTerms(query);
   const feedback = rowsSince(dataset.feedback, cutoff)
     .map(normalizeFeedbackRow)
-    .filter((item) => matchesInvestigation(item.searchText, { query, terms }))
+    .filter((item) => matchesInvestigation(item, { query, terms }))
     .slice(0, limit);
-  const matterHints = Array.from(new Set([
+  const feedbackWithFocus = feedback.map((item) => ({
+    ...item,
+    focusUserMatch: matchesFocusUser(item, query.focusUser),
+  }));
+  const initialMatterHints = Array.from(new Set([
     query.matter,
-    ...feedback.map((item) => item.matter),
+    ...feedbackWithFocus.map((item) => item.matter),
   ].map(normalizeLookup).filter(Boolean)));
 
   const heartbeats = rowsSince(dataset.heartbeats, cutoff).map(normalizeHeartbeatRow);
   const signals = rowsSince(dataset.signals, cutoff)
     .map(normalizeSignalRow)
-    .filter((item) => matchesSignal(item, { query, terms, matterHints }))
+    .filter((item) => matchesSignal(item, { query, terms, matterHints: initialMatterHints }))
     .slice(0, Math.max(limit * 2, limit));
+  const matterHints = Array.from(new Set([
+    ...initialMatterHints,
+    ...signals.map((item) => item.matter),
+  ].map(normalizeLookup).filter(Boolean)));
   const latestHeartbeat = heartbeats[0] || null;
   const latestMatterHealthSnapshot = latestMatchingMatterHealth(heartbeats, matterHints);
   const latestMatterHealth = latestMatterHealthSnapshot.matterHealth;
 
-  const feedbackWithEvidence = feedback.map((item) => ({
+  const feedbackWithEvidence = feedbackWithFocus.map((item) => ({
     ...item,
     relatedSignals: nearbySignals(signals, item, windowMinutes),
     relatedHeartbeats: nearbyHeartbeats(heartbeats, item, windowMinutes, matterHints.length ? matterHints : [normalizeLookup(item.matter)]),
   }));
 
-  const openFeedbackCounts = countOpenFeedback(rowsSince(dataset.feedback, cutoff).map(normalizeFeedbackRow), { query, terms });
+  const allFeedbackRows = rowsSince(dataset.feedback, cutoff).map(normalizeFeedbackRow);
+  const openFeedbackCounts = countOpenFeedback(allFeedbackRows, { query, terms });
+  const focusOpenFeedbackCounts = countOpenFeedback(allFeedbackRows, { query, terms, focusUser: query.focusUser });
 
   return {
     schema_version: SCHEMA_VERSION,
@@ -146,6 +159,8 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
       signalsMatched: signals.length,
       heartbeatsScanned: heartbeats.length,
       openFeedbackMatched: openFeedbackCounts.reduce((sum, row) => sum + row.count, 0),
+      focusFeedbackMatched: feedbackWithEvidence.filter((item) => item.focusUserMatch).length,
+      focusOpenFeedbackMatched: focusOpenFeedbackCounts.reduce((sum, row) => sum + row.count, 0),
     },
     latestHeartbeat: latestHeartbeat ? {
       capturedAt: latestHeartbeat.capturedAt,
@@ -156,6 +171,7 @@ export function buildMothershipInvestigation(dataset = {}, options = {}) {
     latestMatterHealth,
     latestMatterHealthCapturedAt: latestMatterHealthSnapshot.capturedAt,
     openFeedbackCounts,
+    focusOpenFeedbackCounts,
     feedback: feedbackWithEvidence,
     signals,
   };
@@ -167,7 +183,8 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
     "",
     `Generated: ${report.generatedAt || ""}`,
     `Preset: ${report.query?.preset || ""}`,
-    `User: ${report.query?.user || "(any)"}`,
+    `Focus user: ${report.query?.focusUser || "(none)"}`,
+    `Reported-by filter: ${report.query?.reportedBy || "(none)"}`,
     `Matter: ${report.query?.matter || "(any)"}`,
     `Text: ${report.query?.text || "(preset terms)"}`,
     `Window: last ${report.query?.sinceHours || DEFAULT_SINCE_HOURS}h; nearby ±${report.query?.windowMinutes || DEFAULT_WINDOW_MINUTES}m`,
@@ -176,6 +193,8 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
     "",
     `- feedback matched: ${report.counts?.feedbackMatched ?? 0}`,
     `- open feedback matched: ${report.counts?.openFeedbackMatched ?? 0}`,
+    `- focus-user feedback matched: ${report.counts?.focusFeedbackMatched ?? 0}`,
+    `- focus-user open feedback matched: ${report.counts?.focusOpenFeedbackMatched ?? 0}`,
     `- signals matched: ${report.counts?.signalsMatched ?? 0}`,
     `- heartbeats scanned: ${report.counts?.heartbeatsScanned ?? 0}`,
   ];
@@ -196,11 +215,29 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
     lines.push("- No matching matter-health row in the latest heartbeat.");
   }
 
+  if (report.query?.focusUser) {
+    lines.push("", "## Focus User Feedback", "");
+    const focusItems = (report.feedback || []).filter((item) => item.focusUserMatch);
+    if (focusItems.length) {
+      for (const item of focusItems) lines.push(`- ${item.feedbackId}: ${item.status}/${item.classification}; ${item.matter || ""}; ${item.tryingToDo || item.visibleError || ""}`);
+    } else {
+      lines.push("- No matching feedback from the focus user in this evidence scope.");
+    }
+  }
+
   lines.push("", "## Open Feedback Counts", "");
   if (report.openFeedbackCounts?.length) {
     for (const row of report.openFeedbackCounts) lines.push(`- ${row.classification || "unknown"}: ${row.count}`);
   } else {
     lines.push("- No matching open feedback.");
+  }
+  if (report.query?.focusUser) {
+    lines.push("", "Focus user open feedback:");
+    if (report.focusOpenFeedbackCounts?.length) {
+      for (const row of report.focusOpenFeedbackCounts) lines.push(`- ${row.classification || "unknown"}: ${row.count}`);
+    } else {
+      lines.push("- none");
+    }
   }
 
   lines.push("", "## Matched Feedback", "");
@@ -209,7 +246,7 @@ export function renderMothershipInvestigationMarkdown(report = {}) {
       lines.push(`### ${item.feedbackId}`);
       lines.push(`- received: ${item.receivedAt}`);
       lines.push(`- status/classification: ${item.status} / ${item.classification}`);
-      lines.push(`- user: ${item.user || ""}`);
+      lines.push(`- user: ${item.user || ""}${item.focusUserMatch ? " (focus)" : ""}`);
       lines.push(`- matter: ${item.matter || ""}`);
       lines.push(`- tryingToDo: ${item.tryingToDo || ""}`);
       lines.push(`- happenedInstead: ${item.happenedInstead || ""}`);
@@ -305,9 +342,9 @@ function normalizeHeartbeatRow(row = {}) {
   };
 }
 
-function matchesInvestigation(searchText, { query, terms }) {
-  const haystack = normalizeLookup(searchText);
-  if (query.user && !haystack.includes(normalizeLookup(query.user))) return false;
+function matchesInvestigation(item, { query, terms }) {
+  const haystack = normalizeLookup(item?.searchText || item);
+  if (query.reportedBy && !matchesReporter(item, query.reportedBy)) return false;
   if (query.matter && !haystack.includes(normalizeLookup(query.matter))) return false;
   if (query.text && !haystack.includes(normalizeLookup(query.text))) return false;
   if (query.preset === "all" || query.text) return true;
@@ -318,9 +355,9 @@ function matchesSignal(signal, { query, terms, matterHints }) {
   const haystack = normalizeLookup(signal.searchText);
   if (query.matter && !haystack.includes(normalizeLookup(query.matter))) return false;
   if (query.text) return haystack.includes(normalizeLookup(query.text));
-  if (query.user && !matterHints.length) return false;
+  if (query.reportedBy && !matterHints.length) return false;
   if (matterHints.some((hint) => hint && haystack.includes(hint))) return true;
-  if (query.preset === "all") return !query.user;
+  if (query.preset === "all") return !query.reportedBy;
   return terms.some((term) => haystack.includes(normalizeLookup(term)));
 }
 
@@ -403,11 +440,24 @@ function matchesMatterHints(value, matterHints = []) {
   return matterHints.some((hint) => hint && normalized.includes(hint));
 }
 
-function countOpenFeedback(feedback, { query, terms }) {
+function matchesFocusUser(item, focusUser = "") {
+  const needle = normalizeLookup(focusUser);
+  if (!needle) return false;
+  return normalizeLookup(item?.user || "").includes(needle);
+}
+
+function matchesReporter(item, reportedBy = "") {
+  const needle = normalizeLookup(reportedBy);
+  if (!needle) return true;
+  return normalizeLookup(item?.user || "").includes(needle);
+}
+
+function countOpenFeedback(feedback, { query, terms, focusUser = "" }) {
   const counts = new Map();
   for (const item of feedback) {
     if (item.status !== "new") continue;
-    if (!matchesInvestigation(item.searchText, { query, terms })) continue;
+    if (focusUser && !matchesFocusUser(item, focusUser)) continue;
+    if (!matchesInvestigation(item, { query, terms })) continue;
     const key = item.classification || "unknown";
     counts.set(key, (counts.get(key) || 0) + 1);
   }

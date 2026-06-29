@@ -36,6 +36,22 @@ function fixtureDataset() {
         },
       },
       {
+        feedback_id: "feedback_other_reporter_large_files",
+        classification: "bug",
+        status: "new",
+        matter_name: "National Insurance Co. Ltd v M - s Sarkar Fertilizers",
+        occurred_at: new Date("2026-06-29T11:25:11.000Z"),
+        received_at: new Date("2026-06-29T11:25:12.000Z"),
+        payload: {
+          tryingToDo: "Large extraction is slow for this matter",
+          happenedInstead: "Large extraction is slow for this matter",
+          context: {
+            username: "operator@lawzeus.local",
+            visibleError: "Large extraction is slow for this matter",
+          },
+        },
+      },
+      {
         feedback_id: "feedback_archive",
         classification: "bug",
         status: "new",
@@ -150,7 +166,8 @@ test("mothership investigate parses safe bounded options", () => {
     "--format", "json",
   ]), {
     preset: "large-files",
-    user: "shivangi",
+    focusUser: "shivangi",
+    reportedBy: "",
     matter: "National Insurance",
     text: "",
     sinceHours: 48,
@@ -171,9 +188,14 @@ test("mothership investigate bundles large-file feedback with nearby evidence", 
   });
 
   assert.equal(report.schema_version, "mothership-investigation/v1");
-  assert.equal(report.counts.feedbackMatched, 1);
-  assert.equal(report.counts.openFeedbackMatched, 1);
+  assert.equal(report.counts.feedbackMatched, 2);
+  assert.equal(report.counts.openFeedbackMatched, 2);
+  assert.equal(report.counts.focusFeedbackMatched, 1);
+  assert.equal(report.counts.focusOpenFeedbackMatched, 1);
   assert.equal(report.feedback[0].feedbackId, "feedback_large_files");
+  assert.equal(report.feedback[0].focusUserMatch, true);
+  assert.equal(report.feedback[1].feedbackId, "feedback_other_reporter_large_files");
+  assert.equal(report.feedback[1].focusUserMatch, false);
   assert.equal(report.feedback[0].relatedSignals[0].signalId, "signal_extract_failed");
   assert.equal(report.feedback[0].relatedHeartbeats[0].journeys[0].currentStage, "Extract Documents");
   assert.equal(report.latestHeartbeat.capturedAt, "2026-06-29T13:55:00.000Z");
@@ -182,7 +204,9 @@ test("mothership investigate bundles large-file feedback with nearby evidence", 
 
   const markdown = renderMothershipInvestigationMarkdown(report);
   assert.match(markdown, /Mothership Investigation/);
+  assert.match(markdown, /Focus User Feedback/);
   assert.match(markdown, /Reading document still not working/);
+  assert.match(markdown, /Large extraction is slow for this matter/);
   assert.match(markdown, /502 Bad Gateway/);
   assert.match(markdown, /health National Insurance Co\. Ltd/);
 });
@@ -200,16 +224,34 @@ test("mothership investigate does not attach unrelated signals or health to text
   assert.deepEqual(report.latestMatterHealth, []);
 });
 
-test("mothership investigate does not attach generic signal matches to user-only misses", () => {
+test("mothership investigate treats user as focus context instead of evidence filter", () => {
   const report = buildMothershipInvestigation(fixtureDataset(), {
     now: NOW,
     user: "manish raghav",
     sinceHours: 72,
   });
 
-  assert.equal(report.counts.feedbackMatched, 0);
-  assert.equal(report.counts.signalsMatched, 0);
-  assert.deepEqual(report.latestMatterHealth, []);
+  assert.equal(report.query.focusUser, "manish raghav");
+  assert.equal(report.counts.feedbackMatched, 2);
+  assert.equal(report.counts.openFeedbackMatched, 2);
+  assert.equal(report.counts.focusFeedbackMatched, 0);
+  assert.equal(report.counts.focusOpenFeedbackMatched, 0);
+  assert.equal(report.counts.signalsMatched, 1);
+  assert.equal(report.latestMatterHealth[0].matter, "National Insurance Co. Ltd v M - s Sarkar Fertilizers");
+});
+
+test("mothership investigate supports explicit strict reporter filtering", () => {
+  const report = buildMothershipInvestigation(fixtureDataset(), {
+    now: NOW,
+    reportedBy: "shivangi",
+    matter: "National Insurance",
+    sinceHours: 72,
+  });
+
+  assert.equal(report.query.reportedBy, "shivangi");
+  assert.equal(report.counts.feedbackMatched, 1);
+  assert.equal(report.counts.openFeedbackMatched, 1);
+  assert.equal(report.feedback[0].feedbackId, "feedback_large_files");
 });
 
 test("mothership investigate runner uses one report query", async () => {
@@ -232,7 +274,8 @@ test("mothership investigate runner uses one report query", async () => {
   assert.equal(result, 0);
   assert.deepEqual(calls, [{ sinceDays: 3 }]);
   const report = JSON.parse(output.join("\n"));
-  assert.equal(report.counts.feedbackMatched, 1);
+  assert.equal(report.counts.feedbackMatched, 2);
+  assert.equal(report.counts.focusFeedbackMatched, 1);
 });
 
 test("package exposes mothership investigate command", async () => {
