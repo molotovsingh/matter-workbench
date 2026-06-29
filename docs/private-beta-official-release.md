@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.86`](releases/v1.0.0-beta.86.md)
+Release: [`v1.0.0-beta.87`](releases/v1.0.0-beta.87.md)
 
-Codename: **Preset Spine**
+Codename: **Provider Spine**
 
 Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.86` is the official private beta release checkpoint.
+`v1.0.0-beta.87` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -48,6 +48,7 @@ The release is acceptable for supervised private beta because:
 - beta.84 adds the AI error-boundary leak probe to the private VM service check;
 - beta.85 routes the supervised beta runtime through OpenAI direct, including Source Index labels when selected;
 - beta.86 centralizes Copilot strength presets in backend model policy and verifies all Low/Medium/High/Highest settings live;
+- beta.87 routes Copilot settings checks through the shared AI provider service and fixes the async preset UI hardening check;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -81,18 +82,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.86
-codename: Preset Spine
-deployed_commit: d6b9f99
+release: v1.0.0-beta.87
+codename: Provider Spine
+deployed_commit: 0bb6420
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 2abb153 / v1.0.0-beta.85
+rollback_candidate: d6b9f99 / v1.0.0-beta.86
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T04-11-06-989Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T11-22-19-911Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
