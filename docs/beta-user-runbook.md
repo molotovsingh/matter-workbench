@@ -2,11 +2,11 @@
 
 Status: Official private beta release operator guide
 
-This runbook is for a supervised beta operator or developer helping a tester on the official `v1.0.0-beta.88` private beta release. It is not a public support manual and it is not a substitute for release notes.
+This runbook is for a supervised beta operator or developer helping a tester on the official `v1.0.0-beta.89` private beta release. It is not a public support manual and it is not a substitute for release notes.
 
 ## Before a session
 
-1. Use the official release checkpoint: `v1.0.0-beta.88` / **Policy Spine**. Do not add new features during handoff prep.
+1. Use the official release checkpoint: `v1.0.0-beta.89` / **Boring Queries**. Do not add new features during handoff prep.
 2. Install dependencies if needed:
 
    ```sh

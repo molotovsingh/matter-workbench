@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.88`](releases/v1.0.0-beta.88.md)
+Release: [`v1.0.0-beta.89`](releases/v1.0.0-beta.89.md)
 
-Codename: **Policy Spine**
+Codename: **Boring Queries**
 
 Date: 2026-06-29
 
 ## Release Decision
 
-`v1.0.0-beta.88` is the official private beta release checkpoint.
+`v1.0.0-beta.89` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -50,6 +50,7 @@ The release is acceptable for supervised private beta because:
 - beta.86 centralizes Copilot strength presets in backend model policy and verifies all Low/Medium/High/Highest settings live;
 - beta.87 routes Copilot settings checks through the shared AI provider service and fixes the async preset UI hardening check;
 - beta.88 moves Settings-visible AI task status metadata into shared model policy;
+- beta.89 adds a canned read-only mothership investigation command for repeatable complaint checks;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -83,18 +84,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.88
-codename: Policy Spine
-deployed_commit: b363c26
+release: v1.0.0-beta.89
+codename: Boring Queries
+deployed_commit: d82b12a
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 0bb6420 / v1.0.0-beta.87
+rollback_candidate: b363c26 / v1.0.0-beta.88
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T11-31-18-328Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-29T14-17-52-351Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

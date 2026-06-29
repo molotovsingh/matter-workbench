@@ -93,3 +93,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.86](releases/v1.0.0-beta.86.md) | **Preset Spine** | Release note present. |
 | [v1.0.0-beta.87](releases/v1.0.0-beta.87.md) | **Provider Spine** | Release note present. |
 | [v1.0.0-beta.88](releases/v1.0.0-beta.88.md) | **Policy Spine** | Release note present. |
+| [v1.0.0-beta.89](releases/v1.0.0-beta.89.md) | **Boring Queries** | Release note present. |
