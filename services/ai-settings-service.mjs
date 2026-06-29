@@ -3,11 +3,6 @@ import {
   DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
 } from "../shared/ai-defaults.mjs";
-import {
-  classifyProviderErrorCode,
-  extractResponsesOutputText,
-  providerErrorMessageForCode,
-} from "../shared/provider-http.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { upsertLocalEnv } from "../shared/local-env.mjs";
 import {
@@ -17,7 +12,7 @@ import {
   listCopilotModelPresets,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
-import { openRouterTemperatureParams } from "../shared/openrouter-model-params.mjs";
+import { createAiProviderService } from "./ai-provider-service.mjs";
 
 const OPENAI_KEY_PATTERN = /^sk-[A-Za-z0-9_-]+$/;
 const COPILOT_PROVIDER_ENV_KEY = "COPILOT_ANSWER_PROVIDER";
@@ -257,152 +252,56 @@ export function createAiSettingsService({
       throw error;
     }
 
-    if (provider === AI_PROVIDERS.OPENROUTER) {
-      await pingOpenRouterCopilot({ apiKey, model });
-      return;
-    }
-    await pingOpenAiCopilot({ apiKey, model });
-  }
-
-  async function pingOpenAiCopilot({ apiKey, model }) {
-    await fetchCopilotPingJson({
-      provider: "OpenAI",
-      url: endpoint,
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: "Return JSON matching the schema with ok set to true.",
-        max_output_tokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "matter_copilot_model_check",
-            strict: true,
-            schema: COPILOT_MODEL_CHECK_SCHEMA,
-          },
-        },
-      }),
+    const providerService = createAiProviderService({
+      env: candidateEnv,
+      endpoint,
+      openRouterEndpoint,
+      fetchImpl,
     });
-  }
-
-  async function pingOpenRouterCopilot({ apiKey, model }) {
-    await fetchCopilotPingJson({
-      provider: "OpenRouter",
-      url: openRouterEndpoint,
-      headers: {
-        "authorization": `Bearer ${apiKey}`,
-        "content-type": "application/json",
-        "http-referer": "https://github.com/molotovsingh/matter-workbench",
-        "x-title": "Matter Workbench Matter Copilot Settings Check",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "user", content: "Return JSON matching the schema with ok set to true." },
-        ],
-        ...openRouterTemperatureParams(model, 0),
-        max_tokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
-        provider: {
-          require_parameters: true,
-          allow_fallbacks: false,
-        },
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "matter_copilot_model_check",
-            strict: true,
-            schema: COPILOT_MODEL_CHECK_SCHEMA,
-          },
-        },
-      }),
-    });
-  }
-
-  async function fetchCopilotPingJson({ provider, url, headers, body }) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), COPILOT_MODEL_CHECK_TIMEOUT_MS);
-    let response;
-    let payload;
     try {
-      response = await fetchImpl(url, {
-        method: "POST",
-        headers,
-        body,
-        signal: controller.signal,
+      const result = await providerService.invoke({
+        task: AI_TASKS.COPILOT_ANSWER,
+        systemPrompt: "Return JSON only. Confirm the configured provider can answer a trivial Matter Copilot health check.",
+        userPayload: { task: "matter_copilot_model_check", expected: { ok: true } },
+        schema: COPILOT_MODEL_CHECK_SCHEMA,
+        schemaName: "matter_copilot_model_check",
+        responseMode: "json",
+        overrides: {
+          maxOutputTokens: COPILOT_MODEL_CHECK_MAX_TOKENS,
+          timeoutMs: COPILOT_MODEL_CHECK_TIMEOUT_MS,
+          extraHeaders: { "x-title": "Matter Workbench Matter Copilot Settings Check" },
+        },
+        label: "Matter Copilot model check",
       });
-      payload = await response.json().catch((error) => {
-        if (controller.signal.aborted || error?.name === "AbortError") throw error;
-        return null;
-      });
-    } catch (error) {
-      if (controller.signal.aborted || error?.name === "AbortError") {
-        const timeout = new Error(`Matter Copilot model check timed out after ${COPILOT_MODEL_CHECK_TIMEOUT_MS}ms`);
-        timeout.statusCode = 504;
-        throw timeout;
+      if (result.parsed?.ok !== true) {
+        const error = new Error("Matter Copilot model check failed: provider did not return the expected structured response");
+        error.statusCode = 502;
+        throw error;
       }
-      throw redactedAiSettingsError(error, "Matter Copilot model check failed");
-    } finally {
-      clearTimeout(timer);
+    } catch (error) {
+      throw copilotModelCheckError(error);
     }
-    if (!response.ok || payload?.error) {
-      throwCopilotPingError(provider, response, payload);
-    }
-    assertCopilotPingPayload(provider, payload);
-    return payload;
   }
 }
 
-function throwCopilotPingError(provider, response, payload) {
-  const choiceError = Array.isArray(payload?.choices)
-    ? payload.choices.find((choice) => choice?.error)?.error
-    : null;
-  const providerPayload = { error: payload?.error || choiceError };
-  const rawMessage = redactSensitiveText(
-    payload?.error?.message || choiceError?.message || `${provider} returned ${response?.status || "an error"}`,
-  );
-  const code = classifyProviderErrorCode(providerPayload, rawMessage);
-  const message = providerErrorMessageForCode(code, rawMessage);
-  const error = new Error(`Matter Copilot model check failed: ${message}`);
-  error.statusCode = response?.status >= 400 && response.status < 500 ? 502 : 503;
-  error.code = code;
-  throw error;
+function copilotModelCheckError(error) {
+  if (!error?.statusCode && !error?.code) return redactedAiSettingsError(error, "Matter Copilot model check failed");
+  const rawMessage = redactSensitiveText(error?.message || "Matter Copilot model check failed");
+  const message = /^Matter Copilot model check failed:/i.test(rawMessage)
+    ? rawMessage
+    : `Matter Copilot model check failed: ${rawMessage}`;
+  const safe = new Error(message);
+  safe.statusCode = error?.statusCode || 503;
+  if (error?.code) safe.code = error.code;
+  return safe;
 }
 
 function redactedAiSettingsError(error, fallbackMessage) {
   const message = redactSensitiveText(error?.message || fallbackMessage);
   const safe = new Error(message || fallbackMessage);
   safe.statusCode = error?.statusCode || 503;
+  if (error?.code) safe.code = error.code;
   return safe;
-}
-
-function assertCopilotPingPayload(provider, payload) {
-  const choiceError = Array.isArray(payload?.choices)
-    ? payload.choices.find((choice) => choice?.error)?.error
-    : null;
-  if (choiceError) throwCopilotPingError(provider, { status: 200, ok: true }, payload);
-
-  const raw = provider === "OpenAI"
-    ? extractResponsesOutputText(payload)
-    : payload?.choices?.[0]?.message?.content;
-  const parsed = parseCopilotPingContent(raw);
-  if (parsed?.ok !== true) {
-    const error = new Error(`Matter Copilot model check failed: ${provider} did not return the expected structured response`);
-    error.statusCode = 502;
-    throw error;
-  }
-}
-
-function parseCopilotPingContent(raw) {
-  if (raw && typeof raw === "object") return raw;
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 function normalizeGlobalAiSettings(raw) {

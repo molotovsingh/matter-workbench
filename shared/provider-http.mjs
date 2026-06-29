@@ -44,7 +44,7 @@ export async function fetchProviderJsonWithTimeout({
     const code = classifyProviderErrorCode(payload, message);
     throw makeHttpError(
       providerErrorMessageForCode(code, message),
-      response?.status >= 400 && response.status < 500 ? 502 : 503,
+      response?.ok || (response?.status >= 400 && response.status < 500) ? 502 : 503,
       code,
     );
   }
@@ -98,7 +98,7 @@ export function parseOpenRouterJsonMessage(payload, label) {
 }
 
 function formatProviderErrorMessage(response, payload) {
-  const error = payload?.error;
+  const error = payload?.error || firstChoiceError(payload);
   if (typeof error === "string" && error.trim()) return error.trim();
   if (error && typeof error === "object") {
     if (typeof error.message === "string" && error.message.trim()) return error.message.trim();

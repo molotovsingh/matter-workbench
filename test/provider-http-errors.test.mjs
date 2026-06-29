@@ -58,6 +58,33 @@ test("provider HTTP response failures carry a stable app error code", async () =
   );
 });
 
+test("provider HTTP choice errors preserve the provider choice message", async () => {
+  await assert.rejects(
+    () => fetchProviderJsonWithTimeout({
+      endpoint: "https://provider.example/v1",
+      apiKey: "sk-test",
+      body: {},
+      timeoutMs: 0,
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            { error: { message: "structured outputs unavailable for selected provider" } },
+          ],
+        }),
+      }),
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, "provider.error");
+      assert.match(error.message, /structured outputs unavailable/);
+      assert.doesNotMatch(error.message, /Provider returned 200/);
+      return true;
+    },
+  );
+});
+
 test("provider HTTP quota and billing failures carry a specific app error code", async () => {
   await assert.rejects(
     () => fetchProviderJsonWithTimeout({
