@@ -289,6 +289,41 @@ const TASK_POLICIES = Object.freeze({
   }),
 });
 
+const AI_TASK_STATUS_METADATA = Object.freeze([
+  Object.freeze({
+    task: AI_TASKS.SKILL_ROUTER,
+    label: "Skill router",
+    surface: "AI command routing",
+  }),
+  Object.freeze({
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    label: "/describe_sources",
+    surface: "Source Index.json labels",
+  }),
+  Object.freeze({
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    label: "/create_listofdates",
+    surface: "Case Timeline chronology",
+  }),
+  Object.freeze({
+    task: AI_TASKS.COPILOT_ANSWER,
+    label: "Matter Copilot",
+    surface: "Source-backed matter Q&A",
+  }),
+]);
+
+export function listAiTaskStatusMetadata() {
+  return AI_TASK_STATUS_METADATA.map((item) => {
+    const policy = TASK_POLICIES[item.task];
+    if (!policy) throw new Error(`Missing model policy for AI task status metadata: ${item.task}`);
+    return {
+      ...item,
+      modelEnvKey: policy.modelEnvKey || "",
+      openRouterModelEnvKey: policy.openRouterModelEnvKey || policy.modelEnvKey || "",
+    };
+  });
+}
+
 export function resolveModelPolicy(task, { env = process.env } = {}) {
   const base = TASK_POLICIES[task];
   if (!base) {

@@ -43,6 +43,7 @@ import {
   DEFAULT_SOURCE_DESCRIPTION_OPENAI_MODEL,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
   MODEL_POLICY_VERSION,
+  listAiTaskStatusMetadata,
   listModelPolicyTasks,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
@@ -65,6 +66,39 @@ test("model policy lists current AI task names", () => {
     AI_TASKS.CREATE_LISTOFDATES_PASS2,
     AI_TASKS.SOURCE_BACKED_ANALYSIS,
     AI_TASKS.SOURCE_DESCRIPTION,
+  ]);
+});
+
+test("model policy owns AI task status metadata", () => {
+  assert.deepEqual(listAiTaskStatusMetadata(), [
+    {
+      task: AI_TASKS.SKILL_ROUTER,
+      label: "Skill router",
+      surface: "AI command routing",
+      modelEnvKey: "OPENAI_MODEL",
+      openRouterModelEnvKey: "OPENROUTER_SKILL_ROUTER_MODEL",
+    },
+    {
+      task: AI_TASKS.SOURCE_DESCRIPTION,
+      label: "/describe_sources",
+      surface: "Source Index.json labels",
+      modelEnvKey: "OPENAI_SOURCE_DESCRIPTION_MODEL",
+      openRouterModelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
+    },
+    {
+      task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+      label: "/create_listofdates",
+      surface: "Case Timeline chronology",
+      modelEnvKey: "OPENAI_MODEL",
+      openRouterModelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",
+    },
+    {
+      task: AI_TASKS.COPILOT_ANSWER,
+      label: "Matter Copilot",
+      surface: "Source-backed matter Q&A",
+      modelEnvKey: "OPENAI_COPILOT_ANSWER_MODEL",
+      openRouterModelEnvKey: "OPENROUTER_COPILOT_ANSWER_MODEL",
+    },
   ]);
 });
 

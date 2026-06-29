@@ -9,6 +9,7 @@ import {
   AI_PROVIDERS,
   AI_TASKS,
   DEFAULT_OPENROUTER_ENDPOINT,
+  listAiTaskStatusMetadata,
   listCopilotModelPresets,
   resolveModelPolicy,
 } from "../shared/model-policy.mjs";
@@ -28,35 +29,6 @@ const COPILOT_MODEL_CHECK_SCHEMA = Object.freeze({
     ok: { type: "boolean" },
   },
 });
-
-const AI_TASK_STATUS = [
-  {
-    task: AI_TASKS.SKILL_ROUTER,
-    label: "Skill router",
-    surface: "AI command routing",
-    modelEnvKey: "OPENAI_MODEL",
-  },
-  {
-    task: AI_TASKS.SOURCE_DESCRIPTION,
-    label: "/describe_sources",
-    surface: "Source Index.json labels",
-    modelEnvKey: "OPENAI_SOURCE_DESCRIPTION_MODEL",
-    openRouterModelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
-  },
-  {
-    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    label: "/create_listofdates",
-    surface: "Case Timeline chronology",
-    modelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",
-  },
-  {
-    task: AI_TASKS.COPILOT_ANSWER,
-    label: "Matter Copilot",
-    surface: "Source-backed matter Q&A",
-    modelEnvKey: "OPENAI_COPILOT_ANSWER_MODEL",
-    openRouterModelEnvKey: "OPENROUTER_COPILOT_ANSWER_MODEL",
-  },
-];
 
 export function createAiSettingsService({
   appDir,
@@ -184,7 +156,7 @@ export function createAiSettingsService({
   };
 
   function readAiTaskStatuses() {
-    return AI_TASK_STATUS.map((item) => {
+    return listAiTaskStatusMetadata().map((item) => {
       try {
         const policy = resolveModelPolicy(item.task, { env });
         const apiKeyEnvKey = policy.provider === AI_PROVIDERS.OPENROUTER
