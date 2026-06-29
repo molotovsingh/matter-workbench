@@ -714,12 +714,7 @@ function AppShell() {
   }
 
   const isHomeModeClass = !state.activeMatter ? 'home-mode' : '';
-  const workspaceReadinessAttention = readinessGate.checks.find((check) => (
-    check.status === 'attention' && check.id !== 'assistant_readiness'
-  ));
-  const readinessAttentionMessage = workspaceReadinessAttention?.message || (
-    ['error', 'timeout'].includes(readinessGate.phase) ? readinessGate.message : ''
-  );
+  const readinessAttentionMessage = readinessGate.checks.find((check) => check.status === 'attention')?.message || readinessGate.message;
   const readinessBanner = readinessGate.dismissed && ['degraded', 'error', 'timeout'].includes(readinessGate.phase)
     ? readinessAttentionMessage
     : '';

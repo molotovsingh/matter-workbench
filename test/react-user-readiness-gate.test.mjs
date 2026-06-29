@@ -22,7 +22,7 @@ test("React app shows a neutral post-login readiness gate", async () => {
   assert.match(app, /PrivateBetaReadinessGate/);
   assert.match(app, /authStatus\.authenticated && !readinessGate\.dismissed/);
   assert.match(app, /readiness-session-banner/);
-  assert.match(app, /check\.id !== 'assistant_readiness'/);
+  assert.doesNotMatch(app, /check\.id !== 'assistant_readiness'/);
   assert.match(gate, /Preparing your workspace/);
   assert.match(gate, /Checking workspace readiness/);
   assert.doesNotMatch(gate, /Checking \{currentStep\} of \{total\}/);

@@ -1021,9 +1021,6 @@ code { color: var(--code-text); }
 .readiness-check.attention { border-color: var(--provider-warning-border); }
 .readiness-check.attention .readiness-check-dot { background: var(--warning-text); }
 .readiness-check.attention em { color: var(--warning-text); }
-.readiness-check.optional { opacity: 0.86; }
-.readiness-check.optional .readiness-check-dot { background: var(--muted); }
-.readiness-check.optional em { color: var(--muted); }
 .readiness-check.pending { opacity: 0.7; }
 .readiness-session-banner { background: var(--panel); border: 1px solid var(--provider-warning-border); border-radius: 999px; box-shadow: var(--shadow-soft); color: var(--warning-text); font-size: 12px; font-weight: 700; left: 50%; max-width: min(680px, calc(100vw - 32px)); padding: 8px 14px; position: fixed; text-align: center; top: 12px; transform: translateX(-50%); z-index: 40; }
 .beta-whats-new-card { background: var(--panel); border: 1px solid var(--accent-soft); border-radius: 14px; box-shadow: var(--shadow-strong); color: var(--text); display: grid; gap: 12px; max-width: min(440px, calc(100vw - 32px)); padding: 18px; position: fixed; right: 20px; top: 20px; z-index: 45; }

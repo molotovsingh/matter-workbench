@@ -46,7 +46,6 @@ function readinessCheckStatus(
   phase: ReadinessGateState['phase'],
 ): string {
   if (check.status === 'attention') return 'attention';
-  if (check.status === 'optional') return 'optional';
   if (check.status === 'ready') return 'ready';
   if (check.status === 'checking') return 'checking';
   if (['ready', 'degraded', 'error'].includes(phase)) return check.status || 'ready';
@@ -55,7 +54,6 @@ function readinessCheckStatus(
 
 function readinessStatusLabel(status: string): string {
   if (status === 'ready') return 'Ready';
-  if (status === 'optional') return 'Available later';
   if (status === 'attention') return 'Needs attention';
   if (status === 'checking') return 'Checking';
   return 'Waiting';

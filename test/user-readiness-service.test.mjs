@@ -36,7 +36,7 @@ test("user readiness reports sanitized service labels and messages", async () =>
   assert.equal(containsUserFacingRestrictedAiLanguage(report), false);
 });
 
-test("user readiness treats assistant backend failures as optional workspace availability", async () => {
+test("user readiness collapses assistant backend failures to neutral warning copy", async () => {
   const report = await createUserReadinessService({
     aiSettingsService: {
       checkCopilotModel: async () => ({
@@ -57,11 +57,10 @@ test("user readiness treats assistant backend failures as optional workspace ava
     now: () => new Date("2026-06-18T12:00:01.000Z"),
   }).readReadiness();
 
-  assert.equal(report.status, "ready");
-  assert.equal(report.summary.attention, 0);
-  assert.equal(report.summary.optional, 1);
+  assert.equal(report.status, "degraded");
+  assert.equal(report.summary.attention, 1);
   const assistant = report.checks.find((check) => check.id === "assistant_readiness");
-  assert.equal(assistant.status, "optional");
+  assert.equal(assistant.status, "attention");
   assert.equal(assistant.message, USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
   assert.equal(containsUserFacingRestrictedAiLanguage(report), false);
 });

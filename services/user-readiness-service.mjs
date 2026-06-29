@@ -35,8 +35,6 @@ export function createUserReadinessService({
     checks.push(await readAssistantReadinessCheck({ forceRefresh: forceAssistantRefresh, generatedAt }));
 
     const attentionCount = checks.filter((item) => item.status === "attention").length;
-    const optionalCount = checks.filter((item) => item.status === "optional").length;
-    const readyCount = checks.filter((item) => item.status === "ready").length;
     const status = attentionCount ? "degraded" : "ready";
     return {
       schema_version: USER_READINESS_SCHEMA_VERSION,
@@ -44,9 +42,8 @@ export function createUserReadinessService({
       status,
       summary: {
         total: checks.length,
-        ready: readyCount,
+        ready: checks.length - attentionCount,
         attention: attentionCount,
-        optional: optionalCount,
       },
       checks,
       userMessage: attentionCount
@@ -110,12 +107,12 @@ export function createUserReadinessService({
   async function readAssistantReadinessCheck({ forceRefresh, generatedAt }) {
     const check = await readCachedOrLiveAssistantCheck({ forceRefresh, generatedAt });
     if (check?.timedOut) {
-      return optionalCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", "Assistant readiness is taking longer than usual. You can continue using the workspace.");
+      return attentionCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", "Assistant readiness is taking longer than usual. You can continue using the workspace.");
     }
     if (check?.ok) {
       return readyCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", "Assistant is ready.");
     }
-    return optionalCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
+    return attentionCheck(CHECK_IDS.ASSISTANT_READINESS, "Assistant readiness", USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE);
   }
 
   async function readCachedOrLiveAssistantCheck({ forceRefresh, generatedAt }) {
@@ -182,10 +179,6 @@ function readyCheck(id, label, message) {
 
 function attentionCheck(id, label, message) {
   return { id, label, status: "attention", message };
-}
-
-function optionalCheck(id, label, message) {
-  return { id, label, status: "optional", message };
 }
 
 async function withTimeout(promise, timeoutMs) {
