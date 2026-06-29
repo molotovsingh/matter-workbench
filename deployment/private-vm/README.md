@@ -229,6 +229,21 @@ deployed app directory. These commands automatically load the standard VM
 intake surface Codex can use to triage repeated errors, tester bugs, confusing
 UX, and feature ideas against the current repository and runtime evidence.
 
+For a boring, repeatable first pass on a specific complaint, use the canned
+read-only investigation bundle instead of hand-assembling SQL:
+
+```bash
+npm run mothership:investigate -- \
+  --user shivangi \
+  --matter "National Insurance" \
+  --since-hours 72
+```
+
+The investigation bundle reads the same mothership store once and reports the
+matching feedback, nearby signals, nearby heartbeat journeys, latest matter
+health, and open-feedback counts. Use `--format json` when another tool should
+consume the result.
+
 The same report also carries deployment/backend metrics:
 
 - **Backend Suitability** asks whether the current VM is still good enough for

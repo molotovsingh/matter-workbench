@@ -4,6 +4,7 @@
     "mothership:serve": "node scripts/start-mothership-server.mjs",
     "mothership:operator": "node scripts/mothership-operator.mjs",
     "mothership:report": "node scripts/mothership-operator.mjs report",
+    "mothership:investigate": "node scripts/mothership-investigate.mjs",
     "mothership:console-check": "node scripts/mothership-console-check.mjs",
     "console:dev": "vite --config mothership/console/vite.config.ts --host 127.0.0.1",
     "console:typecheck": "tsc -b mothership/console/tsconfig.json",
