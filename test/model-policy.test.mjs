@@ -40,6 +40,7 @@ import {
   DEFAULT_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS,
   DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
   DEFAULT_SOURCE_DESCRIPTION_MODEL,
+  DEFAULT_SOURCE_DESCRIPTION_OPENAI_MODEL,
   DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
   MODEL_POLICY_VERSION,
   listModelPolicyTasks,
@@ -460,6 +461,41 @@ test("source description policy uses OpenRouter env configuration", () => {
       prompt: 0.15,
       completion: 0.60,
     },
+  });
+});
+
+test("source description policy can explicitly use OpenAI direct", () => {
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: {
+      SOURCE_DESCRIPTION_PROVIDER: "openai-direct",
+      OPENAI_SOURCE_DESCRIPTION_MODEL: "gpt-5.4",
+      OPENAI_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "5000",
+      OPENAI_SOURCE_DESCRIPTION_TIMEOUT_MS: "120000",
+    },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    tier: "source_description",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: "gpt-5.4",
+    maxOutputTokens: 5000,
+    timeoutMs: 120000,
+    fallback: "fail_closed",
+  });
+
+  assert.deepEqual(resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, {
+    env: { SOURCE_DESCRIPTION_PROVIDER: "openai-direct" },
+  }), {
+    policyVersion: MODEL_POLICY_VERSION,
+    task: AI_TASKS.SOURCE_DESCRIPTION,
+    tier: "source_description",
+    provider: AI_PROVIDERS.OPENAI_DIRECT,
+    endpoint: DEFAULT_RESPONSES_ENDPOINT,
+    model: DEFAULT_SOURCE_DESCRIPTION_OPENAI_MODEL,
+    maxOutputTokens: DEFAULT_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS,
+    timeoutMs: DEFAULT_SOURCE_DESCRIPTION_TIMEOUT_MS,
+    fallback: "fail_closed",
   });
 });
 

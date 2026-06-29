@@ -99,6 +99,59 @@ export function createOpenRouterSourceDescriptorProvider({
   };
 }
 
+export function createOpenAiSourceDescriptorProvider({
+  apiKey,
+  endpoint,
+  fetchImpl = fetch,
+  maxOutputTokens,
+  model,
+  timeoutMs,
+  providerService = null,
+  env = process.env,
+} = {}) {
+  const service = providerService || createAiProviderService({
+    env: {
+      ...env,
+      SOURCE_DESCRIPTION_PROVIDER: AI_PROVIDERS.OPENAI_DIRECT,
+      OPENAI_API_KEY: apiKey || env.OPENAI_API_KEY || "",
+      OPENAI_SOURCE_DESCRIPTION_MODEL: model || env.OPENAI_SOURCE_DESCRIPTION_MODEL || "",
+    },
+    fetchImpl,
+  });
+  return async function openAiSourceDescriptorProvider({ matter, sources, schema }) {
+    if (!apiKey && !providerService && !env.OPENAI_API_KEY) {
+      const error = new Error("OPENAI_API_KEY is required for source description");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (!model) {
+      const error = new Error("OPENAI_SOURCE_DESCRIPTION_MODEL is required for source description");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const result = await service.invoke({
+      task: AI_TASKS.SOURCE_DESCRIPTION,
+      systemPrompt: SOURCE_DESCRIPTOR_SYSTEM_PROMPT,
+      userPayload: sourceDescriptorUserPayload({ matter, sources }),
+      schema,
+      schemaName: "source_index",
+      responseMode: "json",
+      overrides: {
+        endpoint,
+        model,
+        maxOutputTokens,
+        timeoutMs,
+      },
+      label: "OpenAI source description",
+    });
+    return {
+      ...result.parsed,
+      ai_run: sourceDescriptorResponseAiRun(result.aiRun),
+    };
+  };
+}
+
 export function resolveSourceDescriptorProvider(options) {
   const injectedProvider = options.provider || options.sourceDescriptorProvider;
   if (typeof injectedProvider === "function") {
@@ -112,9 +165,8 @@ export function resolveSourceDescriptorProvider(options) {
   const policy = resolveModelPolicy(AI_TASKS.SOURCE_DESCRIPTION, { env });
   const model = options.model || policy.model;
   if (!model) {
-    throw new Error("sourceDescriptorProvider is required unless OPENROUTER_SOURCE_DESCRIPTION_MODEL is configured.");
+    throw new Error("sourceDescriptorProvider is required unless a source description model is configured.");
   }
-  const fallbackModel = normalizeFallbackModel(options.fallbackModel || env.OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL, model);
   const providerConfig = resolveProviderConfig(policy, {
     endpoint: options.endpoint,
     maxPrice: options.maxPrice,
@@ -124,9 +176,19 @@ export function resolveSourceDescriptorProvider(options) {
     providerSort: options.providerSort,
     timeoutMs: options.timeoutMs,
   });
+  const fallbackModel = normalizeFallbackModel(
+    options.fallbackModel
+      || (providerConfig.provider === AI_PROVIDERS.OPENROUTER
+        ? env.OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL
+        : env.OPENAI_SOURCE_DESCRIPTION_FALLBACK_MODEL),
+    providerConfig.model,
+  );
   const providerService = options.providerService || null;
-  const primaryProvider = createOpenRouterSourceDescriptorProvider({
-    apiKey: options.apiKey || env.OPENROUTER_API_KEY,
+  const providerFactory = providerConfig.provider === AI_PROVIDERS.OPENROUTER
+    ? createOpenRouterSourceDescriptorProvider
+    : createOpenAiSourceDescriptorProvider;
+  const primaryProvider = providerFactory({
+    apiKey: options.apiKey || (providerConfig.provider === AI_PROVIDERS.OPENROUTER ? env.OPENROUTER_API_KEY : env.OPENAI_API_KEY),
     endpoint: providerConfig.endpoint,
     fetchImpl: options.fetchImpl || fetch,
     maxOutputTokens: providerConfig.maxOutputTokens,
@@ -138,10 +200,11 @@ export function resolveSourceDescriptorProvider(options) {
     allowFallbacks: providerConfig.allowFallbacks,
     timeoutMs: providerConfig.timeoutMs,
     providerService,
+    env,
   });
   const fallbackProvider = fallbackModel
-    ? createOpenRouterSourceDescriptorProvider({
-      apiKey: options.apiKey || env.OPENROUTER_API_KEY,
+    ? providerFactory({
+      apiKey: options.apiKey || (providerConfig.provider === AI_PROVIDERS.OPENROUTER ? env.OPENROUTER_API_KEY : env.OPENAI_API_KEY),
       endpoint: providerConfig.endpoint,
       fetchImpl: options.fetchImpl || fetch,
       maxOutputTokens: providerConfig.maxOutputTokens,
@@ -153,6 +216,7 @@ export function resolveSourceDescriptorProvider(options) {
       allowFallbacks: providerConfig.allowFallbacks,
       timeoutMs: providerConfig.timeoutMs,
       providerService,
+      env,
     })
     : null;
   const aiRun = options.aiRun || {

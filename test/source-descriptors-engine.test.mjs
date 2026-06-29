@@ -626,6 +626,62 @@ test("source descriptors default OpenRouter provider sends strict no-fallback re
   assert.equal(result.sources.length, 3);
 });
 
+test("source descriptors can use OpenAI direct provider for source labels", async () => {
+  const root = await makeMatterRoot();
+  const requests = [];
+
+  const result = await runSourceDescriptors({
+    matterRoot: root,
+    apiKey: "sk-openai-test",
+    env: {
+      SOURCE_DESCRIPTION_PROVIDER: "openai-direct",
+      OPENAI_SOURCE_DESCRIPTION_MODEL: "gpt-5.4",
+      OPENAI_SOURCE_DESCRIPTION_MAX_OUTPUT_TOKENS: "2400",
+      OPENAI_SOURCE_DESCRIPTION_TIMEOUT_MS: "90000",
+    },
+    fetchImpl: async (endpoint, init) => {
+      const body = JSON.parse(init.body);
+      requests.push({ endpoint, headers: init.headers, body, initHasSignal: init.signal instanceof AbortSignal });
+      const userPayload = JSON.parse(body.input[1].content);
+      return {
+        ok: true,
+        async json() {
+          return {
+            model: "gpt-5.4",
+            output_text: JSON.stringify({ sources: validDescriptors(userPayload.sources) }),
+            usage: {
+              input_tokens: 222,
+              output_tokens: 111,
+              total_tokens: 333,
+            },
+          };
+        },
+      };
+    },
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].endpoint, "https://api.openai.com/v1/responses");
+  assert.equal(requests[0].headers.authorization, "Bearer sk-openai-test");
+  assert.equal(requests[0].body.model, "gpt-5.4");
+  assert.equal(requests[0].body.max_output_tokens, 2400);
+  assert.equal(requests[0].initHasSignal, true);
+  assert.match(requests[0].body.input[0].content, /Policy prompt version: legal-workbench-policy\/v1/);
+  assert.equal(requests[0].body.text.format.type, "json_schema");
+  assert.equal(requests[0].body.text.format.strict, true);
+  assert.equal(requests[0].body.text.format.schema.properties.sources.type, "array");
+  assert.equal(result.aiRun.provider, "openai-direct");
+  assert.equal(result.aiRun.model, "gpt-5.4");
+  assert.equal(result.aiRun.maxOutputTokens, 2400);
+  assert.equal(result.aiRun.returnedModel, "gpt-5.4");
+  assert.deepEqual(result.aiRun.usage, {
+    promptTokens: 222,
+    completionTokens: 111,
+    totalTokens: 333,
+  });
+  assert.equal(result.sources.length, 3);
+});
+
 test("source descriptors use an approved fallback model after primary provider failure", async () => {
   const root = await makeMatterRoot();
   const requestedModels = [];

@@ -44,7 +44,8 @@ const AI_TASK_STATUS = [
     task: AI_TASKS.SOURCE_DESCRIPTION,
     label: "/describe_sources",
     surface: "Source Index.json labels",
-    modelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
+    modelEnvKey: "OPENAI_SOURCE_DESCRIPTION_MODEL",
+    openRouterModelEnvKey: "OPENROUTER_SOURCE_DESCRIPTION_MODEL",
   },
   {
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
