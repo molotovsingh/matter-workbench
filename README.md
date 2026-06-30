@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.107`,
-codename **Queue Watch**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.108`,
+codename **Watch Loom**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -134,6 +134,7 @@ Completed release checks include:
 - backend-owned post-upload preparation queueing through source labels, Case Timeline, Matter Story, and posture diagnosis;
 - default runtime DB **Run needed preparation** uses backend jobs with React polling durable job status;
 - Matter Overview observes backend preparation jobs after refresh/reconnect, shows **Preparation running on server…**, avoids duplicate preparation runs while jobs are active, and refreshes when server jobs finish;
+- the backend preparation job observer lives in a dedicated React hook with a narrowed safe failure contract;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, Case Timeline, Matter Story, and posture diagnosis smoke;
@@ -145,7 +146,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.107 release marker](docs/releases/v1.0.0-beta.107.md)
+- [v1.0.0-beta.108 release marker](docs/releases/v1.0.0-beta.108.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)

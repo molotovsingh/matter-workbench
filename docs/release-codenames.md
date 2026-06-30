@@ -111,3 +111,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.105](releases/v1.0.0-beta.105.md) | **Queue Helm** | Release note present. |
 | [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) | **Queue Spindle** | Release note present. |
 | [v1.0.0-beta.107](releases/v1.0.0-beta.107.md) | **Queue Watch** | Release note present. |
+| [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | **Watch Loom** | Release note present. |
