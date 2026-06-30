@@ -342,8 +342,11 @@ test("runtime DB storage service can include Matter Story after current List of 
 
   const plan = await service.readPrepareMatterPlan(matter, { includeDisputeStory: true });
   const storyStage = plan.stages.find((stage) => stage.slash === "/the_story");
+  const postureStage = plan.stages.find((stage) => stage.slash === "/procedural_posture_diagnosis");
   assert.equal(storyStage.state, "stale");
   assert.equal(storyStage.action, "confirm_paid_run");
+  assert.equal(postureStage.state, "blocked");
+  assert.match(postureStage.reason, /Refresh the Matter Story before diagnosing/);
   assert.equal(plan.nextStep.slash, "/the_story");
   assert.equal(plan.downstream.disputeStory.artifacts[0], "20_Workshop/The Story.md");
 });

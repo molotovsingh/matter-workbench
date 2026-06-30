@@ -205,6 +205,9 @@ test("React matter overview presents preparation and advisory language", async (
   assert.match(overview, /Preparing a fresh advisory\. The previous advisory will be replaced when this run finishes\./);
   assert.match(overview, /\}, \[matterName, refreshKey, isPreparing\]\)/);
   assert.match(overview, /preparationRun/);
+  assert.match(overview, /function StageReason/);
+  assert.match(overview, /pipeline-stage-reason/);
+  assert.match(overview, /Output will appear after earlier preparation steps are current/);
   assert.doesNotMatch(overview, /Matter readiness/);
   assert.doesNotMatch(overview, /Developer attention/);
   assert.doesNotMatch(overview, /matter\.json/);

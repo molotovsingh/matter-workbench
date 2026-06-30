@@ -331,7 +331,7 @@ function buildProceduralPostureDiagnosisStage(postureStatus, disputeStoryStage) 
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Write the Matter Story before diagnosing filing and procedural posture.",
+      reason: postureStoryBlockReason(disputeStoryStage),
     };
   }
   if (postureStatus.state === "blocked") {
@@ -416,6 +416,12 @@ function nextStepSummary(stage) {
     stage: stage.id,
     slash: stage.slash,
   };
+}
+
+function postureStoryBlockReason(disputeStoryStage) {
+  if (disputeStoryStage?.state === "stale") return "Refresh the Matter Story before diagnosing filing and procedural posture.";
+  if (disputeStoryStage?.state === "missing") return "Write the Matter Story before diagnosing filing and procedural posture.";
+  return "Complete the Matter Story before diagnosing filing and procedural posture.";
 }
 
 function sourceLabelReason(state) {

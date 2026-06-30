@@ -507,16 +507,28 @@ function StageRow({ stage }: { stage: PreparationStage }) {
           {pipelineStageStateLabel(stage)}
         </span>
       </div>
-      <StageArtifacts artifacts={stage.artifacts} />
+      <StageReason stage={stage} />
+      <StageArtifacts stage={stage} />
       <StageAiRun aiRun={stage.aiRun} />
       {stage.rerunAdvice && <StageRerunHint stage={stage} />}
     </div>
   );
 }
 
-function StageArtifacts({ artifacts }: { artifacts?: string[] }) {
+function StageReason({ stage }: { stage: PreparationStage }) {
+  const reason = String(stage.reason || '').trim();
+  if (!reason || stage.rerunAdvice) return null;
+  if (stageIsCurrent(stage) && stage.action === PREPARATION_STAGE_ACTIONS.SKIP_CURRENT) return null;
+  return <p className="pipeline-stage-reason">{sentenceWithPeriod(reason)}</p>;
+}
+
+function StageArtifacts({ stage }: { stage: PreparationStage }) {
+  const artifacts = stage.artifacts;
   if (!artifacts || artifacts.length === 0) {
-    return <div className="pipeline-artifacts muted">No output document found.</div>;
+    const message = stageIsBlocked(stage)
+      ? 'Output will appear after earlier preparation steps are current.'
+      : 'No output document found yet.';
+    return <div className="pipeline-artifacts muted">{message}</div>;
   }
   return (
     <div className="pipeline-artifacts">

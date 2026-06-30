@@ -215,7 +215,7 @@ function runtimeProceduralPostureDiagnosisStage({ workspaceFiles = [], disputeSt
       ...base,
       state: "blocked",
       action: PREPARATION_STAGE_ACTIONS.BLOCKED,
-      reason: "Write the Matter Story before diagnosing filing and procedural posture.",
+      reason: postureStoryBlockReason(disputeStoryStage),
     };
   }
   if (!timeline || !story) {
@@ -248,6 +248,12 @@ function runtimeProceduralPostureDiagnosisStage({ workspaceFiles = [], disputeSt
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
     reason: "Filing and procedural posture diagnosis is missing and uses AI after Case Timeline and Matter Story are ready.",
   };
+}
+
+function postureStoryBlockReason(disputeStoryStage) {
+  if (disputeStoryStage?.state === "stale") return "Refresh the Matter Story before diagnosing filing and procedural posture.";
+  if (disputeStoryStage?.state === "missing") return "Write the Matter Story before diagnosing filing and procedural posture.";
+  return "Complete the Matter Story before diagnosing filing and procedural posture.";
 }
 
 function extractedArtifacts(paths = []) {
