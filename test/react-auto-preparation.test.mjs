@@ -123,7 +123,8 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.doesNotMatch(overview, /\.getMatterStatus\(matterName\)/);
   assert.match(overview, /matter-preparation-title[\s\S]*Matter Preparation[\s\S]*preparationHeadlineLabel/);
   assert.match(overview, /matter-preparation-actions[\s\S]*Run needed preparation/);
-  assert.match(overview, /disabled=\{preparationRun\?\.state === 'running'\}/);
+  assert.match(overview, /const isPreparationRunning = preparationRun\?\.state === 'running'/);
+  assert.match(overview, /disabled=\{isPreparationRunning\}/);
   assert.match(overview, /onRunNeededPreparation\(matterName\)/);
   assert.match(overview, /stages\.some\(stageIsBlocked\)/);
   assert.match(overview, /stage\.state === 'current_unconfirmed'\) return false/);

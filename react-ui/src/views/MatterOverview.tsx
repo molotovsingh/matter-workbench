@@ -18,6 +18,7 @@ import type {
   PreparationRunStatus,
   MatterMetadata,
   ProceduralPostureDiagnosisResult,
+  JobStatus,
 } from '../types';
 
 interface Props {
@@ -27,13 +28,23 @@ interface Props {
 }
 
 export default function MatterOverview({ onCommand, onRunNeededPreparation, onForceFullPreparation }: Props) {
-  const { state } = useApp();
+  const { state, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const matter = state.activeMatter!;
   const meta = matter.metadata ?? {};
-  const preparationRun = state.preparationRun?.matterName === matter.name ? state.preparationRun : null;
-  const preparationRefreshKey = preparationRun
-    ? `${preparationRun.state}:${preparationRun.finishedAt || preparationRun.startedAt}`
-    : '';
+  const localPreparationRun = state.preparationRun?.matterName === matter.name ? state.preparationRun : null;
+  const backendPreparation = useBackendPreparationJobs({
+    matterName: matter.name,
+    localPreparationRun,
+    refreshActiveMatterWorkspace,
+    appendTerminal,
+  });
+  const preparationRun = localPreparationRun?.state === 'running'
+    ? localPreparationRun
+    : backendPreparation.preparationRun || localPreparationRun;
+  const preparationRefreshKey = [
+    preparationRun ? `${preparationRun.state}:${preparationRun.finishedAt || preparationRun.startedAt}` : '',
+    backendPreparation.refreshKey,
+  ].filter(Boolean).join(':');
 
   const missingFields = validateMetadata(meta as Record<string, string | undefined>);
 
@@ -74,6 +85,8 @@ export default function MatterOverview({ onCommand, onRunNeededPreparation, onFo
         matterName={matter.name}
         preparationRun={preparationRun}
         refreshKey={preparationRefreshKey}
+        backendJobsError={backendPreparation.error}
+        latestBackendFailure={backendPreparation.latestFailure}
         onRunNeededPreparation={onRunNeededPreparation}
         onForceFullPreparation={onForceFullPreparation}
       />
@@ -332,18 +345,154 @@ function isMwStorySource(source: MatterMetadata['briefDescriptionSource']): bool
     || source.slash === '/the_story';
 }
 
+// ─── Backend preparation job observer ─────────────────────
+
+const PREPARATION_JOB_KINDS = ['matter_init', 'extract', 'source_labels', 'case_timeline', 'matter_story', 'posture_diagnosis'] as const;
+const ACTIVE_PREPARATION_JOB_STATUSES = new Set(['queued', 'running', 'retrying']);
+const PREPARATION_JOB_POLL_MS = 5_000;
+const PREPARATION_JOB_IDLE_POLL_MS = 15_000;
+
+const PREPARATION_JOB_STEPS: Array<{ kind: typeof PREPARATION_JOB_KINDS[number]; id: string; label: string }> = [
+  { kind: 'matter_init', id: 'matter-init', label: 'Registering files' },
+  { kind: 'extract', id: 'extract', label: 'Reading documents' },
+  { kind: 'source_labels', id: 'describe-sources', label: 'Preparing source record' },
+  { kind: 'case_timeline', id: 'create-listofdates', label: 'Building Case Timeline' },
+  { kind: 'matter_story', id: 'dispute-story', label: 'Writing dispute story' },
+  { kind: 'posture_diagnosis', id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture' },
+];
+
+function useBackendPreparationJobs({
+  matterName,
+  localPreparationRun,
+  refreshActiveMatterWorkspace,
+  appendTerminal,
+}: {
+  matterName: string;
+  localPreparationRun: PreparationRunStatus | null;
+  refreshActiveMatterWorkspace: (opts?: { expectedMatterName?: string; failurePrefix?: string }) => Promise<unknown>;
+  appendTerminal: (lines: string[]) => void;
+}): { preparationRun: PreparationRunStatus | null; latestFailure: JobStatus | null; error: string | null; refreshKey: string } {
+  const [jobs, setJobs] = useState<JobStatus[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshSeq, setRefreshSeq] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let sawActiveBackendJob = false;
+
+    const poll = async () => {
+      try {
+        const payload = await api.getJobs({ matterName, limit: 50 });
+        if (cancelled) return;
+        const preparationJobs = filterPreparationJobs(payload.jobs || []);
+        const activeJobs = preparationJobs.filter(isActivePreparationJob);
+        setJobs(preparationJobs);
+        setError(null);
+
+        if (activeJobs.length > 0) {
+          sawActiveBackendJob = true;
+        } else if (sawActiveBackendJob) {
+          sawActiveBackendJob = false;
+          appendTerminal(['[prepare] server preparation finished; refreshing matter workspace']);
+          await refreshActiveMatterWorkspace({
+            expectedMatterName: matterName,
+            failurePrefix: '[workspace] refresh failed after server preparation',
+          });
+          if (!cancelled) setRefreshSeq((seq) => seq + 1);
+        }
+        if (!cancelled) timer = setTimeout(poll, activeJobs.length > 0 ? PREPARATION_JOB_POLL_MS : PREPARATION_JOB_IDLE_POLL_MS);
+      } catch (e) {
+        if (cancelled) return;
+        setError(getErrorMessage(e));
+        timer = setTimeout(poll, PREPARATION_JOB_IDLE_POLL_MS);
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [matterName, appendTerminal, refreshActiveMatterWorkspace]);
+
+  const activeJobs = jobs.filter(isActivePreparationJob);
+  const localRunIsRunning = localPreparationRun?.state === 'running';
+  return {
+    preparationRun: activeJobs.length > 0 && !localRunIsRunning ? preparationRunFromBackendJobs(matterName, jobs) : null,
+    latestFailure: activeJobs.length > 0 ? null : latestPreparationFailure(jobs),
+    error,
+    refreshKey: `jobs:${refreshSeq}:${jobSignature(jobs)}`,
+  };
+}
+
+function filterPreparationJobs(jobs: JobStatus[]): JobStatus[] {
+  return jobs
+    .filter((job) => PREPARATION_JOB_KINDS.includes(job.kind as typeof PREPARATION_JOB_KINDS[number]))
+    .sort((a, b) => jobTime(b) - jobTime(a));
+}
+
+function isActivePreparationJob(job: JobStatus): boolean {
+  return ACTIVE_PREPARATION_JOB_STATUSES.has(job.status);
+}
+
+function preparationRunFromBackendJobs(matterName: string, jobs: JobStatus[]): PreparationRunStatus {
+  const activeJob = jobs.find(isActivePreparationJob);
+  return {
+    matterName,
+    state: 'running',
+    message: 'Preparation running on server… You can refresh; progress is kept in Activity.',
+    startedAt: activeJob?.startedAt || activeJob?.updatedAt || new Date().toISOString(),
+    steps: PREPARATION_JOB_STEPS.map((step) => backendProgressStep(step, jobs)),
+  };
+}
+
+function backendProgressStep(step: typeof PREPARATION_JOB_STEPS[number], jobs: JobStatus[]): PreparationRunStatus['steps'][number] {
+  const job = jobs.find((candidate) => candidate.kind === step.kind);
+  if (!job) return { id: step.id, label: step.label, state: 'pending' };
+  if (isActivePreparationJob(job)) return { id: step.id, label: step.label, state: 'running', detail: backendJobDetail(job) };
+  if (job.status === 'succeeded') return { id: step.id, label: step.label, state: 'done' };
+  if (job.status === 'failed' || job.status === 'cancelled') return { id: step.id, label: step.label, state: 'failed', detail: 'Server preparation stopped before this step completed.' };
+  return { id: step.id, label: step.label, state: 'pending' };
+}
+
+function backendJobDetail(job: JobStatus): string {
+  if (job.status === 'queued') return 'Queued on the server.';
+  if (job.status === 'retrying') return 'Retrying on the server.';
+  return 'Running on the server.';
+}
+
+function latestPreparationFailure(jobs: JobStatus[]): JobStatus | null {
+  const latest = jobs[0];
+  return latest && (latest.status === 'failed' || latest.status === 'cancelled') ? latest : null;
+}
+
+function jobSignature(jobs: JobStatus[]): string {
+  return jobs.slice(0, 6).map((job) => `${job.id}:${job.status}:${job.updatedAt || job.finishedAt || job.startedAt}`).join('|');
+}
+
+function jobTime(job: JobStatus): number {
+  const value = job.updatedAt || job.finishedAt || job.startedAt || '';
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
 // ─── Pipeline card ────────────────────────────────────────
 
 function PipelineCard({
   matterName,
   preparationRun,
   refreshKey,
+  backendJobsError,
+  latestBackendFailure,
   onRunNeededPreparation,
   onForceFullPreparation,
 }: {
   matterName: string;
   preparationRun: PreparationRunStatus | null;
   refreshKey: string;
+  backendJobsError: string | null;
+  latestBackendFailure: JobStatus | null;
   onRunNeededPreparation: (matterName: string) => void;
   onForceFullPreparation: (matterName: string, reason: string) => void;
 }) {
@@ -353,7 +502,8 @@ function PipelineCard({
   const [forceConfirmation, setForceConfirmation] = useState('');
   const forceReasonReady = forceReason.trim().length >= 10;
   const forceConfirmationReady = forceConfirmation.trim().toUpperCase() === 'REBUILD';
-  const forceDisabled = preparationRun?.state === 'running' || !forceReasonReady || !forceConfirmationReady;
+  const isPreparationRunning = preparationRun?.state === 'running';
+  const forceDisabled = isPreparationRunning || !forceReasonReady || !forceConfirmationReady;
 
   useEffect(() => {
     let cancelled = false;
@@ -388,7 +538,7 @@ function PipelineCard({
             type="button"
             className="run-skill-button"
             onClick={() => onRunNeededPreparation(matterName)}
-            disabled={preparationRun?.state === 'running'}
+            disabled={isPreparationRunning}
           >
             Run needed preparation
           </button>
@@ -408,7 +558,7 @@ function PipelineCard({
               value={forceReason}
               onChange={(event) => setForceReason(event.target.value)}
               placeholder="Explain why current preparation cannot be trusted."
-              disabled={preparationRun?.state === 'running'}
+              disabled={isPreparationRunning}
             />
             {!forceReasonReady && <small>Enter at least 10 characters.</small>}
           </label>
@@ -418,7 +568,7 @@ function PipelineCard({
               type="text"
               value={forceConfirmation}
               onChange={(event) => setForceConfirmation(event.target.value)}
-              disabled={preparationRun?.state === 'running'}
+              disabled={isPreparationRunning}
             />
           </label>
           <div className="warning-actions">
@@ -438,6 +588,10 @@ function PipelineCard({
         </div>
       </details>
       {preparationRun && <PreparationProgress run={preparationRun} />}
+      {backendJobsError && <p className="muted">Server preparation status is unavailable: {backendJobsError}</p>}
+      {latestBackendFailure && !isPreparationRunning && (
+        <p className="form-error">A server preparation job stopped before finishing. Open Activity for details, then run needed preparation again.</p>
+      )}
       {error && <p className="muted">Matter preparation is unavailable: {error}</p>}
       {!error && stages === null && (
         <p className="muted">Checking what has already been prepared for this matter…</p>
@@ -766,7 +920,7 @@ function preparationHeadlineClass({
 
 function preparationSummaryText(preparationRun: PreparationRunStatus | null): string {
   if (preparationRun?.state === 'running') {
-    return 'Automatic preparation is running. You can keep reviewing the matter while it works.';
+    return preparationRun.message || 'Automatic preparation is running. You can keep reviewing the matter while it works.';
   }
   if (preparationRun?.state === 'blocked') {
     return 'Automatic preparation stopped. Review the advisory before drafting.';
