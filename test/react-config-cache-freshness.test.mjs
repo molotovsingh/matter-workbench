@@ -8,14 +8,17 @@ const appShellRoutesPath = new URL("../routes/app-shell-routes.mjs", import.meta
 test("React config fetch bypasses browser and intermediary cache", async () => {
   const source = await readFile(reactApiClientPath, "utf8");
 
-  assert.match(source, /async function getFreshJson<T>\(url: string\)/);
-  assert.match(source, /fetch\(withCacheBust\(url\), \{/);
+  assert.match(source, /type GetJsonOptions = \{\s*bypassCache\?: boolean;\s*\}/);
+  assert.match(source, /const CONFIG_CACHE_BUSTER_PARAM = '_mwbFresh'/);
+  assert.match(source, /const FRESH_JSON_FETCH_INIT: RequestInit = \{/);
   assert.match(source, /cache: 'no-store'/);
   assert.match(source, /'Cache-Control': 'no-store'/);
   assert.match(source, /Pragma: 'no-cache'/);
+  assert.match(source, /async function getJson<T>\(url: string, options: GetJsonOptions = \{\}\)/);
+  assert.match(source, /const requestUrl = options\.bypassCache \? withCacheBust\(url\) : url/);
+  assert.match(source, /const init = options\.bypassCache \? FRESH_JSON_FETCH_INIT : undefined/);
   assert.match(source, /function withCacheBust\(url: string\)/);
-  assert.match(source, /_mwbFresh=/);
-  assert.match(source, /getConfig: \(\) => getFreshJson<AppConfig>\('\/api\/config'\)/);
+  assert.match(source, /getConfig: \(\) => getJson<AppConfig>\('\/api\/config', \{ bypassCache: true \}\)/);
 });
 
 test("server config response is explicitly uncacheable", async () => {

@@ -98,25 +98,29 @@ export interface ApiErrorDiagnostic {
 
 type AuthRequiredHandler = () => void;
 
+type GetJsonOptions = {
+  bypassCache?: boolean;
+};
+
+const CONFIG_CACHE_BUSTER_PARAM = '_mwbFresh';
+const FRESH_JSON_FETCH_INIT: RequestInit = {
+  cache: 'no-store',
+  headers: {
+    'Cache-Control': 'no-store',
+    Pragma: 'no-cache',
+  },
+};
+
 let authRequiredHandler: AuthRequiredHandler | null = null;
 
 export function setAuthRequiredHandler(handler: AuthRequiredHandler | null) {
   authRequiredHandler = handler;
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  return parseJsonResponse<T>(res, url);
-}
-
-async function getFreshJson<T>(url: string): Promise<T> {
-  const res = await fetch(withCacheBust(url), {
-    cache: 'no-store',
-    headers: {
-      'Cache-Control': 'no-store',
-      Pragma: 'no-cache',
-    },
-  });
+async function getJson<T>(url: string, options: GetJsonOptions = {}): Promise<T> {
+  const requestUrl = options.bypassCache ? withCacheBust(url) : url;
+  const init = options.bypassCache ? FRESH_JSON_FETCH_INIT : undefined;
+  const res = await fetch(requestUrl, init);
   return parseJsonResponse<T>(res, url);
 }
 
@@ -322,7 +326,7 @@ function withQuery(path: string, query: Record<string, string | undefined | null
 function withCacheBust(url: string): string {
   const separator = url.includes('?') ? '&' : '?';
   const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  return `${url}${separator}_mwbFresh=${encodeURIComponent(token)}`;
+  return `${url}${separator}${CONFIG_CACHE_BUSTER_PARAM}=${encodeURIComponent(token)}`;
 }
 
 const TECHNICAL_PREFIXES = ['01_Admin', '02_Extracts', '99_'];
@@ -386,7 +390,7 @@ export const api = {
     postJson<PrivateBetaUserResponse>(`/api/private-beta/users/${encodeURIComponent(username)}/enable`, {}),
 
   // ─── Config ──────────────────────────────
-  getConfig: () => getFreshJson<AppConfig>('/api/config'),
+  getConfig: () => getJson<AppConfig>('/api/config', { bypassCache: true }),
   getSystemHealth: () => getJson<SystemHealthReport>('/api/system-health'),
   getUserReadiness: () => getJson<UserReadinessReport>('/api/user-readiness'),
   setConfig: (body: { mattersHome: string }) => postJson('/api/config', body),
