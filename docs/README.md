@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.94](releases/v1.0.0-beta.94.md) |
+| Current release notes | [v1.0.0-beta.95](releases/v1.0.0-beta.95.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -163,7 +163,8 @@ implementation plan.
 | [v1.0.0-beta.91](releases/v1.0.0-beta.91.md) | Mothership focus-user investigation semantics. **Codename:** Focus Lens. |
 | [v1.0.0-beta.92](releases/v1.0.0-beta.92.md) | Two-stage mothership investigation workflow. **Codename:** Signal Ladder. |
 | [v1.0.0-beta.93](releases/v1.0.0-beta.93.md) | Upload interruption tracking. **Codename:** Upload Beacon. |
-| [v1.0.0-beta.94](releases/v1.0.0-beta.94.md) | Current first-class upload intake backbone. **Codename:** Intake Spine. |
+| [v1.0.0-beta.94](releases/v1.0.0-beta.94.md) | First-class upload intake backbone. **Codename:** Intake Spine. |
+| [v1.0.0-beta.95](releases/v1.0.0-beta.95.md) | Current upload payload handling refactor. **Codename:** Payload Loom. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
