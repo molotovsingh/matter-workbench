@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.100`](releases/v1.0.0-beta.100.md)
+Release: [`v1.0.0-beta.101`](releases/v1.0.0-beta.101.md)
 
-Codename: **Config Belt**
+Codename: **Fresh Path**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.100` is the official private beta release checkpoint.
+`v1.0.0-beta.101` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -62,6 +62,7 @@ The release is acceptable for supervised private beta because:
 - beta.98 refactors upload recovery UI/workflow without changing behavior;
 - beta.99 prevents stale `/api/config` release-badge responses;
 - beta.100 adds client-side no-store/cache-busting for runtime config fetches;
+- beta.101 refactors the runtime config freshness fetch without changing behavior;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -95,18 +96,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.100
-codename: Config Belt
-deployed_commit: 699c54d
+release: v1.0.0-beta.101
+codename: Fresh Path
+deployed_commit: a3bd99a
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 389c8ed / v1.0.0-beta.99
+rollback_candidate: 699c54d / v1.0.0-beta.100
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T04-53-09-993Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T05-04-26-621Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
