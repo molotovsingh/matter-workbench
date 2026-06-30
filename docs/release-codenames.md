@@ -109,3 +109,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.102](releases/v1.0.0-beta.102.md) | **Preparation Gate** | Release note present. |
 | [v1.0.0-beta.104](releases/v1.0.0-beta.104.md) | **Relay Key** | Release note present. |
 | [v1.0.0-beta.105](releases/v1.0.0-beta.105.md) | **Queue Helm** | Release note present. |
+| [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) | **Queue Spindle** | Release note present. |
