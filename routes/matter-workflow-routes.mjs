@@ -11,7 +11,13 @@ import { buildSourceRemovalImpactPreviewFromPacket, previewSourceRemovalImpact }
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
-import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import {
+  firstBlockedRuntimePreparationStage,
+  firstQueueableRuntimePreparationStage,
+  RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES,
+  runtimePreparationJobKindForStage,
+  safeRuntimePreparationChainId,
+} from "../shared/runtime-preparation-jobs.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
 import {
@@ -610,19 +616,6 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
 }
 
 const PREPARE_MATTER_RUN_SCHEMA = "prepare-matter-run/v1";
-const RUNTIME_PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
-  "/matter-init": "matter_init",
-  "/extract": "extract",
-  "/describe_sources": "source_labels",
-  "/create_listofdates": "case_timeline",
-  "/the_story": "matter_story",
-  "/procedural_posture_diagnosis": "posture_diagnosis",
-});
-const QUEUEABLE_PREPARATION_ACTIONS = new Set([
-  PREPARATION_STAGE_ACTIONS.RUN,
-  PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-]);
-const ACTIVE_RUNTIME_JOB_STATUSES = ["queued", "running", "retrying"];
 
 async function enqueueRuntimeDbNeededPreparation({
   body = {},
@@ -640,9 +633,9 @@ async function enqueueRuntimeDbNeededPreparation({
     throw error;
   }
   const plan = await runtimeDbStorageService.readPrepareMatterPlan(matter, { includeDisputeStory });
-  const stage = firstQueueablePreparationStage(plan);
+  const stage = firstQueueableRuntimePreparationStage(plan);
   if (!stage) {
-    const blockedStage = firstBlockedPreparationStage(plan);
+    const blockedStage = firstBlockedRuntimePreparationStage(plan);
     return {
       schema_version: PREPARE_MATTER_RUN_SCHEMA,
       state: blockedStage ? "blocked" : "complete",
@@ -674,7 +667,7 @@ async function enqueueRuntimeDbNeededPreparation({
       plan,
     };
   }
-  const chainId = safePreparationChainId(body.runId) || `manual-${randomUUID()}`;
+  const chainId = safeRuntimePreparationChainId(body.runId) || `manual-${randomUUID()}`;
   const job = await runtimeDbStorageService.enqueueProcessingJob({
     matter,
     kind,
@@ -714,24 +707,8 @@ function normalizePreparationRunMode(value) {
   return String(value || "needed").trim() === "full" ? "full" : "needed";
 }
 
-function firstQueueablePreparationStage(plan = {}) {
-  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
-  return stages.find((stage) => QUEUEABLE_PREPARATION_ACTIONS.has(stage?.action)) || null;
-}
-
-function firstBlockedPreparationStage(plan = {}) {
-  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
-  return stages.find((stage) => stage?.action === PREPARATION_STAGE_ACTIONS.BLOCKED) || null;
-}
-
-function runtimePreparationJobKindForStage(stage = {}) {
-  const slash = String(stage?.slash || "").trim();
-  const kind = RUNTIME_PREPARATION_JOB_KIND_BY_SLASH[slash] || "";
-  return /^[a-z][a-z0-9_]*$/.test(kind) ? kind : "";
-}
-
 async function findActiveRuntimePreparationJob({ runtimeDbStorageService, matter = {}, kind = "" } = {}) {
-  for (const status of ACTIVE_RUNTIME_JOB_STATUSES) {
+  for (const status of RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES) {
     const result = await runtimeDbStorageService.listProcessingJobs({
       matterName: matter.name || matter.matterName || "",
       kind,
@@ -742,14 +719,6 @@ async function findActiveRuntimePreparationJob({ runtimeDbStorageService, matter
     if (job?.id) return job;
   }
   return null;
-}
-
-function safePreparationChainId(value) {
-  return String(value || "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_.:-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
 }
 
 function assertRuntimeDbMatterInitAvailable({ runtimeDbStorageService } = {}) {

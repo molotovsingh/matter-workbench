@@ -166,7 +166,9 @@ test("React automatic preparation does not fail downstream blocked steps while a
 
   assert.match(runner, /const nextStage = firstRunnablePreparationStage\(plan\)/);
   assert.match(runner, /mergePlanIntoStatus\(status, plan, \{ markBlocked: !nextStage \}\)/);
-  assert.match(runner, /mergePlanIntoStatus\(advisoryStatus, finalPlan, \{ markBlocked: !finalNextStage \}\)/);
+  assert.match(runner, /completePreparationAdvisory/);
+  assert.match(runner, /markBlockedWhenNoRunnable: true/);
+  assert.match(runner, /mergePlanIntoStatus\(advisoryStatus, finalPlan, \{ markBlocked: markBlockedWhenNoRunnable && !finalNextStage \}\)/);
   assert.match(runner, /else if \(markBlocked && stage\.action === PREPARATION_STAGE_ACTIONS\.BLOCKED\)/);
 });
 

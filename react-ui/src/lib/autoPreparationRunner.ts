@@ -134,27 +134,18 @@ export async function runAutomaticPreparation({
     onProgress(status);
 
     if (!nextStage) {
-      const advisoryStatus = markStep(status, 'advisory', 'running', 'Checking preparation advisory…');
-      await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
-      onProgress(advisoryStatus);
-      if (isStale()) return finishWithTelemetry(staleResult(), advisoryStatus);
-      const finalPlan = await api.getPrepareMatter(matterName);
-      const finalNextStage = firstRunnablePreparationStage(finalPlan);
-      const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: !finalNextStage }), 'advisory', 'done');
-      await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
-      onProgress(finalStatus);
-      if (firstBlockedStage(finalPlan)) {
-        return finishWithTelemetry({
-          state: 'blocked',
-          message: 'Preparation stopped because one required step is blocked.',
-        }, finalStatus);
-      }
-      return finishWithTelemetry({
-        state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
-        message: allStagesCurrent(finalPlan)
-          ? 'Automatic preparation completed.'
-          : 'Automatic preparation finished with items to review.',
-      }, finalStatus);
+      const result = await completePreparationAdvisory({
+        matterName,
+        status,
+        onProgress,
+        isStale,
+        telemetryRunId,
+        stageStarts,
+        markBlockedWhenNoRunnable: true,
+        preparedMessage: 'Automatic preparation completed.',
+        needsReviewMessage: 'Automatic preparation finished with items to review.',
+      });
+      return finishWithTelemetry(result, result.status || status);
     }
 
     status = markStageRunning(status, nextStage);
@@ -191,6 +182,56 @@ export async function runAutomaticPreparation({
   });
 }
 
+async function completePreparationAdvisory({
+  matterName,
+  status,
+  onProgress,
+  isStale,
+  telemetryRunId,
+  stageStarts,
+  markBlockedWhenNoRunnable,
+  preparedMessage,
+  needsReviewMessage,
+}: {
+  matterName: string;
+  status: PreparationRunStatus;
+  onProgress: ProgressUpdate;
+  isStale: () => boolean;
+  telemetryRunId: string;
+  stageStarts: Map<string, number>;
+  markBlockedWhenNoRunnable: boolean;
+  preparedMessage: string;
+  needsReviewMessage: string;
+}): Promise<AutomaticPreparationTelemetryResult> {
+  const advisoryStatus = markStep(status, 'advisory', 'running', 'Checking preparation advisory…');
+  await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
+  onProgress(advisoryStatus);
+  if (isStale()) return { ...staleResult(), status: advisoryStatus };
+
+  const finalPlan = await api.getPrepareMatter(matterName);
+  const finalNextStage = firstRunnablePreparationStage(finalPlan);
+  const finalStatus = markStep(
+    mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: markBlockedWhenNoRunnable && !finalNextStage }),
+    'advisory',
+    'done',
+  );
+  await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
+  onProgress(finalStatus);
+
+  if (firstBlockedStage(finalPlan)) {
+    return {
+      state: 'blocked',
+      message: 'Preparation stopped because one required step is blocked.',
+      status: finalStatus,
+    };
+  }
+  return {
+    state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
+    message: allStagesCurrent(finalPlan) ? preparedMessage : needsReviewMessage,
+    status: finalStatus,
+  };
+}
+
 async function runServerOwnedNeededPreparation({
   matterName,
   appendTerminal,
@@ -222,29 +263,17 @@ async function runServerOwnedNeededPreparation({
     onProgress(next);
 
     if (!nextStage) {
-      const advisoryStatus = markStep(next, 'advisory', 'running', 'Checking preparation advisory…');
-      await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
-      onProgress(advisoryStatus);
-      if (isStale()) return { ...staleResult(), status: advisoryStatus };
-      const finalPlan = await api.getPrepareMatter(matterName);
-      const finalNextStage = firstRunnablePreparationStage(finalPlan);
-      const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: !finalNextStage }), 'advisory', 'done');
-      await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
-      onProgress(finalStatus);
-      if (firstBlockedStage(finalPlan)) {
-        return {
-          state: 'blocked',
-          message: 'Preparation stopped because one required step is blocked.',
-          status: finalStatus,
-        };
-      }
-      return {
-        state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
-        message: allStagesCurrent(finalPlan)
-          ? 'Automatic preparation completed.'
-          : 'Automatic preparation finished with items to review.',
-        status: finalStatus,
-      };
+      return completePreparationAdvisory({
+        matterName,
+        status: next,
+        onProgress,
+        isStale,
+        telemetryRunId,
+        stageStarts,
+        markBlockedWhenNoRunnable: true,
+        preparedMessage: 'Automatic preparation completed.',
+        needsReviewMessage: 'Automatic preparation finished with items to review.',
+      });
     }
 
     const runningStage = nextStage;
@@ -454,27 +483,17 @@ async function runFullPreparation({
     }
   }
 
-  const advisoryStatus = markStep(next, 'advisory', 'running', 'Checking preparation advisory…');
-  await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
-  publishProgress(advisoryStatus);
-  const finalPlan = await api.getPrepareMatter(matterName);
-  const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: false }), 'advisory', 'done');
-  await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
-  publishProgress(finalStatus);
-  if (firstBlockedStage(finalPlan)) {
-    return {
-      state: 'blocked',
-      message: 'Preparation stopped because one required step is blocked.',
-      status: finalStatus,
-    };
-  }
-  return {
-    state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
-    message: allStagesCurrent(finalPlan)
-      ? 'Preparation rerun completed.'
-      : 'Preparation rerun finished with items to review.',
-    status: finalStatus,
-  };
+  return completePreparationAdvisory({
+    matterName,
+    status: next,
+    onProgress: publishProgress,
+    isStale,
+    telemetryRunId,
+    stageStarts,
+    markBlockedWhenNoRunnable: false,
+    preparedMessage: 'Preparation rerun completed.',
+    needsReviewMessage: 'Preparation rerun finished with items to review.',
+  });
 }
 
 export async function runPreparationStage(

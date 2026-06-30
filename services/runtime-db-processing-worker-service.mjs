@@ -1,24 +1,15 @@
 import process from "node:process";
 
-import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
+import {
+  firstQueueableRuntimePreparationStage,
+  normalizeRuntimePreparationJobKind,
+  runtimePreparationJobKindForStage,
+  safeRuntimePreparationChainId,
+} from "../shared/runtime-preparation-jobs.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
-
-const PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
-  "/matter-init": "matter_init",
-  "/extract": "extract",
-  "/describe_sources": "source_labels",
-  "/create_listofdates": "case_timeline",
-  "/the_story": "matter_story",
-  "/procedural_posture_diagnosis": "posture_diagnosis",
-});
-
-const QUEUEABLE_PREPARATION_ACTIONS = new Set([
-  PREPARATION_STAGE_ACTIONS.RUN,
-  PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-]);
 
 const BUILTIN_STAGE_HANDLERS = [
   {
@@ -66,7 +57,7 @@ export function createRuntimeDbProcessingWorkerService({
       .map((handler) => handler.kind);
     const custom = Object.entries(stageHandlers || {})
       .filter(([, handler]) => typeof handler === "function")
-      .map(([kind]) => normalizeJobKind(kind))
+      .map(([kind]) => normalizeRuntimePreparationJobKind(kind))
       .filter(Boolean);
     return [...new Set([...builtin, ...custom])];
   }
@@ -116,7 +107,7 @@ export function createRuntimeDbProcessingWorkerService({
   }
 
   async function runJob(job) {
-    const kind = normalizeJobKind(job?.kind);
+    const kind = normalizeRuntimePreparationJobKind(job?.kind);
     try {
       if (!job?.matter?.id) throw new Error("Processing job is missing matter context.");
       const handler = handlerForKind(kind);
@@ -146,8 +137,8 @@ export function createRuntimeDbProcessingWorkerService({
     if (typeof runtimeDbStorageService?.readPrepareMatterPlan !== "function") return null;
     if (!job?.matter?.id) return null;
     const plan = await runtimeDbStorageService.readPrepareMatterPlan(job.matter, { includeDisputeStory: true });
-    const nextStage = firstQueueablePreparationStage(plan);
-    const nextKind = jobKindForPreparationStage(nextStage);
+    const nextStage = firstQueueableRuntimePreparationStage(plan);
+    const nextKind = runtimePreparationJobKindForStage(nextStage);
     if (!nextKind || nextKind === completedKind || !supportedKinds().includes(nextKind)) return null;
     const chainId = preparationChainIdForJob(job);
     return runtimeDbStorageService.enqueueProcessingJob({
@@ -191,33 +182,11 @@ export function createRuntimeDbProcessingWorkerService({
   };
 }
 
-function normalizeJobKind(value) {
-  const text = String(value || "").trim().toLowerCase();
-  return /^[a-z][a-z0-9_]*$/.test(text) ? text : "";
-}
-
-function firstQueueablePreparationStage(plan = {}) {
-  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
-  return stages.find((stage) => QUEUEABLE_PREPARATION_ACTIONS.has(stage?.action)) || null;
-}
-
-function jobKindForPreparationStage(stage = {}) {
-  return normalizeJobKind(PREPARATION_JOB_KIND_BY_SLASH[String(stage?.slash || "").trim()] || "");
-}
-
 function preparationChainIdForJob(job = {}) {
-  return safeIdSegment(job.progress?.preparationChainId)
-    || safeIdSegment(job.progress?.uploadSessionId)
-    || safeIdSegment(job.id)
+  return safeRuntimePreparationChainId(job.progress?.preparationChainId)
+    || safeRuntimePreparationChainId(job.progress?.uploadSessionId)
+    || safeRuntimePreparationChainId(job.id)
     || "unknown";
-}
-
-function safeIdSegment(value) {
-  return String(value || "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_.:-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
 }
 
 function stringOrEmpty(value) {
