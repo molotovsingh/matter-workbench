@@ -107,3 +107,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.100](releases/v1.0.0-beta.100.md) | **Config Belt** | Release note present. |
 | [v1.0.0-beta.101](releases/v1.0.0-beta.101.md) | **Fresh Path** | Release note present. |
 | [v1.0.0-beta.102](releases/v1.0.0-beta.102.md) | **Preparation Gate** | Release note present. |
+| [v1.0.0-beta.104](releases/v1.0.0-beta.104.md) | **Relay Key** | Release note present. |

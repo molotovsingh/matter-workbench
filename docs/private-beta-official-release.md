@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.102`](releases/v1.0.0-beta.102.md)
+Release: [`v1.0.0-beta.104`](releases/v1.0.0-beta.104.md)
 
-Codename: **Preparation Gate**
+Codename: **Relay Key**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.102` is the official private beta release checkpoint.
+`v1.0.0-beta.104` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -64,6 +64,7 @@ The release is acceptable for supervised private beta because:
 - beta.100 adds client-side no-store/cache-busting for runtime config fetches;
 - beta.101 refactors the runtime config freshness fetch without changing behavior;
 - beta.102 fixes Matter Overview preparation readiness so **Prepared** includes Matter Story and Filing and Procedural Posture Diagnosis, changes the default action to **Run needed preparation**, and gates full rebuilds behind a reason plus `REBUILD` confirmation;
+- beta.104 queues backend-owned post-upload preparation stages and applies the runtime DB job-kind migration needed for Case Timeline, Matter Story, and posture diagnosis jobs;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -87,7 +88,7 @@ The following is intentionally not part of this official private beta release:
 - Google Drive import;
 - full OAuth file-picker workflow;
 - retention/legal-hold/export/purge workflow;
-- additional durable background workers beyond the first extraction worker;
+- chunked upload for very large individual files;
 - public self-service signup or password reset;
 - unsupervised legal reliance;
 - full in-app historical changelog browser.
@@ -97,18 +98,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.102
-codename: Preparation Gate
-deployed_commit: a092764
+release: v1.0.0-beta.104
+codename: Relay Key
+deployed_commit: 61269d9
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: a3bd99a / v1.0.0-beta.101
+rollback_candidate: a092764 / v1.0.0-beta.102
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T06-19-08-285Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T06-48-38-396Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
