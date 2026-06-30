@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) |
+| Current release notes | [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -177,7 +177,8 @@ implementation plan.
 | [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) | Preparation queue helper refactor. **Codename:** Queue Spindle. |
 | [v1.0.0-beta.107](releases/v1.0.0-beta.107.md) | Backend preparation job observer. **Codename:** Queue Watch. |
 | [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | Preparation observer hook refactor. **Codename:** Watch Loom. |
-| [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | Current procedural posture legal-route output redesign. **Codename:** Route Compass. |
+| [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | Procedural posture legal-route output redesign. **Codename:** Route Compass. |
+| [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | Current procedural posture contract refactor. **Codename:** Route Loom. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
