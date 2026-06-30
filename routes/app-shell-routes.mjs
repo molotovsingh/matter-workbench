@@ -314,6 +314,9 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
       patternRoute("POST", /^\/api\/upload-sessions\/([^/]+)\/commit$/, async ({ params }) => {
         sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.commitUploadSession(params[0])));
       }),
+      patternRoute("POST", /^\/api\/upload-sessions\/([^/]+)\/cancel$/, async ({ params }) => {
+        sendJson(response, 200, await uploadService.cancelUploadSession(params[0]));
+      }),
       exactRoute("POST", "/api/matters/new", async () => {
         const workspace = await runTrackedUpload({
           jobStatusService,

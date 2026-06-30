@@ -385,6 +385,7 @@ export const api = {
   getUploadSession: (sessionId: string) => getJson<UploadSession>(`/api/upload-sessions/${encodeURIComponent(sessionId)}`),
   uploadSessionFile: (sessionId: string, formData: FormData) => postFormData<UploadSession>(`/api/upload-sessions/${encodeURIComponent(sessionId)}/files`, formData),
   commitUploadSession: (sessionId: string) => postJson<WorkspaceApiResponse & AddFilesResponse>(`/api/upload-sessions/${encodeURIComponent(sessionId)}/commit`),
+  cancelUploadSession: (sessionId: string) => postJson<UploadSession>(`/api/upload-sessions/${encodeURIComponent(sessionId)}/cancel`),
   checkOverlap: (body: CheckOverlapRequest) => postJson<CheckOverlapResponse>('/api/matters/check-overlap', body),
   switchMatter: (name: string) => postJson<WorkspaceApiResponse>('/api/switch-matter', { name }),
   clearActiveMatter: () => postJson('/api/active-matter/clear'),

@@ -120,6 +120,10 @@ test("runtime DB postgres storage mode exposes first-class upload session endpoi
           matter: { id: "matter-1", name: "Session Matter" },
         };
       },
+      async cancelUploadSession(sessionId) {
+        calls.push(["cancel", sessionId]);
+        return { ...session, status: "cancelled" };
+      },
       async readWorkspace() {
         calls.push(["workspace"]);
         return {
@@ -159,12 +163,17 @@ test("runtime DB postgres storage mode exposes first-class upload session endpoi
     assert.equal(committed.folderName, "Session Matter");
     assert.equal(committed.uploadSession.status, "committed");
 
+    const cancelled = await postJson(server.baseUrl, `/api/upload-sessions/${session.id}/cancel`);
+    assert.equal(cancelled.id, session.id);
+    assert.equal(cancelled.status, "cancelled");
+
     assert.deepEqual(calls, [
       ["create", "create_matter", "Session Matter", 1],
       ["read", session.id],
       ["files", session.id, ["note.txt"], [0], ["note.txt"]],
       ["commit", session.id],
       ["workspace"],
+      ["cancel", session.id],
     ]);
   } finally {
     await server.close();

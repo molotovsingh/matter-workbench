@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { isMatterSwitchSupersededError, useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
@@ -12,7 +12,15 @@ import {
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
-import { createMatterWithUploadSession } from '../lib/uploadSessions';
+import {
+  cancelUploadSessionDraft,
+  createMatterWithUploadSession,
+  findLatestUploadSessionDraft,
+  findMatchingUploadSessionDraft,
+  selectedFilesMatchUploadSessionDraft,
+  uploadSessionDraftSummary,
+  type StoredUploadSessionDraft,
+} from '../lib/uploadSessions';
 import type { OverlapWarning } from '../types';
 
 interface Props {
@@ -33,10 +41,20 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
+  const [recoverableUpload, setRecoverableUpload] = useState<StoredUploadSessionDraft | null>(null);
   const [overlapWarnings, setOverlapWarnings] = useState<OverlapWarning[]>([]);
   const [bypassOverlap, setBypassOverlap] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  const runtimeUploadSessionsEnabled = state.config?.runtimeStorageMode === 'postgres';
+
+  useEffect(() => {
+    if (!runtimeUploadSessionsEnabled) {
+      setRecoverableUpload(null);
+      return;
+    }
+    setRecoverableUpload(findLatestUploadSessionDraft({ action: 'create_matter', matterName: name.trim() || undefined }));
+  }, [runtimeUploadSessionsEnabled, name]);
 
   function addFiles(nextFiles: CollectedUploadFile[]) {
     if (nextFiles.length > 0) {
@@ -73,6 +91,24 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
   function handleContinueWithOverlap() {
     setBypassOverlap(true);
     setOverlapWarnings([]);
+  }
+
+  function handleUseRecoverableUpload() {
+    if (!recoverableUpload) return;
+    setName(recoverableUpload.matterName || '');
+    setClientName(recoverableUpload.metadata?.clientName || '');
+    setMatterType(recoverableUpload.metadata?.matterType || '');
+    setOppositeParty(recoverableUpload.metadata?.oppositeParty || '');
+    setJurisdiction(recoverableUpload.metadata?.jurisdiction || '');
+    setBriefDescription(recoverableUpload.metadata?.briefDescription || '');
+    setError('Re-select the same files, then submit to resume the unfinished upload.');
+  }
+
+  async function handleForgetRecoverableUpload() {
+    if (!recoverableUpload) return;
+    await cancelUploadSessionDraft(recoverableUpload);
+    setRecoverableUpload(null);
+    setError('');
   }
 
   async function handleOpenExistingMatter(matterName: string) {
@@ -145,14 +181,20 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         ? `[new-matter] creating durable upload session for "${cleanName}"…`
         : `[new-matter] creating "${cleanName}"…`]);
 
+      const resumeDraft = findMatchingUploadSessionDraft({ action: 'create_matter', matterName: cleanName, files });
+      if (resumeDraft) {
+        appendTerminal([`[new-matter] resuming durable upload session ${resumeDraft.sessionId} for "${cleanName}"…`]);
+      }
       const created = state.config?.runtimeStorageMode === 'postgres'
         ? await createMatterWithUploadSession({
             name: cleanName,
             metadata,
             files,
-            onProgress: ({ uploadedFiles, totalFiles, currentPath }) => {
-              setProgressMessage(`Uploaded ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
-              appendTerminal([`[new-matter] uploaded ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
+            resumeDraft,
+            onProgress: ({ uploadedFiles, totalFiles, currentPath, resumed }) => {
+              const prefix = resumed ? 'Resumed upload' : 'Uploaded';
+              setProgressMessage(`${prefix} ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
+              appendTerminal([`[new-matter] ${resumed ? 'resumed' : 'uploaded'} ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
             },
           })
         : await createMatterWithLegacyMultipart({ cleanName, metadata, files });
@@ -339,6 +381,25 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
             </div>
           )}
         </div>
+
+        {runtimeUploadSessionsEnabled && recoverableUpload && (
+          <div className="form-info">
+            <strong>Unfinished upload session found.</strong>
+            <p>
+              {uploadSessionDraftSummary(recoverableUpload)}. Re-select the same files to resume from the files already received by the server.
+            </p>
+            {files.length > 0 && selectedFilesMatchUploadSessionDraft(recoverableUpload, files) && (
+              <p>Selected files match this session. Submitting will resume instead of starting over.</p>
+            )}
+            {files.length > 0 && !selectedFilesMatchUploadSessionDraft(recoverableUpload, files) && (
+              <p>The currently selected files do not match this saved session. You can forget it or select the original files again.</p>
+            )}
+            <div className="warning-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="secondary" onClick={handleUseRecoverableUpload}>Use saved details</button>
+              <button type="button" className="secondary" onClick={() => void handleForgetRecoverableUpload()}>Forget saved upload</button>
+            </div>
+          </div>
+        )}
 
         {overlapWarnings.length > 0 && (
           <div className="form-warning">

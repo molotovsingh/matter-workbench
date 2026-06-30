@@ -54,6 +54,35 @@ test("runtime DB upload sessions are created before file bytes and track file re
   assert.deepEqual(second.items.map((item) => item.relativePath), ["a.txt", "b.txt"]);
 });
 
+test("runtime DB upload sessions can be cancelled and staged payloads are cleared", async () => {
+  const db = createFakeUploadSessionDb();
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    createPgClient: async () => fakePgClient(db),
+  });
+
+  const created = await service.createUploadSession({
+    action: "create_matter",
+    name: "Cancelled Intake Matter",
+    expectedFileCount: 1,
+    idempotencyKey: "test-session-cancel",
+  });
+  await service.appendUploadSessionFiles({
+    sessionId: created.id,
+    files: [{ index: 0, filename: "a.txt", bytes: Buffer.from("hello") }],
+    relativePaths: ["a.txt"],
+    fileIndexes: [0],
+  });
+
+  const cancelled = await service.cancelUploadSession(created.id);
+
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.items[0].status, "cancelled");
+  assert.equal(cancelled.items[0].payload, null);
+  assert.equal(db.items.get(created.id)[0].payload, null);
+});
+
 function createFakeUploadSessionDb() {
   return {
     nextSessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -139,6 +168,24 @@ function fakePgClient(db) {
         session.received_bytes = String(receivedBytes);
         session.status = items.length >= Number(session.expected_file_count) ? "uploaded" : "uploading";
         session.updated_at = new Date("2026-06-30T00:00:02Z");
+        return { rows: [] };
+      }
+      if (/update upload_sessions\s+set status = 'cancelled'/i.test(text)) {
+        const session = db.sessions.get(values[0]);
+        session.status = "cancelled";
+        session.finished_at = new Date("2026-06-30T00:00:03Z");
+        session.updated_at = new Date("2026-06-30T00:00:03Z");
+        return { rows: [] };
+      }
+      if (/update upload_session_items\s+set status = 'cancelled'/i.test(text)) {
+        const rows = db.items.get(values[0]) || [];
+        for (const row of rows) {
+          if (row.status !== "committed") {
+            row.status = "cancelled";
+            row.payload = null;
+            row.updated_at = new Date("2026-06-30T00:00:03Z");
+          }
+        }
         return { rows: [] };
       }
       throw new Error(`Unexpected fake pg query: ${text.slice(0, 160)}`);

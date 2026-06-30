@@ -775,6 +775,31 @@ export function createRuntimeDbStorageService({
     });
   }
 
+  async function cancelUploadSession(sessionId) {
+    ensureEnabled();
+    return withRuntimeDbClient(async (client) => {
+      const session = await readUploadSessionWithClient(client, sessionId, { includePayload: false, forUpdate: true });
+      if (!session) throw makeHttpError("Upload session not found.", 404, "upload_session.not_found");
+      if (session.status === "committed") return session;
+      await client.query([
+        "update upload_sessions",
+        "set status = 'cancelled',",
+        "    error_code = null,",
+        "    error_message = null,",
+        "    finished_at = coalesce(finished_at, now()),",
+        "    updated_at = now()",
+        "where tenant_id = current_app_tenant_id() and id = $1::uuid",
+      ].join("\n"), [session.id]);
+      await client.query([
+        "update upload_session_items",
+        "set status = 'cancelled', payload = null, updated_at = now()",
+        "where tenant_id = current_app_tenant_id() and upload_session_id = $1::uuid",
+        "  and status <> 'committed'",
+      ].join("\n"), [session.id]);
+      return readUploadSessionWithClient(client, session.id, { includePayload: false });
+    });
+  }
+
   async function readUploadSessionForCommit(sessionId) {
     return withRuntimeDbClient(async (client) => {
       const session = await readUploadSessionWithClient(client, sessionId, { includePayload: true, forUpdate: true });
@@ -1357,6 +1382,7 @@ export function createRuntimeDbStorageService({
     extractDocuments,
     claimNextProcessingJob,
     commitUploadSession,
+    cancelUploadSession,
     completeProcessingJob,
     createMatterFromUploadedFiles,
     createUploadSession,

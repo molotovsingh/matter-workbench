@@ -93,17 +93,17 @@ export function createUploadService({
   }
 
   async function createUploadSession(body = {}) {
-    assertRuntimeUploadSessionAvailable();
+    assertRuntimeUploadSessionAvailable("createUploadSession");
     return runtimeDbStorageService.createUploadSession(body);
   }
 
   async function readUploadSession(sessionId) {
-    assertRuntimeUploadSessionAvailable();
+    assertRuntimeUploadSessionAvailable("readUploadSession");
     return runtimeDbStorageService.readUploadSession(sessionId);
   }
 
   async function uploadSessionFiles(sessionId, request) {
-    assertRuntimeUploadSessionAvailable();
+    assertRuntimeUploadSessionAvailable("appendUploadSessionFiles");
     const { fields, files, tempDir } = await handleMultipartUpload(request);
     try {
       const relativePaths = parseUploadJsonField(fields, "paths", files.map((file) => file.filename));
@@ -122,8 +122,13 @@ export function createUploadService({
     }
   }
 
+  async function cancelUploadSession(sessionId) {
+    assertRuntimeUploadSessionAvailable("cancelUploadSession");
+    return runtimeDbStorageService.cancelUploadSession(sessionId);
+  }
+
   async function commitUploadSession(sessionId) {
-    assertRuntimeUploadSessionAvailable();
+    assertRuntimeUploadSessionAvailable("commitUploadSession");
     const result = await runtimeDbStorageService.commitUploadSession(sessionId);
     const matterName = result?.matter?.name || result?.session?.matter?.name || result?.session?.matterName;
     if (matterName) await matterStore.switchMatter(matterName);
@@ -251,14 +256,15 @@ export function createUploadService({
     return matterStore.resolveExistingMatter(target);
   }
 
-  function assertRuntimeUploadSessionAvailable() {
-    if (!matterStore.hasRuntimeDbStorageMode?.() || typeof runtimeDbStorageService?.createUploadSession !== "function") {
+  function assertRuntimeUploadSessionAvailable(requiredMethod = "createUploadSession") {
+    if (!matterStore.hasRuntimeDbStorageMode?.() || typeof runtimeDbStorageService?.[requiredMethod] !== "function") {
       throw makeHttpError("Durable upload sessions are available only in DB workspace mode.", 409, "upload_session.unavailable");
     }
   }
 
   return {
     addFilesToMatter,
+    cancelUploadSession,
     commitUploadSession,
     createMatter,
     createUploadSession,

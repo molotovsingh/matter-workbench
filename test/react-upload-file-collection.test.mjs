@@ -239,10 +239,29 @@ test("React upload forms report submit failures without leaking filenames", asyn
 test("React new-matter form switches to the server-returned matter folder after create", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
 
-  assert.match(newMatter, /const created = await api\.newMatter\(fd\)/);
+  assert.match(newMatter, /createMatterWithUploadSession\(/);
+  assert.match(newMatter, /return api\.newMatter\(fd\)/);
   assert.match(newMatter, /const createdName = created\.folderName \|\| cleanName/);
   assert.match(newMatter, /await switchActiveMatter\(createdName,/);
   assert.match(newMatter, /onCreated\(createdName, \{ autoPrepare: true \}\)/);
+});
+
+
+test("React upload forms surface resumable durable upload sessions", async () => {
+  const newMatter = await readFile(newMatterPath, "utf8");
+  const addFiles = await readFile(addFilesPath, "utf8");
+
+  for (const source of [newMatter, addFiles]) {
+    assert.match(source, /findLatestUploadSessionDraft/);
+    assert.match(source, /findMatchingUploadSessionDraft/);
+    assert.match(source, /selectedFilesMatchUploadSessionDraft/);
+    assert.match(source, /Unfinished upload session found/);
+    assert.match(source, /Forget saved upload/);
+    assert.match(source, /resumeDraft/);
+  }
+  assert.match(newMatter, /Use saved details/);
+  assert.match(newMatter, /resuming durable upload session/);
+  assert.match(addFiles, /resuming durable upload session/);
 });
 
 async function importHelper() {

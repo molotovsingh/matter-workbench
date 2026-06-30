@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
@@ -14,7 +14,15 @@ import {
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
-import { addFilesWithUploadSession } from '../lib/uploadSessions';
+import {
+  addFilesWithUploadSession,
+  cancelUploadSessionDraft,
+  findLatestUploadSessionDraft,
+  findMatchingUploadSessionDraft,
+  selectedFilesMatchUploadSessionDraft,
+  uploadSessionDraftSummary,
+  type StoredUploadSessionDraft,
+} from '../lib/uploadSessions';
 
 interface Props {
   onCancel: () => void;
@@ -29,12 +37,23 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
   const [dragover, setDragover] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
+  const [recoverableUpload, setRecoverableUpload] = useState<StoredUploadSessionDraft | null>(null);
   const [error, setError] = useState('');
   const [selfOverlap, setSelfOverlap] = useState<OverlapWarning | null>(null);
   const [otherOverlaps, setOtherOverlaps] = useState<OverlapWarning[]>([]);
   const [bypassOverlap, setBypassOverlap] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  const runtimeUploadSessionsEnabled = state.config?.runtimeStorageMode === 'postgres';
+
+  useEffect(() => {
+    const matterName = state.activeMatter?.name;
+    if (!runtimeUploadSessionsEnabled || !matterName) {
+      setRecoverableUpload(null);
+      return;
+    }
+    setRecoverableUpload(findLatestUploadSessionDraft({ action: 'add_files', matterName }));
+  }, [runtimeUploadSessionsEnabled, state.activeMatter?.name]);
 
   function addFiles(files: CollectedUploadFile[]) {
     setCollected((prev) => [...prev, ...files]);
@@ -64,6 +83,13 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
     window.setTimeout(() => {
       input.value = '';
     }, 0);
+  }
+
+  async function handleForgetRecoverableUpload() {
+    if (!recoverableUpload) return;
+    await cancelUploadSessionDraft(recoverableUpload);
+    setRecoverableUpload(null);
+    setError('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -127,15 +153,21 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         ? `[add-files] creating durable upload session for ${collected.length} file(s)…`
         : `[add-files] uploading ${collected.length} file(s)…`]);
 
+      const resumeDraft = findMatchingUploadSessionDraft({ action: 'add_files', matterName, files: collected });
+      if (resumeDraft) {
+        appendTerminal([`[add-files] resuming durable upload session ${resumeDraft.sessionId} for ${collected.length} file(s)…`]);
+      }
       const result = state.config?.runtimeStorageMode === 'postgres'
         ? await addFilesWithUploadSession({
             matterName,
             label: label.trim(),
             files: collected,
-            onProgress: ({ uploadedFiles, totalFiles, currentPath }) => {
+            resumeDraft,
+            onProgress: ({ uploadedFiles, totalFiles, currentPath, resumed }) => {
               if (activeMatterNameRef.current !== matterName) return;
-              setProgressMessage(`Uploaded ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
-              appendTerminal([`[add-files] uploaded ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
+              const prefix = resumed ? 'Resumed upload' : 'Uploaded';
+              setProgressMessage(`${prefix} ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
+              appendTerminal([`[add-files] ${resumed ? 'resumed' : 'uploaded'} ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
             },
           })
         : await addFilesWithLegacyMultipart({ matterName, label: label.trim(), files: collected });
@@ -252,6 +284,24 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
             </div>
           )}
         </div>
+
+        {runtimeUploadSessionsEnabled && recoverableUpload && (
+          <div className="form-info">
+            <strong>Unfinished upload session found.</strong>
+            <p>
+              {uploadSessionDraftSummary(recoverableUpload)}. Re-select the same files to resume from the files already received by the server.
+            </p>
+            {collected.length > 0 && selectedFilesMatchUploadSessionDraft(recoverableUpload, collected) && (
+              <p>Selected files match this session. Submitting will resume instead of starting over.</p>
+            )}
+            {collected.length > 0 && !selectedFilesMatchUploadSessionDraft(recoverableUpload, collected) && (
+              <p>The currently selected files do not match this saved session. You can forget it or select the original files again.</p>
+            )}
+            <div className="warning-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="secondary" onClick={() => void handleForgetRecoverableUpload()}>Forget saved upload</button>
+            </div>
+          </div>
+        )}
 
         {selfOverlap && (
           <div className="form-info">
