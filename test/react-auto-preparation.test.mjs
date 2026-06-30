@@ -7,6 +7,7 @@ const newMatterPath = new URL("../react-ui/src/views/NewMatterForm.tsx", import.
 const addFilesPath = new URL("../react-ui/src/views/AddFilesForm.tsx", import.meta.url);
 const runnerPath = new URL("../react-ui/src/lib/autoPreparationRunner.ts", import.meta.url);
 const overviewPath = new URL("../react-ui/src/views/MatterOverview.tsx", import.meta.url);
+const postureSummaryPath = new URL("../react-ui/src/components/matters/PostureSummary.tsx", import.meta.url);
 const mainContentPath = new URL("../react-ui/src/components/layout/MainContent.tsx", import.meta.url);
 const homeLandingPath = new URL("../react-ui/src/views/HomeLanding.tsx", import.meta.url);
 const prepareMatterPath = new URL("../react-ui/src/views/workflows/PrepareMatterResult.tsx", import.meta.url);
@@ -71,19 +72,21 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
 
 test("React matter overview renders Matter Workbench story before original intake note", async () => {
   const overview = await readFile(overviewPath, "utf8");
+  const postureSummary = await readFile(postureSummaryPath, "utf8");
 
   assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
   assert.match(overview, /<ProceduralPostureCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} \/>/);
+  assert.match(overview, /import \{ PostureSummary \} from '..\/components\/matters\/PostureSummary'/);
   assert.match(overview, /Matter Workbench story/);
   assert.match(overview, /Author: MW/);
   assert.match(overview, /Based on: \{caseTimelineSourceLabel\(source\?\.basedOn\)\}/);
   assert.match(overview, /Current Case Timeline/);
   assert.match(overview, /Original intake note/);
-  assert.match(overview, /function PostureSummary/);
-  assert.match(overview, /Simple view:/);
-  assert.match(overview, /Recommended route:/);
-  assert.match(overview, /Next best actions/);
-  assert.match(overview, /Full legal routes are saved in/);
+  assert.match(postureSummary, /function PostureSummary/);
+  assert.match(postureSummary, /Simple view:/);
+  assert.match(postureSummary, /Recommended route:/);
+  assert.match(postureSummary, /Next best actions/);
+  assert.match(postureSummary, /Full legal routes are saved in/);
   assert.match(overview, /Confirm working posture/);
   assert.match(overview, /Disagree \/ correct/);
   assert.match(overview, /Not sure yet/);

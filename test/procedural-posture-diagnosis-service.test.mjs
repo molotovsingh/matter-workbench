@@ -13,6 +13,9 @@ import {
   postureDiagnosisSchemas,
 } from "../services/procedural-posture-diagnosis-service.mjs";
 
+const servicePath = new URL("../services/procedural-posture-diagnosis-service.mjs", import.meta.url);
+const contractPath = new URL("../services/procedural-posture-diagnosis-contract.mjs", import.meta.url);
+
 function store(root) {
   return {
     ensureMatterRoot: () => root,
@@ -167,6 +170,17 @@ test("procedural posture schema requires standardized legal routes", () => {
     schemas.finalDiagnosis.properties.legal_routes.items.required,
     ["route_number", "route_title", "route_summary", "when_to_use", "why_this_route", "court_or_forum", "statutory_references", "what_to_confirm", "priority"],
   );
+});
+
+test("procedural posture output contract is separated from orchestration", async () => {
+  const serviceSource = await readFile(servicePath, "utf8");
+  const contractSource = await readFile(contractPath, "utf8");
+
+  assert.match(serviceSource, /procedural-posture-diagnosis-contract\.mjs/);
+  assert.doesNotMatch(serviceSource, /function legalRouteSchema/);
+  assert.doesNotMatch(serviceSource, /function renderLegalRoutesMarkdown/);
+  assert.match(contractSource, /export function renderProceduralPostureDiagnosisMarkdown/);
+  assert.match(contractSource, /export function normalizeLegalRoutes/);
 });
 
 test("procedural posture diagnosis refuses to run without a Case Timeline", async () => {

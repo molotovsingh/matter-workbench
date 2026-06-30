@@ -979,6 +979,26 @@ export interface MatterStoryRunResult {
   runId?: string;
 }
 
+export interface ProceduralLegalRoute {
+  route_number?: number;
+  route_title?: string;
+  route_summary?: string;
+  when_to_use?: string;
+  why_this_route?: string;
+  court_or_forum?: string;
+  statutory_references?: string[];
+  what_to_confirm?: string[];
+  priority?: string;
+}
+
+export interface ProceduralRecommendedRoute {
+  route_number?: number;
+  route_title?: string;
+  recommendation?: string;
+  reason?: string;
+  next_step?: string;
+}
+
 export interface ProceduralPostureDiagnosisResult {
   schema_version?: string;
   state?: string;
@@ -999,24 +1019,8 @@ export interface ProceduralPostureDiagnosisResult {
   proceduralPosture?: { value?: string; confidence?: string; reason?: string } | null;
   recommendedWorkingPath?: { filing_or_remedy?: string; reason?: string } | null;
   simpleCaseView?: string;
-  legalRoutes?: Array<{
-    route_number?: number;
-    route_title?: string;
-    route_summary?: string;
-    when_to_use?: string;
-    why_this_route?: string;
-    court_or_forum?: string;
-    statutory_references?: string[];
-    what_to_confirm?: string[];
-    priority?: string;
-  }>;
-  recommendedRoute?: {
-    route_number?: number;
-    route_title?: string;
-    recommendation?: string;
-    reason?: string;
-    next_step?: string;
-  } | null;
+  legalRoutes?: ProceduralLegalRoute[];
+  recommendedRoute?: ProceduralRecommendedRoute | null;
   nextBestActions?: string[];
   lawyerToConfirmCount?: number;
 }
