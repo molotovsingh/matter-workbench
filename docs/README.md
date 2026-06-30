@@ -179,13 +179,14 @@ implementation plan.
 | [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | Preparation observer hook refactor. **Codename:** Watch Loom. |
 | [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | Procedural posture legal-route output redesign. **Codename:** Route Compass. |
 | [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | Current procedural posture contract refactor. **Codename:** Route Loom. |
+| [Maintenance Checkpoints](releases/maintenance-checkpoints.md) | Tier 2 behavior-preserving deployment log. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
 | [Private Beta Bug-Fix Loop](private-beta-bug-fix-loop.md) | Operating rule for bug-fix-only supervised beta work. |
 | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) | One-bug private beta handoff evidence. |
 | [V1 Beta Mode A Acceptance](v1-beta-mode-a-acceptance-2026-05-17.md) | Clean-slate real-matter acceptance evidence. |
-| [Release Policy](release-policy.md) | Rules for tags, release notes, deployed commits, and current-release pointers. |
+| [Release Policy](release-policy.md) | Tiered rules for official releases, maintenance checkpoints, main-only changes, and docs-only updates. |
 
 Historical model bakeoffs and runtime smokes are evidence notes. They are useful
 for context, but they should not override current contracts or release notes.
