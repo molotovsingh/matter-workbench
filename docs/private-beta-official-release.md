@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.98`](releases/v1.0.0-beta.98.md)
+Release: [`v1.0.0-beta.99`](releases/v1.0.0-beta.99.md)
 
-Codename: **Recovery Weave**
+Codename: **Fresh Badge**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.98` is the official private beta release checkpoint.
+`v1.0.0-beta.99` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -60,6 +60,7 @@ The release is acceptable for supervised private beta because:
 - beta.96 adds browser-visible unfinished upload recovery, same-file resume, and upload-session cancel;
 - beta.97 broadens runtime DB worker stage support without auto-queuing new preparation stages;
 - beta.98 refactors upload recovery UI/workflow without changing behavior;
+- beta.99 prevents stale `/api/config` release-badge responses;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -93,18 +94,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.98
-codename: Recovery Weave
-deployed_commit: 6c90cb7
+release: v1.0.0-beta.99
+codename: Fresh Badge
+deployed_commit: 389c8ed
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: c9ed431 / v1.0.0-beta.97
+rollback_candidate: 6c90cb7 / v1.0.0-beta.98
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T04-33-40-293Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T04-47-34-809Z/ui-hardening-report.md
 ```
 
 ## Operator Rule
