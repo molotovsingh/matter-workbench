@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.106`](releases/v1.0.0-beta.106.md)
+Release: [`v1.0.0-beta.107`](releases/v1.0.0-beta.107.md)
 
-Codename: **Queue Spindle**
+Codename: **Queue Watch**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.106` is the official private beta release checkpoint.
+`v1.0.0-beta.107` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -67,6 +67,7 @@ The release is acceptable for supervised private beta because:
 - beta.104 queues backend-owned post-upload preparation stages and applies the runtime DB job-kind migration needed for Case Timeline, Matter Story, and posture diagnosis jobs;
 - beta.105 moves the default runtime DB **Run needed preparation** path onto backend processing jobs with React polling durable job status;
 - beta.106 refactors that preparation queue path into shared runtime helper utilities without changing behavior;
+- beta.107 makes backend preparation jobs observable in Matter Overview after refresh/reconnect, disables duplicate needed-preparation actions while relevant jobs are active, refreshes readiness when observed server jobs finish, and shows safe failed-job copy;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -100,18 +101,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.106
-codename: Queue Spindle
-deployed_commit: 95fa13b
+release: v1.0.0-beta.107
+codename: Queue Watch
+deployed_commit: c60b9c7
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 4035c51 / v1.0.0-beta.105
+rollback_candidate: 95fa13b / v1.0.0-beta.106
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T07-47-30-336Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T08-29-18-666Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

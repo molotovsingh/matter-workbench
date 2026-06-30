@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) |
+| Current release notes | [v1.0.0-beta.107](releases/v1.0.0-beta.107.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -174,7 +174,8 @@ implementation plan.
 | [v1.0.0-beta.102](releases/v1.0.0-beta.102.md) | Preparation readiness and safe rerun fix. **Codename:** Preparation Gate. |
 | [v1.0.0-beta.104](releases/v1.0.0-beta.104.md) | Backend-owned post-upload preparation queue migration. **Codename:** Relay Key. |
 | [v1.0.0-beta.105](releases/v1.0.0-beta.105.md) | Backend-owned needed-preparation run queue and React job polling. **Codename:** Queue Helm. |
-| [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) | Current preparation queue helper refactor. **Codename:** Queue Spindle. |
+| [v1.0.0-beta.106](releases/v1.0.0-beta.106.md) | Preparation queue helper refactor. **Codename:** Queue Spindle. |
+| [v1.0.0-beta.107](releases/v1.0.0-beta.107.md) | Current backend preparation job observer. **Codename:** Queue Watch. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
