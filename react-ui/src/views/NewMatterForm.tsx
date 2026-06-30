@@ -12,6 +12,7 @@ import {
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
+import { createMatterWithUploadSession } from '../lib/uploadSessions';
 import type { OverlapWarning } from '../types';
 
 interface Props {
@@ -130,21 +131,31 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
         }
       }
 
-      setProgressMessage(`Uploading ${files.length} file(s) and creating the matter. Keep this page open; large folders can take a few minutes.`);
-      appendTerminal([`[new-matter] creating "${cleanName}"…`]);
-      const fd = new FormData();
-      fd.append('name', cleanName);
       const metadata: Record<string, string> = { matterName: cleanName };
       if (clientName) metadata.clientName = clientName;
       if (matterType) metadata.matterType = matterType;
       if (oppositeParty) metadata.oppositeParty = oppositeParty;
       if (jurisdiction) metadata.jurisdiction = jurisdiction;
       if (briefDescription) metadata.briefDescription = briefDescription;
-      fd.append('metadata', JSON.stringify(metadata));
-      fd.append('paths', JSON.stringify(files.map((f) => f.relativePath)));
-      files.forEach((f) => fd.append('files', f.file, f.relativePath));
 
-      const created = await api.newMatter(fd);
+      setProgressMessage(state.config?.runtimeStorageMode === 'postgres'
+        ? `Creating upload session for ${files.length} file(s)…`
+        : `Uploading ${files.length} file(s) and creating the matter. Keep this page open; large folders can take a few minutes.`);
+      appendTerminal([state.config?.runtimeStorageMode === 'postgres'
+        ? `[new-matter] creating durable upload session for "${cleanName}"…`
+        : `[new-matter] creating "${cleanName}"…`]);
+
+      const created = state.config?.runtimeStorageMode === 'postgres'
+        ? await createMatterWithUploadSession({
+            name: cleanName,
+            metadata,
+            files,
+            onProgress: ({ uploadedFiles, totalFiles, currentPath }) => {
+              setProgressMessage(`Uploaded ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
+              appendTerminal([`[new-matter] uploaded ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
+            },
+          })
+        : await createMatterWithLegacyMultipart({ cleanName, metadata, files });
       const createdName = created.folderName || cleanName;
       appendTerminal([`[new-matter] created "${createdName}"`]);
       await switchActiveMatter(createdName, {
@@ -168,6 +179,23 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       setSubmitting(false);
       setProgressMessage('');
     }
+  }
+
+  async function createMatterWithLegacyMultipart({
+    cleanName,
+    metadata,
+    files,
+  }: {
+    cleanName: string;
+    metadata: Record<string, string>;
+    files: CollectedUploadFile[];
+  }) {
+    const fd = new FormData();
+    fd.append('name', cleanName);
+    fd.append('metadata', JSON.stringify(metadata));
+    fd.append('paths', JSON.stringify(files.map((f) => f.relativePath)));
+    files.forEach((f) => fd.append('files', f.file, f.relativePath));
+    return api.newMatter(fd);
   }
 
   const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);

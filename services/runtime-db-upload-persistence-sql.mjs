@@ -107,6 +107,55 @@ export function createMatterUploadSql({
   ];
 }
 
+export function createMatterSessionCommitSql({
+  matter,
+  actor,
+  intakeId,
+  uploadSessionId,
+  importBatchId,
+  expectedFileCount,
+  receivedDate,
+}) {
+  return [
+    "insert into matters (id, tenant_id, created_by_user_id, name, client_name, opposite_party, matter_type, jurisdiction, brief_description, status, next_file_number, created_at, updated_at)",
+    `values (${sqlUuid(matter.id)}, current_app_tenant_id(), ${sqlUuidOrNull(actor?.id)}, ${sqlString(matter.name)}, ${sqlString(matter.clientName)}, ${sqlString(matter.oppositeParty)}, ${sqlString(matter.matterType)}, ${sqlString(matter.jurisdiction)}, ${sqlString(matter.briefDescription)}, 'active', ${sqlInteger(expectedFileCount + 1)}, now(), now())`,
+    "on conflict (id) do update set",
+    "  name = excluded.name,",
+    "  created_by_user_id = coalesce(matters.created_by_user_id, excluded.created_by_user_id),",
+    "  client_name = excluded.client_name,",
+    "  opposite_party = excluded.opposite_party,",
+    "  matter_type = excluded.matter_type,",
+    "  jurisdiction = excluded.jurisdiction,",
+    "  brief_description = excluded.brief_description,",
+    "  next_file_number = greatest(matters.next_file_number, excluded.next_file_number),",
+    "  updated_at = excluded.updated_at;",
+    ...matterMembershipSqls({ matter, actor }),
+    "insert into matter_intakes (id, tenant_id, matter_id, label, received_at, created_by_user_id, created_at)",
+    `values (${sqlUuid(intakeId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, 'Initial', ${sqlString(receivedDate)}::date, ${sqlUuidOrNull(actor?.id)}, now())`,
+    "on conflict (id) do nothing;",
+    "update upload_sessions",
+    "set matter_id = " + sqlUuid(matter.id) + ",",
+    "    intake_id = " + sqlUuid(intakeId) + ",",
+    "    status = 'committed',",
+    "    expected_file_count = " + sqlInteger(expectedFileCount) + ",",
+    "    received_file_count = " + sqlInteger(expectedFileCount) + ",",
+    "    error_code = null,",
+    "    error_message = null,",
+    "    finished_at = now(),",
+    "    committed_at = now(),",
+    "    updated_at = now()",
+    "where tenant_id = current_app_tenant_id()",
+    "  and id = " + sqlUuid(uploadSessionId) + ";",
+    "update upload_session_items",
+    "set status = 'committed', payload = null, updated_at = now()",
+    "where tenant_id = current_app_tenant_id()",
+    "  and upload_session_id = " + sqlUuid(uploadSessionId) + ";",
+    "insert into matter_import_batches (id, tenant_id, matter_id, created_by_user_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
+    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuidOrNull(actor?.id)}, 'zip_upload', ${sqlString(matter.name)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:1`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",
+  ];
+}
+
 export function createMatterAddFilesSql({
   matter,
   actor,
@@ -127,6 +176,41 @@ export function createMatterAddFilesSql({
     "insert into upload_sessions (id, tenant_id, matter_id, intake_id, idempotency_key, created_by_user_id, status, expected_file_count, created_at, finished_at)",
     `values (${sqlUuid(uploadSessionId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuid(intakeDbId)}, ${sqlString(`runtime-db-upload:${matter.id}:${intakeNumber}`)}, ${sqlUuidOrNull(actor?.id)}, 'verified', ${sqlInteger(expectedFileCount)}, now(), now())`,
     "on conflict (tenant_id, idempotency_key) do update set status = excluded.status, expected_file_count = excluded.expected_file_count, finished_at = excluded.finished_at;",
+    "insert into matter_import_batches (id, tenant_id, matter_id, created_by_user_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
+    `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuidOrNull(actor?.id)}, 'zip_upload', ${sqlString(displayLabel)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:${intakeNumber}`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
+    "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",
+  ];
+}
+
+export function createMatterAddFilesSessionCommitSql({
+  matter,
+  actor,
+  intakeDbId,
+  intakeNumber,
+  uploadSessionId,
+  importBatchId,
+  expectedFileCount,
+  label,
+  receivedDate,
+}) {
+  const displayLabel = stringValue(label) || `Intake ${String(intakeNumber).padStart(2, "0")}`;
+  return [
+    ...matterMembershipSqls({ matter, actor }),
+    "update upload_sessions",
+    "set status = 'committed',",
+    "    expected_file_count = " + sqlInteger(expectedFileCount) + ",",
+    "    received_file_count = " + sqlInteger(expectedFileCount) + ",",
+    "    error_code = null,",
+    "    error_message = null,",
+    "    finished_at = now(),",
+    "    committed_at = now(),",
+    "    updated_at = now()",
+    "where tenant_id = current_app_tenant_id()",
+    "  and id = " + sqlUuid(uploadSessionId) + ";",
+    "update upload_session_items",
+    "set status = 'committed', payload = null, updated_at = now()",
+    "where tenant_id = current_app_tenant_id()",
+    "  and upload_session_id = " + sqlUuid(uploadSessionId) + ";",
     "insert into matter_import_batches (id, tenant_id, matter_id, created_by_user_id, source_kind, source_label, source_root_hint, collision_policy, status, idempotency_key, files_expected, files_imported, files_failed, started_at, finished_at)",
     `values (${sqlUuid(importBatchId)}, current_app_tenant_id(), ${sqlUuid(matter.id)}, ${sqlUuidOrNull(actor?.id)}, 'zip_upload', ${sqlString(displayLabel)}, ${sqlString(matter.name)}, 'fail_closed', 'succeeded', ${sqlString(`runtime-db-upload:${matter.id}:import:${intakeNumber}`)}, ${sqlInteger(expectedFileCount)}, ${sqlInteger(expectedFileCount)}, 0, now(), now())`,
     "on conflict (tenant_id, idempotency_key) do update set files_expected = excluded.files_expected, files_imported = excluded.files_imported, files_failed = excluded.files_failed, status = excluded.status, finished_at = excluded.finished_at;",

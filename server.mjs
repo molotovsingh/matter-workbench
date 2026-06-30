@@ -33,6 +33,7 @@ import { createPrivateBetaTelemetryRetryService } from "./services/private-beta-
 import { createPrivateBetaUsersService } from "./services/private-beta-users-service.mjs";
 import { createRuntimeDbMatterEventsService } from "./services/runtime-db-matter-events-service.mjs";
 import { createRuntimeDbMatterIndex } from "./services/runtime-db-matter-index.mjs";
+import { createRuntimeDbProcessingWorkerService } from "./services/runtime-db-processing-worker-service.mjs";
 import { createRuntimeDbStorageService } from "./services/runtime-db-storage-service.mjs";
 import {
   createRuntimeDbSourceRemovalMutationService,
@@ -481,6 +482,15 @@ export async function createWorkbenchServer(options = {}) {
       });
     }
   });
+
+  const runtimeDbProcessingWorkerService = options.runtimeDbProcessingWorkerService || createRuntimeDbProcessingWorkerService({
+    runtimeDbStorageService,
+    env,
+  });
+  if (runtimeDbProcessingWorkerService.enabled?.()) {
+    server.once("listening", () => runtimeDbProcessingWorkerService.start());
+    server.once("close", () => runtimeDbProcessingWorkerService.stop());
+  }
 
   if (hasTelemetrySyncConfig(env)) {
     server.once("listening", () => telemetryRetryService.start({ immediate: true }));

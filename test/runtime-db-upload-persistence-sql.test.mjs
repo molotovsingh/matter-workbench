@@ -5,7 +5,9 @@ import test from "node:test";
 import { materializedRowsForFiles } from "../services/runtime-db-materialized-persistence-sql.mjs";
 import {
   buildRuntimeUploadPersistenceSql,
+  createMatterAddFilesSessionCommitSql,
   createMatterAddFilesSql,
+  createMatterSessionCommitSql,
   createMatterUploadSql,
   runtimeDbActorSqls,
 } from "../services/runtime-db-upload-persistence-sql.mjs";
@@ -105,6 +107,47 @@ test("runtime DB upload persistence SQL builds add-files allocation finalization
   assert.match(sql, /duplicate_of_document_id/);
   assert.match(sql, /file_id = 'FILE-0001'/);
   assert.match(sql, /insert into matter_import_items/i);
+});
+
+test("runtime DB upload persistence SQL commits an existing durable new-matter session", () => {
+  const sql = createMatterSessionCommitSql({
+    matter,
+    actor,
+    intakeId: "33333333-3333-4333-8333-333333333333",
+    uploadSessionId: "44444444-4444-4444-8444-444444444444",
+    importBatchId: "55555555-5555-4555-8555-555555555555",
+    expectedFileCount: 2,
+    receivedDate: "2026-06-30",
+  }).join("\n");
+
+  assert.match(sql, /insert into matters/i);
+  assert.match(sql, /update upload_sessions/i);
+  assert.match(sql, /status = 'committed'/i);
+  assert.match(sql, /committed_at = now\(\)/i);
+  assert.match(sql, /update upload_session_items/i);
+  assert.match(sql, /payload = null/i);
+  assert.doesNotMatch(sql, /insert into upload_sessions/i);
+});
+
+test("runtime DB upload persistence SQL commits an existing durable add-files session", () => {
+  const sql = createMatterAddFilesSessionCommitSql({
+    matter,
+    actor,
+    intakeDbId: "33333333-3333-4333-8333-333333333333",
+    intakeNumber: 2,
+    uploadSessionId: "44444444-4444-4444-8444-444444444444",
+    importBatchId: "55555555-5555-4555-8555-555555555555",
+    expectedFileCount: 1,
+    label: "Later Batch",
+    receivedDate: "2026-06-30",
+  }).join("\n");
+
+  assert.match(sql, /update upload_sessions/i);
+  assert.match(sql, /status = 'committed'/i);
+  assert.match(sql, /update upload_session_items/i);
+  assert.match(sql, /Later Batch/);
+  assert.doesNotMatch(sql, /insert into upload_sessions/i);
+  assert.doesNotMatch(sql, /insert into matter_intakes/i);
 });
 
 test("runtime DB actor SQL maps operator-like users to admin membership", () => {

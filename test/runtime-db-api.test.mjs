@@ -82,6 +82,95 @@ test("runtime DB postgres storage mode lists matters even when local matters hom
   }
 });
 
+test("runtime DB postgres storage mode exposes first-class upload session endpoints", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-upload-session-api");
+  const calls = [];
+  const session = {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    status: "pending",
+    action: "create_matter",
+    matterName: "Session Matter",
+    expectedFileCount: 1,
+    receivedFileCount: 0,
+    items: [],
+  };
+  const runtimeMatter = runtimeDbMatter({ id: "matter-1", name: "Session Matter", matterName: "Session Matter" });
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    env: {},
+    matter: runtimeMatter,
+    runtimeDbStorageService: {
+      enabled: true,
+      async createUploadSession(body) {
+        calls.push(["create", body.action, body.name, body.expectedFileCount]);
+        return session;
+      },
+      async readUploadSession(sessionId) {
+        calls.push(["read", sessionId]);
+        return session;
+      },
+      async appendUploadSessionFiles(input) {
+        calls.push(["files", input.sessionId, input.relativePaths, input.fileIndexes, input.files.map((file) => file.filename)]);
+        return { ...session, status: "uploaded", receivedFileCount: 1 };
+      },
+      async commitUploadSession(sessionId) {
+        calls.push(["commit", sessionId]);
+        return {
+          session: { ...session, status: "committed", receivedFileCount: 1 },
+          matter: { id: "matter-1", name: "Session Matter" },
+        };
+      },
+      async readWorkspace() {
+        calls.push(["workspace"]);
+        return {
+          folderName: "Session Matter",
+          inputLabel: "postgres:Session Matter",
+          metadata: { matterName: "Session Matter" },
+          fileCount: 0,
+          directoryCount: 0,
+          tree: { name: "Session Matter", kind: "directory", path: "", children: [] },
+        };
+      },
+    },
+  });
+
+  try {
+    const created = await postJson(server.baseUrl, "/api/upload-sessions", {
+      action: "create_matter",
+      name: "Session Matter",
+      expectedFileCount: 1,
+    });
+    assert.equal(created.id, session.id);
+
+    const read = await getJson(server.baseUrl, `/api/upload-sessions/${session.id}`);
+    assert.equal(read.id, session.id);
+
+    const form = new FormData();
+    form.set("fileIndex", "0");
+    form.set("paths", JSON.stringify(["note.txt"]));
+    form.append("files", new Blob(["hello"], { type: "text/plain" }), "note.txt");
+    const filesResponse = await fetch(`${server.baseUrl}/api/upload-sessions/${session.id}/files`, { method: "POST", body: form });
+    const filesText = await filesResponse.text();
+    assert.equal(filesResponse.ok, true, filesText);
+    const uploaded = JSON.parse(filesText);
+    assert.equal(uploaded.status, "uploaded");
+
+    const committed = await postJson(server.baseUrl, `/api/upload-sessions/${session.id}/commit`);
+    assert.equal(committed.folderName, "Session Matter");
+    assert.equal(committed.uploadSession.status, "committed");
+
+    assert.deepEqual(calls, [
+      ["create", "create_matter", "Session Matter", 1],
+      ["read", session.id],
+      ["files", session.id, ["note.txt"], [0], ["note.txt"]],
+      ["commit", session.id],
+      ["workspace"],
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB postgres storage mode exposes config custody label", async () => {
   const { appDir } = await runtimeDbTestPaths("runtime-db-config-mode");
   const server = await startRuntimeDbTestServer({

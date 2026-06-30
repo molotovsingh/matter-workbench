@@ -14,6 +14,7 @@ import {
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
+import { addFilesWithUploadSession } from '../lib/uploadSessions';
 
 interface Props {
   onCancel: () => void;
@@ -119,15 +120,25 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         }
       }
 
-      setProgressMessage(`Uploading ${collected.length} file(s) to this matter. Keep this page open; large folders can take a few minutes.`);
-      appendTerminal([`[add-files] uploading ${collected.length} file(s)…`]);
-      const fd = new FormData();
-      fd.append('matterName', matterName);
-      if (label.trim()) fd.append('label', label.trim());
-      fd.append('paths', JSON.stringify(collected.map((c) => c.relativePath)));
-      collected.forEach((c) => fd.append('files', c.file, c.relativePath));
+      setProgressMessage(state.config?.runtimeStorageMode === 'postgres'
+        ? `Creating upload session for ${collected.length} file(s)…`
+        : `Uploading ${collected.length} file(s) to this matter. Keep this page open; large folders can take a few minutes.`);
+      appendTerminal([state.config?.runtimeStorageMode === 'postgres'
+        ? `[add-files] creating durable upload session for ${collected.length} file(s)…`
+        : `[add-files] uploading ${collected.length} file(s)…`]);
 
-      const result = await api.addFiles(fd);
+      const result = state.config?.runtimeStorageMode === 'postgres'
+        ? await addFilesWithUploadSession({
+            matterName,
+            label: label.trim(),
+            files: collected,
+            onProgress: ({ uploadedFiles, totalFiles, currentPath }) => {
+              if (activeMatterNameRef.current !== matterName) return;
+              setProgressMessage(`Uploaded ${uploadedFiles}/${totalFiles} file(s). Latest: ${currentPath || 'file'}`);
+              appendTerminal([`[add-files] uploaded ${uploadedFiles}/${totalFiles}: ${currentPath || 'file'}`]);
+            },
+          })
+        : await addFilesWithLegacyMultipart({ matterName, label: label.trim(), files: collected });
       if (activeMatterNameRef.current !== matterName) return;
       appendTerminal([`[add-files] ${collected.length} file(s) added`]);
       onDone({ autoPrepare: (result.intakeAdded?.unique ?? collected.length) > 0 });
@@ -148,6 +159,23 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         setProgressMessage('');
       }
     }
+  }
+
+  async function addFilesWithLegacyMultipart({
+    matterName,
+    label,
+    files,
+  }: {
+    matterName: string;
+    label: string;
+    files: CollectedUploadFile[];
+  }) {
+    const fd = new FormData();
+    fd.append('matterName', matterName);
+    if (label) fd.append('label', label);
+    fd.append('paths', JSON.stringify(files.map((c) => c.relativePath)));
+    files.forEach((c) => fd.append('files', c.file, c.relativePath));
+    return api.addFiles(fd);
   }
 
   function handleContinueWithOverlap() {

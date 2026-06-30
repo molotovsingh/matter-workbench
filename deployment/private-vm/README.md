@@ -42,6 +42,7 @@ MWB_PRIVATE_BETA_METRICS_PATH=/home/aks/.local/share/matter-workbench/private-be
 MWB_PRIVATE_BETA_SESSION_TTL_SECONDS=28800
 MWB_PRIVATE_BETA_USERNAME=<dedicated smoke-test username>
 MWB_PRIVATE_BETA_PASSWORD=<dedicated smoke-test password>
+MWB_RUNTIME_DB_PROCESSING_WORKER=1
 MWB_RESTORE_DRILL_STATUS=unknown
 MWB_STORAGE_BACKUP_STATUS=unknown
 ```

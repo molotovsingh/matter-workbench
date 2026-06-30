@@ -79,7 +79,7 @@ async function buildUploadedSourceStorageFiles({
   const storageFiles = [];
   for (const file of sortedFiles) {
     const safeRel = validateRelativePath(relativePaths[file.index]);
-    const bytes = await readFile(file.tempPath);
+    const bytes = file.bytes ? Buffer.from(file.bytes) : await readFile(file.tempPath);
     storageFiles.push({
       relativePath: normalizeRuntimeObjectKey(`00_Inbox/${intakeDirName}/Source Files/${safeRel}`),
       bytes,

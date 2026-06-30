@@ -122,6 +122,52 @@ export interface WorkspaceApiNode {
   previewKind?: string;
 }
 
+export interface UploadSessionItem {
+  id: string;
+  fileIndex: number;
+  relativePath: string;
+  originalName: string;
+  mimeType?: string;
+  expectedSizeBytes?: number;
+  receivedSizeBytes?: number;
+  sha256?: string;
+  status: 'pending' | 'uploaded' | 'verified' | 'committed' | 'failed' | 'cancelled' | string;
+  errorCode?: string;
+  errorMessage?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UploadSession {
+  id: string;
+  status: 'pending' | 'uploading' | 'uploaded' | 'verified' | 'committed' | 'partial_failed' | 'failed' | 'cancelled' | string;
+  action: 'create_matter' | 'add_files' | string;
+  matterName?: string;
+  label?: string;
+  expectedFileCount?: number;
+  receivedFileCount?: number;
+  expectedBytes?: number;
+  receivedBytes?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  committedAt?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  items?: UploadSessionItem[];
+}
+
+export interface UploadSessionCreateRequest {
+  action: 'create_matter' | 'add_files';
+  name?: string;
+  matterName?: string;
+  label?: string;
+  metadata?: Record<string, string>;
+  expectedFileCount: number;
+  expectedBytes?: number;
+  idempotencyKey?: string;
+}
+
 export interface WorkspaceApiResponse {
   folderName: string;
   inputLabel: string;
@@ -129,6 +175,8 @@ export interface WorkspaceApiResponse {
   fileCount: number;
   directoryCount: number;
   tree: WorkspaceApiNode;
+  uploadSession?: UploadSession;
+  alreadyCommitted?: boolean;
 }
 
 export interface AddFilesResponse extends WorkspaceApiResponse {

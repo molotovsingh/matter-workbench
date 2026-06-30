@@ -59,8 +59,8 @@ export async function startRuntimeDbTestServer({
   const app = await createWorkbenchServer({
     appDir,
     env: mattersHome === undefined
-      ? env
-      : { MATTERS_HOME: mattersHome, ...env },
+      ? { MWB_RUNTIME_DB_PROCESSING_WORKER: "0", ...env }
+      : { MWB_RUNTIME_DB_PROCESSING_WORKER: "0", MATTERS_HOME: mattersHome, ...env },
     host: "127.0.0.1",
     port: 0,
     runtimeMatterIndex: {

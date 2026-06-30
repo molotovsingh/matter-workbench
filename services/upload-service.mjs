@@ -5,6 +5,7 @@ import { matterStorageCollisionKey } from "../shared/matter-identity-policy.mjs"
 import { planAddFilesIntake } from "../shared/upload-intake-planner.mjs";
 import { isInsideRoot, makeHttpError } from "../shared/safe-paths.mjs";
 import {
+  parseUploadJsonField,
   planBrowserAddFilesUpload,
   planBrowserNewMatterUpload,
 } from "./intake/browser-upload-adapter.mjs";
@@ -89,6 +90,52 @@ export function createUploadService({
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  async function createUploadSession(body = {}) {
+    assertRuntimeUploadSessionAvailable();
+    return runtimeDbStorageService.createUploadSession(body);
+  }
+
+  async function readUploadSession(sessionId) {
+    assertRuntimeUploadSessionAvailable();
+    return runtimeDbStorageService.readUploadSession(sessionId);
+  }
+
+  async function uploadSessionFiles(sessionId, request) {
+    assertRuntimeUploadSessionAvailable();
+    const { fields, files, tempDir } = await handleMultipartUpload(request);
+    try {
+      const relativePaths = parseUploadJsonField(fields, "paths", files.map((file) => file.filename));
+      const parsedFileIndex = Number(fields.fileIndex);
+      const fileIndexes = Number.isInteger(parsedFileIndex) && files.length === 1
+        ? [parsedFileIndex]
+        : files.map((file) => file.index);
+      return runtimeDbStorageService.appendUploadSessionFiles({
+        sessionId,
+        files,
+        relativePaths,
+        fileIndexes,
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  async function commitUploadSession(sessionId) {
+    assertRuntimeUploadSessionAvailable();
+    const result = await runtimeDbStorageService.commitUploadSession(sessionId);
+    const matterName = result?.matter?.name || result?.session?.matter?.name || result?.session?.matterName;
+    if (matterName) await matterStore.switchMatter(matterName);
+    const workspace = matterName && result?.matter
+      ? await runtimeDbStorageService.readWorkspace(result.matter)
+      : {};
+    return {
+      ...workspace,
+      uploadSession: result.session,
+      intakeAdded: result.intakeAdded,
+      alreadyCommitted: Boolean(result.alreadyCommitted),
+    };
   }
 
   async function addFilesToMatter(request) {
@@ -204,9 +251,19 @@ export function createUploadService({
     return matterStore.resolveExistingMatter(target);
   }
 
+  function assertRuntimeUploadSessionAvailable() {
+    if (!matterStore.hasRuntimeDbStorageMode?.() || typeof runtimeDbStorageService?.createUploadSession !== "function") {
+      throw makeHttpError("Durable upload sessions are available only in DB workspace mode.", 409, "upload_session.unavailable");
+    }
+  }
+
   return {
     addFilesToMatter,
+    commitUploadSession,
     createMatter,
+    createUploadSession,
     handleMultipartUpload,
+    readUploadSession,
+    uploadSessionFiles,
   };
 }

@@ -1,7 +1,7 @@
 import { pipeline } from "node:stream/promises";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
-import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
+import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
 import { currentRequestContext } from "../services/request-context.mjs";
 import {
   filterByVisibleMatterNames,
@@ -89,17 +89,27 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
       }),
       exactRoute("GET", "/api/jobs", async () => {
-        const jobs = await scopedMatterLedger({
+        const filters = {
+          matterName: requestUrl.searchParams.get("matter") || "",
+          kind: requestUrl.searchParams.get("kind") || "",
+          status: requestUrl.searchParams.get("status") || "",
+          limit: requestUrl.searchParams.get("limit") || undefined,
+        };
+        let jobs = await scopedMatterLedger({
           matterStore,
-          list: () => jobStatusService.listJobs({
-            matterName: requestUrl.searchParams.get("matter") || "",
-            kind: requestUrl.searchParams.get("kind") || "",
-            status: requestUrl.searchParams.get("status") || "",
-            limit: requestUrl.searchParams.get("limit") || undefined,
-          }),
+          list: () => jobStatusService.listJobs(filters),
           key: "jobs",
           fields: ["matterName"],
         });
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService) && typeof runtimeDbStorageService?.listProcessingJobs === "function") {
+          const runtimeJobs = await scopedMatterLedger({
+            matterStore,
+            list: () => runtimeDbStorageService.listProcessingJobs(filters),
+            key: "jobs",
+            fields: ["matterName"],
+          });
+          jobs = mergeJobLedgers(jobs, runtimeJobs);
+        }
         await safeCaptureBetaSignal(() => privateBetaSignalService?.captureJobSignals(jobs, {
           runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
         }));
@@ -291,6 +301,19 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           message: "Matter reopened. Existing source file IDs and history were preserved.",
         });
       }),
+      exactRoute("POST", "/api/upload-sessions", async () => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await uploadService.createUploadSession(body));
+      }),
+      patternRoute("GET", /^\/api\/upload-sessions\/([^/]+)$/, async ({ params }) => {
+        sendJson(response, 200, await uploadService.readUploadSession(params[0]));
+      }),
+      patternRoute("POST", /^\/api\/upload-sessions\/([^/]+)\/files$/, async ({ params }) => {
+        sendJson(response, 200, await uploadService.uploadSessionFiles(params[0], request));
+      }),
+      patternRoute("POST", /^\/api\/upload-sessions\/([^/]+)\/commit$/, async ({ params }) => {
+        sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.commitUploadSession(params[0])));
+      }),
       exactRoute("POST", "/api/matters/new", async () => {
         const workspace = await runTrackedUpload({
           jobStatusService,
@@ -447,6 +470,52 @@ function cleanReleaseDate(value) {
 }
 
 const PREPARATION_RUN_RESPONSE_SCHEMA = "private-beta-preparation-run-response/v1";
+function mergeJobLedgers(primary = {}, runtime = {}) {
+  const primaryJobs = Array.isArray(primary.jobs) ? primary.jobs : [];
+  const runtimeJobs = Array.isArray(runtime.jobs) ? runtime.jobs.map(presentRuntimeDbJob) : [];
+  return {
+    ...primary,
+    jobs: [...runtimeJobs, ...primaryJobs]
+      .sort((left, right) => Date.parse(right.updatedAt || right.startedAt || right.createdAt || "") - Date.parse(left.updatedAt || left.startedAt || left.createdAt || "")),
+  };
+}
+
+function presentRuntimeDbJob(job = {}) {
+  return {
+    schema_version: "job-status/v1",
+    id: `db_${job.id || ""}`,
+    backendJobId: job.id || "",
+    source: "runtime_db",
+    kind: job.kind || "job",
+    label: runtimeJobLabel(job.kind),
+    status: job.status || "running",
+    matterName: job.matterName || "",
+    matterId: job.matterId || "",
+    startedAt: job.startedAt || job.createdAt || "",
+    updatedAt: job.updatedAt || job.startedAt || job.createdAt || "",
+    finishedAt: job.finishedAt || "",
+    summary: runtimeJobSummary(job),
+    errorCode: job.errorCode || "",
+    errorMessage: job.errorMessage || "",
+    metadata: { runtimeDbJob: job.progress || {} },
+  };
+}
+
+function runtimeJobLabel(kind = "") {
+  if (kind === "extract") return "Reading Documents";
+  if (kind === "source_labels") return "Label Sources";
+  if (kind === "list_of_dates") return "Build Case Timeline";
+  return String(kind || "Job").split("_").map((word) => word ? `${word[0].toUpperCase()}${word.slice(1)}` : "").join(" ");
+}
+
+function runtimeJobSummary(job = {}) {
+  if (job.status === "succeeded") return `${runtimeJobLabel(job.kind)} completed.`;
+  if (job.status === "failed") return job.errorMessage || `${runtimeJobLabel(job.kind)} failed.`;
+  if (job.status === "retrying") return `${runtimeJobLabel(job.kind)} will retry.`;
+  if (job.status === "queued") return `${runtimeJobLabel(job.kind)} queued.`;
+  return `${runtimeJobLabel(job.kind)} running.`;
+}
+
 const PREPARATION_RUN_KIND = "preparation_run";
 
 async function runTrackedUpload({ jobStatusService, action = "upload", route = "", label = "Upload", operation }) {
