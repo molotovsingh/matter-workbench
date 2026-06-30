@@ -94,7 +94,7 @@ test("React matter copilot answer hides unsupported citation internals from lawy
   const rendered = formatMatterCopilotError("Matter copilot returned unsupported citation: FILE-0008 p1.b2");
 
   assert.match(rendered, /could not verify the sources/i);
-  assert.match(rendered, /Run preparation again/i);
+  assert.match(rendered, /Run needed preparation/i);
   assert.doesNotMatch(rendered, /unsupported citation|FILE-0008|p1\.b2/i);
 });
 

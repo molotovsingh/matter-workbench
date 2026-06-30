@@ -143,7 +143,7 @@ test("React read-side matter APIs pass the selected matter explicitly", async ()
   const listOfDatesSource = await readFile(new URL("../react-ui/src/views/workflows/ListOfDatesResult.tsx", import.meta.url), "utf8");
 
   assert.match(apiClientSource, /function withQuery\(path: string, query: Record<string, string \| undefined \| null>\): string/);
-  assert.match(overviewSource, /\.getMatterStatus\(matterName\)/);
+  assert.match(overviewSource, /\.getPrepareMatter\(matterName\)/);
   assert.match(overviewSource, /\.getMatterAttention\(matterName\)/);
   assert.match(prepareSource, /api\.getPrepareMatter\(matterName\)/);
   assert.match(contextPreviewSource, /api\.getMatterContext\(matterName\)/);

@@ -8,8 +8,9 @@ import { formatMissingMatterDetails } from '../lib/matterDetails';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
+import { PREPARATION_STAGE_ACTIONS } from '../lib/preparationStageActions';
 import type {
-  PipelineStage,
+  PreparationStage,
   RerunAdvice,
   MatterAttention,
   AttentionItem,
@@ -21,10 +22,11 @@ import type {
 
 interface Props {
   onCommand: (command: string) => void;
-  onRunPreparationAgain: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string) => void;
+  onForceFullPreparation: (matterName: string, reason: string) => void;
 }
 
-export default function MatterOverview({ onCommand, onRunPreparationAgain }: Props) {
+export default function MatterOverview({ onCommand, onRunNeededPreparation, onForceFullPreparation }: Props) {
   const { state } = useApp();
   const matter = state.activeMatter!;
   const meta = matter.metadata ?? {};
@@ -72,7 +74,8 @@ export default function MatterOverview({ onCommand, onRunPreparationAgain }: Pro
         matterName={matter.name}
         preparationRun={preparationRun}
         refreshKey={preparationRefreshKey}
-        onRunPreparationAgain={onRunPreparationAgain}
+        onRunNeededPreparation={onRunNeededPreparation}
+        onForceFullPreparation={onForceFullPreparation}
       />
 
       <div className="form-actions matter-run-actions">
@@ -238,8 +241,8 @@ function ProceduralPostureCard({ matterName, refreshKey }: { matterName: string;
       {status.recommendedWorkingPath?.filing_or_remedy && (
         <p><strong>Working path:</strong> {status.recommendedWorkingPath.filing_or_remedy}</p>
       )}
-      {state === 'blocked' && <p className="muted">Waiting on Case Timeline and Matter Story before diagnosis can run.</p>}
-      {state === 'missing' && <p className="muted">Diagnosis will run after Case Timeline and Matter Story are ready.</p>}
+      {state === 'blocked' && <p className="muted">{postureBlockedMessage(status)}</p>}
+      {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Run needed preparation to create it.</p>}
       {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Refresh diagnosis before relying on it.</p> : null}
       {readyForConfirmation && (
         <div className="posture-confirmation-panel">
@@ -335,25 +338,32 @@ function PipelineCard({
   matterName,
   preparationRun,
   refreshKey,
-  onRunPreparationAgain,
+  onRunNeededPreparation,
+  onForceFullPreparation,
 }: {
   matterName: string;
   preparationRun: PreparationRunStatus | null;
   refreshKey: string;
-  onRunPreparationAgain: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string) => void;
+  onForceFullPreparation: (matterName: string, reason: string) => void;
 }) {
-  const [stages, setStages] = useState<PipelineStage[] | null>(null);
+  const [stages, setStages] = useState<PreparationStage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [forceReason, setForceReason] = useState('');
+  const [forceConfirmation, setForceConfirmation] = useState('');
+  const forceReasonReady = forceReason.trim().length >= 10;
+  const forceConfirmationReady = forceConfirmation.trim().toUpperCase() === 'REBUILD';
+  const forceDisabled = preparationRun?.state === 'running' || !forceReasonReady || !forceConfirmationReady;
 
   useEffect(() => {
     let cancelled = false;
     setStages(null);
     setError(null);
     api
-      .getMatterStatus(matterName)
-      .then((s) => {
+      .getPrepareMatter(matterName)
+      .then((plan) => {
         if (cancelled) return;
-        setStages(Array.isArray(s.stages) ? s.stages : []);
+        setStages(Array.isArray(plan.stages) ? plan.stages : []);
       })
       .catch((e) => {
         if (cancelled) return;
@@ -377,16 +387,56 @@ function PipelineCard({
           <button
             type="button"
             className="run-skill-button"
-            onClick={() => onRunPreparationAgain(matterName)}
+            onClick={() => onRunNeededPreparation(matterName)}
             disabled={preparationRun?.state === 'running'}
           >
-            Run preparation again
+            Run needed preparation
           </button>
         </div>
       </div>
       <p className="muted">
         {preparationSummaryText(preparationRun)}
       </p>
+      <details className="force-preparation-rebuild">
+        <summary>Advanced: force full rebuild</summary>
+        <div className="form-warning">
+          <h2>Force full rebuild</h2>
+          <p>This reruns extraction, source labels, Case Timeline, Matter Story, and procedural posture diagnosis even when current outputs exist. Use only when the saved preparation is known to be wrong or stale.</p>
+          <label className="force-preparation-field">
+            <span>Reason for the rebuild</span>
+            <textarea
+              value={forceReason}
+              onChange={(event) => setForceReason(event.target.value)}
+              placeholder="Explain why current preparation cannot be trusted."
+              disabled={preparationRun?.state === 'running'}
+            />
+            {!forceReasonReady && <small>Enter at least 10 characters.</small>}
+          </label>
+          <label className="force-preparation-field">
+            <span>Type REBUILD to confirm</span>
+            <input
+              type="text"
+              value={forceConfirmation}
+              onChange={(event) => setForceConfirmation(event.target.value)}
+              disabled={preparationRun?.state === 'running'}
+            />
+          </label>
+          <div className="warning-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                onForceFullPreparation(matterName, forceReason);
+                setForceReason('');
+                setForceConfirmation('');
+              }}
+              disabled={forceDisabled}
+            >
+              Force full rebuild
+            </button>
+          </div>
+        </div>
+      </details>
       {preparationRun && <PreparationProgress run={preparationRun} />}
       {error && <p className="muted">Matter preparation is unavailable: {error}</p>}
       {!error && stages === null && (
@@ -426,7 +476,7 @@ function PreparationProgress({ run }: { run: PreparationRunStatus }) {
   );
 }
 
-function StageRow({ stage }: { stage: PipelineStage }) {
+function StageRow({ stage }: { stage: PreparationStage }) {
   const stateClass = pipelineStageStateClass(stage);
   const label = stageDisplayLabel(stage);
   const pill = stagePill(stage);
@@ -463,7 +513,7 @@ function StageArtifacts({ artifacts }: { artifacts?: string[] }) {
   );
 }
 
-function StageAiRun({ aiRun }: { aiRun?: PipelineStage['aiRun'] }) {
+function StageAiRun({ aiRun }: { aiRun?: PreparationStage['aiRun'] }) {
   if (!aiRun) return null;
   const provider = aiRun.returnedProvider || aiRun.provider || '';
   const model = aiRun.returnedModel || aiRun.model || '';
@@ -479,7 +529,7 @@ function StageAiRun({ aiRun }: { aiRun?: PipelineStage['aiRun'] }) {
   );
 }
 
-function StageRerunHint({ stage }: { stage: PipelineStage }) {
+function StageRerunHint({ stage }: { stage: PreparationStage }) {
   const advice = stage.rerunAdvice!;
   const state = advice.state || RERUN_ADVICE_STATES.UNKNOWN;
   const stateLabel = rerunStateLabel(state);
@@ -686,14 +736,14 @@ function preparationHeadlineLabel({
   error,
 }: {
   preparationRun: PreparationRunStatus | null;
-  stages: PipelineStage[] | null;
+  stages: PreparationStage[] | null;
   error: string | null;
 }): string {
   if (preparationRun?.state === 'running') return 'Preparing…';
   if (preparationRun?.state === 'blocked') return 'Blocked';
   if (error) return 'Needs review';
   if (!stages) return 'Checking';
-  if (stages.some((stage) => stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM)) return 'Blocked';
+  if (stages.some(stageIsBlocked)) return 'Blocked';
   if (stages.length > 0 && stages.every(stageIsCurrent)) return 'Prepared';
   return 'Needs review';
 }
@@ -704,7 +754,7 @@ function preparationHeadlineClass({
   error,
 }: {
   preparationRun: PreparationRunStatus | null;
-  stages: PipelineStage[] | null;
+  stages: PreparationStage[] | null;
   error: string | null;
 }): string {
   const label = preparationHeadlineLabel({ preparationRun, stages, error });
@@ -727,22 +777,41 @@ function preparationSummaryText(preparationRun: PreparationRunStatus | null): st
   return 'Review the preparation status and advisory before drafting.';
 }
 
-function stageIsCurrent(stage: PipelineStage): boolean {
-  if (!stage.present) return false;
-  const adviceState = stage.rerunAdvice?.state || RERUN_ADVICE_STATES.CURRENT;
-  return adviceState === RERUN_ADVICE_STATES.CURRENT;
+function stageIsCurrent(stage: PreparationStage): boolean {
+  if (stage.rerunAdvice?.state && stage.rerunAdvice.state !== RERUN_ADVICE_STATES.CURRENT) return false;
+  if (stage.state === 'current_unconfirmed') return false;
+  return stage.action === PREPARATION_STAGE_ACTIONS.SKIP_CURRENT
+    && ['current', 'current_confirmed', 'current_corrected'].includes(stage.state || '');
 }
 
-function pipelineStageStateClass(stage: PipelineStage): string {
-  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) return 'failed';
-  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE) return 'warning';
-  return stage.present ? 'present' : 'not-run';
+function stageIsBlocked(stage: PreparationStage): boolean {
+  return stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED
+    || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED
+    || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM;
 }
 
-function pipelineStageStateLabel(stage: PipelineStage): string {
-  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) return 'Blocked';
-  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE) return 'Needs review';
-  return stage.present ? 'Done' : 'Needs review';
+function pipelineStageStateClass(stage: PreparationStage): string {
+  if (stageIsBlocked(stage)) return 'failed';
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN || stage.state === 'current_unconfirmed') return 'warning';
+  if (stageIsCurrent(stage)) return 'present';
+  return 'not-run';
+}
+
+function pipelineStageStateLabel(stage: PreparationStage): string {
+  if (stageIsBlocked(stage)) return 'Blocked';
+  if (stage.state === 'current_unconfirmed') return 'Needs confirmation';
+  if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.state === 'stale') return 'Needs update';
+  if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) return stage.state === 'missing' ? 'Not started' : 'Needs review';
+  if (stage.action === PREPARATION_STAGE_ACTIONS.RUN) return stage.state === 'missing' ? 'Not started' : 'Ready to run';
+  return stageIsCurrent(stage) ? 'Done' : 'Needs review';
+}
+
+function postureBlockedMessage(status: ProceduralPostureDiagnosisResult): string {
+  const blockedReasons = Array.isArray(status.blockedReasons)
+    ? status.blockedReasons.filter((reason) => typeof reason === 'string' && reason.trim())
+    : [];
+  if (blockedReasons.length) return blockedReasons.join(' ');
+  return 'Waiting on Case Timeline and Matter Story before diagnosis can run.';
 }
 
 function validateMetadata(meta: Record<string, string | undefined>): string[] {
@@ -753,13 +822,15 @@ function validateMetadata(meta: Record<string, string | undefined>): string[] {
   });
 }
 
-function stageDisplayLabel(stage: PipelineStage): string {
-  if (stage.display?.action) return stage.display.action;
-  return stage.label || cleanCommandLabel(stage.slash || stage.name || '');
+function stageDisplayLabel(stage: PreparationStage): string {
+  const display = (stage as { display?: { action?: string } }).display;
+  if (display?.action) return display.action;
+  return stage.label || cleanCommandLabel(stage.slash || '');
 }
 
-function stagePill(stage: PipelineStage): string {
-  if (stage.display?.pill) return stage.display.pill;
+function stagePill(stage: PreparationStage): string {
+  const display = (stage as { display?: { pill?: string } }).display;
+  if (display?.pill) return display.pill;
   if (stage.paidProviderCall === true) return 'Uses AI';
   if (stage.paidProviderCall === false) return 'Local';
   return '';
@@ -845,7 +916,7 @@ function sentenceWithPeriod(value: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-function rerunHintMeta(stage: PipelineStage, advice: RerunAdvice): string[] {
+function rerunHintMeta(stage: PreparationStage, advice: RerunAdvice): string[] {
   const meta: string[] = [];
   if (advice.lastRunAt) meta.push(`Last run ${formatDateTime(advice.lastRunAt)}`);
   const providerModel = [advice.provider, advice.model].filter(Boolean).join(' / ');

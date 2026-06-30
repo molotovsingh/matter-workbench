@@ -26,7 +26,7 @@ function isGatewayTimeout(text: string): boolean {
 
 function preparationTimeoutMessage(context: PreparationErrorContext): string {
   if (context.id === 'extract' || context.slash === '/extract') {
-    return 'Reading documents took too long. The app may still be finishing in the background; refresh the matter in a minute, then run preparation again if needed.';
+    return 'Reading documents took too long. The app may still be finishing in the background; refresh the matter in a minute, then run needed preparation if needed.';
   }
-  return 'This preparation step took too long. Refresh the matter in a minute, then run preparation again if needed.';
+  return 'This preparation step took too long. Refresh the matter in a minute, then run needed preparation if needed.';
 }

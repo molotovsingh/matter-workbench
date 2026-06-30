@@ -94,7 +94,7 @@ export function formatMatterCopilotError(message: string): string {
   if (/unsupported citation/i.test(normalized)) {
     return [
       'I could not verify the sources for that answer.',
-      'Run preparation again, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
+      'Run needed preparation, then ask the question once more. If this keeps happening, send feedback so we can inspect the record.',
     ].join('\n\n');
   }
   if (isAssistantAvailabilityError(normalized) || containsUserFacingRestrictedAiLanguage(normalized)) {

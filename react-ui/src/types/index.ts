@@ -988,6 +988,12 @@ export interface ProceduralPostureDiagnosisResult {
   qnaPath?: string;
   generatedAt?: string;
   diagnosisUpdatedAt?: string;
+  caseTimelineUpdatedAt?: string;
+  matterStoryUpdatedAt?: string;
+  sourceIndexUpdatedAt?: string;
+  blockedReasons?: string[];
+  markdownPresent?: boolean;
+  jsonPresent?: boolean;
   confirmation?: { state?: string; confirmed_at?: string; reason_or_correction?: string; actor?: string };
   courtForum?: { value?: string; confidence?: string; reason?: string } | null;
   proceduralPosture?: { value?: string; confidence?: string; reason?: string } | null;

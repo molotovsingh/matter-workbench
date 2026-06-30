@@ -41,7 +41,8 @@ interface Props {
   onOpenMatter: (name: string) => void;
   onAddFilesDone: (opts?: { autoPrepare?: boolean }) => void;
   onCommand: (command: string) => void;
-  onRunPreparationAgain: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string) => void;
+  onForceFullPreparation: (matterName: string, reason: string) => void;
   commandPanel: React.ReactNode;
 }
 
@@ -298,7 +299,8 @@ export default function MainContent({
   onOpenMatter,
   onAddFilesDone,
   onCommand,
-  onRunPreparationAgain,
+  onRunNeededPreparation,
+  onForceFullPreparation,
   commandPanel,
 }: Props) {
   const { state, dispatch } = useApp();
@@ -389,7 +391,8 @@ export default function MainContent({
           onOpenMatter={onOpenMatter}
           onViewAllMatters={onViewAllMatters}
           onCommand={onCommand}
-          onRunPreparationAgain={onRunPreparationAgain}
+          onRunNeededPreparation={onRunNeededPreparation}
+          onForceFullPreparation={onForceFullPreparation}
           showMatterBrowser={activeView === 'find-matter'}
         />
       );
@@ -400,7 +403,8 @@ export default function MainContent({
             onOpenMatter={onOpenMatter}
             onViewAllMatters={onViewAllMatters}
             onCommand={onCommand}
-            onRunPreparationAgain={onRunPreparationAgain}
+            onRunNeededPreparation={onRunNeededPreparation}
+            onForceFullPreparation={onForceFullPreparation}
             showMatterBrowser={activeView === 'find-matter'}
           />
         );

@@ -760,6 +760,12 @@ padding: 0 2px;
 .matter-preparation-title { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; min-width: 0; }
 .matter-preparation-heading h2 { margin-bottom: 0; }
 .matter-preparation-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.force-preparation-rebuild { margin: 10px 0 14px; }
+.force-preparation-rebuild summary { color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.force-preparation-field { color: var(--muted); display: grid; font-size: 11px; font-weight: 700; gap: 6px; letter-spacing: 0.08em; margin-top: 10px; text-transform: uppercase; }
+.force-preparation-field input, .force-preparation-field textarea { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px; color: var(--text); font: inherit; font-size: 13px; letter-spacing: 0; line-height: 1.45; padding: 8px 10px; text-transform: none; }
+.force-preparation-field textarea { min-height: 70px; resize: vertical; }
+.force-preparation-field small { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .preparation-progress { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
 .preparation-progress-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: flex-start; border: 1px solid var(--border-subtle); border-radius: 5px; padding: 9px 10px; color: var(--muted); font-size: 12px; min-width: 0; }
 .preparation-progress-step strong { display: block; color: var(--text); font-size: 12px; line-height: 1.25; }

@@ -245,7 +245,7 @@ function payloadMessageText(value: unknown): string {
 function formatHttpFallbackMessage(res: Response, url: string): string {
   const status = `${res.status}${res.statusText ? ` ${res.statusText}` : ''}`;
   if (res.status === 504 && url.includes('/api/extract')) {
-    return 'Reading documents took too long. The app may still be finishing in the background; refresh the matter in a minute, then run preparation again if needed.';
+    return 'Reading documents took too long. The app may still be finishing in the background; refresh the matter in a minute, then run needed preparation if needed.';
   }
   if (res.status === 504) {
     return 'This request took too long. Please refresh and retry in a minute.';

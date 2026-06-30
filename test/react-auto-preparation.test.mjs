@@ -81,7 +81,7 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(overview, /isMwStorySource/);
 });
 
-test("React matter overview can force a full preparation rerun", async () => {
+test("React matter overview runs needed preparation by default", async () => {
   const app = await readFile(appPath, "utf8");
   const runner = await readFile(runnerPath, "utf8");
   const overview = await readFile(overviewPath, "utf8");
@@ -101,16 +101,29 @@ test("React matter overview can force a full preparation rerun", async () => {
   assert.match(runner, /api\.runExtract\(\{ \.\.\.body, forceRefresh: options\.forceExtractRefresh === true \}\)/);
   assert.match(runner, /!options\.forceListOfDatesRegeneration && stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
   assert.doesNotMatch(runner, /for \(const stage of FULL_PREPARATION_STAGES\) \{[\s\S]{0,80}if \(isStale\(\)\) return staleResult\(\)/);
-  assert.match(app, /mode: 'full'/);
-  assert.match(app, /initialMessage: 'Running preparation again…'/);
-  assert.match(app, /onRunPreparationAgain=\{handleRunPreparationAgain\}/);
-  assert.match(mainContent, /onRunPreparationAgain: \(matterName: string\) => void/);
-  assert.match(homeLanding, /<MatterOverview onCommand=\{onCommand\} onRunPreparationAgain=\{onRunPreparationAgain\} \/>/);
-  assert.match(overview, /Run preparation again/);
+  assert.match(app, /mode: 'needed'/);
+  assert.match(app, /handleForceFullPreparation[\s\S]*mode: 'full'/);
+  assert.match(app, /initialMessage: 'Running needed preparation…'/);
+  assert.match(app, /initialMessage: 'Force rebuilding preparation…'/);
+  assert.match(app, /onRunNeededPreparation=\{handleRunNeededPreparation\}/);
+  assert.match(app, /onForceFullPreparation=\{handleForceFullPreparation\}/);
+  assert.match(mainContent, /onRunNeededPreparation: \(matterName: string\) => void/);
+  assert.match(mainContent, /onForceFullPreparation: \(matterName: string, reason: string\) => void/);
+  assert.match(homeLanding, /<MatterOverview onCommand=\{onCommand\} onRunNeededPreparation=\{onRunNeededPreparation\} onForceFullPreparation=\{onForceFullPreparation\} \/>/);
+  assert.match(overview, /Run needed preparation/);
+  assert.match(overview, /Advanced: force full rebuild/);
+  assert.match(overview, /Type REBUILD to confirm/);
+  assert.match(overview, /forceReason\.trim\(\)\.length >= 10/);
+  assert.match(overview, /onForceFullPreparation\(matterName, forceReason\)/);
+  assert.match(overview, /api[\s\S]*\.getPrepareMatter\(matterName\)/);
+  assert.doesNotMatch(overview, /\.getMatterStatus\(matterName\)/);
   assert.match(overview, /matter-preparation-title[\s\S]*Matter Preparation[\s\S]*preparationHeadlineLabel/);
-  assert.match(overview, /matter-preparation-actions[\s\S]*Run preparation again/);
+  assert.match(overview, /matter-preparation-actions[\s\S]*Run needed preparation/);
   assert.match(overview, /disabled=\{preparationRun\?\.state === 'running'\}/);
-  assert.match(overview, /onRunPreparationAgain\(matterName\)/);
+  assert.match(overview, /onRunNeededPreparation\(matterName\)/);
+  assert.match(overview, /stages\.some\(stageIsBlocked\)/);
+  assert.match(overview, /stage\.state === 'current_unconfirmed'\) return false/);
+  assert.match(overview, /Diagnosis has not been generated yet\. Run needed preparation to create it\./);
 });
 
 test("React automatic preparation does not report prepared when workspace refresh fails", async () => {

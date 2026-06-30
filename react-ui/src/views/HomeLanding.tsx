@@ -44,7 +44,8 @@ interface Props {
   onOpenMatter: (name: string) => void;
   onViewAllMatters: () => void;
   onCommand: (command: string) => void;
-  onRunPreparationAgain: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string) => void;
+  onForceFullPreparation: (matterName: string, reason: string) => void;
   showMatterBrowser?: boolean;
 }
 
@@ -53,7 +54,8 @@ export default function HomeLanding({
   onOpenMatter,
   onViewAllMatters,
   onCommand,
-  onRunPreparationAgain,
+  onRunNeededPreparation,
+  onForceFullPreparation,
   showMatterBrowser = false,
 }: Props) {
   const { state, dispatch, switchActiveMatter, appendTerminal } = useApp();
@@ -141,7 +143,7 @@ export default function HomeLanding({
   }
 
   if (activeMatter) {
-    return <MatterOverview onCommand={onCommand} onRunPreparationAgain={onRunPreparationAgain} />;
+    return <MatterOverview onCommand={onCommand} onRunNeededPreparation={onRunNeededPreparation} onForceFullPreparation={onForceFullPreparation} />;
   }
 
   return (

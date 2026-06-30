@@ -244,7 +244,7 @@ Safe write paths for beta:
 
 Use care with:
 
-- `Run preparation again`;
+- `Run needed preparation` and especially advanced `Force full rebuild`;
 - Source Labels / Document Index reruns;
 - List of Dates reruns;
 - OCR force refresh;

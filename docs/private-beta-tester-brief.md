@@ -66,7 +66,7 @@ Do not use this beta to:
 - file or send a final draft without lawyer review;
 - rely on bad OCR without checking the scans;
 - ignore Source Labels marked needs review;
-- run broad preparation again on an important matter without a backup;
+- use advanced Force full rebuild on an important matter without a backup;
 - share client documents, screenshots, or generated output outside the trusted
   beta circle;
 - assume the Copilot remembers earlier chat messages;

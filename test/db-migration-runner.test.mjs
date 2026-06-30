@@ -45,6 +45,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "021_source_document_active_statuses.sql",
       "022_matter_artifact_currentness.sql",
       "023_matter_archive_metadata.sql",
+      "024_first_class_upload_sessions.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -70,6 +71,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("021_source_document_active_statuses.sql"), "021_source_document_active_statuses");
   assert.equal(migrationVersionFromFile("022_matter_artifact_currentness.sql"), "022_matter_artifact_currentness");
   assert.equal(migrationVersionFromFile("023_matter_archive_metadata.sql"), "023_matter_archive_metadata");
+  assert.equal(migrationVersionFromFile("024_first_class_upload_sessions.sql"), "024_first_class_upload_sessions");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

@@ -6,11 +6,11 @@ const matterOverviewPath = new URL("../react-ui/src/views/MatterOverview.tsx", i
 const contextPreviewPath = new URL("../react-ui/src/views/workflows/ContextPreview.tsx", import.meta.url);
 const prepareMatterPath = new URL("../react-ui/src/views/workflows/PrepareMatterResult.tsx", import.meta.url);
 
-test("React matter overview ignores stale readiness and attention responses", async () => {
+test("React matter overview ignores stale preparation-plan and attention responses", async () => {
   const source = await readFile(matterOverviewPath, "utf8");
 
-  assert.match(source, /let cancelled = false;[\s\S]*api\s*\n\s*\.getMatterStatus\(matterName\)/);
-  assert.match(source, /\.then\(\(s\) => \{\s*if \(cancelled\) return;/);
+  assert.match(source, /let cancelled = false;[\s\S]*api\s*\n\s*\.getPrepareMatter\(matterName\)/);
+  assert.match(source, /\.then\(\(plan\) => \{\s*if \(cancelled\) return;/);
   assert.match(source, /return \(\) => \{\s*cancelled = true;\s*\};/);
   assert.match(source, /api\s*\n\s*\.getMatterAttention\(matterName\)[\s\S]*if \(cancelled\) return;[\s\S]*setData\(payload\)/);
 });

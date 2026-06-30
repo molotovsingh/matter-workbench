@@ -127,8 +127,8 @@ abandon it.
 Use labels like:
 
 - Add a new matter;
-- Run preparation again;
-- List of Dates;
+- Run needed preparation;
+- Case Timeline;
 - Source Labels;
 - Have a problem? Tell us what happened.
 

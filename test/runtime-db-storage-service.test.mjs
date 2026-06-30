@@ -348,6 +348,56 @@ test("runtime DB storage service can include Matter Story after current List of 
   assert.equal(plan.downstream.disputeStory.artifacts[0], "20_Workshop/The Story.md");
 });
 
+test("runtime DB storage service marks procedural posture missing after current Matter Story", async () => {
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [
+      {
+        matter,
+        objects: [
+          storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true),
+          storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true, {
+            updatedAt: "2026-06-20T09:00:00.000Z",
+          }),
+          storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
+            updatedAt: "2026-06-20T09:30:00.000Z",
+          }),
+          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+            updatedAt: "2026-06-20T10:00:00.000Z",
+          }),
+          storageRow("DB Matter/10_Library/List of Dates.json", "matter_artifact", "application/json", 30, true, {
+            updatedAt: "2026-06-20T10:00:00.000Z",
+          }),
+          storageRow("DB Matter/20_Workshop/The Story.md", "matter_artifact", "text/markdown", 30, true, {
+            updatedAt: "2026-06-20T11:00:00.000Z",
+          }),
+        ],
+      },
+      payloadRow("DB Matter/matter.json", JSON.stringify({
+        matter_name: "Legal Caption",
+        client_name: "Client A",
+        opposite_party: "Other Side",
+        matter_type: "Consumer",
+        jurisdiction: "India",
+        brief_description: "Existing MW story.",
+        brief_description_source: { author: "MW", type: "matter_workbench_story" },
+      }), "application/json"),
+    ]),
+  });
+
+  const plan = await service.readPrepareMatterPlan(matter, { includeDisputeStory: true });
+  const storyStage = plan.stages.find((stage) => stage.slash === "/the_story");
+  const postureStage = plan.stages.find((stage) => stage.slash === "/procedural_posture_diagnosis");
+
+  assert.equal(storyStage.state, "current");
+  assert.equal(storyStage.action, "skip_current");
+  assert.equal(postureStage.state, "missing");
+  assert.equal(postureStage.action, "confirm_paid_run");
+  assert.equal(plan.nextStep.slash, "/procedural_posture_diagnosis");
+  assert.match(plan.nextStep.message, /procedural posture diagnosis is missing/i);
+});
+
 test("runtime DB storage service marks source labels stale when extraction payloads are newer", async () => {
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",

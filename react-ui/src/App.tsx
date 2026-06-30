@@ -174,14 +174,26 @@ function AppShell() {
     void runPreparationForMatter(matterName, { reason, mode: 'needed' });
   }, [runPreparationForMatter]);
 
-  const handleRunPreparationAgain = useCallback((matterName: string) => {
+  const handleRunNeededPreparation = useCallback((matterName: string) => {
     const cleanMatterName = matterName.trim();
     if (!cleanMatterName) return;
     if (state.preparationRun?.matterName === cleanMatterName && state.preparationRun.state === 'running') return;
     void runPreparationForMatter(cleanMatterName, {
-      reason: `[prepare] rerunning full preparation for "${cleanMatterName}"`,
+      reason: `[prepare] running needed preparation for "${cleanMatterName}"`,
+      mode: 'needed',
+      initialMessage: 'Running needed preparation…',
+    });
+  }, [runPreparationForMatter, state.preparationRun]);
+
+  const handleForceFullPreparation = useCallback((matterName: string, reason: string) => {
+    const cleanMatterName = matterName.trim();
+    const cleanReason = reason.trim();
+    if (!cleanMatterName || !cleanReason) return;
+    if (state.preparationRun?.matterName === cleanMatterName && state.preparationRun.state === 'running') return;
+    void runPreparationForMatter(cleanMatterName, {
+      reason: `[prepare] force full rebuild for "${cleanMatterName}": ${cleanReason}`,
       mode: 'full',
-      initialMessage: 'Running preparation again…',
+      initialMessage: 'Force rebuilding preparation…',
     });
   }, [runPreparationForMatter, state.preparationRun]);
 
@@ -746,7 +758,8 @@ function AppShell() {
         onOpenMatter={handleOpenMatter}
         onAddFilesDone={handleAddFilesDone}
         onCommand={handleCommand}
-        onRunPreparationAgain={handleRunPreparationAgain}
+        onRunNeededPreparation={handleRunNeededPreparation}
+        onForceFullPreparation={handleForceFullPreparation}
         commandPanel={
           <CommandPanel
             onCommand={handleCommand}
