@@ -54,3 +54,25 @@ test("runtime upload materializer produces storage files and import items", asyn
     },
   ]);
 });
+
+test("runtime upload materializer treats numeric file.bytes as metadata, not payload", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-upload-materializer-bytes-"));
+  const uploadedFile = path.join(tmp, "note.txt");
+  await writeFile(uploadedFile, "Payload comes from temp path, not numeric size metadata.");
+
+  const { storageFiles } = await buildRuntimeUploadIntake({
+    matter: { name: "Runtime Upload Matter" },
+    metadata: { matterName: "Runtime Upload Matter" },
+    files: [{ index: 0, tempPath: uploadedFile, filename: "note.txt", bytes: 52 }],
+    relativePaths: ["note.txt"],
+    tempRoot: path.join(tmp, "unused-materialized-root"),
+    intakeId: "INTAKE-01",
+    intakeDirName: "Intake 01 - Initial",
+    intakeLabel: "Initial",
+    receivedDate: "2026-06-30",
+    fileIdStart: 1,
+  });
+
+  const source = storageFiles.find((file) => file.relativePath === "00_Inbox/Intake 01 - Initial/Source Files/note.txt");
+  assert.equal(source.bytes.toString("utf8"), "Payload comes from temp path, not numeric size metadata.");
+});

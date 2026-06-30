@@ -437,7 +437,7 @@ export function createRuntimeDbStorageService({
       for (let index = 0; index < uploadFiles.length; index += 1) {
         const file = uploadFiles[index];
         const fileIndex = positiveUploadInteger(fileIndexes[index], Number.isInteger(file?.index) ? file.index : index);
-        const bytes = file.bytes ? Buffer.from(file.bytes) : await import("node:fs/promises").then(({ readFile }) => readFile(file.tempPath));
+        const bytes = uploadFilePayloadBytes(file) || await import("node:fs/promises").then(({ readFile }) => readFile(file.tempPath));
         const sha256 = sha256Bytes(bytes);
         await client.query([
           "insert into upload_session_items (tenant_id, upload_session_id, file_index, relative_path, original_name, mime_type, expected_size_bytes, received_size_bytes, sha256, payload, status, created_at, updated_at)",
@@ -460,7 +460,7 @@ export function createRuntimeDbStorageService({
           safeRelativePaths[index],
           cleanUploadText(file.filename || path.posix.basename(safeRelativePaths[index]), 500),
           cleanUploadText(file.mimeType || file.type || "", 200),
-          Number(file.bytes || bytes.length) || bytes.length,
+          bytes.length,
           bytes.length,
           sha256,
           bytes,
@@ -1404,6 +1404,13 @@ function queryJson({ databaseUrl, tenantId, spawn, sql }) {
 function runtimeDbStoragePsqlMaxBuffer() {
   const configured = Number(process.env.MWB_RUNTIME_DB_STORAGE_PSQL_MAX_BUFFER_BYTES);
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
+}
+
+function uploadFilePayloadBytes(file = {}) {
+  if (Buffer.isBuffer(file.bytes)) return Buffer.from(file.bytes);
+  if (file.bytes instanceof Uint8Array) return Buffer.from(file.bytes);
+  if (file.buffer instanceof Uint8Array) return Buffer.from(file.buffer);
+  return null;
 }
 
 function normalizeUploadSessionAction(value) {
