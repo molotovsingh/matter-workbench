@@ -131,6 +131,148 @@ test("runtime DB processing worker can run injected stage handlers", async () =>
   ]);
 });
 
+test("runtime DB processing worker queues post-upload preparation stages in dependency order", async () => {
+  const calls = [];
+  const matter = { id: "matter-1", name: "Matter A" };
+  const jobs = [
+    { id: "job-extract", kind: "extract", matter, progress: { uploadSessionId: "session-1", preparationChainId: "session-1" } },
+  ];
+  const nextSlashByCompletedKind = {
+    extract: "/describe_sources",
+    source_labels: "/create_listofdates",
+    case_timeline: "/the_story",
+    matter_story: "/procedural_posture_diagnosis",
+  };
+  const service = {
+    enabled: true,
+    async claimNextProcessingJob(options) {
+      calls.push(["claim", options.kinds]);
+      return jobs.shift() || null;
+    },
+    async extractDocuments(currentMatter) {
+      calls.push(["extract", currentMatter.name]);
+      return { operationResult: { state: "succeeded" } };
+    },
+    async describeSources(currentMatter) {
+      calls.push(["describeSources", currentMatter.name]);
+      return { operationResult: { state: "succeeded" } };
+    },
+    async createListOfDates(currentMatter) {
+      calls.push(["createListOfDates", currentMatter.name]);
+      return { operationResult: { state: "succeeded" } };
+    },
+    async completeProcessingJob(jobId, patch) {
+      calls.push(["complete", jobId, patch.progress.completedStage]);
+    },
+    async readPrepareMatterPlan(currentMatter) {
+      const completedKind = calls.filter(([kind]) => kind === "complete").at(-1)?.[2] || "";
+      calls.push(["plan", currentMatter.name, completedKind]);
+      const slash = nextSlashByCompletedKind[completedKind];
+      return { stages: slash ? [{ slash, action: "confirm_paid_run" }] : [] };
+    },
+    async enqueueProcessingJob({ matter: queuedMatter, kind, idempotencyKey, metadata }) {
+      calls.push(["enqueue", kind, idempotencyKey, metadata.queuedAfterKind, metadata.uploadSessionId]);
+      jobs.push({ id: `job-${kind}`, kind, matter: queuedMatter, progress: metadata });
+    },
+    async failProcessingJob(jobId, error) {
+      calls.push(["fail", jobId, error.message]);
+    },
+  };
+
+  const worker = createRuntimeDbProcessingWorkerService({
+    runtimeDbStorageService: service,
+    env: { MWB_RUNTIME_DB_PROCESSING_WORKER: "1" },
+    logger: { warn() {} },
+    stageHandlers: {
+      matter_story: async ({ matter: currentMatter }) => {
+        calls.push(["matterStory", currentMatter.name]);
+        return { state: "succeeded" };
+      },
+      posture_diagnosis: async ({ matter: currentMatter }) => {
+        calls.push(["postureDiagnosis", currentMatter.name]);
+        return { state: "succeeded" };
+      },
+    },
+  });
+
+  assert.deepEqual(worker.supportedKinds(), ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]);
+  assert.deepEqual(await worker.drainOnce(), { claimed: 5 });
+  assert.deepEqual(calls, [
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+    ["extract", "Matter A"],
+    ["complete", "job-extract", "extract"],
+    ["plan", "Matter A", "extract"],
+    ["enqueue", "source_labels", "prepare-chain:matter-1:session-1:source_labels", "extract", "session-1"],
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+    ["describeSources", "Matter A"],
+    ["complete", "job-source_labels", "source_labels"],
+    ["plan", "Matter A", "source_labels"],
+    ["enqueue", "case_timeline", "prepare-chain:matter-1:session-1:case_timeline", "source_labels", "session-1"],
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+    ["createListOfDates", "Matter A"],
+    ["complete", "job-case_timeline", "case_timeline"],
+    ["plan", "Matter A", "case_timeline"],
+    ["enqueue", "matter_story", "prepare-chain:matter-1:session-1:matter_story", "case_timeline", "session-1"],
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+    ["matterStory", "Matter A"],
+    ["complete", "job-matter_story", "matter_story"],
+    ["plan", "Matter A", "matter_story"],
+    ["enqueue", "posture_diagnosis", "prepare-chain:matter-1:session-1:posture_diagnosis", "matter_story", "session-1"],
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+    ["postureDiagnosis", "Matter A"],
+    ["complete", "job-posture_diagnosis", "posture_diagnosis"],
+    ["plan", "Matter A", "posture_diagnosis"],
+    ["claim", ["extract", "source_labels", "case_timeline", "matter_story", "posture_diagnosis"]],
+  ]);
+});
+
+test("runtime DB processing worker keeps completed jobs succeeded when follow-up queueing fails", async () => {
+  const calls = [];
+  const service = {
+    enabled: true,
+    async claimNextProcessingJob(options) {
+      calls.push(["claim", options.kinds]);
+      return calls.filter(([kind]) => kind === "claim").length === 1
+        ? { id: "job-extract", kind: "extract", matter: { id: "matter-1", name: "Matter A" }, progress: { uploadSessionId: "session-1" } }
+        : null;
+    },
+    async extractDocuments() {
+      calls.push(["extract"]);
+      return { operationResult: { state: "succeeded" } };
+    },
+    async completeProcessingJob(jobId) {
+      calls.push(["complete", jobId]);
+    },
+    async readPrepareMatterPlan() {
+      calls.push(["plan"]);
+      throw new Error("plan unavailable");
+    },
+    async enqueueProcessingJob() {
+      calls.push(["enqueue"]);
+    },
+    async failProcessingJob(jobId, error) {
+      calls.push(["fail", jobId, error.message]);
+    },
+  };
+  const warnings = [];
+  const worker = createRuntimeDbProcessingWorkerService({
+    runtimeDbStorageService: service,
+    env: { MWB_RUNTIME_DB_PROCESSING_WORKER: "1" },
+    logger: { warn(message) { warnings.push(message); } },
+  });
+
+  assert.deepEqual(await worker.drainOnce(), { claimed: 1 });
+  assert.deepEqual(calls, [
+    ["claim", ["extract"]],
+    ["extract"],
+    ["complete", "job-extract"],
+    ["plan"],
+    ["claim", ["extract"]],
+  ]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /could not queue follow-up preparation/i);
+});
+
 test("runtime DB processing worker can be disabled by env", async () => {
   const worker = createRuntimeDbProcessingWorkerService({
     runtimeDbStorageService: { enabled: true },

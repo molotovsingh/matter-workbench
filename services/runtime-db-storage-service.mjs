@@ -562,7 +562,7 @@ export function createRuntimeDbStorageService({
       matter,
       kind: "extract",
       idempotencyKey: `upload-session:${session.id}:extract`,
-      metadata: { uploadSessionId: session.id, stage: "extract" },
+      metadata: { uploadSessionId: session.id, preparationChain: "post_upload/v1", preparationChainId: session.id, stage: "extract" },
     });
     return {
       session: await readUploadSession(session.id),
@@ -619,7 +619,7 @@ export function createRuntimeDbStorageService({
       matter,
       kind: "extract",
       idempotencyKey: `upload-session:${session.id}:extract`,
-      metadata: { uploadSessionId: session.id, intakeId: uploadPlan.intakeId, stage: "extract" },
+      metadata: { uploadSessionId: session.id, intakeId: uploadPlan.intakeId, preparationChain: "post_upload/v1", preparationChainId: session.id, stage: "extract" },
     });
     return {
       session: await readUploadSession(session.id),

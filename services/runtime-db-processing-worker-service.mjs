@@ -1,9 +1,22 @@
 import process from "node:process";
 
+import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
+
+const PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
+  "/describe_sources": "source_labels",
+  "/create_listofdates": "case_timeline",
+  "/the_story": "matter_story",
+  "/procedural_posture_diagnosis": "posture_diagnosis",
+});
+
+const QUEUEABLE_PREPARATION_ACTIONS = new Set([
+  PREPARATION_STAGE_ACTIONS.RUN,
+  PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+]);
 
 const BUILTIN_STAGE_HANDLERS = [
   {
@@ -113,12 +126,41 @@ export function createRuntimeDbProcessingWorkerService({
           operationState: result?.operationResult?.state || result?.state || "succeeded",
         },
       });
+      try {
+        await enqueueNextPreparationJob({ completedKind: kind, job });
+      } catch (enqueueError) {
+        log("warn", `Runtime DB processing worker could not queue follow-up preparation: ${safeMessage(enqueueError)}`);
+      }
     } catch (error) {
       await runtimeDbStorageService.failProcessingJob(job.id, error, {
         errorCode: error?.code || `processing.${kind || "unknown"}.failed`,
         progress: { failedStage: kind || "unknown" },
       });
     }
+  }
+
+  async function enqueueNextPreparationJob({ completedKind, job } = {}) {
+    if (typeof runtimeDbStorageService?.enqueueProcessingJob !== "function") return null;
+    if (typeof runtimeDbStorageService?.readPrepareMatterPlan !== "function") return null;
+    if (!job?.matter?.id) return null;
+    const plan = await runtimeDbStorageService.readPrepareMatterPlan(job.matter, { includeDisputeStory: true });
+    const nextStage = firstQueueablePreparationStage(plan);
+    const nextKind = jobKindForPreparationStage(nextStage);
+    if (!nextKind || nextKind === completedKind || !supportedKinds().includes(nextKind)) return null;
+    const chainId = preparationChainIdForJob(job);
+    return runtimeDbStorageService.enqueueProcessingJob({
+      matter: job.matter,
+      kind: nextKind,
+      idempotencyKey: `prepare-chain:${job.matter.id}:${chainId}:${nextKind}`,
+      metadata: {
+        preparationChain: "post_upload/v1",
+        preparationChainId: chainId,
+        stage: nextKind,
+        queuedAfterKind: completedKind,
+        queuedAfterJobId: job.id,
+        uploadSessionId: stringOrEmpty(job.progress?.uploadSessionId),
+      },
+    });
   }
 
   function handlerForKind(kind) {
@@ -150,6 +192,34 @@ export function createRuntimeDbProcessingWorkerService({
 function normalizeJobKind(value) {
   const text = String(value || "").trim().toLowerCase();
   return /^[a-z][a-z0-9_]*$/.test(text) ? text : "";
+}
+
+function firstQueueablePreparationStage(plan = {}) {
+  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
+  return stages.find((stage) => QUEUEABLE_PREPARATION_ACTIONS.has(stage?.action)) || null;
+}
+
+function jobKindForPreparationStage(stage = {}) {
+  return normalizeJobKind(PREPARATION_JOB_KIND_BY_SLASH[String(stage?.slash || "").trim()] || "");
+}
+
+function preparationChainIdForJob(job = {}) {
+  return safeIdSegment(job.progress?.preparationChainId)
+    || safeIdSegment(job.progress?.uploadSessionId)
+    || safeIdSegment(job.id)
+    || "unknown";
+}
+
+function safeIdSegment(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_.:-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function stringOrEmpty(value) {
+  return String(value || "").trim();
 }
 
 function safeMessage(error) {
