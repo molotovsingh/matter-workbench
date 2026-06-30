@@ -79,6 +79,11 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(overview, /Based on: \{caseTimelineSourceLabel\(source\?\.basedOn\)\}/);
   assert.match(overview, /Current Case Timeline/);
   assert.match(overview, /Original intake note/);
+  assert.match(overview, /function PostureSummary/);
+  assert.match(overview, /Simple view:/);
+  assert.match(overview, /Recommended route:/);
+  assert.match(overview, /Next best actions/);
+  assert.match(overview, /Full legal routes are saved in/);
   assert.match(overview, /Confirm working posture/);
   assert.match(overview, /Disagree \/ correct/);
   assert.match(overview, /Not sure yet/);

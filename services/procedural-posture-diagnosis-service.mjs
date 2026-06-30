@@ -275,6 +275,10 @@ export async function buildDiagnosisStatus({
     courtForum: sidecar?.court_forum || null,
     proceduralPosture: sidecar?.procedural_posture || null,
     recommendedWorkingPath: sidecar?.recommended_working_path || null,
+    simpleCaseView: sidecar?.simple_case_view || "",
+    legalRoutes: Array.isArray(sidecar?.legal_routes) ? sidecar.legal_routes : [],
+    recommendedRoute: sidecar?.recommended_route || null,
+    nextBestActions: Array.isArray(sidecar?.next_best_actions) ? sidecar.next_best_actions : [],
     lawyerToConfirmCount: Array.isArray(sidecar?.lawyer_to_confirm) ? sidecar.lawyer_to_confirm.length : 0,
     checkedAt: now().toISOString(),
   };
@@ -501,10 +505,14 @@ function buildDiagnosisSidecar({ finalDiagnosis, packet, generatedAt, aiRuns = {
       policy_prompt_version: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     },
     short_diagnosis: String(finalDiagnosis.short_diagnosis || "").trim(),
+    simple_case_view: String(finalDiagnosis.simple_case_view || finalDiagnosis.short_diagnosis || "").trim(),
     court_forum: normalizePostureField(finalDiagnosis.court_forum),
     procedural_posture: normalizePostureField(finalDiagnosis.procedural_posture),
     possible_filings: normalizeFilings(finalDiagnosis.possible_filings),
     recommended_working_path: normalizeFiling(finalDiagnosis.recommended_working_path),
+    legal_routes: normalizeLegalRoutes(finalDiagnosis.legal_routes),
+    recommended_route: normalizeRecommendedRoute(finalDiagnosis.recommended_route),
+    next_best_actions: normalizeStringArray(finalDiagnosis.next_best_actions),
     governing_law: normalizeSourcedTextList(finalDiagnosis.governing_law),
     central_facts: normalizeSourcedTextList(finalDiagnosis.central_facts),
     adverse_or_difficult_facts: normalizeSourcedTextList(finalDiagnosis.adverse_or_difficult_facts),
@@ -530,14 +538,17 @@ export function buildPostureDiagnosisPrompts() {
     "If a point is uncertain, say so and include it in lawyer_to_confirm.",
     "Material adverse or inconvenient facts must be surfaced with responsible framing; do not suppress them.",
     "Separate source-backed facts from lawyer/client instructions, matter metadata, and assumptions.",
+    "Use simple Indian legal English. Prefer short clear sentences. Avoid dense legal prose.",
     "Use readable source labels in prose when possible. Keep raw FILE handles only in source_refs and internal_source_handles.",
+    "If CrPC/IPC and BNSS/BNS may both be relevant, mention the known section and say to verify the applicable equivalent before filing.",
   ];
   return {
     proposerSystem: legalWorkbenchSystemPrompt([
       ...shared,
       "Role: Proposer.",
-      "Produce a provisional Filing and Procedural Posture Diagnosis.",
-      "Identify likely court/forum, current procedural posture, possible filings/remedies, priority working path, governing legal framework, central facts, adverse facts, missing information, and lawyer-confirmation items.",
+      "Produce a provisional Filing and Procedural Posture Diagnosis in simple Indian legal English that a non-native English speaker can follow.",
+      "Identify the likely court/forum, current procedural posture, all probable legal routes supported by the current record, reasons for each route, statutory references to check, priority working path, governing framework, central facts, adverse facts, missing information, and lawyer-confirmation items.",
+      "Write routes as Route 1, Route 2, etc. Each route must explain what it means, when to use it, why the current record supports or weakens it, likely court/forum, statutory references, and facts/documents to confirm.",
       "Prefer a differential diagnosis over false certainty.",
       "Return JSON only matching the schema.",
     ]),
@@ -546,6 +557,7 @@ export function buildPostureDiagnosisPrompts() {
       "Role: Critic.",
       "Do not rewrite the diagnosis. Challenge it.",
       "Identify unsupported leaps, overconfidence, missed procedural paths, adverse facts not handled, missing source grounding, and lawyer-confirmation gaps.",
+      "Check whether the legal routes are understandable, properly caveated, and supported by the current record.",
       "Return critique JSON only. Be precise and actionable.",
     ]),
     finalizerSystem: legalWorkbenchSystemPrompt([
@@ -554,6 +566,8 @@ export function buildPostureDiagnosisPrompts() {
       "Revise the proposer draft after considering the critic signal.",
       "Accept, reject, or partly accept important critique points with reasons.",
       "The final output must remain provisional and must include lawyer-confirmation items.",
+      "The final output must include a prose-like legal routes section: Route 1, Route 2, etc., with reasons, statutory references, and facts to confirm.",
+      "End with a recommended route and next best actions for the legal team.",
       "Do not overstate legal certainty or treat the diagnosis as lawyer-approved.",
       "Return JSON only matching the schema.",
     ]),
@@ -578,8 +592,12 @@ export function diagnosisSchema(name) {
       "short_diagnosis",
       "court_forum",
       "procedural_posture",
+      "simple_case_view",
       "possible_filings",
       "recommended_working_path",
+      "legal_routes",
+      "recommended_route",
+      "next_best_actions",
       "governing_law",
       "central_facts",
       "adverse_or_difficult_facts",
@@ -591,10 +609,14 @@ export function diagnosisSchema(name) {
       schema_version: { type: "string", enum: [`${name}/v1`] },
       status: { type: "string", enum: ["provisional_mw_inferred"] },
       short_diagnosis: { type: "string" },
+      simple_case_view: { type: "string" },
       court_forum: postureFieldSchema(),
       procedural_posture: postureFieldSchema(),
       possible_filings: { type: "array", items: filingSchema() },
       recommended_working_path: filingSchema(),
+      legal_routes: { type: "array", items: legalRouteSchema() },
+      recommended_route: recommendedRouteSchema(),
+      next_best_actions: { type: "array", items: { type: "string" } },
       governing_law: { type: "array", items: sourcedTextSchema() },
       central_facts: { type: "array", items: sourcedTextSchema() },
       adverse_or_difficult_facts: { type: "array", items: sourcedTextSchema() },
@@ -675,6 +697,50 @@ function postureFieldSchema() {
   };
 }
 
+function legalRouteSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "route_number",
+      "route_title",
+      "route_summary",
+      "when_to_use",
+      "why_this_route",
+      "court_or_forum",
+      "statutory_references",
+      "what_to_confirm",
+      "priority",
+    ],
+    properties: {
+      route_number: { type: "integer" },
+      route_title: { type: "string" },
+      route_summary: { type: "string" },
+      when_to_use: { type: "string" },
+      why_this_route: { type: "string" },
+      court_or_forum: { type: "string" },
+      statutory_references: { type: "array", items: { type: "string" } },
+      what_to_confirm: { type: "array", items: { type: "string" } },
+      priority: { type: "string", enum: PRIORITY_VALUES },
+    },
+  };
+}
+
+function recommendedRouteSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["route_number", "route_title", "recommendation", "reason", "next_step"],
+    properties: {
+      route_number: { type: "integer" },
+      route_title: { type: "string" },
+      recommendation: { type: "string" },
+      reason: { type: "string" },
+      next_step: { type: "string" },
+    },
+  };
+}
+
 function filingSchema() {
   return {
     type: "object",
@@ -706,9 +772,8 @@ function sourcedTextSchema() {
 export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
   const generated = diagnosis.generated_at || "";
   const basedOn = diagnosis.based_on || {};
-  const possibleRows = normalizeFilings(diagnosis.possible_filings).map((item) => (
-    `| ${escapeMarkdownCell(item.priority)} | ${escapeMarkdownCell(item.filing_or_remedy)} | ${escapeMarkdownCell(item.reason)} | ${escapeMarkdownCell(item.key_facts.join("; "))} | ${escapeMarkdownCell(item.caveats.join("; "))} |`
-  ));
+  const legalRoutes = normalizeLegalRoutes(diagnosis.legal_routes);
+  const recommendedRoute = normalizeRecommendedRoute(diagnosis.recommended_route);
   return [
     "# Filing and Procedural Posture Diagnosis",
     "",
@@ -717,58 +782,125 @@ export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
     `Based on: Case Timeline (${basedOn.case_timeline_path || LIST_OF_DATES_MARKDOWN_RELATIVE}), Matter Story (${basedOn.matter_story_path || DISPUTE_STORY_OUTPUT_RELATIVE}), Source Index (${basedOn.source_index_path || SOURCE_INDEX_RELATIVE})`,
     generated ? `Generated: ${generated}` : "",
     "",
-    "## Short Diagnosis",
+    "## Simple case view",
     "",
-    diagnosis.short_diagnosis || "No diagnosis text returned.",
+    diagnosis.simple_case_view || diagnosis.short_diagnosis || "No diagnosis text returned.",
     "",
-    "## Court / Forum",
+    "## Current procedural position",
     "",
-    `- MW inference: ${diagnosis.court_forum?.value || "Unknown"}`,
-    `- Confidence: ${diagnosis.court_forum?.confidence || "unknown"}`,
-    `- Why: ${diagnosis.court_forum?.reason || diagnosis.court_forum?.why || ""}`,
-    `- Lawyer to confirm: ${diagnosis.court_forum?.lawyer_to_confirm || ""}`,
+    renderCurrentPositionParagraph(diagnosis),
     "",
-    "## Procedural Posture",
+    "## Legal routes available from current record",
     "",
-    `- MW inference: ${diagnosis.procedural_posture?.value || "Unknown"}`,
-    `- Confidence: ${diagnosis.procedural_posture?.confidence || "unknown"}`,
-    `- Why: ${diagnosis.procedural_posture?.reason || diagnosis.procedural_posture?.why || ""}`,
-    `- Lawyer to confirm: ${diagnosis.procedural_posture?.lawyer_to_confirm || ""}`,
+    ...(legalRoutes.length ? renderLegalRoutesMarkdown(legalRoutes) : renderLegacyFilingsAsRoutes(diagnosis.possible_filings)),
     "",
-    "## Possible Filings / Remedies",
+    "## Recommended route",
     "",
-    "| Priority | Filing / remedy | Why it may be available | Key facts | Caveats |",
-    "| --- | --- | --- | --- | --- |",
-    ...(possibleRows.length ? possibleRows : ["| unknown | To be confirmed | The current record does not support a confident filing path. |  | Lawyer review required. |"]),
+    renderRecommendedRouteParagraph({ recommendedRoute, fallback: diagnosis.recommended_working_path }),
     "",
-    "## Recommended Working Path",
+    "## Next best actions",
     "",
-    `**${diagnosis.recommended_working_path?.filing_or_remedy || "Unknown"}** — ${diagnosis.recommended_working_path?.reason || "Lawyer confirmation required before relying on this path."}`,
+    ...numberedStrings(diagnosis.next_best_actions),
     "",
-    "## Governing Statute / Rules / Framework",
-    "",
-    ...bulletSourced(diagnosis.governing_law),
-    "",
-    "## Facts Central To The Posture",
-    "",
-    ...bulletSourced(diagnosis.central_facts),
-    "",
-    "## Adverse Or Difficult Facts To Handle",
-    "",
-    ...bulletSourced(diagnosis.adverse_or_difficult_facts),
-    "",
-    "## Missing Information / Documents",
-    "",
-    ...bulletStrings(diagnosis.missing_information),
-    "",
-    "## Lawyer To Confirm Before Downstream Drafting",
+    "## Information the lawyer must confirm",
     "",
     ...bulletStrings(diagnosis.lawyer_to_confirm, "- [ ]"),
     "",
-    "## Internal Source Handles",
+    "## Governing statute / rules / framework",
+    "",
+    ...bulletSourced(diagnosis.governing_law),
+    "",
+    "## Facts central to the posture",
+    "",
+    ...bulletSourced(diagnosis.central_facts),
+    "",
+    "## Adverse or difficult facts to handle",
+    "",
+    ...bulletSourced(diagnosis.adverse_or_difficult_facts),
+    "",
+    "## Missing information / documents",
+    "",
+    ...bulletStrings(diagnosis.missing_information),
+    "",
+    "## Internal source handles",
     "",
     ...bulletStrings(diagnosis.internal_source_handles),
   ].filter((line) => line !== null && line !== undefined).join("\n").trimEnd();
+}
+
+function renderCurrentPositionParagraph(diagnosis = {}) {
+  const court = diagnosis.court_forum || {};
+  const posture = diagnosis.procedural_posture || {};
+  const parts = [];
+  if (court.value) {
+    parts.push(`The likely court or forum is ${court.value}. Confidence is ${court.confidence || "unknown"}.`);
+  }
+  if (court.reason || court.why) {
+    parts.push(`This is based on: ${court.reason || court.why}.`);
+  }
+  if (posture.value) {
+    parts.push(`The current procedural position appears to be ${posture.value}. Confidence is ${posture.confidence || "unknown"}.`);
+  }
+  if (posture.reason || posture.why) {
+    parts.push(`Reason: ${posture.reason || posture.why}.`);
+  }
+  return parts.join(" ") || "The current procedural position is not clear from the supplied record.";
+}
+
+function renderLegalRoutesMarkdown(routes = []) {
+  return routes.flatMap((route) => [
+    `### Route ${route.route_number}: ${route.route_title || "To be confirmed"}`,
+    "",
+    route.route_summary || "This route needs lawyer review before use.",
+    "",
+    `Use this route when ${sentenceFragment(route.when_to_use)}.`,
+    "",
+    `The current record supports or weakens this route because ${sentenceFragment(route.why_this_route)}.`,
+    "",
+    `The likely court/forum is ${route.court_or_forum || "to be confirmed by the lawyer"}.`,
+    "",
+    `Statutory references to check: ${inlineList(route.statutory_references) || "to be confirmed before filing"}.`,
+    "",
+    `Before taking this route, confirm: ${inlineList(route.what_to_confirm) || "the latest court status and missing documents"}.`,
+    "",
+  ]);
+}
+
+function renderLegacyFilingsAsRoutes(items) {
+  const filings = normalizeFilings(items);
+  if (!filings.length) {
+    return ["No clear legal route is supported by the current record. The lawyer should first confirm the live case stage and missing papers."];
+  }
+  return filings.flatMap((item, index) => [
+    `### Route ${index + 1}: ${item.filing_or_remedy || "To be confirmed"}`,
+    "",
+    item.reason || "This possible route needs lawyer confirmation before use.",
+    "",
+    `Before taking this route, confirm: ${inlineList([...item.key_facts, ...item.caveats]) || "the latest case status"}.`,
+    "",
+  ]);
+}
+
+function renderRecommendedRouteParagraph({ recommendedRoute = {}, fallback = {} } = {}) {
+  if (recommendedRoute.route_title || recommendedRoute.recommendation || recommendedRoute.reason) {
+    const label = recommendedRoute.route_number ? `Route ${recommendedRoute.route_number}: ${recommendedRoute.route_title || "recommended route"}` : (recommendedRoute.route_title || "Recommended route");
+    return `${label}. ${recommendedRoute.recommendation || "This is the safest working route on the current record."} ${recommendedRoute.reason ? `Reason: ${recommendedRoute.reason}` : ""} ${recommendedRoute.next_step ? `Next step: ${recommendedRoute.next_step}` : ""}`.trim();
+  }
+  return `**${fallback?.filing_or_remedy || "Unknown"}** — ${fallback?.reason || "Lawyer confirmation required before relying on this path."}`;
+}
+
+function inlineList(items) {
+  return normalizeStringArray(items).join("; ");
+}
+
+function sentenceFragment(value) {
+  const text = String(value || "").trim();
+  return text ? text.replace(/[.。]+$/, "") : "the lawyer confirms the required facts";
+}
+
+function numberedStrings(items) {
+  const values = normalizeStringArray(items);
+  return values.length ? values.map((item, index) => `${index + 1}. ${item}`) : ["1. Confirm the latest court status, custody/bail position, complete record, and next hearing before choosing a filing route."];
 }
 
 function renderConfirmationQnaAppend({ sidecar, confirmation, recordedAt }) {
@@ -887,6 +1019,46 @@ function normalizeFiling(item = {}) {
   };
 }
 
+function normalizeLegalRoutes(items) {
+  return Array.isArray(items)
+    ? items.map((item, index) => ({
+      route_number: normalizeRouteNumber(item?.route_number, index + 1),
+      route_title: String(item?.route_title || "").trim(),
+      route_summary: String(item?.route_summary || "").trim(),
+      when_to_use: String(item?.when_to_use || "").trim(),
+      why_this_route: String(item?.why_this_route || "").trim(),
+      court_or_forum: String(item?.court_or_forum || "").trim(),
+      statutory_references: normalizeStringArray(item?.statutory_references),
+      what_to_confirm: normalizeStringArray(item?.what_to_confirm),
+      priority: PRIORITY_VALUES.includes(item?.priority) ? item.priority : "unknown",
+    })).filter((item) => item.route_title || item.route_summary || item.why_this_route)
+    : [];
+}
+
+function normalizeRecommendedRoute(item = {}) {
+  if (!item || typeof item !== "object") {
+    return {
+      route_number: 0,
+      route_title: "",
+      recommendation: "",
+      reason: "",
+      next_step: "",
+    };
+  }
+  return {
+    route_number: normalizeRouteNumber(item.route_number, 0),
+    route_title: String(item.route_title || "").trim(),
+    recommendation: String(item.recommendation || "").trim(),
+    reason: String(item.reason || "").trim(),
+    next_step: String(item.next_step || "").trim(),
+  };
+}
+
+function normalizeRouteNumber(value, fallback) {
+  const number = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
 function normalizeSourcedTextList(items) {
   return Array.isArray(items) ? items.map((item) => ({
     text: String(item?.text || "").trim(),
@@ -932,13 +1104,6 @@ function bulletSourced(items) {
 function bulletStrings(items, marker = "-") {
   const normalized = normalizeStringArray(items);
   return normalized.length ? normalized.map((item) => `${marker} ${item}`) : [`${marker} To be confirmed.`];
-}
-
-function escapeMarkdownCell(value) {
-  return String(value ?? "")
-    .replace(/\|/g, "\\|")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function boundedText(value, maxChars) {

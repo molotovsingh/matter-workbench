@@ -998,6 +998,26 @@ export interface ProceduralPostureDiagnosisResult {
   courtForum?: { value?: string; confidence?: string; reason?: string } | null;
   proceduralPosture?: { value?: string; confidence?: string; reason?: string } | null;
   recommendedWorkingPath?: { filing_or_remedy?: string; reason?: string } | null;
+  simpleCaseView?: string;
+  legalRoutes?: Array<{
+    route_number?: number;
+    route_title?: string;
+    route_summary?: string;
+    when_to_use?: string;
+    why_this_route?: string;
+    court_or_forum?: string;
+    statutory_references?: string[];
+    what_to_confirm?: string[];
+    priority?: string;
+  }>;
+  recommendedRoute?: {
+    route_number?: number;
+    route_title?: string;
+    recommendation?: string;
+    reason?: string;
+    next_step?: string;
+  } | null;
+  nextBestActions?: string[];
   lawyerToConfirmCount?: number;
 }
 

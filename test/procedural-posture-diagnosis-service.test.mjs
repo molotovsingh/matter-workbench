@@ -10,6 +10,7 @@ import {
   PROCEDURAL_POSTURE_DIAGNOSIS_OUTPUT_RELATIVE,
   buildPostureDiagnosisPrompts,
   createProceduralPostureDiagnosisService,
+  postureDiagnosisSchemas,
 } from "../services/procedural-posture-diagnosis-service.mjs";
 
 function store(root) {
@@ -74,6 +75,7 @@ function finalDiagnosisFixture() {
     schema_version: "posture_diagnosis_final/v1",
     status: "provisional_mw_inferred",
     short_diagnosis: "The record suggests a pre-filing notice-response posture, subject to lawyer confirmation.",
+    simple_case_view: "This looks like a notice-led civil matter. The record does not yet show a filed court case, so the legal team should first confirm whether any proceeding already exists.",
     court_forum: {
       value: "Civil court / appropriate forum to be confirmed",
       confidence: "medium",
@@ -104,6 +106,35 @@ function finalDiagnosisFixture() {
       caveats: ["Lawyer must confirm"],
       source_refs: ["FILE-0001 p1.b1"],
     },
+    legal_routes: [{
+      route_number: 1,
+      route_title: "Confirm live status and complete record",
+      route_summary: "First confirm whether a case is already filed and collect the complete record before choosing a filing.",
+      when_to_use: "the current record only shows a notice and no proceeding number or court order",
+      why_this_route: "the next step changes if a proceeding has already been filed outside the supplied papers",
+      court_or_forum: "Civil court / appropriate forum to be confirmed",
+      statutory_references: ["Verify limitation, forum, and applicable civil procedure before filing"],
+      what_to_confirm: ["Whether proceedings are already filed", "Forum and limitation", "Complete notice record"],
+      priority: "primary",
+    }, {
+      route_number: 2,
+      route_title: "Notice response route",
+      route_summary: "If no case is filed, prepare a response or pre-filing strategy based on the notice.",
+      when_to_use: "the lawyer confirms that the matter is still pre-filing",
+      why_this_route: "the visible source-backed event is a notice requiring legal response",
+      court_or_forum: "No court yet / forum to be selected if filing becomes necessary",
+      statutory_references: ["Verify governing statute and limitation after reading the notice"],
+      what_to_confirm: ["Notice date", "Relief claimed", "Client instructions"],
+      priority: "secondary",
+    }],
+    recommended_route: {
+      route_number: 1,
+      route_title: "Confirm live status and complete record",
+      recommendation: "Start by confirming the live posture before drafting.",
+      reason: "The supplied record does not show whether any court case already exists.",
+      next_step: "Check case status, limitation, forum, and complete notice papers.",
+    },
+    next_best_actions: ["Confirm whether proceedings already exist", "Collect complete notice papers", "Confirm forum and limitation before drafting"],
     governing_law: [{ text: "Governing framework cannot be fixed without forum confirmation.", source_refs: ["FILE-0001 p1.b1"] }],
     central_facts: [{ text: "The supplied record shows a notice event.", source_refs: ["FILE-0001 p1.b1"] }],
     adverse_or_difficult_facts: [{ text: "The record does not show whether any proceeding was already filed.", source_refs: ["FILE-0001 p1.b1"] }],
@@ -117,9 +148,25 @@ function finalDiagnosisFixture() {
 test("procedural posture prompts require provisional, adverse-fact-aware diagnosis", () => {
   const prompts = buildPostureDiagnosisPrompts();
   assert.match(prompts.proposerSystem, /provisional Filing and Procedural Posture Diagnosis/i);
+  assert.match(prompts.proposerSystem, /simple Indian legal English/i);
+  assert.match(prompts.proposerSystem, /all probable legal routes supported by the current record/i);
+  assert.match(prompts.proposerSystem, /statutory references/i);
   assert.match(prompts.proposerSystem, /Material adverse or inconvenient facts must be surfaced/i);
   assert.match(prompts.criticSystem, /unsupported leaps/i);
-  assert.match(prompts.finalizerSystem, /must remain provisional/i);
+  assert.match(prompts.finalizerSystem, /prose-like legal routes section/i);
+  assert.match(prompts.finalizerSystem, /recommended route and next best actions/i);
+});
+
+test("procedural posture schema requires standardized legal routes", () => {
+  const schemas = postureDiagnosisSchemas();
+  assert.ok(schemas.finalDiagnosis.required.includes("simple_case_view"));
+  assert.ok(schemas.finalDiagnosis.required.includes("legal_routes"));
+  assert.ok(schemas.finalDiagnosis.required.includes("recommended_route"));
+  assert.ok(schemas.finalDiagnosis.required.includes("next_best_actions"));
+  assert.deepEqual(
+    schemas.finalDiagnosis.properties.legal_routes.items.required,
+    ["route_number", "route_title", "route_summary", "when_to_use", "why_this_route", "court_or_forum", "statutory_references", "what_to_confirm", "priority"],
+  );
 });
 
 test("procedural posture diagnosis refuses to run without a Case Timeline", async () => {
@@ -166,6 +213,15 @@ test("procedural posture diagnosis writes markdown and JSON sidecar", async () =
   assert.equal(json.status, "mw_inferred");
   assert.equal(json.confirmation.state, "unconfirmed");
   assert.equal(json.court_forum.value, "Civil court / appropriate forum to be confirmed");
+  assert.match(markdown, /## Simple case view/);
+  assert.match(markdown, /## Legal routes available from current record/);
+  assert.match(markdown, /### Route 1: Confirm live status and complete record/);
+  assert.match(markdown, /Statutory references to check: Verify limitation, forum, and applicable civil procedure before filing\./);
+  assert.match(markdown, /## Recommended route/);
+  assert.equal(json.simple_case_view, "This looks like a notice-led civil matter. The record does not yet show a filed court case, so the legal team should first confirm whether any proceeding already exists.");
+  assert.equal(json.legal_routes.length, 2);
+  assert.equal(json.recommended_route.route_title, "Confirm live status and complete record");
+  assert.deepEqual(json.next_best_actions, ["Confirm whether proceedings already exist", "Collect complete notice papers", "Confirm forum and limitation before drafting"]);
 });
 
 test("procedural posture status detects stale upstream changes", async () => {
