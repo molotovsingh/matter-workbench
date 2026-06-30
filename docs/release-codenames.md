@@ -98,3 +98,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.91](releases/v1.0.0-beta.91.md) | **Focus Lens** | Release note present. |
 | [v1.0.0-beta.92](releases/v1.0.0-beta.92.md) | **Signal Ladder** | Release note present. |
 | [v1.0.0-beta.93](releases/v1.0.0-beta.93.md) | **Upload Beacon** | Release note present. |
+| [v1.0.0-beta.94](releases/v1.0.0-beta.94.md) | **Intake Spine** | Release note present. |
