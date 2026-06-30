@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.101`,
-codename **Fresh Path**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.102`,
+codename **Preparation Gate**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -127,8 +127,10 @@ Completed release checks include:
 - lawyer confirmation/correction/not-sure controls for posture diagnosis;
 - Assistant readiness degradation remains visible with sanitized user-facing copy;
 - user-facing AI/provider errors are centralized behind a safe API and command-activity boundary;
+- Matter Overview **Prepared** status now includes Matter Story and Filing and Procedural Posture Diagnosis readiness;
+- default preparation reruns use **Run needed preparation**, with full rebuild behind a reason and `REBUILD` confirmation;
 - private-cloud deployment to the beta VM;
-- runtime DB migration through `023_matter_archive_metadata`;
+- runtime DB migration through `024_first_class_upload_sessions`;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, and List of Dates smoke;
@@ -140,7 +142,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.101 release marker](docs/releases/v1.0.0-beta.101.md)
+- [v1.0.0-beta.102 release marker](docs/releases/v1.0.0-beta.102.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)

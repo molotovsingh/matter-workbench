@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.101`](releases/v1.0.0-beta.101.md)
+Release: [`v1.0.0-beta.102`](releases/v1.0.0-beta.102.md)
 
-Codename: **Fresh Path**
+Codename: **Preparation Gate**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.101` is the official private beta release checkpoint.
+`v1.0.0-beta.102` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -32,7 +32,7 @@ Do not add new product features to this release line. If a tester reports a new 
 The release is acceptable for supervised private beta because:
 
 - the live beta VM is deployed and reachable;
-- runtime DB migrations through `023_matter_archive_metadata` are applied/skipped current;
+- runtime DB migrations through `024_first_class_upload_sessions` are applied/skipped current;
 - private beta auth is active;
 - Mothership `new` tester feedback count is `0`;
 - heavy-file upload feedback was addressed with clearer limits and a 256 MB private beta cap;
@@ -63,6 +63,7 @@ The release is acceptable for supervised private beta because:
 - beta.99 prevents stale `/api/config` release-badge responses;
 - beta.100 adds client-side no-store/cache-busting for runtime config fetches;
 - beta.101 refactors the runtime config freshness fetch without changing behavior;
+- beta.102 fixes Matter Overview preparation readiness so **Prepared** includes Matter Story and Filing and Procedural Posture Diagnosis, changes the default action to **Run needed preparation**, and gates full rebuilds behind a reason plus `REBUILD` confirmation;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -96,18 +97,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.101
-codename: Fresh Path
-deployed_commit: a3bd99a
+release: v1.0.0-beta.102
+codename: Preparation Gate
+deployed_commit: a092764
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 699c54d / v1.0.0-beta.100
+rollback_candidate: a3bd99a / v1.0.0-beta.101
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T05-04-26-621Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T06-19-08-285Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

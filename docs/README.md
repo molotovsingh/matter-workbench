@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.101](releases/v1.0.0-beta.101.md) |
+| Current release notes | [v1.0.0-beta.102](releases/v1.0.0-beta.102.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -170,7 +170,8 @@ implementation plan.
 | [v1.0.0-beta.98](releases/v1.0.0-beta.98.md) | Upload recovery refactor. **Codename:** Recovery Weave. |
 | [v1.0.0-beta.99](releases/v1.0.0-beta.99.md) | Runtime config no-store freshness fix. **Codename:** Fresh Badge. |
 | [v1.0.0-beta.100](releases/v1.0.0-beta.100.md) | Client/server runtime config freshness hardening. **Codename:** Config Belt. |
-| [v1.0.0-beta.101](releases/v1.0.0-beta.101.md) | Current runtime config fetch refactor. **Codename:** Fresh Path. |
+| [v1.0.0-beta.101](releases/v1.0.0-beta.101.md) | Runtime config fetch refactor. **Codename:** Fresh Path. |
+| [v1.0.0-beta.102](releases/v1.0.0-beta.102.md) | Current preparation readiness and safe rerun fix. **Codename:** Preparation Gate. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
 | [Private Beta Tester Brief](private-beta-tester-brief.md) | Concise trusted-tester instructions and stop rules. |
