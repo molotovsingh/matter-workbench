@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.95`](releases/v1.0.0-beta.95.md)
+Release: [`v1.0.0-beta.96`](releases/v1.0.0-beta.96.md)
 
-Codename: **Payload Loom**
+Codename: **Resume Thread**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.95` is the official private beta release checkpoint.
+`v1.0.0-beta.96` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -57,6 +57,7 @@ The release is acceptable for supervised private beta because:
 - beta.93 records interrupted upload attempts and upload jobs for create/add file intake;
 - beta.94 makes DB workspace intake session-first and moves first-stage extraction to a backend worker;
 - beta.95 centralizes upload payload-byte handling and processing-job row projections without changing product workflow;
+- beta.96 adds browser-visible unfinished upload recovery, same-file resume, and upload-session cancel;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -90,18 +91,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.95
-codename: Payload Loom
-deployed_commit: f709eaa
+release: v1.0.0-beta.96
+codename: Resume Thread
+deployed_commit: 451d7ce
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 16c3f84 / v1.0.0-beta.94
+rollback_candidate: f709eaa / v1.0.0-beta.95
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T03-37-41-950Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T04-20-15-206Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

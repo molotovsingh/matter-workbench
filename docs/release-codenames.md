@@ -100,3 +100,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.93](releases/v1.0.0-beta.93.md) | **Upload Beacon** | Release note present. |
 | [v1.0.0-beta.94](releases/v1.0.0-beta.94.md) | **Intake Spine** | Release note present. |
 | [v1.0.0-beta.95](releases/v1.0.0-beta.95.md) | **Payload Loom** | Release note present. |
+| [v1.0.0-beta.96](releases/v1.0.0-beta.96.md) | **Resume Thread** | Release note present. |
