@@ -1,5 +1,4 @@
 import { Buffer } from "node:buffer";
-import { readFile } from "node:fs/promises";
 
 import { validateRelativePath } from "../shared/safe-paths.mjs";
 import {
@@ -10,6 +9,7 @@ import { buildRuntimeDbMatterInit } from "./runtime-db-matter-init-service.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 import { runtimeUploadImportItemsFromFileRegisterRows } from "./runtime-db-upload-import-items.mjs";
 import { buildRuntimeWorkspaceTree } from "./runtime-db-workspace-read-model.mjs";
+import { readUploadFilePayloadBytes } from "./upload-file-payload.mjs";
 
 export async function buildRuntimeUploadIntake({
   matter,
@@ -79,22 +79,13 @@ async function buildUploadedSourceStorageFiles({
   const storageFiles = [];
   for (const file of sortedFiles) {
     const safeRel = validateRelativePath(relativePaths[file.index]);
-    const bytes = uploadFilePayloadBytes(file) || await readFile(file.tempPath);
+    const bytes = await readUploadFilePayloadBytes(file);
     storageFiles.push({
       relativePath: normalizeRuntimeObjectKey(`00_Inbox/${intakeDirName}/Source Files/${safeRel}`),
       bytes,
     });
   }
   return normalizeStorageFiles(storageFiles);
-}
-
-function uploadFilePayloadBytes(file = {}) {
-  if (Buffer.isBuffer(file.payloadBytes)) return Buffer.from(file.payloadBytes);
-  if (file.payloadBytes instanceof Uint8Array) return Buffer.from(file.payloadBytes);
-  if (Buffer.isBuffer(file.bytes)) return Buffer.from(file.bytes);
-  if (file.bytes instanceof Uint8Array) return Buffer.from(file.bytes);
-  if (file.buffer instanceof Uint8Array) return Buffer.from(file.buffer);
-  return null;
 }
 
 function normalizeExistingPayloadFiles(files = []) {

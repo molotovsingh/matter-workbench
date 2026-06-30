@@ -30,6 +30,7 @@ import {
   validateRuntimeUploadInputs,
 } from "./runtime-db-upload-intake-planner.mjs";
 import { buildRuntimeUploadIntake } from "./runtime-db-upload-materializer.mjs";
+import { readUploadFilePayloadBytes } from "./upload-file-payload.mjs";
 import { validatedRelativePathFromRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 import {
   buildRuntimeWorkspaceTree,
@@ -87,6 +88,22 @@ const {
 } = WORKSPACE_PREVIEW_LIMITS;
 const DEFAULT_PSQL_MAX_BUFFER_BYTES = 128 * 1024 * 1024;
 const DEFAULT_RUNTIME_UPLOAD_PARAMETERIZED_THRESHOLD_BYTES = 32 * 1024 * 1024;
+const PROCESSING_JOB_ROW_FIELDS = [
+  "id::text",
+  "matter_id::text",
+  "kind",
+  "status",
+  "idempotency_key",
+  "attempt_count",
+  "max_attempts",
+  "progress_json",
+  "created_at",
+  "updated_at",
+  "started_at",
+  "finished_at",
+  "error_code",
+  "error_message",
+];
 
 export function createRuntimeDbStorageService({
   databaseUrl = "",
@@ -437,7 +454,7 @@ export function createRuntimeDbStorageService({
       for (let index = 0; index < uploadFiles.length; index += 1) {
         const file = uploadFiles[index];
         const fileIndex = positiveUploadInteger(fileIndexes[index], Number.isInteger(file?.index) ? file.index : index);
-        const bytes = uploadFilePayloadBytes(file) || await import("node:fs/promises").then(({ readFile }) => readFile(file.tempPath));
+        const bytes = await readUploadFilePayloadBytes(file);
         const sha256 = sha256Bytes(bytes);
         await client.query([
           "insert into upload_session_items (tenant_id, upload_session_id, file_index, relative_path, original_name, mime_type, expected_size_bytes, received_size_bytes, sha256, payload, status, created_at, updated_at)",
@@ -486,14 +503,7 @@ export function createRuntimeDbStorageService({
         throw makeHttpError("Upload session is incomplete. Upload or retry the missing files before committing.", 409, "upload_session.incomplete");
       }
       const actor = runtimeDbUserFromRequestContext();
-      const denseFiles = items
-        .sort((left, right) => left.fileIndex - right.fileIndex)
-        .map((item, index) => ({
-          index,
-          filename: item.originalName,
-          bytes: item.payload,
-        }));
-      const relativePaths = items.map((item) => item.relativePath);
+      const { denseFiles, relativePaths } = uploadSessionFilesAndPaths(items);
 
       if (session.action === "add_files") {
         return commitAddFilesUploadSession({ session, items, denseFiles, relativePaths, actor });
@@ -642,7 +652,7 @@ export function createRuntimeDbStorageService({
         "  priority = greatest(processing_jobs.priority, excluded.priority),",
         "  progress_json = processing_jobs.progress_json || excluded.progress_json,",
         "  updated_at = now()",
-        "returning id::text, matter_id::text, kind, status, idempotency_key, attempt_count, max_attempts, progress_json, created_at, updated_at, started_at, finished_at, error_code, error_message",
+        `returning ${processingJobColumnList()}`,
       ].join("\n"), [
         normalizedMatter.id,
         cleanUploadText(kind, 80),
@@ -659,7 +669,7 @@ export function createRuntimeDbStorageService({
     ensureEnabled();
     return withRuntimeDbClient(async (client) => {
       const result = await client.query([
-        "select j.id::text, j.matter_id::text, m.name as matter_name, j.kind, j.status, j.idempotency_key, j.attempt_count, j.max_attempts, j.progress_json, j.created_at, j.updated_at, j.started_at, j.finished_at, j.error_code, j.error_message",
+        `select ${processingJobColumnList("j", { includeMatterName: true })}`,
         "from processing_jobs j",
         "left join matters m on m.id = j.matter_id and m.tenant_id = j.tenant_id",
         "where j.tenant_id = current_app_tenant_id()",
@@ -707,7 +717,7 @@ export function createRuntimeDbStorageService({
         "    updated_at = now()",
         "from candidate c",
         "where j.id = c.id and j.tenant_id = current_app_tenant_id()",
-        "returning j.id::text, j.matter_id::text, j.kind, j.status, j.idempotency_key, j.attempt_count, j.max_attempts, j.progress_json, j.created_at, j.updated_at, j.started_at, j.finished_at, j.error_code, j.error_message",
+        `returning ${processingJobColumnList("j")}`,
       ].join("\n"), [cleanUploadText(workerId, 120), kinds.map((item) => cleanUploadText(item, 80)).filter(Boolean), Math.max(1000, Number(lockMs) || 300000)]);
       const job = normalizeRuntimeProcessingJobRow(result.rows[0]);
       if (!job?.id) return null;
@@ -740,7 +750,7 @@ export function createRuntimeDbStorageService({
         "update processing_jobs",
         "set status = 'succeeded', finished_at = now(), locked_by = null, locked_at = null, lock_expires_at = null, last_heartbeat_at = now(), progress_json = progress_json || $2::jsonb, updated_at = now()",
         "where tenant_id = current_app_tenant_id() and id = $1::uuid",
-        "returning id::text, matter_id::text, kind, status, idempotency_key, attempt_count, max_attempts, progress_json, created_at, updated_at, started_at, finished_at, error_code, error_message",
+        `returning ${processingJobColumnList()}`,
       ].join("\n"), [jobId, JSON.stringify(patch.progress || {})]);
       return normalizeRuntimeProcessingJobRow(result.rows[0]);
     });
@@ -759,7 +769,7 @@ export function createRuntimeDbStorageService({
         "    locked_by = null, locked_at = null, lock_expires_at = null, last_heartbeat_at = now(),",
         "    error_code = $2, error_message = $3, progress_json = progress_json || $4::jsonb, updated_at = now()",
         "where tenant_id = current_app_tenant_id() and id = $1::uuid",
-        "returning id::text, matter_id::text, kind, status, idempotency_key, attempt_count, max_attempts, progress_json, created_at, updated_at, started_at, finished_at, error_code, error_message",
+        `returning ${processingJobColumnList()}`,
       ].join("\n"), [jobId, code, message, JSON.stringify(patch.progress || {})]);
       return normalizeRuntimeProcessingJobRow(result.rows[0]);
     });
@@ -767,18 +777,8 @@ export function createRuntimeDbStorageService({
 
   async function readUploadSessionForCommit(sessionId) {
     return withRuntimeDbClient(async (client) => {
-      const session = await readUploadSessionWithClient(client, sessionId, { includePayload: false, forUpdate: true });
-      if (!session) return { session: null, items: [] };
-      const itemsResult = await client.query([
-        "select id::text, file_index, relative_path, original_name, mime_type, expected_size_bytes::text, received_size_bytes::text, sha256, payload, status, error_code, error_message, created_at, updated_at",
-        "from upload_session_items",
-        "where tenant_id = current_app_tenant_id() and upload_session_id = $1::uuid",
-        "order by file_index asc",
-      ].join("\n"), [session.id]);
-      return {
-        session,
-        items: itemsResult.rows.map(normalizeUploadSessionItemRow),
-      };
+      const session = await readUploadSessionWithClient(client, sessionId, { includePayload: true, forUpdate: true });
+      return { session, items: session?.items || [] };
     });
   }
 
@@ -1386,6 +1386,13 @@ export function isRuntimeDbStorageModeEnabled(env = process.env) {
   return String(env.MWB_RUNTIME_DB_STORAGE || "").trim().toLowerCase() === "postgres";
 }
 
+function processingJobColumnList(alias = "", { includeMatterName = false } = {}) {
+  const qualifier = alias ? `${alias}.` : "";
+  const columns = PROCESSING_JOB_ROW_FIELDS.map((field) => `${qualifier}${field}`);
+  if (includeMatterName) columns.splice(2, 0, "m.name as matter_name");
+  return columns.join(", ");
+}
+
 function queryJson({ databaseUrl, tenantId, spawn, sql }) {
   return queryRuntimeDbJson({
     databaseUrl,
@@ -1406,13 +1413,17 @@ function runtimeDbStoragePsqlMaxBuffer() {
   return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_PSQL_MAX_BUFFER_BYTES;
 }
 
-function uploadFilePayloadBytes(file = {}) {
-  if (Buffer.isBuffer(file.payloadBytes)) return Buffer.from(file.payloadBytes);
-  if (file.payloadBytes instanceof Uint8Array) return Buffer.from(file.payloadBytes);
-  if (Buffer.isBuffer(file.bytes)) return Buffer.from(file.bytes);
-  if (file.bytes instanceof Uint8Array) return Buffer.from(file.bytes);
-  if (file.buffer instanceof Uint8Array) return Buffer.from(file.buffer);
-  return null;
+function uploadSessionFilesAndPaths(items = []) {
+  const orderedItems = [...items].sort((left, right) => left.fileIndex - right.fileIndex);
+  return {
+    denseFiles: orderedItems.map((item, index) => ({
+      index,
+      filename: item.originalName,
+      payloadBytes: item.payload,
+      bytes: item.receivedSizeBytes,
+    })),
+    relativePaths: orderedItems.map((item) => item.relativePath),
+  };
 }
 
 function normalizeUploadSessionAction(value) {
