@@ -109,6 +109,17 @@ async function getJson<T>(url: string): Promise<T> {
   return parseJsonResponse<T>(res, url);
 }
 
+async function getFreshJson<T>(url: string): Promise<T> {
+  const res = await fetch(withCacheBust(url), {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+  });
+  return parseJsonResponse<T>(res, url);
+}
+
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
@@ -308,6 +319,12 @@ function withQuery(path: string, query: Record<string, string | undefined | null
   return text ? `${path}?${text}` : path;
 }
 
+function withCacheBust(url: string): string {
+  const separator = url.includes('?') ? '&' : '?';
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${url}${separator}_mwbFresh=${encodeURIComponent(token)}`;
+}
+
 const TECHNICAL_PREFIXES = ['01_Admin', '02_Extracts', '99_'];
 
 export interface AdaptedFile {
@@ -369,7 +386,7 @@ export const api = {
     postJson<PrivateBetaUserResponse>(`/api/private-beta/users/${encodeURIComponent(username)}/enable`, {}),
 
   // ─── Config ──────────────────────────────
-  getConfig: () => getJson<AppConfig>('/api/config'),
+  getConfig: () => getFreshJson<AppConfig>('/api/config'),
   getSystemHealth: () => getJson<SystemHealthReport>('/api/system-health'),
   getUserReadiness: () => getJson<UserReadinessReport>('/api/user-readiness'),
   setConfig: (body: { mattersHome: string }) => postJson('/api/config', body),
