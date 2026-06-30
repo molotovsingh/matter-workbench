@@ -114,3 +114,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | **Watch Loom** | Release note present. |
 | [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | **Route Compass** | Release note present. |
 | [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | **Route Loom** | Release note present. |
+| [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) | **Reason Beacon** | Release note present. |

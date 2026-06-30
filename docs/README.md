@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) |
+| Current release notes | [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -52,7 +52,7 @@ Treat edits here as contract edits.
 | [Active Source Set And Suppression](contracts/active-source-set-and-suppression.md) | Current read-side suppression contract before any source-removal UI or write-side tombstone workflow. |
 | [Upload Intake](contracts/upload-intake-contract.md) | Canonical shared planning rules for matter upload and add-files intake across filesystem/runtime DB storage. |
 | [Artifact Visibility and Dispatch](contracts/artifact-visibility-and-dispatch.md) | Canonical classes for generated artifacts, drafts, technical files, and dispatch copies. |
-| [Dependency States and Staleness](contracts/dependency-states-and-staleness.md) | Canonical List of Dates dependency states for label refresh, review, and regeneration. |
+| [Dependency States and Staleness](contracts/dependency-states-and-staleness.md) | Canonical Case Timeline dependency states for label refresh, review, and regeneration. |
 | [Custom Skill Governance](contracts/custom-skill-governance.md) | Canonical no-silent-mutation path for skill ideas, samples, validation, and versions. |
 | [Diagnostic Surfaces](contracts/diagnostic-surfaces.md) | Canonical boundary between matter-level attention and app/system health. |
 | [Model Task Boundaries](contracts/model-task-boundaries.md) | Canonical boundary between Copilot model choice and app-owned model policy. |
@@ -178,7 +178,8 @@ implementation plan.
 | [v1.0.0-beta.107](releases/v1.0.0-beta.107.md) | Backend preparation job observer. **Codename:** Queue Watch. |
 | [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | Preparation observer hook refactor. **Codename:** Watch Loom. |
 | [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | Procedural posture legal-route output redesign. **Codename:** Route Compass. |
-| [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | Current procedural posture contract refactor. **Codename:** Route Loom. |
+| [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | Procedural posture contract refactor. **Codename:** Route Loom. |
+| [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) | Current preparation-stage reason visibility and Case Timeline dependency-state refactor. **Codename:** Reason Beacon. |
 | [Maintenance Checkpoints](releases/maintenance-checkpoints.md) | Tier 2 behavior-preserving deployment log. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |

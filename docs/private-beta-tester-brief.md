@@ -2,8 +2,8 @@
 
 Status: tester-facing brief for the official supervised private beta
 
-This brief is for trusted testers using Matter Workbench `v1.0.0-beta.110`,
-codename **Route Loom**, with an operator nearby. It is not a public
+This brief is for trusted testers using Matter Workbench `v1.0.0-beta.111`,
+codename **Reason Beacon**, with an operator nearby. It is not a public
 product page, and it is not a promise that the app is ready for public web use.
 
 ## What You Are Testing

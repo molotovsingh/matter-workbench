@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.110`](releases/v1.0.0-beta.110.md)
+Release: [`v1.0.0-beta.111`](releases/v1.0.0-beta.111.md)
 
-Codename: **Route Loom**
+Codename: **Reason Beacon**
 
 Date: 2026-06-30
 
 ## Release Decision
 
-`v1.0.0-beta.110` is the official private beta release checkpoint.
+`v1.0.0-beta.111` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -71,6 +71,7 @@ The release is acceptable for supervised private beta because:
 - beta.108 refactors that observer into a dedicated React hook and narrows the Overview failure contract so raw failed-job details are not passed to the UI surface;
 - beta.109 standardizes Filing and Procedural Posture Diagnosis around simple case view, probable legal routes, recommended route, next best actions, statutory-reference prompts, markdown sections, and Matter Overview fallbacks;
 - beta.110 refactors that posture output contract, schema, normalization, markdown renderer, prototype loop reuse, and Matter Overview summary into dedicated modules without changing beta.109 user-facing behavior;
+- beta.111 shows Matter Overview blocked/stale preparation-stage reasons, avoids misleading empty-output copy for blocked downstream stages, and canonicalizes Case Timeline dependency-state internals while preserving List of Dates storage paths;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -104,18 +105,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.110
-codename: Route Loom
-deployed_commit: 177e626
+release: v1.0.0-beta.111
+codename: Reason Beacon
+deployed_commit: d32eacf
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 80a88d3 / v1.0.0-beta.109
+rollback_candidate: 177e626 / v1.0.0-beta.110
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T12-14-41-728Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-06-30T15-26-02-946Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

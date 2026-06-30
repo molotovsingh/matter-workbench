@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.110`,
-codename **Route Loom**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.111`,
+codename **Reason Beacon**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -137,6 +137,7 @@ Completed release checks include:
 - the backend preparation job observer lives in a dedicated React hook with a narrowed safe failure contract;
 - Filing and Procedural Posture Diagnosis now renders a simple case view, probable legal routes, a recommended route, next best actions, and statutory-reference prompts;
 - the posture diagnosis output contract, renderer, normalizers, prototype loop reuse, and Matter Overview summary are split into dedicated modules without changing beta.109 behavior;
+- Matter Overview blocked/stale preparation rows show their backend reason instead of implying an output document is unexpectedly missing;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, Case Timeline, Matter Story, and posture diagnosis smoke;
@@ -148,7 +149,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.110 release marker](docs/releases/v1.0.0-beta.110.md)
+- [v1.0.0-beta.111 release marker](docs/releases/v1.0.0-beta.111.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)
