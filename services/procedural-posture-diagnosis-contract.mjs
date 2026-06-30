@@ -1,4 +1,4 @@
-import { LIST_OF_DATES_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
+import { CASE_TIMELINE_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 
 export const POSTURE_DIAGNOSIS_CONFIDENCE_VALUES = ["low", "medium", "high", "unknown"];
@@ -171,7 +171,7 @@ export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
     "",
     "Status: Provisional — lawyer confirmation required",
     "Author: MW (Matter Workbench)",
-    `Based on: Case Timeline (${basedOn.case_timeline_path || LIST_OF_DATES_MARKDOWN_RELATIVE}), Matter Story (${basedOn.matter_story_path || DISPUTE_STORY_OUTPUT_RELATIVE}), Source Index (${basedOn.source_index_path || SOURCE_INDEX_RELATIVE})`,
+    `Based on: Case Timeline (${basedOn.case_timeline_path || CASE_TIMELINE_MARKDOWN_RELATIVE}), Matter Story (${basedOn.matter_story_path || DISPUTE_STORY_OUTPUT_RELATIVE}), Source Index (${basedOn.source_index_path || SOURCE_INDEX_RELATIVE})`,
     generated ? `Generated: ${generated}` : "",
     "",
     "## Simple case view",

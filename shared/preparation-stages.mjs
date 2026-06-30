@@ -1,4 +1,4 @@
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "./listofdates-dependency-states.mjs";
+import { CASE_TIMELINE_DEPENDENCY_STATES } from "./case-timeline-dependency-states.mjs";
 import { REQUIRED_METADATA } from "./matter-contract.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "./preparation-stage-actions.mjs";
 
@@ -65,7 +65,7 @@ export function warningsForPlan({ missingMetadata, stages, listOfDates, disputeS
   if (stages.some((stage) => stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN)) {
     warnings.push("Automatic preparation may make paid AI provider calls.");
   }
-  if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RUN && listOfDates?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+  if (listOfDates?.action === PREPARATION_STAGE_ACTIONS.RUN && listOfDates?.rerunAdvice?.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
     warnings.push("Case Timeline only needs a label refresh; chronology regeneration is not required.");
   }
   if (disputeStory?.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) {

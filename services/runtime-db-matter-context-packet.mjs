@@ -3,8 +3,8 @@ import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
 import { classifyFile } from "../shared/matter-contract.mjs";
 import {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import { AI_RUN_CONTEXT_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
@@ -336,8 +336,8 @@ function readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppr
 function readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings, sourceSuppressionIndex }) {
   const candidates = [
     SOURCE_INDEX_RELATIVE,
-    LIST_OF_DATES_JSON_RELATIVE,
-    LIST_OF_DATES_MARKDOWN_RELATIVE,
+    CASE_TIMELINE_JSON_RELATIVE,
+    CASE_TIMELINE_MARKDOWN_RELATIVE,
   ];
   const summaries = [];
   for (const relativePath of candidates) {
@@ -362,7 +362,7 @@ function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warni
     }
   }
   if (relativePath.endsWith(".md")) {
-    if (relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
+    if (relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
       warnings.push(`Skipped ${relativePath}: cites suppressed source(s)`);
       return null;
     }
@@ -370,7 +370,7 @@ function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warni
     const markdown = boundedText(body, maxChars);
     return {
       path: relativePath,
-      kind: relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
+      kind: relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
       heading: firstMarkdownHeading(body),
       markdown,
       markdown_truncated: markdown.length < normalizeText(body).length,
@@ -401,7 +401,7 @@ function summarizeJsonArtifact(relativePath, json, updatedAt, limits = {}, warni
       mtime: isoOrEmpty(updatedAt),
     };
   }
-  if (relativePath === LIST_OF_DATES_JSON_RELATIVE) {
+  if (relativePath === CASE_TIMELINE_JSON_RELATIVE) {
     const entries = Array.isArray(json.entries) ? json.entries : [];
     const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
     const suppressedCount = entries.length - activeEntries.length;

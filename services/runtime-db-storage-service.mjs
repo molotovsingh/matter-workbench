@@ -11,6 +11,7 @@ import { buildCreateListOfDatesTwoPassFromRecords } from "../listofdates/two-pas
 import { isTwoPassListOfDatesEnabled } from "../listofdates/run-config.mjs";
 import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
 import { buildSourceDescriptorsFromRecords } from "../source-descriptors-engine.mjs";
+import { CASE_TIMELINE_JSON_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import { planNewMatterIdentity } from "../shared/upload-intake-planner.mjs";
 import {
@@ -1197,7 +1198,7 @@ export function createRuntimeDbStorageService({
     });
     const listJson = readRuntimeDbJsonPayload({
       matter: normalizedMatter,
-      relativePath: "10_Library/List of Dates.json",
+      relativePath: CASE_TIMELINE_JSON_RELATIVE,
       label: "Case Timeline",
       readPayloadRow,
       missingMessage: "Case Timeline artifact is missing from DB payload custody. Run /create_listofdates first.",
@@ -1205,7 +1206,7 @@ export function createRuntimeDbStorageService({
     });
     const sourceIndex = readRuntimeDbJsonPayload({
       matter: normalizedMatter,
-      relativePath: "10_Library/Source Index.json",
+      relativePath: SOURCE_INDEX_RELATIVE,
       label: "Source Index",
       readPayloadRow,
       missingMessage: "Source Index artifact is missing from DB payload custody. Run /describe_sources first.",

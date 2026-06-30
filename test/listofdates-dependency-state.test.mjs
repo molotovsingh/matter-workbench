@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CASE_TIMELINE_DEPENDENCY_STATES,
+  classifyCaseTimelineDependencyState,
+} from "../services/case-timeline-dependency-state.mjs";
+import {
   classifyListOfDatesDependencyState,
   LIST_OF_DATES_DEPENDENCY_STATES,
 } from "../services/listofdates-dependency-state.mjs";
@@ -30,8 +34,8 @@ function sourceIndexSource(patch = {}) {
   };
 }
 
-test("classifyListOfDatesDependencyState treats source label-only changes as render refresh", () => {
-  const state = classifyListOfDatesDependencyState({
+test("classifyCaseTimelineDependencyState treats source label-only changes as render refresh", () => {
+  const state = classifyCaseTimelineDependencyState({
     target: snapshotTarget,
     newestInput: { inputKind: "source_index" },
     sourceIndex: {
@@ -44,11 +48,13 @@ test("classifyListOfDatesDependencyState treats source label-only changes as ren
     },
   });
 
-  assert.equal(state, LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED);
+  assert.equal(state, CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED);
+  assert.equal(classifyListOfDatesDependencyState, classifyCaseTimelineDependencyState);
+  assert.equal(LIST_OF_DATES_DEPENDENCY_STATES, CASE_TIMELINE_DEPENDENCY_STATES);
 });
 
-test("classifyListOfDatesDependencyState treats source metadata changes as review", () => {
-  const state = classifyListOfDatesDependencyState({
+test("classifyCaseTimelineDependencyState treats source metadata changes as review", () => {
+  const state = classifyCaseTimelineDependencyState({
     target: snapshotTarget,
     newestInput: { inputKind: "source_index" },
     sourceIndex: {
@@ -58,11 +64,11 @@ test("classifyListOfDatesDependencyState treats source metadata changes as revie
     },
   });
 
-  assert.equal(state, LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED);
+  assert.equal(state, CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED);
 });
 
-test("classifyListOfDatesDependencyState treats content or document-set changes as regeneration", () => {
-  const contentState = classifyListOfDatesDependencyState({
+test("classifyCaseTimelineDependencyState treats content or document-set changes as regeneration", () => {
+  const contentState = classifyCaseTimelineDependencyState({
     target: snapshotTarget,
     newestInput: { inputKind: "source_index" },
     sourceIndex: {
@@ -71,7 +77,7 @@ test("classifyListOfDatesDependencyState treats content or document-set changes 
       ],
     },
   });
-  const newDocumentState = classifyListOfDatesDependencyState({
+  const newDocumentState = classifyCaseTimelineDependencyState({
     target: snapshotTarget,
     newestInput: { inputKind: "source_index" },
     sourceIndex: {
@@ -81,13 +87,13 @@ test("classifyListOfDatesDependencyState treats content or document-set changes 
       ],
     },
   });
-  const extractionState = classifyListOfDatesDependencyState({
+  const extractionState = classifyCaseTimelineDependencyState({
     target: snapshotTarget,
     newestInput: { inputKind: "extraction_record" },
     sourceIndex: { sources: [sourceIndexSource()] },
   });
 
-  assert.equal(contentState, LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
-  assert.equal(newDocumentState, LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
-  assert.equal(extractionState, LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
+  assert.equal(contentState, CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
+  assert.equal(newDocumentState, CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
+  assert.equal(extractionState, CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED);
 });

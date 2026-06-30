@@ -28,8 +28,8 @@ import { createLocalArtifactCurrentnessStore } from "./local-artifact-currentnes
 import { previewSourceRemovalImpact } from "./source-removal-impact-preview-service.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 import {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 
@@ -282,9 +282,9 @@ export function buildRuntimeDbSourceRemovalMutationSql(input = {}) {
     "), artifact_candidates as (",
     artifactCandidateSql(SOURCE_INDEX_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.SOURCE_INDEX, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.SOURCE_SET_CHANGED, "source_removal.active_source_set_changed"),
     "  union all",
-    artifactCandidateSql(LIST_OF_DATES_MARKDOWN_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
+    artifactCandidateSql(CASE_TIMELINE_MARKDOWN_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
     "  union all",
-    artifactCandidateSql(LIST_OF_DATES_JSON_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
+    artifactCandidateSql(CASE_TIMELINE_JSON_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
     "  union all",
     artifactCandidateSql(DISPUTE_STORY_OUTPUT_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.MATTER_STORY, ARTIFACT_CURRENTNESS_STATES.NEEDS_REVIEW, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.SOURCE_SET_REVIEW_NEEDED, "source_removal.story_needs_review"),
     "  union all",
@@ -381,8 +381,8 @@ async function buildLocalCurrentnessRecords({ matterRoot, matterName, fileId, pr
     .map((artifact) => artifact.family));
   const sourceIndexPresent = affectedFamilies.has("source_index") || await fileExists(path.join(matterRoot, SOURCE_INDEX_RELATIVE));
   const listOfDatesAffected = affectedFamilies.has("list_of_dates")
-    || await fileExists(path.join(matterRoot, LIST_OF_DATES_MARKDOWN_RELATIVE))
-    || await fileExists(path.join(matterRoot, LIST_OF_DATES_JSON_RELATIVE));
+    || await fileExists(path.join(matterRoot, CASE_TIMELINE_MARKDOWN_RELATIVE))
+    || await fileExists(path.join(matterRoot, CASE_TIMELINE_JSON_RELATIVE));
   const matterStoryPresent = await fileExists(path.join(matterRoot, DISPUTE_STORY_OUTPUT_RELATIVE));
   return buildSourceRemovalArtifactCurrentnessEffects({
     matterName,

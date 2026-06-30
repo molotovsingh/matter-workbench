@@ -5,7 +5,7 @@ import {
   BUILTIN_SKILL_COMMAND_ALIASES,
   BUILTIN_SKILL_COMMANDS,
 } from "../shared/builtin-skill-commands.mjs";
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import {
@@ -37,7 +37,7 @@ const backendBase = normalizeBaseUrl(process.env.MWB_BACKEND_URL || DEFAULT_WORK
 const uiUrl = process.env.MWB_UI_URL || `${DEFAULT_WORKBENCH_BASE_URL}/`;
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactNativeCommandAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
-const reactListOfDatesDependencyStatePath = new URL("../react-ui/src/lib/listOfDatesDependencyState.ts", import.meta.url);
+const reactCaseTimelineDependencyStatePath = new URL("../react-ui/src/lib/caseTimelineDependencyState.ts", import.meta.url);
 const reactPreparationStageActionsPath = new URL("../react-ui/src/lib/preparationStageActions.ts", import.meta.url);
 const reactRerunAdviceStatePath = new URL("../react-ui/src/lib/rerunAdviceState.ts", import.meta.url);
 const reactSkillCreationOverlapPath = new URL("../react-ui/src/lib/skillCreationOverlap.ts", import.meta.url);
@@ -189,14 +189,14 @@ async function run() {
   }
 
   try {
-    const reactStates = await readReactListOfDatesDependencyStates();
+    const reactStates = await readReactCaseTimelineDependencyStates();
     assert(
-      sameObjectEntries(reactStates, LIST_OF_DATES_DEPENDENCY_STATES),
-      "React List of Dates dependency states match shared contract",
-      objectDiffDetail(reactStates, LIST_OF_DATES_DEPENDENCY_STATES),
+      sameObjectEntries(reactStates, CASE_TIMELINE_DEPENDENCY_STATES),
+      "React Case Timeline dependency states match shared contract",
+      objectDiffDetail(reactStates, CASE_TIMELINE_DEPENDENCY_STATES),
     );
   } catch (error) {
-    fail("React List of Dates dependency states are readable", error.message);
+    fail("React Case Timeline dependency states are readable", error.message);
   }
 
   try {
@@ -726,8 +726,8 @@ async function readReactNativeCommandAliases() {
     .sort(([leftAlias], [rightAlias]) => leftAlias.localeCompare(rightAlias));
 }
 
-async function readReactListOfDatesDependencyStates() {
-  const source = await readFile(reactListOfDatesDependencyStatePath, "utf8");
+async function readReactCaseTimelineDependencyStates() {
+  const source = await readFile(reactCaseTimelineDependencyStatePath, "utf8");
   return Object.fromEntries([...source.matchAll(/\b([A-Z_]+):\s*['"]([^'"]+)['"]/g)].map((match) => [match[1], match[2]]));
 }
 

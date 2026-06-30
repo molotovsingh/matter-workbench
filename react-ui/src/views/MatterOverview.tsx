@@ -3,7 +3,7 @@ import { useApp } from '../store/AppContext';
 import { api } from '../api/client';
 import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
-import { LIST_OF_DATES_DEPENDENCY_STATES } from '../lib/listOfDatesDependencyState';
+import { CASE_TIMELINE_DEPENDENCY_STATES } from '../lib/caseTimelineDependencyState';
 import { formatMissingMatterDetails } from '../lib/matterDetails';
 import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
@@ -901,10 +901,10 @@ function rerunStateClass(state: string): string {
 
 function rerunHintText(advice: RerunAdvice): string {
   if (advice.state === RERUN_ADVICE_STATES.STALE) {
-    if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+    if (advice.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return 'Source labels changed after this chronology was rendered. A label refresh should be enough; AI chronology regeneration is not required unless the legal facts changed.';
     }
-    if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED) {
+    if (advice.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED) {
       return 'Source metadata changed after this chronology was rendered. Review the current chronology before deciding whether to regenerate.';
     }
     const reason = sentenceWithPeriod(advice.reason || 'Newer source material exists');

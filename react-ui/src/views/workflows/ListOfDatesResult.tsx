@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
 import { getErrorMessage } from '../../lib/errors';
-import { LIST_OF_DATES_DEPENDENCY_STATES } from '../../lib/listOfDatesDependencyState';
+import { CASE_TIMELINE_DEPENDENCY_STATES } from '../../lib/caseTimelineDependencyState';
 import { lawyerFacingSourceLabel, readableSourcePath } from '../../lib/sourceLabels';
 import RerunConfirmDialog from '../../components/RerunConfirmDialog';
 import { useLatestValue } from '../../hooks/useLatestValue';
@@ -99,7 +99,7 @@ export default function ListOfDatesResult() {
             matterName={state.activeMatter?.name}
             confirmLabel="Regenerate Case Timeline"
             cancelLabel="Keep current Case Timeline"
-            extraActions={(advice) => advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED
+            extraActions={(advice) => advice.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED
               ? [{ id: 'refresh-labels', label: 'Refresh labels only' }]
               : []}
             onConfirm={executeRun}

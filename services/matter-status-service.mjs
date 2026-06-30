@@ -3,12 +3,14 @@ import path from "node:path";
 import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
 import {
-  describeSourcesRerunAdvice,
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
-  readRerunAdviceForSkill,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
-  listOfDatesRerunAdvice,
+} from "../shared/matter-artifacts.mjs";
+import {
+  caseTimelineRerunAdvice,
+  describeSourcesRerunAdvice,
+  readRerunAdviceForSkill,
 } from "./matter-rerun-advice-service.mjs";
 
 export function createMatterStatusService({ matterStore, skillRegistryService = null, proceduralPostureDiagnosisService = null } = {}) {
@@ -46,12 +48,12 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
     const sourceIndex = sourceIndexPresent ? await readJsonIfPossible(sourceIndexPath) : null;
     const sourceRerunAdvice = await describeSourcesRerunAdvice(root);
 
-    const listOfDatesJsonPath = path.join(root, LIST_OF_DATES_JSON_RELATIVE);
-    const listOfDatesMarkdownPath = path.join(root, LIST_OF_DATES_MARKDOWN_RELATIVE);
-    const listOfDatesJsonPresent = await fileExists(listOfDatesJsonPath);
-    const listOfDatesMarkdownPresent = await fileExists(listOfDatesMarkdownPath);
-    const listOfDates = listOfDatesJsonPresent ? await readJsonIfPossible(listOfDatesJsonPath) : null;
-    const listRerunAdvice = await listOfDatesRerunAdvice(root);
+    const caseTimelineJsonPath = path.join(root, CASE_TIMELINE_JSON_RELATIVE);
+    const caseTimelineMarkdownPath = path.join(root, CASE_TIMELINE_MARKDOWN_RELATIVE);
+    const caseTimelineJsonPresent = await fileExists(caseTimelineJsonPath);
+    const caseTimelineMarkdownPresent = await fileExists(caseTimelineMarkdownPath);
+    const caseTimeline = caseTimelineJsonPresent ? await readJsonIfPossible(caseTimelineJsonPath) : null;
+    const caseTimelineRerun = await caseTimelineRerunAdvice(root);
 
     const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
       ? await proceduralPostureDiagnosisService.readDiagnosisStatus(root)
@@ -95,14 +97,14 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
         slash: "/create_listofdates",
         display: displayBySlash.get("/create_listofdates"),
         label: displayBySlash.get("/create_listofdates")?.action || "Build Case Timeline",
-        present: listOfDatesMarkdownPresent || listOfDatesJsonPresent,
+        present: caseTimelineMarkdownPresent || caseTimelineJsonPresent,
         artifacts: [
-          ...(listOfDatesMarkdownPresent ? [LIST_OF_DATES_MARKDOWN_RELATIVE] : []),
-          ...(listOfDatesJsonPresent ? [LIST_OF_DATES_JSON_RELATIVE] : []),
+          ...(caseTimelineMarkdownPresent ? [CASE_TIMELINE_MARKDOWN_RELATIVE] : []),
+          ...(caseTimelineJsonPresent ? [CASE_TIMELINE_JSON_RELATIVE] : []),
         ],
-        aiRun: normalizeAiRunMetadata(listOfDates?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
-        metrics: listOfDatesMetrics(listOfDates),
-        rerunAdvice: listRerunAdvice,
+        aiRun: normalizeAiRunMetadata(caseTimeline?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
+        metrics: caseTimelineMetrics(caseTimeline),
+        rerunAdvice: caseTimelineRerun,
       }),
       ...(postureStatus ? [stage({
         id: "procedural-posture-diagnosis",
@@ -159,12 +161,12 @@ async function readDisplayBySlash(skillRegistryService) {
   }
 }
 
-function listOfDatesMetrics(listOfDates) {
-  if (!listOfDates || typeof listOfDates !== "object" || Array.isArray(listOfDates)) return null;
-  const rows = Number.isInteger(listOfDates.counts?.entries)
-    ? listOfDates.counts.entries
-    : Array.isArray(listOfDates.entries)
-      ? listOfDates.entries.length
+function caseTimelineMetrics(caseTimeline) {
+  if (!caseTimeline || typeof caseTimeline !== "object" || Array.isArray(caseTimeline)) return null;
+  const rows = Number.isInteger(caseTimeline.counts?.entries)
+    ? caseTimeline.counts.entries
+    : Array.isArray(caseTimeline.entries)
+      ? caseTimeline.entries.length
       : null;
   if (!Number.isInteger(rows) || rows < 0) return null;
   return { rows };

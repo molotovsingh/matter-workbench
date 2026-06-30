@@ -2,17 +2,17 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
+  caseTimelineRerunAdvice,
   describeSourcesRerunAdvice,
   isNewerByTrustedMtime,
-  listOfDatesRerunAdvice,
 } from "./matter-rerun-advice-service.mjs";
 import {
   DISPUTE_STORY_BASIS_RELATIVE,
@@ -40,9 +40,9 @@ export const ARTIFACT_CURRENTNESS_STATES = Object.freeze({
 });
 
 export const ARTIFACT_CURRENTNESS_DEPENDENCY_STATES = Object.freeze({
-  LABEL_REFRESH_NEEDED: LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
-  CHRONOLOGY_REVIEW_NEEDED: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
-  CHRONOLOGY_REGENERATION_NEEDED: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+  LABEL_REFRESH_NEEDED: CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
+  CHRONOLOGY_REVIEW_NEEDED: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
+  CHRONOLOGY_REGENERATION_NEEDED: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
   SOURCE_SET_CHANGED: "source_set_changed",
   SOURCE_SET_REVIEW_NEEDED: "source_set_review_needed",
 });
@@ -71,7 +71,7 @@ export async function readLocalArtifactCurrentnessProjection(root, {
   const observedAt = isoNow(now);
   const [sourceAdvice, chronologyAdvice] = await Promise.all([
     describeSourcesRerunAdvice(root),
-    listOfDatesRerunAdvice(root),
+    caseTimelineRerunAdvice(root),
   ]);
   const records = [
     currentnessRecordFromRerunAdvice(sourceAdvice, {
@@ -82,7 +82,7 @@ export async function readLocalArtifactCurrentnessProjection(root, {
     }),
     currentnessRecordFromRerunAdvice(chronologyAdvice, {
       artifactFamily: ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES,
-      artifactPath: LIST_OF_DATES_MARKDOWN_RELATIVE,
+      artifactPath: CASE_TIMELINE_MARKDOWN_RELATIVE,
       matterName,
       observedAt,
     }),
@@ -157,7 +157,7 @@ export function buildSourceRemovalArtifactCurrentnessEffects({
     records.push(normalizeArtifactCurrentnessRecord({
       matterName,
       artifactFamily: ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES,
-      artifactPath: LIST_OF_DATES_MARKDOWN_RELATIVE,
+      artifactPath: CASE_TIMELINE_MARKDOWN_RELATIVE,
       state: ARTIFACT_CURRENTNESS_STATES.STALE,
       dependencyState: ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
       reasonCode: "source_removal.chronology_regeneration_needed",
@@ -242,7 +242,7 @@ async function readLocalMatterStoryCurrentness(root, { chronologyAdvice = {}, ma
   const story = await statIfFile(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE));
   const listBasis = await newestStat([
     path.join(root, DISPUTE_STORY_BASIS_RELATIVE),
-    path.join(root, LIST_OF_DATES_JSON_RELATIVE),
+    path.join(root, CASE_TIMELINE_JSON_RELATIVE),
   ]);
   if (!story) {
     return normalizeArtifactCurrentnessRecord({
@@ -265,7 +265,7 @@ async function readLocalMatterStoryCurrentness(root, { chronologyAdvice = {}, ma
       dependencyState: dependencyStateForStoryBasis(chronologyAdvice),
       reasonCode: "artifact_currentness.basis_not_current",
       metadata: {
-        basisPath: chronologyAdvice.artifactPath || LIST_OF_DATES_MARKDOWN_RELATIVE,
+        basisPath: chronologyAdvice.artifactPath || CASE_TIMELINE_MARKDOWN_RELATIVE,
         artifactUpdatedAt: story.mtime.toISOString(),
       },
       observedAt,
@@ -314,7 +314,7 @@ function reasonCodeForRerunAdvice(advice = {}) {
   if (advice.state === RERUN_ADVICE_STATES.MISSING) return "artifact_currentness.missing";
   if (advice.state === RERUN_ADVICE_STATES.FAILED) return "artifact_currentness.failed";
   if (advice.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM) return "artifact_currentness.missing_upstream";
-  if (advice.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED) {
+  if (advice.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED) {
     return "artifact_currentness.chronology_regeneration_needed";
   }
   if (/active source set/i.test(String(advice.reason || ""))) return "artifact_currentness.active_source_set_changed";

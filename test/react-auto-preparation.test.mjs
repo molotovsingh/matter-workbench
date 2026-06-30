@@ -109,9 +109,9 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.doesNotMatch(runner, /rerun kept: \$\{stageLabel\(stage\)\}/);
   assert.match(runner, /publishProgress = \(run: PreparationRunStatus\) => \{[\s\S]*if \(!isStale\(\)\) onProgress\(run\);/);
   assert.match(runner, /publishTerminal = \(lines: string\[\]\) => \{[\s\S]*if \(!isStale\(\)\) appendTerminal\(lines\);/);
-  assert.match(runner, /runPreparationStage\(stage, matterName, \{[\s\S]*forceExtractRefresh: true,[\s\S]*forceListOfDatesRegeneration: true,[\s\S]*forcePostureDiagnosisRegeneration: true,/);
+  assert.match(runner, /runPreparationStage\(stage, matterName, \{[\s\S]*forceExtractRefresh: true,[\s\S]*forceCaseTimelineRegeneration: true,[\s\S]*forcePostureDiagnosisRegeneration: true,/);
   assert.match(runner, /api\.runExtract\(\{ \.\.\.body, forceRefresh: options\.forceExtractRefresh === true \}\)/);
-  assert.match(runner, /!options\.forceListOfDatesRegeneration && stage\.rerunAdvice\?\.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
+  assert.match(runner, /!options\.forceCaseTimelineRegeneration && stage\.rerunAdvice\?\.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
   assert.doesNotMatch(runner, /for \(const stage of FULL_PREPARATION_STAGES\) \{[\s\S]{0,80}if \(isStale\(\)\) return staleResult\(\)/);
   assert.match(app, /mode: 'needed'/);
   assert.match(app, /handleForceFullPreparation[\s\S]*mode: 'full'/);

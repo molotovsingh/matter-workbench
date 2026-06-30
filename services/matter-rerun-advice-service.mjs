@@ -3,14 +3,14 @@ import path from "node:path";
 import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import {
-  classifyListOfDatesDependencyState,
-  LIST_OF_DATES_DEPENDENCY_STATES,
-} from "./listofdates-dependency-state.mjs";
+  CASE_TIMELINE_DEPENDENCY_STATES,
+  classifyCaseTimelineDependencyState,
+} from "./case-timeline-dependency-state.mjs";
 import {
   addInactiveRegisterRowsToSuppressionIndex,
   isSourceSuppressed,
@@ -19,15 +19,19 @@ import {
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 
 export {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 };
+
+// Compatibility exports for callers that still live in the native skill lane.
+export const LIST_OF_DATES_JSON_RELATIVE = CASE_TIMELINE_JSON_RELATIVE;
+export const LIST_OF_DATES_MARKDOWN_RELATIVE = CASE_TIMELINE_MARKDOWN_RELATIVE;
 
 export async function readRerunAdviceForSkill(skill, root) {
   const normalizedSkill = normalizeSkillName(skill);
   if (normalizedSkill === "/describe_sources") return describeSourcesRerunAdvice(root);
-  if (normalizedSkill === "/create_listofdates") return listOfDatesRerunAdvice(root);
+  if (normalizedSkill === "/create_listofdates") return caseTimelineRerunAdvice(root);
   throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400, "rerun_advice.unsupported_skill");
 }
 
@@ -47,10 +51,10 @@ export async function describeSourcesRerunAdvice(root) {
   });
 }
 
-export async function listOfDatesRerunAdvice(root) {
+export async function caseTimelineRerunAdvice(root) {
   const sourceSuppressionIndex = await readRerunSourceSuppressionIndex(root);
-  const markdownTarget = await readArtifact(root, LIST_OF_DATES_MARKDOWN_RELATIVE);
-  const jsonTarget = await readArtifact(root, LIST_OF_DATES_JSON_RELATIVE);
+  const markdownTarget = await readArtifact(root, CASE_TIMELINE_MARKDOWN_RELATIVE);
+  const jsonTarget = await readArtifact(root, CASE_TIMELINE_JSON_RELATIVE);
   const target = markdownTarget.exists ? {
     ...markdownTarget,
     json: jsonTarget.json,
@@ -71,18 +75,20 @@ export async function listOfDatesRerunAdvice(root) {
     ],
     staleDescription: "newer extraction records or Source Index changes were found",
     currentDescription: "No newer extraction records or Source Index changes were found.",
-    findContentChange: ({ target: listTarget, upstreamInputs: inputs }) => findListOfDatesContentChange({
-      target: listTarget,
+    findContentChange: ({ target: timelineTarget, upstreamInputs: inputs }) => findCaseTimelineContentChange({
+      target: timelineTarget,
       upstreamInputs: inputs,
       sourceIndex: sourceIndexJson,
     }),
-    classifyStaleDependency: (newestInput) => classifyListOfDatesDependencyState({
+    classifyStaleDependency: (newestInput) => classifyCaseTimelineDependencyState({
       target,
       newestInput,
       sourceIndex: sourceIndexJson,
     }),
   });
 }
+
+export const listOfDatesRerunAdvice = caseTimelineRerunAdvice;
 
 function buildRerunAdvice({
   root,
@@ -134,7 +140,7 @@ function buildRerunAdvice({
     const dependencyState = typeof classifyStaleDependency === "function"
       ? (staleInput.dependencyState || classifyStaleDependency(staleInput))
       : "";
-    const labelRefreshOnly = dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED;
+    const labelRefreshOnly = dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED;
     const advice = baseRerunAdvice({
       skill,
       label,
@@ -391,8 +397,8 @@ function findSourceDescriptorContentChange({ target, upstreamInputs }) {
   return null;
 }
 
-function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
-  const snapshotByFileId = listOfDatesSnapshotMap(target.json);
+function findCaseTimelineContentChange({ target, upstreamInputs, sourceIndex }) {
+  const snapshotByFileId = caseTimelineSnapshotMap(target.json);
   if (!snapshotByFileId.size) return null;
   const activeExtractionFileIds = new Set(upstreamInputs
     .filter((input) => input.inputKind === "extraction_record")
@@ -403,7 +409,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
       return {
         relativePath: target.relativePath,
         mtimeMs: target.mtimeMs,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "A source from the Case Timeline snapshot is no longer in the active source set.",
       };
     }
@@ -414,14 +420,14 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
     if (!previous) {
       return {
         ...input,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
     if (previous.contentHash && previous.contentHash !== input.contentHash) {
       return {
         ...input,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
@@ -436,7 +442,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
     if (currentFileId && !snapshotByFileId.has(currentFileId)) {
       return {
         ...sourceIndexInput,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "A new source appears in Source Index after the Case Timeline was built.",
       };
     }
@@ -446,14 +452,14 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
     if (!current) {
       return {
         ...sourceIndexInput,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "A source from the Case Timeline snapshot is missing from current Source Index.",
       };
     }
     if (previous.contentHash && current.contentHash && previous.contentHash !== current.contentHash) {
       return {
         ...sourceIndexInput,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED,
         reason: "Changed source content was found after the Case Timeline was built.",
       };
     }
@@ -464,7 +470,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
     ) {
       return {
         ...sourceIndexInput,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.CHRONOLOGY_REVIEW_NEEDED,
         reason: "Source metadata changed after the Case Timeline was built.",
       };
     }
@@ -476,7 +482,7 @@ function findListOfDatesContentChange({ target, upstreamInputs, sourceIndex }) {
     ) {
       return {
         ...sourceIndexInput,
-        dependencyState: LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
+        dependencyState: CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED,
         reason: "Source labels changed after the Case Timeline was rendered.",
       };
     }
@@ -504,7 +510,7 @@ function sourceIndexSourceMap(json) {
   return map;
 }
 
-function listOfDatesSnapshotMap(json) {
+function caseTimelineSnapshotMap(json) {
   const map = new Map();
   const snapshot = Array.isArray(json?.source_snapshot) ? json.source_snapshot : [];
   for (const source of snapshot) {

@@ -128,6 +128,24 @@ test("List of Dates root engine stays orchestration-sized after decomposition", 
   assert.doesNotMatch(source, /LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT|CANDIDATE_SCHEMA|writeCandidateLedger/);
 });
 
+test("Case Timeline dependency-state vocabulary is canonical in preparation and UI code", () => {
+  const canonicalConsumers = [
+    "services/matter-rerun-advice-service.mjs",
+    "services/prepare-matter-service.mjs",
+    "services/artifact-currentness-service.mjs",
+    "react-ui/src/lib/autoPreparationRunner.ts",
+    "react-ui/src/views/MatterOverview.tsx",
+    "react-ui/src/views/workflows/ListOfDatesResult.tsx",
+    "scripts/react-ui-smoke.mjs",
+  ];
+
+  for (const file of canonicalConsumers) {
+    const source = read(file);
+    assert.doesNotMatch(source, /listofdates-dependency-states|listOfDatesDependencyState|LIST_OF_DATES_DEPENDENCY_STATES/, `${file} should use Case Timeline dependency-state names`);
+    assert.match(source, /CASE_TIMELINE_DEPENDENCY_STATES|caseTimelineDependencyState|case-timeline-dependency-state/, `${file} should use Case Timeline dependency-state names`);
+  }
+});
+
 test("critical intake and extraction artifacts use atomic writes", () => {
   for (const file of ["matter-init-engine.mjs", "extract-engine.mjs"]) {
     const source = read(file);

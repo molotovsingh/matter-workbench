@@ -1,5 +1,5 @@
 import path from "node:path";
-import { LIST_OF_DATES_DEPENDENCY_STATES } from "../shared/listofdates-dependency-states.mjs";
+import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { missingMetadataLabels, PREPARE_STAGE_DEFINITIONS, warningsForPlan } from "../shared/preparation-stages.mjs";
 
@@ -20,21 +20,21 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
     const matterInitStage = stageBySlash.get("/matter-init") || null;
     const extractStage = stageBySlash.get("/extract") || null;
     const sourceStage = stageBySlash.get("/describe_sources") || null;
-    const listStage = stageBySlash.get("/create_listofdates") || null;
+    const caseTimelineStage = stageBySlash.get("/create_listofdates") || null;
 
     const setup = buildSetupStage(matterInitStage, missingMetadata);
     const extraction = buildExtractionStage(extractStage, setup);
     const sourceLabels = buildSourceLabelsStage(sourceStage, extraction);
-    const listOfDates = buildListOfDatesStage(listStage, sourceLabels);
+    const caseTimeline = buildCaseTimelineStage(caseTimelineStage, sourceLabels);
     const storyStatus = matterStoryService?.readDisputeStoryStatus
       ? await matterStoryService.readDisputeStoryStatus(root)
       : null;
-    const disputeStory = buildDisputeStoryStage(storyStatus, listOfDates);
+    const disputeStory = buildDisputeStoryStage(storyStatus, caseTimeline);
     const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
       ? await proceduralPostureDiagnosisService.readDiagnosisStatus(root)
       : null;
     const proceduralPostureDiagnosis = buildProceduralPostureDiagnosisStage(postureStatus, disputeStory);
-    const runnableStages = [setup, extraction, sourceLabels, listOfDates, disputeStory, proceduralPostureDiagnosis].filter(Boolean);
+    const runnableStages = [setup, extraction, sourceLabels, caseTimeline, disputeStory, proceduralPostureDiagnosis].filter(Boolean);
     const nextStage = firstActionableStage(runnableStages);
 
     return {
@@ -49,7 +49,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
       },
       stages: runnableStages,
       downstream: {
-        listOfDates,
+        listOfDates: caseTimeline,
         ...(disputeStory ? { disputeStory } : {}),
         ...(proceduralPostureDiagnosis ? { proceduralPostureDiagnosis } : {}),
       },
@@ -62,7 +62,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
           stage: "",
           slash: "",
         },
-      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates, disputeStory, proceduralPostureDiagnosis }),
+      warnings: warningsForPlan({ missingMetadata, stages: runnableStages, listOfDates: caseTimeline, disputeStory, proceduralPostureDiagnosis }),
     };
   }
 
@@ -224,7 +224,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
   };
 }
 
-function buildListOfDatesStage(stage, sourceLabelsStage) {
+function buildCaseTimelineStage(stage, sourceLabelsStage) {
   const base = {
     ...stageBase("/create_listofdates", stage),
     metrics: stage?.metrics || null,
@@ -255,7 +255,7 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
       reason: "Source label inputs are missing.",
     };
   }
-  if (adviceState === "stale" && stage?.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+  if (adviceState === "stale" && stage?.rerunAdvice?.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
     return {
       ...base,
       paidProviderCall: false,
@@ -268,17 +268,17 @@ function buildListOfDatesStage(stage, sourceLabelsStage) {
     ...base,
     state: adviceState === "stale" ? "stale" : adviceState === "failed" ? "failed" : "missing",
     action: PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
-    reason: listOfDatesReason(adviceState),
+    reason: caseTimelineReason(adviceState),
   };
 }
 
-function buildDisputeStoryStage(storyStatus, listOfDatesStage) {
+function buildDisputeStoryStage(storyStatus, caseTimelineStage) {
   if (!storyStatus?.hasActiveSkill) return null;
   const base = {
     ...stageBase("/the_story", null),
     artifacts: storyStatus.storyMarkdownPresent ? [storyStatus.artifactPath || "20_Workshop/The Story.md"] : [],
   };
-  if (listOfDatesStage.state !== "current") {
+  if (caseTimelineStage.state !== "current") {
     return {
       ...base,
       state: "blocked",
@@ -424,7 +424,7 @@ function sourceLabelReason(state) {
   return "Source labels are missing and require a paid AI confirmation before running.";
 }
 
-function listOfDatesReason(state) {
+function caseTimelineReason(state) {
   if (state === "stale") return "Newer source material may affect the Case Timeline; regeneration needs a paid AI confirmation.";
   if (state === "failed") return "Existing Case Timeline metadata could not be read; regeneration needs confirmation.";
   return "Case Timeline is missing and requires a paid AI confirmation before running.";

@@ -1,5 +1,5 @@
 import { api } from '../api/client';
-import { LIST_OF_DATES_DEPENDENCY_STATES } from './listOfDatesDependencyState';
+import { CASE_TIMELINE_DEPENDENCY_STATES } from './caseTimelineDependencyState';
 import { cleanCommandLabel } from './nativeCommands';
 import { formatVisiblePreparationError } from './preparationErrors';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
@@ -459,7 +459,7 @@ async function runFullPreparation({
     try {
       await runPreparationStage(stage, matterName, {
         forceExtractRefresh: true,
-        forceListOfDatesRegeneration: true,
+        forceCaseTimelineRegeneration: true,
         forceStoryRegeneration: true,
         forcePostureDiagnosisRegeneration: true,
       });
@@ -499,7 +499,7 @@ async function runFullPreparation({
 export async function runPreparationStage(
   stageOrSlash: PreparationStage | string,
   matterName?: string,
-  options: { forceExtractRefresh?: boolean; forceListOfDatesRegeneration?: boolean; forceStoryRegeneration?: boolean; forcePostureDiagnosisRegeneration?: boolean } = {},
+  options: { forceExtractRefresh?: boolean; forceCaseTimelineRegeneration?: boolean; forceStoryRegeneration?: boolean; forcePostureDiagnosisRegeneration?: boolean } = {},
 ) {
   const stage = typeof stageOrSlash === 'string' ? { slash: stageOrSlash, label: cleanCommandLabel(stageOrSlash), state: '', action: '' } : stageOrSlash;
   const body = { matterName };
@@ -507,7 +507,7 @@ export async function runPreparationStage(
   if (stage.slash === '/extract') return api.runExtract({ ...body, forceRefresh: options.forceExtractRefresh === true });
   if (stage.slash === '/describe_sources') return api.runDescribeSources(body);
   if (stage.slash === '/create_listofdates') {
-    if (!options.forceListOfDatesRegeneration && stage.rerunAdvice?.dependencyState === LIST_OF_DATES_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
+    if (!options.forceCaseTimelineRegeneration && stage.rerunAdvice?.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return api.refreshListOfDatesLabels({ matterName, dryRun: false });
     }
     return api.runCreateListOfDates(body);

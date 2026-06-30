@@ -1,5 +1,5 @@
-export const LIST_OF_DATES_DEPENDENCY_STATES = {
-  LABEL_REFRESH_NEEDED: 'label_refresh_needed',
-  CHRONOLOGY_REVIEW_NEEDED: 'chronology_review_needed',
-  CHRONOLOGY_REGENERATION_NEEDED: 'chronology_regeneration_needed',
-} as const;
+import { CASE_TIMELINE_DEPENDENCY_STATES } from './caseTimelineDependencyState';
+
+// Backward-compatible alias for legacy List of Dates workflow modules. Prefer
+// CASE_TIMELINE_DEPENDENCY_STATES in product/preparation UI code.
+export const LIST_OF_DATES_DEPENDENCY_STATES = CASE_TIMELINE_DEPENDENCY_STATES;

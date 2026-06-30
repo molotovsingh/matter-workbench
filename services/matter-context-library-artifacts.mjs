@@ -2,8 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { AI_RUN_CONTEXT_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import {
-  LIST_OF_DATES_JSON_RELATIVE,
-  LIST_OF_DATES_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import {
@@ -14,8 +14,8 @@ import {
 export async function readLibraryArtifactSummaries(root, limits, warnings, { sourceSuppressionIndex = null } = {}) {
   const candidates = [
     SOURCE_INDEX_RELATIVE,
-    LIST_OF_DATES_JSON_RELATIVE,
-    LIST_OF_DATES_MARKDOWN_RELATIVE,
+    CASE_TIMELINE_JSON_RELATIVE,
+    CASE_TIMELINE_MARKDOWN_RELATIVE,
   ];
   const summaries = [];
   for (const relativePath of candidates) {
@@ -49,7 +49,7 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings, { 
   }
 
   if (relativePath.endsWith(".md")) {
-    if (relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
+    if (relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
       warnings.push(`Skipped ${relativePath}: cites suppressed source(s)`);
       return null;
     }
@@ -57,7 +57,7 @@ async function summarizeLibraryArtifact(root, relativePath, limits, warnings, { 
     const markdown = boundedText(body, maxChars);
     return {
       path: relativePath,
-      kind: relativePath === LIST_OF_DATES_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
+      kind: relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
       heading: firstMarkdownHeading(body),
       markdown,
       markdown_truncated: markdown.length < normalizeText(body).length,
@@ -90,7 +90,7 @@ function summarizeJsonArtifact(relativePath, json, info, limits = {}, warnings =
     };
   }
 
-  if (relativePath === LIST_OF_DATES_JSON_RELATIVE) {
+  if (relativePath === CASE_TIMELINE_JSON_RELATIVE) {
     const entries = Array.isArray(json.entries) ? json.entries : [];
     const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
     const suppressedCount = entries.length - activeEntries.length;

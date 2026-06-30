@@ -6,7 +6,7 @@ import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION, legalWorkbenchSystemPrompt } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_PROVIDERS, AI_TASKS } from "../shared/model-policy.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
-import { LIST_OF_DATES_JSON_RELATIVE, LIST_OF_DATES_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
+import { CASE_TIMELINE_JSON_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 import {
@@ -233,7 +233,7 @@ export async function buildDiagnosisStatus({
   const readArtifact = artifactReader || ((relativePath) => readFile(resolveRelativeInside(matterRoot, relativePath), "utf8"));
   const markdownStat = await statReader(PROCEDURAL_POSTURE_DIAGNOSIS_OUTPUT_RELATIVE);
   const jsonStat = await statReader(PROCEDURAL_POSTURE_DIAGNOSIS_JSON_RELATIVE);
-  const caseTimelineStat = await newestRelativeStat(statReader, [LIST_OF_DATES_MARKDOWN_RELATIVE, LIST_OF_DATES_JSON_RELATIVE]);
+  const caseTimelineStat = await newestRelativeStat(statReader, [CASE_TIMELINE_MARKDOWN_RELATIVE, CASE_TIMELINE_JSON_RELATIVE]);
   const storyStat = await newestRelativeStat(statReader, [DISPUTE_STORY_OUTPUT_RELATIVE, "20_Workshop/The Story.json"]);
   const sourceIndexStat = await statReader(SOURCE_INDEX_RELATIVE);
   const sidecar = jsonStat ? await readJsonArtifact(readArtifact, PROCEDURAL_POSTURE_DIAGNOSIS_JSON_RELATIVE) : null;
@@ -311,7 +311,7 @@ async function buildDiagnosisInputPacket({
   const matterContext = summarizeMatterContext(contextPacket);
   const storyMarkdown = await readOptionalArtifact(readArtifact, DISPUTE_STORY_OUTPUT_RELATIVE);
   const storyStat = await statReader(DISPUTE_STORY_OUTPUT_RELATIVE);
-  const timelineStat = await newestRelativeStat(statReader, [LIST_OF_DATES_MARKDOWN_RELATIVE, LIST_OF_DATES_JSON_RELATIVE]);
+  const timelineStat = await newestRelativeStat(statReader, [CASE_TIMELINE_MARKDOWN_RELATIVE, CASE_TIMELINE_JSON_RELATIVE]);
   const sourceIndexStat = await statReader(SOURCE_INDEX_RELATIVE);
   const libraryArtifacts = Array.isArray(matterContext.library_artifacts) ? matterContext.library_artifacts : [];
   const caseTimeline = libraryArtifacts.find((artifact) => artifact.kind === "list_of_dates")
@@ -330,8 +330,8 @@ async function buildDiagnosisInputPacket({
       brief_description: matterJson.brief_description || "",
     },
     based_on: {
-      case_timeline_path: LIST_OF_DATES_MARKDOWN_RELATIVE,
-      case_timeline_json_path: LIST_OF_DATES_JSON_RELATIVE,
+      case_timeline_path: CASE_TIMELINE_MARKDOWN_RELATIVE,
+      case_timeline_json_path: CASE_TIMELINE_JSON_RELATIVE,
       case_timeline_updated_at: timelineStat ? timelineStat.mtime.toISOString() : "",
       matter_story_path: DISPUTE_STORY_OUTPUT_RELATIVE,
       matter_story_updated_at: storyStat ? storyStat.mtime.toISOString() : "",
@@ -651,7 +651,7 @@ function renderQnaHeader(sidecar, recordedAt) {
     "Author: MW + lawyer instructions",
     `Matter: ${sidecar.matter?.name || "Matter"}`,
     `Last updated: ${recordedAt}`,
-    `Based on Case Timeline: ${sidecar.based_on?.case_timeline_path || LIST_OF_DATES_MARKDOWN_RELATIVE}`,
+    `Based on Case Timeline: ${sidecar.based_on?.case_timeline_path || CASE_TIMELINE_MARKDOWN_RELATIVE}`,
   ].join("\n");
 }
 

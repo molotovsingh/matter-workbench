@@ -5,13 +5,14 @@ import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
+import { CASE_TIMELINE_JSON_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE, isCaseTimelineArtifactPath } from "../shared/matter-artifacts.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
 import { createDefaultRunProvider } from "./configurable-skill-providers.mjs";
 
 export const DISPUTE_STORY_SKILL_SLASH = "/the_story";
 export const DISPUTE_STORY_OUTPUT_RELATIVE = "20_Workshop/The Story.md";
-export const DISPUTE_STORY_BASIS_RELATIVE = "10_Library/List of Dates.md";
+export const DISPUTE_STORY_BASIS_RELATIVE = CASE_TIMELINE_MARKDOWN_RELATIVE;
 export const MATTER_WORKBENCH_AUTHOR = "MW";
 export const MATTER_WORKBENCH_STORY_SOURCE_TYPE = "matter_workbench_story";
 const MATTER_STORY_SCHEMA_VERSION = "matter-story/v1";
@@ -57,22 +58,22 @@ export function createMatterStoryService({
   async function readDisputeStoryStatus(root = matterStore.ensureMatterRoot()) {
     const matterJson = await readMatterJson(root);
     const storyStat = await fileStatIfFile(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE));
-    const listOfDatesStat = await newestFileStat([
+    const caseTimelineStat = await newestFileStat([
       path.join(root, DISPUTE_STORY_BASIS_RELATIVE),
-      path.join(root, "10_Library/List of Dates.json"),
+      path.join(root, CASE_TIMELINE_JSON_RELATIVE),
     ]);
     const briefDescriptionSource = matterJson.brief_description_source || null;
     return {
       schema_version: MATTER_STORY_SCHEMA_VERSION,
       hasActiveSkill: await hasActiveDisputeStorySkill(),
       storyMarkdownPresent: Boolean(storyStat),
-      storyStale: Boolean(storyStat && listOfDatesStat && listOfDatesStat.mtimeMs > storyStat.mtimeMs + FILE_TIME_TOLERANCE_MS),
+      storyStale: Boolean(storyStat && caseTimelineStat && caseTimelineStat.mtimeMs > storyStat.mtimeMs + FILE_TIME_TOLERANCE_MS),
       briefDescriptionPresent: Boolean(String(matterJson.brief_description || "").trim()),
       briefDescriptionManagedByMatterWorkbench: isMatterWorkbenchStorySource(briefDescriptionSource),
       originalIntakeNotePresent: Boolean(String(matterJson.original_intake_note || "").trim()),
       artifactPath: DISPUTE_STORY_OUTPUT_RELATIVE,
       storyUpdatedAt: storyStat ? storyStat.mtime.toISOString() : "",
-      listOfDatesUpdatedAt: listOfDatesStat ? listOfDatesStat.mtime.toISOString() : "",
+      listOfDatesUpdatedAt: caseTimelineStat ? caseTimelineStat.mtime.toISOString() : "",
       briefDescriptionSource,
     };
   }
@@ -201,7 +202,7 @@ export function createMatterStoryService({
 
     const packet = matterContextPacketOverride || await buildNativeStoryMatterContextPacket(matterRoot);
     const matterContext = summarizeMatterContext(packet);
-    assertMatterStoryHasListOfDates(matterContext);
+    assertMatterStoryHasCaseTimeline(matterContext);
     const policy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
     if (!providerConfig.model) {
@@ -275,14 +276,14 @@ async function buildNativeStoryMatterContextPacket(matterRoot) {
   return buildConfigurableSkillMatterContextPacket(matterRoot);
 }
 
-function assertMatterStoryHasListOfDates(matterContext = {}) {
+function assertMatterStoryHasCaseTimeline(matterContext = {}) {
   const artifacts = Array.isArray(matterContext.library_artifacts) ? matterContext.library_artifacts : [];
-  const hasListOfDates = artifacts.some((artifact) => (
+  const hasCaseTimeline = artifacts.some((artifact) => (
     artifact?.kind === "list_of_dates"
     || artifact?.kind === "list_of_dates_markdown"
-    || /10_Library\/List of Dates\.(md|json)$/i.test(String(artifact?.path || ""))
+    || isCaseTimelineArtifactPath(artifact?.path)
   ));
-  if (hasListOfDates) return;
+  if (hasCaseTimeline) return;
   throw makeHttpError(
     "Build the Case Timeline before writing the Matter Story.",
     409,

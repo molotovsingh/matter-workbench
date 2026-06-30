@@ -8,14 +8,16 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { parseCsv } from "../shared/csv.mjs";
+import {
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
 import { loadDatabaseScriptEnv } from "./db-env.mjs";
 import { psqlConnectionArgs } from "./db-psql.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
-const SOURCE_INDEX_RELATIVE = path.join("10_Library", "Source Index.json");
-const LIST_OF_DATES_JSON_RELATIVE = path.join("10_Library", "List of Dates.json");
-const LIST_OF_DATES_MARKDOWN_RELATIVE = path.join("10_Library", "List of Dates.md");
 
 export function parseArgs(argv = []) {
   const parsed = {
@@ -582,14 +584,14 @@ async function summarizeMatter(matterRoot) {
 
   const sourceIndexPath = path.join(matterRoot, SOURCE_INDEX_RELATIVE);
   const sourceIndex = await readOptionalJson(sourceIndexPath, warnings, SOURCE_INDEX_RELATIVE);
-  const listOfDatesJsonPath = path.join(matterRoot, LIST_OF_DATES_JSON_RELATIVE);
-  const listOfDates = await readOptionalJson(listOfDatesJsonPath, warnings, LIST_OF_DATES_JSON_RELATIVE);
+  const caseTimelineJsonPath = path.join(matterRoot, CASE_TIMELINE_JSON_RELATIVE);
+  const caseTimeline = await readOptionalJson(caseTimelineJsonPath, warnings, CASE_TIMELINE_JSON_RELATIVE);
 
   const sourceDescriptors = sourceIndex ? extractSourceDescriptors(sourceIndex) : [];
   const sourceDescriptorRows = normalizeSourceDescriptorRows({ sourceDescriptors, matterId, documents: registerRows, extractions: extractionRows });
-  const listEntries = Array.isArray(listOfDates?.entries) ? listOfDates.entries : [];
+  const listEntries = Array.isArray(caseTimeline?.entries) ? caseTimeline.entries : [];
   const sourceIndexPresent = Boolean(sourceIndex);
-  const listOfDatesPresent = Boolean(listOfDates) || await fileExists(path.join(matterRoot, LIST_OF_DATES_MARKDOWN_RELATIVE));
+  const caseTimelinePresent = Boolean(caseTimeline) || await fileExists(path.join(matterRoot, CASE_TIMELINE_MARKDOWN_RELATIVE));
 
   return {
     id: matterId,
@@ -615,15 +617,15 @@ async function summarizeMatter(matterRoot) {
     artifacts: {
       sourceIndex: {
         present: sourceIndexPresent,
-        path: sourceIndexPresent ? SOURCE_INDEX_RELATIVE.replaceAll(path.sep, "/") : "",
+        path: sourceIndexPresent ? SOURCE_INDEX_RELATIVE : "",
         generatedAt: timestampOrEmpty(sourceIndex?.generated_at),
         aiRun: normalizeAiRun(sourceIndex?.ai_run),
       },
       listOfDates: {
-        present: listOfDatesPresent,
-        path: listOfDatesPresent ? LIST_OF_DATES_JSON_RELATIVE.replaceAll(path.sep, "/") : "",
-        generatedAt: timestampOrEmpty(listOfDates?.generated_at),
-        aiRun: normalizeAiRun(listOfDates?.ai_run),
+        present: caseTimelinePresent,
+        path: caseTimelinePresent ? CASE_TIMELINE_JSON_RELATIVE : "",
+        generatedAt: timestampOrEmpty(caseTimeline?.generated_at),
+        aiRun: normalizeAiRun(caseTimeline?.ai_run),
       },
     },
     warnings,

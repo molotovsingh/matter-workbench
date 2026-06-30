@@ -1,3 +1,9 @@
+import {
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  SOURCE_INDEX_RELATIVE,
+  isCaseTimelineReadModelPath,
+} from "../shared/matter-artifacts.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import { missingMetadataLabels, prepareStageDefinition, warningsForPlan } from "../shared/preparation-stages.mjs";
@@ -36,19 +42,19 @@ export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tr
       id: "describe-sources",
       slash: "/describe_sources",
       label: "Source Labels / Document Index",
-      present: paths.some((item) => item.path === "10_Library/Source Index.json"),
-      artifacts: paths.filter((item) => item.path === "10_Library/Source Index.json").map((item) => item.path),
+      present: paths.some((item) => item.path === SOURCE_INDEX_RELATIVE),
+      artifacts: paths.filter((item) => item.path === SOURCE_INDEX_RELATIVE).map((item) => item.path),
       rerunAdvice: runtimeSourceLabelsRerunAdvice(runtimeInputs),
     }),
     statusStage({
       id: "create-listofdates",
       slash: "/create_listofdates",
       label: "Build Case Timeline",
-      present: paths.some((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json"),
+      present: paths.some((item) => isCaseTimelineReadModelPath(item.path)),
       artifacts: paths
-        .filter((item) => item.path === "10_Library/List of Dates.md" || item.path === "10_Library/List of Dates.json")
+        .filter((item) => isCaseTimelineReadModelPath(item.path))
         .map((item) => item.path),
-      rerunAdvice: runtimeListOfDatesRerunAdvice(runtimeInputs),
+      rerunAdvice: runtimeCaseTimelineRerunAdvice(runtimeInputs),
     }),
   ];
   return {
@@ -64,14 +70,14 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
   const setup = prepareStage("/matter-init", stageBySlash.get("/matter-init"));
   const extraction = prepareStage("/extract", stageBySlash.get("/extract"), setup);
   const sourceLabels = prepareStage("/describe_sources", stageBySlash.get("/describe_sources"), extraction);
-  const listOfDates = prepareStage("/create_listofdates", stageBySlash.get("/create_listofdates"), sourceLabels);
+  const caseTimeline = prepareStage("/create_listofdates", stageBySlash.get("/create_listofdates"), sourceLabels);
   const disputeStoryStage = disputeStory?.hasActiveSkill
-    ? runtimeDisputeStoryStage({ storyStatus: runtimeDisputeStoryStatus({ workspaceFiles, matterJson: disputeStory.matterJson || {} }), listOfDatesStage: listOfDates })
+    ? runtimeDisputeStoryStage({ storyStatus: runtimeDisputeStoryStatus({ workspaceFiles, matterJson: disputeStory.matterJson || {} }), caseTimelineStage: caseTimeline })
     : null;
   const proceduralPostureDiagnosis = disputeStory?.hasActiveSkill
     ? runtimeProceduralPostureDiagnosisStage({ workspaceFiles, disputeStoryStage })
     : null;
-  const stages = [setup, extraction, sourceLabels, listOfDates, disputeStoryStage, proceduralPostureDiagnosis].filter(Boolean);
+  const stages = [setup, extraction, sourceLabels, caseTimeline, disputeStoryStage, proceduralPostureDiagnosis].filter(Boolean);
   const nextStep = stages.find((stage) => stage.action !== PREPARATION_STAGE_ACTIONS.SKIP_CURRENT);
   return {
     schema_version: "prepare-matter-plan/v1",
@@ -85,7 +91,7 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
     },
     stages,
     downstream: {
-      listOfDates,
+      listOfDates: caseTimeline,
       ...(disputeStoryStage ? { disputeStory: disputeStoryStage } : {}),
       ...(proceduralPostureDiagnosis ? { proceduralPostureDiagnosis } : {}),
     },
@@ -104,20 +110,20 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
           stage: "",
           slash: "",
         },
-    warnings: warningsForPlan({ missingMetadata, stages, listOfDates, disputeStory: disputeStoryStage, proceduralPostureDiagnosis }),
+    warnings: warningsForPlan({ missingMetadata, stages, listOfDates: caseTimeline, disputeStory: disputeStoryStage, proceduralPostureDiagnosis }),
   };
 }
 
 function runtimeDisputeStoryStatus({ workspaceFiles = [], matterJson = {} } = {}) {
   const byPath = new Map((workspaceFiles || []).map((item) => [item.path, item]));
   const story = byPath.get(DISPUTE_STORY_OUTPUT_RELATIVE) || null;
-  const listOfDates = newestWorkspaceFile([
+  const caseTimeline = newestWorkspaceFile([
     byPath.get(DISPUTE_STORY_BASIS_RELATIVE),
-    byPath.get("10_Library/List of Dates.json"),
+    byPath.get(CASE_TIMELINE_JSON_RELATIVE),
   ].filter(Boolean));
   return {
     storyMarkdownPresent: Boolean(story),
-    storyStale: Boolean(story && listOfDates && (Date.parse(listOfDates.updatedAt || "") || 0) > (Date.parse(story.updatedAt || "") || 0) + 1),
+    storyStale: Boolean(story && caseTimeline && (Date.parse(caseTimeline.updatedAt || "") || 0) > (Date.parse(story.updatedAt || "") || 0) + 1),
     briefDescriptionPresent: Boolean(String(matterJson.brief_description || "").trim()),
     briefDescriptionManagedByMatterWorkbench: isMatterWorkbenchStorySource(matterJson.brief_description_source),
     artifactPath: DISPUTE_STORY_OUTPUT_RELATIVE,
@@ -130,7 +136,7 @@ function newestWorkspaceFile(files = []) {
   ), null);
 }
 
-function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
+function runtimeDisputeStoryStage({ storyStatus, caseTimelineStage } = {}) {
   const definition = prepareStageDefinition("/the_story");
   const base = {
     id: definition.id,
@@ -140,7 +146,7 @@ function runtimeDisputeStoryStage({ storyStatus, listOfDatesStage } = {}) {
     paidProviderCall: definition.paidProviderCall,
     artifacts: storyStatus.storyMarkdownPresent ? [storyStatus.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE] : [],
   };
-  if (listOfDatesStage.state !== "current") {
+  if (caseTimelineStage.state !== "current") {
     return {
       ...base,
       state: "blocked",
@@ -190,7 +196,7 @@ function runtimeProceduralPostureDiagnosisStage({ workspaceFiles = [], disputeSt
   const diagnosis = newestWorkspaceFile([markdown, json].filter(Boolean));
   const timeline = newestWorkspaceFile([
     byPath.get(DISPUTE_STORY_BASIS_RELATIVE),
-    byPath.get("10_Library/List of Dates.json"),
+    byPath.get(CASE_TIMELINE_JSON_RELATIVE),
   ].filter(Boolean));
   const story = byPath.get(DISPUTE_STORY_OUTPUT_RELATIVE) || null;
   const base = {
@@ -271,9 +277,9 @@ function runtimeStatusInputs({ matter, objects = [] } = {}) {
   return {
     sourceInputs: runtimeSourceInputs(rows),
     extractionInputs,
-    sourceIndex: byPath.get("10_Library/Source Index.json") || null,
-    listOfDatesMarkdown: byPath.get("10_Library/List of Dates.md") || null,
-    listOfDatesJson: byPath.get("10_Library/List of Dates.json") || null,
+    sourceIndex: byPath.get(SOURCE_INDEX_RELATIVE) || null,
+    caseTimelineMarkdown: byPath.get(CASE_TIMELINE_MARKDOWN_RELATIVE) || null,
+    caseTimelineJson: byPath.get(CASE_TIMELINE_JSON_RELATIVE) || null,
   };
 }
 
@@ -364,8 +370,8 @@ function runtimeSourceLabelsRerunAdvice(inputs = {}) {
   });
 }
 
-function runtimeListOfDatesRerunAdvice(inputs = {}) {
-  const target = inputs.listOfDatesMarkdown || inputs.listOfDatesJson;
+function runtimeCaseTimelineRerunAdvice(inputs = {}) {
+  const target = inputs.caseTimelineMarkdown || inputs.caseTimelineJson;
   const upstreamInputs = [
     ...(inputs.extractionInputs || []),
     ...(inputs.sourceIndex ? [runtimeInput(inputs.sourceIndex, "source_index")] : []),
