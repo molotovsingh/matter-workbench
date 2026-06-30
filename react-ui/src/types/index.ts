@@ -1179,6 +1179,26 @@ export interface PreparationPlan {
   warnings?: string[];
 }
 
+export interface PreparationQueueRunRequest {
+  matterName?: string;
+  mode?: 'needed';
+  reason?: string;
+  runId?: string;
+}
+
+export interface PreparationQueueRunResponse {
+  schema_version?: 'prepare-matter-run/v1' | string;
+  state: 'queued' | 'complete' | 'blocked' | string;
+  matterName?: string;
+  mode?: 'needed' | string;
+  kind?: string;
+  stage?: PreparationStage;
+  job?: JobStatus;
+  alreadyQueued?: boolean;
+  message?: string;
+  plan?: PreparationPlan;
+}
+
 export type PreparationStepState = 'pending' | 'running' | 'done' | 'skipped' | 'failed';
 
 export interface PreparationProgressStep {

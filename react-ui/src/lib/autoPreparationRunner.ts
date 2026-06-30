@@ -4,8 +4,10 @@ import { cleanCommandLabel } from './nativeCommands';
 import { formatVisiblePreparationError } from './preparationErrors';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
 import type {
+  JobStatus,
   PreparationPlan,
   PreparationProgressStep,
+  PreparationQueueRunResponse,
   PreparationRunStatus,
   PreparationStage,
   PreparationRunTelemetryRequest,
@@ -25,6 +27,8 @@ type ProgressUpdate = (status: PreparationRunStatus) => void;
 type PreparationRunMode = 'needed' | 'full';
 
 const LONG_RUNNING_STAGE_HEARTBEAT_MS = 15_000;
+const SERVER_PREPARATION_JOB_POLL_MS = 2_000;
+const SERVER_PREPARATION_MAX_POLLS_PER_STAGE = 900;
 
 export interface RunAutomaticPreparationOptions {
   matterName: string;
@@ -109,6 +113,18 @@ export async function runAutomaticPreparation({
     return finishWithTelemetry(result, result.status || status);
   }
 
+  const serverQueuedResult = await runServerOwnedNeededPreparation({
+    matterName,
+    appendTerminal,
+    onProgress,
+    isStale,
+    status,
+    telemetryRunId,
+    stageStarts,
+    maxPasses,
+  });
+  if (serverQueuedResult) return finishWithTelemetry(serverQueuedResult, serverQueuedResult.status || status);
+
   for (let pass = 0; pass < maxPasses; pass += 1) {
     if (isStale()) return finishWithTelemetry(staleResult());
 
@@ -172,6 +188,211 @@ export async function runAutomaticPreparation({
   return finishWithTelemetry({
     state: 'needs_review',
     message: 'Preparation stopped after repeated passes. Review the preparation plan before rerunning.',
+  });
+}
+
+async function runServerOwnedNeededPreparation({
+  matterName,
+  appendTerminal,
+  onProgress,
+  isStale,
+  status,
+  telemetryRunId,
+  stageStarts,
+  maxPasses,
+}: {
+  matterName: string;
+  appendTerminal: (lines: string[]) => void;
+  onProgress: ProgressUpdate;
+  isStale: () => boolean;
+  status: PreparationRunStatus;
+  telemetryRunId: string;
+  stageStarts: Map<string, number>;
+  maxPasses: number;
+}): Promise<AutomaticPreparationTelemetryResult | null> {
+  let next = status;
+  let usedServerQueue = false;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    if (isStale()) return { ...staleResult(), status: next };
+
+    const plan = await api.getPrepareMatter(matterName);
+    const nextStage = firstRunnablePreparationStage(plan);
+    next = mergePlanIntoStatus(next, plan, { markBlocked: !nextStage });
+    onProgress(next);
+
+    if (!nextStage) {
+      const advisoryStatus = markStep(next, 'advisory', 'running', 'Checking preparation advisory…');
+      await recordProgressStepTelemetry(telemetryRunId, matterName, advisoryStatus.steps.find((step) => step.id === 'advisory'), 'running', stageStarts);
+      onProgress(advisoryStatus);
+      if (isStale()) return { ...staleResult(), status: advisoryStatus };
+      const finalPlan = await api.getPrepareMatter(matterName);
+      const finalNextStage = firstRunnablePreparationStage(finalPlan);
+      const finalStatus = markStep(mergePlanIntoStatus(advisoryStatus, finalPlan, { markBlocked: !finalNextStage }), 'advisory', 'done');
+      await recordProgressStepTelemetry(telemetryRunId, matterName, finalStatus.steps.find((step) => step.id === 'advisory'), 'succeeded', stageStarts);
+      onProgress(finalStatus);
+      if (firstBlockedStage(finalPlan)) {
+        return {
+          state: 'blocked',
+          message: 'Preparation stopped because one required step is blocked.',
+          status: finalStatus,
+        };
+      }
+      return {
+        state: allStagesCurrent(finalPlan) ? 'prepared' : 'needs_review',
+        message: allStagesCurrent(finalPlan)
+          ? 'Automatic preparation completed.'
+          : 'Automatic preparation finished with items to review.',
+        status: finalStatus,
+      };
+    }
+
+    const runningStage = nextStage;
+    next = markStageRunning(next, runningStage, serverQueuedStageDetail(runningStage));
+    await recordStageTelemetry(telemetryRunId, matterName, runningStage, 'running', stageStarts, serverQueuedStageDetail(runningStage));
+    onProgress(next);
+    appendTerminal([`[prepare] server queue requested: ${stageLabel(runningStage)}`]);
+
+    let queued: PreparationQueueRunResponse;
+    try {
+      queued = await api.queueNeededPreparation({
+        matterName,
+        mode: 'needed',
+        runId: telemetryRunId,
+        reason: 'Run needed preparation',
+      });
+    } catch (error) {
+      if (!usedServerQueue && isBackendPreparationQueueUnavailable(error)) {
+        appendTerminal(['[prepare] server queue unavailable; running needed preparation in the browser session']);
+        return null;
+      }
+      const message = formatVisiblePreparationError(error, runningStage);
+      next = markStageFailed(next, runningStage, message);
+      await recordStageTelemetry(telemetryRunId, matterName, runningStage, 'failed', stageStarts, message, preparationErrorDiagnostic(error));
+      if (isStale()) return { ...staleResult(), status: next };
+      onProgress(next);
+      appendTerminal([`[prepare] server queue failed: ${stageLabel(runningStage)} — ${message}`]);
+      return { state: 'blocked', message, status: next };
+    }
+
+    usedServerQueue = true;
+    if (queued.state === 'complete') {
+      continue;
+    }
+    if (queued.state === 'blocked') {
+      const message = queued.message || 'Preparation stopped because one required step is blocked.';
+      next = markStageFailed(next, queued.stage || runningStage, message);
+      await recordStageTelemetry(telemetryRunId, matterName, queued.stage || runningStage, 'failed', stageStarts, message);
+      onProgress(next);
+      return { state: 'blocked', message, status: next };
+    }
+
+    const queuedStage = queued.stage || runningStage;
+    const queuedKind = queued.kind || jobKindForQueuedStage(queuedStage);
+    appendTerminal([queued.alreadyQueued
+      ? `[prepare] server job already running: ${stageLabel(queuedStage)}`
+      : `[prepare] server job queued: ${stageLabel(queuedStage)}`]);
+
+    try {
+      const completedJob = await waitForServerPreparationJob({
+        matterName,
+        kind: queuedKind,
+        jobId: queued.job?.id,
+        stage: queuedStage,
+        status: next,
+        onProgress,
+        isStale,
+      });
+      if (isStale()) return { ...staleResult(), status: next };
+      appendTerminal([`[prepare] server job complete: ${stageLabel(queuedStage)}`]);
+      next = markStageDone(next, queuedStage);
+      await recordStageTelemetry(telemetryRunId, matterName, queuedStage, 'succeeded', stageStarts, completedJob?.summary || 'Server preparation job completed.');
+      onProgress(next);
+    } catch (error) {
+      const message = formatVisiblePreparationError(error, queuedStage);
+      next = markStageFailed(next, queuedStage, message);
+      await recordStageTelemetry(telemetryRunId, matterName, queuedStage, 'failed', stageStarts, message, preparationErrorDiagnostic(error));
+      if (isStale()) return { ...staleResult(), status: next };
+      onProgress(next);
+      appendTerminal([`[prepare] server job failed: ${stageLabel(queuedStage)} — ${message}`]);
+      return { state: 'blocked', message, status: next };
+    }
+  }
+
+  return {
+    state: 'needs_review',
+    message: 'Preparation stopped after repeated server-queued passes. Review the preparation plan before rerunning.',
+    status: next,
+  };
+}
+
+async function waitForServerPreparationJob({
+  matterName,
+  kind,
+  jobId,
+  stage,
+  status,
+  onProgress,
+  isStale,
+}: {
+  matterName: string;
+  kind?: string;
+  jobId?: string;
+  stage: PreparationStage;
+  status: PreparationRunStatus;
+  onProgress: ProgressUpdate;
+  isStale: () => boolean;
+}): Promise<JobStatus | null> {
+  for (let poll = 0; poll < SERVER_PREPARATION_MAX_POLLS_PER_STAGE; poll += 1) {
+    if (isStale()) return null;
+    const jobs = await api.getJobs({ matterName, kind, limit: 20 });
+    const job = findServerPreparationJob(jobs.jobs || [], { jobId, kind });
+    if (job?.status === 'succeeded') return job;
+    if (job && ['failed', 'cancelled'].includes(job.status)) {
+      throw new Error(job.errorMessage || job.summary || `${stageLabel(stage)} did not complete.`);
+    }
+    onProgress(markStageRunning(status, stage, serverQueuedStageDetail(stage, job)));
+    await delay(SERVER_PREPARATION_JOB_POLL_MS);
+  }
+  throw new Error(`${stageLabel(stage)} is still running on the server. Refresh the matter in a minute to see the latest status.`);
+}
+
+function findServerPreparationJob(jobs: JobStatus[], { jobId, kind }: { jobId?: string; kind?: string }): JobStatus | null {
+  if (jobId) {
+    const exact = jobs.find((job) => job.id === jobId);
+    if (exact) return exact;
+  }
+  if (kind) return jobs.find((job) => job.kind === kind) || null;
+  return jobs[0] || null;
+}
+
+function serverQueuedStageDetail(stage: PreparationStage, job?: JobStatus | null): string {
+  if (job?.status === 'running') return `Server is running ${stageLabel(stage)}. You can refresh; progress is kept in Activity.`;
+  if (job?.status === 'queued' || job?.status === 'retrying') return `${stageLabel(stage)} is queued on the server. You can refresh; progress is kept in Activity.`;
+  return `Queueing ${stageLabel(stage)} on the server…`;
+}
+
+function isBackendPreparationQueueUnavailable(error: unknown): boolean {
+  const candidate = error as { statusCode?: number; code?: string } | null;
+  return candidate?.statusCode === 404
+    || candidate?.code === 'matter_workflow.preparation_queue_required'
+    || candidate?.code === 'matter_workflow.preparation_queue_stage_required';
+}
+
+function jobKindForQueuedStage(stage: PreparationStage): string {
+  if (stage.slash === '/matter-init') return 'matter_init';
+  if (stage.slash === '/extract') return 'extract';
+  if (stage.slash === '/describe_sources') return 'source_labels';
+  if (stage.slash === '/create_listofdates') return 'case_timeline';
+  if (stage.slash === '/the_story') return 'matter_story';
+  if (stage.slash === '/procedural_posture_diagnosis') return 'posture_diagnosis';
+  return '';
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') window.setTimeout(resolve, ms);
+    else setTimeout(resolve, ms);
   });
 }
 
@@ -340,8 +561,8 @@ function mergePlanIntoStatus(
   return next;
 }
 
-function markStageRunning(status: PreparationRunStatus, stage: PreparationStage): PreparationRunStatus {
-  return markStep(status, stepIdForStage(stage), 'running', stageRunningDetail(stage));
+function markStageRunning(status: PreparationRunStatus, stage: PreparationStage, detail = ''): PreparationRunStatus {
+  return markStep(status, stepIdForStage(stage), 'running', detail || stageRunningDetail(stage));
 }
 
 function markStageDone(status: PreparationRunStatus, stage: PreparationStage): PreparationRunStatus {

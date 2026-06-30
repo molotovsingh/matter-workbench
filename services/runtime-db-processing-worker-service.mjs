@@ -7,6 +7,8 @@ const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
 
 const PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
+  "/matter-init": "matter_init",
+  "/extract": "extract",
   "/describe_sources": "source_labels",
   "/create_listofdates": "case_timeline",
   "/the_story": "matter_story",

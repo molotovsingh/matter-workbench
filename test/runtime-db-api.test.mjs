@@ -439,6 +439,125 @@ test("runtime DB file API returns stable read-side codes for DB payload misses",
   }
 });
 
+test("runtime DB prepare-matter run queues the next needed backend stage", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-queue");
+  const matter = runtimeDbMatter({ name: "Queued Matter", matterName: "Queued Matter" });
+  const calls = [];
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbProcessingWorkerService: {
+      enabled: () => true,
+      supportedKinds: () => ["source_labels", "case_timeline", "matter_story", "posture_diagnosis"],
+      start() {},
+      stop() {},
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readPrepareMatterPlan(currentMatter, options) {
+        calls.push(["plan", currentMatter.name, options.includeDisputeStory]);
+        return {
+          schema_version: "prepare-matter-plan/v1",
+          matterName: currentMatter.name,
+          stages: [
+            { id: "describe-sources", slash: "/describe_sources", label: "Label sources", state: "current", action: "skip_current" },
+            { id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "missing", action: "confirm_paid_run" },
+            { id: "dispute-story", slash: "/the_story", label: "Write dispute story", state: "blocked", action: "blocked", reason: "Case Timeline is required first." },
+          ],
+          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "create-listofdates", slash: "/create_listofdates" },
+        };
+      },
+      async listProcessingJobs(filters) {
+        calls.push(["list", filters.kind, filters.status, filters.matterName]);
+        return { schema_version: "runtime-db-processing-jobs/v1", jobs: [] };
+      },
+      async enqueueProcessingJob(input) {
+        calls.push(["enqueue", input.kind, input.idempotencyKey, input.metadata.preparationChain, input.metadata.reason]);
+        return {
+          id: "job-case-timeline",
+          kind: input.kind,
+          status: "queued",
+          matterName: matter.name,
+          metadata: input.metadata,
+        };
+      },
+    },
+  });
+
+  try {
+    const result = await postJson(server.baseUrl, "/api/prepare-matter/run", {
+      matterName: matter.name,
+      mode: "needed",
+      runId: "prep_test_queue",
+      reason: "operator requested needed preparation",
+    });
+
+    assert.equal(result.schema_version, "prepare-matter-run/v1");
+    assert.equal(result.state, "queued");
+    assert.equal(result.kind, "case_timeline");
+    assert.equal(result.stage.slash, "/create_listofdates");
+    assert.equal(result.job.id, "job-case-timeline");
+    assert.equal(result.alreadyQueued, false);
+    assert.deepEqual(calls, [
+      ["plan", "Queued Matter", true],
+      ["list", "case_timeline", "queued", "Queued Matter"],
+      ["list", "case_timeline", "running", "Queued Matter"],
+      ["list", "case_timeline", "retrying", "Queued Matter"],
+      ["enqueue", "case_timeline", `manual-prepare:${matter.id}:prep_test_queue:case_timeline`, "manual_needed/v1", "operator requested needed preparation"],
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
+test("runtime DB prepare-matter run returns an active stage job instead of duplicating it", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-existing");
+  const matter = runtimeDbMatter({ name: "Queued Matter", matterName: "Queued Matter" });
+  const calls = [];
+  const activeJob = { id: "job-existing", kind: "case_timeline", status: "running", matterName: matter.name };
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbProcessingWorkerService: {
+      enabled: () => true,
+      supportedKinds: () => ["case_timeline"],
+      start() {},
+      stop() {},
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readPrepareMatterPlan() {
+        return {
+          schema_version: "prepare-matter-plan/v1",
+          matterName: matter.name,
+          stages: [{ id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "missing", action: "run" }],
+          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "create-listofdates", slash: "/create_listofdates" },
+        };
+      },
+      async listProcessingJobs(filters) {
+        calls.push(["list", filters.status]);
+        return { schema_version: "runtime-db-processing-jobs/v1", jobs: filters.status === "running" ? [activeJob] : [] };
+      },
+      async enqueueProcessingJob() {
+        calls.push(["enqueue"]);
+        throw new Error("should not enqueue duplicate");
+      },
+    },
+  });
+
+  try {
+    const result = await postJson(server.baseUrl, "/api/prepare-matter/run", { matterName: matter.name });
+
+    assert.equal(result.state, "queued");
+    assert.equal(result.kind, "case_timeline");
+    assert.equal(result.alreadyQueued, true);
+    assert.equal(result.job.id, activeJob.id);
+    assert.deepEqual(calls, [["list", "queued"], ["list", "running"]]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB raw file route contains stream failures without crashing the server", async () => {
   const { appDir } = await runtimeDbTestPaths("runtime-db-raw-stream-error");
   const matter = runtimeDbMatter();

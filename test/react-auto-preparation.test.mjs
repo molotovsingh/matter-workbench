@@ -51,6 +51,10 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
   assert.match(runner, /api\.runProceduralPostureDiagnosis\(/);
   assert.match(runner, /overwrite: options\.forceStoryRegeneration === true \|\| stage\.state === 'stale'/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
+  assert.match(runner, /api\.queueNeededPreparation\(/);
+  assert.match(runner, /api\.getJobs\(\{ matterName, kind, limit: 20 \}\)/);
+  assert.match(runner, /server queue unavailable; running needed preparation in the browser session/);
+  assert.match(runner, /progress is kept in Activity/);
   assert.match(runner, /api\.recordPreparationRunTelemetry\(/);
   assert.match(runner, /action: 'start'/);
   assert.match(runner, /action: 'stage'/);

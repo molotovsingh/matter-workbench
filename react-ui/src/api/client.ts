@@ -34,6 +34,8 @@ import type {
   MatterAttention,
   MatterStatus,
   PreparationPlan,
+  PreparationQueueRunRequest,
+  PreparationQueueRunResponse,
   PreparationRunTelemetryRequest,
   PreparationRunTelemetryResponse,
   ProceduralPostureDiagnosisResult,
@@ -100,6 +102,14 @@ type AuthRequiredHandler = () => void;
 
 type GetJsonOptions = {
   bypassCache?: boolean;
+};
+
+type JobListQuery = number | {
+  limit?: number;
+  matterName?: string;
+  matter?: string;
+  kind?: string;
+  status?: string;
 };
 
 const CONFIG_CACHE_BUSTER_PARAM = '_mwbFresh';
@@ -427,7 +437,15 @@ export const api = {
     postJson<SkillRouterDecision>('/api/skills/check-intent', body),
 
   // ─── Matter workflow ──────────────────────
-  getJobs: (limit = 100) => getJson<JobStatusList>(`/api/jobs?limit=${limit}`),
+  getJobs: (query: JobListQuery = 100) => {
+    if (typeof query === 'number') return getJson<JobStatusList>(`/api/jobs?limit=${query}`);
+    return getJson<JobStatusList>(withQuery('/api/jobs', {
+      limit: String(query.limit ?? 100),
+      matter: query.matterName || query.matter,
+      kind: query.kind,
+      status: query.status,
+    }));
+  },
   getMatterLog: (limit = 100, matterName?: string) => getJson<MatterLog>(withQuery('/api/matter-log', { limit: String(limit), matter: matterName })),
   getPrivateBetaFeedback: (limit = 100) => getJson<PrivateBetaFeedbackList>(`/api/private-beta/feedback?limit=${limit}`),
   submitPrivateBetaFeedback: (body: PrivateBetaFeedbackRequest) =>
@@ -438,6 +456,8 @@ export const api = {
   getMatterStatus: (matterName?: string) => getJson<MatterStatus>(withQuery('/api/matter-status', { matter: matterName })),
   getMatterAttention: (matterName?: string) => getJson<MatterAttention>(withQuery('/api/matter-attention', { matter: matterName })),
   getPrepareMatter: (matterName?: string) => getJson<PreparationPlan>(withQuery('/api/prepare-matter', { matter: matterName })),
+  queueNeededPreparation: (body: PreparationQueueRunRequest) =>
+    postJson<PreparationQueueRunResponse>('/api/prepare-matter/run', body),
   recordPreparationRunTelemetry: (body: PreparationRunTelemetryRequest) =>
     postJson<PreparationRunTelemetryResponse>('/api/private-beta/preparation-runs', body),
   runMatterInit: (body: MatterSkillRunRequest) => postJson('/api/matter-init', body),

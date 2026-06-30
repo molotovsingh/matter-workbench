@@ -8,8 +8,9 @@ const typesPath = new URL("../react-ui/src/types/index.ts", import.meta.url);
 
 test("React API client exposes durable job status reads", async () => {
   const source = await readFile(apiClientPath, "utf8");
-  assert.match(source, /getJobs:/);
-  assert.match(source, /\/api\/jobs/);
+  assert.match(source, /type JobListQuery = number \| \{/);
+  assert.match(source, /getJobs: \(query: JobListQuery = 100\)/);
+  assert.match(source, /withQuery\('\/api\/jobs'/);
 });
 
 test("Activity page renders durable jobs separately from custom skill receipts", async () => {
@@ -27,4 +28,5 @@ test("React types include the beta job status contract", async () => {
   assert.match(source, /export interface JobStatus/);
   assert.match(source, /schema_version\?: 'job-status\/v1'/);
   assert.match(source, /export interface JobStatusList/);
+  assert.match(source, /export interface PreparationQueueRunResponse/);
 });

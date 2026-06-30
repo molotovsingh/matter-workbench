@@ -491,9 +491,10 @@ export async function createWorkbenchServer(options = {}) {
       posture_diagnosis: ({ matter }) => runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter }),
     },
   });
+  services.runtimeDbProcessingWorkerService = runtimeDbProcessingWorkerService;
   if (runtimeDbProcessingWorkerService.enabled?.()) {
-    server.once("listening", () => runtimeDbProcessingWorkerService.start());
-    server.once("close", () => runtimeDbProcessingWorkerService.stop());
+    server.once("listening", () => runtimeDbProcessingWorkerService.start?.());
+    server.once("close", () => runtimeDbProcessingWorkerService.stop?.());
   }
 
   if (hasTelemetrySyncConfig(env)) {

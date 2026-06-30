@@ -44,6 +44,62 @@ test("runtime DB processing worker claims and completes extract jobs", async () 
   ]);
 });
 
+test("runtime DB processing worker can queue extraction after matter init", async () => {
+  const calls = [];
+  const matter = { id: "matter-1", name: "Matter A" };
+  const job = { id: "job-init", kind: "matter_init", matter, progress: { preparationChainId: "manual-1" } };
+  const service = {
+    enabled: true,
+    async claimNextProcessingJob(options) {
+      calls.push(["claim", options.kinds]);
+      return calls.filter(([kind]) => kind === "claim").length === 1 ? job : null;
+    },
+    async initializeMatter(currentMatter, options) {
+      calls.push(["initializeMatter", currentMatter.name, options.dryRun]);
+      return { operationResult: { state: "succeeded" } };
+    },
+    async extractDocuments() {
+      throw new Error("extract should only be queued, not claimed in this test");
+    },
+    async completeProcessingJob(jobId, patch) {
+      calls.push(["complete", jobId, patch.progress.completedStage]);
+    },
+    async readPrepareMatterPlan(currentMatter) {
+      calls.push(["plan", currentMatter.name]);
+      return {
+        stages: [
+          { id: "matter-init", slash: "/matter-init", action: "skip_current", state: "current" },
+          { id: "extract", slash: "/extract", action: "run", state: "missing" },
+        ],
+      };
+    },
+    async enqueueProcessingJob({ kind, idempotencyKey, metadata }) {
+      calls.push(["enqueue", kind, idempotencyKey, metadata.queuedAfterKind]);
+      return { id: "job-extract", kind, status: "queued" };
+    },
+    async failProcessingJob(jobId, error) {
+      calls.push(["fail", jobId, error.message]);
+    },
+  };
+
+  const worker = createRuntimeDbProcessingWorkerService({
+    runtimeDbStorageService: service,
+    env: { MWB_RUNTIME_DB_PROCESSING_WORKER: "1" },
+    logger: { warn() {} },
+  });
+
+  assert.deepEqual(worker.supportedKinds(), ["matter_init", "extract"]);
+  assert.deepEqual(await worker.drainOnce(), { claimed: 1 });
+  assert.deepEqual(calls, [
+    ["claim", ["matter_init", "extract"]],
+    ["initializeMatter", "Matter A", false],
+    ["complete", "job-init", "matter_init"],
+    ["plan", "Matter A"],
+    ["enqueue", "extract", "prepare-chain:matter-1:manual-1:extract", "matter_init"],
+    ["claim", ["matter_init", "extract"]],
+  ]);
+});
+
 test("runtime DB processing worker handles queued source-label and Case Timeline jobs", async () => {
   const calls = [];
   const jobs = [

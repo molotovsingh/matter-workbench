@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
@@ -9,6 +11,7 @@ import { buildSourceRemovalImpactPreviewFromPacket, previewSourceRemovalImpact }
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
+import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
 import {
@@ -37,6 +40,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     prepareMatterService,
     privateBetaSignalService,
     runtimeDbStorageService,
+    runtimeDbProcessingWorkerService,
     runtimeDbSourceRemovalMutationService,
     sourceRemovalMutationService,
   } = services;
@@ -432,6 +436,23 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         const root = await matterRootForQuery(matterStore, requestUrl, { allowMissingActive: true });
         sendJson(response, 200, await prepareMatterService.readPrepareMatterPlan(root));
       }),
+      exactRoute("POST", "/api/prepare-matter/run", async () => {
+        const body = await readRequestJson(request);
+        if (!usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          throw makeRuntimeWorkflowUnavailableError("matter_workflow.preparation_queue_required");
+        }
+        const matter = await runtimeDbMatterForBody(matterStore, body);
+        const includeDisputeStory = matterStoryService?.hasActiveDisputeStorySkill
+          ? await matterStoryService.hasActiveDisputeStorySkill()
+          : false;
+        sendJson(response, 200, await enqueueRuntimeDbNeededPreparation({
+          body,
+          matter,
+          includeDisputeStory,
+          runtimeDbStorageService,
+          runtimeDbProcessingWorkerService,
+        }));
+      }),
       exactRoute("GET", "/api/source-removal-impact-preview", async () => {
         const fileId = requestUrl.searchParams.get("fileId") || requestUrl.searchParams.get("file_id") || "";
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
@@ -586,6 +607,149 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
     ],
   });
+}
+
+const PREPARE_MATTER_RUN_SCHEMA = "prepare-matter-run/v1";
+const RUNTIME_PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
+  "/matter-init": "matter_init",
+  "/extract": "extract",
+  "/describe_sources": "source_labels",
+  "/create_listofdates": "case_timeline",
+  "/the_story": "matter_story",
+  "/procedural_posture_diagnosis": "posture_diagnosis",
+});
+const QUEUEABLE_PREPARATION_ACTIONS = new Set([
+  PREPARATION_STAGE_ACTIONS.RUN,
+  PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
+]);
+const ACTIVE_RUNTIME_JOB_STATUSES = ["queued", "running", "retrying"];
+
+async function enqueueRuntimeDbNeededPreparation({
+  body = {},
+  matter = {},
+  includeDisputeStory = false,
+  runtimeDbStorageService,
+  runtimeDbProcessingWorkerService,
+} = {}) {
+  assertRuntimeDbPreparationQueueAvailable({ runtimeDbStorageService, runtimeDbProcessingWorkerService });
+  const mode = normalizePreparationRunMode(body.mode);
+  if (mode !== "needed") {
+    const error = new Error("Backend preparation queue supports needed preparation only.");
+    error.statusCode = 400;
+    error.code = "matter_workflow.preparation_queue_needed_only";
+    throw error;
+  }
+  const plan = await runtimeDbStorageService.readPrepareMatterPlan(matter, { includeDisputeStory });
+  const stage = firstQueueablePreparationStage(plan);
+  if (!stage) {
+    const blockedStage = firstBlockedPreparationStage(plan);
+    return {
+      schema_version: PREPARE_MATTER_RUN_SCHEMA,
+      state: blockedStage ? "blocked" : "complete",
+      matterName: matter.matterName || matter.name || plan?.matterName || "",
+      message: blockedStage?.reason || plan?.nextStep?.message || (blockedStage ? "Preparation is blocked." : "Core preparation is current."),
+      ...(blockedStage ? { stage: blockedStage } : {}),
+      plan,
+    };
+  }
+  const kind = runtimePreparationJobKindForStage(stage);
+  if (!kind) {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.preparation_queue_stage_required");
+  }
+  const supportedKinds = runtimeDbProcessingWorkerService.supportedKinds?.() || [];
+  if (!supportedKinds.includes(kind)) {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.preparation_queue_stage_required");
+  }
+  const existing = await findActiveRuntimePreparationJob({ runtimeDbStorageService, matter, kind });
+  if (existing?.id) {
+    return {
+      schema_version: PREPARE_MATTER_RUN_SCHEMA,
+      state: "queued",
+      matterName: matter.matterName || matter.name || plan?.matterName || "",
+      mode,
+      kind,
+      stage,
+      job: existing,
+      alreadyQueued: true,
+      plan,
+    };
+  }
+  const chainId = safePreparationChainId(body.runId) || `manual-${randomUUID()}`;
+  const job = await runtimeDbStorageService.enqueueProcessingJob({
+    matter,
+    kind,
+    idempotencyKey: `manual-prepare:${matter.id}:${chainId}:${kind}`,
+    metadata: {
+      preparationChain: "manual_needed/v1",
+      preparationChainId: chainId,
+      stage: kind,
+      requestedMode: mode,
+      reason: sanitizeWorkflowText(body.reason || "Run needed preparation", 240),
+    },
+  });
+  return {
+    schema_version: PREPARE_MATTER_RUN_SCHEMA,
+    state: "queued",
+    matterName: matter.matterName || matter.name || plan?.matterName || "",
+    mode,
+    kind,
+    stage,
+    job,
+    alreadyQueued: false,
+    plan,
+  };
+}
+
+function assertRuntimeDbPreparationQueueAvailable({ runtimeDbStorageService, runtimeDbProcessingWorkerService } = {}) {
+  if (typeof runtimeDbStorageService?.readPrepareMatterPlan !== "function"
+    || typeof runtimeDbStorageService?.enqueueProcessingJob !== "function"
+    || typeof runtimeDbStorageService?.listProcessingJobs !== "function"
+    || typeof runtimeDbProcessingWorkerService?.enabled !== "function"
+    || !runtimeDbProcessingWorkerService.enabled()) {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.preparation_queue_required");
+  }
+}
+
+function normalizePreparationRunMode(value) {
+  return String(value || "needed").trim() === "full" ? "full" : "needed";
+}
+
+function firstQueueablePreparationStage(plan = {}) {
+  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
+  return stages.find((stage) => QUEUEABLE_PREPARATION_ACTIONS.has(stage?.action)) || null;
+}
+
+function firstBlockedPreparationStage(plan = {}) {
+  const stages = Array.isArray(plan?.stages) ? plan.stages : [];
+  return stages.find((stage) => stage?.action === PREPARATION_STAGE_ACTIONS.BLOCKED) || null;
+}
+
+function runtimePreparationJobKindForStage(stage = {}) {
+  const slash = String(stage?.slash || "").trim();
+  const kind = RUNTIME_PREPARATION_JOB_KIND_BY_SLASH[slash] || "";
+  return /^[a-z][a-z0-9_]*$/.test(kind) ? kind : "";
+}
+
+async function findActiveRuntimePreparationJob({ runtimeDbStorageService, matter = {}, kind = "" } = {}) {
+  for (const status of ACTIVE_RUNTIME_JOB_STATUSES) {
+    const result = await runtimeDbStorageService.listProcessingJobs({
+      matterName: matter.name || matter.matterName || "",
+      kind,
+      status,
+      limit: 5,
+    });
+    const job = Array.isArray(result?.jobs) ? result.jobs.find((candidate) => candidate?.kind === kind) : null;
+    if (job?.id) return job;
+  }
+  return null;
+}
+
+function safePreparationChainId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_.:-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
 }
 
 function assertRuntimeDbMatterInitAvailable({ runtimeDbStorageService } = {}) {
