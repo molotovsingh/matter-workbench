@@ -292,10 +292,24 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         });
       }),
       exactRoute("POST", "/api/matters/new", async () => {
-        sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.createMatter(request)));
+        const workspace = await runTrackedUpload({
+          jobStatusService,
+          action: "create_matter",
+          route: "/api/matters/new",
+          label: "Upload Matter",
+          operation: () => uploadService.createMatter(request),
+        });
+        sendJson(response, 200, presentWorkspaceForCurrentUser(workspace));
       }),
       exactRoute("POST", "/api/matters/add-files", async () => {
-        sendJson(response, 200, presentWorkspaceForCurrentUser(await uploadService.addFilesToMatter(request)));
+        const workspace = await runTrackedUpload({
+          jobStatusService,
+          action: "add_files",
+          route: "/api/matters/add-files",
+          label: "Upload Files",
+          operation: () => uploadService.addFilesToMatter(request),
+        });
+        sendJson(response, 200, presentWorkspaceForCurrentUser(workspace));
       }),
       exactRoute("POST", "/api/matters/check-overlap", async () => {
         const isRuntimeDbStorage = usesRuntimeDbStorage(matterStore, runtimeDbStorageService);
@@ -434,6 +448,64 @@ function cleanReleaseDate(value) {
 
 const PREPARATION_RUN_RESPONSE_SCHEMA = "private-beta-preparation-run-response/v1";
 const PREPARATION_RUN_KIND = "preparation_run";
+
+async function runTrackedUpload({ jobStatusService, action = "upload", route = "", label = "Upload", operation }) {
+  if (typeof operation !== "function") throw new Error("upload operation is required");
+  if (!jobStatusService?.createJob || !jobStatusService?.completeJob || !jobStatusService?.failJob) {
+    return operation();
+  }
+  const job = await jobStatusService.createJob({
+    kind: "upload",
+    label,
+    metadata: uploadJobMetadata({ action, route, label }),
+  });
+  try {
+    const result = await operation({ job });
+    const completed = await jobStatusService.completeJob(job.id, {
+      matterName: uploadMatterNameFromWorkspace(result),
+      summary: `${label} completed.`,
+    });
+    return attachUploadJob(result, completed);
+  } catch (error) {
+    await jobStatusService.failJob(job.id, error, {
+      fallbackErrorCode: "upload.failed",
+      metadata: uploadJobMetadata({ action, route, label }),
+    });
+    throw error;
+  }
+}
+
+function uploadJobMetadata({ action = "upload", route = "", label = "Upload" } = {}) {
+  return {
+    upload: {
+      action: sanitizeUploadMetadataText(action, 80),
+      route: sanitizeUploadMetadataText(route, 120),
+      label: sanitizeUploadMetadataText(label, 120),
+    },
+  };
+}
+
+function uploadMatterNameFromWorkspace(workspace = {}) {
+  return sanitizeUploadMetadataText(
+    workspace?.matterName
+      || workspace?.activeMatterName
+      || workspace?.activeMatter?.name
+      || workspace?.matter?.name
+      || workspace?.matter?.matterName
+      || workspace?.name
+      || "",
+    300,
+  );
+}
+
+function attachUploadJob(result, job) {
+  if (result && typeof result === "object" && !Array.isArray(result)) return { ...result, job };
+  return { result, job };
+}
+
+function sanitizeUploadMetadataText(value, maxLength) {
+  return String(value || "").replace(/[\r\n\t]+/g, " ").trim().slice(0, maxLength);
+}
 
 async function recordPreparationRunTelemetry({ body = {}, jobStatusService, matterStore }) {
   if (!jobStatusService) {

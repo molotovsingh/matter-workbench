@@ -19,7 +19,28 @@ export function createMultipartUploadHandler({
       throw makeHttpError("Expected multipart/form-data", 400, "upload.multipart_required");
     }
 
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), tempPrefix));
+    let tempDir = "";
+    let earlyError = null;
+    const cleanupTempDir = () => tempDir
+      ? rm(tempDir, { recursive: true, force: true }).finally(() => {})
+      : Promise.resolve();
+    const rememberEarlyError = (error) => {
+      if (earlyError) return;
+      earlyError = error;
+      cleanupTempDir();
+    };
+    const rememberEarlyAbort = () => rememberEarlyError(uploadInterruptedError());
+    request.on("aborted", rememberEarlyAbort);
+    request.on("error", rememberEarlyError);
+
+    tempDir = await mkdtemp(path.join(os.tmpdir(), tempPrefix));
+    if (earlyError) {
+      request.off("aborted", rememberEarlyAbort);
+      request.off("error", rememberEarlyError);
+      await cleanupTempDir();
+      throw earlyError;
+    }
+
     return new Promise((resolve, reject) => {
       const bb = busboy({
         headers: request.headers,
@@ -32,13 +53,25 @@ export function createMultipartUploadHandler({
       let fileIndex = 0;
       let aborted = false;
 
+      const removeRequestListeners = () => {
+        request.off("aborted", failInterruptedUpload);
+        request.off("error", fail);
+      };
       const fail = (error) => {
         if (aborted) return;
         aborted = true;
+        removeRequestListeners();
         request.unpipe(bb);
-        rm(tempDir, { recursive: true, force: true }).finally(() => {});
+        if (typeof bb.destroy === "function") bb.destroy(error);
+        cleanupTempDir();
         reject(error);
       };
+      const failInterruptedUpload = () => fail(uploadInterruptedError());
+
+      request.off("aborted", rememberEarlyAbort);
+      request.off("error", rememberEarlyError);
+      request.on("aborted", failInterruptedUpload);
+      request.on("error", fail);
 
       bb.on("field", (name, value) => {
         fields[name] = value;
@@ -97,6 +130,7 @@ export function createMultipartUploadHandler({
       bb.on("error", fail);
       bb.on("finish", async () => {
         if (aborted) return;
+        removeRequestListeners();
         try {
           resolve({ fields, files: await Promise.all(filePromises), tempDir });
         } catch (error) {
@@ -108,6 +142,14 @@ export function createMultipartUploadHandler({
       request.pipe(bb);
     });
   };
+}
+
+function uploadInterruptedError() {
+  return makeHttpError(
+    "Upload connection was interrupted before the files finished uploading. Please retry the upload.",
+    499,
+    "upload.interrupted",
+  );
 }
 
 function uploadTooLargeError(maxUploadBytes) {
