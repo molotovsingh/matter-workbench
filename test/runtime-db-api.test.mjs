@@ -212,8 +212,10 @@ test("runtime DB config exposes sanitized release metadata for the title bar", a
   });
 
   try {
-    const config = await getJson(server.baseUrl, "/api/config");
+    const configResponse = await fetch(`${server.baseUrl}/api/config`);
+    const config = await configResponse.json();
 
+    assert.equal(configResponse.headers.get("cache-control"), "no-store");
     assert.deepEqual(config.release, {
       version: "v1.0.0-beta.77",
       codename: "Notice Bell ignored",

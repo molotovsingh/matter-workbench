@@ -237,6 +237,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         }));
       }),
       exactRoute("GET", "/api/config", async () => {
+        response.setHeader("cache-control", "no-store");
         const activeMatterName = matterStore.activeMatterNameWithinHome();
         const runtimeStorageMode = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
           ? "postgres"
