@@ -486,6 +486,10 @@ export async function createWorkbenchServer(options = {}) {
   const runtimeDbProcessingWorkerService = options.runtimeDbProcessingWorkerService || createRuntimeDbProcessingWorkerService({
     runtimeDbStorageService,
     env,
+    stageHandlers: {
+      matter_story: ({ matter }) => runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter }),
+      posture_diagnosis: ({ matter }) => runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter }),
+    },
   });
   if (runtimeDbProcessingWorkerService.enabled?.()) {
     server.once("listening", () => runtimeDbProcessingWorkerService.start());
@@ -717,6 +721,64 @@ function matterHealthFromPlanAndAttention({ matterName, plan = {}, attention = {
     warnings: Number(summary.warning) || 0,
     checkedAt,
   };
+}
+
+async function runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter } = {}) {
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterContextPacket", "matter story context");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterJson", "matter story matter metadata");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "artifactExists", "matter story artifact existence");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "persistTextArtifacts", "matter story artifact persistence");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "persistMatterJson", "matter story metadata persistence");
+  const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+  const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+  const result = await matterStoryService.runDisputeStory({
+    matterName: matter.name,
+    overwrite: false,
+    matterRootOverride: `postgres:${matter.name}`,
+    matterRecordOverride: matter,
+    matterContextPacketOverride: packet,
+    artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+    artifactWriter: ({ outputPaths, markdown, metadata, runId }) => runtimeDbStorageService.persistTextArtifacts(matter, [
+      { relativePath: outputPaths.markdown, text: `${String(markdown || "")}\n` },
+      { relativePath: outputPaths.json, text: `${JSON.stringify({ ...metadata, runId, markdown: String(markdown || "") }, null, 2)}\n` },
+    ]),
+    matterJsonOverride: matterJson,
+    matterJsonWriter: ({ matterJson: nextMatterJson }) => runtimeDbStorageService.persistMatterJson(matter, nextMatterJson),
+    storyMarkdownReader: typeof runtimeDbStorageService.readFilePreview === "function"
+      ? async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content
+      : null,
+  });
+  return { state: result?.state || "succeeded", operationResult: result };
+}
+
+async function runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter } = {}) {
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterContextPacket", "procedural posture context");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterJson", "procedural posture matter metadata");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "artifactExists", "procedural posture artifact existence");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readFilePreview", "procedural posture artifact reading");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "artifactStat", "procedural posture artifact timestamps");
+  assertRuntimeDbWorkerMethod(runtimeDbStorageService, "persistTextArtifacts", "procedural posture artifact persistence");
+  const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+  const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+  const result = await proceduralPostureDiagnosisService.runDiagnosis({
+    matterName: matter.name,
+    overwrite: false,
+    matterRootOverride: `postgres:${matter.name}`,
+    matterRecordOverride: matter,
+    matterContextPacketOverride: packet,
+    matterJsonOverride: matterJson,
+    artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+    artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+    artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
+    artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+  });
+  return { state: result?.status || "succeeded", operationResult: result };
+}
+
+function assertRuntimeDbWorkerMethod(service, method, label) {
+  if (typeof service?.[method] !== "function") {
+    throw new Error(`Runtime DB worker cannot run ${label}; missing ${method}.`);
+  }
 }
 
 async function safeReadTelemetryLedger(reader) {

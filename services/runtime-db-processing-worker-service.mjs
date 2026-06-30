@@ -5,6 +5,33 @@ import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
 
+const BUILTIN_STAGE_HANDLERS = [
+  {
+    kind: "matter_init",
+    method: "initializeMatter",
+    completedStage: "matter_init",
+    run: (service, matter, { env }) => service.initializeMatter(matter, { dryRun: false, env }),
+  },
+  {
+    kind: "extract",
+    method: "extractDocuments",
+    completedStage: "extract",
+    run: (service, matter, { env }) => service.extractDocuments(matter, { dryRun: false, forceRefresh: false, env }),
+  },
+  {
+    kind: "source_labels",
+    method: "describeSources",
+    completedStage: "source_labels",
+    run: (service, matter, { env }) => service.describeSources(matter, { dryRun: false, env }),
+  },
+  {
+    kind: "case_timeline",
+    method: "createListOfDates",
+    completedStage: "case_timeline",
+    run: (service, matter, { env }) => service.createListOfDates(matter, { dryRun: false, env }),
+  },
+];
+
 export function createRuntimeDbProcessingWorkerService({
   runtimeDbStorageService,
   env = process.env,
@@ -12,17 +39,29 @@ export function createRuntimeDbProcessingWorkerService({
   workerId = `runtime-worker-${process.pid}`,
   intervalMs = DEFAULT_INTERVAL_MS,
   lockMs = DEFAULT_LOCK_MS,
+  stageHandlers = {},
 } = {}) {
   let timer = null;
   let running = false;
   let stopped = false;
 
+  function supportedKinds() {
+    const builtin = BUILTIN_STAGE_HANDLERS
+      .filter((handler) => typeof runtimeDbStorageService?.[handler.method] === "function")
+      .map((handler) => handler.kind);
+    const custom = Object.entries(stageHandlers || {})
+      .filter(([, handler]) => typeof handler === "function")
+      .map(([kind]) => normalizeJobKind(kind))
+      .filter(Boolean);
+    return [...new Set([...builtin, ...custom])];
+  }
+
   function enabled() {
     if (!runtimeDbStorageService?.enabled) return false;
     if (typeof runtimeDbStorageService.claimNextProcessingJob !== "function") return false;
-    if (typeof runtimeDbStorageService.extractDocuments !== "function") return false;
     if (typeof runtimeDbStorageService.completeProcessingJob !== "function") return false;
     if (typeof runtimeDbStorageService.failProcessingJob !== "function") return false;
+    if (!supportedKinds().length) return false;
     const configured = String(env.MWB_RUNTIME_DB_PROCESSING_WORKER || env.MWB_RUNTIME_DB_WORKER || "").trim().toLowerCase();
     return ["1", "true", "on", "yes"].includes(configured);
   }
@@ -50,7 +89,7 @@ export function createRuntimeDbProcessingWorkerService({
     let claimed = 0;
     try {
       while (!stopped) {
-        const job = await runtimeDbStorageService.claimNextProcessingJob({ workerId, kinds: ["extract"], lockMs });
+        const job = await runtimeDbStorageService.claimNextProcessingJob({ workerId, kinds: supportedKinds(), lockMs });
         if (!job?.id) break;
         claimed += 1;
         await runJob(job);
@@ -62,29 +101,36 @@ export function createRuntimeDbProcessingWorkerService({
   }
 
   async function runJob(job) {
+    const kind = normalizeJobKind(job?.kind);
     try {
-      if (job.kind === "extract") {
-        if (!job.matter?.id) throw new Error("Processing job is missing matter context.");
-        const result = await runtimeDbStorageService.extractDocuments(job.matter, {
-          dryRun: false,
-          forceRefresh: false,
-          env,
-        });
-        await runtimeDbStorageService.completeProcessingJob(job.id, {
-          progress: {
-            completedStage: "extract",
-            operationState: result?.operationResult?.state || result?.state || "succeeded",
-          },
-        });
-        return;
-      }
-      throw new Error(`Unsupported runtime processing job kind: ${job.kind || "unknown"}`);
+      if (!job?.matter?.id) throw new Error("Processing job is missing matter context.");
+      const handler = handlerForKind(kind);
+      if (!handler) throw new Error(`Unsupported runtime processing job kind: ${kind || "unknown"}`);
+      const result = await handler.run(runtimeDbStorageService, job.matter, { env, job });
+      await runtimeDbStorageService.completeProcessingJob(job.id, {
+        progress: {
+          completedStage: handler.completedStage || kind,
+          operationState: result?.operationResult?.state || result?.state || "succeeded",
+        },
+      });
     } catch (error) {
       await runtimeDbStorageService.failProcessingJob(job.id, error, {
-        errorCode: error?.code || "processing.extract.failed",
-        progress: { failedStage: job.kind || "unknown" },
+        errorCode: error?.code || `processing.${kind || "unknown"}.failed`,
+        progress: { failedStage: kind || "unknown" },
       });
     }
+  }
+
+  function handlerForKind(kind) {
+    const customHandler = stageHandlers?.[kind];
+    if (typeof customHandler === "function") {
+      return {
+        kind,
+        completedStage: kind,
+        run: (_service, matter, context) => customHandler({ matter, ...context }),
+      };
+    }
+    return BUILTIN_STAGE_HANDLERS.find((handler) => handler.kind === kind && typeof runtimeDbStorageService?.[handler.method] === "function") || null;
   }
 
   function log(level, message) {
@@ -97,7 +143,13 @@ export function createRuntimeDbProcessingWorkerService({
     start,
     stop,
     drainOnce,
+    supportedKinds,
   };
+}
+
+function normalizeJobKind(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^[a-z][a-z0-9_]*$/.test(text) ? text : "";
 }
 
 function safeMessage(error) {
