@@ -99,6 +99,14 @@ This review should help clean up:
 
 This is not an AI confidence trick. It is a lawyer confirmation step.
 
+## Relationship To User/Firm Preferences
+
+A later [User And Firm Preference Profile](user-firm-preference-profile.md)
+should provide editable defaults for date convention, country/nationality/locale
+context, user profile, and main practice areas. Those preferences can guide New
+Matter defaults and inference routing, but they must not become source-backed
+matter facts. Explicit matter fields and document-derived evidence should win.
+
 ## Relationship To Native Skills
 
 Native skills should not own the metadata interview.
