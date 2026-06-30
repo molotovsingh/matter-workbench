@@ -104,3 +104,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.97](releases/v1.0.0-beta.97.md) | **Worker Loom** | Release note present. |
 | [v1.0.0-beta.98](releases/v1.0.0-beta.98.md) | **Recovery Weave** | Release note present. |
 | [v1.0.0-beta.99](releases/v1.0.0-beta.99.md) | **Fresh Badge** | Release note present. |
+| [v1.0.0-beta.100](releases/v1.0.0-beta.100.md) | **Config Belt** | Release note present. |
