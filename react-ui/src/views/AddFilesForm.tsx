@@ -14,13 +14,12 @@ import {
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
 import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
+import { UploadSessionRecoveryCard } from '../components/upload/UploadSessionRecoveryCard';
 import {
   addFilesWithUploadSession,
   cancelUploadSessionDraft,
   findLatestUploadSessionDraft,
   findMatchingUploadSessionDraft,
-  selectedFilesMatchUploadSessionDraft,
-  uploadSessionDraftSummary,
   type StoredUploadSessionDraft,
 } from '../lib/uploadSessions';
 
@@ -286,21 +285,11 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
         </div>
 
         {runtimeUploadSessionsEnabled && recoverableUpload && (
-          <div className="form-info">
-            <strong>Unfinished upload session found.</strong>
-            <p>
-              {uploadSessionDraftSummary(recoverableUpload)}. Re-select the same files to resume from the files already received by the server.
-            </p>
-            {collected.length > 0 && selectedFilesMatchUploadSessionDraft(recoverableUpload, collected) && (
-              <p>Selected files match this session. Submitting will resume instead of starting over.</p>
-            )}
-            {collected.length > 0 && !selectedFilesMatchUploadSessionDraft(recoverableUpload, collected) && (
-              <p>The currently selected files do not match this saved session. You can forget it or select the original files again.</p>
-            )}
-            <div className="warning-actions" style={{ marginTop: 8 }}>
-              <button type="button" className="secondary" onClick={() => void handleForgetRecoverableUpload()}>Forget saved upload</button>
-            </div>
-          </div>
+          <UploadSessionRecoveryCard
+            draft={recoverableUpload}
+            selectedFiles={collected}
+            onForget={() => void handleForgetRecoverableUpload()}
+          />
         )}
 
         {selfOverlap && (

@@ -10,6 +10,7 @@ const uploadPreflightPath = new URL("../react-ui/src/lib/uploadBatchPreflight.ts
 const newMatterPath = new URL("../react-ui/src/views/NewMatterForm.tsx", import.meta.url);
 const addFilesPath = new URL("../react-ui/src/views/AddFilesForm.tsx", import.meta.url);
 const uploadTelemetryPath = new URL("../react-ui/src/lib/uploadClientTelemetry.ts", import.meta.url);
+const uploadRecoveryCardPath = new URL("../react-ui/src/components/upload/UploadSessionRecoveryCard.tsx", import.meta.url);
 
 test("React upload file collection drains every directory reader batch", async () => {
   const { collectDroppedEntries } = await importHelper();
@@ -250,16 +251,19 @@ test("React new-matter form switches to the server-returned matter folder after 
 test("React upload forms surface resumable durable upload sessions", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
   const addFiles = await readFile(addFilesPath, "utf8");
+  const recoveryCard = await readFile(uploadRecoveryCardPath, "utf8");
 
   for (const source of [newMatter, addFiles]) {
     assert.match(source, /findLatestUploadSessionDraft/);
     assert.match(source, /findMatchingUploadSessionDraft/);
-    assert.match(source, /selectedFilesMatchUploadSessionDraft/);
-    assert.match(source, /Unfinished upload session found/);
-    assert.match(source, /Forget saved upload/);
+    assert.match(source, /UploadSessionRecoveryCard/);
     assert.match(source, /resumeDraft/);
   }
-  assert.match(newMatter, /Use saved details/);
+  assert.match(recoveryCard, /selectedFilesMatchUploadSessionDraft/);
+  assert.match(recoveryCard, /Unfinished upload session found/);
+  assert.match(recoveryCard, /Forget saved upload/);
+  assert.match(recoveryCard, /Use saved details/);
+  assert.match(newMatter, /onUseSavedDetails=\{handleUseRecoverableUpload\}/);
   assert.match(newMatter, /resuming durable upload session/);
   assert.match(addFiles, /resuming durable upload session/);
 });

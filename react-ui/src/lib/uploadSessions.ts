@@ -60,32 +60,22 @@ export async function createMatterWithUploadSession({
   resumeDraft = null,
   onProgress,
 }: CreateMatterSessionUploadInput): Promise<WorkspaceApiResponse> {
-  const matchedDraft = matchingDraftOrNull(resumeDraft, { action: 'create_matter', matterName: name, files });
-  const session = matchedDraft
-    ? await api.getUploadSession(matchedDraft.sessionId)
-    : await api.createUploadSession({
-        action: 'create_matter',
-        name,
-        metadata,
-        expectedFileCount: files.length,
-        expectedBytes: totalBytes(files),
-      });
-  const draft = writeUploadSessionDraft({
-    session,
+  return runUploadSessionWorkflow({
     action: 'create_matter',
     matterName: name,
-    metadata,
     files,
-    existingDraft: matchedDraft,
+    resumeDraft,
+    onProgress,
+    draftMetadata: metadata,
+    createSession: () => api.createUploadSession({
+      action: 'create_matter',
+      name,
+      metadata,
+      expectedFileCount: files.length,
+      expectedBytes: totalBytes(files),
+    }),
+    commitSession: (sessionId) => api.commitUploadSession(sessionId),
   });
-  try {
-    const latest = await uploadFilesToSession(session, filesForDraftOrder(draft, files), onProgress, Boolean(matchedDraft));
-    const result = await api.commitUploadSession(latest.id);
-    forgetUploadSessionDraft(draft);
-    return result;
-  } catch (error) {
-    throw error;
-  }
 }
 
 export async function addFilesWithUploadSession({
@@ -95,32 +85,60 @@ export async function addFilesWithUploadSession({
   resumeDraft = null,
   onProgress,
 }: AddFilesSessionUploadInput): Promise<AddFilesResponse> {
-  const matchedDraft = matchingDraftOrNull(resumeDraft, { action: 'add_files', matterName, files });
-  const session = matchedDraft
-    ? await api.getUploadSession(matchedDraft.sessionId)
-    : await api.createUploadSession({
-        action: 'add_files',
-        matterName,
-        label,
-        expectedFileCount: files.length,
-        expectedBytes: totalBytes(files),
-      });
-  const draft = writeUploadSessionDraft({
-    session,
+  return runUploadSessionWorkflow({
     action: 'add_files',
     matterName,
-    label,
+    files,
+    resumeDraft,
+    onProgress,
+    draftLabel: label,
+    createSession: () => api.createUploadSession({
+      action: 'add_files',
+      matterName,
+      label,
+      expectedFileCount: files.length,
+      expectedBytes: totalBytes(files),
+    }),
+    commitSession: (sessionId) => api.commitUploadSession(sessionId) as Promise<AddFilesResponse>,
+  });
+}
+
+async function runUploadSessionWorkflow<Result>({
+  action,
+  matterName,
+  files,
+  resumeDraft,
+  onProgress,
+  draftLabel = '',
+  draftMetadata,
+  createSession,
+  commitSession,
+}: {
+  action: UploadSessionAction;
+  matterName: string;
+  files: CollectedUploadFile[];
+  resumeDraft: StoredUploadSessionDraft | null;
+  onProgress?: (progress: SessionUploadProgress) => void;
+  draftLabel?: string;
+  draftMetadata?: Record<string, string>;
+  createSession: () => Promise<UploadSession>;
+  commitSession: (sessionId: string) => Promise<Result>;
+}): Promise<Result> {
+  const matchedDraft = matchingDraftOrNull(resumeDraft, { action, matterName, files });
+  const session = matchedDraft ? await api.getUploadSession(matchedDraft.sessionId) : await createSession();
+  const draft = writeUploadSessionDraft({
+    session,
+    action,
+    matterName,
+    label: draftLabel,
+    metadata: draftMetadata,
     files,
     existingDraft: matchedDraft,
   });
-  try {
-    const latest = await uploadFilesToSession(session, filesForDraftOrder(draft, files), onProgress, Boolean(matchedDraft));
-    const result = await api.commitUploadSession(latest.id) as AddFilesResponse;
-    forgetUploadSessionDraft(draft);
-    return result;
-  } catch (error) {
-    throw error;
-  }
+  const latest = await uploadFilesToSession(session, filesForDraftOrder(draft, files), onProgress, Boolean(matchedDraft));
+  const result = await commitSession(latest.id);
+  forgetUploadSessionDraft(draft);
+  return result;
 }
 
 export function findUploadSessionDraft({
