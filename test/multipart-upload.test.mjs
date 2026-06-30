@@ -41,6 +41,8 @@ test("multipart upload handler parses a completed upload", async () => {
     assert.equal(upload.fields.matterName, "Upload Smoke");
     assert.equal(upload.files.length, 1);
     assert.equal(upload.files[0].filename, "note.txt");
+    assert.equal(upload.files[0].bytes, 12);
+    assert.equal(Buffer.from(upload.files[0].payloadBytes).toString("utf8"), "hello upload");
     assert.equal(await readFile(upload.files[0].tempPath, "utf8"), "hello upload");
   } finally {
     await rm(upload.tempDir, { recursive: true, force: true });

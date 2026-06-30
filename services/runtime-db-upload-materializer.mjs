@@ -89,6 +89,8 @@ async function buildUploadedSourceStorageFiles({
 }
 
 function uploadFilePayloadBytes(file = {}) {
+  if (Buffer.isBuffer(file.payloadBytes)) return Buffer.from(file.payloadBytes);
+  if (file.payloadBytes instanceof Uint8Array) return Buffer.from(file.payloadBytes);
   if (Buffer.isBuffer(file.bytes)) return Buffer.from(file.bytes);
   if (file.bytes instanceof Uint8Array) return Buffer.from(file.bytes);
   if (file.buffer instanceof Uint8Array) return Buffer.from(file.buffer);

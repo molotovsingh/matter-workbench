@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import busboy from "busboy";
@@ -110,15 +110,21 @@ export function createMultipartUploadHandler({
           });
           fileStream.on("error", rejectOnce);
           out.on("error", rejectOnce);
-          out.on("finish", () => {
+          out.on("finish", async () => {
             if (settled) return;
-            settled = true;
-            resolveFile({
-              index: currentIndex,
-              filename: info.filename,
-              tempPath,
-              bytes: streamBytes,
-            });
+            try {
+              const payloadBytes = await readFile(tempPath);
+              settled = true;
+              resolveFile({
+                index: currentIndex,
+                filename: info.filename,
+                tempPath,
+                bytes: streamBytes,
+                payloadBytes,
+              });
+            } catch (error) {
+              rejectOnce(error);
+            }
           });
           fileStream.pipe(out);
         });
