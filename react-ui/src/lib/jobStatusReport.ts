@@ -20,6 +20,10 @@ export function formatJobStatusReport(job: JobStatus): string {
     '',
     ...formatStageLines(job.stages || []),
     '',
+    '## Recovery',
+    '',
+    ...formatRecoveryLines(job),
+    '',
     '## Summary',
     '',
     job.summary ? `- ${redactSensitiveText(job.summary)}` : '- None.',
@@ -43,6 +47,44 @@ export function formatJobStageSummary(stage: JobStageStatus): string {
   if (stage.failureCode) bits.push(stage.failureCode);
   if (stage.model) bits.push(stage.model);
   return `${label}: ${bits.filter(Boolean).join(' · ')}`;
+}
+
+function formatRecoveryLines(job: JobStatus): string[] {
+  const stages = Array.isArray(job.stages) ? job.stages : [];
+  const failedStage = stages.find((stage) => stage.status === 'failed');
+  const failureCode = failedStage?.failureCode || job.errorCode || '';
+  const failureClass = failedStage?.failureClass || job.failureClass || '';
+  const retryable = isRetryableFailure(failureCode, failureClass);
+  if (!failedStage && job.status !== 'failed') return ['- None.'];
+  const lines: string[] = [];
+  if (failedStage?.id) lines.push(`- Failed stage: ${packetValue(failedStage.id)}`);
+  if (retryable && failedStage?.id) {
+    lines.push('- Suggested action: retry failed stage.');
+    lines.push(`- Retry stage: ${packetValue(failedStage.id)}`);
+  } else if (retryable) {
+    lines.push('- Suggested action: retry run.');
+  } else {
+    lines.push('- Suggested action: operator review.');
+  }
+  const salvageable = salvageableStageIdsBeforeFailure(stages, failedStage);
+  if (salvageable.length) lines.push(`- Salvageable stages: ${salvageable.map(packetValue).join(', ')}`);
+  if (!lines.length) return ['- None.'];
+  return lines;
+}
+
+function salvageableStageIdsBeforeFailure(stages: JobStageStatus[], failedStage?: JobStageStatus): string[] {
+  if (!failedStage?.id) return [];
+  const ids: string[] = [];
+  for (const stage of stages) {
+    if (stage.id === failedStage.id) break;
+    if (stage.salvageable && stage.status === 'succeeded' && stage.id) ids.push(stage.id);
+  }
+  return ids;
+}
+
+function isRetryableFailure(code = '', failureClass = ''): boolean {
+  if (/^provider\.(timeout|invalid_json|truncated_output|empty_output|error)$/.test(code)) return true;
+  return failureClass === 'provider';
 }
 
 function formatStageLines(stages: JobStageStatus[]): string[] {

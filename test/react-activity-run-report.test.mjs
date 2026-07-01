@@ -142,6 +142,10 @@ test("React job status report includes stage audit trail without secrets", async
   assert.match(report, /Failure code: provider\.invalid_json/);
   assert.match(report, /Posture proposer \(proposer\): succeeded · 1m 30s · openai-direct · gpt-5\.5 · salvageable/);
   assert.match(report, /Posture finalizer \(finalizer\): failed · 46s · failure: provider\.invalid_json/);
+  assert.match(report, /## Recovery/);
+  assert.match(report, /Failed stage: finalizer/);
+  assert.match(report, /Suggested action: retry failed stage/);
+  assert.match(report, /Salvageable stages: proposer/);
   assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.doesNotMatch(report, /sk-label-secret|sk-error-secret|sk-stage-secret/);
 });
