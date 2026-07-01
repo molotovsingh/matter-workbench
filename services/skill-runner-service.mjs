@@ -93,18 +93,37 @@ export function createSkillRunnerService({
     }
   }
 
+  async function getReceipt({ runId, slash = "" } = {}) {
+    const job = await jobStatusService.getJob(runId);
+    const key = slash || job.metadata?.skill?.slash || job.slash || "";
+    const { runner } = resolveRunner(key);
+    return deriveNativeSkillRunReceipt({
+      job,
+      slash: normalizeSlash(key),
+      skillId: runner.id || kindFromSlash(key),
+      skillVersion: runner.version || 1,
+    });
+  }
+
   return {
     start,
     execute,
+    getReceipt,
     resolveRunner,
   };
 }
 
 function resultJobPatch(result = {}) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return {};
+  const outputPaths = sanitizeOutputPaths(result.outputPaths);
+  const outputAvailability = sanitizeOutputAvailability(result.outputAvailability);
+  const warnings = sanitizeWarnings(result.warnings);
   return {
     resultState: typeof result.state === "string" ? result.state : undefined,
     summary: summarizeResult(result),
+    ...(Object.keys(outputPaths).length ? { outputPaths } : {}),
+    ...(Object.keys(outputAvailability).length ? { outputAvailability } : {}),
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 
@@ -117,6 +136,32 @@ function summarizeResult(result = {}) {
     if (paths.length) return paths.join(", ");
   }
   return "";
+}
+
+function sanitizeOutputPaths(outputPaths = {}) {
+  if (!outputPaths || typeof outputPaths !== "object" || Array.isArray(outputPaths)) return {};
+  const safe = {};
+  for (const key of ["markdown", "json"]) {
+    if (typeof outputPaths[key] === "string" && outputPaths[key].trim()) safe[key] = outputPaths[key].trim();
+  }
+  return safe;
+}
+
+function sanitizeOutputAvailability(outputAvailability = {}) {
+  if (!outputAvailability || typeof outputAvailability !== "object" || Array.isArray(outputAvailability)) return {};
+  const safe = {};
+  for (const key of ["markdown", "json"]) {
+    const value = typeof outputAvailability[key] === "string" ? outputAvailability[key].trim() : "";
+    if (value) safe[key] = value;
+  }
+  return safe;
+}
+
+function sanitizeWarnings(warnings = []) {
+  return (Array.isArray(warnings) ? warnings : warnings ? [warnings] : [])
+    .filter((warning) => typeof warning === "string" && warning.trim())
+    .map((warning) => warning.trim())
+    .slice(0, 10);
 }
 
 function normalizeSlash(value) {

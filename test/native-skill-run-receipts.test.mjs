@@ -94,3 +94,31 @@ test("native skill receipt treats insufficient record as successful review work"
   });
   assert.equal(receipt.outputFileStatus, "present");
 });
+
+test("native skill receipt redacts secret-looking failure details defensively", () => {
+  const receipt = deriveNativeSkillRunReceipt({
+    slash: "/procedural_posture_diagnosis",
+    skillId: "procedural_posture_diagnosis",
+    job: {
+      id: "job_secret_failure",
+      kind: "posture_diagnosis",
+      status: "failed",
+      errorCode: "provider.invalid_json",
+      errorMessage: "OPENAI_API_KEY=sk-receipt-secret",
+      stages: [
+        {
+          id: "finalizer",
+          status: "failed",
+          failureCode: "provider.invalid_json",
+          failureClass: "provider",
+          errorMessage: "Bearer sk-stage-receipt-secret",
+        },
+      ],
+    },
+    warnings: ["OPENROUTER_API_KEY=sk-warning-receipt-secret"],
+  });
+
+  const serialized = JSON.stringify(receipt);
+  assert.match(serialized, /\[redacted-secret\]/);
+  assert.doesNotMatch(serialized, /sk-receipt-secret|sk-stage-receipt-secret|sk-warning-receipt-secret/);
+});

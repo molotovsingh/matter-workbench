@@ -2,6 +2,7 @@ import {
   CONFIGURABLE_SKILL_RUN_OUTPUT_AVAILABILITY,
   formatConfigurableSkillRunOutputAvailability,
 } from "./configurable-skill-run-receipts.mjs";
+import { redactSensitiveText } from "./secret-redaction.mjs";
 
 export const NATIVE_SKILL_RUN_RECEIPT_SCHEMA_VERSION = "native-skill-run-receipt/v1";
 
@@ -160,7 +161,7 @@ function normalizeWarnings(warnings = []) {
 }
 
 function normalizeText(value, maxLength = 1200) {
-  const text = String(value || "").trim();
+  const text = redactSensitiveText(String(value || "")).trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1)}…`;
 }

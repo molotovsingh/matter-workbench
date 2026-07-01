@@ -244,6 +244,18 @@ export function normalizeJobStatus(job = {}) {
   if (job.finishedAt) normalized.finishedAt = normalizeIso(job.finishedAt) || String(job.finishedAt);
   if (job.resultState) normalized.resultState = sanitizeText(job.resultState, 120);
   if (job.summary) normalized.summary = sanitizeText(job.summary, 500);
+  if (job.outputPaths && typeof job.outputPaths === "object" && !Array.isArray(job.outputPaths)) {
+    const outputPaths = sanitizeOutputPaths(job.outputPaths);
+    if (Object.keys(outputPaths).length) normalized.outputPaths = outputPaths;
+  }
+  if (job.outputAvailability && typeof job.outputAvailability === "object" && !Array.isArray(job.outputAvailability)) {
+    const outputAvailability = sanitizeOutputAvailability(job.outputAvailability);
+    if (Object.keys(outputAvailability).length) normalized.outputAvailability = outputAvailability;
+  }
+  if (job.warnings !== undefined) {
+    const warnings = sanitizeWarnings(job.warnings);
+    if (warnings.length) normalized.warnings = warnings;
+  }
   if (job.errorMessage) normalized.errorMessage = sanitizeText(job.errorMessage, 500);
   if (job.errorCode) normalized.errorCode = safeErrorCode(job.errorCode);
   if (job.failureClass) normalized.failureClass = normalizeFailureClass(job.failureClass);
@@ -306,9 +318,15 @@ function normalizeStore(store = {}) {
 
 function resultMetadata(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return {};
+  const outputPaths = sanitizeOutputPaths(result.outputPaths);
+  const outputAvailability = sanitizeOutputAvailability(result.outputAvailability);
+  const warnings = sanitizeWarnings(result.warnings);
   return {
     resultState: typeof result.state === "string" ? result.state : undefined,
     summary: summarizeResult(result),
+    ...(Object.keys(outputPaths).length ? { outputPaths } : {}),
+    ...(Object.keys(outputAvailability).length ? { outputAvailability } : {}),
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 
@@ -323,6 +341,35 @@ function summarizeResult(result) {
     if (paths.length) return paths.join(", ");
   }
   return "";
+}
+
+function sanitizeOutputPaths(outputPaths = {}) {
+  if (!outputPaths || typeof outputPaths !== "object" || Array.isArray(outputPaths)) return {};
+  const safe = {};
+  for (const key of ["markdown", "json"]) {
+    if (typeof outputPaths[key] === "string" && outputPaths[key].trim()) {
+      safe[key] = sanitizeText(outputPaths[key], 500).trim();
+    }
+  }
+  return safe;
+}
+
+function sanitizeOutputAvailability(outputAvailability = {}) {
+  if (!outputAvailability || typeof outputAvailability !== "object" || Array.isArray(outputAvailability)) return {};
+  const safe = {};
+  for (const key of ["markdown", "json"]) {
+    const value = typeof outputAvailability[key] === "string" ? outputAvailability[key].trim() : "";
+    if (/^[a-z][a-z0-9_]{0,80}$/.test(value)) safe[key] = value;
+  }
+  return safe;
+}
+
+function sanitizeWarnings(warnings = []) {
+  const input = Array.isArray(warnings) ? warnings : warnings ? [warnings] : [];
+  return input
+    .map((warning) => sanitizeText(warning, 800).trim())
+    .filter(Boolean)
+    .slice(0, 10);
 }
 
 function sanitizeMetadata(metadata = {}) {

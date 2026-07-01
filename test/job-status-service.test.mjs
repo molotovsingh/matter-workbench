@@ -45,6 +45,46 @@ test("job status service records a running job and completes it with durable evi
   assert.equal(store.jobs[0].status, "succeeded");
 });
 
+test("job status service persists sanitized output receipt fields", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-output-fields-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:02.000Z",
+    ]),
+    idFactory: () => "job_output_fields",
+  });
+
+  const result = await service.runTrackedJob({
+    kind: "posture_diagnosis",
+    label: "Diagnose Procedural Posture",
+    matterName: "Matter C",
+    operation: async () => ({
+      state: "written",
+      outputPaths: {
+        markdown: "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+        json: "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+        ignored: "sk-ignore-me",
+      },
+      outputAvailability: {
+        markdown: "present",
+        json: "present",
+        ignored: "present",
+      },
+      warnings: ["OPENAI_API_KEY=sk-warning-secret", "Safe warning"],
+    }),
+  });
+
+  assert.deepEqual(result.job.outputPaths, {
+    markdown: "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+    json: "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+  });
+  assert.deepEqual(result.job.outputAvailability, { markdown: "present", json: "present" });
+  assert.deepEqual(result.job.warnings, ["OPENAI_API_KEY=[redacted-secret]", "Safe warning"]);
+  assert.doesNotMatch(JSON.stringify(result.job), /sk-warning-secret|sk-ignore-me/);
+});
+
 test("job status service fails closed and keeps secret-looking details out of the ledger", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-fail-"));
   const service = createJobStatusService({

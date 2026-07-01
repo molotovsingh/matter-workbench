@@ -25,6 +25,7 @@ const DEMO_RUNNER = {
         markdown: "present",
         json: "present",
       },
+      warnings: ["Reviewed with generated-stage caveats"],
     };
   },
 };
@@ -104,8 +105,17 @@ test("skill runner service can start an operation through a fake queued worker",
 
   const executed = await runnerService.execute(queued[0]);
   assert.equal(executed.job.status, "succeeded");
+  assert.deepEqual(executed.job.outputPaths, {
+    markdown: "20_Workshop/Demo.md",
+    json: "20_Workshop/Demo.json",
+  });
   assert.equal(executed.receipt.state, "succeeded");
   assert.equal(executed.receipt.matterName, "Matter B");
+
+  const reconstructed = await runnerService.getReceipt({ runId: "job_queued" });
+  assert.equal(reconstructed.state, "succeeded");
+  assert.equal(reconstructed.outputFileStatus, "present");
+  assert.deepEqual(reconstructed.warnings, ["Reviewed with generated-stage caveats"]);
 });
 
 function fixedClock(values) {

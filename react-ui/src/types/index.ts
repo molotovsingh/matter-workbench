@@ -325,6 +325,9 @@ export interface JobStatus {
   finishedAt?: string;
   resultState?: string;
   summary?: string;
+  outputPaths?: Partial<Record<'markdown' | 'json', string>>;
+  outputAvailability?: Partial<Record<'markdown' | 'json', string>>;
+  warnings?: string[];
   errorMessage?: string;
   errorCode?: string;
   failureClass?: string;
