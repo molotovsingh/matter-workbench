@@ -193,6 +193,7 @@ test("matter story service runs native Story when no configured Story skill exis
   }, null, 2)}\n`);
 
   const calls = [];
+  const stageEvents = [];
   const service = createMatterStoryService({
     matterStore: {
       ensureMatterRoot: () => matterRoot,
@@ -217,6 +218,7 @@ test("matter story service runs native Story when no configured Story skill exis
       library_artifacts: [{ kind: "list_of_dates", path: "10_Library/List of Dates.json", entries: [] }],
       warnings: [],
     },
+    stageRecorder: createRecordingStageRecorder(stageEvents),
   });
   const matterJson = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
   const markdown = await readFile(path.join(matterRoot, "20_Workshop", "The Story.md"), "utf8");
@@ -228,6 +230,68 @@ test("matter story service runs native Story when no configured Story skill exis
   assert.match(markdown, /delayed payment/);
   assert.equal(matterJson.brief_description, "The dispute concerns delayed payment under the supply contract.");
   assert.equal(matterJson.brief_description_source.author, "MW");
+  assert.deepEqual(stageEvents.map((event) => `${event.status}:${event.stage.id}`), [
+    "running:build_packet",
+    "succeeded:build_packet",
+    "running:generate",
+    "succeeded:generate",
+    "running:persist",
+    "succeeded:persist",
+    "running:sync_matter_summary",
+    "succeeded:sync_matter_summary",
+  ]);
+  assert.equal(stageEvents.find((event) => event.status === "succeeded" && event.stage.id === "generate")?.stage.salvageable, false);
+});
+
+test("matter story service attributes native provider failure to generate stage", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "matter-story-native-provider-fail-"));
+  const matterRoot = path.join(tmp, "Native Story Fail Matter");
+  await mkdir(matterRoot, { recursive: true });
+  await writeFile(path.join(matterRoot, "matter.json"), `${JSON.stringify({
+    matter_name: "Native Story Fail Matter",
+    brief_description: "",
+  }, null, 2)}\n`);
+
+  const stageEvents = [];
+  const service = createMatterStoryService({
+    matterStore: {
+      ensureMatterRoot: () => matterRoot,
+      resolveExistingMatter: async (name) => ({ name, matterPath: matterRoot }),
+    },
+    configurableSkillsService: {
+      listSkills: async () => ({ skills: [] }),
+    },
+    nativeRunProvider: async () => {
+      const error = new Error("Unexpected end of JSON input");
+      error.code = "provider.invalid_json";
+      throw error;
+    },
+  });
+
+  await assert.rejects(
+    () => service.runDisputeStory({
+      matterName: "Native Story Fail Matter",
+      overwrite: true,
+      matterContextPacketOverride: {
+        matter: { matter_name: "Native Story Fail Matter" },
+        sources: [],
+        evidence_blocks: [],
+        library_artifacts: [{ kind: "list_of_dates", path: "10_Library/List of Dates.json", entries: [] }],
+        warnings: [],
+      },
+      stageRecorder: createRecordingStageRecorder(stageEvents),
+    }),
+    /Unexpected end of JSON input/,
+  );
+
+  assert.deepEqual(stageEvents.map((event) => `${event.status}:${event.stage.id}`), [
+    "running:build_packet",
+    "succeeded:build_packet",
+    "running:generate",
+    "failed:generate",
+  ]);
+  const failed = stageEvents.find((event) => event.status === "failed");
+  assert.equal(failed.error.code, "provider.invalid_json");
 });
 
 test("matter story service runs the configured story skill and writes blank intake description", async () => {
@@ -271,3 +335,12 @@ test("matter story service runs the configured story skill and writes blank inta
   }]);
   assert.equal(matterJson.brief_description, "The dispute is about unpaid airport advertising invoices.");
 });
+
+function createRecordingStageRecorder(events) {
+  return {
+    startStage: async (stage) => events.push({ status: "running", stage }),
+    succeedStage: async (stage) => events.push({ status: "succeeded", stage }),
+    failStage: async (stage, error) => events.push({ status: "failed", stage, error }),
+    skipStage: async (stage) => events.push({ status: "skipped", stage }),
+  };
+}

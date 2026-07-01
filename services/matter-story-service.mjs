@@ -89,6 +89,7 @@ export function createMatterStoryService({
     matterJsonOverride = null,
     matterJsonWriter = null,
     storyMarkdownReader = null,
+    stageRecorder = null,
   } = {}) {
     const matterRoot = await matterRootForName({ matterName, matterRootOverride });
     const skillRun = await runConfiguredOrNativeStorySkill({
@@ -100,12 +101,16 @@ export function createMatterStoryService({
       matterContextPacketOverride,
       artifactExistsOverride,
       artifactWriter,
+      stageRecorder,
     });
     const artifactPath = skillRun.outputPaths?.markdown || skillRun.artifactPath || DISPUTE_STORY_OUTPUT_RELATIVE;
     const markdown = typeof skillRun.markdown === "string" && skillRun.markdown.trim()
       ? skillRun.markdown
       : await readStoryMarkdownForStory({ matterRoot, artifactPath, storyMarkdownReader });
-    const { update, matterJsonPersistence } = await updateBriefDescriptionForStory({
+    const { update, matterJsonPersistence } = await runRecordedStage(stageRecorder, {
+      id: "sync_matter_summary",
+      label: "Sync Matter Story summary to matter metadata",
+    }, () => updateBriefDescriptionForStory({
       matterRoot,
       markdown,
       artifactPath,
@@ -113,6 +118,11 @@ export function createMatterStoryService({
       matterJsonWriter,
       overwrite,
       now,
+    }), {
+      successPatch: ({ update: summaryUpdate } = {}) => ({
+        summary: summaryUpdate?.state || "matter_summary_checked",
+        salvageable: true,
+      }),
     });
 
     return {
@@ -150,6 +160,7 @@ export function createMatterStoryService({
     matterContextPacketOverride,
     artifactExistsOverride,
     artifactWriter,
+    stageRecorder = null,
   }) {
     if (await hasConfiguredDisputeStorySkill()) {
       const skillRunRequest = {
@@ -172,6 +183,7 @@ export function createMatterStoryService({
       matterContextPacketOverride,
       artifactExistsOverride,
       artifactWriter,
+      stageRecorder,
     });
   }
 
@@ -182,6 +194,7 @@ export function createMatterStoryService({
     matterContextPacketOverride,
     artifactExistsOverride,
     artifactWriter,
+    stageRecorder = null,
   }) {
     const outputPaths = {
       markdown: DISPUTE_STORY_OUTPUT_RELATIVE,
@@ -200,9 +213,17 @@ export function createMatterStoryService({
       };
     }
 
-    const packet = matterContextPacketOverride || await buildNativeStoryMatterContextPacket(matterRoot);
-    const matterContext = summarizeMatterContext(packet);
-    assertMatterStoryHasCaseTimeline(matterContext);
+    const { packet, matterContext } = await runRecordedStage(stageRecorder, {
+      id: "build_packet",
+      label: "Build Matter Story evidence packet",
+    }, async () => {
+      const builtPacket = matterContextPacketOverride || await buildNativeStoryMatterContextPacket(matterRoot);
+      const summarized = summarizeMatterContext(builtPacket);
+      assertMatterStoryHasCaseTimeline(summarized);
+      return { packet: builtPacket, matterContext: summarized };
+    }, {
+      successPatch: () => ({ salvageable: true }),
+    });
     const policy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
     const providerConfig = resolveProviderConfig(policy, { endpoint });
     if (!providerConfig.model) {
@@ -220,11 +241,18 @@ export function createMatterStoryService({
       policyPromptVersion: LEGAL_WORKBENCH_POLICY_PROMPT_VERSION,
     };
     const runId = `matter_story_${randomUUID()}`;
-    const markdown = boundedNativeStoryMarkdown(await provider({
+    const markdown = await runRecordedStage(stageRecorder, {
+      id: "generate",
+      label: "Generate Matter Story",
+      provider: providerConfig.provider,
+      model: providerConfig.model,
+    }, async () => boundedNativeStoryMarkdown(await provider({
       skill: NATIVE_DISPUTE_STORY_SKILL,
       matterContext,
       providerConfig,
-    }));
+    })), {
+      successPatch: () => ({ aiRun, salvageable: false }),
+    });
     const metadata = {
       schema_version: "matter-story-run/v1",
       skill: nativeStoryPublicSkill(),
@@ -234,9 +262,14 @@ export function createMatterStoryService({
       aiRun,
       warnings: Array.isArray(packet.warnings) ? packet.warnings.slice(0, 5) : [],
     };
-    const artifactPersistence = typeof artifactWriter === "function"
-      ? await artifactWriter({ outputPaths, markdown, metadata, runId })
-      : await writeNativeStoryArtifacts({ matterRoot, outputPaths, markdown, metadata, runId });
+    const artifactPersistence = await runRecordedStage(stageRecorder, {
+      id: "persist",
+      label: "Persist Matter Story artifacts",
+    }, async () => (typeof artifactWriter === "function"
+      ? artifactWriter({ outputPaths, markdown, metadata, runId })
+      : writeNativeStoryArtifacts({ matterRoot, outputPaths, markdown, metadata, runId })), {
+      successPatch: () => ({ summary: outputPaths.markdown, salvageable: true }),
+    });
 
     return {
       ...metadata,
@@ -263,6 +296,20 @@ export function createMatterStoryService({
     readDisputeStoryStatus,
     runDisputeStory,
   };
+}
+
+async function runRecordedStage(stageRecorder, stage, operation, { successPatch = null } = {}) {
+  if (!stageRecorder) return operation();
+  await stageRecorder.startStage(stage);
+  try {
+    const result = await operation();
+    const patch = typeof successPatch === "function" ? successPatch(result) : {};
+    await stageRecorder.succeedStage({ ...stage, ...patch });
+    return result;
+  } catch (error) {
+    await stageRecorder.failStage(stage, error);
+    throw error;
+  }
 }
 
 async function buildNativeStoryMatterContextPacket(matterRoot) {

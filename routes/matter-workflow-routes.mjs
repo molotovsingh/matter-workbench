@@ -241,7 +241,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           route: "/api/matter-story",
           label: "The Story",
           matterName: matterNameForBody(matterStore, body),
-          operation: async () => {
+          operation: async ({ job } = {}) => {
+            const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
             if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body);
               assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService });
@@ -263,6 +264,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
                 storyMarkdownReader: typeof runtimeDbStorageService.readFilePreview === "function"
                   ? async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content
                   : null,
+                stageRecorder,
               });
               const { artifactPersistence, matterJsonPersistence, ...responsePayload } = result;
               const persisted = [
@@ -277,6 +279,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
             return matterStoryService.runDisputeStory({
               matterName: body.matterName,
               overwrite: Boolean(body.overwrite),
+              stageRecorder,
             });
           },
         }));
