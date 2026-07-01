@@ -305,6 +305,12 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
   const workflow = sanitizeWorkflowSignalDetails(job.metadata?.workflow);
   const failureClass = sanitizeText(job.failureClass || "", 80).trim();
   const failedStage = sanitizeFailedJobStage(job.stages);
+  const recovery = deriveFailedStageRecovery({
+    stages: job.stages,
+    failedStage,
+    failureCode: failedStage.failureCode || code,
+    failureClass: failedStage.failureClass || failureClass,
+  });
   return {
     source: "job_status",
     fingerprint: stableFingerprint(["job_status", job.id || "", job.matterName || "", kind, title]),
@@ -320,6 +326,7 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
       ...(code ? { errorCode: code } : {}),
       ...(workflow.stage ? { stage: workflow.stage } : {}),
       ...(failedStage.id ? { failedStage: failedStage.id } : {}),
+      ...(recovery.action ? { recoveryAction: recovery.action } : {}),
     },
     details: {
       jobId: sanitizeText(job.id, 120).trim(),
@@ -332,6 +339,9 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
       ...(failedStage.failureCode ? { stageFailureCode: failedStage.failureCode } : {}),
       ...(failedStage.provider ? { stageProvider: failedStage.provider } : {}),
       ...(failedStage.model ? { stageModel: failedStage.model } : {}),
+      ...(recovery.action ? { recoveryAction: recovery.action } : {}),
+      ...(recovery.retryStageId ? { retryStageId: recovery.retryStageId } : {}),
+      ...(recovery.salvageableStages ? { salvageableStages: recovery.salvageableStages } : {}),
       ...(workflow.route ? { route: workflow.route } : {}),
       errorMessage: sanitizeText(job.errorMessage || "Job failed", 300).trim(),
       startedAt: normalizeIso(job.startedAt),
@@ -536,8 +546,11 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "message",
     "metadata",
     "matterRoot",
+    "recoveryAction",
     "requestId",
+    "retryStageId",
     "route",
+    "salvageableStages",
     "stage",
     "stageFailureCode",
     "stageModel",
@@ -597,14 +610,44 @@ function sanitizeFailedJobStage(stages = []) {
   if (!failed || typeof failed !== "object" || Array.isArray(failed)) return {};
   const id = sanitizeText(failed.id, 80).trim();
   const failureCode = sanitizeSignalCode(failed.failureCode || "", "");
+  const failureClass = sanitizeText(failed.failureClass, 80).trim();
   const provider = sanitizeText(failed.provider, 80).trim();
   const model = sanitizeText(failed.model, 160).trim();
   const details = {};
   if (/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(id)) details.id = id;
   if (failureCode) details.failureCode = failureCode;
+  if (["auth", "provider", "storage", "user_action_needed", "unknown"].includes(failureClass)) details.failureClass = failureClass;
   if (/^[a-z0-9_.:/+-]{1,80}$/i.test(provider)) details.provider = provider;
   if (/^[a-z0-9_.:/+-]{1,160}$/i.test(model)) details.model = model;
   return details;
+}
+
+function deriveFailedStageRecovery({ stages = [], failedStage = {}, failureCode = "", failureClass = "" } = {}) {
+  const retryable = isRetryableJobFailure({ code: failureCode, failureClass });
+  const action = retryable && failedStage?.id ? "retry_stage" : retryable ? "retry_run" : failedStage?.id ? "operator_review" : "";
+  const salvageableStageIds = salvageableStageIdsBeforeFailure(stages, failedStage);
+  return {
+    action,
+    ...(action === "retry_stage" && failedStage?.id ? { retryStageId: failedStage.id } : {}),
+    ...(salvageableStageIds.length ? { salvageableStages: salvageableStageIds.join(", ") } : {}),
+  };
+}
+
+function salvageableStageIdsBeforeFailure(stages = [], failedStage = {}) {
+  const ids = [];
+  for (const stage of Array.isArray(stages) ? stages : []) {
+    const id = sanitizeText(stage?.id, 80).trim();
+    if (failedStage?.id && id === failedStage.id) break;
+    if (stage?.status === "succeeded" && stage?.salvageable === true && /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(id)) {
+      ids.push(id);
+    }
+  }
+  return ids.slice(0, 20);
+}
+
+function isRetryableJobFailure({ code = "", failureClass = "" } = {}) {
+  if (/^provider\.(timeout|invalid_json|truncated_output|empty_output|error)$/.test(code)) return true;
+  return failureClass === "provider";
 }
 
 function sanitizeEvidenceList(evidence = [], { telemetryMode = "safe" } = {}) {

@@ -193,7 +193,9 @@ test("private beta signal service captures failed jobs and skill factory health 
       failureClass: "provider",
       errorMessage: "OPENROUTER_API_KEY=sk-failed while reading draft facts",
       stages: [
+        { id: "build_packet", status: "succeeded", salvageable: true },
         { id: "proposer", status: "succeeded", provider: "openai-direct", model: "gpt-5.5", salvageable: true },
+        { id: "critic", status: "succeeded", provider: "openai-direct", model: "o3", salvageable: true },
         { id: "finalizer", status: "failed", failureCode: "provider.invalid_json", failureClass: "provider", provider: "openai-direct", model: "gpt-5.5", errorMessage: "Bearer sk-stage-secret" },
       ],
       metadata: {
@@ -219,6 +221,7 @@ test("private beta signal service captures failed jobs and skill factory health 
   assert.equal(jobs.signals[0].summary.errorCode, "workflow.custom_skill.failed");
   assert.equal(jobs.signals[0].summary.stage, "custom_skill");
   assert.equal(jobs.signals[0].summary.failedStage, "finalizer");
+  assert.equal(jobs.signals[0].summary.recoveryAction, "retry_stage");
   assert.equal(jobs.signals[0].details.errorCode, "workflow.custom_skill.failed");
   assert.equal(jobs.signals[0].details.failureClass, "provider");
   assert.equal(jobs.signals[0].details.stage, "custom_skill");
@@ -226,6 +229,9 @@ test("private beta signal service captures failed jobs and skill factory health 
   assert.equal(jobs.signals[0].details.stageFailureCode, "provider.invalid_json");
   assert.equal(jobs.signals[0].details.stageProvider, "openai-direct");
   assert.equal(jobs.signals[0].details.stageModel, "gpt-5.5");
+  assert.equal(jobs.signals[0].details.recoveryAction, "retry_stage");
+  assert.equal(jobs.signals[0].details.retryStageId, "finalizer");
+  assert.equal(jobs.signals[0].details.salvageableStages, "build_packet, proposer, critic");
   assert.equal(jobs.signals[0].details.route, "/api/matter-story");
   assert.equal(jobs.signals[0].details.errorMessage, "OPENROUTER_API_KEY=[redacted-secret] while reading draft facts");
   assert.equal(jobs.signals[0].details.metadata, undefined);
