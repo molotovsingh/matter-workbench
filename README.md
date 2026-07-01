@@ -150,7 +150,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.112 release marker](docs/releases/v1.0.0-beta.112.md)
+- [v1.0.0-beta.113 release marker](docs/releases/v1.0.0-beta.113.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)
