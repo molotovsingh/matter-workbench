@@ -924,11 +924,60 @@ function sanitizeWorkflowText(value, maxLength = 120) {
 
 function sourceLabelJobProgressReporter(jobStatusService, job) {
   if (!jobStatusService?.updateJob || !job?.id) return null;
+  const stageService = jobStatusService?.updateJobStage ? createSkillStageService({ jobStatusService }) : null;
+  let labelStageStarted = false;
+  let labelStageFinished = false;
   return async (event = {}) => {
     const summary = sourceLabelProgressSummary(event);
     const metadata = { sourceLabelProgress: event };
+    await recordSourceLabelStageProgress({
+      jobStatusService,
+      job,
+      stageService,
+      event,
+      summary,
+      metadata,
+      isStarted: () => labelStageStarted,
+      markStarted: () => { labelStageStarted = true; },
+      isFinished: () => labelStageFinished,
+      markFinished: () => { labelStageFinished = true; },
+    });
     await jobStatusService.updateJob(job.id, { summary, metadata });
   };
+}
+
+async function recordSourceLabelStageProgress({
+  jobStatusService,
+  job,
+  stageService,
+  event = {},
+  summary = "",
+  metadata = {},
+  isStarted,
+  markStarted,
+  isFinished,
+  markFinished,
+} = {}) {
+  if (!stageService || !jobStatusService?.updateJobStage || !job?.id || isFinished?.()) return;
+  const stage = {
+    id: "label_pass",
+    label: "Describe source labels",
+    metadata,
+  };
+  if (!isStarted?.()) {
+    await stageService.startStage(job.id, stage);
+    markStarted?.();
+  }
+  if (event.stage === "source-labels-batch-complete" && event.batchIndex === event.batchCount) {
+    await stageService.succeedStage(job.id, { ...stage, summary, salvageable: true });
+    markFinished?.();
+    return;
+  }
+  await jobStatusService.updateJobStage(job.id, {
+    ...stage,
+    status: "running",
+    summary,
+  });
 }
 
 function sourceLabelProgressSummary(event = {}) {

@@ -133,17 +133,34 @@ test("source labels route exposes running batch progress through job status", as
     await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
 
     const sourceLabels = postJson(baseUrl, "/api/describe-sources", { matterName: "Skill Job Matter" });
-    await providerStarted;
+    let providerReleased = false;
+    const releaseProviderOnce = () => {
+      if (providerReleased) return;
+      providerReleased = true;
+      continueProvider();
+    };
+    try {
+      await providerStarted;
 
-    const jobs = await getJson(baseUrl, "/api/jobs?matter=Skill%20Job%20Matter&kind=source_labels");
-    assert.equal(jobs.jobs.length, 1);
-    assert.equal(jobs.jobs[0].status, "running");
-    assert.match(jobs.jobs[0].summary, /Source Labels batch 1\/1 running/);
-    assert.equal(jobs.jobs[0].metadata.sourceLabelProgress.stage, "source-labels-batch-start");
+      const jobs = await getJson(baseUrl, "/api/jobs?matter=Skill%20Job%20Matter&kind=source_labels");
+      releaseProviderOnce();
+      assert.equal(jobs.jobs.length, 1);
+      assert.equal(jobs.jobs[0].status, "running");
+      assert.match(jobs.jobs[0].summary, /Source Labels batch 1\/1 running/);
+      assert.equal(jobs.jobs[0].metadata.sourceLabelProgress.stage, "source-labels-batch-start");
+      assert.equal(jobs.jobs[0].stages[0].id, "label_pass");
+      assert.equal(jobs.jobs[0].stages[0].status, "running");
+      assert.match(jobs.jobs[0].stages[0].summary, /Source Labels batch 1\/1 running/);
 
-    continueProvider();
-    const result = await sourceLabels;
-    assert.equal(result.job.status, "succeeded");
+      const result = await sourceLabels;
+      assert.equal(result.job.status, "succeeded");
+      assert.equal(result.job.stages[0].id, "label_pass");
+      assert.equal(result.job.stages[0].status, "succeeded");
+      assert.match(result.job.stages[0].summary, /Source Labels batch 1\/1 complete/);
+    } finally {
+      releaseProviderOnce();
+      await sourceLabels.catch(() => {});
+    }
   } finally {
     app.server.close();
   }
