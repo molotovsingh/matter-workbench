@@ -279,6 +279,7 @@ test("source descriptors report batch progress for long source-label jobs", asyn
     ],
   );
   assert.equal(progress[0].sourceCount, 2);
+  assert.equal(progress[1].batchStatus, "completed");
   assert.equal(progress[2].sourceCount, 1);
 });
 

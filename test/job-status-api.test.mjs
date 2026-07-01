@@ -166,6 +166,53 @@ test("source labels route exposes running batch progress through job status", as
   }
 });
 
+test("source labels all-batch failure fails the active label stage", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-source-fail-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Skill Job Matter");
+  await mkdir(appDir, { recursive: true });
+  await writeExtractedTextMatter(matterRoot);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {
+      MATTERS_HOME: mattersHome,
+      SOURCE_DESCRIPTOR_MAX_ATTEMPTS: "1",
+    },
+    host: "127.0.0.1",
+    port: 0,
+    jobStatusPath: path.join(tmp, "job-status-ledger.json"),
+    sourceDescriptorProvider: async () => {
+      const error = new Error("provider returned no usable source labels");
+      error.code = "provider.empty_output";
+      throw error;
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
+
+    const response = await fetch(`${baseUrl}/api/describe-sources`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matterName: "Skill Job Matter" }),
+    });
+    assert.equal(response.ok, false);
+
+    const jobs = await getJson(baseUrl, "/api/jobs?matter=Skill%20Job%20Matter&kind=source_labels");
+    assert.equal(jobs.jobs.length, 1);
+    assert.equal(jobs.jobs[0].status, "failed");
+    assert.equal(jobs.jobs[0].stages[0].id, "label_pass");
+    assert.equal(jobs.jobs[0].stages[0].status, "failed");
+    assert.equal(jobs.jobs[0].stages[0].failureCode, "source_descriptors.all_batches_failed");
+  } finally {
+    app.server.close();
+  }
+});
+
 test("custom skill run route records durable job evidence", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-skill-"));
   const appDir = path.join(tmp, "app");

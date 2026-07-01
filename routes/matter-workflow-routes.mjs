@@ -927,7 +927,17 @@ function sourceLabelJobProgressReporter(jobStatusService, job) {
   const stageService = jobStatusService?.updateJobStage ? createSkillStageService({ jobStatusService }) : null;
   let labelStageStarted = false;
   let labelStageFinished = false;
+  let completedBatchCount = 0;
+  let successfulBatchCount = 0;
   return async (event = {}) => {
+    if (event.stage === "source-labels-batch-complete") {
+      completedBatchCount += 1;
+      const descriptors = Number.isInteger(event.descriptors) ? event.descriptors : 0;
+      const batchStatus = typeof event.batchStatus === "string" ? event.batchStatus.trim() : "";
+      if (batchStatus ? batchStatus !== "failed" : (descriptors > 0 || event.needsReview !== true)) {
+        successfulBatchCount += 1;
+      }
+    }
     const summary = sourceLabelProgressSummary(event);
     const metadata = { sourceLabelProgress: event };
     await recordSourceLabelStageProgress({
@@ -937,6 +947,7 @@ function sourceLabelJobProgressReporter(jobStatusService, job) {
       event,
       summary,
       metadata,
+      canFinishSuccessfully: () => completedBatchCount > 0 && successfulBatchCount > 0,
       isStarted: () => labelStageStarted,
       markStarted: () => { labelStageStarted = true; },
       isFinished: () => labelStageFinished,
@@ -953,6 +964,7 @@ async function recordSourceLabelStageProgress({
   event = {},
   summary = "",
   metadata = {},
+  canFinishSuccessfully,
   isStarted,
   markStarted,
   isFinished,
@@ -968,7 +980,7 @@ async function recordSourceLabelStageProgress({
     await stageService.startStage(job.id, stage);
     markStarted?.();
   }
-  if (event.stage === "source-labels-batch-complete" && event.batchIndex === event.batchCount) {
+  if (event.stage === "source-labels-batch-complete" && event.batchIndex === event.batchCount && canFinishSuccessfully?.()) {
     await stageService.succeedStage(job.id, { ...stage, summary, salvageable: true });
     markFinished?.();
     return;

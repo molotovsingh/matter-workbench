@@ -113,6 +113,9 @@ export async function buildSourceDescriptorsFromRecords(options = {}) {
       sourceCount: batch.length,
       descriptors: batchResult.descriptors.length,
       needsReview: batchResult.reviewMessages.length > 0,
+      batchStatus: batchResult.providerResponse?.status || "",
+      errorCode: batchResult.providerResponse?.error?.code || "",
+      warningCount: Array.isArray(batchResult.providerResponse?.warnings) ? batchResult.providerResponse.warnings.length : 0,
     });
     providerResponses.push(batchResult.providerResponse);
     descriptors.push(...batchResult.descriptors);
