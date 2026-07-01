@@ -319,16 +319,25 @@ test("job status service marks abandoned running jobs failed when listed", async
     staleRunningJobMs: 60_000,
     now: fixedClock([
       "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:30.000Z",
       "2026-06-07T12:02:00.000Z",
       "2026-06-07T12:02:01.000Z",
     ]),
     idFactory: () => "job_stale",
   });
 
-  await service.createJob({
+  const job = await service.createJob({
     kind: "source_labels",
     label: "Label Sources",
     matterName: "State v Rajesh Mehra",
+  });
+  await service.updateJobStage(job.id, {
+    id: "label_pass",
+    status: "running",
+    label: "Source labels batch",
+    startedAt: "2026-06-07T12:00:30.000Z",
+    provider: "openai-direct",
+    model: "gpt-5.5",
   });
 
   const listed = await service.listJobs({ matterName: "State v Rajesh Mehra" });
@@ -338,6 +347,19 @@ test("job status service marks abandoned running jobs failed when listed", async
   assert.equal(listed.jobs[0].errorCode, "job.stale_running");
   assert.equal(listed.jobs[0].failureClass, "unknown");
   assert.equal(listed.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");
+  assert.deepEqual(listed.jobs[0].stages, [{
+    id: "label_pass",
+    status: "failed",
+    label: "Source labels batch",
+    startedAt: "2026-06-07T12:00:30.000Z",
+    finishedAt: "2026-06-07T12:02:00.000Z",
+    durationMs: 90000,
+    provider: "openai-direct",
+    model: "gpt-5.5",
+    failureCode: "job.stale_running",
+    failureClass: "unknown",
+    errorMessage: "Stale running job marked failed after 60 seconds without progress.",
+  }]);
 
   const listedAgain = await service.listJobs({ matterName: "State v Rajesh Mehra" });
   assert.equal(listedAgain.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");

@@ -200,12 +200,20 @@ export function createJobStatusService({
         const lastSeenAt = Date.parse(job.updatedAt || job.startedAt || "");
         if (!Number.isFinite(lastSeenAt)) continue;
         if (currentTime.getTime() - lastSeenAt <= staleAfterMs) continue;
+        const message = sanitizeText(`Stale running job marked failed after ${Math.round(staleAfterMs / 1000)} seconds without progress.`);
         job.status = "failed";
         job.finishedAt = currentIso;
         job.updatedAt = currentIso;
-        job.errorMessage = sanitizeText(`Stale running job marked failed after ${Math.round(staleAfterMs / 1000)} seconds without progress.`);
+        job.errorMessage = message;
         job.errorCode = "job.stale_running";
         job.failureClass = "unknown";
+        if (Array.isArray(job.stages)) {
+          job.stages = job.stages.map((stage) => finalizeStaleRunningStage(stage, {
+            currentTime,
+            currentIso,
+            message,
+          }));
+        }
       }
     });
   }
@@ -262,6 +270,24 @@ export function normalizeJobStatus(job = {}) {
   if (Array.isArray(job.stages)) normalized.stages = normalizeJobStages(job.stages);
   if (job.metadata && typeof job.metadata === "object") normalized.metadata = sanitizeMetadata(job.metadata);
   return normalized;
+}
+
+function finalizeStaleRunningStage(stage = {}, { currentTime, currentIso, message } = {}) {
+  if (!stage || stage.status !== "running") return stage;
+  const next = {
+    ...stage,
+    status: "failed",
+    finishedAt: currentIso,
+    failureCode: "job.stale_running",
+    failureClass: "unknown",
+    errorMessage: message,
+  };
+  const started = Date.parse(stage.startedAt || "");
+  const finished = currentTime instanceof Date ? currentTime.getTime() : Date.parse(currentIso || "");
+  if (Number.isFinite(started) && Number.isFinite(finished) && finished >= started) {
+    next.durationMs = finished - started;
+  }
+  return normalizeJobStage(next) || stage;
 }
 
 function normalizeJobStages(stages = []) {
