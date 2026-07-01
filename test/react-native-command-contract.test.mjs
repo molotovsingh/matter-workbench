@@ -55,3 +55,17 @@ test("React app shell runs The Story directly instead of hiding it behind prepar
   assert.match(appSource, /api\.runMatterStory\(\{ matterName, overwrite: true \}\)/);
   assert.match(appSource, /20_Workshop\/The Story\.md/);
 });
+
+test("React app shell runs procedural posture diagnosis as a native skill", async () => {
+  const appSource = await readFile(reactAppPath, "utf8");
+  const commandsSource = await readFile(nativeCommandsPath, "utf8");
+
+  assert.match(commandsSource, /command: ['"]\/procedural_posture_diagnosis['"]/);
+  assert.match(commandsSource, /label: ['"]Diagnose procedural posture['"]/);
+  assert.match(appSource, /runProceduralPostureDiagnosisFromCommand/);
+  assert.match(appSource, /nativeResolution\.command === ['"]\/procedural_posture_diagnosis['"]/);
+  assert.match(appSource, /api\.getProceduralPostureDiagnosis\(matterName\)/);
+  assert.match(appSource, /window\.confirm\(/);
+  assert.match(appSource, /api\.runProceduralPostureDiagnosis\(\{ matterName, overwrite \}\)/);
+  assert.match(appSource, /20_Workshop\/Case Analysis\/Filing and Procedural Posture Diagnosis\.md/);
+});

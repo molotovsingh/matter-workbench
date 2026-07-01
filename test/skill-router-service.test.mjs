@@ -25,7 +25,7 @@ test("skill registry lists current slash skills", async () => {
   assert.equal(registry.schema_version, "skill-registry/v1");
   assert.deepEqual(
     registry.skills.map((skill) => skill.slash),
-    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/doctor"],
+    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
   );
   assert.equal(registry.skills.find((skill) => skill.slash === "/create_listofdates").category, "Analyze");
 });
@@ -39,7 +39,7 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
       assert.match(payload.userRequest, /timeline|chronology/i);
       assert.deepEqual(
         payload.registry.skills.map((skill) => skill.slash),
-        ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/doctor"],
+        ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
       );
       assert.ok(payload.registry.skills.some((skill) => skill.slash === "/create_listofdates"));
       return {

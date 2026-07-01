@@ -23,6 +23,7 @@ test("skill registry reads all built-in skill stubs", async () => {
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
   const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
   const matterStory = registry.skills.find((skill) => skill.slash === "/the_story");
+  const proceduralPosture = registry.skills.find((skill) => skill.slash === "/procedural_posture_diagnosis");
   assert.equal(prepareMatter.category, "Prepare");
   assert.equal(prepareMatter.product_surface, "readiness");
   assert.equal(prepareMatter.paid_provider_call, true);
@@ -68,6 +69,20 @@ test("skill registry reads all built-in skill stubs", async () => {
     "20_Workshop/The Story.md",
     "20_Workshop/The Story.json",
     "matter.json.brief_description",
+  ]);
+  assert.equal(proceduralPosture.category, "Analyze");
+  assert.equal(proceduralPosture.product_surface, "case_analysis");
+  assert.notEqual(proceduralPosture.configurable, true);
+  assert.equal(proceduralPosture.display.action, "Diagnose procedural posture");
+  assert.equal(proceduralPosture.display.artifact, "Filing and Procedural Posture Diagnosis");
+  assert.equal(proceduralPosture.paid_provider_call, true);
+  assert.equal(proceduralPosture.rerun_guarded, true);
+  assert.equal(proceduralPosture.source_backed, "required");
+  assert.deepEqual(proceduralPosture.upstream, ["/create_listofdates", "/the_story"]);
+  assert.deepEqual(proceduralPosture.outputs, [
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+    "20_Workshop/Case Analysis/Case Analysis Q&A.md",
   ]);
 });
 

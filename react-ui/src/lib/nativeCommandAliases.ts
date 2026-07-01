@@ -19,6 +19,10 @@ export const NATIVE_COMMAND_ALIASES = [
   ['the story', '/the_story'],
   ['matter story', '/the_story'],
   ['write matter story', '/the_story'],
+  ['procedural posture', '/procedural_posture_diagnosis'],
+  ['diagnose procedural posture', '/procedural_posture_diagnosis'],
+  ['filing and procedural posture', '/procedural_posture_diagnosis'],
+  ['posture diagnosis', '/procedural_posture_diagnosis'],
   ['doctor', '/doctor'],
   ['check matter health', '/doctor'],
 ] as const;

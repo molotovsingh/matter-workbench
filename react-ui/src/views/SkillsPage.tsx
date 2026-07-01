@@ -727,6 +727,7 @@ function builtinWorkflowTitle(skill: Skill): string {
   if (slash === '/context_search') return 'Find in matter';
   if (slash === '/create_listofdates') return 'Build Case Timeline';
   if (slash === '/the_story') return 'Draft Matter Story';
+  if (slash === '/procedural_posture_diagnosis') return 'Diagnose procedural posture';
   if (slash === '/doctor') return 'Check readiness';
   return skill.display?.action || skill.title;
 }
@@ -742,6 +743,7 @@ function builtinWorkflowActionLabel(skill: Skill): string {
   if (slash === '/matter-init') return 'Set up matter';
   if (slash === '/extract') return 'Read documents';
   if (slash === '/the_story') return 'Draft story';
+  if (slash === '/procedural_posture_diagnosis') return 'Run diagnosis';
   return skill.display?.action || 'Run workflow';
 }
 
@@ -756,6 +758,7 @@ function builtinWorkflowPurpose(skill: Skill): string {
   if (slash === '/matter-init') return 'Create or refresh the matter setup files.';
   if (slash === '/extract') return 'Read supported source files so later workflows can use them.';
   if (slash === '/the_story') return 'Write a matter story from the current chronology and matter context.';
+  if (slash === '/procedural_posture_diagnosis') return 'Create a provisional Case Analysis diagnosis from current Case Timeline, Matter Story, and source record.';
   return skill.purpose || 'Run a managed Matter Workbench workflow.';
 }
 

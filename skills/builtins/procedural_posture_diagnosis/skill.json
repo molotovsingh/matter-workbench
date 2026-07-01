@@ -1,0 +1,42 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "procedural_posture_diagnosis",
+  "slash": "/procedural_posture_diagnosis",
+  "title": "Filing and Procedural Posture Diagnosis",
+  "display": {
+    "action": "Diagnose procedural posture",
+    "artifact": "Filing and Procedural Posture Diagnosis",
+    "running": "Diagnosing procedural posture",
+    "complete": "Procedural posture diagnosis ready",
+    "pill": "Uses AI"
+  },
+  "category": "Analyze",
+  "product_surface": "case_analysis",
+  "purpose": "Create a provisional MW-owned Case Analysis artifact about filing forum, procedural posture, likely legal routes, next best actions, and lawyer-confirmation questions from the current Case Timeline and Matter Story.",
+  "mode": "AI",
+  "matter_required": true,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "required",
+  "legal_setting_scope": "general",
+  "markdown_first": true,
+  "inputs": [
+    "10_Library/List of Dates.md",
+    "10_Library/List of Dates.json",
+    "20_Workshop/The Story.md",
+    "10_Library/Source Index.json"
+  ],
+  "outputs": [
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+    "20_Workshop/Case Analysis/Case Analysis Q&A.md"
+  ],
+  "upstream": [
+    "/create_listofdates",
+    "/the_story"
+  ],
+  "downstream": [],
+  "default_lane": "20_Workshop",
+  "runner_key": "/procedural_posture_diagnosis",
+  "version": 1
+}

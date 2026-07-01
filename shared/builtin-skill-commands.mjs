@@ -7,6 +7,7 @@ export const BUILTIN_SKILL_COMMANDS = Object.freeze([
   "/context_search",
   "/create_listofdates",
   "/the_story",
+  "/procedural_posture_diagnosis",
   "/doctor",
 ]);
 
@@ -14,6 +15,7 @@ export const PROVIDER_BACKED_BUILTIN_SKILL_COMMANDS = Object.freeze([
   "/describe_sources",
   "/create_listofdates",
   "/the_story",
+  "/procedural_posture_diagnosis",
 ]);
 
 export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
@@ -50,6 +52,10 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
     description: "Write the Matter Story from the current Case Timeline. Paid AI actions ask first.",
   },
   {
+    command: "/procedural_posture_diagnosis",
+    description: "Create the provisional Filing and Procedural Posture Diagnosis. Paid AI actions ask first.",
+  },
+  {
     command: "/doctor",
     description: "Check known matter workspace issues.",
   },
@@ -76,6 +82,10 @@ export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
   ["the story", "/the_story"],
   ["matter story", "/the_story"],
   ["write matter story", "/the_story"],
+  ["procedural posture", "/procedural_posture_diagnosis"],
+  ["diagnose procedural posture", "/procedural_posture_diagnosis"],
+  ["filing and procedural posture", "/procedural_posture_diagnosis"],
+  ["posture diagnosis", "/procedural_posture_diagnosis"],
   ["doctor", "/doctor"],
   ["check matter health", "/doctor"],
 ]);

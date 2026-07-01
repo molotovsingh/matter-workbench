@@ -523,6 +523,77 @@ function AppShell() {
     }
   }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace, state.activeMatter?.name]);
 
+  const runProceduralPostureDiagnosisFromCommand = useCallback(async (
+    matterNameInput?: string | null,
+    { manageCommandRunning = true }: { manageCommandRunning?: boolean } = {},
+  ) => {
+    const matterName = String(matterNameInput || state.activeMatter?.name || '').trim();
+    if (!matterName) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before diagnosing procedural posture.' });
+      return;
+    }
+
+    if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Diagnosing filing and procedural posture…' });
+    appendTerminal([`[posture] diagnosing filing and procedural posture for "${matterName}"`]);
+
+    try {
+      const current = await api.getProceduralPostureDiagnosis(matterName);
+      if (activeMatterNameRef.current !== matterName) return;
+
+      const hasExistingDiagnosis = Boolean(current.markdownPresent || current.jsonPresent);
+      let overwrite = false;
+      if (hasExistingDiagnosis) {
+        const ok = typeof window !== 'undefined' && window.confirm(
+          'Replace the existing provisional procedural posture diagnosis? This may use paid Assistant capacity and the new output still requires lawyer review.',
+        );
+        if (!ok) {
+          dispatch({ type: 'SET_COMMAND_COPY', payload: 'Existing procedural posture diagnosis kept. No rerun started.' });
+          appendTerminal([`[posture] skipped: existing diagnosis kept for "${matterName}"`]);
+          return;
+        }
+        overwrite = true;
+        dispatch({ type: 'SET_COMMAND_COPY', payload: 'Replacing filing and procedural posture diagnosis…' });
+      }
+
+      const result = await api.runProceduralPostureDiagnosis({ matterName, overwrite });
+      if (activeMatterNameRef.current !== matterName) return;
+      if (result.state === 'requires_overwrite') {
+        dispatch({ type: 'SET_COMMAND_COPY', payload: 'Existing procedural posture diagnosis kept. Confirm replacement before rerunning this guarded analysis.' });
+        appendTerminal([`[posture] skipped: existing diagnosis requires confirmation for "${matterName}"`]);
+        return;
+      }
+
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after procedural posture diagnosis',
+      });
+      if (activeMatterNameRef.current !== matterName) return;
+
+      const diagnosisPath = result.artifactPath || '20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md';
+      try {
+        const preview = await loadTextFilePreview(diagnosisPath, (filePath) => api.getFile(filePath, matterName));
+        if (activeMatterNameRef.current !== matterName) return;
+        dispatch({ type: 'SET_ACTIVE_FILE', payload: diagnosisPath });
+        dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(diagnosisPath) });
+        dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
+        dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+      } catch {
+        if (activeMatterNameRef.current !== matterName) return;
+      }
+
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Procedural posture diagnosis is ready for lawyer review.' });
+      appendTerminal([`[posture] ready: ${diagnosisPath}`]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
+      const message = getErrorMessage(e);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `Procedural posture diagnosis could not be created: ${message}` });
+      appendTerminal([`[posture] failed: ${message}`]);
+    } finally {
+      if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace, state.activeMatter?.name]);
+
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
     if (lower === '/whats_new' || lower === '/whatsnew' || lower === 'whats new' || lower === "what's new") {
@@ -557,6 +628,10 @@ function AppShell() {
     if (nativeResolution) {
       if (nativeResolution.command === '/the_story') {
         await runMatterStoryFromCommand(state.activeMatter?.name ?? null);
+        return;
+      }
+      if (nativeResolution.command === '/procedural_posture_diagnosis') {
+        await runProceduralPostureDiagnosisFromCommand(state.activeMatter?.name ?? null);
         return;
       }
       const commandLabel = cleanCommandLabel(nativeResolution.command);
@@ -594,6 +669,10 @@ function AppShell() {
             await runMatterStoryFromCommand(matterName, { manageCommandRunning: false });
             return;
           }
+          if (matchedResolution.command === '/procedural_posture_diagnosis') {
+            await runProceduralPostureDiagnosisFromCommand(matterName, { manageCommandRunning: false });
+            return;
+          }
           setActiveView(matchedResolution.view);
           dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(matchedResolution.command) });
         } else if (result.matched_skill_card?.configurable) {
@@ -625,7 +704,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, researchMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand]);
+  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, researchMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand, runProceduralPostureDiagnosisFromCommand]);
 
   function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
     activeMatterNameRef.current = name;
@@ -661,6 +740,10 @@ function AppShell() {
         appendTerminal([`[skills] continuing ${pendingSkillsAction.label} for "${name}"`]);
         if (nativeResolution?.command === '/the_story') {
           void runMatterStoryFromCommand(name);
+          return;
+        }
+        if (nativeResolution?.command === '/procedural_posture_diagnosis') {
+          void runProceduralPostureDiagnosisFromCommand(name);
           return;
         }
         if (nativeResolution) {

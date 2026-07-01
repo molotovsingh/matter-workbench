@@ -92,6 +92,16 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     overviewPlacement: 'primary',
   },
   {
+    command: '/procedural_posture_diagnosis',
+    label: 'Diagnose procedural posture',
+    description: 'Create a provisional Filing and Procedural Posture Diagnosis',
+    view: 'home',
+    pill: 'Uses AI',
+    showInSidebar: true,
+    showInCommandPanel: true,
+    overviewPlacement: 'secondary',
+  },
+  {
     command: '/doctor',
     label: 'Check matter health',
     description: 'Run local diagnostics',
