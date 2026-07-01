@@ -12,6 +12,7 @@ export const NATIVE_SKILL_RUN_RECEIPT_STATES = Object.freeze({
   FAILED: "failed",
   CANCELLED: "cancelled",
   INSUFFICIENT_RECORD: "insufficient_record",
+  REQUIRES_OVERWRITE: "requires_overwrite",
   OUTPUT_MISSING: "output_missing",
   UNKNOWN: "unknown",
 });
@@ -55,6 +56,9 @@ function deriveReceiptState({ job, input, outputPaths, outputAvailability }) {
   if (explicitState === NATIVE_SKILL_RUN_RECEIPT_STATES.INSUFFICIENT_RECORD) {
     return NATIVE_SKILL_RUN_RECEIPT_STATES.INSUFFICIENT_RECORD;
   }
+  if (explicitState === NATIVE_SKILL_RUN_RECEIPT_STATES.REQUIRES_OVERWRITE) {
+    return NATIVE_SKILL_RUN_RECEIPT_STATES.REQUIRES_OVERWRITE;
+  }
   if (job.status === "running") return NATIVE_SKILL_RUN_RECEIPT_STATES.RUNNING;
   if (job.status === "failed") return NATIVE_SKILL_RUN_RECEIPT_STATES.FAILED;
   if (job.status === "cancelled") return NATIVE_SKILL_RUN_RECEIPT_STATES.CANCELLED;
@@ -97,6 +101,9 @@ function deriveRecovery({ receiptState, failure, failedStage }) {
   }
   if (receiptState === NATIVE_SKILL_RUN_RECEIPT_STATES.INSUFFICIENT_RECORD) {
     return { action: "review_questions", reason: "insufficient_record" };
+  }
+  if (receiptState === NATIVE_SKILL_RUN_RECEIPT_STATES.REQUIRES_OVERWRITE) {
+    return { action: "approve_overwrite", reason: "output_exists" };
   }
   if (!failure) return { action: "none", reason: "terminal_without_failure" };
   if (failure.retryable && failedStage?.id) {

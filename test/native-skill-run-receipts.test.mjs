@@ -95,6 +95,33 @@ test("native skill receipt treats insufficient record as successful review work"
   assert.equal(receipt.outputFileStatus, "present");
 });
 
+test("native skill receipt treats overwrite-required runs as recoverable operator decisions", () => {
+  const receipt = deriveNativeSkillRunReceipt({
+    slash: "/the_story",
+    skillId: "builtin_the_story",
+    state: "requires_overwrite",
+    job: {
+      id: "job_story_overwrite",
+      kind: "custom_skill",
+      status: "succeeded",
+      resultState: "requires_overwrite",
+      matterName: "Existing Story Matter",
+    },
+    outputPaths: {
+      markdown: "20_Workshop/The Story.md",
+      json: "20_Workshop/The Story.json",
+    },
+  });
+
+  assert.equal(receipt.state, "requires_overwrite");
+  assert.equal(receipt.status, "succeeded");
+  assert.equal(receipt.failure, undefined);
+  assert.deepEqual(receipt.recovery, {
+    action: "approve_overwrite",
+    reason: "output_exists",
+  });
+});
+
 test("native skill receipt redacts secret-looking failure details defensively", () => {
   const receipt = deriveNativeSkillRunReceipt({
     slash: "/procedural_posture_diagnosis",
