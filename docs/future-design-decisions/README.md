@@ -7,7 +7,7 @@ This folder holds parked product decisions, SME requirement capture, current loc
 
 The purpose of this ledger is to keep future work reviewable without letting product-discovery notes become scattered implementation authority. When a rule appears in multiple notes, implementation should promote it into one canonical contract before more code depends on it.
 
-This README tracks the 41 decision documents in this folder. The README itself is the ledger, not a separate product decision.
+This README tracks the 42 decision documents in this folder. The README itself is the ledger, not a separate product decision.
 
 ## Status Meanings
 
@@ -50,6 +50,7 @@ This README tracks the 41 decision documents in this folder. The README itself i
 | [Court-Facing Drafts Workbench](court-facing-drafts-workbench.md) | SME requirement capture / post-Beta-3 planning note | High | Drafting module planning resumes, a first filing family is selected, or matrix discovery begins | Do not code yet. Choose one MVP filing family, run preset matrix discovery from reliable sources, then define the template registry row, required-section schema, review checklist, and Ready to Send artifact plan. Keep real-time matrix discovery parked far future. |
 | [Case Analysis, Procedural Posture Diagnosis, and MW List of Dates](case-analysis-posture-diagnosis-and-lod.md) | SME requirement capture | High | Case Analysis, posture diagnosis, MW List of Dates, or chronology naming work resumes | Focus first on Filing and Procedural Posture Diagnosis plus a persistent Case Analysis Q&A. Treat current neutral chronology as future Case Timeline; keep MW LoD skill-first until real outputs validate the workflow. |
 | [Case Analysis Posture Diagnosis Implementation Plan](case-analysis-posture-diagnosis-implementation-plan.md) | Implementation plan draft | High | Before creating the posture-diagnosis worktree or changing code | Review and accept/revise the plan. Then implement in a sibling worktree, starting with presentation-only Case Timeline rename and ending with provisional posture confirmation. |
+| [Preparation Planner V2 and Procedural Diagnosis Robustness](preparation-planner-v2-and-diagnosis-robustness.md) | Review draft / implementation plan | High | Preparation flow, rerun policy, Matter Profile discovery, Add Files semantics, or procedural diagnosis robustness work resumes | Implement a read-only Planner V2 projection first, then split Core Preparation from Case Analysis, add diagnosis preflight/retry-only behavior, and introduce Matter Profile suggestions with reasoned overrides. |
 | [Matter Story Lifecycle](matter-story-lifecycle.md) | Current local contract / first Story lifecycle slice landed | High | Matter Overview, Prepare Matter, List of Dates finalization, or Story output behavior changes | Keep The Story downstream of current List of Dates, show `Author: MW`, preserve original intake note, and refresh MW story after List of Dates changes without treating it as lawyer-final work. |
 | [Document Index / Source Inventory](native-skill-document-index-source-inventory.md) | SME requirement capture | High | Source Labels / Document Index work resumes | Resolve SME questions, then turn accepted requirements into source-record schema and review workflow contract. |
 | [Chronology / List of Dates](native-skill-chronology-list-of-dates.md) | SME requirement capture started | High | List of Dates family, court-facing mode, or drafting handoff work resumes | Confirm output shape and court-facing export boundaries; align implementation with canonical source identity and staleness contracts. |
@@ -95,7 +96,8 @@ The repetition across these notes is expected product-discovery residue, not a f
 2. Centralize repeated contracts before expanding implementation.
 3. Keep the hosted beta architecture intact until implementation begins; split it only when there is a concrete hosted first-slice plan.
 4. Promote a small lawyer-facing terminology/presentation slice for beta polish without touching engines or storage contracts.
-5. Turn the native skill library strategy into an execution planning table.
+5. For preparation-flow work, start with [Preparation Planner V2 and Procedural Diagnosis Robustness](preparation-planner-v2-and-diagnosis-robustness.md): read-only planner projection, Core Preparation vs Case Analysis containment, and diagnosis retry/preflight before broader rerun automation.
+6. Turn the native skill library strategy into an execution planning table.
 
 ## Maintenance Rules
 
