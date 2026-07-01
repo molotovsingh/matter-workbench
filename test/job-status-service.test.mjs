@@ -34,6 +34,7 @@ test("job status service records a running job and completes it with durable evi
   assert.equal(result.job.matterName, "Atlas Construction vs Diptishree");
   assert.equal(result.job.startedAt, "2026-06-07T12:00:00.000Z");
   assert.equal(result.job.finishedAt, "2026-06-07T12:00:01.000Z");
+  assert.equal(result.job.durationMs, 1000);
   assert.equal(existsSync(jobsPath), true);
 
   const listed = await service.listJobs({ matterName: "Atlas Construction vs Diptishree" });
@@ -347,6 +348,7 @@ test("job status service marks abandoned running jobs failed when listed", async
   assert.equal(listed.jobs[0].errorCode, "job.stale_running");
   assert.equal(listed.jobs[0].failureClass, "unknown");
   assert.equal(listed.jobs[0].finishedAt, "2026-06-07T12:02:00.000Z");
+  assert.equal(listed.jobs[0].durationMs, 120000);
   assert.deepEqual(listed.jobs[0].stages, [{
     id: "label_pass",
     status: "failed",

@@ -323,6 +323,7 @@ export interface JobStatus {
   startedAt: string;
   updatedAt?: string;
   finishedAt?: string;
+  durationMs?: number;
   resultState?: string;
   summary?: string;
   outputPaths?: Partial<Record<'markdown' | 'json', string>>;

@@ -250,6 +250,8 @@ export function normalizeJobStatus(job = {}) {
     normalized.user = sanitizeUser(job.user);
   }
   if (job.finishedAt) normalized.finishedAt = normalizeIso(job.finishedAt) || String(job.finishedAt);
+  const durationMs = normalizeJobDurationMs({ ...job, startedAt: normalized.startedAt, finishedAt: normalized.finishedAt });
+  if (durationMs !== null) normalized.durationMs = durationMs;
   if (job.resultState) normalized.resultState = sanitizeText(job.resultState, 120);
   if (job.summary) normalized.summary = sanitizeText(job.summary, 500);
   if (job.outputPaths && typeof job.outputPaths === "object" && !Array.isArray(job.outputPaths)) {
@@ -300,6 +302,16 @@ function normalizeJobStages(stages = []) {
     normalized.push(next);
   }
   return normalized.slice(0, 50);
+}
+
+function normalizeJobDurationMs(job = {}) {
+  const explicit = normalizeNonNegativeInteger(job.durationMs);
+  if (explicit !== null) return explicit;
+  if (!job.startedAt || !job.finishedAt) return null;
+  const started = Date.parse(job.startedAt);
+  const finished = Date.parse(job.finishedAt);
+  if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started) return null;
+  return Math.trunc(finished - started);
 }
 
 function normalizeJobStage(stage = {}) {

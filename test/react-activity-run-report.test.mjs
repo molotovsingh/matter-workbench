@@ -126,6 +126,7 @@ test("React job status report includes stage audit trail without secrets", async
     matterName: "Taori vs Roma Builder",
     startedAt: "2026-07-01T01:31:35.000Z",
     finishedAt: "2026-07-01T01:35:11.000Z",
+    durationMs: 216000,
     errorCode: "provider.invalid_json",
     failureClass: "provider",
     errorMessage: "Unexpected end OPENAI_API_KEY=sk-error-secret",
@@ -139,6 +140,7 @@ test("React job status report includes stage audit trail without secrets", async
   const report = formatJobStatusReport(job);
   assert.match(report, /^# Job Status Report/);
   assert.match(report, /Job id: job_123/);
+  assert.match(report, /Duration: 3m 36s/);
   assert.match(report, /Failure code: provider\.invalid_json/);
   assert.match(report, /Posture proposer \(proposer\): succeeded · 1m 30s · openai-direct · gpt-5\.5 · salvageable/);
   assert.match(report, /Posture finalizer \(finalizer\): failed · 46s · failure: provider\.invalid_json/);

@@ -12,6 +12,7 @@ export function formatJobStatusReport(job: JobStatus): string {
     `- Matter: ${packetValue(job.matterName)}`,
     `- Started: ${packetValue(job.startedAt)}`,
     `- Finished: ${packetValue(job.finishedAt)}`,
+    `- Duration: ${job.durationMs !== undefined ? packetValue(formatDuration(job.durationMs)) : 'Not specified'}`,
     `- Result state: ${packetValue(job.resultState)}`,
     `- Failure class: ${packetValue(job.failureClass)}`,
     `- Failure code: ${packetValue(job.errorCode)}`,
