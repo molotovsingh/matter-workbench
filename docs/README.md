@@ -30,7 +30,7 @@ equally authoritative.
 | Private VM service pack | [Private VM Service Pack](../deployment/private-vm/README.md) |
 | Release policy | [Matter Workbench Release Policy](release-policy.md) |
 | Branch/worktree hygiene | [Repo Branch And Worktree Hygiene](repo-branch-hygiene.md) |
-| Current release notes | [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) |
+| Current release notes | [v1.0.0-beta.112](releases/v1.0.0-beta.112.md) |
 | Official private beta release | [Official Private Beta Release](private-beta-official-release.md) |
 | Release codenames | [Release Codenames](release-codenames.md) |
 | Private beta bug evidence | [Private Beta Bug Evidence Pack](private-beta-bug-evidence-pack.md) |
@@ -179,7 +179,8 @@ implementation plan.
 | [v1.0.0-beta.108](releases/v1.0.0-beta.108.md) | Preparation observer hook refactor. **Codename:** Watch Loom. |
 | [v1.0.0-beta.109](releases/v1.0.0-beta.109.md) | Procedural posture legal-route output redesign. **Codename:** Route Compass. |
 | [v1.0.0-beta.110](releases/v1.0.0-beta.110.md) | Procedural posture contract refactor. **Codename:** Route Loom. |
-| [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) | Current preparation-stage reason visibility and Case Timeline dependency-state refactor. **Codename:** Reason Beacon. |
+| [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) | Preparation-stage reason visibility and Case Timeline dependency-state refactor. **Codename:** Reason Beacon. |
+| [v1.0.0-beta.112](releases/v1.0.0-beta.112.md) | Current stale preparation-chain unblock. **Codename:** Flow Latch. |
 | [Maintenance Checkpoints](releases/maintenance-checkpoints.md) | Tier 2 behavior-preserving deployment log. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
