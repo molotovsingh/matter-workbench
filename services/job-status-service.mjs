@@ -137,13 +137,34 @@ export function createJobStatusService({
   async function failJob(jobId, error, patch = {}) {
     const message = errorToMessage(error);
     const errorCode = safeErrorCode(patch.errorCode || error?.code) || safeErrorCode(patch.fallbackErrorCode);
-    return updateJob(jobId, {
-      ...patch,
-      status: "failed",
-      finishedAt: isoNow(now),
-      errorMessage: message,
-      ...(errorCode ? { errorCode } : {}),
-      failureClass: patch.failureClass || classifyFailure(message, { errorCode }),
+    const failureClass = patch.failureClass || classifyFailure(message, { errorCode });
+    return writeMutatedStore(async (store) => {
+      const index = store.jobs.findIndex((job) => job.id === jobId);
+      if (index < 0) throw new Error(`Job not found: ${jobId}`);
+      const current = store.jobs[index];
+      const finishedAt = isoNow(now);
+      const currentStages = Array.isArray(current.stages) ? current.stages : [];
+      const stages = Array.isArray(patch.stages)
+        ? patch.stages
+        : currentStages.map((stage) => finalizeFailedRunningStage(stage, {
+          finishedAt,
+          message,
+          errorCode,
+          failureClass,
+        }));
+      const updated = normalizeJobStatus({
+        ...current,
+        ...patch,
+        ...(stages.length ? { stages } : {}),
+        metadata: sanitizeMetadata(mergeMetadata(current.metadata || {}, patch.metadata || {})),
+        status: "failed",
+        finishedAt,
+        errorMessage: message,
+        ...(errorCode ? { errorCode } : {}),
+        failureClass,
+      });
+      store.jobs[index] = updated;
+      return updated;
     });
   }
 
@@ -275,19 +296,38 @@ export function normalizeJobStatus(job = {}) {
 }
 
 function finalizeStaleRunningStage(stage = {}, { currentTime, currentIso, message } = {}) {
+  return finalizeRunningStageFailure(stage, {
+    finishedAt: currentIso,
+    finishedTime: currentTime instanceof Date ? currentTime.getTime() : Date.parse(currentIso || ""),
+    message,
+    errorCode: "job.stale_running",
+    failureClass: "unknown",
+  });
+}
+
+function finalizeFailedRunningStage(stage = {}, { finishedAt, message, errorCode = "", failureClass = "unknown" } = {}) {
+  return finalizeRunningStageFailure(stage, {
+    finishedAt,
+    finishedTime: Date.parse(finishedAt || ""),
+    message,
+    errorCode: errorCode || "job.failed",
+    failureClass,
+  });
+}
+
+function finalizeRunningStageFailure(stage = {}, { finishedAt, finishedTime, message, errorCode, failureClass } = {}) {
   if (!stage || stage.status !== "running") return stage;
   const next = {
     ...stage,
     status: "failed",
-    finishedAt: currentIso,
-    failureCode: "job.stale_running",
-    failureClass: "unknown",
+    finishedAt,
+    failureCode: errorCode,
+    failureClass,
     errorMessage: message,
   };
   const started = Date.parse(stage.startedAt || "");
-  const finished = currentTime instanceof Date ? currentTime.getTime() : Date.parse(currentIso || "");
-  if (Number.isFinite(started) && Number.isFinite(finished) && finished >= started) {
-    next.durationMs = finished - started;
+  if (Number.isFinite(started) && Number.isFinite(finishedTime) && finishedTime >= started) {
+    next.durationMs = finishedTime - started;
   }
   return normalizeJobStage(next) || stage;
 }

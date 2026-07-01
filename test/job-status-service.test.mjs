@@ -276,6 +276,53 @@ test("job status service records auditable stage progress", async () => {
   ]);
 });
 
+test("job status service fails active running stages with the job", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-fail-stage-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:05.000Z",
+      "2026-06-07T12:00:45.000Z",
+    ]),
+    idFactory: () => "job_stage_fail",
+  });
+
+  const job = await service.createJob({
+    kind: "posture_diagnosis",
+    label: "Diagnose Procedural Posture",
+    matterName: "Taori vs Roma Builder",
+  });
+  await service.updateJobStage(job.id, {
+    id: "finalizer",
+    status: "running",
+    label: "Posture finalizer",
+    startedAt: "2026-06-07T12:00:05.000Z",
+    provider: "openai-direct",
+    model: "gpt-5.5",
+  });
+  const error = new Error("Unexpected end of JSON input");
+  error.code = "provider.invalid_json";
+  const failed = await service.failJob(job.id, error);
+
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.errorCode, "provider.invalid_json");
+  assert.equal(failed.failureClass, "provider");
+  assert.deepEqual(failed.stages, [{
+    id: "finalizer",
+    status: "failed",
+    label: "Posture finalizer",
+    startedAt: "2026-06-07T12:00:05.000Z",
+    finishedAt: "2026-06-07T12:00:45.000Z",
+    durationMs: 40000,
+    provider: "openai-direct",
+    model: "gpt-5.5",
+    failureCode: "provider.invalid_json",
+    failureClass: "provider",
+    errorMessage: "Unexpected end of JSON input",
+  }]);
+});
+
 test("job status service lists newest jobs with matter, kind, and status filters", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-list-"));
   const service = createJobStatusService({
