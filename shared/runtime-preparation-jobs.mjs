@@ -16,6 +16,11 @@ export const RUNTIME_PREPARATION_QUEUEABLE_ACTIONS = new Set([
   PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN,
 ]);
 
+const RUNTIME_PREPARATION_OVERWRITE_STALE_SLASHES = new Set([
+  "/the_story",
+  "/procedural_posture_diagnosis",
+]);
+
 export function normalizeRuntimePreparationJobKind(value) {
   const text = String(value || "").trim().toLowerCase();
   return /^[a-z][a-z0-9_]*$/.test(text) ? text : "";
@@ -35,6 +40,24 @@ export function firstQueueableRuntimePreparationStage(plan = {}) {
 export function firstBlockedRuntimePreparationStage(plan = {}) {
   const stages = Array.isArray(plan?.stages) ? plan.stages : [];
   return stages.find((stage) => stage?.action === PREPARATION_STAGE_ACTIONS.BLOCKED) || null;
+}
+
+export function runtimePreparationStageShouldOverwrite(stage = {}) {
+  const slash = String(stage?.slash || "").trim();
+  const state = String(stage?.state || "").trim().toLowerCase();
+  return RUNTIME_PREPARATION_OVERWRITE_STALE_SLASHES.has(slash) && state === "stale";
+}
+
+export function runtimePreparationJobMetadataForStage(stage = {}) {
+  const preparationStage = {};
+  for (const key of ["id", "slash", "state", "action"]) {
+    const value = String(stage?.[key] || "").trim();
+    if (value) preparationStage[key] = value;
+  }
+  return {
+    ...(Object.keys(preparationStage).length ? { preparationStage } : {}),
+    forceOverwrite: runtimePreparationStageShouldOverwrite(stage),
+  };
 }
 
 export function safeRuntimePreparationChainId(value) {

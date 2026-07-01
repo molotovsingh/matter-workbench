@@ -487,8 +487,8 @@ export async function createWorkbenchServer(options = {}) {
     runtimeDbStorageService,
     env,
     stageHandlers: {
-      matter_story: ({ matter }) => runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter }),
-      posture_diagnosis: ({ matter }) => runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter }),
+      matter_story: ({ matter, job }) => runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter, job }),
+      posture_diagnosis: ({ matter, job }) => runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter, job }),
     },
   });
   services.runtimeDbProcessingWorkerService = runtimeDbProcessingWorkerService;
@@ -724,7 +724,7 @@ function matterHealthFromPlanAndAttention({ matterName, plan = {}, attention = {
   };
 }
 
-async function runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter } = {}) {
+async function runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matterStoryService, matter, job = {} } = {}) {
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterContextPacket", "matter story context");
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterJson", "matter story matter metadata");
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "artifactExists", "matter story artifact existence");
@@ -734,7 +734,7 @@ async function runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matte
   const matterJson = await runtimeDbStorageService.readMatterJson(matter);
   const result = await matterStoryService.runDisputeStory({
     matterName: matter.name,
-    overwrite: false,
+    overwrite: runtimeDbWorkerShouldOverwrite(job),
     matterRootOverride: `postgres:${matter.name}`,
     matterRecordOverride: matter,
     matterContextPacketOverride: packet,
@@ -752,7 +752,7 @@ async function runRuntimeDbMatterStoryWorkerJob({ runtimeDbStorageService, matte
   return { state: result?.state || "succeeded", operationResult: result };
 }
 
-async function runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter } = {}) {
+async function runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, proceduralPostureDiagnosisService, matter, job = {} } = {}) {
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterContextPacket", "procedural posture context");
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "readMatterJson", "procedural posture matter metadata");
   assertRuntimeDbWorkerMethod(runtimeDbStorageService, "artifactExists", "procedural posture artifact existence");
@@ -763,7 +763,7 @@ async function runRuntimeDbPostureDiagnosisWorkerJob({ runtimeDbStorageService, 
   const matterJson = await runtimeDbStorageService.readMatterJson(matter);
   const result = await proceduralPostureDiagnosisService.runDiagnosis({
     matterName: matter.name,
-    overwrite: false,
+    overwrite: runtimeDbWorkerShouldOverwrite(job),
     matterRootOverride: `postgres:${matter.name}`,
     matterRecordOverride: matter,
     matterContextPacketOverride: packet,
@@ -780,6 +780,11 @@ function assertRuntimeDbWorkerMethod(service, method, label) {
   if (typeof service?.[method] !== "function") {
     throw new Error(`Runtime DB worker cannot run ${label}; missing ${method}.`);
   }
+}
+
+function runtimeDbWorkerShouldOverwrite(job = {}) {
+  return job?.progress?.forceOverwrite === true
+    || String(job?.progress?.preparationStage?.state || "").trim().toLowerCase() === "stale";
 }
 
 async function safeReadTelemetryLedger(reader) {

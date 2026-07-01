@@ -406,7 +406,7 @@ function PipelineCard({
         </div>
       </div>
       <p className="muted">
-        {preparationSummaryText(preparationRun)}
+        {preparationSummaryText(preparationRun, stages)}
       </p>
       <details className="force-preparation-rebuild">
         <summary>Advanced: force full rebuild</summary>
@@ -767,9 +767,10 @@ function preparationHeadlineLabel({
   error: string | null;
 }): string {
   if (preparationRun?.state === 'running') return 'Preparing…';
-  if (preparationRun?.state === 'blocked') return 'Blocked';
   if (error) return 'Needs review';
-  if (!stages) return 'Checking';
+  if (!stages) return preparationRun?.state === 'blocked' ? 'Blocked' : 'Checking';
+  if (stages.some(stageIsRunnable)) return stages.some(stageNeedsUpdate) ? 'Needs update' : 'Needs preparation';
+  if (preparationRun?.state === 'blocked') return 'Blocked';
   if (stages.some(stageIsBlocked)) return 'Blocked';
   if (stages.length > 0 && stages.every(stageIsCurrent)) return 'Prepared';
   return 'Needs review';
@@ -791,9 +792,12 @@ function preparationHeadlineClass({
   return 'warning';
 }
 
-function preparationSummaryText(preparationRun: PreparationRunStatus | null): string {
+function preparationSummaryText(preparationRun: PreparationRunStatus | null, stages: PreparationStage[] | null = null): string {
   if (preparationRun?.state === 'running') {
     return preparationRun.message || 'Automatic preparation is running. You can keep reviewing the matter while it works.';
+  }
+  if (stages?.some(stageIsRunnable)) {
+    return 'Run needed preparation to refresh the next required step; Matter Workbench will continue through downstream steps as they unblock.';
   }
   if (preparationRun?.state === 'blocked') {
     return 'Automatic preparation stopped. Review the advisory before drafting.';
@@ -802,6 +806,16 @@ function preparationSummaryText(preparationRun: PreparationRunStatus | null): st
     return 'Automatic preparation has run for this matter. Review the advisory before drafting.';
   }
   return 'Review the preparation status and advisory before drafting.';
+}
+
+function stageIsRunnable(stage: PreparationStage): boolean {
+  return stage.action === PREPARATION_STAGE_ACTIONS.RUN
+    || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN;
+}
+
+function stageNeedsUpdate(stage: PreparationStage): boolean {
+  return stage.state === 'stale'
+    || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE;
 }
 
 function stageIsCurrent(stage: PreparationStage): boolean {

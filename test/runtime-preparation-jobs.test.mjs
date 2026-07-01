@@ -7,6 +7,8 @@ import {
   RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES,
   RUNTIME_PREPARATION_JOB_KIND_BY_SLASH,
   runtimePreparationJobKindForStage,
+  runtimePreparationJobMetadataForStage,
+  runtimePreparationStageShouldOverwrite,
   safeRuntimePreparationChainId,
 } from "../shared/runtime-preparation-jobs.mjs";
 
@@ -35,6 +37,27 @@ test("runtime preparation helpers select queueable and blocked stages", () => {
   assert.equal(firstQueueableRuntimePreparationStage(plan)?.id, "create-listofdates");
   assert.equal(firstBlockedRuntimePreparationStage(plan)?.id, "dispute-story");
   assert.deepEqual([...RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES], ["queued", "running", "retrying"]);
+});
+
+test("runtime preparation stale Story and posture jobs request overwrite", () => {
+  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/the_story", state: "stale" }), true);
+  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/procedural_posture_diagnosis", state: "stale" }), true);
+  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/the_story", state: "ready_to_run" }), false);
+  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/create_listofdates", state: "stale" }), false);
+  assert.deepEqual(runtimePreparationJobMetadataForStage({
+    id: "dispute-story",
+    slash: "/the_story",
+    state: "stale",
+    action: "confirm_paid_run",
+  }), {
+    preparationStage: {
+      id: "dispute-story",
+      slash: "/the_story",
+      state: "stale",
+      action: "confirm_paid_run",
+    },
+    forceOverwrite: true,
+  });
 });
 
 test("runtime preparation chain ids are safe and bounded", () => {

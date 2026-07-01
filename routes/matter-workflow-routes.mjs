@@ -16,6 +16,7 @@ import {
   firstQueueableRuntimePreparationStage,
   RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES,
   runtimePreparationJobKindForStage,
+  runtimePreparationJobMetadataForStage,
   safeRuntimePreparationChainId,
 } from "../shared/runtime-preparation-jobs.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
@@ -678,6 +679,7 @@ async function enqueueRuntimeDbNeededPreparation({
       stage: kind,
       requestedMode: mode,
       reason: sanitizeWorkflowText(body.reason || "Run needed preparation", 240),
+      ...runtimePreparationJobMetadataForStage(stage),
     },
   });
   return {

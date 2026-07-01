@@ -4,6 +4,7 @@ import {
   firstQueueableRuntimePreparationStage,
   normalizeRuntimePreparationJobKind,
   runtimePreparationJobKindForStage,
+  runtimePreparationJobMetadataForStage,
   safeRuntimePreparationChainId,
 } from "../shared/runtime-preparation-jobs.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
@@ -152,6 +153,7 @@ export function createRuntimeDbProcessingWorkerService({
         queuedAfterKind: completedKind,
         queuedAfterJobId: job.id,
         uploadSessionId: stringOrEmpty(job.progress?.uploadSessionId),
+        ...runtimePreparationJobMetadataForStage(nextStage),
       },
     });
   }

@@ -510,6 +510,64 @@ test("runtime DB prepare-matter run queues the next needed backend stage", async
   }
 });
 
+test("runtime DB prepare-matter run marks stale Story jobs for overwrite", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-stale-story");
+  const matter = runtimeDbMatter({ name: "Stale Story Matter", matterName: "Stale Story Matter" });
+  let queuedMetadata = null;
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbProcessingWorkerService: {
+      enabled: () => true,
+      supportedKinds: () => ["matter_story"],
+      start() {},
+      stop() {},
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readPrepareMatterPlan() {
+        return {
+          schema_version: "prepare-matter-plan/v1",
+          matterName: matter.name,
+          stages: [
+            { id: "matter-init", slash: "/matter-init", label: "Set Up Matter", state: "current", action: "skip_current" },
+            { id: "dispute-story", slash: "/the_story", label: "Write dispute story", state: "stale", action: "confirm_paid_run" },
+            { id: "procedural-posture-diagnosis", slash: "/procedural_posture_diagnosis", label: "Diagnose procedural posture", state: "blocked", action: "blocked", reason: "Refresh the Matter Story first." },
+          ],
+          nextStep: { state: "stale", label: "Write dispute story", stage: "dispute-story", slash: "/the_story" },
+        };
+      },
+      async listProcessingJobs() {
+        return { schema_version: "runtime-db-processing-jobs/v1", jobs: [] };
+      },
+      async enqueueProcessingJob(input) {
+        queuedMetadata = input.metadata;
+        return { id: "job-story", kind: input.kind, status: "queued", matterName: matter.name, metadata: input.metadata };
+      },
+    },
+  });
+
+  try {
+    const result = await postJson(server.baseUrl, "/api/prepare-matter/run", {
+      matterName: matter.name,
+      mode: "needed",
+      runId: "prep_stale_story",
+    });
+
+    assert.equal(result.state, "queued");
+    assert.equal(result.kind, "matter_story");
+    assert.equal(queuedMetadata.forceOverwrite, true);
+    assert.deepEqual(queuedMetadata.preparationStage, {
+      id: "dispute-story",
+      slash: "/the_story",
+      state: "stale",
+      action: "confirm_paid_run",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB prepare-matter run returns an active stage job instead of duplicating it", async () => {
   const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-existing");
   const matter = runtimeDbMatter({ name: "Queued Matter", matterName: "Queued Matter" });
